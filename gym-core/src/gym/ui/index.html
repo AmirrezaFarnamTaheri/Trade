@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradingGYM</title>
+<style>
+  :root { color-scheme: dark; --bg:#0f1216; --panel:#171b21; --line:#262c35; --fg:#e6e9ee; --mut:#8a94a3;
+          --ok:#2fbf71; --bad:#e5484d; --warn:#f5a524; --acc:#4c8dff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, "Segoe UI", Vazirmatn, Tahoma, sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; gap:16px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  nav button, .btn { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit; }
+  nav button[aria-current="page"] { border-color:var(--acc); color:var(--acc); }
+  .btn:focus-visible, nav button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  .demo { background:var(--warn); color:#000; font-weight:700; padding:2px 8px; border-radius:4px; letter-spacing:.1em; }
+  .spacer { flex:1; }
+  .clock { color:var(--mut); font-variant-numeric: tabular-nums; }
+  main { padding:16px; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:start; vertical-align:top; }
+  th { color:var(--mut); font-weight:500; font-size:12px; }
+  td.num { font-variant-numeric: tabular-nums; direction:ltr; text-align:end; }
+  .mut { color:var(--mut); font-size:12px; }
+  .flag { display:inline-block; font-size:11px; padding:1px 6px; margin:1px; border-radius:3px; background:#3a2a10; color:var(--warn); }
+  .act { display:flex; gap:6px; flex-direction:column; min-width:260px; }
+  .pill { padding:3px 8px; border-radius:4px; font-size:12px; border-inline-start:4px solid; background:#11161c; }
+  .pill.ok { border-color:var(--ok); } .pill.bad { border-color:var(--bad); } .pill.warn { border-color:var(--warn); }
+  .BUY { color:var(--ok); } .SELL { color:var(--bad); }
+  section { margin-bottom:24px; } h2 { font-size:15px; margin:0 0 10px; }
+  textarea { width:100%; min-height:120px; background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; font:12px ui-monospace, monospace; direction:ltr; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; align-items:center; }
+  pre { white-space:pre-wrap; direction:ltr; text-align:left; font-size:12px; color:var(--mut); margin:0; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1 data-t="title"></h1>
+  <span class="demo" id="demo" hidden>DEMO</span>
+  <nav class="row" role="tablist">
+    <button data-view="markets" data-t="markets" aria-current="page"></button>
+    <button data-view="rules" data-t="rules"></button>
+    <button data-view="health" data-t="health"></button>
+  </nav>
+  <span class="spacer"></span>
+  <span class="clock" id="clock" aria-live="off"></span>
+  <button class="btn" id="lang" aria-label="Language">فارسی</button>
+</header>
+<main>
+  <section id="v-markets">
+    <table aria-describedby="mk-note">
+      <thead><tr><th data-t="pair"></th><th data-t="bid"></th><th data-t="ask"></th><th data-t="spread"></th>
+        <th data-t="last"></th><th data-t="quality"></th><th data-t="when"></th></tr></thead>
+      <tbody id="mk"></tbody>
+    </table>
+    <p class="mut" id="mk-note" data-t="mknote"></p>
+  </section>
+
+  <section id="v-rules" hidden>
+    <h2 data-t="rulesTitle"></h2>
+    <div class="row">
+      <button class="btn" id="preset" data-t="preset"></button>
+      <a class="btn" href="/api/rules/export" download data-t="export"></a>
+      <span class="mut" id="rv"></span>
+    </div>
+    <table><thead><tr><th data-t="rule"></th><th data-t="cls"></th><th data-t="state"></th><th data-t="blocksNow"></th><th data-t="window"></th><th></th></tr></thead>
+      <tbody id="rl"></tbody></table>
+    <h2 style="margin-top:20px" data-t="importTitle"></h2>
+    <label for="imp" class="mut" data-t="importHelp"></label>
+    <textarea id="imp" spellcheck="false"></textarea>
+    <div class="row"><button class="btn" id="doimp" data-t="import"></button><span id="impres" class="mut" role="status"></span></div>
+  </section>
+
+  <section id="v-health" hidden>
+    <h2 data-t="health"></h2>
+    <pre id="hl"></pre>
+  </section>
+</main>
+<script>
+const TOKEN = "__GYM_TOKEN__";
+const T = {
+  en: { title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health",
+        pair:"Pair", bid:"Bid", ask:"Ask", spread:"Spread (bps)", last:"Last trade", quality:"Quality", when:"When can I act?",
+        mknote:"Prices are the venue's own quote units (IRT legs in toman, unit epoch 1). Observatory mode: no orders are ever sent.",
+        entry:"Buy (entry)", exit:"Sell (exit)", open:"open", blocked:"blocked", until:"until", opens:"opens", closes:"closes", noChange:"no change in 7 days",
+        by:"by", source:"source", confirmed:"confirmed", quotaLeft:"quota left", age:"age",
+        rulesTitle:"Venue rules", preset:"Load preset: USDT/IRT night closure, October 2026", export:"Export JSON",
+        rule:"Rule", cls:"Class / status / source", state:"State", blocksNow:"What does this block right now?", window:"Effective",
+        disable:"Disable", importTitle:"Import rules", importHelp:"Paste a JSON list of rules. Malformed rules are quarantined, never applied.",
+        import:"Import", nothing:"nothing", version:"rule set version", stale:"stale", none:"—" },
+  fa: { title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت",
+        pair:"جفت‌ارز", bid:"خرید", ask:"فروش", spread:"اسپرد (bps)", last:"آخرین معامله", quality:"کیفیت", when:"کی می‌توانم معامله کنم؟",
+        mknote:"قیمت‌ها به واحد خود صرافی است (بازارهای ریالی به تومان). حالت رصد: هیچ سفارشی ارسال نمی‌شود.",
+        entry:"خرید (ورود)", exit:"فروش (خروج)", open:"باز", blocked:"مسدود", until:"تا", opens:"باز می‌شود", closes:"بسته می‌شود", noChange:"بدون تغییر تا ۷ روز",
+        by:"توسط", source:"منبع", confirmed:"تأیید", quotaLeft:"سهمیهٔ باقی‌مانده", age:"سن",
+        rulesTitle:"قواعد صرافی", preset:"بارگذاری الگو: تعطیلی شبانهٔ تتر/تومان، اکتبر ۲۰۲۶", export:"خروجی JSON",
+        rule:"قاعده", cls:"رده / وضعیت / منبع", state:"حالت", blocksNow:"الان چه چیزی را مسدود می‌کند؟", window:"بازهٔ اعتبار",
+        disable:"غیرفعال", importTitle:"ورود قواعد", importHelp:"فهرست JSON قواعد را وارد کنید. قواعد نادرست قرنطینه می‌شوند و اعمال نمی‌شوند.",
+        import:"ورود", nothing:"هیچ", version:"نسخهٔ قواعد", stale:"کهنه", none:"—" },
+};
+let lang = localStorage.getItem("lang") || "en", view = "markets";
+const $ = id => document.getElementById(id);
+const t = k => T[lang][k] ?? k;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const digits = s => lang === "fa" ? String(s).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]) : String(s);
+// Exact decimal strings from the API; only group the integer part, never round through float.
+const num = s => { if (s == null) return t("none"); const [i, f] = String(s).split(".");
+  const g = i.replace(/\B(?=(\d{3})+(?!\d))/g, ","); return digits(f ? `${g}.${f.replace(/0+$/, "") || "0"}`.replace(/\.$/, "") : g); };
+const when = iso => iso ? new Intl.DateTimeFormat(lang === "fa" ? "fa-IR" : "en-GB",
+  { timeZone:"Asia/Tehran", weekday:"short", hour:"2-digit", minute:"2-digit", month:"short", day:"numeric" }).format(new Date(iso)) : "";
+const api = (p, o = {}) => fetch(p, { ...o, headers: { "Content-Type":"application/json", "X-Gym-Token": TOKEN } })
+  .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; });
+
+function applyLang() {
+  document.documentElement.lang = lang; document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+  document.querySelectorAll("[data-t]").forEach(e => e.textContent = t(e.dataset.t));
+  $("lang").textContent = lang === "fa" ? "English" : "فارسی"; refresh();
+}
+
+function pill(name, a) {
+  const b = a.blockers[0], nx = a.next_change;
+  const head = `${t(name)}: <b>${a.allowed ? t("open") : t("blocked")}</b>`;
+  const next = nx ? ` · ${a.allowed ? t("closes") : t("opens")} ${esc(when(nx))}` : ` · ${t("noChange")}`;
+  const why = b ? `<div class="mut">${t("by")} ${esc(b.class)} ${esc(b.family)} “${esc(b.name)}” · ${t("source")}: ${esc(b.source)} · ${esc(b.status)}${b.confirmed ? ` · ${t("confirmed")} ${esc(when(b.confirmed))}` : ""}</div>` : "";
+  const quota = a.quota_remaining != null ? `<div class="mut">${t("quotaLeft")}: ${num(a.quota_remaining)} USDT</div>` : "";
+  const warn = a.warnings.map(w => `<div class="mut">⚠ ${esc(w.name)}: ${esc(w.why)}</div>`).join("");
+  return `<div class="pill ${a.allowed ? (a.warnings.length ? "warn" : "ok") : "bad"}">${head}${next}${why}${quota}${warn}</div>`;
+}
+
+async function markets() {
+  const d = await api("/api/markets");
+  $("demo").hidden = !d.demo;
+  $("mk").innerHTML = d.markets.map(m => `<tr>
+    <td><b>${esc(m.names[lang] || m.symbol)}</b><div class="mut">${esc(m.symbol)}</div></td>
+    <td class="num">${num(m.bid)}<div class="mut">${num(m.bid_qty)}</div></td>
+    <td class="num">${num(m.ask)}<div class="mut">${num(m.ask_qty)}</div></td>
+    <td class="num">${num(m.spread_bps)}<div class="mut">${num(m.spread)}</div></td>
+    <td class="num">${m.last_trade ? `<span class="${m.last_trade.aggressor}">${num(m.last_trade.price)}</span><div class="mut">${num(m.last_trade.qty)} · ${esc(when(m.last_trade.ts))}</div>` : t("none")}</td>
+    <td>${m.flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}${m.book_age_s != null ? `<div class="mut">${t("age")} ${digits(m.book_age_s)}s</div>` : ""}</td>
+    <td><div class="act">${pill("entry", m.act.entry)}${pill("exit", m.act.exit)}</div></td></tr>`).join("");
+}
+
+async function rules() {
+  const d = await api("/api/rules");
+  $("rv").textContent = `${t("version")} ${digits(d.version)}`;
+  $("rl").innerHTML = d.rules.map(r => { const b = r.body; return `<tr>
+    <td><b>${esc(b.name || b.id)}</b><div class="mut">${esc(b.id)} · ${esc(b.family)} · ${esc(b.action)}</div><div class="mut">${esc(b.note || "")}</div></td>
+    <td>${esc(b.class)} / ${esc(b.status)} / ${esc(b.source)}</td>
+    <td>${esc(r.state)}</td>
+    <td>${r.blocks_now.length ? r.blocks_now.map(esc).join("<br>") : t("nothing")}</td>
+    <td class="mut">${esc(when(b.effective_from))} → ${b.effective_until ? esc(when(b.effective_until)) : "∞"}</td>
+    <td>${r.state !== "disabled" ? `<button class="btn" data-disable="${esc(b.id)}">${t("disable")}</button>` : ""}</td></tr>`; }).join("")
+    + d.quarantined.map(q => `<tr><td><b>${esc(q.id)}</b></td><td colspan="5" class="SELL">QUARANTINED: ${esc(q.error)}</td></tr>`).join("");
+}
+
+async function health() { $("hl").textContent = JSON.stringify(await api("/api/health"), null, 2); }
+
+async function refresh() {
+  $("clock").textContent = `UTC ${new Date().toISOString().slice(11, 19)} · Tehran ${new Intl.DateTimeFormat("en-GB", { timeZone:"Asia/Tehran", hour:"2-digit", minute:"2-digit", second:"2-digit" }).format(new Date())}`;
+  try { await ({ markets, rules, health })[view](); } catch (e) { console.error(e); }
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  view = b.dataset.view; document.querySelectorAll("nav button").forEach(x => x === b ? x.setAttribute("aria-current", "page") : x.removeAttribute("aria-current"));
+  ["markets", "rules", "health"].forEach(v => $("v-" + v).hidden = v !== view); refresh();
+});
+$("lang").onclick = () => { lang = lang === "en" ? "fa" : "en"; localStorage.setItem("lang", lang); applyLang(); };
+$("rl").onclick = async e => { const id = e.target.dataset.disable; if (id && confirm(`${t("disable")} ${id}?`)) { await api(`/api/rules/${encodeURIComponent(id)}/disable`, { method:"POST" }); rules(); } };
+$("preset").onclick = async () => { await api("/api/presets/usdt-irt-october-2026", { method:"POST" }); rules(); };
+$("doimp").onclick = async () => {
+  try { const r = await api("/api/rules/import", { method:"POST", body: $("imp").value });
+    $("impres").textContent = `${r.imported} imported, ${r.quarantined.length} quarantined`; rules(); }
+  catch (e) { $("impres").textContent = e.message; }
+};
+$("demo").hidden = !__GYM_DEMO__;
+applyLang(); setInterval(refresh, 2000);
+</script>
+</body>
+</html>
