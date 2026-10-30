@@ -31,7 +31,8 @@ def parse_ts(s: str) -> datetime:
 
 
 def iso(t: datetime | None) -> str | None:
-    return None if t is None else t.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    # Fixed width so stored timestamps sort correctly as text.
+    return None if t is None else t.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 @dataclass(frozen=True)

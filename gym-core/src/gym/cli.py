@@ -18,13 +18,66 @@ DEFAULT_WATCH = "USDTTMN,BTCTMN,BTCUSDT,ETHTMN,ETHUSDT"
 DEFAULT_PRESET = "usdt-irt-october-2026"
 
 
-def open_db(args) -> MarketDB:
+def store_root(args) -> Path:
     # Demo data lives in its own directory and never mixes with real observations.
-    root = Path(args.data) / ("demo" if getattr(args, "demo", False) else "live")
-    db = MarketDB(root / "market.db")
+    return Path(args.data) / ("demo" if getattr(args, "demo", False) else "live")
+
+
+def open_db(args, preset_at=None) -> MarketDB:
+    db = MarketDB(store_root(args) / "market.db")
     if not db.rule_events():
-        RuleService(db).preset(DEFAULT_PRESET, now_utc(), actor="first-run")
+        RuleService(db).preset(DEFAULT_PRESET, preset_at or now_utc(), actor="first-run")
     return db
+
+
+def demo_seed(args) -> int:
+    from datetime import timedelta
+
+    from .domain.rules import evaluate
+
+    args.demo = True
+    end = now_utc().replace(second=0, microsecond=0)
+    start = end - timedelta(hours=args.hours)
+    if (store_root(args) / "market.db").exists():
+        print(f"error: {store_root(args)} already exists; move it away to reseed", file=sys.stderr)
+        return 2
+    db = open_db(args, preset_at=start)  # demo: the October rules are known from the start of the synthetic past
+    rules = RuleService(db).load()[1]
+    closed = lambda s, t: not evaluate(rules, InstrumentId.wallex(s), "SELL", "EXIT", t, live=False).allowed  # noqa: E731
+    seg = SegmentWriter(store_root(args) / "raw", db)
+    Collector(db, seg, DEFAULT_WATCH.split(","), demo=True).demo_history(start, end, closed)
+    seg.close()
+    print(f"DEMO history {start:%Y-%m-%d %H:%M} .. {end:%Y-%m-%d %H:%M} UTC written to {store_root(args)}")
+    return 0
+
+
+def paper_cmd(args) -> int:
+    from .domain.sim import CostModel
+    from .services.paper import paper, save, text_report
+
+    if not (store_root(args) / "market.db").exists():
+        print(f"error: no data in {store_root(args)}" + ("; run gymctl demo-seed first" if args.demo else ""), file=sys.stderr)
+        return 2
+    db, sym = open_db(args), args.symbol.upper()
+    span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{sym}",)).fetchone()
+    if not span[0]:
+        print(f"error: no {sym} quotes stored", file=sys.stderr)
+        return 2
+    t0, t1 = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
+    cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if sym.endswith("TMN") else 1000)
+    cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
+    out = paper(db, sym, t0, t1, resolution=args.res, fast=args.fast, slow=args.slow, cash=cash, cost=cost,
+                rules_mode=args.rules, store="demo" if args.demo else "live")
+    path = save(out, store_root(args) / "runs")
+    print(text_report(out))
+    print(f"\nrun record: {path}")
+    return 0
+
+
+def timedelta_ms(ms: int):
+    from datetime import timedelta
+
+    return timedelta(milliseconds=ms)
 
 
 async def serve(args):
@@ -72,8 +125,27 @@ def main(argv=None):
     ck.add_argument("intent", choices=["ENTRY", "EXIT"])
     ck.add_argument("--at")
     ck.add_argument("--used", default="0", help="quota already used today (all channels)")
+    pp = sub.add_parser("paper", help="replay the EMA strategy on stored quotes, with baselines and a cost waterfall")
+    pp.add_argument("symbol")
+    pp.add_argument("--demo", action="store_true")
+    pp.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
+    pp.add_argument("--to", dest="end", help="UTC ISO time with zone (default: last stored quote)")
+    pp.add_argument("--res", default="15min", help="1min | 15min | 1h | 1day")
+    pp.add_argument("--fast", type=int, default=8)
+    pp.add_argument("--slow", type=int, default=21)
+    pp.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
+    pp.add_argument("--fee", default="0.002", help="fee rate per side (default: documentation example 0.2%%)")
+    pp.add_argument("--latency-ms", type=int, default=500)
+    pp.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
+    sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
+    if args.cmd in ("paper", "demo-seed"):
+        try:
+            return paper_cmd(args) if args.cmd == "paper" else demo_seed(args)
+        except (ValueError, OSError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
     if args.cmd == "run":
         try:
             asyncio.run(serve(args))

@@ -6,7 +6,7 @@ import json
 import random
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import aiohttp
@@ -198,26 +198,49 @@ class Collector:
             finally:
                 hk.cancel()
 
-    # --- demo replay: synthetic Wallex-shaped frames through the same ingestion path ---
+    # --- demo: synthetic Wallex-shaped frames through the same ingestion path ---
+    def demo_frames(self, rng: random.Random, st: dict, now: datetime):
+        """USDT legs random-walk with slowly changing drift; TMN legs follow USDT price x USDTTMN with a small premium."""
+        px = st.setdefault("px", {"USDTTMN": Decimal(273500), "BTCUSDT": Decimal("76950"), "ETHUSDT": Decimal("2240")})
+        st["n"] = st.get("n", 0) + 1
+        if st["n"] % 720 == 1:
+            st["mu"] = {s: rng.gauss(0, 0.00001) for s in px}
+        for s in px:
+            px[s] *= 1 + Decimal(rng.gauss(st["mu"][s], 0.0002)).quantize(Decimal("1e-7"))
+        for s, inst in self.insts.items():
+            usd = px.get(inst.base + "USDT")
+            mid = px.get(s) or (usd * px["USDTTMN"] * (1 + Decimal(rng.gauss(0, 0.0003))).quantize(Decimal("1e-7")) if usd else None)
+            if mid is None:
+                continue
+            tick = Decimal(1) if inst.quote == "TMN" else Decimal("0.01")
+            half = (mid * Decimal("0.0007")).quantize(tick)
+            for side, sign in (("buyDepth", -1), ("sellDepth", 1)):
+                lv = [((mid + sign * (half + tick * k * 3)).quantize(tick), Decimal(rng.randint(1, 900)) / 100) for k in range(10)]
+                msg = ",".join(f'{{"price":{p},"quantity":{q},"sum":{p * q}}}' for p, q in lv)
+                yield s, f'{{"push":{{"channel":"orderbook:{s}@{side}","pub":{{"data":{{"message":[{msg}]}}}}}}}}'
+            if rng.random() < 0.4:
+                buy = rng.random() < 0.5
+                p = (mid + (-half if buy else half)).quantize(tick)
+                d = json.dumps({"isBuyOrder": buy, "price": str(p), "quantity": str(Decimal(rng.randint(1, 500)) / 100),
+                                "timestamp": iso(now.replace(microsecond=0))[:19] + "Z"})
+                yield s, f'{{"push":{{"channel":"public:{s}@trade","pub":{{"data":{d}}}}}}}'
+
     async def _demo(self):
-        rng = random.Random(7)
-        px = {"USDTTMN": Decimal(273500), "BTCTMN": Decimal(21040000000), "BTCUSDT": Decimal("76950"),
-              "ETHTMN": Decimal(1000000000), "ETHUSDT": Decimal("3650")}
+        rng, st = random.Random(7), {}
         self.status["connected"] = True
         while True:
-            for s, inst in self.insts.items():
-                tick = Decimal(1) if inst.quote == "TMN" else Decimal("0.01")
-                mid = px.setdefault(s, Decimal(1000)) * (1 + Decimal(rng.gauss(0, 0.0004)).quantize(Decimal("1e-6")))
-                px[s] = mid
-                half = (mid * Decimal("0.0006")).quantize(tick)
-                for side, sign in (("buyDepth", -1), ("sellDepth", 1)):
-                    lv = [((mid + sign * (half + tick * k * 3)).quantize(tick), Decimal(rng.randint(1, 900)) / 100) for k in range(10)]
-                    msg = ",".join(f'{{"price":{p},"quantity":{q},"sum":{p * q}}}' for p, q in lv)
-                    self.handle_frame(f'{{"push":{{"channel":"orderbook:{s}@{side}","pub":{{"data":{{"message":[{msg}]}}}}}}}}', now_utc())
-                if rng.random() < 0.4:
-                    buy = rng.random() < 0.5
-                    p = (mid + (-half if buy else half)).quantize(tick)
-                    d = json.dumps({"isBuyOrder": buy, "price": str(p), "quantity": str(Decimal(rng.randint(1, 500)) / 100),
-                                    "timestamp": iso(now_utc().replace(microsecond=0))})
-                    self.handle_frame(f'{{"push":{{"channel":"public:{s}@trade","pub":{{"data":{d}}}}}}}', now_utc())
+            for _, f in list(self.demo_frames(rng, st, now_utc())):
+                self.handle_frame(f, now_utc())
             await asyncio.sleep(1)
+
+    def demo_history(self, start: datetime, end: datetime, closed, step: timedelta = timedelta(seconds=10)):
+        """Synthetic past for the demo store. A pair the rules close goes silent, as the venue's book does."""
+        rng, st, t = random.Random(11), {}, start
+        self.db.c.execute("begin")
+        while t < end:
+            for s, f in list(self.demo_frames(rng, st, t)):
+                if not closed(s, t):
+                    self.handle_frame(f, t)
+            self.tick(t)
+            t += step
+        self.db.c.execute("commit")
