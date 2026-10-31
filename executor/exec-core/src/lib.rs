@@ -64,3 +64,5 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
 }
 
 pub mod orders;
+
+pub mod authority;

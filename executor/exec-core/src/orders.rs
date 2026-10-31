@@ -10,12 +10,14 @@ pub enum Lifecycle {
     Working,
     Unknown,
     TerminalReported,
+    Denied,   // local gate: no venue request
+    Rejected, // explicit venue refusal, still requires settlement evidence
     Closed,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EconomicEffect { None, Partial, Full, Unverified }
+pub enum EconomicEffect { None, NoneObserved, Partial, Full, Unverified }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Settlement { Unverified, Pending, Verified }
+pub enum Settlement { Unverified, Pending, Anomaly, Verified, Settled }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FailureStage { BeforeFirstByte, AfterFirstByte }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,9 +30,13 @@ pub enum Event {
     CumulativeFilled(u64),
     TerminalReported,
     SettlementVerified,
+    Denied,
+    VenueRejected,
+    SettlementAnomaly,
+    AnomalyReconciled { expected_available_quanta: u64, observed_available_quanta: u64 },
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OrderError { InvalidQuantity, RetryForbidden, IllegalTransition, FillRegression }
+pub enum OrderError { InvalidQuantity, RetryForbidden, IllegalTransition, FillRegression, UnreconciledAnomaly }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Attempt {
     pub requested_quanta: u64,
@@ -39,25 +45,66 @@ pub struct Attempt {
     pub effect: EconomicEffect,
     pub settlement: Settlement,
     pub attempts: u8,
+    anomaly_reconciled: bool,
 }
 impl Attempt {
     pub fn new(requested_quanta: u64) -> Result<Self, OrderError> {
         if requested_quanta == 0 { return Err(OrderError::InvalidQuantity); }
         Ok(Self { requested_quanta, filled_quanta: 0,
             lifecycle: Lifecycle::IntentLogged, effect: EconomicEffect::None,
-            settlement: Settlement::Unverified, attempts: 0 })
+            settlement: Settlement::Unverified, attempts: 0,
+            anomaly_reconciled: false })
     }
+    pub fn lifecycle(&self) -> Lifecycle { self.lifecycle }
+    pub fn effect(&self) -> EconomicEffect { self.effect }
+    pub fn settlement(&self) -> Settlement { self.settlement }
     /// Safe transport-only same-client-ID retry, at most once, before a first
     /// request byte. The caller must still retain the original durable intent.
     pub fn can_retry_same_identity(&self) -> bool {
         self.lifecycle == Lifecycle::NotSent && self.attempts == 1
     }
-    pub fn holds_slot(&self) -> bool { self.lifecycle != Lifecycle::Closed }
+    pub fn holds_slot(&self) -> bool {
+        !matches!(self.lifecycle, Lifecycle::Closed | Lifecycle::Denied)
+    }
     pub fn apply(&mut self, event: Event) -> Result<(), OrderError> {
         use Event::*;
         // Copy-then-commit: invalid transitions never partially alter state.
         let mut next = *self;
         match event {
+            Denied => {
+                if next.lifecycle != Lifecycle::IntentLogged || next.attempts != 0 {
+                    return Err(OrderError::IllegalTransition);
+                }
+                next.lifecycle = Lifecycle::Denied;
+                next.effect = EconomicEffect::NoneObserved;
+            }
+            VenueRejected => {
+                if !matches!(next.lifecycle, Lifecycle::Submitting | Lifecycle::Unknown)
+                    || next.filled_quanta != 0 {
+                    return Err(OrderError::IllegalTransition);
+                }
+                next.lifecycle = Lifecycle::Rejected;
+                next.effect = EconomicEffect::NoneObserved;
+                next.settlement = Settlement::Pending;
+            }
+            SettlementAnomaly => {
+                if matches!(next.lifecycle, Lifecycle::IntentLogged | Lifecycle::NotSent
+                    | Lifecycle::Denied | Lifecycle::Closed) {
+                    return Err(OrderError::IllegalTransition);
+                }
+                next.settlement = Settlement::Anomaly;
+                next.anomaly_reconciled = false;
+            }
+            AnomalyReconciled { expected_available_quanta, observed_available_quanta } => {
+                if next.settlement != Settlement::Anomaly {
+                    return Err(OrderError::IllegalTransition);
+                }
+                if expected_available_quanta != observed_available_quanta {
+                    return Err(OrderError::UnreconciledAnomaly);
+                }
+                next.settlement = Settlement::Pending;
+                next.anomaly_reconciled = true;
+            }
             BeginSend => match next.lifecycle {
                 Lifecycle::IntentLogged if next.attempts == 0 => {
                     next.lifecycle = Lifecycle::Submitting; next.attempts = 1;
@@ -96,7 +143,8 @@ impl Attempt {
                 // Unfiltered/partial/paginated GETs never prove absence.
             }
             CumulativeFilled(quantity) => {
-                if matches!(next.lifecycle, Lifecycle::IntentLogged | Lifecycle::NotSent | Lifecycle::Closed) {
+                if matches!(next.lifecycle, Lifecycle::IntentLogged | Lifecycle::NotSent
+                    | Lifecycle::Denied | Lifecycle::Rejected | Lifecycle::Closed) {
                     return Err(OrderError::IllegalTransition);
                 }
                 if quantity < next.filled_quanta { return Err(OrderError::FillRegression); }
@@ -108,7 +156,9 @@ impl Attempt {
                     } else {
                         EconomicEffect::Partial
                     };
-                    next.settlement = Settlement::Pending;
+                    if next.settlement != Settlement::Anomaly {
+                        next.settlement = Settlement::Pending;
+                    }
                 }
             }
             TerminalReported => match next.lifecycle {
@@ -117,11 +167,17 @@ impl Attempt {
                 _ => return Err(OrderError::IllegalTransition),
             },
             SettlementVerified => {
-                if next.lifecycle != Lifecycle::TerminalReported
-                    || next.effect == EconomicEffect::Unverified {
+                if !matches!(next.lifecycle, Lifecycle::TerminalReported | Lifecycle::Rejected)
+                    || next.effect == EconomicEffect::Unverified
+                    || next.settlement == Settlement::Anomaly
+                {
                     return Err(OrderError::IllegalTransition);
                 }
-                next.settlement = Settlement::Verified;
+                next.settlement = if next.anomaly_reconciled {
+                    Settlement::Settled
+                } else {
+                    Settlement::Verified
+                };
                 next.lifecycle = Lifecycle::Closed;
             }
         }
@@ -170,5 +226,140 @@ impl Slots {
     }
     pub fn exit_allowed(&self, account: &str, instrument: &str, verified_base: bool) -> bool {
         verified_base && !self.active.iter().any(|(a, i, _)| a == account && i == instrument)
+    }
+}
+
+
+// The following exact-quanta book is an offline B2 admission model, NOT
+// the service's persistent spending authority. All balances have explicit
+// accounts, assets and monotonic observation sequences. No float units.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReservationError {
+    InvalidEvidence,
+    InsufficientAvailable,
+    DuplicateIntent,
+    OrderNotFresh,
+    OrderNotSettled,
+    StaleBalance,
+    StillLocked,
+    BalanceMismatch,
+    UnknownIntent,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BalanceSnapshot {
+    pub account: String,
+    pub asset: String,
+    pub available_quanta: u64,
+    pub sequence: u64,
+}
+fn valid_name(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 96 &&
+        value.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b':' | b'.'))
+}
+impl BalanceSnapshot {
+    pub fn new(account: &str, asset: &str, available_quanta: u64, sequence: u64)
+        -> Result<Self, ReservationError>
+    {
+        if !valid_name(account) || !valid_name(asset) || sequence == 0 {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        Ok(Self { account: account.into(), asset: asset.into(), available_quanta, sequence })
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SettlementEvidence {
+    pub account: String,
+    pub asset: String,
+    pub sequence: u64,
+    pub complete: bool,
+    pub locked_quanta: u64,
+    pub spent_quanta: u64,
+    pub available_quanta: u64,
+}
+impl SettlementEvidence {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(account: &str, asset: &str, sequence: u64, complete: bool,
+        locked_quanta: u64, spent_quanta: u64, available_quanta: u64)
+        -> Result<Self, ReservationError>
+    {
+        if !valid_name(account) || !valid_name(asset) || sequence == 0 || !complete {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        Ok(Self {
+            account: account.into(), asset: asset.into(), sequence, complete,
+            locked_quanta, spent_quanta, available_quanta,
+        })
+    }
+}
+#[derive(Clone, Debug)]
+struct LocalReservation {
+    intent: String,
+    account: String,
+    asset: String,
+    quanta: u64,
+    initial_available: u64,
+    snapshot_seq: u64,
+}
+#[derive(Default, Debug)]
+pub struct ReservationBook {
+    entries: Vec<LocalReservation>,
+}
+impl ReservationBook {
+    pub fn reserved(&self, account: &str, asset: &str) -> u64 {
+        self.entries.iter().filter(|e| e.account == account && e.asset == asset)
+            .map(|e| e.quanta).sum()
+    }
+    pub fn reserve(&mut self, intent: &str, account: &str, asset: &str,
+        quanta: u64, snapshot: &BalanceSnapshot, order: &Attempt)
+        -> Result<(), ReservationError>
+    {
+        if !valid_name(intent) || quanta == 0 || snapshot.account != account
+            || snapshot.asset != asset || snapshot.sequence == 0 {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        if self.entries.iter().any(|e| e.intent == intent) {
+            return Err(ReservationError::DuplicateIntent);
+        }
+        if order.lifecycle != Lifecycle::IntentLogged || order.attempts != 0 {
+            return Err(ReservationError::OrderNotFresh);
+        }
+        let after = self.reserved(account, asset)
+            .checked_add(quanta).ok_or(ReservationError::InsufficientAvailable)?;
+        if after > snapshot.available_quanta {
+            return Err(ReservationError::InsufficientAvailable);
+        }
+        self.entries.push(LocalReservation {
+            intent: intent.into(), account: account.into(), asset: asset.into(),
+            quanta, initial_available: snapshot.available_quanta,
+            snapshot_seq: snapshot.sequence,
+        });
+        Ok(())
+    }
+    pub fn release_settled(&mut self, intent: &str, order: &Attempt,
+        evidence: &SettlementEvidence) -> Result<(), ReservationError>
+    {
+        let reservation = self.entries.iter().find(|e| e.intent == intent)
+            .ok_or(ReservationError::UnknownIntent)?;
+        if order.lifecycle != Lifecycle::Closed ||
+            !matches!(order.settlement, Settlement::Settled | Settlement::Verified) {
+            return Err(ReservationError::OrderNotSettled);
+        }
+        if evidence.account != reservation.account || evidence.asset != reservation.asset
+            || !evidence.complete {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        if evidence.sequence <= reservation.snapshot_seq {
+            return Err(ReservationError::StaleBalance);
+        }
+        if evidence.locked_quanta != 0 {
+            return Err(ReservationError::StillLocked);
+        }
+        if evidence.spent_quanta > reservation.quanta ||
+            evidence.available_quanta.checked_add(evidence.spent_quanta)
+                != Some(reservation.initial_available) {
+            return Err(ReservationError::BalanceMismatch);
+        }
+        self.entries.retain(|e| e.intent != intent);
+        Ok(())
     }
 }
