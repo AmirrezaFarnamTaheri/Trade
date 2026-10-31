@@ -117,3 +117,30 @@ def test_backup_bundle_truncation_and_unknown_version_fail_closed(tmp_path):
     bad.write_bytes(unknown)
     with pytest.raises(BackupAuthenticationError):
         restore_backup(bad, tmp_path / "bad.db", passphrase="correct horse battery staple")
+
+
+def test_backup_failure_before_open_never_unlinks_someone_elses_bundle(tmp_path, monkeypatch):
+    import gym.services.encrypted_backup as backup_mod
+
+    source = tmp_path / "exec_ledger.db"
+    bundle = tmp_path / "portable.tgbak"
+    make_ledger(source)
+    sentinel = b"OTHER PROCESS CREATED THIS BUNDLE"
+
+    def failure_during_snapshot(_source, _snapshot):
+        # Reproduce a filesystem race after the early exists() check.
+        bundle.write_bytes(sentinel)
+        raise BackupUnsafe("simulated snapshot failure")
+
+    monkeypatch.setattr(backup_mod, "_snapshot_database", failure_during_snapshot)
+    with pytest.raises(BackupUnsafe, match="simulated"):
+        create_backup(source, bundle, passphrase="correct horse battery staple")
+    assert bundle.read_bytes() == sentinel
+
+
+def test_ci_checks_lock_without_granting_token_write_permissions():
+    ci = (Path(__file__).resolve().parents[2] / ".github/workflows/validate.yml").read_text()
+    assert "update-python-lock:" not in ci
+    assert "contents: write" not in ci
+    assert "uv lock --check" in ci
+    assert "uv sync --locked --group dev" in ci
