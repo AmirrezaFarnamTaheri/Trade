@@ -70,7 +70,14 @@ impl Attempt {
             TransportFailed(stage) => {
                 if next.lifecycle != Lifecycle::Submitting { return Err(OrderError::IllegalTransition); }
                 match stage {
-                    FailureStage::BeforeFirstByte => next.lifecycle = Lifecycle::NotSent,
+                    FailureStage::BeforeFirstByte => {
+                        // Any credible venue-side fill contradicts a proven
+                        // no-byte dispatch. Never restore retry authority.
+                        if next.filled_quanta != 0 || next.effect != EconomicEffect::None {
+                            return Err(OrderError::IllegalTransition);
+                        }
+                        next.lifecycle = Lifecycle::NotSent;
+                    }
                     FailureStage::AfterFirstByte => {
                         next.lifecycle = Lifecycle::Unknown;
                         if next.filled_quanta == 0 { next.effect = EconomicEffect::Unverified; }
