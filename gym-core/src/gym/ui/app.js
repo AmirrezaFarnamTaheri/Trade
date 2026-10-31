@@ -1,6 +1,6 @@
 const { token: TOKEN, demo: DEMO } = JSON.parse(document.getElementById("gym-config").textContent);
 const T = {
-  en: { title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health", journal:"Research / Journal", chooseRun:"Paper run", lastDecisions:"Last 100 decisions (expand for marks and order)", evidenceTitle:"Economic evidence (no capital authority)",
+  en: { accountRead:"Venue account (read-only)", accountNotConfigured:"Not configured · no account or trading credentials loaded", accountError:"Observation unavailable", accountObserved:"Observed (unverified; not managed)", accountBalance:"Balances (venue value / locked; not spendable)", accountOrders:"External/manual orders (not settled)", accountExposure:"External exposure (not managed)", title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health", journal:"Research / Journal", chooseRun:"Paper run", lastDecisions:"Last 100 decisions (expand for marks and order)", evidenceTitle:"Economic evidence (no capital authority)",
         pair:"Pair", bid:"Bid", ask:"Ask", spread:"Spread (bps)", last:"Last trade", quality:"Quality", when:"When can I act?",
         mknote:"Prices are the venue's own quote units (IRT legs in toman, unit epoch 1). Observatory mode: no orders are ever sent.",
         entry:"Buy (entry)", exit:"Sell (exit)", open:"open", blocked:"blocked", until:"until", opens:"opens", closes:"closes", noChange:"no change in 7 days",
@@ -9,7 +9,7 @@ const T = {
         rule:"Rule", cls:"Class / status / source", state:"State", blocksNow:"What does this block right now?", window:"Effective",
         disable:"Disable", importTitle:"Import rules", importHelp:"Paste a JSON list of rules. Malformed rules are quarantined, never applied.",
         import:"Import", nothing:"nothing", version:"rule set version", stale:"stale", none:"—" },
-  fa: { title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت", journal:"پژوهش / دفتر وقایع", chooseRun:"اجرای آزمایشی", lastDecisions:"۱۰۰ تصمیم آخر (برای مشاهدهٔ سفارش و نتایج باز کنید)", evidenceTitle:"شواهد اقتصادی (بدون مجوز سرمایه)",
+  fa: { accountRead:"حساب صرافی (فقط خواندنی)", accountNotConfigured:"پیکربندی نشده · هیچ کلید یا مجوز معامله بارگذاری نشده", accountError:"مشاهده حساب در دسترس نیست", accountObserved:"مشاهده‌شده (تأییدنشده؛ مدیریت‌نشده)", accountBalance:"موجودی (مقدار/بلوکه؛ غیرقابل خرج)", accountOrders:"سفارش‌های دستی/خارجی (تسویه تأییدنشده)", accountExposure:"تعهدات خارجی (خارج از مدیریت)", title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت", journal:"پژوهش / دفتر وقایع", chooseRun:"اجرای آزمایشی", lastDecisions:"۱۰۰ تصمیم آخر (برای مشاهدهٔ سفارش و نتایج باز کنید)", evidenceTitle:"شواهد اقتصادی (بدون مجوز سرمایه)",
         pair:"جفت‌ارز", bid:"خرید", ask:"فروش", spread:"اسپرد (bps)", last:"آخرین معامله", quality:"کیفیت", when:"کی می‌توانم معامله کنم؟",
         mknote:"قیمت‌ها به واحد خود صرافی است (بازارهای ریالی به تومان). حالت رصد: هیچ سفارشی ارسال نمی‌شود.",
         entry:"خرید (ورود)", exit:"فروش (خروج)", open:"باز", blocked:"مسدود", until:"تا", opens:"باز می‌شود", closes:"بسته می‌شود", noChange:"بدون تغییر تا ۷ روز",
@@ -81,7 +81,34 @@ async function rules() {
 async function health() { $("hl").textContent = JSON.stringify(await api("/api/health"), null, 2); }
 
 let loadedRun = "";
+async function accountJournal() {
+  const summary = $("account-state"), out = $("account-observations");
+  try {
+    const a = await api("/api/account-observations");
+    if (a.state === "NOT_CONFIGURED") {
+      summary.textContent = t("accountNotConfigured");
+      out.textContent = "";
+      return;
+    }
+    if (a.state !== "OBSERVED") {
+      summary.textContent = t("accountError");
+      out.textContent = "";
+      return;
+    }
+    summary.textContent = t("accountObserved") + " · " + (a.observed_at || "");
+    const balances = a.balances.map(x => x.asset + ": " + num(x.venue_value) + " / " + num(x.venue_locked)).join("\n");
+    const orders = a.orders.map(x => x.client_id + ": " + x.raw_status + " · " + x.settlement).join("\n");
+    const external = a.exposure.map(x => x.product + ": " + (x.obligation ?? t("none")) + " " + (x.obligation_asset ?? "")).join("\n");
+    out.textContent = t("accountBalance") + "\n" + (balances || t("none")) + "\n\n"
+      + t("accountOrders") + "\n" + (orders || t("none")) + "\n\n"
+      + t("accountExposure") + "\n" + (external || t("none"));
+  } catch (_) {
+    summary.textContent = t("accountError");
+    out.textContent = "";
+  }
+}
 async function journal() {
+  await accountJournal();
   const rows = await api("/api/runs"), select = $("run-select"), selected = select.value;
   const options = rows.map(r => `<option value="${esc(r.run_id)}">${esc(r.inputs.store)} · ${esc(r.inputs.symbol)} · ${esc(r.run_id)}</option>`).join("");
   if (select.innerHTML !== options) { select.innerHTML = options; if (rows.some(r => r.run_id === selected)) select.value = selected; }
