@@ -4,7 +4,7 @@
 //! before an Attempt projection changes. Unknown bytes or illegal replay fail closed.
 use exec_core::orders::{Attempt, Event, FailureStage, OrderError};
 use exec_store::{Ledger, LedgerError};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 const MAGIC: &[u8; 5] = b"TGOR1";
@@ -47,6 +47,9 @@ pub struct DurableOrderJournal {
     ledger: Ledger,
     intents: BTreeMap<String, ObservedIntent>,
     records: usize,
+    /// A request already in flight when the journal was reopened cannot be
+    /// certified as never sent by this newly started process.
+    recovered_inflight: BTreeSet<String>,
 }
 enum Record {
     Open { id: String, account: String, asset: String, quantity: u64 },
@@ -177,7 +180,10 @@ impl DurableOrderJournal {
             // Verified bytes that cannot form a legal state also fail closed.
             apply_record(&mut intents, parsed).map_err(|_| RecoveryError::MalformedEvent)?;
         }
-        Ok(Self { ledger, intents, records: records.len() })
+        let recovered_inflight = intents.iter()
+            .filter(|(_, order)| order.attempt.lifecycle() == exec_core::orders::Lifecycle::Submitting)
+            .map(|(id, _)| id.clone()).collect();
+        Ok(Self { ledger, intents, records: records.len(), recovered_inflight })
     }
 
     pub fn create_intent(&mut self, id: &str, account: &str, asset: &str, quantity: u64)
@@ -196,6 +202,11 @@ impl DurableOrderJournal {
     }
 
     pub fn record_event(&mut self, id: &str, event: Event) -> Result<(), RecoveryError> {
+        if event == Event::TransportFailed(FailureStage::BeforeFirstByte)
+            && self.recovered_inflight.contains(id)
+        {
+            return Err(RecoveryError::Order(OrderError::IllegalTransition));
+        }
         let raw = record_event(id, event)?;
         let parsed = decode(&raw)?;
         let mut next = self.intents.clone();
