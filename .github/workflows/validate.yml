@@ -26,12 +26,20 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($file in @('scripts/windows/Invoke-ExecutorHardStop.ps1', 'scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1', 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1', 'scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1')) {
+          foreach ($file in @('scripts/windows/Invoke-ExecutorHardStop.ps1', 'scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Get-OperatorLogonSid.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1', 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1', 'scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -ne 0) { throw "$file syntax error: $($errors | Out-String)" }
           }
+      - name: Verify OS-issued operator logon SID without installing service
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sid = & ./scripts/windows/Get-OperatorLogonSid.ps1
+          if ($sid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') { throw 'Invalid TokenLogonSid result.' }
+          Write-Output "PASS: Windows TokenLogonSid resolved for current process."
 
   python:
     runs-on: ubuntu-latest
@@ -61,6 +69,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build read-only service using pinned dependencies
         run: cargo build --release --locked -p exec-svc --bin gym-executor
+      - name: Build stop-only client from pinned dependencies
+        run: cargo build --release --locked -p exec-svc --bin gym-stopctl
       - name: Verify service identity, DACL and two non-admin OS principals
         shell: pwsh
         run: |
