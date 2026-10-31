@@ -158,7 +158,8 @@ def create_backup(
             return {
                 "encrypted": True,
                 "authenticated": True,
-                "trusted_origin": "passphrase_authenticated",
+                "trusted_origin": False,
+                "authentication": "AES-256-GCM passphrase AEAD",
                 "schema_version": evidence["schema_version"],
                 "sequence": evidence["sequence"],
                 "head_hash": evidence["head_hash"],
@@ -295,7 +296,8 @@ def restore_backup(
             return {
                 "encrypted": True,
                 "authenticated": True,
-                "trusted_origin": "passphrase_authenticated",
+                "trusted_origin": False,
+                "authentication": "AES-256-GCM passphrase AEAD",
                 "schema_version": evidence["schema_version"],
                 "sequence": evidence["sequence"],
                 "head_hash": evidence["head_hash"],

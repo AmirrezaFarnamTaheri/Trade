@@ -40,7 +40,8 @@ def test_backup_is_portable_authenticated_and_restores_to_new_machine_path(tmp_p
     assert manifest["encrypted"] is True
     assert manifest["schema_version"] == 1
     assert manifest["head_hash"] == expected_head
-    assert manifest["trusted_origin"] == "passphrase_authenticated"
+    assert manifest["trusted_origin"] is False
+    assert manifest["authentication"] == "AES-256-GCM passphrase AEAD"
     assert b"VENUE SECRET MUST NEVER BE BACKED UP" not in bundle.read_bytes()
     restored = restore_backup(bundle, destination, passphrase="correct horse battery staple")
     assert restored["head_hash"] == expected_head
