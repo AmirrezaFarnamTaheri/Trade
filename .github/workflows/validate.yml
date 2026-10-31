@@ -24,6 +24,13 @@ jobs:
           path: Cargo.lock
           if-no-files-found: error
           retention-days: 1
+      - name: Export deterministic lockfile bytes for review
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          printf 'CARGO_LOCK_B64_START\\n'
+          base64 -w0 Cargo.lock
+          printf '\\nCARGO_LOCK_B64_END\\n'
       - name: Check Windows bootstrap script syntax (no install)
         if: runner.os == 'Windows'
         shell: pwsh
