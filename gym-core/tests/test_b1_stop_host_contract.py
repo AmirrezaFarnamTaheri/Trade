@@ -16,8 +16,10 @@ def test_service_requires_protected_os_derived_logon_sid():
     installer = INSTALLER.read_text("utf-8")
     service = SERVICE.read_text("utf-8")
     assert "stop-logon.sid" in installer and "stop-logon.sid" in service
-    assert "$identity.Groups" in installer
+    assert "TokenLogonSid" in installer
+    assert "GetTokenInformation" in installer
     assert "S-1-5-5-" in installer
+    assert "$identity.Groups" not in installer
     assert "S-1-5-5-" in service
     assert "get_current_operator_sid" not in service
     assert "is_restricted_executor_service" in service
