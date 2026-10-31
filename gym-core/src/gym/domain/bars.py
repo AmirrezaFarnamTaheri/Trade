@@ -107,6 +107,38 @@ class Consolidator:
         return c and Bar(self.symbol, self.spec, c["start"], c["end"], now, c["o"], c["h"], c["l"], c["c"], c["v"], c["n"], True)
 
 
+class CloseSubscriptions:
+    """Deterministic on-close fan-out over the existing availability-safe consolidator."""
+
+    def __init__(self, symbol: str, resolutions, periods=None):
+        ordered = tuple(dict.fromkeys(resolutions))
+        if not ordered:
+            raise ValueError("at least one close subscription is required")
+        periods = periods or {}
+        self.order = {resolution: i for i, resolution in enumerate(ordered)}
+        self.by_resolution = {
+            resolution: Consolidator(symbol, BarSpec(resolution, "MID"), periods.get(resolution))
+            for resolution in ordered
+        }
+
+    def _ordered(self, bars):
+        rank = {resolution: i for i, resolution in enumerate(RESOLUTIONS)}
+        return sorted(bars, key=lambda bar: (bar.avail, rank[bar.spec.resolution], self.order[bar.spec.resolution]))
+
+    def scan(self, now: datetime) -> list[Bar]:
+        return self._ordered([bar for consolidator in self.by_resolution.values() for bar in consolidator.scan(now)])
+
+    def update(self, t: datetime, price: Decimal, qty: Decimal = Decimal(0)) -> list[Bar]:
+        return self._ordered([
+            bar
+            for consolidator in self.by_resolution.values()
+            for bar in consolidator.update(t, price, qty)
+        ])
+
+    def forming(self, now: datetime) -> dict[str, Bar | None]:
+        return {resolution: consolidator.forming(now) for resolution, consolidator in self.by_resolution.items()}
+
+
 def trade_bars(symbol: str, spec: BarSpec, trades, until: datetime) -> list[Bar]:
     """LAST bars from trade prints, bucketed by venue event time (the venue candle's clock); bars closed by
     `until`. For cross-checks against venue candles; decisions use availability-ordered quote bars."""

@@ -1,4 +1,5 @@
 """Point-in-time market-data access and valuation rates over the local market database."""
+import hashlib
 import json
 from bisect import bisect_right
 from datetime import datetime
@@ -46,6 +47,17 @@ class DataPortal:
     def instrument(self, symbol: str) -> InstrumentId:
         r = self.db.c.execute("select base, quote from instruments where symbol=?", (symbol,)).fetchone()
         return InstrumentId.wallex(symbol, *r) if r else InstrumentId.wallex(symbol)
+
+    def metadata_at(self, symbol: str, t: datetime) -> dict | None:
+        r = self.db.c.execute("select rowid, valid_from, valid_to, spec, source from instrument_specs where "
+                              "instrument_id=? and valid_from<=? and (valid_to is null or valid_to>?) "
+                              "order by valid_from desc limit 1",
+                              (f"wallex:{symbol}", iso(t), iso(t))).fetchone()
+        if not r:
+            return None
+        return {"valid_from": parse_ts(r[1]), "valid_to": parse_ts(r[2]) if r[2] else None,
+                "source": r[4], "version": r[0],
+                "raw_digest": hashlib.sha256(r[3].encode()).hexdigest(), "raw": json.loads(r[3])}
 
     def spec_at(self, symbol: str, t: datetime) -> Spec:
         r = self.db.c.execute("select spec from instrument_specs where instrument_id=? and valid_from<=? and "

@@ -92,7 +92,7 @@ async function journal() {
   const curve = r.curve.map(p => Number(p[1])).filter(Number.isFinite);
   const lo = curve.reduce((a,b) => Math.min(a,b), Infinity), hi = curve.reduce((a,b) => Math.max(a,b), -Infinity);
   $("equity").innerHTML = `<title>${esc(r.quote)} · ${esc(t("journal"))}</title><polyline fill="none" stroke="currentColor" stroke-width="2" points="${curve.map((v,i) => `${i * 800 / Math.max(1,curve.length-1)},${170 - (v-lo)*160/(hi-lo || 1)}`).join(" ")}"/>`;
-  $("waterfall").textContent = JSON.stringify({waterfall:r.end?.waterfall, baselines:d.baselines, session:r.session}, null, 2);
+  $("waterfall").textContent = JSON.stringify({waterfall:r.end?.waterfall, ranking:d.ranking, baselines:d.baselines, session:r.session}, null, 2);
   $("economic").textContent = JSON.stringify({report:d.evidence, decisions:d.capital_decisions}, null, 2);
   $("decisions").innerHTML = r.decisions.slice(-100).map(x => `<details><summary>${esc(when(x.t))} · ${esc(x.action)} · ${esc(x.reasons.join("; "))}</summary><pre>${esc(JSON.stringify({...x, order:r.orders.find(o => o.ref === x.order) || null}, null, 2))}</pre></details>`).join("");
 }

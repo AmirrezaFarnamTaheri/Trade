@@ -48,6 +48,6 @@ def candle_crosscheck(portal: DataPortal, symbol: str, start: datetime, end: dat
         counts[row["status"]] = counts.get(row["status"], 0) + 1
     return {"symbol": symbol, "resolution": resolution, "from": iso(start), "to_exclusive": iso(end),
             "tolerance_bps": str(tolerance_bps), "counts": counts, "periods": rows,
-            "limitations": ["Internal bars use venue event time; trade identity is (time, price, qty, side), so identical "
-                            "prints in one second collapse and internal volume can be lower.",
+            "limitations": ["Internal bars use venue event time. Wallex public trades have no stable trade id; identical "
+                            "prints are preserved, so source retransmissions cannot be distinguished from real fills.",
                             "MISSING_VENUE can be a venue candle not yet fetched, not only a venue omission."]}

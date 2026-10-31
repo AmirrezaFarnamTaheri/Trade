@@ -20,10 +20,6 @@ from .rules import RuleService
 
 HEARTBEAT_S = 60
 CANDLE_REFRESH_S = 300
-CATALOG_KEYS = ("baseAsset", "quoteAsset", "baseAssetPrecision", "quotePrecision", "stepSize", "tickSize",
-                "minQty", "minNotional", "isZeroFee", "isNew", "isMarketTypeEnable", "createdAt")
-
-
 def now_utc() -> datetime:
     return datetime.now(UTC)
 
@@ -40,7 +36,6 @@ class Collector:
         self.tops = {}
         self.written: dict[str, tuple] = {}
         self.trades = {s: deque(maxlen=30) for s in symbols}
-        self._seen = deque(maxlen=1000)
         self.last_trade_ts = {}
         for s in symbols:
             row = db.c.execute("select max(ts_event) from trades where instrument_id=?", (f"wallex:{s}",)).fetchone()
@@ -86,11 +81,9 @@ class Collector:
 
     def on_trade(self, sym, d, now, ref, only_after: datetime | None = None) -> bool:
         t = TradeTick.wallex(sym, d, now)
-        key = (sym, t.ts_event, t.price, t.qty, t.aggressor)
-        # ponytail: no venue trade ids, so identical trades in the same second collapse; add ids when Wallex exposes them
-        if key in self._seen or (only_after and t.ts_event <= only_after):
+        if only_after and t.ts_event <= only_after:
             return False
-        self._seen.append(key)
+        # ponytail: preserve ambiguous identical prints; dedupe by venue trade id when Wallex exposes one.
         self.db.add_trade(t, ref)
         self.trades[sym].appendleft(t)
         if sym not in self.last_trade_ts or t.ts_event > self.last_trade_ts[sym]:
@@ -136,7 +129,7 @@ class Collector:
                 continue
             self.insts[s] = InstrumentId.wallex(s, m["baseAsset"], m["quoteAsset"])
             self.names[s] = {"en": m.get("enName", s), "fa": m.get("faName", s)}
-            self.db.upsert_instrument(self.insts[s], self.names[s], {k: m.get(k) for k in CATALOG_KEYS}, "rest:/v1/markets", now)
+            self.db.upsert_instrument(self.insts[s], self.names[s], m, "rest:/v1/markets", now)
 
     async def seed(self, session, symbols=None, trades=True):
         """REST snapshot at start, after every reconnect, and for quiet (stale) sides."""

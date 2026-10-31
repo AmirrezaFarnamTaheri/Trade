@@ -79,6 +79,16 @@ def text_report(out: dict) -> str:
             lines.append(f"  {name:<16}{money(value)}")
         lines.append(f"  {'equity':<16}{money(end['equity'])}   net liquidation estimate (modeled) "
                      f"{money(end['net_liquidation_estimate']).strip()}")
+    active = out["ranking"]["active"]
+    lines += ["", "active ranking (USDT-equivalent; abstainers excluded):"]
+    if active:
+        for row in active:
+            lines.append(f"  {row['rank']:>2}. {row['name']:<12}{money(row['net_usdt_eq'])} USDT-eq   "
+                         f"{money(row['net_quote'])} {row['quote']}")
+    else:
+        lines.append("  unavailable (no active result with a USDT-equivalent valuation)")
+    if out["ranking"]["abstainers"]:
+        lines.append("  abstainers: " + ", ".join(row["name"] for row in out["ranking"]["abstainers"]))
     units = ", and USDT-equivalent)" if out["fx"] or currency == "USDT" else ")"
     lines += ["", f"vs baselines (same window, cash, costs; net in {currency}" + units]
     for name, baseline in {"strategy": result, **out["baselines"]}.items():

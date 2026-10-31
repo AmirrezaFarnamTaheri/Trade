@@ -28,6 +28,12 @@ def test_replay_is_deterministic_and_waterfall_reconciles(tmp_path):
     first = a["result"]["decisions"][0]
     assert first["action"] == "ABSTAIN_WARMUP"  # warmup never fabricates a signal
     assert set(a["baselines"]) == {"hold USDT", "hold BTC"} and a["baselines"]["hold BTC"]["fills"] == 1
+    assert [row["name"] for row in a["ranking"]["abstainers"]] == ["hold USDT"]
+    active = a["ranking"]["active"]
+    assert all(row["classification"] == "ACTIVE" and row["net_usdt_eq"] is not None for row in active)
+    assert [Decimal(row["net_usdt_eq"]) for row in active] == sorted(
+        (Decimal(row["net_usdt_eq"]) for row in active), reverse=True
+    )
     c = paper(db, "BTCUSDT", START, START + timedelta(hours=6), resolution="1min", fast=3, slow=8, cost=CostModel(fee_rate=Decimal("0.004")))
     assert c["run_id"] != a["run_id"] and Decimal(c["result"]["end"]["net"]) < Decimal(a["result"]["end"]["net"])
 

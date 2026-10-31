@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from ..domain.bars import BarSpec, Consolidator, qualified
+from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.model import iso, parse_ts
 from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order
 from ..domain.strategy import Snapshot
 
-ENGINE_VERSION = "paper-session/4"
+ENGINE_VERSION = "paper-session/5"
 
 
 @dataclass
@@ -22,7 +22,7 @@ class PendingOrder:
 
 
 class PaperSession:
-    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost):
+    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=()):
         if not cash.is_finite() or cash <= 0:
             raise ValueError("cash must be positive and finite")
         self.portal = portal
@@ -32,8 +32,10 @@ class PaperSession:
         self.instrument = portal.instrument(symbol)
         self.cost = cost
         self.bar_spec = BarSpec(resolution, "MID")
-        period = self.session_of if resolution == "session" else None
-        self.consolidator = Consolidator(symbol, self.bar_spec, period)
+        resolutions = tuple(dict.fromkeys((resolution, *subscriptions)))
+        periods = {"session": self.session_of} if "session" in resolutions else {}
+        self.closes = CloseSubscriptions(symbol, resolutions, periods)
+        self.consolidator = self.closes.by_resolution[resolution]
         self.book = CashBook({self.instrument.quote: cash})
         self.last_quote = None
         self.pending: PendingOrder | None = None
@@ -43,8 +45,10 @@ class PaperSession:
         self.curve = []
         self.quota = {}
         self.events = []
+        self.bar_events = []
         self.skipped = []
         self.reopenings = []
+        # ponytail: on-close subscriptions only; add event/schedule/regime clocks when a real strategy needs them.
         # ponytail: the band reference is the first observed mid of the Tehran day; switch to the venue's
         # published reference price once Wallex exposes one.
         self.day_open = {}
@@ -61,7 +65,11 @@ class PaperSession:
         self.events.append({"state": state, "t": iso(at), "reason": reason})
 
     def scan(self, at):
-        for bar in self.consolidator.scan(at):
+        for bar in self.closes.scan(at):
+            self.bar_events.append({"t": iso(bar.avail), "resolution": bar.spec.resolution,
+                                    "start": iso(bar.start), "close": str(bar.close)})
+            if bar.spec != self.bar_spec:
+                continue
             quote = self.last_quote if self.last_quote and bar.avail - self.last_quote.ts_avail <= timedelta(seconds=120) else None
             snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask, quote and quote.ts_avail)
             holding = bool(quote) and self.book.get(self.instrument.base) * quote.bid > self.book.equity(self.instrument, quote.bid) / 100
@@ -123,7 +131,7 @@ class PaperSession:
             self.mark_reopening(top)
         self.settle(top, top.ts_avail)
         if qualified(top):
-            self.consolidator.update(top.ts_avail, self.bar_spec.price(top))
+            self.closes.update(top.ts_avail, self.bar_spec.price(top))
             self.last_quote = top
         self.cursor = top.ts_avail
 

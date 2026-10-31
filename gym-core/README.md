@@ -11,14 +11,15 @@ uv run gymctl run --demo       # synthetic DEMO feed -> data\demo (never mixed w
 uv run gymctl rules list       # also: add|edit|import|export|disable|rollback|preset|check
 uv run gymctl spreads --output spreads.json  # all observed pairs, grouped by Tehran hour; creates a new file
 uv run gymctl candles BTCUSDT --fetch         # internal trade bars vs venue 1min candles, last two hours
-uv run gymctl paper USDTTMN --res session    # session bars bounded by the venue-rule closures
+uv run gymctl paper USDTTMN --res session --subscribe 1h  # primary session decisions plus 1h close events
 uv run gymctl demo-seed         # 72 h synthetic DEMO history (USDTTMN goes silent in its closures)
 uv run gymctl paper BTCTMN --demo   # EMA replay + baselines + gross-to-net waterfall -> data\demo\runs\<id>.json
 uv run pytest -q               # behavior and architecture checks
 ```
 
-`paper` takes `--from/--to` (zoned ISO), `--res 1min|15min|1h|1day`, `--fast/--slow`, `--fee`, `--latency-ms` and
-`--rules point-in-time|today`. The same inputs give the same `run_id` and `outputs` digest. Fills use the first qualified
+`paper` takes `--from/--to` (zoned ISO), `--res 1min|15min|1h|1day|session`, `--subscribe 1min,15min,1h,1day,session`,
+`--fast/--slow`, `--fee`, `--latency-ms` and `--rules point-in-time|today`. Subscribed closed bars are merged by
+availability time and resolution rank; only the primary `--res` drives the current EMA strategy. The same inputs give the same `run_id` and `outputs` digest. Fills use the first qualified
 ask (buy) or bid (sell) at or after decision + latency. Rule closures, quota and minimums cause nonfills. Holdings are
 never auto-sold at the end. USDT-equivalent uses a disclosed USDTTMN mid valuation rate only when qualified
 quotes were already available at both valuation boundaries. Otherwise results remain in the quote currency;
@@ -80,15 +81,18 @@ only on later qualified observations; ending never sells a holding. Live duratio
 post-warmup deadline and drains pending orders until their fill or timeout. Replay ends at its explicit data cut,
 recording any unsettled request as a nonfill. Missing intervals are recorded, not filled with invented HOLDs.
 
-Open **Research / Journal** in the local UI for saved runs, equity, gross-to-net costs, matched replay baselines,
-reports and expandable decisions (snapshot, feature hash, request, order/veto, +15m/+1h/+4h outcome marks).
+Open **Research / Journal** in the local UI for saved runs, equity, gross-to-net costs, the active-trading
+USDT-equivalent ranking, matched replay baselines, reports and expandable decisions (snapshot, feature hash, request,
+order/veto, +15m/+1h/+4h outcome marks). Zero-trade results remain visible as abstainers and are excluded from the
+active rank. Public Wallex instrument metadata is stored as complete, point-in-time vintages with source, availability
+interval, version and raw digest; missing historical fields remain UNKNOWN rather than borrowing today's catalog.
 Marks are PENDING before their horizon, MISSING without a later qualified quote, or OBSERVED_AFTER_GAP with delay.
 The UI lists the latest 50 runs and last 100 decisions; full records remain in `data/<store>/runs`.
 
 `evidence` writes `<id>.evidence.md` and `.evidence.json`. Diagnostics check repeatability, midpoint future-truncation
 and streaming/replay decision parity. Warmup compares EMA direction against twice-slow-length prehistory when
-available, otherwise explicitly NOT_RUN. Cost stress scales **fees only** by 0/1/1.25/2/3; 0 is fee-free, not
-frictionless. Parity shares an engine, not an independent simulator. The horizon estimate uses completed round trips
+available, otherwise explicitly NOT_RUN. Matched-filled-path cost stress scales observed spread, fees and latency drift
+by 0/1/1.25/2/3; it does not change fills, depth or decisions. Parity shares an engine, not an independent simulator. The horizon estimate uses completed round trips
 and an explicitly IID approximation, not a power guarantee for dependent trades. No report currently supports a
 validated/promising claim or gate promotion. DEMO permits only NONE/zero capital.
 
@@ -96,5 +100,5 @@ validated/promising claim or gate promotion. DEMO permits only NONE/zero capital
 never trading permission. Existing decisions are never edited. Live sessions disclose that baselines and USDT
 attribution need a separate matched replay; live-session diagnostics are explicitly NOT_RUN.
 
-Deferred: independent parity oracle, full spread/depth/latency stress, session/volume bars, venue-candle cross-check,
-limit orders, automatic promotion, tray and Rust Executor. No monitoring stack or new dependency was added.
+Deferred: independent parity oracle, depth/queue-position stress, event/schedule/regime strategy clocks, limit orders,
+automatic promotion, tray and Rust Executor. No monitoring stack or new dependency was added.

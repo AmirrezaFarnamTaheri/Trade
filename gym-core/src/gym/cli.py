@@ -69,8 +69,9 @@ def paper_cmd(args) -> int:
     t0, t1 = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
     cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if sym.endswith("TMN") else 1000)
     cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
+    subscriptions = tuple(x.strip() for x in args.subscribe.split(",") if x.strip())
     out = paper(db, sym, t0, t1, resolution=args.res, fast=args.fast, slow=args.slow, cash=cash, cost=cost,
-                rules_mode=args.rules, store="demo" if args.demo else "live")
+                rules_mode=args.rules, store="demo" if args.demo else "live", subscriptions=subscriptions)
     path = save_run(out, store_root(args) / "runs")
     print(text_report(out))
     print(f"\nrun record: {path}")
@@ -176,8 +177,9 @@ def session_cmd(args):
     if not (store_root(args) / "market.db").exists():
         raise ValueError("start the collector first")
     cash = Decimal(args.cash or (300_000_000 if args.symbol.upper().endswith("TMN") else 1000))
+    subscriptions = tuple(x.strip() for x in args.subscribe.split(",") if x.strip())
     asyncio.run(watch(open_db(args), store_root(args) / "runs", args.symbol.upper(), args.seconds,
-                      args.res, args.fast, args.slow, cash, args.demo))
+                      args.res, args.fast, args.slow, cash, args.demo, subscriptions))
     return 0
 
 
@@ -237,7 +239,8 @@ def main(argv=None):
     pp.add_argument("--demo", action="store_true")
     pp.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
     pp.add_argument("--to", dest="end", help="UTC ISO time with zone (default: last stored quote)")
-    pp.add_argument("--res", default="15min", help="1min | 15min | 1h | 1day")
+    pp.add_argument("--res", default="15min", help="primary decision close: 1min | 15min | 1h | 1day | session")
+    pp.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
     pp.add_argument("--fast", type=int, default=8)
     pp.add_argument("--slow", type=int, default=21)
     pp.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
@@ -262,7 +265,7 @@ def main(argv=None):
     ev = sub.add_parser("evidence", help="economic report and optional immutable claim/capital decision (never arms trading)")
     ev.add_argument("run_id")
     ev.add_argument("--demo", action="store_true")
-    ev.add_argument("--diagnostics", action="store_true", help="run repeatability, truncation and fee stress")
+    ev.add_argument("--diagnostics", action="store_true", help="run repeatability, truncation, warmup and total-cost stress")
     ev.add_argument("--decide", choices=["NONE", "EXPERIMENTAL"])
     ev.add_argument("--cap", default="0")
     ev.add_argument("--ccy", choices=["USDT", "TMN"], default="USDT")
@@ -272,6 +275,7 @@ def main(argv=None):
     se.add_argument("--demo", action="store_true")
     se.add_argument("--seconds", type=int, default=3600, help="duration after warmup")
     se.add_argument("--res", default="15min")
+    se.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
     se.add_argument("--fast", type=int, default=8)
     se.add_argument("--slow", type=int, default=21)
     se.add_argument("--cash")

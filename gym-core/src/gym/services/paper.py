@@ -16,12 +16,12 @@ CENT = Decimal("1e-8")
 
 
 def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: datetime, resolution: str,
-        cash: Decimal, cost: CostModel) -> dict:
+        cash: Decimal, cost: CostModel, subscriptions=()) -> dict:
     from .session import PaperSession
 
     inst = portal.instrument(symbol)
     tops = portal.tops(symbol, t0, t1)
-    session = PaperSession(portal, rules_for, strategy, symbol, t0, resolution, cash, cost)
+    session = PaperSession(portal, rules_for, strategy, symbol, t0, resolution, cash, cost, subscriptions)
     for top in tops:
         session.feed(top)
     session.finish(t1)
@@ -62,12 +62,13 @@ def session_result(session, tops, cash):
             "decisions": decisions, "orders": orders, "postings": book.postings,
             "session": {"state": session.state, "events": session.events, "cursor": iso(session.cursor),
                         "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped,
+                        "subscriptions": list(session.closes.by_resolution), "bar_events": session.bar_events,
                         "reopenings": session.reopenings}}
 
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,
           slow: int = 21, cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), rules_mode: str = "point-in-time",
-          store: str = "live") -> dict:
+          store: str = "live", subscriptions=()) -> dict:
     """A replayable paper run plus matched baselines. Same inputs give the same run_id and outputs."""
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
@@ -75,7 +76,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     today = svc.load()[1]
     rules_for = (lambda t: today) if rules_mode == "today" else (lambda t: svc.load(t)[1])
     inst = portal.instrument(symbol)
-    main = run(portal, rules_for, EmaTrend(fast, slow), symbol, t0, t1, resolution, cash, cost)
+    main = run(portal, rules_for, EmaTrend(fast, slow), symbol, t0, t1, resolution, cash, cost, subscriptions)
     if main["qualified"] == 0:
         raise ValueError(f"no qualified {symbol} quotes between {iso(t0)} and {iso(t1)}")
     base_syms = {f"hold {inst.base}": symbol}
@@ -85,7 +86,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
         base_syms["hold BTC"] = "BTC" + inst.quote
     baselines = {f"hold {inst.quote}": {"end": {"equity": str(cash), "net": "0"}, "fills": 0}}
     for name, s in base_syms.items():
-        b = run(portal, rules_for, BuyAndHold(), s, t0, t1, resolution, cash, cost)
+        b = run(portal, rules_for, BuyAndHold(), s, t0, t1, resolution, cash, cost, subscriptions)
         baselines[name] = {k: b[k] for k in ("symbol", "end", "fills", "nonfills")} if b["end"] else {"unavailable": f"no qualified {s} quotes"}
 
     # Headline numeraire: USDT-equivalent through a disclosed, non-executable valuation rate.
@@ -108,17 +109,49 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
             e["net_usdt_eq"] = e["net"]
         elif fx:
             e["net_usdt_eq"] = str((dec(e["equity"]) / dec(fx["end"]) - cash / dec(fx["start"])).quantize(Decimal("0.0001")))
-    inputs = {"engine": ENGINE_VERSION, "symbol": symbol, "from": iso(t0), "to": iso(t1), "resolution": resolution, "params": main["params"],
+    metadata = portal.metadata_at(symbol, t0)
+    metadata_ref = None if metadata is None else {
+        "version": metadata["version"], "valid_from": iso(metadata["valid_from"]),
+        "valid_to": metadata["valid_to"] and iso(metadata["valid_to"]), "source": metadata["source"],
+        "raw_digest": metadata["raw_digest"],
+    }
+    inputs = {"engine": ENGINE_VERSION, "symbol": symbol, "from": iso(t0), "to": iso(t1), "resolution": resolution,
+              "subscriptions": list(dict.fromkeys((resolution, *subscriptions))), "params": main["params"],
               "cash": str(cash), "cost": cost.describe(), "rules_mode": rules_mode, "store": store,
-              "data": main["data_digest"], "ruleset_version_now": svc.load()[0]}
+              "data": main["data_digest"], "metadata": metadata_ref, "ruleset_version_now": svc.load()[0]}
+    rank = ranking(main, baselines)
     out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "numeraire": "USDT-equivalent" if fx or inst.quote == "USDT" else inst.quote,
-           "fx": fx, "result": main, "baselines": baselines, "warnings": warnings(main, store, rules_mode, portal, symbol, t0)}
+           "fx": fx, "result": main, "baselines": baselines, "ranking": rank,
+           "warnings": warnings(main, store, rules_mode, portal, symbol, t0)}
     if fx and "STALE_CLOSED" in (fx["start_status"], fx["end_status"]):
         out["warnings"].append("USDT/IRT was closed at a valuation boundary: the FX factor is STALE_CLOSED (last pre-closure mid).")
     if inst.quote == "TMN" and fx is None:
         out["warnings"].append("USDT-equivalent unavailable: no point-in-time FX valuation at the window start/end.")
-    out["outputs_digest"] = digest({k: out[k] for k in ("result", "baselines", "fx")})[:16]
+    out["outputs_digest"] = digest({k: out[k] for k in ("result", "baselines", "ranking", "fx")})[:16]
     return out
+
+
+def ranking(main, baselines):
+    """Matched ranking view; zero-trade results remain visible but are not active strategies."""
+    rows = []
+    for name, record in {"strategy": main, **baselines}.items():
+        end = record.get("end")
+        if not end:
+            rows.append({"name": name, "status": "UNAVAILABLE", "reason": record.get("unavailable")})
+            continue
+        fills = record.get("fills", 0)
+        rows.append({"name": name, "status": "AVAILABLE", "fills": fills,
+                     "classification": "ACTIVE" if fills else "ABSTAINER",
+                     "net_quote": end["net"], "quote": main["quote"],
+                     "net_usdt_eq": end.get("net_usdt_eq")})
+    active = [row.copy() for row in rows
+              if row.get("classification") == "ACTIVE" and row.get("net_usdt_eq") is not None]
+    active.sort(key=lambda row: (Decimal(row["net_usdt_eq"]), row["name"]), reverse=True)
+    for i, row in enumerate(active, 1):
+        row["rank"] = i
+    return {"headline": "USDT-equivalent", "active": active,
+            "abstainers": [row for row in rows if row.get("classification") == "ABSTAINER"], "all": rows,
+            "note": "Zero-trade runs are retained as abstainers and excluded from active-trading rank."}
 
 
 def warnings(main, store, rules_mode, portal, symbol, t0) -> list[str]:
@@ -127,6 +160,13 @@ def warnings(main, store, rules_mode, portal, symbol, t0) -> list[str]:
         w.append("DEMO data: synthetic quotes. Not evidence; can never reach a gate report.")
     if rules_mode == "today":
         w.append("Re-run under TODAY's rules, not the rules known at each decision.")
+    metadata = portal.metadata_at(symbol, t0)
+    if metadata is None:
+        w.append("Public instrument metadata was unavailable at the window start; fees, flags and capacity remain UNKNOWN.")
+    else:
+        missing = [name for name in ("isZeroFee", "isMarketTypeEnable") if name not in metadata["raw"]]
+        if missing:
+            w.append("Historical public metadata leaves " + ", ".join(missing) + " UNKNOWN; current values were not backfilled.")
     if portal.spec_at(symbol, t0) == Spec():
         w.append("Precision and minimums unknown at the start of the window; not enforced.")
     if main["fills"] < 30:

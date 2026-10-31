@@ -27,12 +27,16 @@ def test_marks_do_not_mature_early():
 
 
 def test_diagnostics_report_and_demo_capital_guard(tmp_path):
-    db = market_db(tmp_path, quote_history(n=1500))
-    out = paper(db, "BTCUSDT", START, START + timedelta(hours=4), resolution="1min", fast=2, slow=3, store="demo")
+    db = market_db(tmp_path, quote_history(n=2000))
+    t0, t1 = START + timedelta(hours=1), START + timedelta(hours=4)
+    out = paper(db, "BTCUSDT", t0, t1, resolution="1min", fast=2, slow=3, store="demo")
     diag = diagnostics(db, out)
     assert all(v["status"] == "PASS" for v in diag["checks"].values())
-    assert [r["fee_multiplier"] for r in diag["fee_stress"]] == ["0", "1", "1.25", "2", "3"]
-    assert diag["warmup-stability"]["status"] == "NOT_RUN"
+    assert [r["cost_multiplier"] for r in diag["cost_stress"]] == ["0", "1", "1.25", "2", "3"]
+    assert diag["cost_stress"][1]["net"] == out["result"]["end"]["net"]
+    assert set(diag["cost_stress"][2]["components"]) == {"spread", "fees", "latency_drift"}
+    assert diag["warmup-stability"]["status"] == "PASS"
+    assert diag["warmup-stability"]["prehistory_observations"] > 0
     report = economic_report(out, diag)
     assert report["claim_ceiling"] == "NONE" and not report["gate_eligible"]
     with pytest.raises(ValueError):

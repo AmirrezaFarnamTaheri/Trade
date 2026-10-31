@@ -14,12 +14,13 @@ from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
 
-async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=False):
+async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=False, subscriptions=()):
     if duration <= 0:
         raise ValueError("duration must be positive")
     start, tops = now_utc(), []
     portal, svc, cost = DataPortal(db), RuleService(db), CostModel()
-    session = PaperSession(portal, lambda t: svc.load(t)[1], EmaTrend(fast, slow), symbol, start, resolution, cash, cost)
+    session = PaperSession(portal, lambda t: svc.load(t)[1], EmaTrend(fast, slow), symbol, start, resolution, cash, cost,
+                           subscriptions)
     reason = None
     print("WARMING_UP: run the collector separately; duration begins at RUNNING.", flush=True)
     try:
@@ -50,7 +51,9 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
         session.finish(now_utc(), reason)
         result = session_result(session, tops, cash)
         inputs = {"engine": ENGINE_VERSION, "kind": "live-session", "symbol": symbol, "from": iso(start),
-                  "to": iso(session.cursor), "resolution": resolution, "params": {"fast": fast, "slow": slow},
+                  "to": iso(session.cursor), "resolution": resolution,
+                  "subscriptions": list(dict.fromkeys((resolution, *subscriptions))),
+                  "params": {"fast": fast, "slow": slow},
                   "cash": str(cash), "cost": cost.describe(), "rules_mode": "point-in-time",
                   "store": "demo" if demo else "live", "data": result["data_digest"]}
         out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "result": result,

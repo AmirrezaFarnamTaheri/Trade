@@ -67,6 +67,17 @@ def test_collector_segments_and_change_only_tops(tmp_path):
     assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == sha
 
 
+def test_identical_public_trade_prints_are_preserved(tmp_path):
+    db = MarketDB(tmp_path / "m.db")
+    seg = SegmentWriter(tmp_path / "raw", db)
+    col = Collector(db, seg, ["BTCTMN"])
+    now = datetime(2026, 10, 30, 20, 53, 1, tzinfo=UTC)
+    col.handle_frame(WS_TRADE, now)
+    col.handle_frame(WS_TRADE, now + timedelta(microseconds=1))
+    assert db.c.execute("select qty from trades order by rowid").fetchall() == [("0.00001399",), ("0.00001399",)]
+    seg.close()
+
+
 def test_invalid_ranges_and_resolutions_fail_explicitly(tmp_path):
     with pytest.raises(ValueError, match="unsupported resolution"):
         BarSpec("5min")
