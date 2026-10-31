@@ -25,7 +25,10 @@ fn valid_sid_parts(sid: &str) -> bool {
 
 /// Only explicitly provisioned service and operator logon SIDs are allowed.
 /// An operator ACE intentionally omits FILE_CREATE_PIPE_INSTANCE (0x4) and
-/// WRITE_DAC. Generic write is unsafe here because it includes pipe creation.
+/// WRITE_DAC. It grants FILE_READ_ATTRIBUTES (0x80): Windows CreateFileW
+/// requires that metadata right even with READ_DATA/WRITE_DATA/SYNCHRONIZE
+/// requested. Disposable OS tests proved 0x00100003 fails, 0x00100083 opens.
+/// Generic write is unsafe here because it includes pipe creation.
 pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> {
     if !valid_sid_parts(service_sid) || !service_sid.starts_with("S-1-5-80-")
         || !valid_sid_parts(logon_sid) || !logon_sid.starts_with("S-1-5-5-")
@@ -33,7 +36,7 @@ pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> 
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "expected service SID and logon SID"));
     }
     Ok(format!(
-        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100003;;;{logon_sid})"
+        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100083;;;{logon_sid})"
     ))
 }
 
@@ -151,7 +154,8 @@ mod tests {
         ).unwrap();
         assert!(!value.contains("(D;;GA;;;NU)"));
         assert!(value.contains("D:P(A;;GA;;;SY)"));
-        assert!(value.contains("(A;;0x00100003;;;S-1-5-5-100-200)"));
+        assert!(value.contains("(A;;0x00100083;;;S-1-5-5-100-200)"));
+        assert!(!value.contains("(A;;0x00100007;;;"));
         assert!(!value.contains(";;;WD"));
         assert!(!value.contains(";;;AU"));
         assert!(stop_pipe_sddl("S-1-5-18", "S-1-5-5-100-200").is_err());
