@@ -178,6 +178,16 @@ impl Ledger {
             SCHEMA_VERSION => {}
             unknown => return Err(LedgerError::UnsupportedSchema(unknown)),
         }
+        let trigger_count: i64 = conn.query_row(
+            concat!(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND ",
+                "name IN ('ledger_events_no_update', 'ledger_events_no_delete')"
+            ),
+            [], |r| r.get(0),
+        )?;
+        if trigger_count != 2 {
+            return Err(LedgerError::Configuration("append-only guards missing"));
+        }
         let (events, head_hash) = load_verified(&conn)?;
         Ok(Self { conn, _writer_lock: lock, sequence: events.len() as u64, head_hash })
     }

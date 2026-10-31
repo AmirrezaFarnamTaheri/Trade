@@ -126,3 +126,14 @@ fn a_rolled_back_insert_is_not_recovered_as_a_committed_event() {
     assert_eq!(ledger.replay_from(0).unwrap().len(), 1);
     assert_eq!(ledger.verify().unwrap(), first.event_hash);
 }
+
+#[test]
+fn missing_immutability_trigger_blocks_startup() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("exec_ledger.db");
+    drop(Ledger::open(&path).unwrap());
+    let db = Connection::open(&path).unwrap();
+    db.execute_batch("DROP TRIGGER ledger_events_no_update;").unwrap();
+    drop(db);
+    assert!(matches!(Ledger::open(&path), Err(LedgerError::Configuration(_))));
+}
