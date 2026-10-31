@@ -157,6 +157,32 @@ try {
     if ($expectedSid -cne $actualSid) {
         throw 'The stop-pipe client token does not match privileged installation logon.'
     }
+
+    # Diagnostic access-mask matrix on disposable VM only. Every probe handle
+    # closes immediately; no stop command, key or venue action is sent.
+    $accessProbeType = @'
+using System;
+using System.Runtime.InteropServices;
+public static class TradingGymStopPipeProbe {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateFileW(string name, uint desired, uint sharing,
+        IntPtr security, uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+    public static int Probe(uint desired) {
+        var handle = CreateFileW(@"\\.\pipe\TradingGYM.Stop.v1", desired,
+            0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) return Marshal.GetLastWin32Error();
+        CloseHandle(handle);
+        return 0;
+    }
+}
+'@
+    Add-Type -TypeDefinition $accessProbeType
+    foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
+        $errorNumber = [TradingGymStopPipeProbe]::Probe($mask)
+        Write-Output ('T0 access-probe mask=0x{0:X8} win32={1}' -f $mask, $errorNumber)
+    }
     $StopClient = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
     if (-not (Test-Path -LiteralPath $StopClient -PathType Leaf)) {
         throw 'Compiled gym-stopctl.exe is required for T0 verification.'
