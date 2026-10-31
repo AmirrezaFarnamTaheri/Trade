@@ -40,6 +40,7 @@ if ($CheckStopPipeOnly) {
     if (-not $sidMatch.Success) {
         throw 'SECURITY TEST INVALID: no OS-issued child logon SID'
     }
+    Write-Output "T0 child identity diagnostic: childUser=$($identity.User.Value), childLogon=$($sidMatch.Value), expectedLogon=$ExpectedLogonSid"
     if ($sidMatch.Value -ceq $ExpectedLogonSid) {
         throw 'SECURITY TEST INVALID: same logon SID, probe not independent'
     }
