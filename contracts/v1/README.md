@@ -1,10 +1,14 @@
 # Executor contracts v1 (preliminary)
 
-The canonical envelope is described in TradingGYM_Master_Specification_and_Plan.md
-sections 5.2 and 13.1. The fixture here fixes the exact stored bytes used in
-the hash-chain golden test; it does **not** yet establish the complete
-cross-process event schema.
+The event byte sequence is defined in Master Specification sections 5.2
+and 13.1: SHA-256(previous_hash || u64_be(len(event_bytes)) || exact_event_bytes).
+`genesis-event.json` intentionally has no trailing newline, to make its exact
+bytes portable across Rust and Python. The SQLite schema is implemented in
+`executor/exec-store/schema.sql`.
 
-Funded order payloads, proposal messages and authorization command formats
-must be specified, versioned, and verified across Rust/Python before IPC
-or funding is enabled. All money JSON fields must be exact decimal strings.
+**This is a byte-level compatibility fixture, not yet a complete semantic
+ledger envelope.** Before enabling IPC or funded activity, add versioned
+schemas for the full event envelope, auth, order intent/recovery and proposals;
+ensure numerical money values are exact decimal strings; verify Rust/Python
+contracts using golden vectors. Never reserialize stored events when checking
+hashes. Only the Rust Executor may author the authoritative funded ledger.
