@@ -27,6 +27,21 @@ surfaces are not active. SCM service liveness does not prove protective exits.
   NOT_CONFIGURED by default. **Only explicit, injected sanitized test
   observations have been exercised. No Wallex private account read runs.**
 
+## 2026-10-31 additional safe B1 slices
+- Strict **GET-only** Wallex account reader with pinned HTTPS origin, response
+  body limit, redirects disallowed, exact-decimal balance parsing and known-
+  identity manual-order queries. Unknown payloads, network failures, 404/429
+  and incomplete responses yield **unknown**, not 'proven absent'. The module
+  accepts a separately preconfigured session; it does not store, provision or
+  validate a real read-only API key and has **not** been run against Wallex.
+- Separate SQLite FULL-synchronous, append-only local **external-observation**
+  Journal. Recorded events are read-only observations, not Executor money
+  postings. It survives restarts, rejects older snapshots and decreasing
+  observed cumulative fills, and never manufactures a fill for a disappearing
+  list row. The live sampler/real Wallex account integration is still absent.
+- These isolated additions have automated Python tests. A green fixture-based
+  test does **not** prove a real manual order lifecycle.
+
 ## B1 exit criteria not yet met
 
 - [ ] Provision/read **service-owned** credentials through a separate
@@ -38,7 +53,7 @@ surfaces are not active. SCM service liveness does not prove protective exits.
       with STOP-REQUESTED vs ACKNOWLEDGED and hard-stop containment warning.
       Prove response under dead Python/UI/main loop, network SID exclusion,
       and <1s ACK on the operator's Windows target (ARCH-02, SEC-01, OPS-02).
-- [ ] Build authenticated **read-only** Wallex balance/fee/order/margin/package
+- [ ] Finish authenticated **read-only** Wallex balance/fee/order/margin/package
       clients and separate-account external-exposure projections; preserve
       pagination/freshness/errors, no unverified available cash (EXT-01).
       Key and account-bound behavior require venue authorization/probing.
