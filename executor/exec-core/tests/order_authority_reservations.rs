@@ -104,7 +104,9 @@ fn reservation_rejects_duplicate_intents_and_unverified_or_empty_balance_snapsho
     assert_eq!(book.reserve("intent-a", "main", "USDT", 10, &snapshot, &attempt), Err(ReservationError::DuplicateIntent));
     assert_eq!(BalanceSnapshot::new("", "USDT", 100, 4), Err(ReservationError::InvalidEvidence));
     assert_eq!(BalanceSnapshot::new("main", "USDT", 100, 0), Err(ReservationError::InvalidEvidence));
-    assert_eq!(book.reserve("intent-b", "main", "USDT", 10, &snapshot, &Attempt::new(0).unwrap_err().into_attempt()),
+    let mut already_sent = Attempt::new(10).unwrap();
+    already_sent.apply(Event::BeginSend).unwrap();
+    assert_eq!(book.reserve("intent-b", "main", "USDT", 10, &snapshot, &already_sent),
                Err(ReservationError::OrderNotFresh));
 }
 
