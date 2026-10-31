@@ -169,6 +169,19 @@ public static class TradingGymStopPipeProbe {
         IntPtr security, uint disposition, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint rights, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool IsTokenRestricted(IntPtr token);
+    public static string TokenRestricted() {
+        IntPtr handle;
+        if (!OpenProcessToken(GetCurrentProcess(), 8, out handle))
+            return "query-error=" + Marshal.GetLastWin32Error();
+        try { return IsTokenRestricted(handle).ToString(); }
+        finally { CloseHandle(handle); }
+    }
     [StructLayout(LayoutKind.Sequential)]
     private struct SecAttrs {
         public uint length;
@@ -188,7 +201,10 @@ public static class TradingGymStopPipeProbe {
         uint timeout, ref SecAttrs attrs);
     public static string Canary(string logonSid) {
         var name = @"\\.\pipe\TradingGYM.DaclCanary." + Guid.NewGuid().ToString("N");
-        var sddl = "D:P(A;;GA;;;SY)(A;;GA;;;" + logonSid + ")";
+        bool restricted = logonSid.StartsWith("RC+");
+        if (restricted) logonSid = logonSid.Substring(3);
+        var sddl = "D:P(A;;GA;;;SY)(A;;GA;;;" + logonSid + ")" +
+            (restricted ? "(A;;GA;;;RC)" : "");
         IntPtr descriptor;
         if (!ToDescriptor(sddl, 1, out descriptor, IntPtr.Zero))
             return "descriptor-error=" + Marshal.GetLastWin32Error();
@@ -224,9 +240,10 @@ public static class TradingGymStopPipeProbe {
 }
 '@
     Add-Type -TypeDefinition $accessProbeType
-    foreach ($principalSid in @($expectedSid, 'BA', 'AU', 'WD')) {
+    Write-Output "T0 caller token restricted: $([TradingGymStopPipeProbe]::TokenRestricted())"
+    foreach ($principalSid in @($expectedSid, ('RC+' + $expectedSid), 'BA', 'AU', 'WD')) {
         $canaryResult = [TradingGymStopPipeProbe]::Canary($principalSid)
-        $label = if ($principalSid -eq $expectedSid) { 'logon' } else { $principalSid }
+        $label = if ($principalSid -eq $expectedSid) { 'logon' } elseif ($principalSid -like 'RC+*') { 'logon+RC' } else { $principalSid }
         Write-Output "T0 same-logon DACL canary: principal=$label $canaryResult"
     }
     foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
