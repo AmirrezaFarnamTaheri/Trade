@@ -7,9 +7,13 @@ from pathlib import Path
 
 from aiohttp import web
 
-from ..domain.model import TOMAN, iso, parse_ts
+from ..adapters.run_store import list_runs, load_run
+from ..domain.bars import qualified
+from ..domain.model import TOMAN, InstrumentId, iso, parse_ts
+from ..domain.rules import is_closed
 from ..services.collector import Collector, now_utc
 from ..services.rules import RuleService
+from ..services.reports import economic_report
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -19,7 +23,7 @@ def s(x):
     return None if x is None else str(x)
 
 
-def make_app(col: Collector, rules: RuleService, token: str) -> web.Application:
+def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None) -> web.Application:
     @web.middleware
     async def guard(req: web.Request, handler):
         # DNS-rebinding and CSRF defence: loopback Host only, and a per-run token on every write.
@@ -36,6 +40,9 @@ def make_app(col: Collector, rules: RuleService, token: str) -> web.Application:
         html = UI.read_text("utf-8").replace("__GYM_TOKEN__", token).replace("__GYM_DEMO__", json.dumps(col.demo))
         return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
 
+    async def browser_asset(req):
+        return web.FileResponse(UI.with_name(req.path[1:]))
+
     async def markets(_):
         now, rows = now_utc(), []
         for sym, inst in col.insts.items():
@@ -50,7 +57,17 @@ def make_app(col: Collector, rules: RuleService, token: str) -> web.Application:
                 "unit": {"code": TOMAN.code, "epoch": TOMAN.unit_epoch} if inst.quote == "TMN" else None,
                 "act": rules.act(inst, now),
             })
-        return web.json_response({"now": iso(now), "demo": col.demo, "markets": rows})
+        return web.json_response({"now": iso(now), "demo": col.demo, "fx": fx_factor(now), "markets": rows})
+
+    def fx_factor(now):
+        """USDT/IRT valuation factor: STALE_CLOSED during a closure (last mid kept), LIVE when quoted."""
+        top = col.tops.get("USDTTMN")
+        mid = top and qualified(top) and (top.bid + top.ask) / 2
+        if is_closed(rules.load()[1], InstrumentId.wallex("USDTTMN"), now, live=True):
+            status = "STALE_CLOSED"
+        else:
+            status = "LIVE" if mid else "UNAVAILABLE"
+        return {"pair": "USDTTMN", "mid": s(mid or None), "status": status}
 
     async def rule_list(_):
         return web.json_response(rules.listing(now_utc(), list(col.insts.values())))
@@ -92,9 +109,25 @@ def make_app(col: Collector, rules: RuleService, token: str) -> web.Application:
             "quality": [dict(zip(("ts", "instrument", "flag", "detail"), r)) for r in col.db.quality(30)],
         })
 
+    async def run_list(_):
+        return web.json_response([] if runs is None else list_runs(runs))
+
+    async def run_detail(req):
+        if runs is None:
+            raise web.HTTPNotFound()
+        try:
+            record = load_run(runs, req.match_info["id"])
+        except FileNotFoundError:
+            raise web.HTTPNotFound() from None
+        if record["evidence"] is None:
+            record["evidence"] = economic_report(record)
+        return web.json_response(record)
+
     app = web.Application(middlewares=[guard], client_max_size=1024 * 1024)
     app.add_routes([
-        web.get("/", index), web.get("/api/markets", markets), web.get("/api/health", health),
+        web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
+        web.get("/api/markets", markets), web.get("/api/health", health),
+        web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
         web.post("/api/rules/{id}/disable", rule_disable), web.post("/api/rules/{id}/rollback", rule_rollback),

@@ -1,0 +1,19 @@
+{
+  "migrated_version": "3.0.0",
+  "finalized": false,
+  "appliedAt": "2026-10-30T22:15:23.909Z",
+  "log": [
+    {
+      "action": "skipped:missing",
+      "from": "D:\\GitHub\\Trade\\.unipi\\config\\compactor.json"
+    },
+    {
+      "action": "skipped:missing",
+      "from": "D:\\GitHub\\Trade\\.unipi\\fusion-preset.json"
+    },
+    {
+      "action": "skipped:missing",
+      "from": "D:\\GitHub\\Trade\\.unipi\\config\\background-tasks.json"
+    }
+  ]
+}

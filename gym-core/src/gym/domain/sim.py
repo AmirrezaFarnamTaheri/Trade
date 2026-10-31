@@ -18,6 +18,12 @@ class CostModel:
     # Named assumption, not a venue fact: fees are charged in the asset received.
     fee_assumption: str = "fee-in-received-asset"
 
+    def __post_init__(self):
+        if not self.fee_rate.is_finite() or not 0 <= self.fee_rate < 1:
+            raise ValueError("fee must be finite and in [0,1)")
+        if self.latency < timedelta(0) or self.max_wait < self.latency:
+            raise ValueError("need 0 <= latency <= max_wait")
+
     def describe(self) -> dict:
         return {"fee_rate": str(self.fee_rate), "latency_ms": self.latency // timedelta(milliseconds=1),
                 "max_wait_s": self.max_wait.total_seconds(), "fee_assumption": self.fee_assumption}

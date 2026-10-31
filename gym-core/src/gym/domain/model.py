@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -24,6 +25,11 @@ def dec(x) -> Decimal:
 
 
 def parse_ts(s: str) -> datetime:
+    if not re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}"
+        r"(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-][0-9]{2}:[0-9]{2})?", s
+    ):
+        raise ValueError(f"timestamp must use a padded ISO calendar date and time: {s!r}")
     t = datetime.fromisoformat(s.replace("Z", "+00:00"))
     if t.tzinfo is None:
         raise ValueError(f"ambiguous timestamp without zone: {s!r}")

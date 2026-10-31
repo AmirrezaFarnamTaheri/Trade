@@ -6,7 +6,7 @@ import asyncio
 import json
 import secrets
 import sys
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 from pathlib import Path
 
 from .adapters.store import MarketDB, SegmentWriter
@@ -43,7 +43,8 @@ def demo_seed(args) -> int:
         return 2
     db = open_db(args, preset_at=start)  # demo: the October rules are known from the start of the synthetic past
     rules = RuleService(db).load()[1]
-    closed = lambda s, t: not evaluate(rules, InstrumentId.wallex(s), "SELL", "EXIT", t, live=False).allowed  # noqa: E731
+    def closed(symbol, at):
+        return not evaluate(rules, InstrumentId.wallex(symbol), "SELL", "EXIT", at, live=False).allowed
     seg = SegmentWriter(store_root(args) / "raw", db)
     Collector(db, seg, DEFAULT_WATCH.split(","), demo=True).demo_history(start, end, closed)
     seg.close()
@@ -53,7 +54,9 @@ def demo_seed(args) -> int:
 
 def paper_cmd(args) -> int:
     from .domain.sim import CostModel
-    from .services.paper import paper, save, text_report
+    from .adapters.run_store import save_run
+    from .services.paper import paper
+    from .services.reports import text_report
 
     if not (store_root(args) / "market.db").exists():
         print(f"error: no data in {store_root(args)}" + ("; run gymctl demo-seed first" if args.demo else ""), file=sys.stderr)
@@ -68,9 +71,113 @@ def paper_cmd(args) -> int:
     cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
     out = paper(db, sym, t0, t1, resolution=args.res, fast=args.fast, slow=args.slow, cash=cash, cost=cost,
                 rules_mode=args.rules, store="demo" if args.demo else "live")
-    path = save(out, store_root(args) / "runs")
+    path = save_run(out, store_root(args) / "runs")
     print(text_report(out))
     print(f"\nrun record: {path}")
+    return 0
+
+
+def spreads_cmd(args) -> int:
+    from datetime import timedelta
+
+    from .services.market_statistics import spread_report
+
+    path = store_root(args) / "market.db"
+    if not path.exists():
+        raise ValueError(f"no market data in {path.parent}")
+    db = MarketDB(path)
+    try:
+        symbol = args.symbol.upper() if args.symbol else None
+        query = "select min(ts_avail), max(ts_avail) from book_top"
+        if symbol:
+            span = db.c.execute(query + " where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
+        else:
+            span = db.c.execute(query).fetchone()
+        if not span[0]:
+            raise ValueError("no stored quotes for the requested markets")
+        start = parse_ts(args.start or span[0])
+        end = parse_ts(args.end) if args.end else parse_ts(span[1]) + timedelta(microseconds=1)
+        report = spread_report(db, start, end, symbol=symbol, store="demo" if args.demo else "live")
+        text = json.dumps(report, ensure_ascii=False, indent=2)
+        if args.output:
+            with Path(args.output).open("x", encoding="utf-8") as output:
+                output.write(text + "\n")
+            print(f"spread report: {args.output}; {report['samples']} observations, {len(report['groups'])} pair/hour groups")
+        else:
+            print(text)
+    finally:
+        db.c.close()
+    return 0
+
+def candles_cmd(args) -> int:
+    """DATA-05: compare internal LAST bars from collected trades with venue candles."""
+    from datetime import timedelta
+
+    import aiohttp
+
+    from .services.collector import Collector, now_utc
+    from .services.data_portal import DataPortal
+    from .services.feed_crosscheck import candle_crosscheck
+
+    if args.demo:
+        raise ValueError("demo data has no venue candles; run the cross-check on the live store")
+    path = store_root(args) / "market.db"
+    if not path.exists():
+        raise ValueError(f"no market data in {path.parent}")
+    symbol = args.symbol.upper()
+    db = MarketDB(path)
+    try:
+        end = parse_ts(args.end) if args.end else now_utc()
+        start = parse_ts(args.start) if args.start else end - timedelta(hours=2)
+        if args.fetch:
+            async def fetch():
+                seg = SegmentWriter(store_root(args) / "raw", db)
+                try:
+                    async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
+                        return await Collector(db, seg, [symbol]).fetch_candles(session, symbol, "1min", start, end)
+                finally:
+                    seg.close()
+            print(f"fetched {asyncio.run(fetch())} venue candles", file=sys.stderr)
+        report = candle_crosscheck(DataPortal(db), symbol, start, end, tolerance_bps=Decimal(args.tolerance_bps))
+        if args.record:
+            for row in report["periods"]:
+                if row["status"] in ("DIVERGENT", "MISSING_INTERNAL"):
+                    db.add_quality(now_utc(), symbol, "CROSS_FEED_DIVERGENCE", json.dumps(row))
+        print(json.dumps(report, indent=2) if args.json else
+              f"{symbol} 1min {report['from']} .. {report['to_exclusive']}: " +
+              (", ".join(f"{k} {v}" for k, v in sorted(report["counts"].items())) or "no periods"))
+    finally:
+        db.c.close()
+    return 0
+
+def evidence_cmd(args):
+    from .adapters.run_store import record_decision, run_path
+    from .services.diagnostics import diagnostics
+    from .services.reports import economic_report, markdown
+
+    root = store_root(args) / "runs"
+    out = json.loads(run_path(root, args.run_id).read_text("utf-8"))
+    diag = diagnostics(open_db(args), out) if args.diagnostics and out["inputs"].get("kind") != "live-session" else None
+    if args.diagnostics and diag is None:
+        diag = {"status": "NOT_RUN", "reason": "Live-session matched replay is required."}
+    report = economic_report(out, diag)
+    (root / (args.run_id + ".evidence.json")).write_text(json.dumps(report, ensure_ascii=False, indent=2), "utf-8")
+    path = root / (args.run_id + ".evidence.md")
+    path.write_text(markdown(report), "utf-8")
+    print(path)
+    if args.decide:
+        print(record_decision(root, out, args.decide, args.cap, args.ccy, args.note, now_utc()))
+    return 0
+
+
+def session_cmd(args):
+    from .services.live_paper import watch
+
+    if not (store_root(args) / "market.db").exists():
+        raise ValueError("start the collector first")
+    cash = Decimal(args.cash or (300_000_000 if args.symbol.upper().endswith("TMN") else 1000))
+    asyncio.run(watch(open_db(args), store_root(args) / "runs", args.symbol.upper(), args.seconds,
+                      args.res, args.fast, args.slow, cash, args.demo))
     return 0
 
 
@@ -88,7 +195,7 @@ async def serve(args):
     db = open_db(args)
     seg = SegmentWriter(Path(args.data) / ("demo" if args.demo else "live") / "raw", db)
     col = Collector(db, seg, [s.strip().upper() for s in args.watch.split(",") if s.strip()], demo=args.demo)
-    runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24)))
+    runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24), store_root(args) / "runs"))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
     print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory on http://127.0.0.1:{args.port}/  (Ctrl+C to stop)", flush=True)
@@ -137,13 +244,46 @@ def main(argv=None):
     pp.add_argument("--fee", default="0.002", help="fee rate per side (default: documentation example 0.2%%)")
     pp.add_argument("--latency-ms", type=int, default=500)
     pp.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
+    spreads = sub.add_parser("spreads", help="observed spread distributions by pair and Tehran hour")
+    spreads.add_argument("symbol", nargs="?", help="default: every observed market")
+    spreads.add_argument("--demo", action="store_true")
+    spreads.add_argument("--from", dest="start")
+    spreads.add_argument("--to", dest="end")
+    spreads.add_argument("--output", help="create a JSON report (never overwrite an existing file)")
+    candles = sub.add_parser("candles", help="cross-check internal trade bars against venue candles (DATA-05)")
+    candles.add_argument("symbol")
+    candles.add_argument("--demo", action="store_true")
+    candles.add_argument("--from", dest="start", help="default: two hours before --to")
+    candles.add_argument("--to", dest="end", help="default: now")
+    candles.add_argument("--tolerance-bps", default="10")
+    candles.add_argument("--fetch", action="store_true", help="fetch venue candles for the range first")
+    candles.add_argument("--record", action="store_true", help="write CROSS_FEED_DIVERGENCE quality events")
+    candles.add_argument("--json", action="store_true")
+    ev = sub.add_parser("evidence", help="economic report and optional immutable claim/capital decision (never arms trading)")
+    ev.add_argument("run_id")
+    ev.add_argument("--demo", action="store_true")
+    ev.add_argument("--diagnostics", action="store_true", help="run repeatability, truncation and fee stress")
+    ev.add_argument("--decide", choices=["NONE", "EXPERIMENTAL"])
+    ev.add_argument("--cap", default="0")
+    ev.add_argument("--ccy", choices=["USDT", "TMN"], default="USDT")
+    ev.add_argument("--note", default="")
+    se = sub.add_parser("session", help="live paper on the collector database; Ctrl+C preserves ABORTED cursor")
+    se.add_argument("symbol")
+    se.add_argument("--demo", action="store_true")
+    se.add_argument("--seconds", type=int, default=3600, help="duration after warmup")
+    se.add_argument("--res", default="15min")
+    se.add_argument("--fast", type=int, default=8)
+    se.add_argument("--slow", type=int, default=21)
+    se.add_argument("--cash")
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    if args.cmd in ("paper", "demo-seed"):
+    commands = {"evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+                "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
+    if args.cmd in commands:
         try:
-            return paper_cmd(args) if args.cmd == "paper" else demo_seed(args)
-        except (ValueError, OSError) as e:
+            return commands[args.cmd](args)
+        except (ValueError, OSError, DecimalException) as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
     if args.cmd == "run":
@@ -154,7 +294,8 @@ def main(argv=None):
         return 0
 
     svc, now = RuleService(open_db(args)), now_utc()
-    out = lambda o: print(json.dumps(o, ensure_ascii=False, indent=2, default=str))  # noqa: E731
+    def out(value):
+        print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
     try:
         if args.op == "list":
             version, rules, q = svc.load(parse_ts(args.at) if args.at else None)
@@ -180,7 +321,7 @@ def main(argv=None):
         elif args.op == "check":
             at = parse_ts(args.at) if args.at else now
             out(svc.check(InstrumentId.wallex(args.symbol.upper()), args.side, args.intent, at, used=Decimal(args.used)))
-    except (ValueError, OSError) as e:
+    except (ValueError, OSError, DecimalException) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
     return 0

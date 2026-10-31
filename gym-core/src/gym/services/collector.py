@@ -13,9 +13,13 @@ import aiohttp
 
 from ..adapters import wallex
 from ..adapters.store import MarketDB, SegmentWriter
+from ..domain.bars import qualified
 from ..domain.model import UTC, BookSide, InstrumentId, QualityLimits, TradeTick, book_top, iso, levels, loads, parse_ts
+from ..domain.units import UnitWatch, unit_freeze_rule
+from .rules import RuleService
 
 HEARTBEAT_S = 60
+CANDLE_REFRESH_S = 300
 CATALOG_KEYS = ("baseAsset", "quoteAsset", "baseAssetPrecision", "quotePrecision", "stepSize", "tickSize",
                 "minQty", "minNotional", "isZeroFee", "isNew", "isMarketTypeEnable", "createdAt")
 
@@ -42,6 +46,7 @@ class Collector:
             row = db.c.execute("select max(ts_event) from trades where instrument_id=?", (f"wallex:{s}",)).fetchone()
             if row[0]:
                 self.last_trade_ts[s] = parse_ts(row[0])
+        self.units = UnitWatch()
         self.status = {"connected": False, "last_frame": None, "reconnects": 0, "fatal": None, "errors": deque(maxlen=20)}
 
     # --- ingestion (shared by live, REST seeding and demo) ---
@@ -103,6 +108,16 @@ class Collector:
             if not last or last[0] != top.key() or (now - last[1]).total_seconds() >= HEARTBEAT_S:
                 self.db.add_book_top(top, self.depth_ref.get(sym))
                 self.written[sym] = (top.key(), now)
+        self.watch_units(now)
+
+    def watch_units(self, now: datetime):
+        """DATA-04: a ×10^k jump in every IRT price at once freezes new IRT entries. Stored rows stay as observed."""
+        mids = {(self.insts[s].base, self.insts[s].quote): (t.bid + t.ask) / 2
+                for s, t in self.tops.items() if qualified(t)}
+        event = self.units.observe(mids)
+        if event:
+            self.quality(now, None, "UNIT_DISCONTINUITY", json.dumps(event))
+            RuleService(self.db).put(unit_freeze_rule(event, now), now, "add", actor="collector")
 
     # --- live Wallex ---
     async def load_catalog(self, session):
@@ -162,8 +177,22 @@ class Collector:
                     break
             return ws.close_code
 
+    async def fetch_candles(self, session, symbol: str, resolution: str, start: datetime, end: datetime) -> int:
+        """Venue candles for the DATA-05 cross-check; raw responses go to the segment like every other source."""
+        now = now_utc()
+        try:
+            raw = await wallex.get_text(session, "/v1/udf/history", symbol=symbol, resolution=wallex.UDF_RESOLUTIONS[resolution],
+                                        **{"from": int(start.timestamp()), "to": int(end.timestamp())})
+            self.seg.write("rest:/v1/udf/history", raw, now)
+            candles = wallex.parse_udf(raw)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+            self.quality(now, symbol, "SOURCE_ERROR", f"udf history: {type(e).__name__}: {e}")
+            return 0
+        self.db.upsert_candles(symbol, resolution, candles, now)
+        return len(candles)
+
     async def _housekeeping(self, session):
-        last_reseed = time.monotonic()
+        last_reseed = last_candles = time.monotonic()
         while True:
             await asyncio.sleep(2)
             self.tick(now_utc())
@@ -172,6 +201,10 @@ class Collector:
                 stale = [s for s, t in self.tops.items() if "STALE" in t.flags]
                 if stale and self.status["connected"]:
                     await self.seed(session, stale, trades=False)
+            if session and time.monotonic() - last_candles > CANDLE_REFRESH_S:
+                last_candles, now = time.monotonic(), now_utc()
+                for sym in self.books:
+                    await self.fetch_candles(session, sym, "1min", now - timedelta(hours=2), now)
 
     async def run(self):
         if self.demo:

@@ -69,6 +69,11 @@ class EmaTrend:
         self.params = {"fast": fast, "slow": slow}
         self.fast, self.slow = EMA(fast), EMA(slow)
 
+    @property
+    def feature_values(self) -> dict:
+        return {"fast_ema": str(self.fast.value), "slow_ema": str(self.slow.value),
+                "trend": self.fast.value > self.slow.value if self.slow.ready else None}
+
     def decide(self, snap: Snapshot, holding: bool) -> tuple[str, Decimal, tuple[str, ...], str]:
         f, s = self.fast.update(snap.bar.close), self.slow.update(snap.bar.close)
         fh = digest([str(f), str(s)])[:16]
@@ -88,6 +93,7 @@ class BuyAndHold:
     """Baseline: buy once at the first qualified decision, then hold. Same simulator, same costs."""
     name = "buy-and-hold"
     params: dict = {}
+    feature_values: dict = {}
 
     def decide(self, snap: Snapshot, holding: bool):
         if holding:

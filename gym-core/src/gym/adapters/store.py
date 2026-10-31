@@ -32,6 +32,10 @@ MIGRATIONS = [
     create table regime_events(seq integer primary key autoincrement, ts text, op text, rule_id text,
         body text, actor text);
     """,
+    """
+    create table venue_candles(instrument_id text, resolution text, t text, o text, h text, l text, c text, v text,
+        fetched_at text, primary key(instrument_id, resolution, t));
+    """,
 ]
 
 
@@ -67,6 +71,12 @@ class MarketDB:
     def add_book_top(self, b: BookTop, depth_ref: str | None):
         self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
                        s(b.bid), s(b.ask), s(b.bid_qty), s(b.ask_qty), depth_ref, ",".join(sorted(b.flags))))
+
+    def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
+        """Venue candles are revised while forming: the latest fetch of a period replaces the earlier one."""
+        self.c.executemany("insert or replace into venue_candles values(?,?,?,?,?,?,?,?,?)",
+                           [(f"wallex:{symbol}", resolution, iso(k["t"]), str(k["o"]), str(k["h"]), str(k["l"]),
+                             str(k["c"]), str(k["v"]), iso(fetched_at)) for k in candles])
 
     def add_quality(self, now: datetime, symbol: str | None, flag: str, detail: str = ""):
         self.c.execute("insert into quality_events values(?,?,?,?)", (iso(now), symbol and f"wallex:{symbol}", flag, detail[:500]))

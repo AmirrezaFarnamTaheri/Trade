@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 
 import aiohttp
 
@@ -27,6 +29,26 @@ def parse_channel(ch: str) -> tuple[str, str, str] | None:
     if kind == "public" and topic == "trade":
         return "trade", sym, ""
     return None
+
+
+UDF_RESOLUTIONS = {"1min": "1", "1h": "60"}  # "D" answers no_data on the live API (probed 2026-10-31)
+
+
+def parse_udf(text: str) -> list[dict]:
+    """`/v1/udf/history` columns -> candles with exact decimals. `no_data` is an empty answer, not an error."""
+    d = json.loads(text)
+    if d.get("s") == "no_data":
+        return []
+    if d.get("s") != "ok":
+        raise ValueError(f"udf history status {d.get('s')!r}")
+    cols = [d[k] for k in "tohlcv"]
+    if len({len(c) for c in cols}) != 1:
+        raise ValueError("udf history columns differ in length")
+    try:
+        return [{"t": datetime.fromtimestamp(int(t), timezone.utc), **{k: Decimal(str(x)) for k, x in zip("ohlcv", row)}}
+                for t, *row in zip(*cols)]
+    except (InvalidOperation, TypeError, OverflowError) as e:
+        raise ValueError(f"udf history value: {e}") from e
 
 
 def connect_cmds(chs: list[str]) -> list[str]:

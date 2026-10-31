@@ -169,6 +169,9 @@ def evaluate(rules: list[Rule], inst: InstrumentId, side: str, intent: str, now:
             left = dec(r.params["limit"]) - used
             remaining = left if remaining is None else min(remaining, left)
             active, why = left <= 0, f"quota exhausted ({used}/{r.params['limit']} {r.params['asset']})"
+        elif r.family == "CurrencyUnit":
+            # A unit rule blocks only when it records an observed discontinuity; plain unit facts are metadata.
+            active, why = bool(r.params.get("unit_discontinuity")), "currency unit discontinuity"
         else:
             active, why = r.family in ALWAYS_ON, r.family.lower()
         if not active:
@@ -205,6 +208,50 @@ def next_change(rules: list[Rule], inst: InstrumentId, side: str, intent: str, n
             return t
     return None
 
+
+def closures(rules: list[Rule], inst: InstrumentId, around: datetime, *, live: bool = False,
+             days: int = 1) -> list[tuple[datetime, datetime]]:
+    """Merged whole-market closures of `inst` near `around`: BLOCK_ALL TradingWindows for both sides,
+    clipped to each rule's effective interval exactly as `evaluate` applies them."""
+    spans = []
+    for r in rules:
+        if r.family != "TradingWindow" or r.disabled or r.action != "BLOCK_ALL" or (r.cls == "SCENARIO" and live):
+            continue
+        if not (in_scope(r, inst, "BUY") and in_scope(r, inst, "SELL")):
+            continue
+        for s, e in windows(r, around, days, days):
+            s, e = max(s, r.effective_from), min(e, r.effective_until) if r.effective_until else e
+            if s < e:
+                spans.append((s, e))
+    merged: list[tuple[datetime, datetime]] = []
+    for s, e in sorted(spans):
+        if merged and s <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+    return merged
+
+
+def is_closed(rules: list[Rule], inst: InstrumentId, t: datetime, *, live: bool = False) -> bool:
+    return any(s <= t < e for s, e in closures(rules, inst, t, live=live))
+
+
+def session_period(rules: list[Rule], inst: InstrumentId, t: datetime) -> tuple[datetime, datetime]:
+    """The trading session containing `t`: a closure itself, or the open stretch between closures,
+    cut at Tehran midnight so a 24/7 market gets one session per venue day."""
+    spans = closures(rules, inst, t)
+    for s, e in spans:
+        if s <= t < e:
+            return s, e
+    day = tehran_day(t)
+    start = datetime.combine(day, time(0), TEHRAN)
+    end = datetime.combine(day + timedelta(days=1), time(0), TEHRAN)
+    for s, e in spans:
+        if e <= t:
+            start = max(start, e)
+        elif s > t:
+            end = min(end, s)
+    return start, end
 
 PRESETS: dict[str, list[dict]] = {
     "usdt-irt-october-2026": [
