@@ -125,3 +125,12 @@ def test_disposable_windows_ci_includes_same_logon_descriptor_canary():
     for group in ("'BA'", "'AU'", "'WD'"):
         assert group in script
     assert "T0 same-logon DACL canary:" in script
+
+
+def test_operator_stop_pipe_acl_allows_metadata_read_but_not_pipe_creation():
+    pipe = PIPE.read_text("utf-8")
+    # A real Windows canary reproduced ACCESS_DENIED at 0x00100003 and
+    # permitted 0x00100083; the added 0x80 is FILE_READ_ATTRIBUTES.
+    assert '0x00100083;;;{logon_sid}' in pipe
+    assert "FILE_CREATE_PIPE_INSTANCE" in pipe
+    assert "0x00100003;;;{logon_sid}" not in pipe
