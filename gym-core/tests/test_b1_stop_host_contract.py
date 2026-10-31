@@ -95,3 +95,16 @@ def test_disposable_vm_checks_effective_logon_identity_before_stop_client():
     assert "S-1-5-2" in smoke  # deny-NETWORK group membership diagnostic
     assert "Write-Output $expectedSid" not in smoke
     assert "Write-Output $actualSid" not in smoke
+
+
+def test_hosted_smoke_defines_protected_code_directory_before_reading_stop_sid():
+    smoke = SMOKE.read_text("utf-8")
+    assert "$CodeDir = Join-Path $CodeRoot 'Executor'" in smoke
+    assert "$expectedSid = (Get-Content -LiteralPath (Join-Path $CodeDir 'stop-logon.sid')" in smoke
+
+
+def test_remote_pipe_rejection_does_not_deny_local_network_group_tokens():
+    pipe = PIPE.read_text("utf-8")
+    assert ".reject_remote_clients(true)" in pipe
+    assert "D:P(A;;GA;;;SY)" in pipe
+    assert "(D;;GA;;;NU)" not in pipe
