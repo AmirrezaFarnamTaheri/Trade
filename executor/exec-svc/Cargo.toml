@@ -9,7 +9,7 @@ exec-ipc = { path = "../exec-ipc" }
 
 [target.'cfg(windows)'.dependencies]
 tokio = { version = "1.53", features = ["rt", "net", "io-util", "time", "sync"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Threading"] }
 
 windows-service = "0.8"
 

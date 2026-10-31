@@ -14,8 +14,12 @@ fn main() {
 #[cfg(windows)]
 mod client {
     use exec_ipc::{StopCommand, StopReply, StopRequest, StopResult, FRAME_SIZE};
-    use std::fs::OpenOptions;
+    use std::fs::File;
     use std::io::{Read, Write};
+    use std::os::windows::io::FromRawHandle;
+    use std::ptr;
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::Storage::FileSystem::CreateFileW;
     use std::sync::mpsc;
     use std::thread;
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -33,8 +37,19 @@ mod client {
         thread::spawn(move || {
             let result = (|| -> Result<StopReply, String> {
                 let frame = request.encode().map_err(|_| "invalid stop frame".to_owned())?;
-                let mut pipe = OpenOptions::new().read(true).write(true).open(PIPE)
-                    .map_err(|_| "stop pipe unavailable or not authorized".to_owned())?;
+                let wide: Vec<u16> = PIPE.encode_utf16().chain(std::iter::once(0)).collect();
+                // Ask only for READ_DATA | WRITE_DATA | SYNCHRONIZE. Generic
+                // WRITE also requests FILE_APPEND_DATA (0x4), which on named
+                // pipes grants FILE_CREATE_PIPE_INSTANCE and must be denied.
+                let raw = unsafe {
+                    CreateFileW(
+                        wide.as_ptr(), 0x00100003, 0, ptr::null(), 3, 0, ptr::null_mut(),
+                    )
+                };
+                if raw == INVALID_HANDLE_VALUE {
+                    return Err("stop pipe unavailable or not authorized".to_owned());
+                }
+                let mut pipe = unsafe { File::from_raw_handle(raw.cast()) };
                 pipe.write_all(&frame).map_err(|_| "stop request not delivered".to_owned())?;
                 let mut response = [0u8; FRAME_SIZE];
                 pipe.read_exact(&mut response).map_err(|_| "missing stop acknowledgment".to_owned())?;
