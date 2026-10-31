@@ -104,3 +104,49 @@ jobs:
           fi
           git commit -m "chore: refresh Python dependency lock"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF}"
+
+
+  b3-synthetic-produce:
+    name: B3 encrypt synthetic ledger on Linux runner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - name: Install reviewed Python lock
+        working-directory: gym-core
+        run: uv sync --locked --group dev
+      - name: Create encrypted synthetic archive (no credentials)
+        working-directory: gym-core
+        run: uv run python scripts/b3_portability_probe.py produce "$RUNNER_TEMP/b3-demo.tgbak"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: b3-ci-synthetic-archive
+          path: ${{ runner.temp }}/b3-demo.tgbak
+          if-no-files-found: error
+          retention-days: 1
+
+  b3-synthetic-restore:
+    name: B3 decrypt and verify on independent Windows runner
+    needs: b3-synthetic-produce
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: b3-ci-synthetic-archive
+          path: ${{ runner.temp }}/b3-input
+      - name: Restore and verify exact event chain on new Windows instance
+        shell: pwsh
+        working-directory: gym-core
+        run: |
+          uv sync --locked --group dev
+          uv run python scripts/b3_portability_probe.py restore "$env:RUNNER_TEMP\b3-input\b3-demo.tgbak" "$env:RUNNER_TEMP\b3-restored\exec_ledger.db"
