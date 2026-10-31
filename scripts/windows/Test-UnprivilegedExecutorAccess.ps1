@@ -24,6 +24,19 @@ if ($null -eq $service -or $service.StartMode -ine 'Disabled' -or $service.State
     throw 'Service should remain DISABLED and STOPPED during the access probe.'
 }
 
+function Test-IsAccessDenied {
+    param([Parameter(Mandatory = $true)][System.Exception] $Exception)
+    # PowerShell may wrap a .NET UnauthorizedAccessException in a
+    # MethodInvocationException.  Inspect only the actual Win32 denial code,
+    # not arbitrary failures such as file-not-found or sharing violation.
+    $inner = $Exception
+    for ($depth = 0; $depth -lt 8 -and $null -ne $inner; $depth++) {
+        if (($inner.HResult -band 0xFFFF) -eq 5) { return $true }
+        $inner = $inner.InnerException
+    }
+    return $false
+}
+
 function Assert-AccessDenied {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -33,8 +46,7 @@ function Assert-AccessDenied {
         & $Action
     }
     catch {
-        $errorCode = $_.Exception.HResult -band 0xFFFF
-        if ($errorCode -ne 5) {
+        if (-not (Test-IsAccessDenied -Exception $_.Exception)) {
             throw "Expected ACCESS_DENIED (Win32 5) for $Name, got: $($_.Exception.Message)"
         }
         return
@@ -57,14 +69,20 @@ Assert-AccessDenied -Name 'protected binary overwrite capability' -Action {
 # fail the test. Never overwrite an existing record or secret.
 $probe = Join-Path $DataDir ('acl-probe-' + [guid]::NewGuid().ToString('N') + '.tmp')
 $writePermitted = $false
+$createdStream = $null
 try {
-    [IO.File]::WriteAllText($probe, 'SECURITY_PROBE_NO_SECRETS')
+    # CreateNew guarantees the probe never overwrites any existing object.
+    $createdStream = [IO.File]::Open($probe, [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write, [IO.FileShare]::None)
     $writePermitted = $true
 }
 catch {
-    if (($_.Exception.HResult -band 0xFFFF) -ne 5) {
+    if (-not (Test-IsAccessDenied -Exception $_.Exception)) {
         throw "Expected ACCESS_DENIED on private ledger directory, got $($_.Exception.Message)"
     }
+}
+finally {
+    if ($null -ne $createdStream) { $createdStream.Dispose() }
 }
 if ($writePermitted) {
     # This branch always fails security validation, regardless of whether the

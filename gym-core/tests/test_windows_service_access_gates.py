@@ -40,7 +40,8 @@ def test_unprivileged_script_uses_real_denied_access_attempts_not_only_acl_text(
     assert 'WindowsBuiltInRole' in body
     assert 'Administrator' in body
     assert 'File]::Open' in body
-    assert 'WriteAllText' in body
+    assert '[IO.FileMode]::CreateNew' in body  # no accidental overwrite of an existing object
+    assert 'InnerException' in body  # unwrap PowerShell's MethodInvocationException
     assert 'OpenService' in body
     assert 'GetLastWin32Error' in body
     assert 'should remain DISABLED' in body
