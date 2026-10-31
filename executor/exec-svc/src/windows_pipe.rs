@@ -95,21 +95,21 @@ fn create_pipe(service_sid: &str, logon_sid: &str, first: bool) -> io::Result<Na
 /// access mask is unexpectedly permissive on the installed Windows host.
 /// There are deliberately NO awaits during impersonation: the stop listener
 /// runs on its own single-thread Tokio runtime. Revert failure is fatal.
-fn verified_client_logon(client: &NamedPipeServer, expected_logon: &str) -> io::Result<()> {
+fn verified_client_logon(client: &NamedPipeServer, expected_logon: &str, expected_user: &str) -> io::Result<()> {
     // SAFETY: the server owns this connected pipe; it has already received
     // the client's request bytes, as required by ImpersonateNamedPipeClient.
     if unsafe { ImpersonateNamedPipeClient(client.as_raw_handle()) } == 0 {
         return Err(io::Error::last_os_error());
     }
-    let verified_client_logon = crate::windows_identity::impersonated_thread_logon_sid()
-        .and_then(|sid| {
-            if sid == expected_logon {
-                Ok(())
-            } else {
-                Err(io::Error::new(io::ErrorKind::PermissionDenied,
-                    "stop pipe client is not the provisioned operator logon"))
-            }
-        });
+    let verified_client_logon = (|| -> io::Result<()> {
+        let logon = crate::windows_identity::impersonated_thread_logon_sid()?;
+        let user = crate::windows_identity::impersonated_thread_user_sid()?;
+        if logon != expected_logon || user != expected_user {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied,
+                "stop pipe client does not match provisioned OS user and logon"));
+        }
+        Ok(())
+    })();
     // SAFETY: every successful impersonation MUST be reverted on the same
     // OS thread before any gate action or await; otherwise continuing under
     // the client's thread token is unsafe (Microsoft RevertToSelf contract).
@@ -123,6 +123,7 @@ async fn handle_client(
     mut client: NamedPipeServer,
     gate: Arc<StopGate>,
     expected_logon: String,
+    expected_user: String,
 ) -> io::Result<()> {
     let mut buf = [0_u8; FRAME_SIZE + 1];
     let received = timeout(CLIENT_DEADLINE, client.read(&mut buf))
@@ -131,7 +132,7 @@ async fn handle_client(
     if received != FRAME_SIZE {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid stop message size"));
     }
-    verified_client_logon(&client, &expected_logon)?;
+    verified_client_logon(&client, &expected_logon, &expected_user)?;
     let reply = gate
         .process_frame(&buf[..received])
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
@@ -147,6 +148,7 @@ pub async fn serve_stop_only(
     gate: Arc<StopGate>,
     service_sid: &str,
     logon_sid: &str,
+    user_sid: &str,
     ready: Option<std::sync::mpsc::Sender<()>>,
 ) -> io::Result<()> {
     let mut listening = create_pipe(service_sid, logon_sid, true)?;
@@ -172,9 +174,10 @@ pub async fn serve_stop_only(
         if let Ok(slot) = slots.clone().try_acquire_owned() {
             let state = gate.clone();
             let operator_logon = logon_sid.to_owned();
+            let operator_user = user_sid.to_owned();
             tokio::spawn(async move {
                 let _slot = slot;
-                let _ = handle_client(connected, state, operator_logon).await;
+                let _ = handle_client(connected, state, operator_logon, operator_user).await;
             });
         }
         // At capacity, drop the connection; never queue unbounded requests.
