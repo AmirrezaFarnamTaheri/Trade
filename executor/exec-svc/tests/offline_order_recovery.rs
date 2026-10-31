@@ -90,3 +90,47 @@ fn exact_account_and_asset_identity_survives_restart() {
     assert_eq!(order.attempt.requested_quanta(), 17);
     assert_eq!(order.attempt.lifecycle(), Lifecycle::Denied);
 }
+
+#[test]
+fn recovered_inflight_attempt_cannot_claim_prebyte_failure_after_crash() {
+    let path = db_path("crash-prebyte");
+    {
+        let mut writer = DurableOrderJournal::open(&path).unwrap();
+        writer.create_intent("client-crash", "main", "BTC", 5).unwrap();
+        writer.record_event("client-crash", Event::BeginSend).unwrap();
+    }
+    for _ in 0..2 {
+        let mut restarted = DurableOrderJournal::open(&path).unwrap();
+        assert_eq!(restarted.record_count(), 2);
+        assert_eq!(
+            restarted.record_event("client-crash",
+                Event::TransportFailed(FailureStage::BeforeFirstByte)),
+            Err(RecoveryError::Order(OrderError::IllegalTransition))
+        );
+        assert_eq!(restarted.record_count(), 2);
+        assert_eq!(restarted.get("client-crash").unwrap().attempt.lifecycle(),
+            Lifecycle::Submitting);
+        assert_eq!(restarted.record_event("client-crash", Event::BeginSend),
+            Err(RecoveryError::Order(OrderError::RetryForbidden)));
+    }
+    let mut restarted = DurableOrderJournal::open(&path).unwrap();
+    restarted.record_event("client-crash",
+        Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
+    assert_eq!(restarted.get("client-crash").unwrap().attempt.lifecycle(),
+        Lifecycle::Unknown);
+}
+
+#[test]
+fn continuous_process_may_record_proven_prebyte_failure_once() {
+    let path = db_path("same-process-prebyte");
+    let mut writer = DurableOrderJournal::open(&path).unwrap();
+    writer.create_intent("client-proven", "main", "USDT", 10).unwrap();
+    writer.record_event("client-proven", Event::BeginSend).unwrap();
+    writer.record_event("client-proven",
+        Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
+    assert!(writer.get("client-proven").unwrap().attempt.can_retry_same_identity());
+    writer.record_event("client-proven", Event::BeginSend).unwrap();
+    writer.record_event("client-proven",
+        Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
+    assert!(!writer.get("client-proven").unwrap().attempt.can_retry_same_identity());
+}
