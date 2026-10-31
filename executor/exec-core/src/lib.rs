@@ -16,10 +16,7 @@ pub struct State {
 
 impl State {
     pub fn new(runtime_epoch: u64) -> Self {
-        Self {
-            runtime_epoch,
-            mode: Mode::Disarmed,
-        }
+        Self { runtime_epoch, mode: Mode::Disarmed }
     }
 }
 
@@ -42,7 +39,26 @@ pub enum StopResult {
     StaleRuntime { current_epoch: u64 },
 }
 
-// RED: these tests must fail until the monotone stop transition is implemented.
-pub fn step(state: State, _request: StopRequest) -> (State, StopResult) {
-    (state, StopResult::Acknowledged { mode: state.mode, changed: false })
+/// T0 requests can only reduce authority. Arming requires a separate,
+/// privileged path that does not exist in this read-only foundation.
+pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
+    if request.runtime_epoch != state.runtime_epoch {
+        return (state, StopResult::StaleRuntime { current_epoch: state.runtime_epoch });
+    }
+    let requested = match request.command {
+        StopCommand::PauseEntries => Mode::Paused,
+        StopCommand::ExitOnly => Mode::ExitOnly,
+        StopCommand::Halt => Mode::Halted,
+    };
+    fn rank(mode: Mode) -> u8 {
+        match mode {
+            Mode::Disarmed => 0,
+            Mode::Paused => 1,
+            Mode::ExitOnly => 2,
+            Mode::Halted => 3,
+        }
+    }
+    let mode = if rank(requested) > rank(state.mode) { requested } else { state.mode };
+    let changed = mode != state.mode;
+    (State { mode, ..state }, StopResult::Acknowledged { mode, changed })
 }

@@ -1,4 +1,4 @@
-use exec_store::hash_event;
+use exec_store::{hash_event, verify_chain};
 
 #[test]
 fn canonical_genesis_event_uses_exact_stored_bytes() {
@@ -15,4 +15,14 @@ fn event_byte_change_changes_digest() {
     let b = hash_event(&prev, br#"{"sequence":1} "#);
     assert_ne!(a, b);
     assert_ne!(a, hash_event(&[1; 32], br#"{"sequence":1}"#));
+}
+
+#[test]
+fn verifies_complete_ordered_chain_and_rejects_tampering() {
+    let events: [&[u8]; 2] = [b"intent", b"observation"];
+    let first = hash_event(&[0; 32], events[0]);
+    let head = hash_event(&first, events[1]);
+    assert!(verify_chain([0; 32], events, head));
+    assert!(!verify_chain([0; 32], [b"intent".as_slice(), b"changed".as_slice()], head));
+    assert!(!verify_chain([0; 32], [b"observation".as_slice(), b"intent".as_slice()], head));
 }
