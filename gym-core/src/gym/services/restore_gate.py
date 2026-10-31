@@ -121,3 +121,46 @@ def assess_migration_staging(state: dict) -> dict:
         "install_authorized": False,
         "funded_arming": False,
     }
+
+
+def _expected_digest(value: str) -> str:
+    """Compare trusted out-of-band digests; do NOT authenticate them here."""
+    if not isinstance(value, str) or len(value) != 64 or any(
+        c not in "0123456789abcdefABCDEF" for c in value
+    ):
+        raise RestoreUnsafe("expected digest must be 64 hexadecimal characters")
+    return value.lower()
+
+
+def inspect_pinned_ledger(
+    source: Path | str, *,
+    expected_head_hash: str, expected_file_sha256: str,
+) -> dict:
+    """Reject any mismatch against independently authenticated external data.
+
+    This does not authenticate the manifest, decrypt a backup, or install it.
+    Calling code must separately establish the trusted provenance of the
+    expected digests and ensure the staging copy cannot change during checks.
+    """
+    expected_head_hash = _expected_digest(expected_head_hash)
+    expected_file_sha256 = _expected_digest(expected_file_sha256)
+    report = inspect_ledger(source)
+    if report["head_hash"] != expected_head_hash:
+        raise RestoreUnsafe("expected ledger head hash does not match")
+    if report["file_sha256"] != expected_file_sha256:
+        raise RestoreUnsafe("expected backup file sha256 does not match")
+    # Not an authenticated source: matching a caller-supplied digest is NOT
+    # equivalent to verifying a trusted, signed or AEAD-protected manifest.
+    return report
+
+
+def check_pinned_restore_target(
+    source: Path | str, destination: Path | str, *,
+    expected_head_hash: str, expected_file_sha256: str,
+) -> dict:
+    """Evaluate only; never create, overwrite or rename an active ledger."""
+    check_restore_target(source, destination)
+    return inspect_pinned_ledger(
+        source, expected_head_hash=expected_head_hash,
+        expected_file_sha256=expected_file_sha256,
+    )
