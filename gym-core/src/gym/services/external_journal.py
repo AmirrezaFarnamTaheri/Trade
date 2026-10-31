@@ -53,7 +53,7 @@ class ExternalJournal:
             self.conn.execute("PRAGMA synchronous=FULL")
             version = self.conn.execute("PRAGMA user_version").fetchone()[0]
             if version == 0:
-                self.conn.executescript(SCHEMA)
+                self.conn.executescript("BEGIN IMMEDIATE;" + SCHEMA + "COMMIT;")
             elif version != 1:
                 raise ValueError("unsupported external Journal version")
             guards = {name for (name,) in self.conn.execute(
@@ -112,7 +112,9 @@ class ExternalJournal:
                     prev_amount = Decimal(previous[2]) if previous[2] is not None else None
                     if amount is not None and prev_amount is not None and amount < prev_amount:
                         raise ValueError("regressed cumulative fill observation")
-                    if status == previous[1] and (amount is None or str(amount) == previous[2]):
+                    if status == previous[1] and (
+                        amount is None or (prev_amount is not None and amount == prev_amount)
+                    ):
                         continue
                     if amount is None and prev_amount is not None:
                         amount = prev_amount
@@ -120,7 +122,7 @@ class ExternalJournal:
                     "INSERT INTO external_order_events(account_id,client_id,observed_at,raw_status,"
                     "filled_observed,settlement,economic_effect,authority) VALUES(?,?,?,?,?,?,?,?)",
                     (account, ident, observed_at, status,
-                     None if amount is None else str(amount), "UNKNOWN", "UNVERIFIED", "READ_ONLY"),
+                     None if amount is None else format(amount, "f"), "UNKNOWN", "UNVERIFIED", "READ_ONLY"),
                 )
                 written += 1
             self.conn.commit()

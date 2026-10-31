@@ -28,7 +28,7 @@ def _amount(v: object, label: str) -> str:
         raise ValueError(f"invalid {label}") from exc
     if not value.is_finite() or value < 0:
         raise ValueError(f"{label} must be finite and nonnegative")
-    return str(value)
+    return format(value, "f")
 
 
 def _time(value: str) -> str:
@@ -117,7 +117,9 @@ def project_account(account_id: str, observed_at: str, *,
             raise ValueError("external exposure requires product")
         raw_product = row["product"]
         asset = row.get("obligation_asset")
-        if row.get("obligation") is not None and (not isinstance(asset, str) or not _ASSET.fullmatch(asset.upper())):
+        if asset and (not isinstance(asset, str) or not _ASSET.fullmatch(asset.upper())):
+            raise ValueError("invalid obligation asset")
+        if row.get("obligation") is not None and not asset:
             raise ValueError("obligation requires asset")
         out_exposure.append({
             "account_id": _name(row.get("account_id"), "external account"),
