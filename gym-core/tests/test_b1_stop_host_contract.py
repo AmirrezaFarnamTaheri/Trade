@@ -121,5 +121,7 @@ def test_disposable_windows_ci_includes_same_logon_descriptor_canary():
     # logon-SID ACL from a service-specific authorization failure.
     script = SMOKE.read_text("utf-8")
     assert "Canary($principalSid)" in script
-    assert "($expectedSid, 'BA', 'AU', 'WD')" in script
+    assert "T0 caller token restricted" in script
+    for group in ("'BA'", "'AU'", "'WD'"):
+        assert group in script
     assert "T0 same-logon DACL canary:" in script
