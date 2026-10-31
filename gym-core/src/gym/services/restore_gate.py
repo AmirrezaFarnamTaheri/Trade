@@ -90,7 +90,7 @@ def check_restore_target(source: Path | str, destination: Path | str) -> dict:
     return inspect_ledger(src)
 
 
-def assess_update(state: dict) -> dict:
+def assess_migration_staging(state: dict) -> dict:
     """Pure B3 STAGING refusal policy; never invokes an updater.
 
     All asserted facts must be verified by a privileged release controller
