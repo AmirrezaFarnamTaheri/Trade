@@ -33,7 +33,10 @@ pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> 
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "expected service SID and logon SID"));
     }
     Ok(format!(
-        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100003;;;{logon_sid})"
+        // System-integrity service objects otherwise block even a DACL-
+        // authorized medium-integrity operator. The medium mandatory label
+        // allows that operator but keeps low-integrity worker tokens out.
+        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100003;;;{logon_sid})S:(ML;;NW;;;ME)"
     ))
 }
 
@@ -152,6 +155,7 @@ mod tests {
         assert!(!value.contains("(D;;GA;;;NU)"));
         assert!(value.contains("D:P(A;;GA;;;SY)"));
         assert!(value.contains("(A;;0x00100003;;;S-1-5-5-100-200)"));
+        assert!(value.ends_with("S:(ML;;NW;;;ME)"));
         assert!(!value.contains(";;;WD"));
         assert!(!value.contains(";;;AU"));
         assert!(stop_pipe_sddl("S-1-5-18", "S-1-5-5-100-200").is_err());
