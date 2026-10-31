@@ -347,8 +347,11 @@ public static class TradingGymStopPipeProbe {
         $probes += @{ Name = $name; Password = $password; Role = $role }
         Invoke-UnprivilegedProbe -Name $name -Password $password -Role $role -CheckStopPipeOnly -ExpectedLogonSid $expectedSid -ExpectedUserSid $identity.User.Value
     }
-    Stop-Service -Name $ServiceName -ErrorAction Stop
-    Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
+    # Separate destructive SCM fallback; only on disposable service.
+    $HardStop = Join-Path $PSScriptRoot 'Invoke-ExecutorHardStop.ps1'
+    & $HardStop -AcknowledgeLossOfProtection -WhatIf
+    Assert-ServiceState -StartMode 'Manual' -State 'Running'
+    & $HardStop -AcknowledgeLossOfProtection -Confirm:$false
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
     & $Audit
     foreach ($probe in $probes) {

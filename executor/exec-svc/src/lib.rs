@@ -105,3 +105,6 @@ impl StopGate {
         self.process(request).encode()
     }
 }
+
+/// Durably replayed, offline-only B2 intents; never grants money authority.
+pub mod offline_recovery;
