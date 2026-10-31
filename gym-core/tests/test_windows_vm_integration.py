@@ -80,3 +80,10 @@ def test_non_admin_probe_has_owned_compiler_temp_and_read_only_script_copy():
     assert "*${sid}:(OI)(CI)M" in script
     assert "Role + '-scratch'" in script
     assert 'Get-FileHash' in script
+
+def test_native_scm_probe_uses_exact_local_null_handle_signature():
+    source = (ROOT / 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1').read_text(encoding='utf-8')
+    assert 'EntryPoint = "OpenSCManagerW", ExactSpelling = true' in source
+    assert 'IntPtr host, IntPtr database' in source
+    assert 'OpenSCManager([IntPtr]::Zero, [IntPtr]::Zero, 0x0001)' in source
+    assert 'EntryPoint = "OpenServiceW", ExactSpelling = true' in source

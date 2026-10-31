@@ -98,16 +98,16 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class TradingGYMScmAccess {
-    [DllImport("advapi32.dll", EntryPoint = "OpenSCManagerW", CharSet = CharSet.Unicode, SetLastError = true)]
-    public static extern IntPtr OpenSCManager(string host, string database, uint desiredAccess);
-    [DllImport("advapi32.dll", EntryPoint = "OpenServiceW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DllImport("advapi32.dll", EntryPoint = "OpenSCManagerW", ExactSpelling = true, SetLastError = true)]
+    public static extern IntPtr OpenSCManager(IntPtr host, IntPtr database, uint desiredAccess);
+    [DllImport("advapi32.dll", EntryPoint = "OpenServiceW", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern IntPtr OpenService(IntPtr manager, string name, uint desiredAccess);
     [DllImport("advapi32.dll", EntryPoint = "CloseServiceHandle", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CloseServiceHandle(IntPtr handle);
 }
 '@
-$scm = [TradingGYMScmAccess]::OpenSCManager($null, $null, 0x0001)
+$scm = [TradingGYMScmAccess]::OpenSCManager([IntPtr]::Zero, [IntPtr]::Zero, 0x0001)
 if ($scm -eq [IntPtr]::Zero) {
     throw "OpenSCManager query failed: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
 }
