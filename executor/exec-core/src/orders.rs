@@ -361,6 +361,25 @@ impl ReservationBook {
         }
         Ok(())
     }
+    /// A locally denied intent could not have been sent to the venue.
+    /// Release its reservation without synthesizing settlement evidence.
+    pub fn release_denied(&mut self, intent: &str, order: &Attempt)
+        -> Result<(), ReservationError>
+    {
+        if order.lifecycle != Lifecycle::Denied || order.attempts != 0 {
+            return Err(ReservationError::OrderNotSettled);
+        }
+        let entry = self.entries.iter_mut().find(|e| e.intent == intent && !e.released)
+            .ok_or(ReservationError::UnknownIntent)?;
+        entry.released = true;
+        let (account, asset) = (entry.account.clone(), entry.asset.clone());
+        if self.entries.iter().filter(|e| e.account == account && e.asset == asset)
+            .all(|e| e.released) {
+            self.entries.retain(|e| e.account != account || e.asset != asset);
+        }
+        Ok(())
+    }
+
     pub fn release_settled(&mut self, intent: &str, order: &Attempt,
         evidence: &SettlementEvidence) -> Result<(), ReservationError>
     {
