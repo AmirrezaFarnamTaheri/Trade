@@ -57,3 +57,13 @@ def test_disposable_vm_exercises_actual_stop_pipe_and_service_remains_disabled()
     assert "Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'" in script
     installer = INSTALLER.read_text("utf-8")
     assert "'start=', 'disabled'" in installer
+
+
+def test_stop_authorization_config_is_readonly_to_service():
+    installer = INSTALLER.read_text("utf-8")
+    main = SERVICE.read_text("utf-8")
+    assert "$stopSidPath = Join-Path $CodeDir 'stop-logon.sid'" in installer
+    assert 'var_os("ProgramFiles")' in main
+    assert 'var_os("ProgramData")' not in main
+    # CodeDir grants service RX, unlike data folder where service has Modify.
+    assert "Invoke-Icacls -Path $CodeDir -Arguments @('/grant:r', $readCode)" in installer
