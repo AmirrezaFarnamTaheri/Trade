@@ -81,7 +81,7 @@ pub fn process_user_sid() -> io::Result<String> {
 
 /// Derive the fixed service SID from Windows account lookup, not from an
 /// environment variable, config file, IPC message, or installer output.
-fn executor_service_sid_from_os() -> io::Result<String> {
+pub fn executor_service_sid_from_os() -> io::Result<String> {
     use windows_sys::Win32::Security::LookupAccountNameW;
     let name: Vec<u16> = "NT SERVICE\\TradingGYMExecutor"
         .encode_utf16()

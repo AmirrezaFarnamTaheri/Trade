@@ -106,8 +106,11 @@ pub async fn serve_stop_only(
     gate: Arc<StopGate>,
     service_sid: &str,
     logon_sid: &str,
+    ready: Option<std::sync::mpsc::Sender<()>>,
 ) -> io::Result<()> {
     let mut listening = create_pipe(service_sid, logon_sid, true)?;
+    // SCM RUNNING may only follow successful secure instance creation.
+    if let Some(ready) = ready { let _ = ready.send(()); }
     let slots = Arc::new(Semaphore::new(16));
     loop {
         let connect_result = listening.connect().await;
