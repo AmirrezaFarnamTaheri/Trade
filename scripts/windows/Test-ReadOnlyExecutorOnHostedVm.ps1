@@ -91,7 +91,11 @@ function Invoke-UnprivilegedProbe {
     $PowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $childArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $ScriptCopy + '"'
     if ($CheckStopPipeOnly) {
-        if ($ExpectedLogonSid -notmatch '^S-1-5-5-[0-9]+-[0-9]+
+        if ($ExpectedLogonSid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') {
+            throw 'ExpectedLogonSid must be an OS-issued Windows logon SID'
+        }
+        $childArguments += " -CheckStopPipeOnly -ExpectedLogonSid $ExpectedLogonSid"
+    }
     # The parent GitHub runner has TEMP under runneradmin's private profile.
     # Add-Type compiles a temporary C# helper in the child process: using the
     # inherited TEMP makes the real standard user fail before testing SCM.
