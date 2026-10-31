@@ -48,7 +48,7 @@ mod windows_host {
     /// The elevated installer binds a single OS-issued operator *logon* SID.
     /// The protected file cannot be supplied by a regular pipe caller.
     fn provisioned_logon_sid() -> std::io::Result<String> {
-        let root = std::env::var_os("ProgramData").ok_or_else(|| {
+        let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramData")
         })?;
         let file = PathBuf::from(root).join("TradingGYM").join("Executor")

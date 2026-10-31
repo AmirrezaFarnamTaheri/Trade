@@ -112,25 +112,15 @@ try {
     Invoke-Icacls -Path $DataRoot -Arguments @('/grant:r', $readCode)
     Invoke-Icacls -Path $DataDir -Arguments @('/grant:r', $modifyData)
 
-    # T2 setup binds the operator to the installing Windows logon token.
-    # Never trust an environment variable or a caller-selected SID.
+    # Bind the service's stop-channel to the elevated installer's OS logon SID.
+    # Keep authorization in CodeDir (service RX) NOT DataDir (service Modify).
     $logonSids = @($identity.Groups | ForEach-Object { $_.Value } |
-        Where-Object { $_ -match '^S-1-5-5-[0-9]+-[0-9]+
-    if ($LASTEXITCODE -ne 0) { throw 'Isolation verification script failed.' }
-    Write-Output "Registered DISABLED read-only service $ServiceName. No money or stop protection is active."
-}
-catch {
-    if ($created) {
-        try { Invoke-Sc -Arguments @('config', $ServiceName, 'start=', 'disabled') } catch {}
-    }
-    throw
-}
- } |
+        Where-Object { $_ -match '^S-1-5-5-[0-9]+-[0-9]+$' } |
         Select-Object -Unique)
     if ($logonSids.Count -ne 1) {
-        throw 'Expected exactly one OS-issued operator logon SID.'
+        throw 'Expected exactly one Windows-issued operator logon SID.'
     }
-    $stopSidPath = Join-Path $DataDir 'stop-logon.sid'
+    $stopSidPath = Join-Path $CodeDir 'stop-logon.sid'
     [IO.File]::WriteAllText($stopSidPath, $logonSids[0], [Text.Encoding]::ASCII)
     Invoke-Icacls -Path $stopSidPath -Arguments @('/inheritance:r')
     Invoke-Icacls -Path $stopSidPath -Arguments @(
