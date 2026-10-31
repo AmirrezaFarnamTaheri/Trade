@@ -5,6 +5,7 @@ use crate::StopGate;
 use exec_ipc::FRAME_SIZE;
 use std::ffi::c_void;
 use std::io;
+use std::os::windows::io::AsRawHandle;
 use std::ptr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,6 +14,8 @@ use tokio::net::windows::named_pipe::{NamedPipeServer, PipeMode, ServerOptions};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 use windows_sys::Win32::Foundation::LocalFree;
+use windows_sys::Win32::Security::RevertToSelf;
+use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 
@@ -86,7 +89,41 @@ fn create_pipe(service_sid: &str, logon_sid: &str, first: bool) -> io::Result<Na
     }
 }
 
-async fn handle_client(mut client: NamedPipeServer, gate: Arc<StopGate>) -> io::Result<()> {
+/// Defense in depth: obtain the OS-issued logon SID from the actual
+/// connected client's impersonated thread token. The DACL still provides the
+/// first gate, but no request is applied from a different logon even if a pipe
+/// access mask is unexpectedly permissive on the installed Windows host.
+/// There are deliberately NO awaits during impersonation: the stop listener
+/// runs on its own single-thread Tokio runtime. Revert failure is fatal.
+fn verified_client_logon(client: &NamedPipeServer, expected_logon: &str) -> io::Result<()> {
+    // SAFETY: the server owns this connected pipe; it has already received
+    // the client's request bytes, as required by ImpersonateNamedPipeClient.
+    if unsafe { ImpersonateNamedPipeClient(client.as_raw_handle()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let verified_client_logon = crate::windows_identity::impersonated_thread_logon_sid()
+        .and_then(|sid| {
+            if sid == expected_logon {
+                Ok(())
+            } else {
+                Err(io::Error::new(io::ErrorKind::PermissionDenied,
+                    "stop pipe client is not the provisioned operator logon"))
+            }
+        });
+    // SAFETY: every successful impersonation MUST be reverted on the same
+    // OS thread before any gate action or await; otherwise continuing under
+    // the client's thread token is unsafe (Microsoft RevertToSelf contract).
+    if unsafe { RevertToSelf() } == 0 {
+        std::process::abort();
+    }
+    verified_client_logon
+}
+
+async fn handle_client(
+    mut client: NamedPipeServer,
+    gate: Arc<StopGate>,
+    expected_logon: String,
+) -> io::Result<()> {
     let mut buf = [0_u8; FRAME_SIZE + 1];
     let received = timeout(CLIENT_DEADLINE, client.read(&mut buf))
         .await
@@ -94,6 +131,7 @@ async fn handle_client(mut client: NamedPipeServer, gate: Arc<StopGate>) -> io::
     if received != FRAME_SIZE {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid stop message size"));
     }
+    verified_client_logon(&client, &expected_logon)?;
     let reply = gate
         .process_frame(&buf[..received])
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
@@ -133,9 +171,10 @@ pub async fn serve_stop_only(
         }
         if let Ok(slot) = slots.clone().try_acquire_owned() {
             let state = gate.clone();
+            let operator_logon = logon_sid.to_owned();
             tokio::spawn(async move {
                 let _slot = slot;
-                let _ = handle_client(connected, state).await;
+                let _ = handle_client(connected, state, operator_logon).await;
             });
         }
         // At capacity, drop the connection; never queue unbounded requests.
