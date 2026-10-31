@@ -188,7 +188,7 @@ public static class TradingGymStopPipeProbe {
         uint timeout, ref SecAttrs attrs);
     public static string Canary(string logonSid) {
         var name = @"\\.\pipe\TradingGYM.DaclCanary." + Guid.NewGuid().ToString("N");
-        var sddl = "D:P(A;;GA;;;SY)(A;;0x00100003;;;" + logonSid + ")";
+        var sddl = "D:P(A;;GA;;;SY)(A;;GA;;;" + logonSid + ")";
         IntPtr descriptor;
         if (!ToDescriptor(sddl, 1, out descriptor, IntPtr.Zero))
             return "descriptor-error=" + Marshal.GetLastWin32Error();
@@ -203,10 +203,14 @@ public static class TradingGymStopPipeProbe {
                 return "server-error=" + Marshal.GetLastWin32Error();
             try {
                 // Probe with no access first. Both handles are closed immediately.
-                var client = CreateFileW(name, 0, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
-                int err = client == new IntPtr(-1) ? Marshal.GetLastWin32Error() : 0;
-                if (client != new IntPtr(-1)) CloseHandle(client);
-                return "open0=" + err;
+                string results = "";
+                foreach (uint desired in new uint[] { 0, 0x00100003, 0xC0000000 }) {
+                    var client = CreateFileW(name, desired, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                    int err = client == new IntPtr(-1) ? Marshal.GetLastWin32Error() : 0;
+                    if (client != new IntPtr(-1)) CloseHandle(client);
+                    results += " mask=0x" + desired.ToString("X8") + ":" + err;
+                }
+                return results;
             } finally { CloseHandle(server); }
         } finally { LocalFree(descriptor); }
     }
