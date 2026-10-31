@@ -15,6 +15,7 @@ from ..domain.rules import is_closed
 from ..services.collector import Collector, now_utc
 from ..services.rules import RuleService
 from ..services.reports import economic_report
+from ..services.external_journal import ExternalJournal
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -25,7 +26,8 @@ def s(x):
 
 
 def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None,
-             account_observation: dict | None = None) -> web.Application:
+             account_observation: dict | None = None,
+             external_journal: ExternalJournal | None = None) -> web.Application:
     @web.middleware
     async def guard(req: web.Request, handler):
         # DNS-rebinding and CSRF defence: loopback Host only, and a per-run token on every write.
@@ -136,6 +138,16 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                     status=503, headers={"Cache-Control": "no-store"})
         return web.json_response(safe, headers={"Cache-Control": "no-store"})
 
+    async def external_events(req):
+        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
+            return web.json_response({"error": "external Journal token required"}, status=403)
+        if external_journal is None:
+            result = {"state": "NOT_CONFIGURED", "authority": "READ_ONLY", "events": []}
+        else:
+            result = {"state": "OBSERVED", "authority": "READ_ONLY",
+                      "events": external_journal.events()}
+        return web.json_response(result, headers={"Cache-Control": "no-store"})
+
     async def run_list(_):
         return web.json_response([] if runs is None else list_runs(runs))
 
@@ -155,6 +167,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health),
         web.get("/api/account-observations", account_observations),
+        web.get("/api/external-order-events", external_events),
         web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
