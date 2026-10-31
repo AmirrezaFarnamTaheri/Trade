@@ -51,8 +51,10 @@ function pill(name, a) {
 async function markets() {
   const d = await api("/api/markets");
   $("demo").hidden = !d.demo;
-  $("fx").hidden = !d.fx;
-  if (d.fx) $("fx").textContent = `USDT/IRT ${d.fx.mid ? num(d.fx.mid) : "—"} · ${d.fx.status}`;
+  $("fx").hidden = !d.fx && !d.universe;
+  if (d.fx || d.universe) $("fx").textContent = (d.fx
+    ? `USDT/IRT ${d.fx.mid ? num(d.fx.mid) : "—"} · ${d.fx.status}` : "USDT/IRT unavailable")
+    + (d.universe ? ` · ${digits((d.universe.observed_assets || d.universe.selected_assets).length)} assets / ${digits(d.universe.observed_markets)} markets / ${digits(d.universe.websocket_shards || 1)} WS` : "");
   $("mk").innerHTML = d.markets.map(m => `<tr>
     <td><b>${esc(m.names[lang] || m.symbol)}</b><div class="mut">${esc(m.symbol)}</div></td>
     <td class="num">${num(m.bid)}<div class="mut">${num(m.bid_qty)}</div></td>

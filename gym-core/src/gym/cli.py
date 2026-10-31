@@ -194,9 +194,16 @@ async def serve(args):
 
     from .api.server import make_app
 
+    symbols = ([s.strip().upper() for s in args.watch.split(",") if s.strip()] if args.watch
+               else DEFAULT_WATCH.split(",") if args.demo else None)
+    added = tuple(s.strip().upper() for s in args.add_symbols.split(",") if s.strip())
+    removed = tuple(s.strip().upper() for s in args.remove_symbols.split(",") if s.strip())
+    if args.demo and (added or removed):
+        raise SystemExit("--add-symbols/--remove-symbols require the live Wallex catalog")
     db = open_db(args)
     seg = SegmentWriter(Path(args.data) / ("demo" if args.demo else "live") / "raw", db)
-    col = Collector(db, seg, [s.strip().upper() for s in args.watch.split(",") if s.strip()], demo=args.demo)
+    col = Collector(db, seg, symbols, demo=args.demo, asset_count=args.assets,
+                    add_symbols=added, remove_symbols=removed)
     runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24), store_root(args) / "runs"))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
@@ -215,7 +222,11 @@ def main(argv=None):
     r = sub.add_parser("run", help="run collector + local API + UI")
     r.add_argument("--demo", action="store_true", help="synthetic DEMO feed, stored separately")
     r.add_argument("--port", type=int, default=8765)
-    r.add_argument("--watch", default=DEFAULT_WATCH)
+    r.add_argument("--assets", type=int, choices=range(25, 501), default=50, metavar="25..500",
+                   help="ranked non-risky spot assets to observe (25..500, default 50; live auto-universe only)")
+    r.add_argument("--watch", help="explicit comma-separated market override; otherwise select --assets from the full catalog")
+    r.add_argument("--add-symbols", default="", help="comma-separated catalog markets to add after selection")
+    r.add_argument("--remove-symbols", default="", help="comma-separated markets to remove after selection")
     ru = sub.add_parser("rules", help="venue rules")
     ru.add_argument("--demo", action="store_true", help="operate on the demo store")
     rs = ru.add_subparsers(dest="op", required=True)

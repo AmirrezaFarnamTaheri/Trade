@@ -29,6 +29,7 @@ def test_api_loopback_and_token(tmp_path):
             assert (await c.get("/api/markets", headers={"Host": "evil.example"})).status == 403
             m = await (await c.get("/api/markets")).json()
             assert set(m["markets"][0]["act"]) == {"entry", "exit"}
+            assert m["universe"]["mode"] == "explicit" and m["universe"]["observed_markets"] == 1
             r = await c.post("/api/rules/import", data="[1]", headers={"X-Gym-Token": "tok"})
             assert r.status == 400
             assert "__GYM_TOKEN__" not in await (await c.get("/")).text()

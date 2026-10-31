@@ -57,7 +57,8 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                 "unit": {"code": TOMAN.code, "epoch": TOMAN.unit_epoch} if inst.quote == "TMN" else None,
                 "act": rules.act(inst, now),
             })
-        return web.json_response({"now": iso(now), "demo": col.demo, "fx": fx_factor(now), "markets": rows})
+        return web.json_response({"now": iso(now), "demo": col.demo, "fx": fx_factor(now),
+                                  "universe": col.universe, "markets": rows})
 
     def fx_factor(now):
         """USDT/IRT valuation factor: STALE_CLOSED during a closure (last mid kept), LIVE when quoted."""

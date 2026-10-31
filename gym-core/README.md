@@ -6,7 +6,8 @@ Public Wallex collector, venue-rule service and a bilingual (EN/FA) Markets scre
 ```powershell
 cd gym-core
 uv sync
-uv run gymctl run              # live public data -> data\live, UI on http://127.0.0.1:8765/
+uv run gymctl run              # full catalog + top 50 non-risky spot assets -> data\live
+uv run gymctl run --assets 100 # choose 25..500 assets; both TMN/USDT markets are observed when listed
 uv run gymctl run --demo       # synthetic DEMO feed -> data\demo (never mixed with live)
 uv run gymctl rules list       # also: add|edit|import|export|disable|rollback|preset|check
 uv run gymctl spreads --output spreads.json  # all observed pairs, grouped by Tehran hour; creates a new file
@@ -16,6 +17,12 @@ uv run gymctl demo-seed         # 72 h synthetic DEMO history (USDTTMN goes sile
 uv run gymctl paper BTCTMN --demo   # EMA replay + baselines + gross-to-net waterfall -> data\demo\runs\<id>.json
 uv run pytest -q               # behavior and architecture checks
 ```
+
+Live `run` stores every current catalog row, then ranks active non-risky spot assets by combined 24-hour quote volume
+(TMNs are normalized through USDTTMN). The default is 50 assets; `--assets 25..500` changes the target. `--add-symbols BTCUSDT,XRPTMN` and `--remove-symbols PEPETMN` overlay
+the ranked set; `--watch` replaces it with an explicit market list. Custom additions are observation-only and bypass ranking filters. Each WebSocket observes at most 21 markets (63 of Wallex's 64 channels). Public REST is globally
+paced at four requests/second, backs off again on HTTP 429, reseeds stale books in batches of five, and rotates ten candle
+checks per minute. The local `/api/markets` response exposes the selection and pacing policy.
 
 `paper` takes `--from/--to` (zoned ISO), `--res 1min|15min|1h|1day|session`, `--subscribe 1min,15min,1h,1day,session`,
 `--fast/--slow`, `--fee`, `--latency-ms` and `--rules point-in-time|today`. Subscribed closed bars are merged by
