@@ -17,7 +17,7 @@ fn committed_events_survive_reopen_with_exact_bytes_and_order() {
         let first = ledger.append(event).unwrap();
         assert_eq!(first.sequence, 1);
         assert_eq!(first.previous_hash, [0; 32]);
-        assert_eq!(first.event_bytes, event);
+        assert_eq!(first.event_bytes.as_slice(), event.as_slice());
         first_hash = first.event_hash;
 
         let second = ledger.append(br#"{"event_type":"MARK"}"#).unwrap();
@@ -27,7 +27,7 @@ fn committed_events_survive_reopen_with_exact_bytes_and_order() {
     let ledger = Ledger::open(&path).unwrap();
     let entries = ledger.replay_from(0).unwrap();
     assert_eq!(entries.len(), 2);
-    assert_eq!(entries[0].event_bytes, event);
+    assert_eq!(entries[0].event_bytes.as_slice(), event.as_slice());
     assert_eq!(entries[1].previous_hash, first_hash);
     assert_eq!(ledger.replay_from(1).unwrap().len(), 1);
     assert_eq!(ledger.verify().unwrap(), entries[1].event_hash);
@@ -52,7 +52,7 @@ fn immutable_triggers_prevent_accidental_rewrites() {
     let other = Connection::open(&path).unwrap();
     assert!(other.execute("UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1", [b"changed".as_slice()]).is_err());
     assert!(other.execute("DELETE FROM ledger_events WHERE sequence=1", []).is_err());
-    assert_eq!(ledger.replay_from(0).unwrap()[0].event_bytes, b"original");
+    assert_eq!(ledger.replay_from(0).unwrap()[0].event_bytes.as_slice(), b"original".as_slice());
 }
 
 #[test]
