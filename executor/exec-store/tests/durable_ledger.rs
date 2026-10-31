@@ -66,8 +66,11 @@ fn corrupt_existing_events_fail_closed_on_restart() {
     let db = Connection::open(&path).unwrap();
     db.execute_batch("DROP TRIGGER ledger_events_no_update;").unwrap();
     db.execute("UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1", [b"altered".as_slice()]).unwrap();
+    // Restore the immutable guard after synthetic tampering, so the next
+    // startup failure proves the stored-byte hash mismatch, not absent DDL.
+    db.execute_batch("CREATE TRIGGER ledger_events_no_update BEFORE UPDATE ON ledger_events BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;").unwrap();
     drop(db);
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::Integrity { .. })));
+    assert!(matches!(Ledger::open(&path), Err(LedgerError::Integrity { sequence: 1, .. })));
 }
 
 #[test]
@@ -81,8 +84,10 @@ fn missing_sequence_fails_closed_even_when_later_hashes_still_match() {
     }
     let db = Connection::open(&path).unwrap();
     db.execute_batch("DROP TRIGGER ledger_events_no_delete; DELETE FROM ledger_events WHERE sequence=1;").unwrap();
+    // Recreate the DDL protection to test chain sequencing independently.
+    db.execute_batch("CREATE TRIGGER ledger_events_no_delete BEFORE DELETE ON ledger_events BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;").unwrap();
     drop(db);
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::Integrity { .. })));
+    assert!(matches!(Ledger::open(&path), Err(LedgerError::Integrity { sequence: 1, .. })));
 }
 
 #[test]
