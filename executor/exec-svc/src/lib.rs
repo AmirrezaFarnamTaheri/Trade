@@ -3,10 +3,45 @@
 use exec_ipc::{ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE};
 use std::sync::atomic::{AtomicU8, Ordering};
 
-/// Only the restricted built-in LocalService user may host the bootstrap.
-/// This does not by itself certify service-SID or private credential isolation.
+/// The LocalService primary user is required but is not sufficient by itself.
+/// The SCM host also checks its restricted service-SID membership at runtime.
 pub fn is_local_service_sid(sid: &str) -> bool {
     sid == "S-1-5-19"
+}
+
+/// A SID from the *OS process token*, not an IPC or configuration claim.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TokenGroup {
+    pub sid: String,
+    pub enabled: bool,
+}
+
+/// A disabled service SID or an unrestricted service token is not sufficient.
+/// `service_sid` must come from Windows LookupAccountNameW for the fixed SCM
+/// service name; both SID lists must be retrieved from the actual process token.
+pub fn is_restricted_executor_token(
+    user_sid: &str,
+    service_sid: &str,
+    groups: &[TokenGroup],
+    restricting_sids: &[String],
+) -> bool {
+    let suffix = match service_sid.strip_prefix("S-1-5-80-") {
+        Some(suffix) => suffix,
+        None => return false,
+    };
+    let pieces: Vec<_> = suffix.split('-').collect();
+    if !is_local_service_sid(user_sid)
+        || pieces.len() != 5
+        || pieces.iter().any(|piece| {
+            piece.is_empty()
+                || !piece.bytes().all(|byte| byte.is_ascii_digit())
+                || piece.parse::<u32>().is_err()
+        })
+    {
+        return false;
+    }
+    groups.iter().any(|group| group.enabled && group.sid == service_sid)
+        && restricting_sids.iter().any(|sid| sid == service_sid)
 }
 
 #[cfg(windows)]

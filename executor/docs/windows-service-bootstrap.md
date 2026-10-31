@@ -4,8 +4,13 @@
 incomplete B1 service-host milestone, not a deployable real-money system.
 
 The Windows-only `gym-executor.exe` binary supports SCM lifecycle and verifies
-its primary process user SID is **LocalService** (`S-1-5-19`) before it can
-report RUNNING. It contains **no** venue credentials, IPC listener, order code,
+its primary process user SID is **LocalService** (`S-1-5-19`) *and* the
+OS-derived `NT SERVICE\TradingGYMExecutor` service SID is present as both an
+enabled token group and a restricted token SID before it can report RUNNING.
+The SID is resolved with Windows `LookupAccountNameW`; the group/restricting
+lists are read from the process token with `GetTokenInformation`, not from a
+user-writable configuration or a claimed IPC identity. Failure results in
+SCM STOPPED/access-denied, not a fallback identity. It contains **no** venue credentials, IPC listener, order code,
 stop guard wiring, trading ledger input or funding authority. SCM RUNNING only
 means the no-op host process is alive; it does **not** mean that exits or
 emergency stops are available. Do not run it while an account or position is
@@ -72,8 +77,11 @@ certify those gates.
 
 - Windows build, syntax validation and end-to-end installer/rollback tests on
   non-production Windows VMs with clean and pre-existing installations.
-- A first-class **service-SID membership** runtime check, token/ACL negative
-  tests from the interactive user and sandboxed worker, and a `SEC-02` proof.
+- **Real Windows proof** of the new runtime service-SID membership check,
+  including wrong service SID, missing restricted SID and token-query failures;
+  Windows Rust tests and an installed-service negative test are pending.
+  Also perform token/ACL negative probes from the interactive user and sandboxed
+  worker, plus a separate `SEC-02` proof.
 - Trusted, session-bound **operator logon SID discovery**. Never accept a SID
   claimed over IPC or a user-writable configuration file. The existing stop
   pipe library is intentionally **not** activated by this bootstrap.
@@ -86,3 +94,9 @@ certify those gates.
   on Windows and Linux; do not infer correctness from static source checks.
 
 **No live order path, trade key or withdrawal capability is introduced.**
+
+The source contains a fail-closed token-membership gate and Rust policy tests,
+but **no cargo toolchain or Windows target is available in this development
+container**. Static Python release guards do not validate the Win32 API calls;
+the Windows build, compiled tests, VM service launch and service-token audit
+must be recorded before this PR is merge-ready. The service remains DISABLED.

@@ -40,6 +40,6 @@ def test_service_host_uses_scm_and_refuses_wrong_account():
     body = HOST.read_text(encoding="utf-8")
     assert 'service_dispatcher::start' in body
     assert 'ServiceControl::Stop' in body
-    assert 'is_local_service' in body
+    assert 'is_restricted_executor_service' in body
     assert 'ServiceState::Stopped' in body
     assert 'POST' not in body

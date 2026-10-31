@@ -69,9 +69,10 @@ mod windows_host {
             _ => ServiceControlHandlerResult::NotImplemented,
         };
         let status_handle = service_control_handler::register(NAME, handler)?;
-        // An unexpected token means this host cannot run. Windows error 5 is
-        // visible in SCM; do not silently fall back to an interactive identity.
-        if !exec_svc::windows_identity::is_local_service() {
+        // Require the actual OS-issued LocalService user AND an enabled,
+        // restricted TradingGYM service SID. Windows error 5 is visible in
+        // SCM; never fall back to an interactive or unrestricted identity.
+        if !exec_svc::windows_identity::is_restricted_executor_service() {
             status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
             return Ok(());
         }
