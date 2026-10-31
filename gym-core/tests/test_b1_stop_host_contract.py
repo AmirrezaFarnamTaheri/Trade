@@ -78,3 +78,10 @@ def test_stop_client_requests_only_data_access_not_pipe_instance_creation():
     assert "CreateFileW" in client
     assert "0x00100003" in client
     assert "OpenOptions::new().read(true).write(true)" not in client
+
+
+def test_stop_client_reports_win32_error_without_secret_material():
+    client = CLIENT.read_text("utf-8")
+    assert "std::io::Error::last_os_error()" in client
+    assert "stop pipe open failed" in client
+    assert "raw_os_error()" in client
