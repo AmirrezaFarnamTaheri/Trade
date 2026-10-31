@@ -34,9 +34,39 @@ grants only SYSTEM/Administrators and the exact `NT SERVICE\TradingGYMExecutor` 
 `NT AUTHORITY\LocalService` with a **restricted** service SID. On an error,
 the SCM service remains disabled; inspect/remove partial files manually.
 Both scripts have Windows-only behaviors and require an isolated Windows VM.
-The verifier examines the service name/account/start mode, protected ACLs,
-broad groups and service SID, and fails closed. Its `sc qsidtype` parsing still
+The installer now also sets a **protected SCM service DACL**: SYSTEM and
+Administrators have full control; authenticated users can query service
+configuration/status only, never change configuration, start, stop, pause,
+delete, or change service permissions. The elevated verifier checks the
+service descriptor and file ACLs independently; its `sc qsidtype` parsing still
 requires validation across localized Windows variants.
+
+## Required negative probes, two separate standard Windows identities
+
+On an isolated Windows test VM, after an explicit disabled-only install and an
+**elevated** `Test-ReadOnlyExecutor.ps1` pass, run these commands from an
+**unelevated** PowerShell session for the ordinary operator account:
+
+```powershell
+.\scripts\windows\Test-UnprivilegedExecutorAccess.ps1
+```
+
+Then run the same command under the separately restricted **research/worker**
+principal. The script refuses an elevated administrator token, checks that the
+service is still DISABLED and STOPPED, and uses real OS access attempts to
+prove that these principals cannot read/write the executable, create files in
+the private authority data directory, or open SCM handles with START, STOP,
+CHANGE_CONFIG, PAUSE, DELETE, WRITE_DAC or WRITE_OWNER authority. Service
+query-status remains intentionally readable. The only filesystem mutation
+attempt creates a uniquely named harmless canary; if a misconfiguration allows
+it, the script attempts cleanup and **fails** the security check.
+
+Record the user SID, token groups, service DACL and output from **both** runs.
+Neither a static Python check nor an administrator-run audit can substitute
+for these two real Windows negative probes. Do not install on a funded machine.
+The independent named-pipe, T2 and credential-denial checks from ARCH-01,
+ARCH-02, ARCH-04, SEC-01/02 remain outstanding; these SCM/NTFS probes do not
+certify those gates.
 
 ## Required before activation or B1 acceptance
 

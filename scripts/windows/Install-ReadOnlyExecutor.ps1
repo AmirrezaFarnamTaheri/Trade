@@ -91,6 +91,10 @@ try {
         'start=', 'disabled', 'obj=', 'NT AUTHORITY\LocalService',
         'binPath=', ('"' + $ExePath + '"'))
     $created = $true
+    # Without this descriptor Windows may grant interactive users SERVICE_START
+    # or SERVICE_STOP.  Only query rights are intentionally exposed to AU.
+    $serviceScmDacl = 'D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x0002008D;;;AU)'
+    Invoke-Sc -Arguments @('sdset', $ServiceName, $serviceScmDacl)
     Invoke-Sc -Arguments @('sidtype', $ServiceName, 'restricted')
     Invoke-Sc -Arguments @('description', $ServiceName,
         'READ-ONLY bootstrap; no money, stop-protection or credential capability')
