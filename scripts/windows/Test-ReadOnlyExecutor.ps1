@@ -51,6 +51,10 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
         throw "Reparse point in protected path: $path"
     }
     $acl = Get-Acl -LiteralPath $path
+    $ownerSid = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+    if ($ownerSid -notin @('S-1-5-18', 'S-1-5-32-544')) {
+        throw "Unexpected file owner permits DACL changes: $path / $ownerSid"
+    }
     if (-not $acl.AreAccessRulesProtected) { throw "ACL inheritance enabled: $path" }
     $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
     $seenService = $false

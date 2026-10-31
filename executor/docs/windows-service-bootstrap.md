@@ -29,8 +29,8 @@ relying on TradingGYM for protection.
    one. The installer refuses existing installations for manual audit.
 
 The installer places code beneath Program Files, data under ProgramData,
-removes inherited ACLs on protected paths, grants only SYSTEM/Administrators
-and the exact `NT SERVICE\TradingGYMExecutor` SID, and configures
+removes inherited ACLs, sets protected-path ownership to Administrators,
+grants only SYSTEM/Administrators and the exact `NT SERVICE\TradingGYMExecutor` SID, and configures
 `NT AUTHORITY\LocalService` with a **restricted** service SID. On an error,
 the SCM service remains disabled; inspect/remove partial files manually.
 Both scripts have Windows-only behaviors and require an isolated Windows VM.

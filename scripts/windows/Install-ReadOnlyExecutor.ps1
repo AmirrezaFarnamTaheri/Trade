@@ -75,6 +75,7 @@ try {
         Invoke-Icacls -Path $dir -Arguments @(
             '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F'
         )
+        Invoke-Icacls -Path $dir -Arguments @('/setowner', '*S-1-5-32-544')
     }
     Copy-Item -LiteralPath $inputFile.FullName -Destination $ExePath -ErrorAction Stop
     if ((Get-FileHash -LiteralPath $ExePath -Algorithm SHA256).Hash -ne $sourceHash) {
@@ -82,6 +83,7 @@ try {
     }
     Invoke-Icacls -Path $ExePath -Arguments @('/inheritance:r')
     Invoke-Icacls -Path $ExePath -Arguments @('/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F')
+    Invoke-Icacls -Path $ExePath -Arguments @('/setowner', '*S-1-5-32-544')
 
     # Native SCM syntax separates each key from its argument. No password is
     # accepted, and this deliberately does not start the service.

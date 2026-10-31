@@ -21,7 +21,7 @@ def test_installer_refuses_automatic_activation_and_uses_local_service():
 
 def test_bootstrap_protects_code_and_ledger_data_and_never_provisions_keys():
     body = INSTALL.read_text(encoding="utf-8")
-    for fragment in ('/inheritance:r', '/grant:r', 'Get-FileHash', 'Test-ReadOnlyExecutor.ps1'):
+    for fragment in ('/inheritance:r', '/grant:r', '/setowner', 'Get-FileHash', 'Test-ReadOnlyExecutor.ps1'):
         assert fragment in body
     for forbidden in ('withdraw', 'api_key', 'Read-Host -AsSecureString'):
         assert forbidden not in body.lower()
@@ -31,7 +31,7 @@ def test_verifier_requires_protected_dacls_and_rejects_broad_access():
     body = VERIFY.read_text(encoding="utf-8")
     for fragment in ('AreAccessRulesProtected', 'SecurityIdentifier', 'S-1-1-0',
                      'S-1-5-32-545', 'S-1-5-11', 'S-1-5-4',
-                     'NT SERVICE\\TradingGYMExecutor', 'StartMode'):
+                     'NT SERVICE\\TradingGYMExecutor', 'StartMode', 'GetOwner'):
         assert fragment in body
     assert 'throw' in body
 
