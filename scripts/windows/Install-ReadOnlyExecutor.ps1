@@ -126,6 +126,31 @@ try {
     )
     Invoke-Icacls -Path $stopSidPath -Arguments @('/setowner', '*S-1-5-32-544')
 
+    # Bind the stop client to BOTH the interactive logon and exact OS user.
+    # An independent user can share or inherit a logon group; logon alone
+    # must never be sufficient to change the emergency StopGate.
+    $userSid = $identity.User.Value
+    if ($userSid -notmatch '^S-1-[0-9]+(-[0-9]+){2,12}
+    if ($LASTEXITCODE -ne 0) { throw 'Isolation verification script failed.' }
+    Write-Output "Registered DISABLED read-only service $ServiceName. No money or stop protection is active."
+}
+catch {
+    if ($created) {
+        try { Invoke-Sc -Arguments @('config', $ServiceName, 'start=', 'disabled') } catch {}
+    }
+    throw
+}
+ -or $userSid.Length -gt 120) {
+        throw 'Windows did not provide a valid operator user SID.'
+    }
+    $stopUserPath = Join-Path $CodeDir 'stop-user.sid'
+    [IO.File]::WriteAllText($stopUserPath, $userSid, [Text.Encoding]::ASCII)
+    Invoke-Icacls -Path $stopUserPath -Arguments @('/inheritance:r')
+    Invoke-Icacls -Path $stopUserPath -Arguments @(
+        '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F', "*${serviceSid}:R"
+    )
+    Invoke-Icacls -Path $stopUserPath -Arguments @('/setowner', '*S-1-5-32-544')
+
     & (Join-Path $PSScriptRoot 'Test-ReadOnlyExecutor.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Isolation verification script failed.' }
     Write-Output "Registered DISABLED read-only service $ServiceName. No money or stop protection is active."
