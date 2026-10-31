@@ -96,3 +96,18 @@ fn chaos_06_restart_always_disarmed_even_if_old_run_halted() {
     assert_eq!(unchanged, restart);
     assert!(matches!(stale, exec_core::StopResult::StaleRuntime { .. }));
 }
+
+#[test]
+fn chaos_07_conflicting_before_byte_failure_cannot_erase_observed_fill() {
+    let mut attempt = Attempt::new(10).unwrap();
+    attempt.apply(Event::BeginSend).unwrap();
+    // A late venue feed proves execution could have occurred. It is unsafe
+    // to classify the same attempt as definitively NOT_SENT afterward.
+    attempt.apply(Event::CumulativeFilled(4)).unwrap();
+    let prior = attempt;
+    assert_eq!(attempt.apply(Event::TransportFailed(FailureStage::BeforeFirstByte)),
+               Err(OrderError::IllegalTransition));
+    assert_eq!(attempt, prior);
+    assert!(attempt.holds_slot());
+    assert_eq!(attempt.apply(Event::BeginSend), Err(OrderError::RetryForbidden));
+}
