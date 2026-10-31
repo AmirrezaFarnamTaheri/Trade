@@ -62,3 +62,5 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
     let changed = mode != state.mode;
     (State { mode, ..state }, StopResult::Acknowledged { mode, changed })
 }
+
+pub mod orders;
