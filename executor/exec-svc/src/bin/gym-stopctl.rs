@@ -43,7 +43,9 @@ mod client {
                 // pipes grants FILE_CREATE_PIPE_INSTANCE and must be denied.
                 let raw = unsafe {
                     CreateFileW(
-                        wide.as_ptr(), 0x00100003, 0, ptr::null(), 3, 0, ptr::null_mut(),
+                        // Identification-only SQOS prevents the service from impersonating
+                        // the operator token while retaining the precise access mask.
+                        wide.as_ptr(), 0x00100003, 0, ptr::null(), 3, 0x00110000, ptr::null_mut(),
                     )
                 };
                 if raw == INVALID_HANDLE_VALUE {

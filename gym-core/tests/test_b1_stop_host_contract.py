@@ -108,3 +108,9 @@ def test_remote_pipe_rejection_does_not_deny_local_network_group_tokens():
     assert ".reject_remote_clients(true)" in pipe
     assert "D:P(A;;GA;;;SY)" in pipe
     assert "D:P(D;;GA;;;NU)" not in pipe
+
+
+def test_stop_client_uses_identification_only_qos():
+    client = CLIENT.read_text("utf-8")
+    assert "0x00110000" in client  # SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION
+    assert "CreateFileW" in client
