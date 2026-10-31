@@ -126,3 +126,56 @@ fn authority_tiers_are_monotone_and_high_impact_actions_require_t2() {
     assert!(permits(AuthorityTier::T2, Action::ResolveUnknownOrder));
     assert!(permits(AuthorityTier::T2, Action::HardStop));
 }
+
+#[test]
+fn reservation_rejects_older_snapshots_even_when_they_claim_more_available() {
+    let mut book = ReservationBook::default();
+    let order = Attempt::new(10).unwrap();
+    let fresh = BalanceSnapshot::new("main", "USDT", 100, 12).unwrap();
+    book.reserve("first", "main", "USDT", 50, &fresh, &order).unwrap();
+    let stale = BalanceSnapshot::new("main", "USDT", 1000, 10).unwrap();
+    assert_eq!(book.reserve("second", "main", "USDT", 200, &stale, &order),
+        Err(ReservationError::StaleBalance));
+    assert_eq!(book.reserved("main", "USDT"), 50);
+}
+
+#[test]
+fn two_concurrent_fully_settled_orders_reconcile_against_account_totals() {
+    let mut book = ReservationBook::default();
+    let snapshot = BalanceSnapshot::new("main", "USDT", 1000, 10).unwrap();
+    let mut first = Attempt::new(6).unwrap();
+    let mut second = Attempt::new(4).unwrap();
+    book.reserve("first", "main", "USDT", 600, &snapshot, &first).unwrap();
+    book.reserve("second", "main", "USDT", 400, &snapshot, &second).unwrap();
+    for (attempt, filled) in [(&mut first, 6), (&mut second, 4)] {
+        attempt.apply(Event::BeginSend).unwrap();
+        attempt.apply(Event::Acknowledged).unwrap();
+        attempt.apply(Event::CumulativeFilled(filled)).unwrap();
+        attempt.apply(Event::TerminalReported).unwrap();
+        attempt.apply(Event::SettlementVerified).unwrap();
+    }
+    // Account-level evidence covers BOTH orders, not just one reservation.
+    let evidence = SettlementEvidence::new("main", "USDT", 11, true, 0, 1000, 0).unwrap();
+    book.release_settled("first", &first, &evidence).unwrap();
+    assert_eq!(book.reserved("main", "USDT"), 400);
+    book.release_settled("second", &second, &evidence).unwrap();
+    assert_eq!(book.reserved("main", "USDT"), 0);
+}
+
+#[test]
+fn completed_settlement_keeps_observation_watermark_after_last_release() {
+    let mut book = ReservationBook::default();
+    let mut order = Attempt::new(1).unwrap();
+    let initial = BalanceSnapshot::new("main", "USDT", 100, 10).unwrap();
+    book.reserve("first", "main", "USDT", 100, &initial, &order).unwrap();
+    order.apply(Event::BeginSend).unwrap();
+    order.apply(Event::Acknowledged).unwrap();
+    order.apply(Event::CumulativeFilled(1)).unwrap();
+    order.apply(Event::TerminalReported).unwrap();
+    order.apply(Event::SettlementVerified).unwrap();
+    let evidence = SettlementEvidence::new("main", "USDT", 11, true, 0, 100, 0).unwrap();
+    book.release_settled("first", &order, &evidence).unwrap();
+    let next = Attempt::new(1).unwrap();
+    assert_eq!(book.reserve("second", "main", "USDT", 50, &initial, &next),
+        Err(ReservationError::StaleBalance));
+}
