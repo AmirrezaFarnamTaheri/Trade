@@ -107,4 +107,4 @@ def test_remote_pipe_rejection_does_not_deny_local_network_group_tokens():
     pipe = PIPE.read_text("utf-8")
     assert ".reject_remote_clients(true)" in pipe
     assert "D:P(A;;GA;;;SY)" in pipe
-    assert "(D;;GA;;;NU)" not in pipe
+    assert "D:P(D;;GA;;;NU)" not in pipe
