@@ -47,7 +47,13 @@ mod client {
                     )
                 };
                 if raw == INVALID_HANDLE_VALUE {
-                    return Err("stop pipe unavailable or not authorized".to_owned());
+                    // Precise native error is needed to distinguish DACL denial
+                    // from pipe absence, busy instances, or name mismatch.
+                    let error = std::io::Error::last_os_error();
+                    return Err(format!(
+                        "stop pipe open failed (Win32={}): {}",
+                        error.raw_os_error().unwrap_or(-1), error
+                    ));
                 }
                 let mut pipe = unsafe { File::from_raw_handle(raw.cast()) };
                 pipe.write_all(&frame).map_err(|_| "stop request not delivered".to_owned())?;
