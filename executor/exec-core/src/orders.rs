@@ -55,42 +55,41 @@ impl Attempt {
     pub fn holds_slot(&self) -> bool { self.lifecycle != Lifecycle::Closed }
     pub fn apply(&mut self, event: Event) -> Result<(), OrderError> {
         use Event::*;
-        use Lifecycle::*;
         // Copy-then-commit: invalid transitions never partially alter state.
         let mut next = *self;
         match event {
             BeginSend => match next.lifecycle {
-                IntentLogged if next.attempts == 0 => {
-                    next.lifecycle = Submitting; next.attempts = 1;
+                Lifecycle::IntentLogged if next.attempts == 0 => {
+                    next.lifecycle = Lifecycle::Submitting; next.attempts = 1;
                 }
-                NotSent if next.can_retry_same_identity() => {
-                    next.lifecycle = Submitting; next.attempts = 2;
+                Lifecycle::NotSent if next.can_retry_same_identity() => {
+                    next.lifecycle = Lifecycle::Submitting; next.attempts = 2;
                 }
                 _ => return Err(OrderError::RetryForbidden),
             },
             TransportFailed(stage) => {
-                if next.lifecycle != Submitting { return Err(OrderError::IllegalTransition); }
+                if next.lifecycle != Lifecycle::Submitting { return Err(OrderError::IllegalTransition); }
                 match stage {
-                    FailureStage::BeforeFirstByte => next.lifecycle = NotSent,
+                    FailureStage::BeforeFirstByte => next.lifecycle = Lifecycle::NotSent,
                     FailureStage::AfterFirstByte => {
-                        next.lifecycle = Unknown;
+                        next.lifecycle = Lifecycle::Unknown;
                         if next.filled_quanta == 0 { next.effect = EconomicEffect::Unverified; }
                     }
                 }
             }
             Acknowledged => match next.lifecycle {
-                Submitting | Unknown => next.lifecycle = Lifecycle::Acknowledged,
+                Lifecycle::Submitting | Lifecycle::Unknown => next.lifecycle = Lifecycle::Acknowledged,
                 _ => return Err(OrderError::IllegalTransition),
             },
             Working => match next.lifecycle {
-                Lifecycle::Acknowledged | Unknown => next.lifecycle = Lifecycle::Working,
+                Lifecycle::Acknowledged | Lifecycle::Unknown => next.lifecycle = Lifecycle::Working,
                 _ => return Err(OrderError::IllegalTransition),
             },
             MissingFromList => {
                 // Unfiltered/partial/paginated GETs never prove absence.
             }
             CumulativeFilled(quantity) => {
-                if matches!(next.lifecycle, IntentLogged | NotSent | Closed) {
+                if matches!(next.lifecycle, Lifecycle::IntentLogged | Lifecycle::NotSent | Lifecycle::Closed) {
                     return Err(OrderError::IllegalTransition);
                 }
                 if quantity < next.filled_quanta { return Err(OrderError::FillRegression); }
@@ -106,7 +105,7 @@ impl Attempt {
                 }
             }
             TerminalReported => match next.lifecycle {
-                Lifecycle::Acknowledged | Lifecycle::Working | Unknown | Submitting =>
+                Lifecycle::Acknowledged | Lifecycle::Working | Lifecycle::Unknown | Lifecycle::Submitting =>
                     next.lifecycle = Lifecycle::TerminalReported,
                 _ => return Err(OrderError::IllegalTransition),
             },
@@ -116,7 +115,7 @@ impl Attempt {
                     return Err(OrderError::IllegalTransition);
                 }
                 next.settlement = Settlement::Verified;
-                next.lifecycle = Closed;
+                next.lifecycle = Lifecycle::Closed;
             }
         }
         *self = next;
