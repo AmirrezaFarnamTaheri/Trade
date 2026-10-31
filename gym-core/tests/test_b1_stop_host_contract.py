@@ -71,3 +71,10 @@ def test_stop_authorization_config_is_readonly_to_service():
     assert 'var_os("ProgramData")' not in main
     # CodeDir grants service RX, unlike data folder where service has Modify.
     assert "Invoke-Icacls -Path $CodeDir -Arguments @('/grant:r', $readCode)" in installer
+
+
+def test_stop_client_requests_only_data_access_not_pipe_instance_creation():
+    client = CLIENT.read_text("utf-8")
+    assert "CreateFileW" in client
+    assert "0x00100003" in client
+    assert "OpenOptions::new().read(true).write(true)" not in client
