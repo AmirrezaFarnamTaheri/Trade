@@ -141,6 +141,18 @@ try {
     Start-Service -Name $ServiceName -ErrorAction Stop
     Assert-ServiceState -StartMode 'Manual' -State 'Running'
     Write-Output 'PASS: OS launched read-only service under verified restricted token.'
+    # Report *only boolean* token characteristics, never reusable SIDs or
+    # secrets. A grant to the installer logon SID cannot authorize a client
+    # from a different logon, or a token subject to a deny NETWORK ACE.
+    $expectedSid = (Get-Content -LiteralPath (Join-Path $CodeDir 'stop-logon.sid') -Raw).Trim()
+    $actualSid = (& (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1')).Trim()
+    $identityGroups = @([Security.Principal.WindowsIdentity]::GetCurrent().Groups |
+        ForEach-Object { $_.Value })
+    $hasNetworkSid = ($identityGroups -contains 'S-1-5-2')
+    Write-Output "T0 ACL preflight: logon-match=$($expectedSid -ceq $actualSid) network-token-group=$hasNetworkSid"
+    if ($expectedSid -cne $actualSid) {
+        throw 'The stop-pipe client token does not match privileged installation logon.'
+    }
     $StopClient = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
     if (-not (Test-Path -LiteralPath $StopClient -PathType Leaf)) {
         throw 'Compiled gym-stopctl.exe is required for T0 verification.'
