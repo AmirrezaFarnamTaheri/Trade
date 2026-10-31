@@ -111,3 +111,36 @@ fn chaos_07_conflicting_before_byte_failure_cannot_erase_observed_fill() {
     assert!(attempt.holds_slot());
     assert_eq!(attempt.apply(Event::BeginSend), Err(OrderError::RetryForbidden));
 }
+
+#[test]
+fn chaos_08_lost_ack_then_confirmed_zero_fill_can_settle() {
+    let mut attempt = Attempt::new(10).unwrap();
+    attempt.apply(Event::BeginSend).unwrap();
+    attempt.apply(Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
+    assert_eq!(attempt.effect(), EconomicEffect::Unverified);
+    attempt.apply(Event::Acknowledged).unwrap();
+    assert_eq!(attempt.effect(), EconomicEffect::None);
+    attempt.apply(Event::TerminalReported).unwrap();
+    attempt.apply(Event::CumulativeFilled(0)).unwrap();
+    attempt.apply(Event::SettlementVerified).unwrap();
+    assert!(!attempt.holds_slot());
+}
+
+#[test]
+fn chaos_09_working_confirms_identity_but_terminal_only_does_not() {
+    let mut confirmed = Attempt::new(10).unwrap();
+    confirmed.apply(Event::BeginSend).unwrap();
+    confirmed.apply(Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
+    confirmed.apply(Event::Working).unwrap();
+    assert_eq!(confirmed.effect(), EconomicEffect::None);
+    confirmed.apply(Event::TerminalReported).unwrap();
+    confirmed.apply(Event::SettlementVerified).unwrap();
+    assert_eq!(confirmed.lifecycle(), Lifecycle::Closed);
+
+    let mut ambiguous = Attempt::new(10).unwrap();
+    ambiguous.apply(Event::BeginSend).unwrap();
+    ambiguous.apply(Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
+    ambiguous.apply(Event::TerminalReported).unwrap();
+    assert_eq!(ambiguous.effect(), EconomicEffect::Unverified);
+    assert_eq!(ambiguous.apply(Event::SettlementVerified), Err(OrderError::IllegalTransition));
+}
