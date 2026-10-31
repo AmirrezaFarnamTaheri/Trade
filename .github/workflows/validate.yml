@@ -16,6 +16,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test Rust workspace
         run: cargo test --workspace --all-targets
+      - name: Upload generated Cargo.lock for review
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock-provenance
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
       - name: Check Windows bootstrap script syntax (no install)
         if: runner.os == 'Windows'
         shell: pwsh
