@@ -230,6 +230,29 @@ public static class TradingGymStopPipeProbe {
             } finally { CloseHandle(server); }
         } finally { LocalFree(descriptor); }
     }
+    public static string CanaryRights(string logonSid, string rights, uint desired) {
+        var name = @"\\.\pipe\TradingGYM.DaclRights." + Guid.NewGuid().ToString("N");
+        var sddl = "D:P(A;;GA;;;SY)(A;;" + rights + ";;;" + logonSid + ")";
+        IntPtr descriptor;
+        if (!ToDescriptor(sddl, 1, out descriptor, IntPtr.Zero))
+            return "descriptor-error=" + Marshal.GetLastWin32Error();
+        try {
+            var attrs = new SecAttrs {
+                length = (uint)Marshal.SizeOf(typeof(SecAttrs)),
+                descriptor = descriptor, inherit = 0
+            };
+            var server = CreateNamedPipe(name, 0x40000003, 0x0000000E,
+                1, 128, 128, 0, ref attrs);
+            if (server == new IntPtr(-1))
+                return "server-error=" + Marshal.GetLastWin32Error();
+            try {
+                var client = CreateFileW(name, desired, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                int error = client == new IntPtr(-1) ? Marshal.GetLastWin32Error() : 0;
+                if (client != new IntPtr(-1)) CloseHandle(client);
+                return "win32=" + error;
+            } finally { CloseHandle(server); }
+        } finally { LocalFree(descriptor); }
+    }
     public static int Probe(uint desired) {
         var handle = CreateFileW(@"\\.\pipe\TradingGYM.Stop.v1", desired,
             0, IntPtr.Zero, 3, 0, IntPtr.Zero);
@@ -245,6 +268,12 @@ public static class TradingGymStopPipeProbe {
         $canaryResult = [TradingGymStopPipeProbe]::Canary($principalSid)
         $label = if ($principalSid -eq $expectedSid) { 'logon' } elseif ($principalSid -like 'RC+*') { 'logon+RC' } else { $principalSid }
         Write-Output "T0 same-logon DACL canary: principal=$label $canaryResult"
+    }
+    foreach ($rights in @('0x00100003', '0x00120003', '0x00100083',
+                           '0x00120083', '0x0012008B', '0x0012018B', 'GA')) {
+        $result = [TradingGymStopPipeProbe]::CanaryRights($expectedSid,
+            $rights, [uint32]0x00100003)
+        Write-Output "T0 operator-ACE rights=$rights $result"
     }
     foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
         $errorNumber = [TradingGymStopPipeProbe]::Probe($mask)
