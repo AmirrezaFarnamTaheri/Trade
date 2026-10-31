@@ -71,3 +71,12 @@ def test_preexisting_service_or_install_roots_are_never_deleted_by_finally():
     assert 'if ($OwnServiceInstall)' in script
     assert '$ReportCreated = $false' in script
     assert '$ReportCreated = $true' in script
+
+def test_non_admin_probe_has_owned_compiler_temp_and_read_only_script_copy():
+    script = SMOKE.read_text(encoding='utf-8')
+    assert '-Environment' in script
+    assert "'TEMP'" in script and "'TMP'" in script
+    assert "*${sid}:(OI)(CI)RX" in script
+    assert "*${sid}:(OI)(CI)M" in script
+    assert "Role + '-scratch'" in script
+    assert 'Get-FileHash' in script

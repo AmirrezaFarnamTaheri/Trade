@@ -35,3 +35,8 @@ binding, actual worker sandbox containment, authenticated stop-pipe access,
 sub-second STOP availability under a hung Python/UI process, backups, T2 or
 real-money readiness. Those B1 gates remain open. Do not run this test on a
 funded or non-disposable host.
+
+The local-account probe compiles a Windows PowerShell Add-Type helper. Each test
+account receives a **separate writable TEMP/TMP scratch directory**, while the
+copied probe script is **read-only** for that account; otherwise the inherited
+CI administrator TEMP causes false AccessDenied failures unrelated to Executor.

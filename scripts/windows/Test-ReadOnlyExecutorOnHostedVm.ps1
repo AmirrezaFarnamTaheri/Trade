@@ -63,23 +63,38 @@ function Invoke-UnprivilegedProbe {
     $User = Get-LocalUser -Name $Name -ErrorAction Stop
     $sid = $User.SID.Value
     $dir = Join-Path $ReportRoot $Role
+    $scratch = Join-Path $ReportRoot ($Role + '-scratch')
     $null = New-Item -ItemType Directory -Path $dir -Force
+    $null = New-Item -ItemType Directory -Path $scratch -Force
+    # The user may read the test, but must not rewrite the test code that
+    # determines whether an access-denied response is genuine.
     & icacls.exe $dir '/inheritance:r' | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot protect probe output directory' }
-    & icacls.exe $dir '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*${sid}:(OI)(CI)M" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot grant only the intended probe user access' }
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot protect probe source directory' }
+    & icacls.exe $dir '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*${sid}:(OI)(CI)RX" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot set read-only probe source ACL' }
+    & icacls.exe $scratch '/inheritance:r' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot protect isolated probe scratch directory' }
+    & icacls.exe $scratch '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*${sid}:(OI)(CI)M" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot grant only intended user access to scratch' }
     $ScriptCopy = Join-Path $dir 'UnprivilegedProbe.ps1'
     Copy-Item -LiteralPath $Denial -Destination $ScriptCopy -ErrorAction Stop
     if ((Get-FileHash -LiteralPath $ScriptCopy -Algorithm SHA256).Hash -ne
         (Get-FileHash -LiteralPath $Denial -Algorithm SHA256).Hash) {
         throw 'Unprivileged probe was modified during staging'
     }
-    $stdout = Join-Path $dir 'stdout.txt'
-    $stderr = Join-Path $dir 'stderr.txt'
+    $stdout = Join-Path $scratch 'stdout.txt'
+    $stderr = Join-Path $scratch 'stderr.txt'
     $credential = [PSCredential]::new("$env:COMPUTERNAME\$Name", $Password)
     $PowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $childArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $ScriptCopy + '"'
-    $process = Start-Process -FilePath $PowerShell -ArgumentList $childArguments -Credential $credential -LoadUserProfile -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    # The parent GitHub runner has TEMP under runneradmin's private profile.
+    # Add-Type compiles a temporary C# helper in the child process: using the
+    # inherited TEMP makes the real standard user fail before testing SCM.
+    if (-not (Get-Command Start-Process).Parameters.ContainsKey('Environment')) {
+        throw 'This test requires PowerShell 7.4+ Start-Process -Environment.'
+    }
+    $childEnvironment = @{ 'TEMP' = $scratch; 'TMP' = $scratch }
+    $process = Start-Process -FilePath $PowerShell -ArgumentList $childArguments -Credential $credential -LoadUserProfile -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr -Environment $childEnvironment
     if (-not $process.WaitForExit(120000)) {
         try { $process.Kill() } catch {}
         throw "Timed out waiting for $Role OS-access probe"
