@@ -115,7 +115,9 @@ dependencies = [
 name = "exec-svc"
 version = "0.1.0"
 dependencies = [
+ "exec-core",
  "exec-ipc",
+ "exec-store",
  "tokio",
  "windows-service",
  "windows-sys",
