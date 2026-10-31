@@ -150,7 +150,10 @@ try {
     $identityGroups = @([Security.Principal.WindowsIdentity]::GetCurrent().Groups |
         ForEach-Object { $_.Value })
     $hasNetworkSid = ($identityGroups -contains 'S-1-5-2')
-    Write-Output "T0 ACL preflight: logon-match=$($expectedSid -ceq $actualSid) network-token-group=$hasNetworkSid"
+    $logonSidPresent = ($identityGroups -contains $expectedSid)
+    $logonSidEnabled = $principal.IsInRole(
+        [Security.Principal.SecurityIdentifier]::new($expectedSid))
+    Write-Output "T0 ACL preflight: logon-match=$($expectedSid -ceq $actualSid) network-token-group=$hasNetworkSid logon-group-present=$logonSidPresent logon-group-enabled=$logonSidEnabled"
     if ($expectedSid -cne $actualSid) {
         throw 'The stop-pipe client token does not match privileged installation logon.'
     }
