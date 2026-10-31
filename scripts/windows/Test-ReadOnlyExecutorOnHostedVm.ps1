@@ -30,6 +30,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $ServiceName = 'TradingGYMExecutor'
 $CodeRoot = Join-Path $env:ProgramFiles 'TradingGYM'
+$CodeDir = Join-Path $CodeRoot 'Executor'
 $DataRoot = Join-Path $env:ProgramData 'TradingGYM'
 $ExePath = Join-Path $CodeRoot 'Executor\gym-executor.exe'
 $Installer = Join-Path $PSScriptRoot 'Install-ReadOnlyExecutor.ps1'
@@ -141,6 +142,32 @@ try {
     Start-Service -Name $ServiceName -ErrorAction Stop
     Assert-ServiceState -StartMode 'Manual' -State 'Running'
     Write-Output 'PASS: OS launched read-only service under verified restricted token.'
+    # Report *only boolean* token characteristics, never reusable SIDs or
+    # secrets. A grant to the installer logon SID cannot authorize a client
+    # from a different logon, or a token subject to a deny NETWORK ACE.
+    $expectedSid = (Get-Content -LiteralPath (Join-Path $CodeDir 'stop-logon.sid') -Raw).Trim()
+    $actualSid = (& (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1')).Trim()
+    $identityGroups = @([Security.Principal.WindowsIdentity]::GetCurrent().Groups |
+        ForEach-Object { $_.Value })
+    $hasNetworkSid = ($identityGroups -contains 'S-1-5-2')
+    $logonSidPresent = ($identityGroups -contains $expectedSid)
+    $logonSidEnabled = $principal.IsInRole(
+        [Security.Principal.SecurityIdentifier]::new($expectedSid))
+    Write-Output "T0 ACL preflight: logon-match=$($expectedSid -ceq $actualSid) network-token-group=$hasNetworkSid logon-group-present=$logonSidPresent logon-group-enabled=$logonSidEnabled"
+    if ($expectedSid -cne $actualSid) {
+        throw 'The stop-pipe client token does not match privileged installation logon.'
+    }
+    $StopClient = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
+    if (-not (Test-Path -LiteralPath $StopClient -PathType Leaf)) {
+        throw 'Compiled gym-stopctl.exe is required for T0 verification.'
+    }
+    foreach ($command in @('pause', 'exit-only', 'halt')) {
+        $reply = & $StopClient $command 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($reply -join ' ') -notmatch '^ACKNOWLEDGED:') {
+            throw "Stop-only pipe did not acknowledge ${command}: $($reply -join ' ')"
+        }
+        Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED"
+    }
     Stop-Service -Name $ServiceName -ErrorAction Stop
     Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
