@@ -114,3 +114,90 @@ def test_stop_client_uses_identification_only_qos():
     client = CLIENT.read_text("utf-8")
     assert "0x00110000" in client  # SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION
     assert "CreateFileW" in client
+
+
+def test_disposable_windows_ci_includes_same_logon_descriptor_canary():
+    # A temporary, non-money named-pipe canary distinguishes an invalid
+    # logon-SID ACL from a service-specific authorization failure.
+    script = SMOKE.read_text("utf-8")
+    assert "Canary($principalSid)" in script
+    assert "T0 caller token restricted" in script
+    for group in ("'BA'", "'AU'", "'WD'"):
+        assert group in script
+    assert "T0 same-logon DACL canary:" in script
+
+
+def test_operator_stop_pipe_acl_allows_metadata_read_but_not_pipe_creation():
+    pipe = PIPE.read_text("utf-8")
+    # A real Windows canary reproduced ACCESS_DENIED at 0x00100003 and
+    # permitted 0x00100083; the added 0x80 is FILE_READ_ATTRIBUTES.
+    assert '0x00100083;;;{logon_sid}' in pipe
+    assert "FILE_CREATE_PIPE_INSTANCE" in pipe
+    assert "0x00100003;;;{logon_sid}" not in pipe
+
+
+def test_disposable_host_checks_subsecond_ack_and_denies_other_logon_tokens():
+    smoke = SMOKE.read_text("utf-8")
+    probe = (ROOT / "scripts/windows/Test-UnprivilegedExecutorAccess.ps1").read_text("utf-8")
+    assert "ElapsedMilliseconds -ge 1000" in smoke
+    assert "denied active stop pipe" in smoke
+    assert "CheckStopPipeOnly" in smoke
+    assert "CheckStopPipeOnly" in probe
+    assert "CreateFileW" in probe
+    assert "GetLastWin32Error()" in probe
+
+
+def test_hostile_logon_denial_proves_a_distinct_windows_logon_sid():
+    probe = (ROOT / "scripts/windows/Test-UnprivilegedExecutorAccess.ps1").read_text("utf-8")
+    smoke = SMOKE.read_text("utf-8")
+    assert "whoami.exe /logonid" in probe
+    assert "ExpectedLogonSid" in probe
+    assert "ExpectedLogonSid" in smoke
+    assert "same user and logon" in probe
+
+
+def test_stop_pipe_checks_actual_impersonated_client_token_before_processing_frame():
+    pipe = PIPE.read_text("utf-8")
+    identity = (ROOT / "executor/exec-svc/src/windows_identity.rs").read_text("utf-8")
+    assert "ImpersonateNamedPipeClient" in pipe
+    assert "RevertToSelf" in pipe
+    assert "impersonated_thread_logon_sid" in identity
+    assert "OpenThreadToken" in identity
+    assert "TokenLogonSid" in identity
+    assert "verified_client_logon" in pipe
+    assert pipe.index("verified_client_logon") < pipe.index("gate\n        .process_frame")
+
+def test_separate_logon_cannot_receive_stop_ack_even_if_kernel_pipe_open_succeeds():
+    host = SMOKE.read_text('utf-8')
+    probe = (ROOT / 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1').read_text('utf-8')
+    assert "'StopClient.exe'" in host
+    assert 'Get-FileHash -LiteralPath $stagedStop' in host
+    assert "'pause'" in probe
+    assert 'UNACKNOWLEDGED:' in probe
+    assert 'SECURITY FAILURE' in probe
+    assert 'ExpectedLogonSid' in probe
+    # A Windows DACL can allow opening, but the OS-token gate must refuse any ACK.
+    assert 'ImpersonateNamedPipeClient' in PIPE.read_text('utf-8')
+
+
+def test_stop_authorization_requires_both_os_user_and_logon_sid():
+    installer = (ROOT / "scripts/windows/Install-ReadOnlyExecutor.ps1").read_text("utf-8")
+    main = (ROOT / "executor/exec-svc/src/main.rs").read_text("utf-8")
+    identity = (ROOT / "executor/exec-svc/src/windows_identity.rs").read_text("utf-8")
+    pipe = PIPE.read_text("utf-8")
+    assert "stop-user.sid" in installer
+    assert "$identity.User.Value" in installer
+    assert "stop-user.sid" in main
+    assert "provisioned_user_sid" in main
+    assert "impersonated_thread_user_sid" in identity
+    assert "TokenUser" in identity
+    assert "expected_user" in pipe
+    assert "impersonated_thread_user_sid" in pipe
+
+
+def test_hostile_probe_uses_independent_real_windows_user_identity():
+    smoke = SMOKE.read_text("utf-8")
+    probe = (ROOT / "scripts/windows/Test-UnprivilegedExecutorAccess.ps1").read_text("utf-8")
+    assert "-ExpectedUserSid $identity.User.Value" in smoke
+    assert "ExpectedUserSid" in probe
+    assert "same user and logon" in probe

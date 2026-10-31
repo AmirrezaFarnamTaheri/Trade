@@ -70,6 +70,32 @@ mod windows_host {
         Ok(sid.to_owned())
     }
 
+    /// Operator user identity is separately provisioned from a trusted OS
+    /// process token, never copied from a client request or environment value.
+    fn provisioned_user_sid() -> std::io::Result<String> {
+        let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramFiles")
+        })?;
+        let file = PathBuf::from(root).join("TradingGYM").join("Executor")
+            .join("stop-user.sid");
+        let info = std::fs::symlink_metadata(&file)?;
+        if !info.file_type().is_file() || info.file_type().is_symlink() || info.len() > 120 {
+            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,
+                "untrusted operator user SID configuration"));
+        }
+        let value = std::fs::read_to_string(file)?;
+        let sid = value.trim();
+        let components: Vec<&str> = sid.split('-').collect();
+        if !sid.starts_with("S-1-") || !(5..=16).contains(&components.len())
+            || components.iter().skip(1).any(|x| x.is_empty()
+                || !x.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,
+                "invalid provisioned operator user SID"));
+        }
+        Ok(sid.to_owned())
+    }
+
     fn run_service() -> windows_service::Result<()> {
         let should_stop = Arc::new(AtomicBool::new(false));
         let callback_stop = Arc::clone(&should_stop);
@@ -100,6 +126,13 @@ mod windows_host {
                 return Ok(());
             }
         };
+        let operator_user = match provisioned_user_sid() {
+            Ok(sid) => sid,
+            Err(_) => {
+                status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+                return Ok(());
+            }
+        };
         let epoch = SystemTime::now().duration_since(UNIX_EPOCH)
             .map(|t| t.as_nanos() as u64).unwrap_or(0);
         let gate = match exec_svc::StopGate::new(epoch) {
@@ -120,7 +153,7 @@ mod windows_host {
                 .enable_all().build()
                 .map_err(std::io::Error::other)
                 .and_then(|rt| rt.block_on(exec_svc::windows_pipe::serve_stop_only(
-                    gate, &service_sid, &logon_sid, Some(ready_tx),
+                    gate, &service_sid, &logon_sid, &operator_user, Some(ready_tx),
                 )));
             if result.is_err() {
                 failed.store(true, Ordering::SeqCst);
