@@ -125,18 +125,36 @@ impl Attempt {
 
 /// Slots cannot grant funded execution; they only veto conflicting simulated
 /// intents. Holding/releasing a slot requires independently verified evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotError { Conflict, UnverifiedExit, Unsettled }
 #[derive(Debug, Default)]
 pub struct Slots {
     active: Vec<(String, String, bool)>,
 }
 impl Slots {
-    pub fn hold(&mut self, account: &str, instrument: &str, entry: bool) {
-        if !self.active.iter().any(|(a, i, _)| a == account && i == instrument) {
-            self.active.push((account.to_owned(), instrument.to_owned(), entry));
+    /// Admission and slot acquisition are one indivisible operation.
+    /// This is a pure model; the final Executor must bind verified balance
+    /// evidence and durable intent to this decision before any venue POST.
+    pub fn try_hold(
+        &mut self, account: &str, instrument: &str, entry: bool, verified_base: bool,
+    ) -> Result<(), SlotError> {
+        if entry {
+            if !self.entry_allowed(account, instrument) { return Err(SlotError::Conflict); }
+        } else {
+            if !verified_base { return Err(SlotError::UnverifiedExit); }
+            if !self.exit_allowed(account, instrument, true) { return Err(SlotError::Conflict); }
         }
+        self.active.push((account.to_owned(), instrument.to_owned(), entry));
+        Ok(())
     }
-    pub fn release(&mut self, account: &str, instrument: &str) {
+    /// Never silently free a reservation for an UNKNOWN or terminal-but-
+    /// unsettled attempt. The caller must bring reconciliation evidence.
+    pub fn release_verified(
+        &mut self, account: &str, instrument: &str, settled: bool,
+    ) -> Result<(), SlotError> {
+        if !settled { return Err(SlotError::Unsettled); }
         self.active.retain(|(a, i, _)| a != account || i != instrument);
+        Ok(())
     }
     pub fn entry_allowed(&self, account: &str, instrument: &str) -> bool {
         !self.active.iter().any(|(a, i, entry)| {
