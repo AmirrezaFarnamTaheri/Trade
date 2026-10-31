@@ -1,32 +1,37 @@
-# B1 Executor foundation (no funded capabilities)
+# B1 Executor foundation — read-only
 
-`exec-core` is a pure runtime-epoch-fenced, monotone stop-state reducer.
-`exec-store` is the initial on-disk event ledger: SQLite WAL and
-`synchronous=FULL`, one advisory-locked writer, serial `BEGIN IMMEDIATE`
-appends, forward-only schema v1, append-only triggers, exact stored-byte
-SHA-256 chaining, verified replay, fail-closed startup and bounded event size.
+`exec-core` is a pure stop-state reducer. `exec-store` is the draft
+single-writer SQLite event ledger with WAL, FULL synchronous commits,
+immutable-event guards and byte-level hash verification.
 
-**This is not a finished B1 or a funded Executor.** No Windows service,
-credential handling, named pipes, authorized event-envelope validation,
-API account reader, order creation/cancellation, or strategy arming exists.
-The store accepts opaque bytes that must be validated by the future contract
-boundary. A hash chain is tamper-evident, not a substitute for restricted
-Windows ACLs and recoverable off-machine backups. Advisory locks do not stop
-an attacker who already has file-write permissions.
+`exec-ipc` adds a fixed-size, versioned T0 stop-only codec, and `exec-svc`
+adds the atomic, monotone stop gate and a **Windows-only named-pipe listener
+library** with explicit DACL creation and remote-client rejection. The listener
+must be hosted on its own thread, with verified service and logon SIDs.
 
-## Tests
+**Not yet implemented:** a registered restricted Windows service or installer;
+service-identity/ACL self-tests; T2 pipe and privileged credential provisioning;
+full versioned event envelopes; account read adapters; tray; journal replication;
+funded order create/cancel; position protection. This code does **not** arm or
+submit orders. It is not B1-complete and is not trading-ready.
 
-- `cargo test --workspace --all-targets`: Rust states, hash chain and
-  durable ledger integration tests (run on Linux and Windows).
-- `cd gym-core && uv run pytest -q`: existing Python tests plus an independent
-  stored-byte SHA-256 and SQLite-schema check.
+## Verification
 
-The Rust tests require a Rust toolchain. CI must pass before merging; this
-change does not enable live or dry-run funded activity.
+- `cargo test --workspace --all-targets` on Linux and Windows; also compile
+  Windows-only modules on a real Windows runner.
+- `cd gym-core && uv run pytest -q` for Python contract and existing behavior
+  tests. `test_stop_wire_contract.py` uses independent golden vectors.
+- Windows acceptance must verify the actual pipe DACL under service identity,
+  inaccessible T2/ledger/secret paths, rejected network clients, stop behavior
+  with Python/API dead, and stop responsiveness under loop starvation.
 
-## Next B1 work
+Do not merge without green CI. A stored-byte hash chain is tamper-evident but
+not a substitute for OS isolation or a restorable off-machine backup.
 
-Versioned event envelopes and IPC, service identity/ACL/DACL self-tests,
-separate T2 control, stop-only named pipe, then read-only Wallex balances,
-fees, manual order status and external exposure. The real crash/restore
-fault-injection gate remains unsatisfied, and off-machine restore is B3.
+## Next implementation slice
+
+Register the restricted service with the Windows SCM, provision service SID
+and operator logon SID through trusted installer state, add security self-tests,
+and exercise stop-only pipes on the target OS. Then proceed with read-only
+Wallex account views and external exposure. No execution transport is allowed
+until the B2 money-path gates and later C venue probes.
