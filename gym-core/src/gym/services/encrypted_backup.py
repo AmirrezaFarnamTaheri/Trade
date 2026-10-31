@@ -110,6 +110,7 @@ def create_backup(
         raise BackupUnsafe("backup destination already exists")
     salt, nonce = secrets.token_bytes(_SALT_BYTES), secrets.token_bytes(_NONCE_BYTES)
     fd = -1
+    created = False
     try:
         with tempfile.TemporaryDirectory(prefix="tg-backup-", dir=output_path.parent) as temp_dir:
             snapshot = Path(temp_dir) / "snapshot.db"
@@ -145,6 +146,7 @@ def create_backup(
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
                 0o600,
             )
+            created = True
             with os.fdopen(fd, "wb") as output:
                 fd = -1
                 output.write(prefix)
@@ -171,10 +173,13 @@ def create_backup(
     except Exception:
         if fd >= 0:
             os.close(fd)
-        try:
-            output_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        # Only discard a partial bundle created by this call. A competing
+        # writer may have populated the destination while snapshotting.
+        if created:
+            try:
+                output_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         raise
 
 
