@@ -1,0 +1,28 @@
+name: Validate
+on:
+  push:
+    branches: [master, "feat/**"]
+  pull_request:
+
+jobs:
+  rust:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test Rust workspace
+        run: cargo test --workspace --all-targets
+
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run pytest -q

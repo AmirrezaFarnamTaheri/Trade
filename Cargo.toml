@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "executor/exec-core",
+    "executor/exec-store",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
