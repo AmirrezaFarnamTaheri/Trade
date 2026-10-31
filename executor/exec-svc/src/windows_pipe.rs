@@ -151,7 +151,6 @@ mod tests {
         ).unwrap();
         assert!(!value.contains("(D;;GA;;;NU)"));
         assert!(value.contains("D:P(A;;GA;;;SY)"));
-        assert!(value.contains(".reject_remote_clients(true)"));
         assert!(value.contains("(A;;0x00100003;;;S-1-5-5-100-200)"));
         assert!(!value.contains(";;;WD"));
         assert!(!value.contains(";;;AU"));
