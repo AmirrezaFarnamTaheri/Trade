@@ -15,6 +15,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test Rust workspace
         run: cargo test --workspace --all-targets
+      - name: Check Windows bootstrap script syntax (no install)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($file in @('scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -ne 0) { throw "$file syntax error: $($errors | Out-String)" }
+          }
 
   python:
     runs-on: ubuntu-latest

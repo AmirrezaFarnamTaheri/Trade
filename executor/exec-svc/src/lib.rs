@@ -3,6 +3,15 @@
 use exec_ipc::{ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE};
 use std::sync::atomic::{AtomicU8, Ordering};
 
+/// Only the restricted built-in LocalService user may host the bootstrap.
+/// This does not by itself certify service-SID or private credential isolation.
+pub fn is_local_service_sid(sid: &str) -> bool {
+    sid == "S-1-5-19"
+}
+
+#[cfg(windows)]
+pub mod windows_identity;
+
 #[cfg(windows)]
 pub mod windows_pipe;
 
