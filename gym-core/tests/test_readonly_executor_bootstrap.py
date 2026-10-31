@@ -43,3 +43,9 @@ def test_service_host_uses_scm_and_refuses_wrong_account():
     assert 'is_restricted_executor_service' in body
     assert 'ServiceState::Stopped' in body
     assert 'POST' not in body
+
+def test_windows_acl_audit_has_parseable_interpolated_error_message():
+    """PowerShell treats `$path:` as a scoped variable, not '$path' + ':'."""
+    body = VERIFY.read_text(encoding="utf-8")
+    assert '$path:' not in body
+    assert '${path}:' in body

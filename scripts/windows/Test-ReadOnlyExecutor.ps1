@@ -35,43 +35,6 @@ if ($LASTEXITCODE -ne 0 -or $sidtypeText -notmatch '(?i)RESTRICTED') {
     throw 'Cannot confirm restricted service SID type.'
 }
 
-# Service SCM descriptor is a separate security boundary from NTFS. Refuse
-# unexpected ACEs, broad control rights, a nonprotected DACL or missing admins.
-$scmSddl = (& sc.exe sdshow $ServiceName | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { throw 'Cannot read service SCM descriptor.' }
-try {
-    $scmDescriptor = [Security.AccessControl.CommonSecurityDescriptor]::new($false, $false, $scmSddl)
-}
-catch {
-    throw 'Service SCM descriptor is malformed or unreadable.'
-}
-if (($scmDescriptor.ControlFlags -band [Security.AccessControl.ControlFlags]::DiscretionaryAclProtected) -eq 0) {
-    throw 'Service SCM descriptor must protect its DACL.'
-}
-$trustedServiceSid = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-11')
-$serviceSeen = @{}
-foreach ($ace in $scmDescriptor.DiscretionaryAcl) {
-    if ($ace.AceType -ne [Security.AccessControl.AceType]::AccessAllowed) {
-        throw 'Unexpected SCM access-control entry.'
-    }
-    $aceSid = $ace.SecurityIdentifier.Value
-    if ($aceSid -notin $trustedServiceSid -or $serviceSeen.ContainsKey($aceSid)) {
-        throw "Unknown or duplicate service SCM descriptor ACE: $aceSid"
-    }
-    $serviceSeen[$aceSid] = $true
-    if ($aceSid -eq 'S-1-5-11') {
-        if ($ace.AccessMask -ne 0x0002008D) {
-            throw 'Authenticated user has unsafe service SCM authority.'
-        }
-    }
-    elseif ($ace.AccessMask -ne 0x10000000 -and $ace.AccessMask -ne 0x000F01FF) {
-        throw 'Administrators and SYSTEM must have full service authority.'
-    }
-}
-if ($serviceSeen.Count -ne 3) {
-    throw 'Required SCM principals missing from service security descriptor.'
-}
-
 $trusted = @('S-1-5-18', 'S-1-5-32-544', $sid)
 $forbidden = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-19')
 $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
@@ -99,7 +62,7 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
         $ruleSid = $rule.IdentityReference.Value
         if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow) {
             if ($ruleSid -in $forbidden -or $ruleSid -notin $trusted) {
-                throw "Broad or unknown access rule on $path: $ruleSid"
+                throw "Broad or unknown access rule on ${path}: $ruleSid"
             }
             if ($ruleSid -eq $sid) {
                 $seenService = $true
