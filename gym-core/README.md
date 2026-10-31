@@ -44,6 +44,22 @@ Unobserved hours are absent, not zero. Invalid/stale observations are excluded; 
 quote is not proof of executability. DEMO is explicitly synthetic. This does not measure fees, depth slippage or latency.
 See [acceptance status](docs/acceptance-status.md) for the remaining release blockers.
 
+## Offline external-order observation (B1 development only)
+
+`uv run gymctl --data data external-observe /path/to/manual-observation.json`
+accepts a local JSON object with `account_id`, a zoned `observed_at` and
+`orders` entries containing `client_id`, `status`, `filled` as exact decimal
+text and optionally `symbol`. The importer stores only sanitized,
+**unverified external observations** in `data/live/external_journal.db`. The
+Journal view displays this sequence read-only; its endpoint requires the
+per-run local token. Never include API keys in the import file.
+
+A missing row does not prove a trade was canceled/absent. A terminal status
+is not settlement. Imported balances are never spendable Executor cash. The
+GET-only Wallex adapter is not wired to an authenticated account and has
+**no order-write methods**. There is no service-owned trading credential, T2
+authority or funded capability in this release candidate.
+
 ## Code organization
 
 - `src/gym/domain/`: pure market types, bars, rules, strategies and simulation/accounting.
