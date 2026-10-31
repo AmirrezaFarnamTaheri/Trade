@@ -120,5 +120,6 @@ def test_disposable_windows_ci_includes_same_logon_descriptor_canary():
     # A temporary, non-money named-pipe canary distinguishes an invalid
     # logon-SID ACL from a service-specific authorization failure.
     script = SMOKE.read_text("utf-8")
-    assert "Canary($expectedSid)" in script
+    assert "Canary($principalSid)" in script
+    assert "($expectedSid, 'BA', 'AU', 'WD')" in script
     assert "T0 same-logon DACL canary:" in script
