@@ -62,7 +62,7 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
         $ruleSid = $rule.IdentityReference.Value
         if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow) {
             if ($ruleSid -in $forbidden -or $ruleSid -notin $trusted) {
-                throw "Broad or unknown access rule on $path: $ruleSid"
+                throw "Broad or unknown access rule on ${path}: $ruleSid"
             }
             if ($ruleSid -eq $sid) {
                 $seenService = $true
