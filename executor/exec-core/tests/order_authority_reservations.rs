@@ -179,3 +179,18 @@ fn completed_settlement_keeps_observation_watermark_after_last_release() {
     assert_eq!(book.reserve("second", "main", "USDT", 50, &initial, &next),
         Err(ReservationError::StaleBalance));
 }
+
+#[test]
+fn locally_denied_reservation_can_release_without_settlement_evidence() {
+    let mut book = ReservationBook::default();
+    let mut denied = Attempt::new(10).unwrap();
+    let first = BalanceSnapshot::new("main", "USDT", 100, 10).unwrap();
+    book.reserve("denied-hold", "main", "USDT", 60, &first, &denied).unwrap();
+    assert_eq!(book.release_denied("denied-hold", &denied), Err(ReservationError::OrderNotSettled));
+    denied.apply(Event::Denied).unwrap();
+    book.release_denied("denied-hold", &denied).unwrap();
+    assert_eq!(book.reserved("main", "USDT"), 0);
+    let fresh = BalanceSnapshot::new("main", "USDT", 75, 11).unwrap();
+    book.reserve("new-hold", "main", "USDT", 70, &fresh, &Attempt::new(10).unwrap()).unwrap();
+    assert_eq!(book.reserved("main", "USDT"), 70);
+}
