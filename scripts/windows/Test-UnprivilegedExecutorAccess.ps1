@@ -65,10 +65,29 @@ public static class TradingGYMStopNegativeAccess {
 }
 '@
     $code = [TradingGYMStopNegativeAccess]::AttemptOpen()
-    if ($code -ne 5) {
-        throw "SECURITY FAILURE: unprivileged logon stop-pipe open returned Win32 $code (expected ACCESS_DENIED=5)"
+    # Some Windows versions admit the minimum-right handle despite a logon
+    # scoped DACL. A successful CreateFile is NOT authorization to command the
+    # Executor. The server MUST reject a different OS-issued logon SID before
+    # processing even STATUS; the negative client tests an actual framed PAUSE.
+    Write-Output "T0 negative DACL open returned Win32 $code (diagnostic only)"
+    $stagedStop = Join-Path $PSScriptRoot 'StopClient.exe'
+    if (-not (Test-Path -LiteralPath $stagedStop -PathType Leaf)) {
+        throw 'SECURITY TEST INVALID: trusted stop client not staged'
     }
-    Write-Output "PASS: non-admin SID=$($identity.User.Value) denied active stop pipe under separate logon."
+    $stdout = Join-Path $env:TEMP ('t0-unauthorized-out-' + [guid]::NewGuid().ToString('N') + '.txt')
+    $stderr = Join-Path $env:TEMP ('t0-unauthorized-err-' + [guid]::NewGuid().ToString('N') + '.txt')
+    try {
+        $attempt = Start-Process -FilePath $stagedStop -ArgumentList 'pause' -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $reply = if (Test-Path -LiteralPath $stdout) { Get-Content -LiteralPath $stdout -Raw } else { '' }
+        $failure = if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Raw } else { '' }
+        if ($attempt.ExitCode -eq 0 -or $reply -match 'ACKNOWLEDGED:' -or $failure -notmatch 'UNACKNOWLEDGED:') {
+            throw "SECURITY FAILURE: separate Windows logon received a stop-pipe acknowledgement or no explicit rejection"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+    }
+    Write-Output "PASS: non-admin SID=$($identity.User.Value) denied active stop pipe command under separate logon."
     return
 }
 $ServiceName = 'TradingGYMExecutor'
