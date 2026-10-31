@@ -11,18 +11,18 @@ fn chaos_01_ack_lost_after_bytes_keeps_slot_and_blocks_retry() {
     attempt.apply(Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
     for _ in 0..100 {
         attempt.apply(Event::MissingFromList).unwrap();
-        assert_eq!(attempt.lifecycle, Lifecycle::Unknown);
+        assert_eq!(attempt.lifecycle(), Lifecycle::Unknown);
         assert!(attempt.holds_slot());
         assert_eq!(attempt.apply(Event::BeginSend), Err(OrderError::RetryForbidden));
     }
     attempt.apply(Event::Acknowledged).unwrap();
     attempt.apply(Event::CumulativeFilled(15)).unwrap();
     attempt.apply(Event::TerminalReported).unwrap();
-    assert_eq!(attempt.effect, EconomicEffect::Full);
-    assert_eq!(attempt.settlement, Settlement::Pending);
+    assert_eq!(attempt.effect(), EconomicEffect::Full);
+    assert_eq!(attempt.settlement(), Settlement::Pending);
     assert!(attempt.holds_slot());
     attempt.apply(Event::SettlementVerified).unwrap();
-    assert_eq!(attempt.lifecycle, Lifecycle::Closed);
+    assert_eq!(attempt.lifecycle(), Lifecycle::Closed);
 }
 
 #[test]
@@ -32,13 +32,13 @@ fn chaos_02_late_fill_after_terminal_cancel_stays_pending_until_settled() {
     attempt.apply(Event::Acknowledged).unwrap();
     attempt.apply(Event::TerminalReported).unwrap();
     attempt.apply(Event::CumulativeFilled(23)).unwrap();
-    assert_eq!(attempt.effect, EconomicEffect::Partial);
-    assert_eq!(attempt.settlement, Settlement::Pending);
-    assert_eq!(attempt.lifecycle, Lifecycle::TerminalReported);
+    assert_eq!(attempt.effect(), EconomicEffect::Partial);
+    assert_eq!(attempt.settlement(), Settlement::Pending);
+    assert_eq!(attempt.lifecycle(), Lifecycle::TerminalReported);
     assert!(attempt.holds_slot());
     // Same cumulative quantity from duplicate REST/socket update is idempotent.
     attempt.apply(Event::CumulativeFilled(23)).unwrap();
-    assert_eq!(attempt.filled_quanta, 23);
+    assert_eq!(attempt.filled_quanta(), 23);
     let previous = attempt;
     assert_eq!(attempt.apply(Event::CumulativeFilled(22)), Err(OrderError::FillRegression));
     assert_eq!(attempt, previous);
@@ -53,7 +53,7 @@ fn chaos_03_transport_prebyte_failure_is_bounded_not_unlimited() {
         attempt.apply(Event::BeginSend).unwrap();
         attempt.apply(Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
     }
-    assert_eq!(attempt.lifecycle, Lifecycle::NotSent);
+    assert_eq!(attempt.lifecycle(), Lifecycle::NotSent);
     assert!(!attempt.can_retry_same_identity());
     assert_eq!(attempt.apply(Event::BeginSend), Err(OrderError::RetryForbidden));
 }
