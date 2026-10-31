@@ -13,8 +13,13 @@ $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Requires Windows.' }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'Refusing elevated access test: use a standard, nonadministrator token.'
+$adminSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+$hasAdministratorsGroup = @($identity.Groups | Where-Object {
+    $_.Value -eq $adminSid.Value
+}).Count -gt 0
+if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or
+    $hasAdministratorsGroup) {
+    throw 'Refusing elevated or filtered-administrator token: use a standard, nonadministrator token.'
 }
 $ServiceName = 'TradingGYMExecutor'
 $Binary = Join-Path (Join-Path ${env:ProgramFiles} 'TradingGYM\Executor') 'gym-executor.exe'

@@ -110,10 +110,21 @@ pub async fn serve_stop_only(
     let mut listening = create_pipe(service_sid, logon_sid, true)?;
     let slots = Arc::new(Semaphore::new(16));
     loop {
-        listening.connect().await?;
-        let connected = listening;
-        // Always create a replacement before dispatching connected client.
-        listening = create_pipe(service_sid, logon_sid, false)?;
+        let connect_result = listening.connect().await;
+        // Retain the first instance until a replacement is available; do
+        // not tear down the emergency channel after a local client abort.
+        let replacement = loop {
+            match create_pipe(service_sid, logon_sid, false) {
+                Ok(pipe) => break pipe,
+                Err(_) => tokio::time::sleep(Duration::from_millis(50)).await,
+            }
+        };
+        let connected = std::mem::replace(&mut listening, replacement);
+        if connect_result.is_err() {
+            // Windows ERROR_NO_DATA (232) can occur after client disconnect.
+            // This is not a reason to terminate the stop-only listener.
+            continue;
+        }
         if let Ok(slot) = slots.clone().try_acquire_owned() {
             let state = gate.clone();
             tokio::spawn(async move {
