@@ -154,3 +154,15 @@ def test_hostile_logon_denial_proves_a_distinct_windows_logon_sid():
     assert "ExpectedLogonSid" in probe
     assert "ExpectedLogonSid" in smoke
     assert "same logon" in probe
+
+
+def test_stop_pipe_checks_actual_impersonated_client_token_before_processing_frame():
+    pipe = PIPE.read_text("utf-8")
+    identity = (ROOT / "executor/exec-svc/src/windows_identity.rs").read_text("utf-8")
+    assert "ImpersonateNamedPipeClient" in pipe
+    assert "RevertToSelf" in pipe
+    assert "impersonated_thread_logon_sid" in identity
+    assert "OpenThreadToken" in identity
+    assert "TokenLogonSid" in identity
+    assert "verified_client_logon" in pipe
+    assert pipe.index("verified_client_logon") < pipe.index("gate\n        .process_frame")
