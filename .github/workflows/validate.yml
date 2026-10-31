@@ -4,6 +4,9 @@ on:
     branches: [master, "feat/**"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   rust:
     strategy:
@@ -13,6 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Test Rust workspace
         run: cargo test --locked --workspace --all-targets
@@ -35,6 +40,8 @@ jobs:
         working-directory: gym-core
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --group dev
       - run: uv run pytest -q
@@ -49,6 +56,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Build read-only service using pinned dependencies
         run: cargo build --release --locked -p exec-svc --bin gym-executor

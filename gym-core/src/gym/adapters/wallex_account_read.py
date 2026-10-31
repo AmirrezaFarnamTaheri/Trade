@@ -85,7 +85,7 @@ class WallexAccountReader:
                 raise ReadUncertain("invalid filled quantity") from None
             if not amount.is_finite() or amount < 0:
                 raise ReadUncertain("invalid filled quantity")
-            filled = str(amount)
+            filled = format(amount, "f")
         # Never return unknown fields or secrets, even on a nominal success.
         return {"client_id": client_id, "status": status, "filled": filled,
                 "symbol": symbol.upper() if symbol is not None else None}
