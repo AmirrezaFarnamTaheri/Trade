@@ -30,6 +30,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $ServiceName = 'TradingGYMExecutor'
 $CodeRoot = Join-Path $env:ProgramFiles 'TradingGYM'
+$CodeDir = Join-Path $CodeRoot 'Executor'
 $DataRoot = Join-Path $env:ProgramData 'TradingGYM'
 $ExePath = Join-Path $CodeRoot 'Executor\gym-executor.exe'
 $Installer = Join-Path $PSScriptRoot 'Install-ReadOnlyExecutor.ps1'

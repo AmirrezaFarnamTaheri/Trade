@@ -33,7 +33,7 @@ pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> 
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "expected service SID and logon SID"));
     }
     Ok(format!(
-        "D:P(D;;GA;;;NU)(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100003;;;{logon_sid})"
+        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100003;;;{logon_sid})"
     ))
 }
 
@@ -149,7 +149,9 @@ mod tests {
             "S-1-5-80-123-456-789-111-222",
             "S-1-5-5-100-200",
         ).unwrap();
-        assert!(value.contains("(D;;GA;;;NU)"));
+        assert!(!value.contains("(D;;GA;;;NU)"));
+        assert!(value.contains("D:P(A;;GA;;;SY)"));
+        assert!(value.contains(".reject_remote_clients(true)"));
         assert!(value.contains("(A;;0x00100003;;;S-1-5-5-100-200)"));
         assert!(!value.contains(";;;WD"));
         assert!(!value.contains(";;;AU"));
