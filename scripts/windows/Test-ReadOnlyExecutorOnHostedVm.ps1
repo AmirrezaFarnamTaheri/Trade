@@ -220,8 +220,11 @@ public static class TradingGymStopPipeProbe {
 }
 '@
     Add-Type -TypeDefinition $accessProbeType
-    $canaryResult = [TradingGymStopPipeProbe]::Canary($expectedSid)
-    Write-Output "T0 same-logon DACL canary: $canaryResult"
+    foreach ($principalSid in @($expectedSid, 'BA', 'AU', 'WD')) {
+        $canaryResult = [TradingGymStopPipeProbe]::Canary($principalSid)
+        $label = if ($principalSid -eq $expectedSid) { 'logon' } else { $principalSid }
+        Write-Output "T0 same-logon DACL canary: principal=$label $canaryResult"
+    }
     foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
         $errorNumber = [TradingGymStopPipeProbe]::Probe($mask)
         Write-Output ('T0 access-probe mask=0x{0:X8} win32={1}' -f $mask, $errorNumber)
