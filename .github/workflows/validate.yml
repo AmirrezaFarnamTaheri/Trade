@@ -61,6 +61,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build read-only service using pinned dependencies
         run: cargo build --release --locked -p exec-svc --bin gym-executor
+      - name: Build stop-only client from pinned dependencies
+        run: cargo build --release --locked -p exec-svc --bin gym-stopctl
       - name: Verify service identity, DACL and two non-admin OS principals
         shell: pwsh
         run: |

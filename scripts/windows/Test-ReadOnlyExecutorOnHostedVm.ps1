@@ -141,6 +141,17 @@ try {
     Start-Service -Name $ServiceName -ErrorAction Stop
     Assert-ServiceState -StartMode 'Manual' -State 'Running'
     Write-Output 'PASS: OS launched read-only service under verified restricted token.'
+    $StopClient = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
+    if (-not (Test-Path -LiteralPath $StopClient -PathType Leaf)) {
+        throw 'Compiled gym-stopctl.exe is required for T0 verification.'
+    }
+    foreach ($command in @('pause', 'exit-only', 'halt')) {
+        $reply = & $StopClient $command 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($reply -join ' ') -notmatch '^ACKNOWLEDGED:') {
+            throw "Stop-only pipe did not acknowledge ${command}: $($reply -join ' ')"
+        }
+        Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED"
+    }
     Stop-Service -Name $ServiceName -ErrorAction Stop
     Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
