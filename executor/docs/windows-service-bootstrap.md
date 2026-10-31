@@ -19,7 +19,7 @@ relying on TradingGYM for protection.
 ## Packaging (Windows build machine, after CI is repaired)
 
 1. Obtain a trusted, reviewed source revision and build using a locked Cargo
-   dependency graph (Cargo.lock is still missing and is a merge blocker).
+   dependency graph (the repository now tracks a generated `Cargo.lock`; CI runs with `--locked`).
 2. Build `cargo build --release -p exec-svc --bin gym-executor` on Windows.
 3. From an **elevated** PowerShell 5.1+ prompt, inspect then run:
 
@@ -90,13 +90,15 @@ certify those gates.
   hostile-client rejection and SCM hard-stop failure behavior.
 - Separate T2 principal, provisioning, service-context DPAPI, key/ledger ACL
   self-tests, funded authority ceilings, independent recovery and Fake Venue.
-- Fix GitHub Actions runner startup (issue #5) and require passing Rust tests
-  on Windows and Linux; do not infer correctness from static source checks.
+- GitHub Actions runner-startup issue #5 has been resolved and the Rust/Python
+  CI checks run on hosted Windows and Linux. This verifies the testable code,
+  **not** installed Windows SCM/ACL/operator/worker security integration.
 
 **No live order path, trade key or withdrawal capability is introduced.**
 
-The source contains a fail-closed token-membership gate and Rust policy tests,
-but **no cargo toolchain or Windows target is available in this development
-container**. Static Python release guards do not validate the Win32 API calls;
-the Windows build, compiled tests, VM service launch and service-token audit
-must be recorded before this PR is merge-ready. The service remains DISABLED.
+The source contains a fail-closed token-membership gate and Rust policy tests.
+Hosted Windows CI builds and runs compiled tests; this development container
+still lacks a Rust/Windows toolchain. Static Python source guards and Windows
+compilation **do not** prove installed-service identity isolation. A clean-VM
+service launch, OS-token membership evidence and hostile-user/worker ACL audits
+remain mandatory before B1 acceptance. The service remains DISABLED by default.
