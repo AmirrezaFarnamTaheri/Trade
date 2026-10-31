@@ -141,8 +141,10 @@ try {
     Start-Service -Name $ServiceName -ErrorAction Stop
     Assert-ServiceState -StartMode 'Manual' -State 'Running'
     Write-Output 'PASS: OS launched read-only service under verified restricted token.'
-    Stop-Service -Name $ServiceName -ErrorAction Stop
-    Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
+    $HardStop = Join-Path $PSScriptRoot 'Invoke-ExecutorHardStop.ps1'
+    & $HardStop -AcknowledgeLossOfProtection -WhatIf
+    Assert-ServiceState -StartMode 'Manual' -State 'Running'
+    & $HardStop -AcknowledgeLossOfProtection -Confirm:$false
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
     & $Audit
 

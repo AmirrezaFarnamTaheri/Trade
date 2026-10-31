@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($file in @('scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1', 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1', 'scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1')) {
+          foreach ($file in @('scripts/windows/Invoke-ExecutorHardStop.ps1', 'scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1', 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1', 'scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
