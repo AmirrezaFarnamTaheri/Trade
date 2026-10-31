@@ -6,7 +6,7 @@ text in the installer. The service must be staged, DISABLED and STOPPED.
 Does not start, stop, configure or open any funded venue path.
 #>
 [CmdletBinding()]
-param()
+param([switch] $CheckStopPipeOnly)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -20,6 +20,41 @@ $hasAdministratorsGroup = @($identity.Groups | Where-Object {
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or
     $hasAdministratorsGroup) {
     throw 'Refusing elevated or filtered-administrator token: use a standard, nonadministrator token.'
+}
+
+if ($CheckStopPipeOnly) {
+    # A distinct OS logon token must not connect to the RUNNING stop listener.
+    # This is a real, non-destructive CreateFileW access test, never a request.
+    $service = Get-CimInstance -ClassName Win32_Service -Filter "Name = 'TradingGYMExecutor'"
+    if ($null -eq $service -or $service.StartMode -ine 'Manual' -or $service.State -ine 'Running') {
+        throw 'SECURITY TEST INVALID: stop service is not running'
+    }
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class TradingGYMStopNegativeAccess {
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateFile(
+        string name, uint access, uint sharing, IntPtr security,
+        uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+    public static int AttemptOpen() {
+        var handle = CreateFile(@"\\.\pipe\TradingGYM.Stop.v1",
+            0x00100003, 0, IntPtr.Zero, 3, 0x00110000, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) return Marshal.GetLastWin32Error();
+        CloseHandle(handle);
+        return 0;
+    }
+}
+'@
+    $code = [TradingGYMStopNegativeAccess]::AttemptOpen()
+    if ($code -ne 5) {
+        throw "SECURITY FAILURE: unprivileged logon stop-pipe open returned Win32 $code (expected ACCESS_DENIED=5)"
+    }
+    Write-Output "PASS: non-admin SID=$($identity.User.Value) denied active stop pipe under separate logon."
+    return
 }
 $ServiceName = 'TradingGYMExecutor'
 $Binary = Join-Path (Join-Path ${env:ProgramFiles} 'TradingGYM\Executor') 'gym-executor.exe'
