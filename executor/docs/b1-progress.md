@@ -42,6 +42,14 @@ surfaces are not active. SCM service liveness does not prove protective exits.
 - These isolated additions have automated Python tests. A green fixture-based
   test does **not** prove a real manual order lifecycle.
 
+- The explicit offline-only `gymctl external-observe <json-file>` command
+  now sanitizes an operator-supplied manual-order observation before appending
+  it to the local Journal. The token-protected `/api/external-order-events`
+  endpoint and bilingual Journal view show the event sequence without exposing
+  raw unknown fields. The main daemon creates a separate display-only
+  `external_journal.db`. These are **manual fixture/import observations**,
+  not authenticated evidence from a live Wallex account.
+
 ## B1 exit criteria not yet met
 
 - [ ] Provision/read **service-owned** credentials through a separate
