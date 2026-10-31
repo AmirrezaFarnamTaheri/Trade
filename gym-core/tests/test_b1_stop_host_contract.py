@@ -178,3 +178,26 @@ def test_separate_logon_cannot_receive_stop_ack_even_if_kernel_pipe_open_succeed
     assert 'ExpectedLogonSid' in probe
     # A Windows DACL can allow opening, but the OS-token gate must refuse any ACK.
     assert 'ImpersonateNamedPipeClient' in PIPE.read_text('utf-8')
+
+
+def test_stop_authorization_requires_both_os_user_and_logon_sid():
+    installer = (ROOT / "scripts/windows/Install-ReadOnlyExecutor.ps1").read_text("utf-8")
+    main = (ROOT / "executor/exec-svc/src/main.rs").read_text("utf-8")
+    identity = (ROOT / "executor/exec-svc/src/windows_identity.rs").read_text("utf-8")
+    pipe = PIPE.read_text("utf-8")
+    assert "stop-user.sid" in installer
+    assert "$identity.User.Value" in installer
+    assert "stop-user.sid" in main
+    assert "provisioned_user_sid" in main
+    assert "impersonated_thread_user_sid" in identity
+    assert "TokenUser" in identity
+    assert "expected_user" in pipe
+    assert "impersonated_thread_user_sid" in pipe
+
+
+def test_hostile_probe_uses_independent_real_windows_user_identity():
+    smoke = SMOKE.read_text("utf-8")
+    probe = (ROOT / "scripts/windows/Test-UnprivilegedExecutorAccess.ps1").read_text("utf-8")
+    assert "-ExpectedUserSid $identity.User.Value" in smoke
+    assert "ExpectedUserSid" in probe
+    assert "same user and logon" in probe
