@@ -145,3 +145,12 @@ def test_disposable_host_checks_subsecond_ack_and_denies_other_logon_tokens():
     assert "CheckStopPipeOnly" in probe
     assert "CreateFileW" in probe
     assert "GetLastWin32Error()" in probe
+
+
+def test_hostile_logon_denial_proves_a_distinct_windows_logon_sid():
+    probe = (ROOT / "scripts/windows/Test-UnprivilegedExecutorAccess.ps1").read_text("utf-8")
+    smoke = SMOKE.read_text("utf-8")
+    assert "whoami.exe /logonid" in probe
+    assert "ExpectedLogonSid" in probe
+    assert "ExpectedLogonSid" in smoke
+    assert "same logon" in probe
