@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from pathlib import Path
+from contextlib import closing
 from urllib.parse import quote
 
 
@@ -26,7 +27,7 @@ def inspect_ledger(source: Path | str) -> dict:
     sequence = 0
     try:
         uri = "file:" + quote(str(path.resolve()), safe="/:") + "?mode=ro&immutable=1"
-        with sqlite3.connect(uri, uri=True, timeout=1) as db:
+        with closing(sqlite3.connect(uri, uri=True, timeout=1)) as db:
             db.execute("PRAGMA query_only=ON")
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if version != 1:
