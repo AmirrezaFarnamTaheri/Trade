@@ -89,6 +89,11 @@ def parse_rule(d: dict) -> Rule:
                 raise ValueError("VenueQuota needs params {asset, side, limit, period: tehran_day}")
             if isinstance(params.get("limit"), float) or not dec(params["limit"]) > 0:
                 raise ValueError("VenueQuota limit must be a positive decimal string")
+        if r.family == "PriceBand":
+            if params.get("direction") not in ("UP", "DOWN"):
+                raise ValueError("PriceBand needs params {max_change_pct, direction: UP|DOWN}")
+            if isinstance(params.get("max_change_pct"), float) or not dec(params["max_change_pct"]) > 0:
+                raise ValueError("PriceBand max_change_pct must be a positive decimal string")
         return r
     except ValueError:
         raise
@@ -150,8 +155,10 @@ def _ref(r: Rule, status: str, why: str) -> dict:
 
 
 def evaluate(rules: list[Rule], inst: InstrumentId, side: str, intent: str, now: datetime, *,
-             live: bool = True, used: Decimal = Decimal(0), version: int = 0) -> Verdict:
-    """`used` = quota consumed on the Tehran day of `now`, counted across all channels."""
+             live: bool = True, used: Decimal = Decimal(0), version: int = 0,
+             day_change_pct: Decimal | None = None) -> Verdict:
+    """`used` = quota consumed on the Tehran day of `now`, counted across all channels.
+    `day_change_pct` = move since the Tehran-day reference price; None means unknown (PriceBand warns)."""
     assert side in SIDES and intent in INTENTS
     blockers, warnings, remaining = [], [], None
     for r in rules:
@@ -169,6 +176,13 @@ def evaluate(rules: list[Rule], inst: InstrumentId, side: str, intent: str, now:
             left = dec(r.params["limit"]) - used
             remaining = left if remaining is None else min(remaining, left)
             active, why = left <= 0, f"quota exhausted ({used}/{r.params['limit']} {r.params['asset']})"
+        elif r.family == "PriceBand":
+            if day_change_pct is None:
+                warnings.append(_ref(r, status, "price band: day reference unknown, not evaluated"))
+                continue
+            limit = dec(r.params["max_change_pct"])
+            active = day_change_pct >= limit if r.params["direction"] == "UP" else day_change_pct <= -limit
+            why = f"price band lock ({day_change_pct:.2f}% vs {r.params['direction']} {limit}%)"
         elif r.family == "CurrencyUnit":
             # A unit rule blocks only when it records an observed discontinuity; plain unit facts are metadata.
             active, why = bool(r.params.get("unit_discontinuity")), "currency unit discontinuity"

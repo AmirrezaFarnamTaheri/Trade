@@ -6,11 +6,11 @@ from decimal import Decimal
 
 from ..domain.bars import BarSpec, Consolidator, qualified
 from ..domain.model import iso, parse_ts
-from ..domain.rules import is_closed, session_period
+from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order
 from ..domain.strategy import Snapshot
 
-ENGINE_VERSION = "paper-session/3"
+ENGINE_VERSION = "paper-session/4"
 
 
 @dataclass
@@ -44,6 +44,10 @@ class PaperSession:
         self.quota = {}
         self.events = []
         self.skipped = []
+        self.reopenings = []
+        # ponytail: the band reference is the first observed mid of the Tehran day; switch to the venue's
+        # published reference price once Wallex exposes one.
+        self.day_open = {}
         self.state = "CONFIGURED"
         self.events.append({"state": self.state, "t": iso(start)})
         self.transition("WARMING_UP", start)
@@ -101,6 +105,7 @@ class PaperSession:
                 self.book, self.instrument, order["side"], pending.fraction,
                 pending.decision_time, pending.decision_price, [top] if top is not None else [], 0,
                 self.cost, self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, order["ref"],
+                self.day_open.get(tehran_day(top.ts_avail)) if top is not None else None,
             )
             order.update(result)
             self.pending = None
@@ -113,11 +118,31 @@ class PaperSession:
             raise ValueError("session closed or observation out of order")
         if self.state != "FINISHING":
             self.scan(top.ts_avail)
+        if qualified(top):
+            self.day_open.setdefault(tehran_day(top.ts_avail), (top.bid + top.ask) / 2)
+            self.mark_reopening(top)
         self.settle(top, top.ts_avail)
         if qualified(top):
             self.consolidator.update(top.ts_avail, self.bar_spec.price(top))
             self.last_quote = top
         self.cursor = top.ts_avail
+
+    def mark_reopening(self, top):
+        """Mark the gap once, on the first qualified quote after a venue closure the position was held across."""
+        last = self.last_quote
+        if last is None:
+            return
+        spans = closures(self.rules_for(top.ts_avail), self.instrument, top.ts_avail)
+        crossed = [(s, e) for s, e in spans if last.ts_avail < e <= top.ts_avail]
+        if not crossed:
+            return
+        held = self.book.get(self.instrument.base)
+        self.reopenings.append({
+            "closed_from": iso(crossed[0][0]), "reopened_at": iso(crossed[-1][1]), "first_quote": iso(top.ts_avail),
+            "pre_close_bid": str(last.bid), "reopen_bid": str(top.bid), "base_held": str(held),
+            "gap_value": str(held * (top.bid - last.bid)),
+        })
+        self.curve.append((iso(top.ts_avail), str(self.book.equity(self.instrument, top.bid))))
 
     def finish(self, at, reason=None):
         if self.state in ("ENDED", "ABORTED") or at < self.cursor:

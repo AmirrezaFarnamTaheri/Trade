@@ -61,7 +61,8 @@ def session_result(session, tops, cash):
             "balances": {k: str(v) for k, v in book.balances.items()}, "curve": curve,
             "decisions": decisions, "orders": orders, "postings": book.postings,
             "session": {"state": session.state, "events": session.events, "cursor": iso(session.cursor),
-                        "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped}}
+                        "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped,
+                        "reopenings": session.reopenings}}
 
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,

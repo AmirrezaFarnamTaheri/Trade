@@ -63,7 +63,7 @@ def _floor(x: Decimal, decimals: int | None) -> Decimal:
 
 def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decimal, decision_time: datetime,
                  decision_quote: Decimal, tops: list[BookTop], start: int, cost: CostModel, spec: Spec,
-                 rules: list[Rule], quota_used: dict, ref: str) -> dict:
+                 rules: list[Rule], quota_used: dict, ref: str, day_open: Decimal | None = None) -> dict:
     """Fill at the first qualified quote at or after decision + latency, or record a nonfill with its reason."""
     out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL"}
     earliest, deadline = decision_time + cost.latency, decision_time + cost.max_wait
@@ -73,12 +73,14 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
     t = top.ts_avail
     intent = "ENTRY" if side == "BUY" else "EXIT"
     day = tehran_day(t)
-    v = evaluate(rules, inst, side, intent, t, live=False, used=quota_used.get(day, Decimal(0)))
+    mid = (top.bid + top.ask) / 2
+    change = None if day_open is None else ((mid - day_open) / day_open * 100).quantize(Decimal("0.01"))
+    v = evaluate(rules, inst, side, intent, t, live=False, used=quota_used.get(day, Decimal(0)),
+                 day_change_pct=change)
     if not v.allowed:
         b = v.blockers[0]
         return {**out, "fill_time": iso(t), "reason": f"RULE:{b['rule_id']}", "rule": b}
     price = top.ask if side == "BUY" else top.bid
-    mid = (top.bid + top.ask) / 2
     if side == "BUY":
         with localcontext() as ctx:
             ctx.rounding = ROUND_DOWN  # 28-digit division must never round the quantity up past the cash
