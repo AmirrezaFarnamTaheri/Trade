@@ -212,3 +212,102 @@ pub fn is_restricted_executor_service() -> bool {
         ))
     })().unwrap_or(false)
 }
+
+
+/// Query the Windows TokenUser of the currently impersonated named-pipe
+/// client, never a supplied user name or group. The server must call this
+/// synchronously before RevertToSelf and before applying a stop request.
+pub fn impersonated_thread_user_sid() -> io::Result<String> {
+    use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
+    let mut raw_token: HANDLE = ptr::null_mut();
+    if unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, 1, &mut raw_token) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let token = OwnedToken(raw_token);
+    let mut size = 0_u32;
+    let probe = unsafe {
+        GetTokenInformation(token.0, TokenUser, ptr::null_mut(), 0, &mut size)
+    };
+    if probe != 0 || io::Error::last_os_error().raw_os_error() != Some(122)
+        || size < std::mem::size_of::<TOKEN_USER>() as u32 || size > 65_536
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid client TokenUser size"));
+    }
+    let word = std::mem::size_of::<usize>();
+    let mut aligned = vec![0_usize; (size as usize + word - 1) / word];
+    if unsafe {
+        GetTokenInformation(token.0, TokenUser, aligned.as_mut_ptr().cast(), size, &mut size)
+    } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if (size as usize) < std::mem::size_of::<TOKEN_USER>() ||
+        (size as usize) > aligned.len() * word
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "client TokenUser length changed"));
+    }
+    let user = unsafe { &*aligned.as_ptr().cast::<TOKEN_USER>() };
+    sid_text(user.User.Sid)
+}
+
+/// Read the OS-issued logon SID of the currently impersonated named-pipe
+/// client. This MUST be called synchronously on the same thread after the
+/// server has read from that client's pipe and before RevertToSelf. Never use
+/// process token or a client-supplied field as the authorized identity.
+pub fn impersonated_thread_logon_sid() -> io::Result<String> {
+    use windows_sys::Win32::Security::{
+        GetTokenInformation, SID_AND_ATTRIBUTES, TOKEN_GROUPS, TOKEN_QUERY,
+        TokenLogonSid,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
+
+    let mut raw_token: HANDLE = ptr::null_mut();
+    // OpenAsSelf=TRUE is required when the client requests identification-only
+    // SQOS; otherwise opening a token while impersonating can fail.
+    if unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, 1, &mut raw_token) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let token = OwnedToken(raw_token);
+    let mut length = 0_u32;
+    let sizing_result = unsafe {
+        GetTokenInformation(token.0, TokenLogonSid, ptr::null_mut(), 0, &mut length)
+    };
+    if sizing_result != 0 || io::Error::last_os_error().raw_os_error() != Some(122)
+        || length < std::mem::size_of::<TOKEN_GROUPS>() as u32 || length > 65_536
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid client logon SID size"));
+    }
+    // The token's SID pointers require pointer-aligned storage.
+    let word = std::mem::size_of::<usize>();
+    let mut storage = vec![0_usize; (length as usize + word - 1) / word];
+    let allocated = storage.len() * word;
+    if unsafe {
+        GetTokenInformation(token.0, TokenLogonSid, storage.as_mut_ptr().cast(),
+                            length, &mut length)
+    } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let groups = storage.as_ptr().cast::<TOKEN_GROUPS>();
+    let offset = std::mem::offset_of!(TOKEN_GROUPS, Groups);
+    if (length as usize) < offset || (length as usize) > allocated {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid client token groups"));
+    }
+    // TokenLogonSid is a singleton OS-issued SID, not arbitrary TokenGroups.
+    let count = unsafe { (*groups).GroupCount as usize };
+    let capacity = (length as usize - offset) / std::mem::size_of::<SID_AND_ATTRIBUTES>();
+    if count != 1 || capacity < 1 {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "ambiguous client logon SID"));
+    }
+    let entry = unsafe { &*std::ptr::addr_of!((*groups).Groups).cast::<SID_AND_ATTRIBUTES>() };
+    if (entry.Attributes & 0xC000_0000) != 0xC000_0000 {
+        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "untrusted client logon group"));
+    }
+    let sid = sid_text(entry.Sid)?;
+    let components: Vec<&str> = sid.split('-').collect();
+    if components.len() != 6 || components[..4] != ["S", "1", "5", "5"]
+        || components[4..].iter().any(|part| part.is_empty()
+            || !part.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "malformed client logon SID"));
+    }
+    Ok(sid)
+}

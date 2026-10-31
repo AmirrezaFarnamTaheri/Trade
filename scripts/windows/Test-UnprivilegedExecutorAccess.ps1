@@ -6,7 +6,7 @@ text in the installer. The service must be staged, DISABLED and STOPPED.
 Does not start, stop, configure or open any funded venue path.
 #>
 [CmdletBinding()]
-param()
+param([switch] $CheckStopPipeOnly, [string] $ExpectedLogonSid = '', [string] $ExpectedUserSid = '')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -20,6 +20,81 @@ $hasAdministratorsGroup = @($identity.Groups | Where-Object {
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or
     $hasAdministratorsGroup) {
     throw 'Refusing elevated or filtered-administrator token: use a standard, nonadministrator token.'
+}
+
+if ($CheckStopPipeOnly) {
+    # Prove that this is a different Windows-issued logon SID, not a forged
+    # username, before verifying access to the already-running stop pipe.
+    $service = Get-CimInstance -ClassName Win32_Service -Filter "Name = 'TradingGYMExecutor'"
+    if ($null -eq $service -or $service.StartMode -ine 'Manual' -or $service.State -ine 'Running') {
+        throw 'SECURITY TEST INVALID: stop service is not running'
+    }
+    if ($ExpectedLogonSid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') {
+        throw 'SECURITY TEST INVALID: no expected operator logon SID'
+    }
+    $logonOutput = (& whoami.exe /logonid | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'SECURITY TEST INVALID: child logon SID query failed'
+    }
+    $sidMatch = [regex]::Match($logonOutput, 'S-1-5-5-[0-9]+-[0-9]+')
+    if (-not $sidMatch.Success) {
+        throw 'SECURITY TEST INVALID: no OS-issued child logon SID'
+    }
+    Write-Output "T0 child identity diagnostic: childUser=$($identity.User.Value), childLogon=$($sidMatch.Value), expectedLogon=$ExpectedLogonSid"
+    if ($ExpectedUserSid -notmatch '^S-1-[0-9]+(-[0-9]+){2,12}$') {
+        throw 'SECURITY TEST INVALID: no expected operator user SID'
+    }
+    if ($identity.User.Value -ceq $ExpectedUserSid) {
+        throw 'SECURITY TEST INVALID: same user and logon identity, probe not independent'
+    }
+    # A different user can carry the same logon SID in some runner launch
+    # modes. Both identities must be checked by the service before an ACK.
+    Write-Output 'T0 negative probe: child Windows logon SID differs from authorized operator.'
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class TradingGYMStopNegativeAccess {
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateFile(
+        string name, uint access, uint sharing, IntPtr security,
+        uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+    public static int AttemptOpen() {
+        var handle = CreateFile(@"\\.\pipe\TradingGYM.Stop.v1",
+            0x00100003, 0, IntPtr.Zero, 3, 0x00110000, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) return Marshal.GetLastWin32Error();
+        CloseHandle(handle);
+        return 0;
+    }
+}
+'@
+    $code = [TradingGYMStopNegativeAccess]::AttemptOpen()
+    # Some Windows versions admit the minimum-right handle despite a logon
+    # scoped DACL. A successful CreateFile is NOT authorization to command the
+    # Executor. The server MUST reject a different OS-issued logon SID before
+    # processing even STATUS; the negative client tests an actual framed PAUSE.
+    Write-Output "T0 negative DACL open returned Win32 $code (diagnostic only)"
+    $stagedStop = Join-Path $PSScriptRoot 'StopClient.exe'
+    if (-not (Test-Path -LiteralPath $stagedStop -PathType Leaf)) {
+        throw 'SECURITY TEST INVALID: trusted stop client not staged'
+    }
+    $stdout = Join-Path $env:TEMP ('t0-unauthorized-out-' + [guid]::NewGuid().ToString('N') + '.txt')
+    $stderr = Join-Path $env:TEMP ('t0-unauthorized-err-' + [guid]::NewGuid().ToString('N') + '.txt')
+    try {
+        $attempt = Start-Process -FilePath $stagedStop -ArgumentList 'pause' -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $reply = if (Test-Path -LiteralPath $stdout) { Get-Content -LiteralPath $stdout -Raw } else { '' }
+        $failure = if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Raw } else { '' }
+        if ($attempt.ExitCode -eq 0 -or $reply -match 'ACKNOWLEDGED:' -or $failure -notmatch 'UNACKNOWLEDGED:') {
+            throw "SECURITY FAILURE: separate Windows logon received a stop-pipe acknowledgement or no explicit rejection"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+    }
+    Write-Output "PASS: non-admin SID=$($identity.User.Value) denied active stop pipe command under separate logon."
+    return
 }
 $ServiceName = 'TradingGYMExecutor'
 $Binary = Join-Path (Join-Path ${env:ProgramFiles} 'TradingGYM\Executor') 'gym-executor.exe'

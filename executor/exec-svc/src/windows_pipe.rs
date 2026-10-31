@@ -5,6 +5,7 @@ use crate::StopGate;
 use exec_ipc::FRAME_SIZE;
 use std::ffi::c_void;
 use std::io;
+use std::os::windows::io::AsRawHandle;
 use std::ptr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,6 +14,8 @@ use tokio::net::windows::named_pipe::{NamedPipeServer, PipeMode, ServerOptions};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 use windows_sys::Win32::Foundation::LocalFree;
+use windows_sys::Win32::Security::RevertToSelf;
+use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 
@@ -25,7 +28,10 @@ fn valid_sid_parts(sid: &str) -> bool {
 
 /// Only explicitly provisioned service and operator logon SIDs are allowed.
 /// An operator ACE intentionally omits FILE_CREATE_PIPE_INSTANCE (0x4) and
-/// WRITE_DAC. Generic write is unsafe here because it includes pipe creation.
+/// WRITE_DAC. It grants FILE_READ_ATTRIBUTES (0x80): Windows CreateFileW
+/// requires that metadata right even with READ_DATA/WRITE_DATA/SYNCHRONIZE
+/// requested. Disposable OS tests proved 0x00100003 fails, 0x00100083 opens.
+/// Generic write is unsafe here because it includes pipe creation.
 pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> {
     if !valid_sid_parts(service_sid) || !service_sid.starts_with("S-1-5-80-")
         || !valid_sid_parts(logon_sid) || !logon_sid.starts_with("S-1-5-5-")
@@ -33,7 +39,7 @@ pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> 
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "expected service SID and logon SID"));
     }
     Ok(format!(
-        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100003;;;{logon_sid})"
+        "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100083;;;{logon_sid})"
     ))
 }
 
@@ -83,7 +89,42 @@ fn create_pipe(service_sid: &str, logon_sid: &str, first: bool) -> io::Result<Na
     }
 }
 
-async fn handle_client(mut client: NamedPipeServer, gate: Arc<StopGate>) -> io::Result<()> {
+/// Defense in depth: obtain the OS-issued logon SID from the actual
+/// connected client's impersonated thread token. The DACL still provides the
+/// first gate, but no request is applied from a different logon even if a pipe
+/// access mask is unexpectedly permissive on the installed Windows host.
+/// There are deliberately NO awaits during impersonation: the stop listener
+/// runs on its own single-thread Tokio runtime. Revert failure is fatal.
+fn verified_client_logon(client: &NamedPipeServer, expected_logon: &str, expected_user: &str) -> io::Result<()> {
+    // SAFETY: the server owns this connected pipe; it has already received
+    // the client's request bytes, as required by ImpersonateNamedPipeClient.
+    if unsafe { ImpersonateNamedPipeClient(client.as_raw_handle()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let verified_client_logon = (|| -> io::Result<()> {
+        let logon = crate::windows_identity::impersonated_thread_logon_sid()?;
+        let user = crate::windows_identity::impersonated_thread_user_sid()?;
+        if logon != expected_logon || user != expected_user {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied,
+                "stop pipe client does not match provisioned OS user and logon"));
+        }
+        Ok(())
+    })();
+    // SAFETY: every successful impersonation MUST be reverted on the same
+    // OS thread before any gate action or await; otherwise continuing under
+    // the client's thread token is unsafe (Microsoft RevertToSelf contract).
+    if unsafe { RevertToSelf() } == 0 {
+        std::process::abort();
+    }
+    verified_client_logon
+}
+
+async fn handle_client(
+    mut client: NamedPipeServer,
+    gate: Arc<StopGate>,
+    expected_logon: String,
+    expected_user: String,
+) -> io::Result<()> {
     let mut buf = [0_u8; FRAME_SIZE + 1];
     let received = timeout(CLIENT_DEADLINE, client.read(&mut buf))
         .await
@@ -91,6 +132,7 @@ async fn handle_client(mut client: NamedPipeServer, gate: Arc<StopGate>) -> io::
     if received != FRAME_SIZE {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid stop message size"));
     }
+    verified_client_logon(&client, &expected_logon, &expected_user)?;
     let reply = gate
         .process_frame(&buf[..received])
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
@@ -106,6 +148,7 @@ pub async fn serve_stop_only(
     gate: Arc<StopGate>,
     service_sid: &str,
     logon_sid: &str,
+    user_sid: &str,
     ready: Option<std::sync::mpsc::Sender<()>>,
 ) -> io::Result<()> {
     let mut listening = create_pipe(service_sid, logon_sid, true)?;
@@ -130,9 +173,11 @@ pub async fn serve_stop_only(
         }
         if let Ok(slot) = slots.clone().try_acquire_owned() {
             let state = gate.clone();
+            let operator_logon = logon_sid.to_owned();
+            let operator_user = user_sid.to_owned();
             tokio::spawn(async move {
                 let _slot = slot;
-                let _ = handle_client(connected, state).await;
+                let _ = handle_client(connected, state, operator_logon, operator_user).await;
             });
         }
         // At capacity, drop the connection; never queue unbounded requests.
@@ -151,7 +196,8 @@ mod tests {
         ).unwrap();
         assert!(!value.contains("(D;;GA;;;NU)"));
         assert!(value.contains("D:P(A;;GA;;;SY)"));
-        assert!(value.contains("(A;;0x00100003;;;S-1-5-5-100-200)"));
+        assert!(value.contains("(A;;0x00100083;;;S-1-5-5-100-200)"));
+        assert!(!value.contains("(A;;0x00100007;;;"));
         assert!(!value.contains(";;;WD"));
         assert!(!value.contains(";;;AU"));
         assert!(stop_pipe_sddl("S-1-5-18", "S-1-5-5-100-200").is_err());

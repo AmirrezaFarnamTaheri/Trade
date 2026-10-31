@@ -125,6 +125,18 @@ try {
         '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F', "*${serviceSid}:R"
     )
     Invoke-Icacls -Path $stopSidPath -Arguments @('/setowner', '*S-1-5-32-544')
+    # The exact OS-issued operator user SID is a second mandatory principal.
+    $userSid = $identity.User.Value
+    if ($userSid -notmatch '^S-1-[0-9]+(-[0-9]+){2,12}$' -or $userSid.Length -gt 120) {
+        throw 'Windows did not provide a valid operator user SID.'
+    }
+    $stopUserPath = Join-Path $CodeDir 'stop-user.sid'
+    [IO.File]::WriteAllText($stopUserPath, $userSid, [Text.Encoding]::ASCII)
+    Invoke-Icacls -Path $stopUserPath -Arguments @('/inheritance:r')
+    Invoke-Icacls -Path $stopUserPath -Arguments @(
+        '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F', "*${serviceSid}:R"
+    )
+    Invoke-Icacls -Path $stopUserPath -Arguments @('/setowner', '*S-1-5-32-544')
 
     & (Join-Path $PSScriptRoot 'Test-ReadOnlyExecutor.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Isolation verification script failed.' }

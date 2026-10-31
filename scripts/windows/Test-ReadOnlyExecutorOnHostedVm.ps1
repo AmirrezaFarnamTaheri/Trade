@@ -59,7 +59,10 @@ function Invoke-UnprivilegedProbe {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
         [Parameter(Mandatory = $true)][System.Security.SecureString] $Password,
-        [Parameter(Mandatory = $true)][string] $Role
+        [Parameter(Mandatory = $true)][string] $Role,
+        [switch] $CheckStopPipeOnly,
+        [string] $ExpectedLogonSid = '',
+        [string] $ExpectedUserSid = ''
     )
     $User = Get-LocalUser -Name $Name -ErrorAction Stop
     $sid = $User.SID.Value
@@ -83,11 +86,31 @@ function Invoke-UnprivilegedProbe {
         (Get-FileHash -LiteralPath $Denial -Algorithm SHA256).Hash) {
         throw 'Unprivileged probe was modified during staging'
     }
+    if ($CheckStopPipeOnly) {
+        # The protected service binary cannot be read by the test users.
+        # Stage a hash-verified client-only executable in their RX directory.
+        $stagedStop = Join-Path $dir 'StopClient.exe'
+        $builtStop = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
+        Copy-Item -LiteralPath $builtStop -Destination $stagedStop -ErrorAction Stop
+        if ((Get-FileHash -LiteralPath $stagedStop -Algorithm SHA256).Hash -ne
+            (Get-FileHash -LiteralPath $builtStop -Algorithm SHA256).Hash) {
+            throw 'Unprivileged stop client was modified during staging'
+        }
+    }
     $stdout = Join-Path $scratch 'stdout.txt'
     $stderr = Join-Path $scratch 'stderr.txt'
     $credential = [PSCredential]::new("$env:COMPUTERNAME\$Name", $Password)
     $PowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $childArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $ScriptCopy + '"'
+    if ($CheckStopPipeOnly) {
+        if ($ExpectedLogonSid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') {
+            throw 'ExpectedLogonSid must be an OS-issued Windows logon SID'
+        }
+        if ($ExpectedUserSid -notmatch '^S-1-[0-9]+(-[0-9]+){2,12}$') {
+            throw 'ExpectedUserSid must be an OS-issued Windows user SID'
+        }
+        $childArguments += " -CheckStopPipeOnly -ExpectedLogonSid $ExpectedLogonSid -ExpectedUserSid $ExpectedUserSid"
+    }
     # The parent GitHub runner has TEMP under runneradmin's private profile.
     # Add-Type compiles a temporary C# helper in the child process: using the
     # inherited TEMP makes the real standard user fail before testing SCM.
@@ -103,10 +126,19 @@ function Invoke-UnprivilegedProbe {
     $process.Refresh()
     $output = if (Test-Path -LiteralPath $stdout) { Get-Content -LiteralPath $stdout -Raw } else { '' }
     $errorText = if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Raw } else { '' }
-    if ($process.ExitCode -ne 0 -or $output -notmatch 'PASS: non-admin SID=.*denied executable') {
+    $expected = if ($CheckStopPipeOnly) {
+        'PASS: non-admin SID=.*denied active stop pipe'
+    } else {
+        'PASS: non-admin SID=.*denied executable'
+    }
+    if ($process.ExitCode -ne 0 -or $output -notmatch $expected) {
         throw "ACCESS_DENIED probe failed for $Role (exit $($process.ExitCode)); output: $output $errorText"
     }
-    Write-Output "PASS: $Role (distinct local non-admin SID $sid) denied file/data/SCM privileged access."
+    if ($CheckStopPipeOnly) {
+        Write-Output "PASS: $Role distinct logon denied active stop pipe."
+    } else {
+        Write-Output "PASS: $Role (distinct local non-admin SID $sid) denied file/data/SCM privileged access."
+    }
 }
 
 try {
@@ -146,6 +178,10 @@ try {
     # secrets. A grant to the installer logon SID cannot authorize a client
     # from a different logon, or a token subject to a deny NETWORK ACE.
     $expectedSid = (Get-Content -LiteralPath (Join-Path $CodeDir 'stop-logon.sid') -Raw).Trim()
+    $expectedUserSid = (Get-Content -LiteralPath (Join-Path $CodeDir 'stop-user.sid') -Raw).Trim()
+    if ($expectedUserSid -cne $identity.User.Value) {
+        throw 'Operator user SID does not match privileged installation user.'
+    }
     $actualSid = (& (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1')).Trim()
     $identityGroups = @([Security.Principal.WindowsIdentity]::GetCurrent().Groups |
         ForEach-Object { $_.Value })
@@ -169,6 +205,90 @@ public static class TradingGymStopPipeProbe {
         IntPtr security, uint disposition, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint rights, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool IsTokenRestricted(IntPtr token);
+    public static string TokenRestricted() {
+        IntPtr handle;
+        if (!OpenProcessToken(GetCurrentProcess(), 8, out handle))
+            return "query-error=" + Marshal.GetLastWin32Error();
+        try { return IsTokenRestricted(handle).ToString(); }
+        finally { CloseHandle(handle); }
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecAttrs {
+        public uint length;
+        public IntPtr descriptor;
+        public int inherit;
+    }
+    [DllImport("advapi32.dll", EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ToDescriptor(string sddl, uint revision,
+        out IntPtr descriptor, IntPtr length);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr pointer);
+    [DllImport("kernel32.dll", EntryPoint = "CreateNamedPipeW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateNamedPipe(string name, uint access,
+        uint mode, uint instances, uint outputSize, uint inputSize,
+        uint timeout, ref SecAttrs attrs);
+    public static string Canary(string logonSid) {
+        var name = @"\\.\pipe\TradingGYM.DaclCanary." + Guid.NewGuid().ToString("N");
+        bool restricted = logonSid.StartsWith("RC+");
+        if (restricted) logonSid = logonSid.Substring(3);
+        var sddl = "D:P(A;;GA;;;SY)(A;;GA;;;" + logonSid + ")" +
+            (restricted ? "(A;;GA;;;RC)" : "");
+        IntPtr descriptor;
+        if (!ToDescriptor(sddl, 1, out descriptor, IntPtr.Zero))
+            return "descriptor-error=" + Marshal.GetLastWin32Error();
+        try {
+            var attrs = new SecAttrs {
+                length = (uint)Marshal.SizeOf(typeof(SecAttrs)),
+                descriptor = descriptor, inherit = 0
+            };
+            var server = CreateNamedPipe(name, 0x40000003, 0x0000000E,
+                1, 128, 128, 0, ref attrs);
+            if (server == new IntPtr(-1))
+                return "server-error=" + Marshal.GetLastWin32Error();
+            try {
+                // Probe with no access first. Both handles are closed immediately.
+                string results = "";
+                foreach (uint desired in new uint[] { 0, 0x00100003, 0xC0000000 }) {
+                    var client = CreateFileW(name, desired, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                    int err = client == new IntPtr(-1) ? Marshal.GetLastWin32Error() : 0;
+                    if (client != new IntPtr(-1)) CloseHandle(client);
+                    results += " mask=0x" + desired.ToString("X8") + ":" + err;
+                }
+                return results;
+            } finally { CloseHandle(server); }
+        } finally { LocalFree(descriptor); }
+    }
+    public static string CanaryRights(string logonSid, string rights, uint desired) {
+        var name = @"\\.\pipe\TradingGYM.DaclRights." + Guid.NewGuid().ToString("N");
+        var sddl = "D:P(A;;GA;;;SY)(A;;" + rights + ";;;" + logonSid + ")";
+        IntPtr descriptor;
+        if (!ToDescriptor(sddl, 1, out descriptor, IntPtr.Zero))
+            return "descriptor-error=" + Marshal.GetLastWin32Error();
+        try {
+            var attrs = new SecAttrs {
+                length = (uint)Marshal.SizeOf(typeof(SecAttrs)),
+                descriptor = descriptor, inherit = 0
+            };
+            var server = CreateNamedPipe(name, 0x40000003, 0x0000000E,
+                1, 128, 128, 0, ref attrs);
+            if (server == new IntPtr(-1))
+                return "server-error=" + Marshal.GetLastWin32Error();
+            try {
+                var client = CreateFileW(name, desired, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                int error = client == new IntPtr(-1) ? Marshal.GetLastWin32Error() : 0;
+                if (client != new IntPtr(-1)) CloseHandle(client);
+                return "win32=" + error;
+            } finally { CloseHandle(server); }
+        } finally { LocalFree(descriptor); }
+    }
     public static int Probe(uint desired) {
         var handle = CreateFileW(@"\\.\pipe\TradingGYM.Stop.v1", desired,
             0, IntPtr.Zero, 3, 0, IntPtr.Zero);
@@ -179,6 +299,18 @@ public static class TradingGymStopPipeProbe {
 }
 '@
     Add-Type -TypeDefinition $accessProbeType
+    Write-Output "T0 caller token restricted: $([TradingGymStopPipeProbe]::TokenRestricted())"
+    foreach ($principalSid in @($expectedSid, ('RC+' + $expectedSid), 'BA', 'AU', 'WD')) {
+        $canaryResult = [TradingGymStopPipeProbe]::Canary($principalSid)
+        $label = if ($principalSid -eq $expectedSid) { 'logon' } elseif ($principalSid -like 'RC+*') { 'logon+RC' } else { $principalSid }
+        Write-Output "T0 same-logon DACL canary: principal=$label $canaryResult"
+    }
+    foreach ($rights in @('0x00100003', '0x00120003', '0x00100083',
+                           '0x00120083', '0x0012008B', '0x0012018B', 'GA')) {
+        $result = [TradingGymStopPipeProbe]::CanaryRights($expectedSid,
+            $rights, [uint32]0x00100003)
+        Write-Output "T0 operator-ACE rights=$rights $result"
+    }
     foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
         $errorNumber = [TradingGymStopPipeProbe]::Probe($mask)
         Write-Output ('T0 access-probe mask=0x{0:X8} win32={1}' -f $mask, $errorNumber)
@@ -188,19 +320,22 @@ public static class TradingGymStopPipeProbe {
         throw 'Compiled gym-stopctl.exe is required for T0 verification.'
     }
     foreach ($command in @('pause', 'exit-only', 'halt')) {
+        $watch = [Diagnostics.Stopwatch]::StartNew()
         $reply = & $StopClient $command 2>&1
+        $watch.Stop()
         if ($LASTEXITCODE -ne 0 -or ($reply -join ' ') -notmatch '^ACKNOWLEDGED:') {
             throw "Stop-only pipe did not acknowledge ${command}: $($reply -join ' ')"
         }
-        Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED"
+        if ($watch.ElapsedMilliseconds -ge 1000) {
+            throw "T0 ACK exceeded 1 second for ${command}: $($watch.ElapsedMilliseconds)ms"
+        }
+        Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED in $($watch.ElapsedMilliseconds)ms"
     }
-    Stop-Service -Name $ServiceName -ErrorAction Stop
-    Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
-    Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
-    & $Audit
 
-    # Separate random local accounts. No passwords are persisted, printed,
-    # stored in repo variables, or passed to the Executor service process.
+    # Only disposable users. Verify their separate logon SID cannot open
+    # an active stop pipe, then repeat the SCM/file/data negative tests after
+    # the service has been disabled. Never persist credentials or secrets.
+    $probes = @()
     foreach ($role in @('operator', 'worker')) {
         $name = if ($role -eq 'operator') { 'tgop' } else { 'tgwk' }
         $name += [guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -209,7 +344,15 @@ public static class TradingGymStopPipeProbe {
         $password = ConvertTo-SecureString ([Convert]::ToBase64String($random) + 'Aa9!') -AsPlainText -Force
         $null = New-LocalUser -Name $name -Password $password -AccountExpires (Get-Date).AddHours(1) -Description "Disposable TradingGYM $role probe"
         $UsersCreated.Add($name)
-        Invoke-UnprivilegedProbe -Name $name -Password $password -Role $role
+        $probes += @{ Name = $name; Password = $password; Role = $role }
+        Invoke-UnprivilegedProbe -Name $name -Password $password -Role $role -CheckStopPipeOnly -ExpectedLogonSid $expectedSid -ExpectedUserSid $identity.User.Value
+    }
+    Stop-Service -Name $ServiceName -ErrorAction Stop
+    Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
+    Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
+    & $Audit
+    foreach ($probe in $probes) {
+        Invoke-UnprivilegedProbe -Name $probe.Name -Password $probe.Password -Role $probe.Role
     }
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
     Write-Output 'PASS: disposable Windows VM read-only SCM, ACL and two-principal negative probes.'
