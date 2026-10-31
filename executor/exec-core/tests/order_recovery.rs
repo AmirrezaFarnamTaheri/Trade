@@ -6,7 +6,7 @@ fn before_bytes_can_attempt_one_same_identity_retry_only() {
     let mut o = Attempt::new(10).unwrap();
     o.apply(Event::BeginSend).unwrap();
     o.apply(Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
-    assert_eq!(o.lifecycle, Lifecycle::NotSent);
+    assert_eq!(o.lifecycle(), Lifecycle::NotSent);
     assert!(o.can_retry_same_identity());
     o.apply(Event::BeginSend).unwrap();
     o.apply(Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
@@ -19,12 +19,12 @@ fn after_bytes_is_unknown_and_never_automatically_retries() {
     let mut o = Attempt::new(10).unwrap();
     o.apply(Event::BeginSend).unwrap();
     o.apply(Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
-    assert_eq!(o.lifecycle, Lifecycle::Unknown);
-    assert_eq!(o.effect, EconomicEffect::Unverified);
+    assert_eq!(o.lifecycle(), Lifecycle::Unknown);
+    assert_eq!(o.effect(), EconomicEffect::Unverified);
     assert_eq!(o.apply(Event::BeginSend), Err(OrderError::RetryForbidden));
     o.apply(Event::MissingFromList).unwrap();
-    assert_eq!(o.lifecycle, Lifecycle::Unknown);
-    assert_eq!(o.settlement, Settlement::Unverified);
+    assert_eq!(o.lifecycle(), Lifecycle::Unknown);
+    assert_eq!(o.settlement(), Settlement::Unverified);
 }
 
 #[test]
@@ -34,14 +34,14 @@ fn canceled_partially_filled_order_keeps_fill_and_reservation_until_settlement()
     o.apply(Event::Acknowledged).unwrap();
     o.apply(Event::CumulativeFilled(25)).unwrap();
     o.apply(Event::TerminalReported).unwrap();
-    assert_eq!(o.lifecycle, Lifecycle::TerminalReported);
-    assert_eq!(o.effect, EconomicEffect::Partial);
-    assert_eq!(o.settlement, Settlement::Pending);
+    assert_eq!(o.lifecycle(), Lifecycle::TerminalReported);
+    assert_eq!(o.effect(), EconomicEffect::Partial);
+    assert_eq!(o.settlement(), Settlement::Pending);
     assert!(o.holds_slot());
     assert_eq!(o.apply(Event::CumulativeFilled(20)), Err(OrderError::FillRegression));
     o.apply(Event::SettlementVerified).unwrap();
-    assert_eq!(o.lifecycle, Lifecycle::Closed);
-    assert_eq!(o.filled_quanta, 25);
+    assert_eq!(o.lifecycle(), Lifecycle::Closed);
+    assert_eq!(o.filled_quanta(), 25);
     assert!(!o.holds_slot());
 }
 
@@ -51,7 +51,7 @@ fn terminal_report_does_not_close_without_settlement_evidence() {
     o.apply(Event::BeginSend).unwrap();
     o.apply(Event::Acknowledged).unwrap();
     o.apply(Event::TerminalReported).unwrap();
-    assert_eq!(o.lifecycle, Lifecycle::TerminalReported);
+    assert_eq!(o.lifecycle(), Lifecycle::TerminalReported);
     assert!(o.holds_slot());
     assert_eq!(o.apply(Event::BeginSend), Err(OrderError::RetryForbidden));
 }
