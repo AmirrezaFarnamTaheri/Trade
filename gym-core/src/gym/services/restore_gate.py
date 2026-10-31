@@ -88,3 +88,36 @@ def check_restore_target(source: Path | str, destination: Path | str) -> dict:
     # The chosen destination and account credentials are NOT touched here.
     # Encryption/authenticated manifest and off-machine restore remain gates.
     return inspect_ledger(src)
+
+
+def assess_update(state: dict) -> dict:
+    """Pure B3 STAGING refusal policy; never invokes an updater.
+
+    All asserted facts must be verified by a privileged release controller
+    and linked to fresh evidence. A caller-supplied dictionary is NOT proof
+    of these claims and cannot authorize installation, keys or funded arming.
+    """
+    if not isinstance(state, dict):
+        raise RestoreUnsafe("missing update preflight facts")
+    for name in ("active_funded_authority", "ledger_integrity_verified",
+                 "off_machine_restore_proven", "migration_rehearsed"):
+        if type(state.get(name)) is not bool:
+            raise RestoreUnsafe("missing or malformed update preflight evidence")
+    for name in ("unresolved_orders", "current_schema", "target_schema"):
+        if type(state.get(name)) is not int:
+            raise RestoreUnsafe("missing or malformed schema/order fact")
+    if state["unresolved_orders"] < 0 or state["current_schema"] < 1:
+        raise RestoreUnsafe("invalid outstanding order/schema state")
+    if state["active_funded_authority"] or state["unresolved_orders"] > 0:
+        raise RestoreUnsafe("unsafe update while trading authority or orders remain")
+    if not all(state[key] for key in (
+        "ledger_integrity_verified", "off_machine_restore_proven", "migration_rehearsed"
+    )):
+        raise RestoreUnsafe("staged update lacks verified migration or recovery evidence")
+    if state["target_schema"] != state["current_schema"] + 1:
+        raise RestoreUnsafe("only single forward schema migration is permitted")
+    return {
+        "allow_staged_update": True,
+        "install_authorized": False,
+        "funded_arming": False,
+    }
