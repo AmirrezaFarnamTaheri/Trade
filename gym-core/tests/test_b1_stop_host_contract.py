@@ -166,3 +166,15 @@ def test_stop_pipe_checks_actual_impersonated_client_token_before_processing_fra
     assert "TokenLogonSid" in identity
     assert "verified_client_logon" in pipe
     assert pipe.index("verified_client_logon") < pipe.index("gate\n        .process_frame")
+
+def test_separate_logon_cannot_receive_stop_ack_even_if_kernel_pipe_open_succeeds():
+    host = SMOKE.read_text('utf-8')
+    probe = (ROOT / 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1').read_text('utf-8')
+    assert "'StopClient.exe'" in host
+    assert 'Get-FileHash -LiteralPath $stagedStop' in host
+    assert "'pause'" in probe
+    assert 'UNACKNOWLEDGED:' in probe
+    assert 'SECURITY FAILURE' in probe
+    assert 'ExpectedLogonSid' in probe
+    # A Windows DACL can allow opening, but the OS-token gate must refuse any ACK.
+    assert 'ImpersonateNamedPipeClient' in PIPE.read_text('utf-8')
