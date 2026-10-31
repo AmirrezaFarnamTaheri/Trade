@@ -114,3 +114,11 @@ def test_stop_client_uses_identification_only_qos():
     client = CLIENT.read_text("utf-8")
     assert "0x00110000" in client  # SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION
     assert "CreateFileW" in client
+
+
+def test_disposable_windows_ci_includes_same_logon_descriptor_canary():
+    # A temporary, non-money named-pipe canary distinguishes an invalid
+    # logon-SID ACL from a service-specific authorization failure.
+    script = SMOKE.read_text("utf-8")
+    assert "Canary($expectedSid)" in script
+    assert "T0 same-logon DACL canary:" in script
