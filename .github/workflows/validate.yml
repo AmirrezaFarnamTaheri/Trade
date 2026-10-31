@@ -72,3 +72,35 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1 -BinaryPath ./target/release/gym-executor.exe
+
+  update-python-lock:
+    # Resolve lockfile changes only on trusted same-repository pushes.
+    # Package metadata resolution runs before the write token is exposed.
+    if: github.event_name == 'push' && github.repository == 'AmirrezaFarnamTaheri/Trade'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - name: Resolve and validate Python lock without write credentials
+        run: uv lock
+      - name: Commit lockfile only when resolution changed it
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gym-core/uv.lock
+          if git diff --cached --quiet; then
+            echo "uv.lock is already current"
+            exit 0
+          fi
+          git commit -m "chore: refresh Python dependency lock"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF}"
