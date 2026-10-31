@@ -59,7 +59,8 @@ function Invoke-UnprivilegedProbe {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
         [Parameter(Mandatory = $true)][System.Security.SecureString] $Password,
-        [Parameter(Mandatory = $true)][string] $Role
+        [Parameter(Mandatory = $true)][string] $Role,
+        [switch] $CheckStopPipeOnly
     )
     $User = Get-LocalUser -Name $Name -ErrorAction Stop
     $sid = $User.SID.Value
@@ -88,6 +89,7 @@ function Invoke-UnprivilegedProbe {
     $credential = [PSCredential]::new("$env:COMPUTERNAME\$Name", $Password)
     $PowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $childArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $ScriptCopy + '"'
+    if ($CheckStopPipeOnly) { $childArguments += ' -CheckStopPipeOnly' }
     # The parent GitHub runner has TEMP under runneradmin's private profile.
     # Add-Type compiles a temporary C# helper in the child process: using the
     # inherited TEMP makes the real standard user fail before testing SCM.
@@ -103,10 +105,19 @@ function Invoke-UnprivilegedProbe {
     $process.Refresh()
     $output = if (Test-Path -LiteralPath $stdout) { Get-Content -LiteralPath $stdout -Raw } else { '' }
     $errorText = if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Raw } else { '' }
-    if ($process.ExitCode -ne 0 -or $output -notmatch 'PASS: non-admin SID=.*denied executable') {
+    $expected = if ($CheckStopPipeOnly) {
+        'PASS: non-admin SID=.*denied active stop pipe'
+    } else {
+        'PASS: non-admin SID=.*denied executable'
+    }
+    if ($process.ExitCode -ne 0 -or $output -notmatch $expected) {
         throw "ACCESS_DENIED probe failed for $Role (exit $($process.ExitCode)); output: $output $errorText"
     }
-    Write-Output "PASS: $Role (distinct local non-admin SID $sid) denied file/data/SCM privileged access."
+    if ($CheckStopPipeOnly) {
+        Write-Output "PASS: $Role distinct logon denied active stop pipe."
+    } else {
+        Write-Output "PASS: $Role (distinct local non-admin SID $sid) denied file/data/SCM privileged access."
+    }
 }
 
 try {
@@ -284,19 +295,22 @@ public static class TradingGymStopPipeProbe {
         throw 'Compiled gym-stopctl.exe is required for T0 verification.'
     }
     foreach ($command in @('pause', 'exit-only', 'halt')) {
+        $watch = [Diagnostics.Stopwatch]::StartNew()
         $reply = & $StopClient $command 2>&1
+        $watch.Stop()
         if ($LASTEXITCODE -ne 0 -or ($reply -join ' ') -notmatch '^ACKNOWLEDGED:') {
             throw "Stop-only pipe did not acknowledge ${command}: $($reply -join ' ')"
         }
-        Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED"
+        if ($watch.ElapsedMilliseconds -ge 1000) {
+            throw "T0 ACK exceeded 1 second for ${command}: $($watch.ElapsedMilliseconds)ms"
+        }
+        Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED in $($watch.ElapsedMilliseconds)ms"
     }
-    Stop-Service -Name $ServiceName -ErrorAction Stop
-    Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
-    Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
-    & $Audit
 
-    # Separate random local accounts. No passwords are persisted, printed,
-    # stored in repo variables, or passed to the Executor service process.
+    # Only disposable users. Verify their separate logon SID cannot open
+    # an active stop pipe, then repeat the SCM/file/data negative tests after
+    # the service has been disabled. Never persist credentials or secrets.
+    $probes = @()
     foreach ($role in @('operator', 'worker')) {
         $name = if ($role -eq 'operator') { 'tgop' } else { 'tgwk' }
         $name += [guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -305,7 +319,15 @@ public static class TradingGymStopPipeProbe {
         $password = ConvertTo-SecureString ([Convert]::ToBase64String($random) + 'Aa9!') -AsPlainText -Force
         $null = New-LocalUser -Name $name -Password $password -AccountExpires (Get-Date).AddHours(1) -Description "Disposable TradingGYM $role probe"
         $UsersCreated.Add($name)
-        Invoke-UnprivilegedProbe -Name $name -Password $password -Role $role
+        $probes += @{ Name = $name; Password = $password; Role = $role }
+        Invoke-UnprivilegedProbe -Name $name -Password $password -Role $role -CheckStopPipeOnly
+    }
+    Stop-Service -Name $ServiceName -ErrorAction Stop
+    Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'disabled')
+    Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
+    & $Audit
+    foreach ($probe in $probes) {
+        Invoke-UnprivilegedProbe -Name $probe.Name -Password $probe.Password -Role $probe.Role
     }
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
     Write-Output 'PASS: disposable Windows VM read-only SCM, ACL and two-principal negative probes.'
