@@ -85,6 +85,17 @@ function Invoke-UnprivilegedProbe {
         (Get-FileHash -LiteralPath $Denial -Algorithm SHA256).Hash) {
         throw 'Unprivileged probe was modified during staging'
     }
+    if ($CheckStopPipeOnly) {
+        # The protected service binary cannot be read by the test users.
+        # Stage a hash-verified client-only executable in their RX directory.
+        $stagedStop = Join-Path $dir 'StopClient.exe'
+        $builtStop = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
+        Copy-Item -LiteralPath $builtStop -Destination $stagedStop -ErrorAction Stop
+        if ((Get-FileHash -LiteralPath $stagedStop -Algorithm SHA256).Hash -ne
+            (Get-FileHash -LiteralPath $builtStop -Algorithm SHA256).Hash) {
+            throw 'Unprivileged stop client was modified during staging'
+        }
+    }
     $stdout = Join-Path $scratch 'stdout.txt'
     $stderr = Join-Path $scratch 'stderr.txt'
     $credential = [PSCredential]::new("$env:COMPUTERNAME\$Name", $Password)
