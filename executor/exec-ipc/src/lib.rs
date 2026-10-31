@@ -160,6 +160,21 @@ impl StopRequest {
 }
 
 impl StopReply {
+    /// Caller must not treat a stale, uncorrelated or weaker ACK as success.
+    /// Authentication of the pipe server remains an OS responsibility.
+    pub fn confirms(self, request: StopRequest) -> bool {
+        let required_mode = match request.command {
+            StopCommand::Status => StopMode::Disarmed,
+            StopCommand::PauseEntries => StopMode::Paused,
+            StopCommand::ExitOnly => StopMode::ExitOnly,
+            StopCommand::Halt => StopMode::Halted,
+        };
+        self.result == StopResult::Ack
+            && self.runtime_epoch == request.runtime_epoch
+            && self.correlation == request.correlation
+            && (self.mode as u8) >= (required_mode as u8)
+    }
+
     pub fn encode(self) -> Result<[u8; FRAME_SIZE], ProtocolError> {
         if self.result == StopResult::StaleRuntime && self.changed {
             return Err(ProtocolError::InvalidReply);

@@ -78,3 +78,30 @@ def test_bad_reply_fields_or_request_bytes_are_not_acks():
         decode_reply(bytes(raw))
     with pytest.raises(ValueError):
         decode_reply(bytes.fromhex(VECTORS["pause_request_hex"]))
+
+
+def test_client_accepts_only_the_matching_acknowledged_stop():
+    from gym.contracts.stop_wire import verify_reply_for
+
+    request = encode_request(StopCommand.PAUSE_ENTRIES, EPOCH, CORRELATION)
+    good = encode_reply(StopResult.ACK, StopMode.PAUSED, True, EPOCH, CORRELATION)
+    assert verify_reply_for(request, good) == (StopMode.PAUSED, True)
+
+    other_id = encode_reply(StopResult.ACK, StopMode.PAUSED, True, EPOCH, bytes.fromhex("010102030405060708090a0b0c0d0e0f"))
+    with pytest.raises(ValueError):
+        verify_reply_for(request, other_id)
+    other_epoch = encode_reply(StopResult.ACK, StopMode.PAUSED, True, EPOCH + 1, CORRELATION)
+    with pytest.raises(ValueError):
+        verify_reply_for(request, other_epoch)
+    stale = encode_reply(StopResult.STALE_RUNTIME, StopMode.DISARMED, False, EPOCH + 1, CORRELATION)
+    with pytest.raises(ValueError):
+        verify_reply_for(request, stale)
+
+
+def test_mismatched_or_weaker_ack_does_not_confirm_requested_stop():
+    from gym.contracts.stop_wire import verify_reply_for
+
+    request = encode_request(StopCommand.HALT, EPOCH, CORRELATION)
+    fake_ack = encode_reply(StopResult.ACK, StopMode.PAUSED, True, EPOCH, CORRELATION)
+    with pytest.raises(ValueError):
+        verify_reply_for(request, fake_ack)

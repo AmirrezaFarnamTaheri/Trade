@@ -56,3 +56,15 @@ fn zero_identifiers_and_forged_replies_fail() {
     raw[13] = 7;
     assert_eq!(StopReply::decode(&raw), Err(ProtocolError::InvalidReply));
 }
+
+
+#[test]
+fn a_client_does_not_confirm_mismatched_or_weaker_acks() {
+    let request = StopRequest { command: StopCommand::Halt, runtime_epoch: EPOCH, correlation: CORRELATION };
+    let good = StopReply { result: StopResult::Ack, mode: StopMode::Halted, changed: true, runtime_epoch: EPOCH, correlation: CORRELATION };
+    assert!(good.confirms(request));
+    assert!(!StopReply { mode: StopMode::Paused, ..good }.confirms(request));
+    assert!(!StopReply { runtime_epoch: EPOCH + 1, ..good }.confirms(request));
+    assert!(!StopReply { correlation: [1; 16], ..good }.confirms(request));
+    assert!(!StopReply { result: StopResult::StaleRuntime, changed: false, ..good }.confirms(request));
+}

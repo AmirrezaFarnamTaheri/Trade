@@ -85,3 +85,24 @@ def decode_reply(raw: bytes) -> tuple[StopResult, StopMode, bool, int, bytes]:
     if changed not in (0, 1) or (result == StopResult.STALE_RUNTIME and changed):
         raise ValueError("invalid stop reply flag")
     return result, mode, bool(changed), epoch, correlation
+
+
+def verify_reply_for(request: bytes, reply: bytes) -> tuple[StopMode, bool]:
+    """Only a correlated ACK at the requested stop level confirms success.
+
+    Pipe peer authorization belongs to the OS; absent acknowledgment is never
+    success, and callers must display REQUESTED until verification completes.
+    """
+    command, epoch, correlation = decode_request(request)
+    result, mode, changed, reply_epoch, reply_id = decode_reply(reply)
+    if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:
+        raise ValueError("stop has not been acknowledged for this request")
+    required = {
+        StopCommand.STATUS: StopMode.DISARMED,
+        StopCommand.PAUSE_ENTRIES: StopMode.PAUSED,
+        StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,
+        StopCommand.HALT: StopMode.HALTED,
+    }[command]
+    if mode < required:
+        raise ValueError("acknowledgment does not confirm the requested stop level")
+    return mode, changed
