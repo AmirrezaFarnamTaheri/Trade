@@ -169,6 +169,47 @@ public static class TradingGymStopPipeProbe {
         IntPtr security, uint disposition, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecAttrs {
+        public uint length;
+        public IntPtr descriptor;
+        public int inherit;
+    }
+    [DllImport("advapi32.dll", EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ToDescriptor(string sddl, uint revision,
+        out IntPtr descriptor, IntPtr length);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr pointer);
+    [DllImport("kernel32.dll", EntryPoint = "CreateNamedPipeW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateNamedPipe(string name, uint access,
+        uint mode, uint instances, uint outputSize, uint inputSize,
+        uint timeout, ref SecAttrs attrs);
+    public static string Canary(string logonSid) {
+        var name = @"\\.\pipe\TradingGYM.DaclCanary." + Guid.NewGuid().ToString("N");
+        var sddl = "D:P(A;;GA;;;SY)(A;;0x00100003;;;" + logonSid + ")";
+        IntPtr descriptor;
+        if (!ToDescriptor(sddl, 1, out descriptor, IntPtr.Zero))
+            return "descriptor-error=" + Marshal.GetLastWin32Error();
+        try {
+            var attrs = new SecAttrs {
+                length = (uint)Marshal.SizeOf(typeof(SecAttrs)),
+                descriptor = descriptor, inherit = 0
+            };
+            var server = CreateNamedPipe(name, 0x40000003, 0x0000000E,
+                1, 128, 128, 0, ref attrs);
+            if (server == new IntPtr(-1))
+                return "server-error=" + Marshal.GetLastWin32Error();
+            try {
+                // Probe with no access first. Both handles are closed immediately.
+                var client = CreateFileW(name, 0, 0, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                int err = client == new IntPtr(-1) ? Marshal.GetLastWin32Error() : 0;
+                if (client != new IntPtr(-1)) CloseHandle(client);
+                return "open0=" + err;
+            } finally { CloseHandle(server); }
+        } finally { LocalFree(descriptor); }
+    }
     public static int Probe(uint desired) {
         var handle = CreateFileW(@"\\.\pipe\TradingGYM.Stop.v1", desired,
             0, IntPtr.Zero, 3, 0, IntPtr.Zero);
@@ -179,6 +220,8 @@ public static class TradingGymStopPipeProbe {
 }
 '@
     Add-Type -TypeDefinition $accessProbeType
+    $canaryResult = [TradingGymStopPipeProbe]::Canary($expectedSid)
+    Write-Output "T0 same-logon DACL canary: $canaryResult"
     foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
         $errorNumber = [TradingGymStopPipeProbe]::Probe($mask)
         Write-Output ('T0 access-probe mask=0x{0:X8} win32={1}' -f $mask, $errorNumber)
