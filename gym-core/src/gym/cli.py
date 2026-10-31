@@ -207,6 +207,29 @@ def external_observe_cmd(args) -> int:
     return 0
 
 
+def backup_once_cmd(args) -> int:
+    """Manual offline encrypted backup to a pre-existing independent volume.
+
+    No passphrase in arguments, environment variables or command history.
+    This is NOT scheduled remote backup, does not provision venue credentials,
+    and cannot establish that another machine holds an archive.
+    """
+    import getpass
+    from .services.backup_rotation import backup_once
+
+    if not sys.stdin.isatty():
+        raise ValueError("backup-once requires an interactive protected console")
+    phrase = getpass.getpass("Offline ledger recovery passphrase (not a venue API key): ")
+    try:
+        report = backup_once(args.ledger, args.destination,
+                             passphrase=phrase, keep=args.keep)
+    finally:
+        del phrase
+    # Never output a recovery passphrase, access token, or private API key.
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
 def timedelta_ms(ms: int):
     from datetime import timedelta
 
@@ -301,6 +324,10 @@ def main(argv=None):
     candles.add_argument("--fetch", action="store_true", help="fetch venue candles for the range first")
     candles.add_argument("--record", action="store_true", help="write CROSS_FEED_DIVERGENCE quality events")
     candles.add_argument("--json", action="store_true")
+    bk = sub.add_parser("backup-once", help="manual offline encrypted ledger backup on a separate mounted volume")
+    bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
+    bk.add_argument("destination", help="pre-existing independent-volume backup directory")
+    bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
     ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
     ext.add_argument("path", help="local sanitized observation JSON file; no API keys")
     ext.add_argument("--demo", action="store_true")
@@ -324,7 +351,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:
