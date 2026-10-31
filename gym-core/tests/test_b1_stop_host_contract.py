@@ -134,3 +134,14 @@ def test_operator_stop_pipe_acl_allows_metadata_read_but_not_pipe_creation():
     assert '0x00100083;;;{logon_sid}' in pipe
     assert "FILE_CREATE_PIPE_INSTANCE" in pipe
     assert "0x00100003;;;{logon_sid}" not in pipe
+
+
+def test_disposable_host_checks_subsecond_ack_and_denies_other_logon_tokens():
+    smoke = SMOKE.read_text("utf-8")
+    probe = (ROOT / "scripts/windows/Test-UnprivilegedExecutorAccess.ps1").read_text("utf-8")
+    assert "ElapsedMilliseconds -ge 1000" in smoke
+    assert "denied active stop pipe" in smoke
+    assert "CheckStopPipeOnly" in smoke
+    assert "CheckStopPipeOnly" in probe
+    assert "CreateFileW" in probe
+    assert "GetLastWin32Error()" in probe
