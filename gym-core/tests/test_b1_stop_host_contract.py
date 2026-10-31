@@ -153,7 +153,7 @@ def test_hostile_logon_denial_proves_a_distinct_windows_logon_sid():
     assert "whoami.exe /logonid" in probe
     assert "ExpectedLogonSid" in probe
     assert "ExpectedLogonSid" in smoke
-    assert "same logon" in probe
+    assert "same user and logon" in probe
 
 
 def test_stop_pipe_checks_actual_impersonated_client_token_before_processing_frame():
