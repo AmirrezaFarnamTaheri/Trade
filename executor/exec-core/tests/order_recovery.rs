@@ -1,5 +1,5 @@
 //! Offline Fake Venue/transport recovery contract: never sends a real order.
-use exec_core::orders::{Attempt, EconomicEffect, Event, FailureStage, Lifecycle, OrderError, Settlement, Slots};
+use exec_core::orders::{Attempt, EconomicEffect, Event, FailureStage, Lifecycle, OrderError, Settlement, Slots, SlotError};
 
 #[test]
 fn before_bytes_can_attempt_one_same_identity_retry_only() {
@@ -69,12 +69,24 @@ fn fills_cannot_exceed_requested_quantity_or_appear_before_submit() {
 fn one_unresolved_entry_per_account_but_independent_verified_exit() {
     let mut slots = Slots::default();
     assert!(slots.entry_allowed("main", "A"));
-    slots.hold("main", "A", true);
+    slots.try_hold("main", "A", true, false).unwrap();
     assert!(!slots.entry_allowed("main", "B"));
     assert!(!slots.exit_allowed("main", "A", true));
     assert!(slots.exit_allowed("main", "B", true));
     assert!(!slots.exit_allowed("main", "B", false));
     assert!(slots.entry_allowed("credit", "B"));
-    slots.release("main", "A");
+    assert_eq!(slots.release_verified("main", "A", false), Err(SlotError::Unsettled));
+    slots.release_verified("main", "A", true).unwrap();
     assert!(slots.entry_allowed("main", "B"));
+}
+
+#[test]
+fn callers_cannot_hold_conflicting_entries_or_unverified_exits() {
+    let mut slots = Slots::default();
+    slots.try_hold("main", "A", true, false).unwrap();
+    assert_eq!(slots.try_hold("main", "B", true, false), Err(SlotError::Conflict));
+    assert_eq!(slots.try_hold("main", "A", false, true), Err(SlotError::Conflict));
+    assert_eq!(slots.try_hold("main", "B", false, false), Err(SlotError::UnverifiedExit));
+    slots.try_hold("main", "B", false, true).unwrap();
+    assert!(!slots.entry_allowed("main", "B"));
 }
