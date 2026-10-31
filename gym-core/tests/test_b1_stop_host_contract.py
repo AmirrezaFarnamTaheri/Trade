@@ -85,3 +85,13 @@ def test_stop_client_reports_win32_error_without_secret_material():
     assert "std::io::Error::last_os_error()" in client
     assert "stop pipe open failed" in client
     assert "raw_os_error()" in client
+
+
+def test_disposable_vm_checks_effective_logon_identity_before_stop_client():
+    smoke = SMOKE.read_text("utf-8")
+    assert "Get-OperatorLogonSid.ps1" in smoke
+    assert "stop-logon.sid" in smoke
+    assert "T0 ACL preflight" in smoke
+    assert "S-1-5-2" in smoke  # deny-NETWORK group membership diagnostic
+    assert "Write-Output $expectedSid" not in smoke
+    assert "Write-Output $actualSid" not in smoke
