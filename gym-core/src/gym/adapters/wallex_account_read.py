@@ -108,7 +108,7 @@ class WallexAccountReader:
         return {"client_id": client_id, "status": status, "filled": filled,
                 "symbol": symbol.upper() if symbol is not None else None}
 
-async def manual_order_evidence(self, client_id: str) -> dict:
+    async def manual_order_evidence(self, client_id: str) -> dict:
         """Fetch one explicit, ID-echoed order and its documented fill fees.
 
         This still uses an injected *read-only* session and is not the
