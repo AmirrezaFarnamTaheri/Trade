@@ -71,8 +71,10 @@ def test_failed_schema_creation_leaves_no_partial_table(tmp_path, monkeypatch):
 def test_ci_checkout_tokens_are_nonpersistent_and_read_only():
     ci = (ROOT / ".github/workflows/validate.yml").read_text("utf-8")
     assert "permissions:\n  contents: read" in ci
-    assert ci.count("actions/checkout@v4") == 3
-    assert ci.count("persist-credentials: false") == 3
+    # CI may add safe no-secret runner jobs. Every checkout must opt out
+    # of persisting credentials; do not hardcode the number of jobs.
+    assert ci.count("actions/checkout@v4") >= 3
+    assert ci.count("actions/checkout@v4") == ci.count("persist-credentials: false")
 
 
 def test_windows_negative_probe_rejects_uac_filtered_admin_tokens():

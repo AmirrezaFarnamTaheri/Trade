@@ -3,7 +3,7 @@ name = "gym-core"
 version = "0.1.0"
 description = "TradingGYM gym-core daemon, Workstream A1: collector, venue rules, local API, Markets UI"
 requires-python = ">=3.11"
-dependencies = ["aiohttp>=3.9", "zstandard>=0.22", "tzdata"]
+dependencies = ["aiohttp>=3.9", "cryptography>=44", "zstandard>=0.22", "tzdata"]
 
 [project.scripts]
 gymctl = "gym.cli:main"
