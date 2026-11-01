@@ -1,6 +1,24 @@
 # Workstation acceptance progress
 
-Workstream A code and exit evidence are complete for the public-only slice. Longer live observation improves hour coverage but is not a release gate in the master plan. B1 has not started and no API key was used.
+Workstream A's public-only implementation and acceptance evidence were recorded before
+the B and C draft branches. Public market data and paper simulation are not
+proof of funded safety. B1–B3 have progressed in separate draft PRs; they are
+**not certified or merged**. No authenticated Wallex private read, funded
+submission, venue-side stop order or live recovery drill is demonstrated.
+
+## Workstream C development status (2026-11-01)
+
+| Epic | Latest draft | Implemented in code | Still missing for release |
+| --- | --- | --- | --- |
+| C1 | #14 | Immutable, bounded, sanitized VenueFacts evidence metadata; capability states in token-protected API and bilingual Health; offline import | T2 service-owned read-only API credential and authenticated Wallex reads, real balances/fees/exposure, pagination and status probes, validated operator budget and provenance |
+| C2 | #15 | Exact-decimal BUY-entry/SELL-exit dry-run ticket and offline acknowledgment queue; price, fee, cap, base, expiry and snapshot checks | Executor-owned durable approvals and funded identity, assisted conversion, settled actual-versus-modeled cost |
+| C3 | #16 | Offline, non-executable Exit Guard and reopening veto policy; epoch and unknown-order checks | Certified protective venue stops, real Exit Guard and independently verified funded Autopilot with capped/session-reconciled operations |
+
+**Security:** none of the C drafts authorize a new money path. All C outputs
+are advisory, with `funded_authority=false`, until the real installed B1/B2
+boundaries and live venue acceptance are completed.
+
+
 
 ## Release gaps
 
