@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_UP
+from decimal import Decimal, ROUND_UP, localcontext
 
 _AMOUNT = re.compile(r"(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?\Z")
 _SYMBOL = re.compile(r"[A-Z0-9]{5,32}\Z")
@@ -86,47 +86,52 @@ def prepare_preview(*, symbol: str, side: str, intent: str,
     min_notional = _decimal(minimum_quote, "minimum_quote")
     if best_bid >= best_ask or fee >= Decimal("0.1"):
         raise TicketUnsafe("invalid quote book or fee rate")
-    if qty * (best_ask if side == "BUY" else best_bid) < min_notional:
-        raise TicketUnsafe("order below venue minimum notional")
-    if side == "BUY" and worst < best_ask:
-        raise TicketUnsafe("buy worst price must include current ask")
-    if side == "SELL" and worst > best_bid:
-        raise TicketUnsafe("sell worst price must not exceed current bid")
+    # The project accepts up to 38-digit source decimals; the default
+    # 28-digit context would silently round qty*price*fee. Keep enough
+    # significant digits for every bounded factor and conservative ceiling.
+    with localcontext() as exact:
+        exact.prec = 128
+        if qty * (best_ask if side == "BUY" else best_bid) < min_notional:
+            raise TicketUnsafe("order below venue minimum notional")
+        if side == "BUY" and worst < best_ask:
+            raise TicketUnsafe("buy worst price must include current ask")
+        if side == "SELL" and worst > best_bid:
+            raise TicketUnsafe("sell worst price must not exceed current bid")
 
-    expected = qty * (best_ask if side == "BUY" else best_bid)
-    gross = qty * worst
-    worst_fee = gross * fee
-    # BUY total is the maximum possible quote spend; SELL total is minimum
-    # modeled quote proceeds. It is NOT an executable price promise.
-    worst_total = gross + worst_fee if side == "BUY" else gross - worst_fee
-    if side == "BUY" and (worst_total > cap or worst_total > quote):
-        raise TicketUnsafe("buy worst-case quote spend exceeds cap or available quote")
-    if side == "SELL" and qty > base:
-        raise TicketUnsafe("protective exit exceeds observed base availability")
-    # Quote-fee break-even ask-side cost, rounded conservatively up to 6dp.
-    breakeven = (
-        (worst_total / qty / (Decimal(1) - fee)).quantize(
-            Decimal("0.000001"), rounding=ROUND_UP,
-        ) if side == "BUY" else None
-    )
-    preview = {
-        "symbol": symbol, "side": side, "intent": intent,
-        "quantity": _fmt(qty), "bid": _fmt(best_bid), "ask": _fmt(best_ask),
-        "worst_price": _fmt(worst), "fee_rate": _fmt(fee),
-        "operator_quote_cap": _fmt(cap), "available_quote": _fmt(quote),
-        "available_base": _fmt(base), "minimum_quote": _fmt(min_notional),
-        "observed_at": observed_at, "expires_at": expires_at,
-        "snapshot_seq": snapshot_seq, "quote_age_ms": quote_age_ms,
-        "estimated_gross_quote": _fmt(expected),
-        "worst_gross_quote": _fmt(gross), "worst_fee_quote": _fmt(worst_fee),
-        "worst_total_quote": _fmt(worst_total),
-        "break_even_bid": None if breakeven is None else _fmt(breakeven),
-        "mode": "DRY_RUN", "source": "OFFLINE_PREVIEW",
-        "fee_assumption": "QUOTE_ONLY_UNVERIFIED",
-        "client_id": None, "funded_authority": False,
-        "order_submitted": False,
-    }
-    return {**preview, "preview_sha256": _fingerprint(preview)}
+        expected = qty * (best_ask if side == "BUY" else best_bid)
+        gross = qty * worst
+        worst_fee = gross * fee
+        # BUY total is the maximum possible quote spend; SELL total is minimum
+        # modeled quote proceeds. It is NOT an executable price promise.
+        worst_total = gross + worst_fee if side == "BUY" else gross - worst_fee
+        if side == "BUY" and (worst_total > cap or worst_total > quote):
+            raise TicketUnsafe("buy worst-case quote spend exceeds cap or available quote")
+        if side == "SELL" and qty > base:
+            raise TicketUnsafe("protective exit exceeds observed base availability")
+        # Quote-fee break-even ask-side cost, rounded conservatively up to 6dp.
+        breakeven = (
+            (worst_total / qty / (Decimal(1) - fee)).quantize(
+                Decimal("0.000001"), rounding=ROUND_UP,
+            ) if side == "BUY" else None
+        )
+        preview = {
+            "symbol": symbol, "side": side, "intent": intent,
+            "quantity": _fmt(qty), "bid": _fmt(best_bid), "ask": _fmt(best_ask),
+            "worst_price": _fmt(worst), "fee_rate": _fmt(fee),
+            "operator_quote_cap": _fmt(cap), "available_quote": _fmt(quote),
+            "available_base": _fmt(base), "minimum_quote": _fmt(min_notional),
+            "observed_at": observed_at, "expires_at": expires_at,
+            "snapshot_seq": snapshot_seq, "quote_age_ms": quote_age_ms,
+            "estimated_gross_quote": _fmt(expected),
+            "worst_gross_quote": _fmt(gross), "worst_fee_quote": _fmt(worst_fee),
+            "worst_total_quote": _fmt(worst_total),
+            "break_even_bid": None if breakeven is None else _fmt(breakeven),
+            "mode": "DRY_RUN", "source": "OFFLINE_PREVIEW",
+            "fee_assumption": "QUOTE_ONLY_UNVERIFIED",
+            "client_id": None, "funded_authority": False,
+            "order_submitted": False,
+        }
+        return {**preview, "preview_sha256": _fingerprint(preview)}
 
 
 class OfflineTicketQueue:
