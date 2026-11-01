@@ -134,6 +134,21 @@ def prepare_preview(*, symbol: str, side: str, intent: str,
         return {**preview, "preview_sha256": _fingerprint(preview)}
 
 
+PREVIEW_FIELDS = frozenset({
+    "symbol", "side", "intent", "quantity", "bid", "ask",
+    "worst_price", "fee_rate", "operator_quote_cap", "available_quote",
+    "available_base", "minimum_quote", "observed_at", "expires_at",
+    "snapshot_seq", "quote_age_ms",
+})
+
+
+def prepare_preview_from_json(payload: dict) -> dict:
+    """Strictly allowlisted non-executable ticket input for CLI and loopback."""
+    if type(payload) is not dict or set(payload) != PREVIEW_FIELDS:
+        raise TicketUnsafe("ticket requires exactly the documented offline fields")
+    return prepare_preview(**payload)
+
+
 class OfflineTicketQueue:
     """In-memory review only. ACKNOWLEDGE != Tier-1 permission or order POST."""
 
