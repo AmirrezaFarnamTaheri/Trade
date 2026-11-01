@@ -17,6 +17,7 @@ from ..services.rules import RuleService
 from ..services.reports import economic_report
 from ..services.external_journal import ExternalJournal
 from ..services.venue_facts import VenueFactsJournal
+from ..domain.assisted_ticket import prepare_preview_from_json
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -164,6 +165,39 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             "facts": facts, "capabilities": {} if venue_facts is None else venue_facts.capabilities(),
         }, headers={"Cache-Control": "no-store"})
 
+    async def dry_run_ticket(req):
+        # The browser has no money path. Strictly bound this small JSON input
+        # and never forward it to any Executor or venue transport.
+        raw = await req.read()
+        if not raw or len(raw) > 8192:
+            raise ValueError("offline ticket JSON exceeds size limit")
+        def unique_pairs(pairs):
+            fields = {}
+            for name, value in pairs:
+                if name in fields:
+                    raise ValueError("ambiguous duplicate JSON field")
+                fields[name] = value
+            return fields
+        try:
+            payload = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise ValueError("invalid offline ticket JSON") from None
+        preview = prepare_preview_from_json(payload)
+        return web.json_response(preview, headers={"Cache-Control": "no-store"})
+
+    async def automation_safety(req):
+        # This is a conservative description of THIS unprivileged process.
+        # Never infer T2 service state from a browser-supplied claim.
+        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
+            return web.json_response({"error": "local operator token required"}, status=403)
+        return web.json_response({
+            "mode": "DISARMED", "protection": "UNAVAILABLE",
+            "venue_stops": "NOT_CERTIFIED",
+            "entries_enabled": False, "autopilot_enabled": False,
+            "funded_authority": False, "source": "LOCAL_UNPRIVILEGED_PROCESS",
+            "executor_state_verified": False,
+        }, headers={"Cache-Control": "no-store"})
+
     async def run_list(_):
         return web.json_response([] if runs is None else list_runs(runs))
 
@@ -185,6 +219,8 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/api/account-observations", account_observations),
         web.get("/api/external-order-events", external_events),
         web.get("/api/venue-facts", venue_facts_api),
+        web.post("/api/dry-run/ticket", dry_run_ticket),
+        web.get("/api/automation-safety", automation_safety),
         web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
