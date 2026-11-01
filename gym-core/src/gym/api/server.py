@@ -16,6 +16,7 @@ from ..services.collector import Collector, now_utc
 from ..services.rules import RuleService
 from ..services.reports import economic_report
 from ..services.external_journal import ExternalJournal
+from ..services.venue_facts import VenueFactsJournal
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -27,7 +28,8 @@ def s(x):
 
 def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None,
              account_observation: dict | None = None,
-             external_journal: ExternalJournal | None = None) -> web.Application:
+             external_journal: ExternalJournal | None = None,
+             venue_facts: VenueFactsJournal | None = None) -> web.Application:
     @web.middleware
     async def guard(req: web.Request, handler):
         # DNS-rebinding and CSRF defence: loopback Host only, and a per-run token on every write.
@@ -111,6 +113,8 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             "demo": col.demo, "connected": st["connected"], "fatal": st["fatal"], "reconnects": st["reconnects"],
             "last_frame_age_s": None if lf is None else round((now_utc() - lf).total_seconds(), 1),
             "errors": list(st["errors"]),
+            "venue_validation": {"state": "EVIDENCE_ONLY" if venue_facts and venue_facts.facts(limit=1) else "NOT_CONFIGURED",
+                                 "funded_authority": False, "trusted_origin": False},
             "quality": [dict(zip(("ts", "instrument", "flag", "detail"), r)) for r in col.db.quality(30)],
         })
 
@@ -148,6 +152,18 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                       "events": external_journal.events()}
         return web.json_response(result, headers={"Cache-Control": "no-store"})
 
+    async def venue_facts_api(req):
+        # C1 is a private operator history. Never return raw venue payloads,
+        # account credentials or a claim that a write method is certified.
+        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
+            return web.json_response({"error": "VenueFacts token required"}, status=403)
+        facts = [] if venue_facts is None else venue_facts.facts()
+        return web.json_response({
+            "state": "EVIDENCE_ONLY" if facts else "NOT_CONFIGURED",
+            "authority": "READ_ONLY", "funded_authority": False, "trusted_origin": False,
+            "facts": facts, "capabilities": {} if venue_facts is None else venue_facts.capabilities(),
+        }, headers={"Cache-Control": "no-store"})
+
     async def run_list(_):
         return web.json_response([] if runs is None else list_runs(runs))
 
@@ -168,6 +184,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/api/markets", markets), web.get("/api/health", health),
         web.get("/api/account-observations", account_observations),
         web.get("/api/external-order-events", external_events),
+        web.get("/api/venue-facts", venue_facts_api),
         web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
