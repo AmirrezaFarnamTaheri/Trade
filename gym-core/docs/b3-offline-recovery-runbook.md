@@ -63,8 +63,8 @@ Restart DISARMED and reconcile the venue before considering future authority.
 
 **Not yet implemented:** automated privileged off-machine schedule/retention,
 independent manifest attestation, signed migration installation and rollback,
-and B1 service-owned credentials. Second-machine restore acceptance needs the
-operator to run `restore-backup` on the other machine and keep its receipt.
+and B1 service-owned credentials. Cross-OS restore was rehearsed in WSL2 (see
+acceptance-status.md); a physically separate machine remains the stronger test.
 Do not close B3 or merge for funded trading on synthetic results alone.
 
 

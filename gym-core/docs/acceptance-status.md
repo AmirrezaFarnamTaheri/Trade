@@ -17,7 +17,15 @@ submission, venue-side stop order or live recovery drill is demonstrated.
   service on the operator host.
 - **B3:** `gymctl restore-backup` (no-overwrite, verified, DISARMED receipt) and
   `gymctl update-check` (refuses unknown orders, unprotected positions, damaged
-  ledger). Real second-machine restore is an operator run of that command.
+  ledger).
+- **B3 cross-OS restore (2026-11-02):** a 100-event ledger built on Windows with the
+  real `exec-store` schema was backed up on Windows, then restored with
+  `gymctl restore-backup` inside WSL2 Ubuntu (Linux 6.18, Python 3.13) from a clean
+  `git archive` install with no Windows files or keys. The receipt matched
+  sequence 100 and head `79b6b3d1…59d2b`; an independent Linux chain check agreed, and a
+  second restore to the same path was refused. WSL runs on the same hardware, so
+  this proves portability, not hardware loss; repeat on a separate machine when
+  one exists.
 
 ## Workstream C development status (2026-11-01)
 
