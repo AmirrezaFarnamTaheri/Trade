@@ -2,7 +2,10 @@
 //! No transport or funded authority: restarting this journal never submits an order.
 //! All records are appended to exec-store's FULL-synchronous hash-chained ledger
 //! before an Attempt projection changes. Unknown bytes or illegal replay fail closed.
-use exec_core::orders::{Attempt, Event, FailureStage, OrderError};
+use exec_core::orders::{
+    Attempt, BalanceSnapshot, Event, FailureStage, OrderError,
+    ReservationBook, ReservationError, SettlementEvidence,
+};
 use exec_store::{Ledger, LedgerError};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -10,6 +13,9 @@ use std::path::Path;
 const MAGIC: &[u8; 5] = b"TGOR1";
 const CREATE: u8 = 1;
 const EVIDENCE: u8 = 2;
+const HOLD: u8 = 3;
+const RELEASE_DENIED: u8 = 4;
+const RELEASE_SETTLED: u8 = 5;
 
 #[derive(Debug)]
 pub enum RecoveryError {
@@ -19,6 +25,7 @@ pub enum RecoveryError {
     UnknownIdentity,
     MalformedEvent,
     Order(OrderError),
+    Reservation(ReservationError),
 }
 impl PartialEq for RecoveryError {
     fn eq(&self, other: &Self) -> bool {
@@ -29,6 +36,7 @@ impl PartialEq for RecoveryError {
             | (UnknownIdentity, UnknownIdentity)
             | (MalformedEvent, MalformedEvent) => true,
             (Order(a), Order(b)) => a == b,
+            (Reservation(a), Reservation(b)) => a == b,
             _ => false,
         }
     }
@@ -46,6 +54,7 @@ pub struct ObservedIntent {
 pub struct DurableOrderJournal {
     ledger: Ledger,
     intents: BTreeMap<String, ObservedIntent>,
+    reservations: ReservationBook,
     records: usize,
     /// A request already in flight when the journal was reopened cannot be
     /// certified as never sent by this newly started process.
@@ -54,6 +63,10 @@ pub struct DurableOrderJournal {
 enum Record {
     Open { id: String, account: String, asset: String, quantity: u64 },
     Observation { id: String, event: Event },
+    Hold { id: String, account: String, asset: String, quanta: u64, available: u64, sequence: u64 },
+    ReleaseDenied { id: String },
+    ReleaseSettled { id: String, account: String, asset: String,
+        sequence: u64, complete: bool, locked: u64, spent: u64, available: u64 },
 }
 fn valid_name(s: &str) -> bool {
     !s.is_empty() && s.len() <= 96 &&
@@ -98,6 +111,43 @@ fn record_event(id: &str, event: Event) -> Result<Vec<u8>, RecoveryError> {
     }
     Ok(data)
 }
+// Every reservation change is part of the SAME durable ledger as the
+// attempt, not a second database that could commit or fail independently.
+fn record_hold(id: &str, snapshot: &BalanceSnapshot, quanta: u64)
+    -> Result<Vec<u8>, RecoveryError>
+{
+    let mut data = MAGIC.to_vec();
+    data.push(HOLD);
+    add_name(&mut data, id)?;
+    add_name(&mut data, &snapshot.account)?;
+    add_name(&mut data, &snapshot.asset)?;
+    for value in [quanta, snapshot.available_quanta, snapshot.sequence] {
+        data.extend_from_slice(&value.to_be_bytes());
+    }
+    Ok(data)
+}
+fn record_release_denied(id: &str) -> Result<Vec<u8>, RecoveryError> {
+    let mut data = MAGIC.to_vec();
+    data.push(RELEASE_DENIED);
+    add_name(&mut data, id)?;
+    Ok(data)
+}
+fn record_release_settled(id: &str, evidence: &SettlementEvidence)
+    -> Result<Vec<u8>, RecoveryError>
+{
+    let mut data = MAGIC.to_vec();
+    data.push(RELEASE_SETTLED);
+    add_name(&mut data, id)?;
+    add_name(&mut data, &evidence.account)?;
+    add_name(&mut data, &evidence.asset)?;
+    data.extend_from_slice(&evidence.sequence.to_be_bytes());
+    data.push(u8::from(evidence.complete));
+    for value in [evidence.locked_quanta, evidence.spent_quanta, evidence.available_quanta] {
+        data.extend_from_slice(&value.to_be_bytes());
+    }
+    Ok(data)
+}
+
 struct Reader<'a> { bytes: &'a [u8], pos: usize }
 impl<'a> Reader<'a> {
     fn take(&mut self, len: usize) -> Result<&'a [u8], RecoveryError> {
@@ -148,13 +198,31 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
             };
             Record::Observation { id, event }
         }
+        HOLD => Record::Hold {
+            id, account: r.name()?, asset: r.name()?,
+            quanta: r.num()?, available: r.num()?, sequence: r.num()?,
+        },
+        RELEASE_DENIED => Record::ReleaseDenied { id },
+        RELEASE_SETTLED => {
+            let account = r.name()?;
+            let asset = r.name()?;
+            let sequence = r.num()?;
+            let complete = match r.one()? {
+                0 => false, 1 => true,
+                _ => return Err(RecoveryError::MalformedEvent),
+            };
+            Record::ReleaseSettled {
+                id, account, asset, sequence, complete,
+                locked: r.num()?, spent: r.num()?, available: r.num()?,
+            }
+        }
         _ => return Err(RecoveryError::MalformedEvent),
     };
     if r.pos != raw.len() { return Err(RecoveryError::MalformedEvent); }
     Ok(rec)
 }
-fn apply_record(intents: &mut BTreeMap<String, ObservedIntent>, record: Record)
-    -> Result<(), RecoveryError>
+fn apply_record(intents: &mut BTreeMap<String, ObservedIntent>,
+    reservations: &mut ReservationBook, record: Record) -> Result<(), RecoveryError>
 {
     match record {
         Record::Open { id, account, asset, quantity } => {
@@ -167,6 +235,31 @@ fn apply_record(intents: &mut BTreeMap<String, ObservedIntent>, record: Record)
             let current = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
             current.attempt.apply(event).map_err(RecoveryError::Order)?;
         }
+        Record::Hold { id, account, asset, quanta, available, sequence } => {
+            let order = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
+            if order.account != account || order.asset != asset {
+                return Err(RecoveryError::Reservation(ReservationError::InvalidEvidence));
+            }
+            let snapshot = BalanceSnapshot::new(&account, &asset, available, sequence)
+                .map_err(RecoveryError::Reservation)?;
+            reservations.reserve(&id, &account, &asset, quanta, &snapshot, &order.attempt)
+                .map_err(RecoveryError::Reservation)?;
+        }
+        Record::ReleaseDenied { id } => {
+            let order = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
+            reservations.release_denied(&id, &order.attempt)
+                .map_err(RecoveryError::Reservation)?;
+        }
+        Record::ReleaseSettled {
+            id, account, asset, sequence, complete, locked, spent, available,
+        } => {
+            let order = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
+            let evidence = SettlementEvidence::new(
+                &account, &asset, sequence, complete, locked, spent, available,
+            ).map_err(RecoveryError::Reservation)?;
+            reservations.release_settled(&id, &order.attempt, &evidence)
+                .map_err(RecoveryError::Reservation)?;
+        }
     }
     Ok(())
 }
@@ -175,15 +268,17 @@ impl DurableOrderJournal {
         let ledger = Ledger::open(path)?;
         let records = ledger.replay_from(0)?;
         let mut intents = BTreeMap::new();
+        let mut reservations = ReservationBook::default();
         for e in &records {
             let parsed = decode(&e.event_bytes)?;
             // Verified bytes that cannot form a legal state also fail closed.
-            apply_record(&mut intents, parsed).map_err(|_| RecoveryError::MalformedEvent)?;
+            apply_record(&mut intents, &mut reservations, parsed)
+                .map_err(|_| RecoveryError::MalformedEvent)?;
         }
         let recovered_inflight = intents.iter()
             .filter(|(_, order)| order.attempt.lifecycle() == exec_core::orders::Lifecycle::Submitting)
             .map(|(id, _)| id.clone()).collect();
-        Ok(Self { ledger, intents, records: records.len(), recovered_inflight })
+        Ok(Self { ledger, intents, reservations, records: records.len(), recovered_inflight })
     }
 
     pub fn create_intent(&mut self, id: &str, account: &str, asset: &str, quantity: u64)
@@ -194,9 +289,11 @@ impl DurableOrderJournal {
         let parsed = decode(&raw)?;
         // Verify on a copy before persisting. No in-memory or venue effect before commit.
         let mut next = self.intents.clone();
-        apply_record(&mut next, parsed)?;
+        let mut next_holds = self.reservations.clone();
+        apply_record(&mut next, &mut next_holds, parsed)?;
         self.ledger.append(&raw)?;
         self.intents = next;
+        self.reservations = next_holds;
         self.records += 1;
         Ok(())
     }
@@ -210,11 +307,46 @@ impl DurableOrderJournal {
         let raw = record_event(id, event)?;
         let parsed = decode(&raw)?;
         let mut next = self.intents.clone();
-        apply_record(&mut next, parsed)?;
+        let mut next_holds = self.reservations.clone();
+        apply_record(&mut next, &mut next_holds, parsed)?;
         self.ledger.append(&raw)?;
         self.intents = next;
+        self.reservations = next_holds;
         self.records += 1;
         Ok(())
+    }
+    /// Durable offline reservation admission. A snapshot is *not* trusted
+    /// solely because this model accepts it: funded admission is disabled.
+    pub fn reserve_intent(&mut self, id: &str, quanta: u64,
+        snapshot: &BalanceSnapshot) -> Result<(), RecoveryError>
+    {
+        let raw = record_hold(id, snapshot, quanta)?;
+        self.apply_durable(raw)
+    }
+    pub fn release_denied_reservation(&mut self, id: &str)
+        -> Result<(), RecoveryError>
+    {
+        self.apply_durable(record_release_denied(id)?)
+    }
+    pub fn release_settled_reservation(&mut self, id: &str,
+        evidence: &SettlementEvidence) -> Result<(), RecoveryError>
+    {
+        self.apply_durable(record_release_settled(id, evidence)?)
+    }
+    /// A failed transition is not appended and does not change any hold.
+    fn apply_durable(&mut self, raw: Vec<u8>) -> Result<(), RecoveryError> {
+        let parsed = decode(&raw)?;
+        let mut next = self.intents.clone();
+        let mut next_holds = self.reservations.clone();
+        apply_record(&mut next, &mut next_holds, parsed)?;
+        self.ledger.append(&raw)?;
+        self.intents = next;
+        self.reservations = next_holds;
+        self.records += 1;
+        Ok(())
+    }
+    pub fn reserved(&self, account: &str, asset: &str) -> u64 {
+        self.reservations.reserved(account, asset)
     }
     pub fn get(&self, id: &str) -> Option<&ObservedIntent> { self.intents.get(id) }
     pub fn pending_ids(&self) -> Vec<&str> {
