@@ -380,11 +380,13 @@ async def serve(args):
                     add_symbols=added, remove_symbols=removed)
     from .services.external_journal import ExternalJournal
     from .services.venue_facts import VenueFactsJournal
+    from .services.offline_review_journal import OfflineReviewJournal
     external_journal = ExternalJournal(store_root(args) / "external_journal.db")
     venue_facts = VenueFactsJournal(store_root(args) / "venue_facts.db")
+    offline_reviews = OfflineReviewJournal(store_root(args) / "offline_reviews.db")
     runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24),
-                                    store_root(args) / "runs",
-                                    external_journal=external_journal, venue_facts=venue_facts))
+                                    store_root(args) / "runs", external_journal=external_journal,
+                                    venue_facts=venue_facts, offline_review_journal=offline_reviews))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
     print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory on http://127.0.0.1:{args.port}/  (Ctrl+C to stop)", flush=True)
@@ -395,6 +397,7 @@ async def serve(args):
         await runner.cleanup()
         external_journal.conn.close()
         venue_facts.conn.close()
+        offline_reviews.conn.close()
 
 
 def main(argv=None):
