@@ -207,23 +207,83 @@ def external_observe_cmd(args) -> int:
     return 0
 
 
+def _strict_offline_json(path: str, *, max_bytes: int) -> dict:
+    """Never deserialize raw authenticated venue responses or secret fields."""
+    source = Path(path)
+    if source.is_symlink() or not source.is_file() or not 1 <= source.stat().st_size <= max_bytes:
+        raise ValueError("offline input must be a bounded unsymlinked regular JSON file")
+    def unique_pairs(items):
+        obj = {}
+        for key, value in items:
+            if key in obj:
+                raise ValueError("duplicate JSON input field")
+            obj[key] = value
+        return obj
+    try:
+        result = json.loads(source.read_text("utf-8"), object_pairs_hook=unique_pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("invalid offline JSON input") from None
+    if type(result) is not dict:
+        raise ValueError("offline input must be a JSON object")
+    return result
+
+
+def probe_budget_stage_cmd(args) -> int:
+    """Stage a fake/manual probe within an immutable offline full-loss budget."""
+    from .services.probe_budget import ProbeBudgetBook
+
+    record = _strict_offline_json(args.path, max_bytes=8192)
+    names = {"probe_id", "kind", "symbol", "worst_case_total_loss", "venue_minimum_quote"}
+    if set(record) != names:
+        raise ValueError("unsafe probe metadata; extra fields not permitted")
+    root = store_root(args)
+    root.mkdir(parents=True, exist_ok=True)
+    with ProbeBudgetBook(
+        root / "probe_budget.db", total_loss_limit=args.total_loss_limit,
+        quote_asset=args.quote_asset,
+    ) as book:
+        report = book.stage(**record)
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def conversion_report_cmd(args) -> int:
+    """Compute synthetic implementation shortfall; never submits orders."""
+    from .domain.conversion import ConversionWorkload
+
+    obj = _strict_offline_json(args.path, max_bytes=65_536)
+    if set(obj) != {"instruction", "fills", "mark_price", "observed_at"}:
+        raise ValueError("synthetic report requires exactly the documented fields")
+    instruction = obj["instruction"]
+    expected = {
+        "instruction_id", "account", "symbol", "side", "requested_base",
+        "arrival_price", "fee_rate", "started_at", "deadline",
+        "max_spread_bps", "quote_budget",
+    }
+    if type(instruction) is not dict or set(instruction) != expected:
+        raise ValueError("unsafe conversion input")
+    fills = obj["fills"]
+    if type(fills) is not list or len(fills) > 500:
+        raise ValueError("fake fill list is unbounded or invalid")
+    workload = ConversionWorkload(**instruction)
+    for row in fills:
+        if type(row) is not dict or set(row) != {
+            "fill_id", "quantity", "price", "quote_fee", "observed_at",
+        }:
+            raise ValueError("unsafe fake fill metadata")
+        workload.observe_fake_fill(**row)
+    print(json.dumps(workload.shortfall(
+        mark_price=obj["mark_price"], observed_at=obj["observed_at"],
+    ), ensure_ascii=False, indent=2))
+    return 0
+
+
 def ticket_preview_cmd(args) -> int:
     """Build an exact-cost OFFLINE preview, never an Executor order command."""
-    from .domain.assisted_ticket import prepare_preview
+    from .domain.assisted_ticket import prepare_preview_from_json
 
-    source = Path(args.path)
-    if source.is_symlink() or not source.is_file() or source.stat().st_size > 8_192:
-        raise ValueError("ticket preview requires a bounded regular JSON file")
-    params = json.loads(source.read_text("utf-8"))
-    allowed = {
-        "symbol", "side", "intent", "quantity", "bid", "ask",
-        "worst_price", "fee_rate", "operator_quote_cap", "available_quote",
-        "available_base", "minimum_quote", "observed_at", "expires_at",
-        "snapshot_seq", "quote_age_ms",
-    }
-    if not isinstance(params, dict) or set(params) != allowed:
-        raise ValueError("ticket preview requires exactly the documented safe fields")
-    print(json.dumps(prepare_preview(**params), ensure_ascii=False, indent=2))
+    params = _strict_offline_json(args.path, max_bytes=8192)
+    print(json.dumps(prepare_preview_from_json(params), ensure_ascii=False, indent=2))
     return 0
 
 
@@ -235,10 +295,7 @@ def venue_fact_import_cmd(args) -> int:
     """
     from .services.venue_facts import VenueFactsJournal, validate_venue_fact
 
-    source = Path(args.path)
-    if source.is_symlink() or not source.is_file() or source.stat().st_size > 16_384:
-        raise ValueError("VenueFacts import must be a regular bounded JSON file")
-    raw = json.loads(source.read_text("utf-8"))
+    raw = _strict_offline_json(args.path, max_bytes=16_384)
     record = validate_venue_fact(raw)  # before creating the journal
     root = store_root(args)
     root.mkdir(parents=True, exist_ok=True)
@@ -375,6 +432,13 @@ def main(argv=None):
     bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
     ticket = sub.add_parser("ticket-preview", help="preview a quote-fee order ticket OFFLINE; no funded approval or POST")
     ticket.add_argument("path", help="safe market snapshot and bounds JSON; never credentials")
+    probe = sub.add_parser("probe-budget-stage", help="stage one manual probe within immutable OFFLINE full-loss budget; cannot place orders")
+    probe.add_argument("--total-loss-limit", required=True, help="total amount operator accepts losing in full; not a venue credential")
+    probe.add_argument("--quote-asset", choices=["USDT", "TMN"], required=True)
+    probe.add_argument("path", help="bounded sanitized manual probe metadata")
+    probe.add_argument("--demo", action="store_true")
+    conversion = sub.add_parser("conversion-report", help="offline Fake Venue conversion and arrival-benchmark shortfall")
+    conversion.add_argument("path", help="synthetic conversion instruction and fake fills JSON")
     vf = sub.add_parser("venue-fact-import", help="import strictly sanitized offline C1 venue validation metadata")
     vf.add_argument("path", help="bounded VenueFacts JSON metadata (never raw API results or credentials)")
     vf.add_argument("--demo", action="store_true", help="record separately from real observations")
@@ -401,7 +465,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:
