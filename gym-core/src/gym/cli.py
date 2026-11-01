@@ -10,7 +10,7 @@ from decimal import Decimal, DecimalException
 from pathlib import Path
 
 from .adapters.store import MarketDB, SegmentWriter
-from .domain.model import InstrumentId, parse_ts
+from .domain.model import InstrumentId, iso, parse_ts
 from .services.collector import Collector, now_utc
 from .services.rules import RuleService
 
@@ -415,6 +415,46 @@ def backup_once_cmd(args) -> int:
     return 0
 
 
+def restore_backup_cmd(args) -> int:
+    """Restore an encrypted offline backup into a new ledger file (B3 second-machine restore).
+
+    Passphrase only from an interactive console. Never overwrites; restored ledger
+    is DISARMED evidence until the Executor reconciles it.
+    """
+    import getpass
+    from .services.encrypted_backup import restore_backup
+
+    if not sys.stdin.isatty():
+        raise ValueError("restore-backup requires an interactive protected console")
+    phrase = getpass.getpass("Offline ledger recovery passphrase: ")
+    try:
+        report = restore_backup(args.bundle, args.destination, passphrase=phrase)
+    finally:
+        del phrase
+    import platform
+    from datetime import datetime, timezone
+    report |= {"restored_at": iso(datetime.now(timezone.utc)), "host": platform.node(), "mode_after": "DISARMED"}
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def update_check_cmd(args) -> int:
+    """Admission check before an Executor update; exit 2 with the reason when unsafe."""
+    from .services.restore_gate import RestoreUnsafe, inspect_ledger
+    from .services.update_gate import assess_update
+
+    try:
+        ledger = inspect_ledger(args.ledger)
+    except RestoreUnsafe as e:
+        ledger = {"error": str(e)}
+    report = assess_update(open_positions=args.open_positions, unknown_orders=args.unknown_orders,
+                           alternative_protection=args.alternative_protection,
+                           accepted_outage=args.accepted_outage,
+                           ledger_integrity_ok="error" not in ledger)
+    print(json.dumps(report | {"ledger": ledger}, ensure_ascii=False, indent=2))
+    return 0
+
+
 def verify_backup_manifest_cmd(args) -> int:
     """Verify ciphertext against an *independently pinned* public key.
 
@@ -476,7 +516,8 @@ async def serve(args):
     offline_reviews = OfflineReviewJournal(store_root(args) / "offline_reviews.db")
     runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24),
                                     store_root(args) / "runs", external_journal=external_journal,
-                                    venue_facts=venue_facts, offline_review_journal=offline_reviews))
+                                    venue_facts=venue_facts, offline_review_journal=offline_reviews,
+                                    chaos_report=Path(args.data) / "chaos" / "report.json"))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
     print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory on http://127.0.0.1:{args.port}/  (Ctrl+C to stop)", flush=True)
@@ -552,6 +593,15 @@ def main(argv=None):
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
     bk.add_argument("destination", help="pre-existing independent-volume backup directory")
     bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
+    rb = sub.add_parser("restore-backup", help="decrypt and verify an offline backup into a NEW ledger file (no overwrite)")
+    rb.add_argument("bundle", help="encrypted .tgbak bundle")
+    rb.add_argument("destination", help="new ledger path; must not exist")
+    uc = sub.add_parser("update-check", help="refuse an unsafe Executor update (verifies ledger; installs nothing)")
+    uc.add_argument("ledger", help="quiescent Executor ledger snapshot to verify")
+    uc.add_argument("--open-positions", type=int, required=True)
+    uc.add_argument("--unknown-orders", type=int, required=True)
+    uc.add_argument("--alternative-protection", action="store_true", help="independently verified venue-side protection exists")
+    uc.add_argument("--accepted-outage", action="store_true", help="operator accepts unprotected positions during the update")
     ticket = sub.add_parser("ticket-preview", help="preview a quote-fee order ticket OFFLINE; no funded approval or POST")
     ticket.add_argument("path", help="safe market snapshot and bounds JSON; never credentials")
     tq = sub.add_parser("ticket-queue-add", help="persist a fully validated DRY_RUN preview; no live permission")
@@ -608,7 +658,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:

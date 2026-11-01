@@ -65,6 +65,9 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
 
 pub mod orders;
 
+/// Seeded B2 Fake Venue chaos suite (pure; no I/O).
+pub mod fake_venue;
+
 pub mod authority;
 
 /// C-series pure preflight vetoes; NEVER a funded authorization token.

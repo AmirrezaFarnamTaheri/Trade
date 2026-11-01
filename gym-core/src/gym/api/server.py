@@ -32,7 +32,8 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
              account_observation: dict | None = None,
              external_journal: ExternalJournal | None = None,
              venue_facts: VenueFactsJournal | None = None,
-             offline_review_journal: OfflineReviewJournal | None = None) -> web.Application:
+             offline_review_journal: OfflineReviewJournal | None = None,
+             chaos_report: Path | None = None) -> web.Application:
     @web.middleware
     async def guard(req: web.Request, handler):
         # DNS-rebinding and CSRF defence: loopback Host only, and a per-run token on every write.
@@ -224,13 +225,29 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             record["evidence"] = economic_report(record)
         return web.json_response(record)
 
+    async def chaos_report_api(req):
+        # B2 Fake Venue chaos-suite report written by `gym-chaos`; read-only evidence, never authority.
+        try:
+            raw = chaos_report.read_bytes() if chaos_report else None
+        except FileNotFoundError:
+            raw = None
+        if raw is None:
+            return web.json_response({"state": "NOT_RUN"}, headers={"Cache-Control": "no-store"})
+        if len(raw) > 4 * 1024 * 1024:
+            return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
+        try:
+            report = json.loads(raw)
+        except ValueError:
+            return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
+        return web.json_response({"state": "REPORTED", **report}, headers={"Cache-Control": "no-store"})
+
     app = web.Application(middlewares=[guard], client_max_size=1024 * 1024)
     app.add_routes([
         web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health),
         web.get("/api/account-observations", account_observations),
         web.get("/api/external-order-events", external_events),
-        web.get("/api/venue-facts", venue_facts_api),
+        web.get("/api/venue-facts", venue_facts_api), web.get("/api/chaos-report", chaos_report_api),
         web.post("/api/dry-run/ticket", dry_run_ticket),
         web.get("/api/automation-safety", automation_safety),
         web.get("/api/offline-ticket-reviews", offline_ticket_reviews),

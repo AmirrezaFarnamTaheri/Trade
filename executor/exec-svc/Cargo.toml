@@ -20,5 +20,9 @@ name = "gym-executor"
 path = "src/main.rs"
 
 [[bin]]
+name = "gym-chaos"
+path = "src/bin/gym-chaos.rs"
+
+[[bin]]
 name = "gym-stopctl"
 path = "src/bin/gym-stopctl.rs"

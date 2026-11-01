@@ -2,9 +2,22 @@
 
 Workstream A's public-only implementation and acceptance evidence were recorded before
 the B and C draft branches. Public market data and paper simulation are not
-proof of funded safety. B1–B3 have progressed in separate draft PRs; they are
-**not certified or merged**. No authenticated Wallex private read, funded
+proof of funded safety. B1–B3 PRs are merged but **not certified**. Authenticated
+read-only Wallex balances/fees/order status work (`gymctl account`); no funded
 submission, venue-side stop order or live recovery drill is demonstrated.
+
+## Workstream B offline exit evidence (2026-11-02)
+
+- **B2:** seeded Fake Venue (`executor/exec-core/src/fake_venue.rs`, 12 fixtures
+  incl. lost ack, reset-after-write, cancel/fill race, partial cancel, delayed and
+  expired unblock, unknown status) drives the real order/reservation model.
+  `cargo run -p exec-svc --bin gym-chaos -- data/chaos/report.json` → 12×500 seeds,
+  0 invariant violations; unresolved cases stay frozen with an incident. Health
+  shows the report. SEC-02 sandboxed-worker probe still needs the installed B1
+  service on the operator host.
+- **B3:** `gymctl restore-backup` (no-overwrite, verified, DISARMED receipt) and
+  `gymctl update-check` (refuses unknown orders, unprotected positions, damaged
+  ledger). Real second-machine restore is an operator run of that command.
 
 ## Workstream C development status (2026-11-01)
 

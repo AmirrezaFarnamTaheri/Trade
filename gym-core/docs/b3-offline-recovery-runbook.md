@@ -34,9 +34,11 @@ variables or chat.
 
 ## Recovery rehearsal on a second Windows machine
 
-- No active Executor or existing destination ledger may be overwritten. Call
-  gym.services.encrypted_backup.restore_backup on a clean target with a
-  securely entered passphrase. Never copy original secrets.dat.
+- No active Executor or existing destination ledger may be overwritten. Run
+  `gymctl restore-backup BUNDLE NEW_LEDGER` from an interactive console; it
+  prompts for the passphrase, refuses an existing destination, verifies AEAD and
+  the event chain, and prints a receipt with head hash, sequence, host,
+  `restored_at` and `mode_after: DISARMED`. Never copy original secrets.dat.
 - Validate AEAD, exact event-chain head, stored bytes, sequence and a separately
   authenticated off-machine manifest. Existing receipt fields report
   trusted_origin=false: the passphrase does not establish provenance.
@@ -50,7 +52,9 @@ variables or chat.
 ## Forward-only update / rollback
 
 assess_migration_staging and assess_update are pure policy checks, not a trusted
-privileged installer. Before applying a signed update, a service-owned release
+privileged installer. `gymctl update-check LEDGER --open-positions N
+--unknown-orders N [--alternative-protection | --accepted-outage]` verifies the
+ledger chain and exits 2 with the refusal reason for an unsafe update. Before applying a signed update, a service-owned release
 controller must verify disarm, zero unknown orders, current ledger integrity,
 independently rehearsed restore and a single forward schema step, with a
 journaled operator authorization. Refuse all failed preconditions. Practice
@@ -58,8 +62,9 @@ rollback only on a copy; never downgrade a live append-only ledger in place.
 Restart DISARMED and reconcile the venue before considering future authority.
 
 **Not yet implemented:** automated privileged off-machine schedule/retention,
-independent manifest attestation, real second-machine restore acceptance,
-signed migration installation and rollback, and B1 service-owned credentials.
+independent manifest attestation, signed migration installation and rollback,
+and B1 service-owned credentials. Second-machine restore acceptance needs the
+operator to run `restore-backup` on the other machine and keep its receipt.
 Do not close B3 or merge for funded trading on synthetic results alone.
 
 
