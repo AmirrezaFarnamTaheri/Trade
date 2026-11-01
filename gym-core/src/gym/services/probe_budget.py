@@ -215,6 +215,8 @@ class ProbeBudgetBook:
             raise ProbeUnsafe("unknown probe kind")
         if type(symbol) is not str or not _SYMBOL.fullmatch(symbol):
             raise ProbeUnsafe("invalid instrument")
+        if not symbol.endswith(self.quote_asset):
+            raise ProbeUnsafe("instrument quote asset differs from probe budget unit")
         loss = _decimal(worst_case_total_loss, "worst_case_total_loss")
         minimum = _decimal(venue_minimum_quote, "venue_minimum_quote")
         if minimum > loss:
