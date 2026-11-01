@@ -183,6 +183,30 @@ def session_cmd(args):
     return 0
 
 
+def external_observe_cmd(args) -> int:
+    """Import only sanitized external observations, never account authority."""
+    from .domain.account_observations import project_account
+    from .services.external_journal import ExternalJournal
+
+    source = Path(args.path)
+    if source.stat().st_size > 1_048_576:
+        raise ValueError("external observation file exceeds 1 MiB")
+    raw = json.loads(source.read_text("utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("external observation must be a JSON object")
+    observed = project_account(
+        raw["account_id"], raw["observed_at"],
+        orders=raw.get("orders"), balances=raw.get("balances"),
+        exposure=raw.get("exposure"),
+    )
+    root = store_root(args)
+    root.mkdir(parents=True, exist_ok=True)
+    with ExternalJournal(root / "external_journal.db") as journal:
+        count = journal.record(observed)
+    print(f"{count} external observations recorded (read-only, unverified; not funded).")
+    return 0
+
+
 def timedelta_ms(ms: int):
     from datetime import timedelta
 
@@ -204,7 +228,10 @@ async def serve(args):
     seg = SegmentWriter(Path(args.data) / ("demo" if args.demo else "live") / "raw", db)
     col = Collector(db, seg, symbols, demo=args.demo, asset_count=args.assets,
                     add_symbols=added, remove_symbols=removed)
-    runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24), store_root(args) / "runs"))
+    from .services.external_journal import ExternalJournal
+    external_journal = ExternalJournal(store_root(args) / "external_journal.db")
+    runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24),
+                                    store_root(args) / "runs", external_journal=external_journal))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
     print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory on http://127.0.0.1:{args.port}/  (Ctrl+C to stop)", flush=True)
@@ -213,6 +240,7 @@ async def serve(args):
     finally:
         seg.close()
         await runner.cleanup()
+        external_journal.conn.close()
 
 
 def main(argv=None):
@@ -273,6 +301,9 @@ def main(argv=None):
     candles.add_argument("--fetch", action="store_true", help="fetch venue candles for the range first")
     candles.add_argument("--record", action="store_true", help="write CROSS_FEED_DIVERGENCE quality events")
     candles.add_argument("--json", action="store_true")
+    ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
+    ext.add_argument("path", help="local sanitized observation JSON file; no API keys")
+    ext.add_argument("--demo", action="store_true")
     ev = sub.add_parser("evidence", help="economic report and optional immutable claim/capital decision (never arms trading)")
     ev.add_argument("run_id")
     ev.add_argument("--demo", action="store_true")
@@ -293,7 +324,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:

@@ -1,0 +1,78 @@
+name: Validate
+on:
+  push:
+    branches: [master, "feat/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test Rust workspace
+        run: cargo test --locked --workspace --all-targets
+      - name: Check Windows bootstrap script syntax (no install)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($file in @('scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Get-OperatorLogonSid.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1', 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1', 'scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -ne 0) { throw "$file syntax error: $($errors | Out-String)" }
+          }
+      - name: Verify OS-issued operator logon SID without installing service
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sid = & ./scripts/windows/Get-OperatorLogonSid.ps1
+          if ($sid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') { throw 'Invalid TokenLogonSid result.' }
+          Write-Output "PASS: Windows TokenLogonSid resolved for current process."
+
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run pytest -q
+
+  windows-vm-smoke:
+    name: Disposable Windows SCM + access-control integration
+    # Never install services while processing untrusted pull_request code.
+    if: github.event_name == 'push' && github.repository == 'AmirrezaFarnamTaheri/Trade'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build read-only service using pinned dependencies
+        run: cargo build --release --locked -p exec-svc --bin gym-executor
+      - name: Build stop-only client from pinned dependencies
+        run: cargo build --release --locked -p exec-svc --bin gym-stopctl
+      - name: Verify service identity, DACL and two non-admin OS principals
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1 -BinaryPath ./target/release/gym-executor.exe

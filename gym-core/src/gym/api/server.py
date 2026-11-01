@@ -8,12 +8,14 @@ from pathlib import Path
 from aiohttp import web
 
 from ..adapters.run_store import list_runs, load_run
+from ..domain.account_observations import project_account
 from ..domain.bars import qualified
 from ..domain.model import TOMAN, InstrumentId, iso, parse_ts
 from ..domain.rules import is_closed
 from ..services.collector import Collector, now_utc
 from ..services.rules import RuleService
 from ..services.reports import economic_report
+from ..services.external_journal import ExternalJournal
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -23,7 +25,9 @@ def s(x):
     return None if x is None else str(x)
 
 
-def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None) -> web.Application:
+def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None,
+             account_observation: dict | None = None,
+             external_journal: ExternalJournal | None = None) -> web.Application:
     @web.middleware
     async def guard(req: web.Request, handler):
         # DNS-rebinding and CSRF defence: loopback Host only, and a per-run token on every write.
@@ -110,6 +114,40 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             "quality": [dict(zip(("ts", "instrument", "flag", "detail"), r)) for r in col.db.quality(30)],
         })
 
+    async def account_observations(req):
+        # Private local portfolio read, not a public market endpoint. The
+        # browser already carries the per-run token on GET requests.
+        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
+            return web.json_response({"error": "read-only account token required"}, status=403)
+        if account_observation is None:
+            safe = {"state": "NOT_CONFIGURED", "source": "VENUE_EXTERNAL",
+                    "authority": "READ_ONLY", "account_id": None, "observed_at": None,
+                    "balances": [], "orders": [], "exposure": []}
+        else:
+            # Never reflect untrusted raw data or secret-like unknown fields.
+            try:
+                safe = project_account(
+                    account_observation["account_id"], account_observation["observed_at"],
+                    balances=account_observation.get("balances"),
+                    orders=account_observation.get("orders"),
+                    exposure=account_observation.get("exposure"),
+                )
+            except (KeyError, ValueError, TypeError):
+                return web.json_response(
+                    {"state": "ERROR", "authority": "READ_ONLY", "error": "invalid account observation"},
+                    status=503, headers={"Cache-Control": "no-store"})
+        return web.json_response(safe, headers={"Cache-Control": "no-store"})
+
+    async def external_events(req):
+        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
+            return web.json_response({"error": "external Journal token required"}, status=403)
+        if external_journal is None:
+            result = {"state": "NOT_CONFIGURED", "authority": "READ_ONLY", "events": []}
+        else:
+            result = {"state": "OBSERVED", "authority": "READ_ONLY",
+                      "events": external_journal.events()}
+        return web.json_response(result, headers={"Cache-Control": "no-store"})
+
     async def run_list(_):
         return web.json_response([] if runs is None else list_runs(runs))
 
@@ -128,6 +166,8 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
     app.add_routes([
         web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health),
+        web.get("/api/account-observations", account_observations),
+        web.get("/api/external-order-events", external_events),
         web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
