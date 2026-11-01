@@ -99,3 +99,15 @@ def test_review_queue_rejects_mutated_tickets_and_expired_reviews():
         queue.review(ident, "ACKNOWLEDGE", at="2026-11-01T08:00:30Z")
     # A genuine rejection remains offline and does not create a venue order.
     assert queue.review(ident, "REJECT", at="2026-11-01T08:00:15Z")["state"] == "REJECTED"
+
+def test_decimal_multiplication_never_silently_rounds_extreme_precisions():
+    ticket = prepare_preview(**valid(
+        quantity="1.000000000000000001",
+        bid="1", ask="1.000000000000000001",
+        worst_price="1.000000000000000001",
+        fee_rate="0.000000000000000001",
+        operator_quote_cap="2", available_quote="2", minimum_quote="1",
+    ))
+    assert ticket["worst_gross_quote"] == "1.000000000000000002000000000000000001"
+    assert ticket["worst_fee_quote"] == "0.000000000000000001000000000000000002000000000000000001"
+    assert ticket["worst_total_quote"] == "1.000000000000000003000000000000000003000000000000000001"
