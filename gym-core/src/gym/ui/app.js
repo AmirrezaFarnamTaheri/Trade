@@ -1,6 +1,6 @@
 const { token: TOKEN, demo: DEMO } = JSON.parse(document.getElementById("gym-config").textContent);
 const T = {
-  en: { externalHistory:"External order observations (unverified)", externalEmpty:"No externally observed orders", externalReadError:"External Journal unavailable", accountRead:"Venue account (read-only)", accountNotConfigured:"Not configured · no account or trading credentials loaded", accountError:"Observation unavailable", accountObserved:"Observed (unverified; not managed)", accountBalance:"Balances (venue value / locked; not spendable)", accountOrders:"External/manual orders (not settled)", accountExposure:"External exposure (not managed)", title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health", journal:"Research / Journal", chooseRun:"Paper run", lastDecisions:"Last 100 decisions (expand for marks and order)", evidenceTitle:"Economic evidence (no capital authority)",
+  en: { venueFactsTitle:"Venue capability evidence (read-only)", venueFactsEmpty:"No venue evidence yet; trading remains disabled", venueFactsInfo:"Source unverified. No order method or automated trading is certified.", venueFactsError:"Venue validation unavailable", venueFactsUnverified:"unverified origin", externalHistory:"External order observations (unverified)", externalEmpty:"No externally observed orders", externalReadError:"External Journal unavailable", accountRead:"Venue account (read-only)", accountNotConfigured:"Not configured · no account or trading credentials loaded", accountError:"Observation unavailable", accountObserved:"Observed (unverified; not managed)", accountBalance:"Balances (venue value / locked; not spendable)", accountOrders:"External/manual orders (not settled)", accountExposure:"External exposure (not managed)", title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health", journal:"Research / Journal", chooseRun:"Paper run", lastDecisions:"Last 100 decisions (expand for marks and order)", evidenceTitle:"Economic evidence (no capital authority)",
         pair:"Pair", bid:"Bid", ask:"Ask", spread:"Spread (bps)", last:"Last trade", quality:"Quality", when:"When can I act?",
         mknote:"Prices are the venue's own quote units (IRT legs in toman, unit epoch 1). Observatory mode: no orders are ever sent.",
         entry:"Buy (entry)", exit:"Sell (exit)", open:"open", blocked:"blocked", until:"until", opens:"opens", closes:"closes", noChange:"no change in 7 days",
@@ -9,7 +9,7 @@ const T = {
         rule:"Rule", cls:"Class / status / source", state:"State", blocksNow:"What does this block right now?", window:"Effective",
         disable:"Disable", importTitle:"Import rules", importHelp:"Paste a JSON list of rules. Malformed rules are quarantined, never applied.",
         import:"Import", nothing:"nothing", version:"rule set version", stale:"stale", none:"—" },
-  fa: { externalHistory:"مشاهدات سفارش‌های خارجی (تأییدنشده)", externalEmpty:"هیچ سفارش خارجی مشاهده نشده", externalReadError:"دفتر مشاهدات خارجی در دسترس نیست", accountRead:"حساب صرافی (فقط خواندنی)", accountNotConfigured:"پیکربندی نشده · هیچ کلید یا مجوز معامله بارگذاری نشده", accountError:"مشاهده حساب در دسترس نیست", accountObserved:"مشاهده‌شده (تأییدنشده؛ مدیریت‌نشده)", accountBalance:"موجودی (مقدار/بلوکه؛ غیرقابل خرج)", accountOrders:"سفارش‌های دستی/خارجی (تسویه تأییدنشده)", accountExposure:"تعهدات خارجی (خارج از مدیریت)", title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت", journal:"پژوهش / دفتر وقایع", chooseRun:"اجرای آزمایشی", lastDecisions:"۱۰۰ تصمیم آخر (برای مشاهدهٔ سفارش و نتایج باز کنید)", evidenceTitle:"شواهد اقتصادی (بدون مجوز سرمایه)",
+  fa: { venueFactsTitle:"شواهد قابلیت‌های صرافی (فقط خواندنی)", venueFactsEmpty:"هنوز شواهد صرافی ثبت نشده است؛ معاملات غیرفعال است", venueFactsInfo:"منبع تأییدنشده است. هیچ روش سفارش یا معاملهٔ خودکاری مجاز نشده است.", venueFactsError:"اعتبارسنجی صرافی در دسترس نیست", venueFactsUnverified:"منبع تأییدنشده", externalHistory:"مشاهدات سفارش‌های خارجی (تأییدنشده)", externalEmpty:"هیچ سفارش خارجی مشاهده نشده", externalReadError:"دفتر مشاهدات خارجی در دسترس نیست", accountRead:"حساب صرافی (فقط خواندنی)", accountNotConfigured:"پیکربندی نشده · هیچ کلید یا مجوز معامله بارگذاری نشده", accountError:"مشاهده حساب در دسترس نیست", accountObserved:"مشاهده‌شده (تأییدنشده؛ مدیریت‌نشده)", accountBalance:"موجودی (مقدار/بلوکه؛ غیرقابل خرج)", accountOrders:"سفارش‌های دستی/خارجی (تسویه تأییدنشده)", accountExposure:"تعهدات خارجی (خارج از مدیریت)", title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت", journal:"پژوهش / دفتر وقایع", chooseRun:"اجرای آزمایشی", lastDecisions:"۱۰۰ تصمیم آخر (برای مشاهدهٔ سفارش و نتایج باز کنید)", evidenceTitle:"شواهد اقتصادی (بدون مجوز سرمایه)",
         pair:"جفت‌ارز", bid:"خرید", ask:"فروش", spread:"اسپرد (bps)", last:"آخرین معامله", quality:"کیفیت", when:"کی می‌توانم معامله کنم؟",
         mknote:"قیمت‌ها به واحد خود صرافی است (بازارهای ریالی به تومان). حالت رصد: هیچ سفارشی ارسال نمی‌شود.",
         entry:"خرید (ورود)", exit:"فروش (خروج)", open:"باز", blocked:"مسدود", until:"تا", opens:"باز می‌شود", closes:"بسته می‌شود", noChange:"بدون تغییر تا ۷ روز",
@@ -78,7 +78,25 @@ async function rules() {
     + d.quarantined.map(q => `<tr><td><b>${esc(q.id)}</b></td><td colspan="5" class="SELL">QUARANTINED: ${esc(q.error)}</td></tr>`).join("");
 }
 
-async function health() { $("hl").textContent = JSON.stringify(await api("/api/health"), null, 2); }
+async function health() {
+  $("hl").textContent = JSON.stringify(await api("/api/health"), null, 2);
+  const out = $("venue-facts");
+  try {
+    const report = await api("/api/venue-facts");
+    if (report.state === "NOT_CONFIGURED") {
+      out.textContent = t("venueFactsEmpty");
+      return;
+    }
+    const capabilities = Object.entries(report.capabilities || {}).map(([name, value]) =>
+      name + ": " + value.state + (value.state === "NOT_CERTIFIED" ? " · " + t("venueFactsUnverified") : ""));
+    const observations = (report.facts || []).slice(0, 20).map(f =>
+      f.observed_at + " · " + f.kind + " · " + f.state + " · " + f.source + " · " + f.evidence_id);
+    out.textContent = t("venueFactsInfo") + "\\n" + capabilities.join("\\n")
+      + "\\n\\n" + observations.join("\\n");
+  } catch (_) {
+    out.textContent = t("venueFactsError");
+  }
+}
 
 let loadedRun = "";
 async function accountJournal() {
