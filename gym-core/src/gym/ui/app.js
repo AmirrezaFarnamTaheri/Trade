@@ -91,8 +91,8 @@ async function health() {
       name + ": " + value.state + (value.state === "NOT_CERTIFIED" ? " · " + t("venueFactsUnverified") : ""));
     const observations = (report.facts || []).slice(0, 20).map(f =>
       f.observed_at + " · " + f.kind + " · " + f.state + " · " + f.source + " · " + f.evidence_id);
-    out.textContent = t("venueFactsInfo") + "\\n" + capabilities.join("\\n")
-      + "\\n\\n" + observations.join("\\n");
+    out.textContent = t("venueFactsInfo") + "\n" + capabilities.join("\n")
+      + "\n\n" + observations.join("\n");
   } catch (_) {
     out.textContent = t("venueFactsError");
   }
