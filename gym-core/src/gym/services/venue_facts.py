@@ -103,6 +103,11 @@ def _validate(value: dict) -> dict:
     return {key: value[key] for key in _COLUMNS}
 
 
+def validate_venue_fact(value: dict) -> dict:
+    """Public validation for an offline, allowlisted C1 evidence envelope."""
+    return _validate(value)
+
+
 def _payload(record: dict) -> bytes:
     return json.dumps(
         record, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
