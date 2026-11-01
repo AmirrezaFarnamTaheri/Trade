@@ -22,7 +22,7 @@
 | Area | Method and path | Auth | TradingGYM use |
 | --- | --- | --- | --- |
 | Markets | `GET /hector/web/v1/markets` | Public / no key | Instrument catalog: `is_spot`, `is_otc`, `is_margin`, `is_tmn_based`, `is_usdt_based`, `is_zero_fee`, precision, flags |
-| Depth | `GET /v1/depth?symbol=`; `GET /depth/all` | Public / no key | Book snapshots; cost model |
+| Depth | `GET /v1/depth?symbol=`; bulk `GET /v2/depth/all` | Public / no key | Book snapshots; cost model. Probe 2 Nov 2026: documented `/depth/all` returned nginx 503; `/v2/depth/all` returned all 373 spot books (~1 MB, ~2.7 s). Quantities are JSON numbers, so parse with exact decimals |
 | Trades | `GET /v1/trades?symbol=` | Public / no key | Recent trade tape, side and timestamp; not a historical archive |
 | Candles | `GET /v1/udf/history?symbol&resolution&from&to` | Public / no key | Historical OHLCV. Current narrative resolutions: `1`, `15`, `60`, `240`, `480`, `720`, `1D`, `2D`, `3D`; generated material remains inconsistent |
 | Fair prices | `GET /v1/all-fairPrice` | Public / no key | Venue reference midpoint for all markets; reference/mark input, not executable price |
@@ -33,6 +33,8 @@
 | Trade-credit lifecycle | Activate `POST /v1/prop/user/packages`; fund `POST /sub-accounts/transfers`; renew `POST .../enable-renew`; close `DELETE /v1/prop/user/packages` | Key + sub-account context where documented | Distinct T2-only Executor commands; never strategy-authorized |
 | Margin | `/margin-trade/v1/` positions (open, close, collateral, SL/TP, profit), orders, public markets, dry-run, loan calculator, long/short ratio, user levels, PnL | Key (public for markets, dry-run, ratio) | No margin write endpoint is allowlisted; authenticated GETs may be used only for `ExternalExposure`, reconciliation and warnings, plus public research scenarios |
 | Money | IBAN add/list, card list, toman withdrawal, crypto wallet address | Key (withdraw permission for withdrawal) | Never in the Executor |
+
+**Official MCP server (`POST https://api.wallex.ir/mcp`, probed 2 Nov 2026).** It is JSON-RPC MCP `2025-03-26`, server `api.wallex.ir` 1.0.0, and offers tools only. It has 52 tools, and the list is the same with or without a key. Every tool wraps a REST endpoint listed above, so it adds no capability, data or rate-limit headroom. Write tools are marked only by the text "STATE-CHANGING" in their description; they carry no MCP annotations and include spot orders, margin positions, OTC easy-trade, sub-account transfers and IBAN registration. There is no withdrawal tool. TradingGYM does not use it: the Executor keeps its exact REST allowlist, and models never get a venue-connected tool. It is useful only as a check on which endpoints are current, for example to find the `/v2/depth/all` path.
 
 ## 3. Facts that answer old open questions
 
