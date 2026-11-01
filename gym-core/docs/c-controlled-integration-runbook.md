@@ -80,6 +80,12 @@ operator-controlled deployment evidence.
 - `OfflineReviewJournal` persistently records canonical previews and
   append-only `ACKNOWLEDGE`/`REJECT` events. ACKNOWLEDGE is never T1
   authorization. The review journal cannot submit or create an order ID.
+  Use `gymctl --data data ticket-queue-add saved-preview.json` to register a
+  completed `ticket-preview` output, and `gymctl --data data
+  ticket-queue-review PREVIEW_SHA256 ACKNOWLEDGE --at 2026-11-01T08:00:10Z`
+  to record an in-window **offline-only** acknowledgment. The token-guarded
+  `GET /api/offline-ticket-reviews` publishes this in Journal in both
+  supported languages. There is no `APPROVE_LIVE` operation.
 - `gymctl conversion-report fake-conversion.json` computes a synthetic
   implementation shortfall. Fields must be exactly `instruction` (typed
   spot conversion request), `fills` (Fake Venue fill IDs, quantities,
