@@ -61,3 +61,33 @@ Restart DISARMED and reconcile the venue before considering future authority.
 independent manifest attestation, real second-machine restore acceptance,
 signed migration installation and rollback, and B1 service-owned credentials.
 Do not close B3 or merge for funded trading on synthetic results alone.
+
+
+## Detached manifest and independent verification
+
+After `backup-once` has returned a locally verified bundle, an operator may
+call `gym.services.backup_manifest.prepare_backup_manifest(bundle, receipt)`
+to obtain canonical manifest bytes. An **independent offline signer** whose
+Ed25519 private key never enters TradingGYM may sign those bytes. Keep the
+manifest and its raw 64-byte detached signature alongside the encrypted bundle;
+pin the signer's 32-byte Ed25519 **public** key separately on the receiving
+machine through a trusted, out-of-band process.
+
+On the receiving machine, before any attempt to decrypt or restore:
+
+~~~shell
+uv run gymctl verify-backup-manifest BUNDLE.tgbak MANIFEST.json SIGNATURE.sig PINNED-PUBLIC-KEY.bin
+~~~
+
+The command checks the detached signature, exact ciphertext SHA-256, filename,
+size and enclosed ledger chain-head metadata without reading any private key
+or passphrase. Recheck the resulting chain head against the subsequent
+authenticated `restore_backup` result. A successful signature only proves
+the archive matches the independently trusted signing key: it is **not proof**
+of delivery to a second machine, correct remote retention, service-owned
+credentials, safe migration, or live trading authority. The verifier always
+reports `off_machine_verified: false` and `install_authorized: false`.
+
+A human-controlled attestation of independent storage, key custody, elapsed
+restore time, release version, failed negative checks and identity of the real
+Windows operator/worker principals remains mandatory before closing B3.

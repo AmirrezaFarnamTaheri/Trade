@@ -251,6 +251,38 @@ def backup_once_cmd(args) -> int:
     return 0
 
 
+def verify_backup_manifest_cmd(args) -> int:
+    """Verify ciphertext against an *independently pinned* public key.
+
+    The public key is NOT fetched from the backup, manifest or network.
+    This operation does not restore a ledger or establish off-machine custody.
+    """
+    from .services import backup_manifest
+
+    def read_regular(path_str: str, limit: int, label: str, exact: int | None = None) -> bytes:
+        source = Path(path_str)
+        if source.is_symlink() or not source.is_file():
+            raise ValueError(f"{label} must be a regular unsymlinked file")
+        if not 1 <= source.stat().st_size <= limit:
+            raise ValueError(f"{label} exceeds size limit")
+        # These bounded inputs are signatures and public metadata, never
+        # private signing keys or recovery passphrases.
+        raw = source.read_bytes()
+        if len(raw) > limit or (exact is not None and len(raw) != exact):
+            raise ValueError(f"{label} has an invalid length")
+        return raw
+
+    manifest = read_regular(args.manifest, 4096, "manifest")
+    signature = read_regular(args.signature, 64, "signature", 64)
+    public_key = read_regular(args.pinned_public_key, 32, "pinned public key", 32)
+    report = backup_manifest.verify_signed_backup(
+        Path(args.bundle), manifest_bytes=manifest, signature=signature,
+        trusted_public_key=public_key,
+    )
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
 def timedelta_ms(ms: int):
     from datetime import timedelta
 
@@ -356,6 +388,12 @@ def main(argv=None):
     vf = sub.add_parser("venue-fact-import", help="import strictly sanitized offline C1 venue validation metadata")
     vf.add_argument("path", help="bounded VenueFacts JSON metadata (never raw API results or credentials)")
     vf.add_argument("--demo", action="store_true", help="record separately from real observations")
+    bv = sub.add_parser("verify-backup-manifest",
+                        help="verify detached signed archive against an operator-pinned Ed25519 public key")
+    bv.add_argument("bundle", help="encrypted ciphertext .tgbak, never secrets.dat")
+    bv.add_argument("manifest", help="canonical detached manifest JSON")
+    bv.add_argument("signature", help="detached raw 64-byte Ed25519 signature")
+    bv.add_argument("pinned_public_key", help="trusted out-of-band raw 32-byte Ed25519 public key")
     ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
     ext.add_argument("path", help="local sanitized observation JSON file; no API keys")
     ext.add_argument("--demo", action="store_true")
@@ -379,7 +417,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"venue-fact-import": venue_fact_import_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:

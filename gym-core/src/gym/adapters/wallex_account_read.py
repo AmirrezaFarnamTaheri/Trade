@@ -52,7 +52,24 @@ class WallexAccountReader:
                     if len(data) + len(chunk) > self._limit:
                         raise ReadUncertain("venue read exceeded response size limit")
                     data.extend(chunk)
-                return json.loads(data.decode("utf-8"))
+                # Duplicate keys can overwrite a failure indicator or an
+                # identity, so do not accept Python's last-key-wins default.
+                def unique_fields(pairs):
+                    observed = {}
+                    for key, value in pairs:
+                        if key in observed:
+                            raise ReadUncertain("duplicate JSON response key")
+                        observed[key] = value
+                    return observed
+
+                def forbidden_constant(_value):
+                    raise ReadUncertain("nonfinite venue JSON number")
+
+                return json.loads(
+                    data.decode("utf-8"),
+                    object_pairs_hook=unique_fields,
+                    parse_constant=forbidden_constant,
+                )
         except (aiohttp.ClientError, asyncio.TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ReadUncertain("venue read failed or returned unreadable data") from None
 
@@ -90,3 +107,25 @@ class WallexAccountReader:
         # Never return unknown fields or secrets, even on a nominal success.
         return {"client_id": client_id, "status": status, "filled": filled,
                 "symbol": symbol.upper() if symbol is not None else None}
+
+    async def manual_order_evidence(self, client_id: str) -> dict:
+        """Fetch one explicit, ID-echoed order and its documented fill fees.
+
+        This still uses an injected *read-only* session and is not the
+        service-owned T2 credential path. No funding, settlement or order
+        absence can be inferred from a single GET.
+        """
+        from .wallex_order_evidence import (
+            InvalidOrderEvidence,
+            parse_manual_order_evidence,
+        )
+
+        if not isinstance(client_id, str) or not _ID.fullmatch(client_id):
+            raise ValueError("unsafe manual order ID")
+        payload = await self._get("/v1/account/orders/" + client_id)
+        try:
+            return parse_manual_order_evidence(payload, client_id)
+        except InvalidOrderEvidence as exc:
+            # Exception types and messages are allowlisted static strings;
+            # the untrusted venue body is never included.
+            raise ReadUncertain(str(exc)) from None

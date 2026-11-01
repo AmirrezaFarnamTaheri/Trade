@@ -313,7 +313,7 @@ struct LocalReservation {
     snapshot_seq: u64,
     released: bool,
 }
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ReservationBook {
     entries: Vec<LocalReservation>,
     newest_sequences: Vec<(String, String, u64)>,
