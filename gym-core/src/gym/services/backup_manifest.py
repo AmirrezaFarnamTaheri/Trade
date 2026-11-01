@@ -185,6 +185,10 @@ def verify_signed_backup(
     except (InvalidSignature, ValueError):
         raise BackupManifestUnsafe("signed backup signature could not be verified") from None
     bundle = Path(bundle_path)
+    # Deny links before name matching so a malicious alias is not treated as
+    # merely a different filename; never follow a substituted source.
+    if bundle.is_symlink() or not bundle.is_file():
+        raise BackupManifestUnsafe("signed bundle must be an unlinked regular file")
     if bundle.name != record["bundle_name"]:
         raise BackupManifestUnsafe("signed bundle name mismatch")
     digest, size = _hash_bundle(bundle)
