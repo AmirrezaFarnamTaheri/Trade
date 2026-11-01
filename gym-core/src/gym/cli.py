@@ -207,6 +207,26 @@ def external_observe_cmd(args) -> int:
     return 0
 
 
+def ticket_preview_cmd(args) -> int:
+    """Build an exact-cost OFFLINE preview, never an Executor order command."""
+    from .domain.assisted_ticket import prepare_preview
+
+    source = Path(args.path)
+    if source.is_symlink() or not source.is_file() or source.stat().st_size > 8_192:
+        raise ValueError("ticket preview requires a bounded regular JSON file")
+    params = json.loads(source.read_text("utf-8"))
+    allowed = {
+        "symbol", "side", "intent", "quantity", "bid", "ask",
+        "worst_price", "fee_rate", "operator_quote_cap", "available_quote",
+        "available_base", "minimum_quote", "observed_at", "expires_at",
+        "snapshot_seq", "quote_age_ms",
+    }
+    if not isinstance(params, dict) or set(params) != allowed:
+        raise ValueError("ticket preview requires exactly the documented safe fields")
+    print(json.dumps(prepare_preview(**params), ensure_ascii=False, indent=2))
+    return 0
+
+
 def venue_fact_import_cmd(args) -> int:
     """Store strict, sanitized C1 evidence metadata; never accept raw API JSON.
 
@@ -385,6 +405,8 @@ def main(argv=None):
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
     bk.add_argument("destination", help="pre-existing independent-volume backup directory")
     bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
+    ticket = sub.add_parser("ticket-preview", help="preview a quote-fee order ticket OFFLINE; no funded approval or POST")
+    ticket.add_argument("path", help="safe market snapshot and bounds JSON; never credentials")
     vf = sub.add_parser("venue-fact-import", help="import strictly sanitized offline C1 venue validation metadata")
     vf.add_argument("path", help="bounded VenueFacts JSON metadata (never raw API results or credentials)")
     vf.add_argument("--demo", action="store_true", help="record separately from real observations")
@@ -417,7 +439,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:
