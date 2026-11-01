@@ -101,3 +101,11 @@ def test_probe_budget_requires_valid_known_method_and_does_not_accept_keys(tmp_p
         assert not hasattr(book, "post")
         assert not hasattr(book, "submit")
         assert book.proposals() == []
+
+def test_probe_budget_never_mixes_quote_assets_or_currency_units(tmp_path):
+    with ProbeBudgetBook(tmp_path/"budget.db", total_loss_limit="2", quote_asset="USDT") as book:
+        with pytest.raises(ProbeUnsafe, match="quote asset"):
+            book.stage(probe_id="wrong-unit", kind="CLIENT_ID_ECHO",
+                       symbol="BTCTMN", worst_case_total_loss="1",
+                       venue_minimum_quote="0.5")
+        assert book.remaining() == "2"
