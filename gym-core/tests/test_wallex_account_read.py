@@ -91,3 +91,18 @@ def test_no_funded_operation_api_is_exposed():
     assert not any(hasattr(client, name) for name in ("post", "delete", "cancel_order", "place_order", "transfer"))
     with pytest.raises(ValueError):
         WallexAccountReader(Session(), base_url="http://evil.example")
+
+def test_c1_read_only_fee_probe_preserves_unknown_contract_and_redacts_private_fields():
+    session = Session(data={"success": True, "result": {
+        "makerFee": "0.001", "takerFee": "0.002",
+        "api_key": "SECRET-MUST-NOT-ESCAPE"}})
+    result = run(WallexAccountReader(session).fee_observation())
+    assert result == {
+        "resource": "FEES", "state": "UNVERIFIED_CONTRACT",
+        "method_certified": False, "funded_authority": False,
+    }
+    assert "SECRET" not in str(result)
+    assert session.paths[0][0].endswith("/v1/account/fee")
+    for status in (301, 401, 404, 429, 500):
+        with pytest.raises(ReadUncertain):
+            run(WallexAccountReader(Session(status=status)).fee_observation())

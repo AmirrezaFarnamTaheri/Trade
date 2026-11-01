@@ -77,6 +77,26 @@ class WallexAccountReader:
         # The venue's shape is validated before any value becomes visible.
         return parse_wallex_balances(await self._get("/v1/account/balances"))
 
+    async def fee_observation(self) -> dict[str, object]:
+        """Read but never *assume* the undocumented account-specific fee shape.
+
+        A successful GET confirms connectivity, not the rate or fee asset.
+        A separate dated VenueFacts/official-contract probe is needed before
+        any live price envelope may rely on account-specific fees.
+        """
+        payload = await self._get("/v1/account/fee")
+        if not isinstance(payload, dict) or payload.get("success") is not True:
+            raise ReadUncertain("unconfirmed account fee response")
+        if not isinstance(payload.get("result"), dict):
+            raise ReadUncertain("unsupported private fee contract")
+        # Deliberately never return raw fee fields or credential-like extras.
+        return {
+            "resource": "FEES",
+            "state": "UNVERIFIED_CONTRACT",
+            "method_certified": False,
+            "funded_authority": False,
+        }
+
     async def manual_order(self, client_id: str) -> dict[str, str | None]:
         if not isinstance(client_id, str) or not _ID.fullmatch(client_id):
             raise ValueError("unsafe manual order ID")

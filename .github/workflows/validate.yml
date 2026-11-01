@@ -4,6 +4,10 @@ on:
     branches: [master, "feat/**"]
   pull_request:
 
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

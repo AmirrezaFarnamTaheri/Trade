@@ -66,3 +66,6 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
 pub mod orders;
 
 pub mod authority;
+
+/// C-series pure preflight vetoes; NEVER a funded authorization token.
+pub mod c_admission;

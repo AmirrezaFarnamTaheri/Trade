@@ -13,6 +13,7 @@
   <span class="flag" id="fx" hidden></span>
   <nav class="row" role="tablist">
     <button data-view="markets" data-t="markets" aria-current="page"></button>
+    <button data-view="operate" data-t="operate"></button>
     <button data-view="rules" data-t="rules"></button>
     <button data-view="health" data-t="health"></button>
     <button data-view="journal" data-t="journal"></button>
@@ -22,6 +23,19 @@
   <button class="btn" id="lang" aria-label="Language">فارسی</button>
 </header>
 <main>
+  <section id="v-operate" hidden>
+    <h2 data-t="operate"></h2>
+    <p class="mut" data-t="operateWarning"></p>
+    <h3 data-t="protectionHeading"></h3>
+    <pre id="protection-state" role="status" aria-live="polite"></pre>
+    <h3 data-t="offlineTicketTitle"></h3>
+    <label for="offline-ticket" data-t="offlineTicketHelp"></label>
+    <textarea id="offline-ticket" spellcheck="false" rows="8"></textarea>
+    <div class="row">
+      <button class="btn" id="preview-ticket" data-t="previewOffline"></button>
+    </div>
+    <pre id="ticket-output" role="status" aria-live="polite"></pre>
+  </section>
   <section id="v-markets">
     <table aria-describedby="mk-note">
       <thead><tr><th data-t="pair"></th><th data-t="bid"></th><th data-t="ask"></th><th data-t="spread"></th>
@@ -53,6 +67,8 @@
     <pre id="account-observations" aria-live="polite"></pre>
     <h3 data-t="externalHistory"></h3>
     <pre id="external-order-events" aria-live="polite"></pre>
+    <h3 data-t="offlineReviewTitle"></h3>
+    <pre id="offline-review-events" aria-live="polite"></pre>
     <label for="run-select" data-t="chooseRun"></label> <select id="run-select"></select>
     <p id="run-summary" role="status"></p>
     <svg id="equity" viewBox="0 0 800 180" role="img" aria-label="Paper equity in quote currency" style="width:100%;max-height:200px"></svg>

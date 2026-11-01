@@ -1,6 +1,6 @@
 const { token: TOKEN, demo: DEMO } = JSON.parse(document.getElementById("gym-config").textContent);
 const T = {
-  en: { venueFactsTitle:"Venue capability evidence (read-only)", venueFactsEmpty:"No venue evidence yet; trading remains disabled", venueFactsInfo:"Source unverified. No order method or automated trading is certified.", venueFactsError:"Venue validation unavailable", venueFactsUnverified:"unverified origin", externalHistory:"External order observations (unverified)", externalEmpty:"No externally observed orders", externalReadError:"External Journal unavailable", accountRead:"Venue account (read-only)", accountNotConfigured:"Not configured · no account or trading credentials loaded", accountError:"Observation unavailable", accountObserved:"Observed (unverified; not managed)", accountBalance:"Balances (venue value / locked; not spendable)", accountOrders:"External/manual orders (not settled)", accountExposure:"External exposure (not managed)", title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health", journal:"Research / Journal", chooseRun:"Paper run", lastDecisions:"Last 100 decisions (expand for marks and order)", evidenceTitle:"Economic evidence (no capital authority)",
+  en: { offlineReviewTitle:"Offline ticket reviews (not funded approvals)", offlineReviewEmpty:"No offline ticket decisions recorded", offlineReviewReadError:"Offline review Journal unavailable", operate:"Operate (offline only)", operateWarning:"DISARMED. No real order submission, certified venue stops, or Autopilot. Estimates are not live account authority.", protectionHeading:"Protection and authority status", offlineTicketTitle:"Dry-run order ticket", offlineTicketHelp:"Paste a JSON market snapshot and bounded order request. This only previews fees and limits; it never submits a venue order.", previewOffline:"Preview offline", offlineTicketError:"Invalid or unsafe offline ticket", offlineTicketResult:"OFFLINE preview only; order_submitted=false", venueFactsTitle:"Venue capability evidence (read-only)", venueFactsEmpty:"No venue evidence yet; trading remains disabled", venueFactsInfo:"Source unverified. No order method or automated trading is certified.", venueFactsError:"Venue validation unavailable", venueFactsUnverified:"unverified origin", externalHistory:"External order observations (unverified)", externalEmpty:"No externally observed orders", externalReadError:"External Journal unavailable", accountRead:"Venue account (read-only)", accountNotConfigured:"Not configured · no account or trading credentials loaded", accountError:"Observation unavailable", accountObserved:"Observed (unverified; not managed)", accountBalance:"Balances (venue value / locked; not spendable)", accountOrders:"External/manual orders (not settled)", accountExposure:"External exposure (not managed)", title:"TradingGYM · Observatory", markets:"Markets", rules:"Settings → Venue rules", health:"Health", journal:"Research / Journal", chooseRun:"Paper run", lastDecisions:"Last 100 decisions (expand for marks and order)", evidenceTitle:"Economic evidence (no capital authority)",
         pair:"Pair", bid:"Bid", ask:"Ask", spread:"Spread (bps)", last:"Last trade", quality:"Quality", when:"When can I act?",
         mknote:"Prices are the venue's own quote units (IRT legs in toman, unit epoch 1). Observatory mode: no orders are ever sent.",
         entry:"Buy (entry)", exit:"Sell (exit)", open:"open", blocked:"blocked", until:"until", opens:"opens", closes:"closes", noChange:"no change in 7 days",
@@ -9,7 +9,7 @@ const T = {
         rule:"Rule", cls:"Class / status / source", state:"State", blocksNow:"What does this block right now?", window:"Effective",
         disable:"Disable", importTitle:"Import rules", importHelp:"Paste a JSON list of rules. Malformed rules are quarantined, never applied.",
         import:"Import", nothing:"nothing", version:"rule set version", stale:"stale", none:"—" },
-  fa: { venueFactsTitle:"شواهد قابلیت‌های صرافی (فقط خواندنی)", venueFactsEmpty:"هنوز شواهد صرافی ثبت نشده است؛ معاملات غیرفعال است", venueFactsInfo:"منبع تأییدنشده است. هیچ روش سفارش یا معاملهٔ خودکاری مجاز نشده است.", venueFactsError:"اعتبارسنجی صرافی در دسترس نیست", venueFactsUnverified:"منبع تأییدنشده", externalHistory:"مشاهدات سفارش‌های خارجی (تأییدنشده)", externalEmpty:"هیچ سفارش خارجی مشاهده نشده", externalReadError:"دفتر مشاهدات خارجی در دسترس نیست", accountRead:"حساب صرافی (فقط خواندنی)", accountNotConfigured:"پیکربندی نشده · هیچ کلید یا مجوز معامله بارگذاری نشده", accountError:"مشاهده حساب در دسترس نیست", accountObserved:"مشاهده‌شده (تأییدنشده؛ مدیریت‌نشده)", accountBalance:"موجودی (مقدار/بلوکه؛ غیرقابل خرج)", accountOrders:"سفارش‌های دستی/خارجی (تسویه تأییدنشده)", accountExposure:"تعهدات خارجی (خارج از مدیریت)", title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت", journal:"پژوهش / دفتر وقایع", chooseRun:"اجرای آزمایشی", lastDecisions:"۱۰۰ تصمیم آخر (برای مشاهدهٔ سفارش و نتایج باز کنید)", evidenceTitle:"شواهد اقتصادی (بدون مجوز سرمایه)",
+  fa: { offlineReviewTitle:"سوابق بررسی آفلاین سفارش‌ها (بدون تأیید معاملات واقعی)", offlineReviewEmpty:"هیچ تصمیم سفارش آزمایشی ثبت نشده است", offlineReviewReadError:"دفتر بررسی آفلاین در دسترس نیست", operate:"عملیات (فقط آفلاین)", operateWarning:"غیرفعال است. هیچ سفارش واقعی، دستور توقف تأییدشده یا معاملهٔ خودکار فعال نیست. ارقام برآوردی مجوز معامله نیستند.", protectionHeading:"وضعیت حفاظت و مجوز", offlineTicketTitle:"پیش‌نمایش سفارش آزمایشی", offlineTicketHelp:"تصویر بازار و درخواست محدود را در قالب JSON وارد کنید. این بخش فقط هزینه و سقف را محاسبه می‌کند و هیچ سفارشی ارسال نمی‌کند.", previewOffline:"پیش‌نمایش آفلاین", offlineTicketError:"درخواست آزمایشی نامعتبر یا ناامن", offlineTicketResult:"فقط پیش‌نمایش آفلاین؛ بدون ثبت سفارش", venueFactsTitle:"شواهد قابلیت‌های صرافی (فقط خواندنی)", venueFactsEmpty:"هنوز شواهد صرافی ثبت نشده است؛ معاملات غیرفعال است", venueFactsInfo:"منبع تأییدنشده است. هیچ روش سفارش یا معاملهٔ خودکاری مجاز نشده است.", venueFactsError:"اعتبارسنجی صرافی در دسترس نیست", venueFactsUnverified:"منبع تأییدنشده", externalHistory:"مشاهدات سفارش‌های خارجی (تأییدنشده)", externalEmpty:"هیچ سفارش خارجی مشاهده نشده", externalReadError:"دفتر مشاهدات خارجی در دسترس نیست", accountRead:"حساب صرافی (فقط خواندنی)", accountNotConfigured:"پیکربندی نشده · هیچ کلید یا مجوز معامله بارگذاری نشده", accountError:"مشاهده حساب در دسترس نیست", accountObserved:"مشاهده‌شده (تأییدنشده؛ مدیریت‌نشده)", accountBalance:"موجودی (مقدار/بلوکه؛ غیرقابل خرج)", accountOrders:"سفارش‌های دستی/خارجی (تسویه تأییدنشده)", accountExposure:"تعهدات خارجی (خارج از مدیریت)", title:"تریدینگ‌جیم · رصدخانه", markets:"بازارها", rules:"تنظیمات ← قواعد صرافی", health:"سلامت", journal:"پژوهش / دفتر وقایع", chooseRun:"اجرای آزمایشی", lastDecisions:"۱۰۰ تصمیم آخر (برای مشاهدهٔ سفارش و نتایج باز کنید)", evidenceTitle:"شواهد اقتصادی (بدون مجوز سرمایه)",
         pair:"جفت‌ارز", bid:"خرید", ask:"فروش", spread:"اسپرد (bps)", last:"آخرین معامله", quality:"کیفیت", when:"کی می‌توانم معامله کنم؟",
         mknote:"قیمت‌ها به واحد خود صرافی است (بازارهای ریالی به تومان). حالت رصد: هیچ سفارشی ارسال نمی‌شود.",
         entry:"خرید (ورود)", exit:"فروش (خروج)", open:"باز", blocked:"مسدود", until:"تا", opens:"باز می‌شود", closes:"بسته می‌شود", noChange:"بدون تغییر تا ۷ روز",
@@ -78,6 +78,38 @@ async function rules() {
     + d.quarantined.map(q => `<tr><td><b>${esc(q.id)}</b></td><td colspan="5" class="SELL">QUARANTINED: ${esc(q.error)}</td></tr>`).join("");
 }
 
+async function operate() {
+  const output = $("protection-state");
+  try {
+    const status = await api("/api/automation-safety");
+    output.textContent = t("operateWarning") + "\n"
+      + status.mode + " · " + status.protection + " · " + status.venue_stops
+      + "\nfunded_authority=" + String(status.funded_authority)
+      + " · autopilot_enabled=" + String(status.autopilot_enabled)
+      + " · executor_state_verified=" + String(status.executor_state_verified);
+  } catch (_) {
+    output.textContent = t("operateWarning");
+  }
+}
+$("preview-ticket").onclick = async () => {
+  const out = $("ticket-output");
+  try {
+    const payload = JSON.parse($("offline-ticket").value);
+    const preview = await api("/api/dry-run/ticket", {
+      method: "POST", body: JSON.stringify(payload),
+    });
+    if (preview.mode !== "DRY_RUN" || preview.funded_authority !== false
+        || preview.order_submitted !== false) {
+      throw new Error("unsupported preview authority");
+    }
+    out.textContent = t("offlineTicketResult") + "\n"
+      + JSON.stringify(preview, null, 2);
+  } catch (_) {
+    // Never echo user-provided JSON or accidental secret material in errors.
+    out.textContent = t("offlineTicketError");
+  }
+};
+
 async function health() {
   $("hl").textContent = JSON.stringify(await api("/api/health"), null, 2);
   const out = $("venue-facts");
@@ -138,9 +170,23 @@ async function externalJournal() {
     out.textContent = t("externalReadError");
   }
 }
+async function offlineReviews() {
+  const out = $("offline-review-events");
+  try {
+    const history = await api("/api/offline-ticket-reviews");
+    const rows = (history.tickets || []).slice(-100);
+    out.textContent = rows.length
+      ? rows.map(r => r.preview_sha256 + " · " + r.state
+          + " · funded_authority=" + String(r.funded_authority)).join("\n")
+      : t("offlineReviewEmpty");
+  } catch (_) {
+    out.textContent = t("offlineReviewReadError");
+  }
+}
 async function journal() {
   await accountJournal();
   await externalJournal();
+  await offlineReviews();
   const rows = await api("/api/runs"), select = $("run-select"), selected = select.value;
   const options = rows.map(r => `<option value="${esc(r.run_id)}">${esc(r.inputs.store)} · ${esc(r.inputs.symbol)} · ${esc(r.run_id)}</option>`).join("");
   if (select.innerHTML !== options) { select.innerHTML = options; if (rows.some(r => r.run_id === selected)) select.value = selected; }
@@ -161,12 +207,12 @@ $("run-select").onchange = () => { loadedRun = ""; journal().catch(e => $("run-s
 
 async function refresh() {
   $("clock").textContent = `UTC ${new Date().toISOString().slice(11, 19)} · Tehran ${new Intl.DateTimeFormat("en-GB", { timeZone:"Asia/Tehran", hour:"2-digit", minute:"2-digit", second:"2-digit" }).format(new Date())}`;
-  try { await ({ markets, rules, health, journal })[view](); } catch (e) { console.error(e); }
+  try { await ({ operate, markets, rules, health, journal })[view](); } catch (e) { console.error(e); }
 }
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   view = b.dataset.view; document.querySelectorAll("nav button").forEach(x => x === b ? x.setAttribute("aria-current", "page") : x.removeAttribute("aria-current"));
-  ["markets", "rules", "health", "journal"].forEach(v => $("v-" + v).hidden = v !== view); refresh();
+  ["operate", "markets", "rules", "health", "journal"].forEach(v => $("v-" + v).hidden = v !== view); refresh();
 });
 $("lang").onclick = () => { lang = lang === "en" ? "fa" : "en"; localStorage.setItem("lang", lang); applyLang(); };
 $("rl").onclick = async e => { const id = e.target.dataset.disable; if (id && confirm(`${t("disable")} ${id}?`)) { await api(`/api/rules/${encodeURIComponent(id)}/disable`, { method:"POST" }); rules(); } };
