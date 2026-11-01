@@ -110,4 +110,4 @@ def test_decimal_multiplication_never_silently_rounds_extreme_precisions():
     ))
     assert ticket["worst_gross_quote"] == "1.000000000000000002000000000000000001"
     assert ticket["worst_fee_quote"] == "0.000000000000000001000000000000000002000000000000000001"
-    assert ticket["worst_total_quote"] == "1.000000000000000003000000000000000003000000000000000002"
+    assert ticket["worst_total_quote"] == "1.000000000000000003000000000000000003000000000000000001"
