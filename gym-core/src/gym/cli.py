@@ -228,6 +228,35 @@ def _strict_offline_json(path: str, *, max_bytes: int) -> dict:
     return result
 
 
+def ticket_queue_add_cmd(args) -> int:
+    """Persist the fully reconstructed dry-run ticket, never an approval."""
+    from .services.offline_review_journal import OfflineReviewJournal
+
+    preview = _strict_offline_json(args.path, max_bytes=16384)
+    root = store_root(args)
+    root.mkdir(parents=True, exist_ok=True)
+    with OfflineReviewJournal(root / "offline_reviews.db") as reviews:
+        key = reviews.record(preview)
+    print(json.dumps({
+        "preview_sha256": key, "state": "PREVIEWED",
+        "tier1_approval": False, "funded_authority": False,
+        "order_submitted": False,
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+def ticket_queue_review_cmd(args) -> int:
+    """Record offline ACKNOWLEDGE/REJECT; never issue T1 or live permission."""
+    from .services.offline_review_journal import OfflineReviewJournal
+
+    root = store_root(args)
+    root.mkdir(parents=True, exist_ok=True)
+    with OfflineReviewJournal(root / "offline_reviews.db") as reviews:
+        result = reviews.review(args.preview_sha256, args.decision, at=args.at)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def probe_budget_stage_cmd(args) -> int:
     """Stage a fake/manual probe within an immutable offline full-loss budget."""
     from .services.probe_budget import ProbeBudgetBook
@@ -432,6 +461,14 @@ def main(argv=None):
     bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
     ticket = sub.add_parser("ticket-preview", help="preview a quote-fee order ticket OFFLINE; no funded approval or POST")
     ticket.add_argument("path", help="safe market snapshot and bounds JSON; never credentials")
+    tq = sub.add_parser("ticket-queue-add", help="persist a fully validated DRY_RUN preview; no live permission")
+    tq.add_argument("path", help="JSON output from ticket-preview")
+    tq.add_argument("--demo", action="store_true")
+    tr = sub.add_parser("ticket-queue-review", help="ACKNOWLEDGE or REJECT an offline preview; not a T1 approval")
+    tr.add_argument("preview_sha256", help="immutable DRY_RUN preview hash")
+    tr.add_argument("decision", help="ACKNOWLEDGE or REJECT, never APPROVE_LIVE")
+    tr.add_argument("--at", required=True, help="zoned review timestamp within ticket validity")
+    tr.add_argument("--demo", action="store_true")
     probe = sub.add_parser("probe-budget-stage", help="stage one manual probe within immutable OFFLINE full-loss budget; cannot place orders")
     probe.add_argument("--total-loss-limit", required=True, help="total amount operator accepts losing in full; not a venue credential")
     probe.add_argument("--quote-asset", choices=["USDT", "TMN"], required=True)
@@ -465,7 +502,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:
