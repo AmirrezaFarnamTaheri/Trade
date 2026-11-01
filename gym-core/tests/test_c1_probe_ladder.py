@@ -20,7 +20,7 @@ def test_unsupported_private_read_is_uncertain_not_absent_or_certified():
 def test_good_bounded_private_read_is_still_non_authoritative():
     read = assess_probe_read(
         resource="BALANCES", http_status=200,
-        response_bytes=b'{"success":true,"result":{"USDT":{"value":"4","locked":"1"}}}',
+        response_bytes=b'{"success":true,"result":{"balances":{"USDT":{"value":"4","locked":"1"}}}}',
         max_bytes=1024,
     )
     assert read["state"] == "OBSERVED"

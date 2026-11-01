@@ -183,6 +183,64 @@ def session_cmd(args):
     return 0
 
 
+def key_cmd(args) -> int:
+    """Store a Wallex key DPAPI-encrypted for this Windows user; never echoes it."""
+    import getpass
+    import os
+    from .adapters import secret_store
+
+    if args.op == "show":
+        for role in secret_store.ROLES:
+            try:
+                print(f"{role}: {secret_store.masked(secret_store.load(role))}")
+            except ValueError:
+                print(f"{role}: not stored")
+        return 0
+    key = os.environ.pop("WALLEX_KEY_INPUT", "") or getpass.getpass(f"Wallex {args.role} key: ")
+    path = secret_store.save(args.role, key)
+    print(f"{args.role} key {secret_store.masked(key.strip())} stored at {path}")
+    return 0
+
+
+def account_cmd(args) -> int:
+    """Authenticated read-only Wallex observation with the stored read key."""
+    import aiohttp
+    from .adapters import secret_store
+    from .adapters.wallex_account_read import WallexAccountReader
+    from .domain.account_observations import project_account
+    from .domain.model import iso
+    from .services.external_journal import ExternalJournal
+
+    async def read():
+        headers = {"x-api-key": secret_store.load("read")}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            reader = WallexAccountReader(session)
+            balances = await reader.balances()
+            fee = await reader.fee_rates()
+            orders = [await reader.manual_order(cid) for cid in args.order]
+        return balances, fee, orders
+
+    from .adapters.wallex_account_read import ReadUncertain
+    try:
+        balances, fee, orders = asyncio.run(read())
+    except ReadUncertain as e:
+        print(f"error: {e} (state UNKNOWN, nothing recorded)", file=sys.stderr)
+        return 3
+    observed = project_account("main", iso(now_utc()), balances=balances, orders=orders)
+    nonzero = [b for b in observed["balances"] if Decimal(b["venue_value"]) or Decimal(b["venue_locked"])]
+    pairs = sorted({(r["maker"], r["taker"]) for r in fee.values()})
+    fee = {"symbols": len(fee), "maker_taker_rates": [list(p) for p in pairs],
+           **{s: fee[s] for s in ("BTCUSDT", "USDTTMN", "BTCTMN") if s in fee}}
+    print(json.dumps({"observed_at": observed["observed_at"], "fee": fee, "balances": nonzero,
+                      "orders": observed["orders"]}, ensure_ascii=False, indent=2))
+    if args.record:
+        root = store_root(args)
+        root.mkdir(parents=True, exist_ok=True)
+        with ExternalJournal(root / "external_journal.db") as journal:
+            print(f"{journal.record(observed)} observations recorded to the Journal")
+    return 0
+
+
 def external_observe_cmd(args) -> int:
     """Import only sanitized external observations, never account authority."""
     from .domain.account_observations import project_account
@@ -520,6 +578,13 @@ def main(argv=None):
     bv.add_argument("manifest", help="canonical detached manifest JSON")
     bv.add_argument("signature", help="detached raw 64-byte Ed25519 signature")
     bv.add_argument("pinned_public_key", help="trusted out-of-band raw 32-byte Ed25519 public key")
+    ky = sub.add_parser("key", help="store Wallex API keys encrypted for this Windows user (DPAPI)")
+    kys = ky.add_subparsers(dest="op", required=True)
+    kys.add_parser("set").add_argument("role", choices=["read", "trade"])
+    kys.add_parser("show", help="masked key IDs only")
+    ac = sub.add_parser("account", help="read-only Wallex balances, fee and order status with the stored read key")
+    ac.add_argument("--order", action="append", default=[], metavar="CLIENT_ID", help="order to look up (repeatable)")
+    ac.add_argument("--record", action="store_true", help="append the observation to the local Journal")
     ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
     ext.add_argument("path", help="local sanitized observation JSON file; no API keys")
     ext.add_argument("--demo", action="store_true")
@@ -543,7 +608,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:

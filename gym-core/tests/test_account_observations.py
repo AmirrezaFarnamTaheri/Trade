@@ -53,8 +53,8 @@ def test_journal_only_emits_new_observed_state_not_order_disappearance():
 
 
 def test_only_documented_wallex_balance_fields_survive():
-    assert parse_wallex_balances({"success": True, "result": {
-        "BTC": {"value": "1.3", "locked": "0.1", "api_key": "SECRET"}}}) == {
+    assert parse_wallex_balances({"success": True, "result": {"balances": {
+        "BTC": {"value": "1.3", "locked": "0.1", "api_key": "SECRET"}}}}) == {
         "BTC": {"value": "1.3", "locked": "0.1"}}
     with pytest.raises(ValueError):
         parse_wallex_balances({"success": False, "result": {}})

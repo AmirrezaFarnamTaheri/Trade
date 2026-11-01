@@ -41,12 +41,13 @@ def run(coro):
 
 
 def test_read_only_fetches_balances_and_fails_on_unknown_shape():
-    session = Session(data={"success": True, "result": {"USDT": {"value": "1.20", "locked": "0.1"}}})
+    session = Session(data={"success": True, "result": {"balances": {"USDT": {
+        "asset": "USDT", "faName": "تتر", "value": "1.20", "locked": "0.1", "is_dust": False}}}})
     result = run(WallexAccountReader(session).balances())
     assert result == {"USDT": {"value": "1.20", "locked": "0.1"}}
     assert session.paths[0][0].endswith("/v1/account/balances")
     assert session.paths[0][1]["allow_redirects"] is False
-    bad = Session(data={"success": True, "result": {"USDT": {"value": 1.2, "locked": "0.1"}}})
+    bad = Session(data={"success": True, "result": {"balances": {"USDT": {"value": 1.2, "locked": "0.1"}}}})
     with pytest.raises((TypeError, ValueError)):
         run(WallexAccountReader(bad).balances())
 
@@ -91,6 +92,18 @@ def test_no_funded_operation_api_is_exposed():
     assert not any(hasattr(client, name) for name in ("post", "delete", "cancel_order", "place_order", "transfer"))
     with pytest.raises(ValueError):
         WallexAccountReader(Session(), base_url="http://evil.example")
+
+def test_fee_rates_parse_documented_per_symbol_shape_exactly():
+    session = Session(data={"success": True, "result": {"BTCUSDT": {
+        "makerFeeRate": "0.0015", "takerFeeRate": "0.0025", "recent_days_sum": 0},
+        "levels": [], "user": {"coin_levels": [], "latestTradesSum": 0}}})
+    assert run(WallexAccountReader(session).fee_rates()) == {"BTCUSDT": {"maker": "0.0015", "taker": "0.0025"}}
+    for bad in ({"BTCUSDT": {"makerFeeRate": 0.001, "takerFeeRate": "0.002"}},
+                {"BTCUSDT": {"makerFeeRate": "NaN", "takerFeeRate": "0.002"}},
+                {"BTCUSDT": {"makerFeeRate": "0.001", "takerFeeRate": "1"}}):
+        with pytest.raises(ReadUncertain):
+            run(WallexAccountReader(Session(data={"success": True, "result": bad})).fee_rates())
+
 
 def test_c1_read_only_fee_probe_preserves_unknown_contract_and_redacts_private_fields():
     session = Session(data={"success": True, "result": {

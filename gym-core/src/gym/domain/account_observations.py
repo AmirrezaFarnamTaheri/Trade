@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}\Z")
-_ASSET = re.compile(r"[A-Z0-9]{2,20}\Z")
+_ASSET = re.compile(r"[A-Z0-9]{1,20}\Z")  # live Wallex lists 1-letter assets (A, G, S, T, W, X)
 
 
 def _name(v: object, label: str) -> str:
@@ -52,7 +52,9 @@ def parse_wallex_balances(payload: object) -> dict[str, dict[str, str]]:
     """
     if not isinstance(payload, dict) or payload.get("success") is not True:
         raise ValueError("balance response did not confirm success")
-    body = payload.get("result")
+    # Documented and live-verified shape: result.balances.<ASSET>.{value, locked, ...}
+    result = payload.get("result")
+    body = result.get("balances") if isinstance(result, dict) else None
     if not isinstance(body, dict):
         raise ValueError("unrecognized Wallex balance result")
     out = {}

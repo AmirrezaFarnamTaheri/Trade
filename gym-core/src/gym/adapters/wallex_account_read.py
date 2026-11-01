@@ -77,6 +77,32 @@ class WallexAccountReader:
         # The venue's shape is validated before any value becomes visible.
         return parse_wallex_balances(await self._get("/v1/account/balances"))
 
+    async def fee_rates(self) -> dict[str, dict[str, str]]:
+        """Documented per-symbol shape: result.<SYMBOL>.{makerFeeRate, takerFeeRate}."""
+        payload = await self._get("/v1/account/fee")
+        result = payload.get("result") if isinstance(payload, dict) and payload.get("success") is True else None
+        if not isinstance(result, dict):
+            raise ReadUncertain("unconfirmed account fee response")
+        out = {}
+        for symbol, row in result.items():
+            # Live result also carries account-level entries (levels, coin_levels); skip non-fee rows.
+            if not isinstance(row, dict) or "makerFeeRate" not in row:
+                continue
+            if not _SYMBOL.fullmatch(symbol):
+                raise ReadUncertain("invalid fee row")
+            rates = {}
+            for side, key in (("maker", "makerFeeRate"), ("taker", "takerFeeRate")):
+                v = row.get(key)
+                try:
+                    rate = Decimal(v) if isinstance(v, str) else None
+                except InvalidOperation:
+                    rate = None
+                if rate is None or not rate.is_finite() or not 0 <= rate < 1:
+                    raise ReadUncertain("invalid fee rate")
+                rates[side] = format(rate, "f")
+            out[symbol.upper()] = rates
+        return out
+
     async def fee_observation(self) -> dict[str, object]:
         """Read but never *assume* the undocumented account-specific fee shape.
 
