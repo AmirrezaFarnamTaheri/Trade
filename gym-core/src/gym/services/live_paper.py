@@ -14,11 +14,12 @@ from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
 
-async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=False, subscriptions=()):
+async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=False, subscriptions=(),
+                cost=None):
     if duration <= 0:
         raise ValueError("duration must be positive")
     start, tops = now_utc(), []
-    portal, svc, cost = DataPortal(db), RuleService(db), CostModel()
+    portal, svc, cost = DataPortal(db), RuleService(db), cost or CostModel()
     session = PaperSession(portal, lambda t: svc.load(t)[1], EmaTrend(fast, slow), symbol, start, resolution, cash, cost,
                            subscriptions)
     reason = None

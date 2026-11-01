@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import secrets
 import sys
 from decimal import Decimal, DecimalException
@@ -16,6 +17,9 @@ from .services.rules import RuleService
 
 DEFAULT_WATCH = "USDTTMN,BTCTMN,BTCUSDT,ETHTMN,ETHUSDT"
 DEFAULT_PRESET = "usdt-irt-october-2026"
+# Fee default: --fee per run, or set GYM_FEE_RATE once (e.g. `setx GYM_FEE_RATE 0.0015`).
+DEFAULT_FEE = os.environ.get("GYM_FEE_RATE", "0.001")
+FEE_HELP = f"fee rate per side (default {DEFAULT_FEE}; observed account fee 0.1%%, override with GYM_FEE_RATE)"
 
 
 def store_root(args) -> Path:
@@ -172,14 +176,16 @@ def evidence_cmd(args):
 
 
 def session_cmd(args):
+    from .domain.sim import CostModel
     from .services.live_paper import watch
 
     if not (store_root(args) / "market.db").exists():
         raise ValueError("start the collector first")
     cash = Decimal(args.cash or (300_000_000 if args.symbol.upper().endswith("TMN") else 1000))
     subscriptions = tuple(x.strip() for x in args.subscribe.split(",") if x.strip())
+    cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
     asyncio.run(watch(open_db(args), store_root(args) / "runs", args.symbol.upper(), args.seconds,
-                      args.res, args.fast, args.slow, cash, args.demo, subscriptions))
+                      args.res, args.fast, args.slow, cash, args.demo, subscriptions, cost))
     return 0
 
 
@@ -571,7 +577,7 @@ def main(argv=None):
     pp.add_argument("--fast", type=int, default=8)
     pp.add_argument("--slow", type=int, default=21)
     pp.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
-    pp.add_argument("--fee", default="0.002", help="fee rate per side (default: documentation example 0.2%%)")
+    pp.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
     pp.add_argument("--latency-ms", type=int, default=500)
     pp.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
     spreads = sub.add_parser("spreads", help="observed spread distributions by pair and Tehran hour")
@@ -655,6 +661,8 @@ def main(argv=None):
     se.add_argument("--fast", type=int, default=8)
     se.add_argument("--slow", type=int, default=21)
     se.add_argument("--cash")
+    se.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
+    se.add_argument("--latency-ms", type=int, default=500)
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 

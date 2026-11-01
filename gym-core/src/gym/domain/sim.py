@@ -12,7 +12,7 @@ from .rules import Rule, evaluate, tehran_day
 
 @dataclass(frozen=True)
 class CostModel:
-    fee_rate: Decimal = Decimal("0.002")  # Wallex documentation example; the account's real rate is unconfirmed
+    fee_rate: Decimal = Decimal("0.001")  # operator account fee observed 2026-11-01 via /v1/account/fee (all 373 markets)
     latency: timedelta = timedelta(milliseconds=500)
     max_wait: timedelta = timedelta(seconds=60)
     # Named assumption, not a venue fact: fees are charged in the asset received.
