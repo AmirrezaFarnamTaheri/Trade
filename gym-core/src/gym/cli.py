@@ -207,6 +207,27 @@ def external_observe_cmd(args) -> int:
     return 0
 
 
+def venue_fact_import_cmd(args) -> int:
+    """Store strict, sanitized C1 evidence metadata; never accept raw API JSON.
+
+    A claimed source is NOT authenticated. This command can never certify
+    venue order methods, provision keys or authorize any funded operation.
+    """
+    from .services.venue_facts import VenueFactsJournal, validate_venue_fact
+
+    source = Path(args.path)
+    if source.is_symlink() or not source.is_file() or source.stat().st_size > 16_384:
+        raise ValueError("VenueFacts import must be a regular bounded JSON file")
+    raw = json.loads(source.read_text("utf-8"))
+    record = validate_venue_fact(raw)  # before creating the journal
+    root = store_root(args)
+    root.mkdir(parents=True, exist_ok=True)
+    with VenueFactsJournal(root / "venue_facts.db") as journal:
+        sequence = journal.record(record)
+    print(f"VenueFacts evidence #{sequence} recorded (unverified origin; no order authority).")
+    return 0
+
+
 def backup_once_cmd(args) -> int:
     """Manual offline encrypted backup to a pre-existing independent volume.
 
@@ -252,9 +273,12 @@ async def serve(args):
     col = Collector(db, seg, symbols, demo=args.demo, asset_count=args.assets,
                     add_symbols=added, remove_symbols=removed)
     from .services.external_journal import ExternalJournal
+    from .services.venue_facts import VenueFactsJournal
     external_journal = ExternalJournal(store_root(args) / "external_journal.db")
+    venue_facts = VenueFactsJournal(store_root(args) / "venue_facts.db")
     runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24),
-                                    store_root(args) / "runs", external_journal=external_journal))
+                                    store_root(args) / "runs",
+                                    external_journal=external_journal, venue_facts=venue_facts))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
     print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory on http://127.0.0.1:{args.port}/  (Ctrl+C to stop)", flush=True)
@@ -264,6 +288,7 @@ async def serve(args):
         seg.close()
         await runner.cleanup()
         external_journal.conn.close()
+        venue_facts.conn.close()
 
 
 def main(argv=None):
@@ -328,6 +353,9 @@ def main(argv=None):
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
     bk.add_argument("destination", help="pre-existing independent-volume backup directory")
     bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
+    vf = sub.add_parser("venue-fact-import", help="import strictly sanitized offline C1 venue validation metadata")
+    vf.add_argument("path", help="bounded VenueFacts JSON metadata (never raw API results or credentials)")
+    vf.add_argument("--demo", action="store_true", help="record separately from real observations")
     ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
     ext.add_argument("path", help="local sanitized observation JSON file; no API keys")
     ext.add_argument("--demo", action="store_true")
@@ -351,7 +379,7 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    commands = {"venue-fact-import": venue_fact_import_cmd, "backup-once": backup_once_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:
