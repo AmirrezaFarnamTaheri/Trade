@@ -13,6 +13,13 @@ from gym.services.encrypted_backup import (
 )
 
 
+def _symlink_or_skip(link, target):
+    try:
+        link.symlink_to(target)
+    except OSError as exc:  # Windows without SeCreateSymbolicLinkPrivilege
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+
 def make_ledger(path: Path, events=(b"one", b"two")):
     schema = (Path(__file__).resolve().parents[2] / "executor/exec-store/schema.sql").read_text()
     db = sqlite3.connect(path)
@@ -96,7 +103,7 @@ def test_backup_refuses_symlink_source_existing_bundle_and_weak_passphrase(tmp_p
     with pytest.raises(BackupUnsafe, match="exists"):
         create_backup(source, bundle, passphrase="correct horse battery staple")
     link = tmp_path / "linked.db"
-    link.symlink_to(source)
+    _symlink_or_skip(link, source)
     with pytest.raises(BackupUnsafe):
         create_backup(link, tmp_path / "link.tgbak", passphrase="correct horse battery staple")
 

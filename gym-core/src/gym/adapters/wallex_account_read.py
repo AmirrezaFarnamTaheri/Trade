@@ -95,7 +95,8 @@ class WallexAccountReader:
         symbol = order.get("symbol")
         if symbol is not None and (not isinstance(symbol, str) or not _SYMBOL.fullmatch(symbol)):
             raise ReadUncertain("invalid order symbol")
-        filled = order.get("filled")
+        # Official order-detail field (docs: executedQty, decimal string); "filled" is ours.
+        filled = order.get("executedQty")
         if filled is not None:
             if isinstance(filled, (bool, float)) or not isinstance(filled, (int, str, Decimal)):
                 raise ReadUncertain("invalid filled quantity")
