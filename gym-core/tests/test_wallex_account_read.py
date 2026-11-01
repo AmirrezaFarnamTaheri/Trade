@@ -53,13 +53,18 @@ def test_read_only_fetches_balances_and_fails_on_unknown_shape():
 
 def test_read_only_manual_order_preserves_status_and_unverified_settlement():
     session = Session(data={"success": True, "result": {
-        "status": "UNRECOGNIZED-WALLEX-STATUS", "filled": "0.001",
+        "status": "UNRECOGNIZED-WALLEX-STATUS", "executedQty": "0.001",
         "symbol": "BTCUSDT", "api_key": "SECRET-MUST-NOT-ECHO"}})
     result = run(WallexAccountReader(session).manual_order("outside-001"))
     assert result == {"client_id": "outside-001", "status": "UNRECOGNIZED-WALLEX-STATUS",
                       "filled": "0.001", "symbol": "BTCUSDT"}
     assert "SECRET-MUST-NOT-ECHO" not in str(result)
     assert session.paths[0][0].endswith("/v1/account/orders/outside-001")
+
+
+def test_manual_order_reads_official_executed_qty_not_guessed_keys():
+    session = Session(data={"success": True, "result": {"status": "NEW", "filled": "9"}})
+    assert run(WallexAccountReader(session).manual_order("m-1"))["filled"] is None
 
 
 def test_transport_errors_do_not_assert_order_absence_or_retry():
