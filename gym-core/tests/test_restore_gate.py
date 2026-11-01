@@ -7,6 +7,12 @@ import pytest
 
 from gym.services.restore_gate import RestoreUnsafe, inspect_ledger, check_restore_target
 
+def _symlink_or_skip(link, target):
+    try:
+        link.symlink_to(target)
+    except OSError as exc:  # Windows without SeCreateSymbolicLinkPrivilege
+        pytest.skip(f"symlinks unavailable: {exc}")
+
 
 def make_candidate(path: Path, values=(b"first",)):
     schema = (Path(__file__).resolve().parents[2] / "executor/exec-store/schema.sql").read_text()
@@ -96,12 +102,12 @@ def test_restore_refuses_preexisting_destination_and_backup_secrets(tmp_path):
 def test_no_restore_from_symlink_or_nonexistent_file(tmp_path):
     src = tmp_path / "snapshot.db"
     make_candidate(src)
-    link = tmp_path / "link.db"
-    link.symlink_to(src)
-    with pytest.raises(RestoreUnsafe):
-        inspect_ledger(link)
     with pytest.raises(RestoreUnsafe):
         inspect_ledger(tmp_path / "missing.db")
+    link = tmp_path / "link.db"
+    _symlink_or_skip(link, src)
+    with pytest.raises(RestoreUnsafe):
+        inspect_ledger(link)
 
 
 def test_staged_restore_can_be_pinned_to_independently_verified_manifest(tmp_path):

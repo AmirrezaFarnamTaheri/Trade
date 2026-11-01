@@ -3,6 +3,7 @@ import hashlib
 import sqlite3
 import sys
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 from gym.services.encrypted_backup import create_backup, restore_backup
@@ -15,7 +16,8 @@ SCHEMA = Path(__file__).resolve().parents[2] / "executor/exec-store/schema.sql"
 
 
 def fixture(path: Path):
-    with sqlite3.connect(path) as db:
+    # closing(): sqlite3's own context manager commits but never closes (Windows file lock).
+    with closing(sqlite3.connect(path)) as db:
         db.executescript(SCHEMA.read_text(encoding="utf-8"))
         previous = bytes(32)
         for n, raw in enumerate(EVENTS, 1):
@@ -42,7 +44,7 @@ def main(args):
         destination = Path(args[2])
         receipt = restore_backup(Path(args[1]), destination, passphrase=TEST_PHRASE)
         evidence = inspect_ledger(destination)
-        with sqlite3.connect(destination) as db:
+        with closing(sqlite3.connect(destination)) as db:
             rows = db.execute(
                 "SELECT event_bytes FROM ledger_events ORDER BY sequence"
             ).fetchall()
