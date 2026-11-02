@@ -1,11 +1,12 @@
 """Loopback protection and run/journal/evidence command integration."""
 import asyncio
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from gym.adapters.store import MarketDB, SegmentWriter
 from gym.adapters.run_store import save_run
 from gym.api.server import make_app
-from gym.domain.model import UTC
+from gym.domain.model import UTC, BookTop
 from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.rules import RuleService
@@ -36,6 +37,32 @@ def test_api_loopback_and_token(tmp_path):
     asyncio.run(go())
 
 
+def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def check():
+        db = MarketDB(tmp_path / "market.db")
+        col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT", "ETHUSDT", "LTCUSDT"])
+        col.tops["BTCUSDT"] = BookTop("BTCUSDT", START, Decimal("1E-8"), Decimal("2E-8"), Decimal("1"), Decimal("2"), frozenset())
+        col.tops["ETHUSDT"] = BookTop("ETHUSDT", START, Decimal("2E-8"), Decimal("1E-8"), Decimal("1"), Decimal("2"), frozenset())
+        try:
+            async with TestClient(TestServer(make_app(col, RuleService(db), "tok"), host="127.0.0.1")) as client:
+                response = await client.get("/api/markets")
+                assert response.status == 200
+                rows = {row["symbol"]: row for row in (await response.json())["markets"]}
+                assert rows["BTCUSDT"]["qualified"] is True
+                assert rows["BTCUSDT"]["bid"] == "1E-8"
+                assert rows["BTCUSDT"]["ask"] == "2E-8"
+                assert rows["ETHUSDT"]["qualified"] is False
+                assert rows["ETHUSDT"]["flags"] == []
+                assert rows["LTCUSDT"]["qualified"] is False
+                assert rows["LTCUSDT"]["bid"] is None
+        finally:
+            db.c.close()
+
+    asyncio.run(check())
+
+
 def test_journal_api_and_cli(tmp_path, capsys):
     from aiohttp.test_utils import TestClient, TestServer
     from gym.cli import main
@@ -55,7 +82,7 @@ def test_journal_api_and_cli(tmp_path, capsys):
             assert d["evidence"]["claim_ceiling"] == "EXPERIMENTAL"
             assert (await c.get("/api/runs/not-a-run")).status == 400
             assert (await c.get("/api/runs/" + "0"*16)).status == 404
-            assert 'data-view="journal"' in await (await c.get("/")).text()
+            assert 'data-view="research"' in await (await c.get("/")).text()
             assert (await c.get("/app.js")).status == 200
             assert (await c.get("/styles.css")).status == 200
     asyncio.run(check())

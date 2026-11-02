@@ -82,7 +82,7 @@ def test_operate_cockpit_has_english_persian_and_no_fake_live_values():
     assert 'id="offline-ticket"' in html
     assert 'id="preview-ticket"' in html
     assert 'id="protection-state"' in html
-    assert "حفاظت" in js and "OFFLINE" in js
+    assert "حفاظت" in js and "Offline preview" in js
     assert "/api/dry-run/ticket" in js
     assert "/api/automation-safety" in js
     assert "order_submitted" in js

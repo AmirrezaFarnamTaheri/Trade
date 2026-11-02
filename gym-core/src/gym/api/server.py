@@ -62,6 +62,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                 "symbol": sym, "base": inst.base, "quote": inst.quote, "names": col.names[sym],
                 "bid": s(t and t.bid), "ask": s(t and t.ask), "bid_qty": s(t and t.bid_qty), "ask_qty": s(t and t.ask_qty),
                 "spread": s(t and t.spread), "spread_bps": s(t and t.spread_bps), "flags": sorted(t.flags) if t else ["STALE"],
+                "qualified": bool(t and qualified(t)),
                 "book_age_s": None if not t or not col.books[sym]["bid"] else round((now - col.books[sym]["bid"].ts).total_seconds()),
                 "last_trade": last and {"price": s(last.price), "qty": s(last.qty), "aggressor": last.aggressor, "ts": iso(last.ts_event)},
                 "unit": {"code": TOMAN.code, "epoch": TOMAN.unit_epoch} if inst.quote == "TMN" else None,

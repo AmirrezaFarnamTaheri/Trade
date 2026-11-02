@@ -1,7 +1,8 @@
 # gym-core — market observatory and paper research
 
-Public Wallex collector, venue-rule service and a bilingual (EN/FA) Markets screen with a pair-scoped
-"When can I act?" bar, paper sessions and an economic evidence report. No live order code exists; nothing here can place, cancel or sign venue orders.
+Public Wallex collector, venue-rule service and a bilingual (EN/FA) operator workspace for an autonomous trading agent.
+The current app is **DISARMED**: observation, paper research and offline preparation do not authorize funded execution.
+Nothing here can place, cancel or sign venue orders.
 
 ```powershell
 cd gym-core
@@ -51,7 +52,7 @@ accepts a local JSON object with `account_id`, a zoned `observed_at` and
 `orders` entries containing `client_id`, `status`, `filled` as exact decimal
 text and optionally `symbol`. The importer stores only sanitized,
 **unverified external observations** in `data/live/external_journal.db`. The
-Journal view displays this sequence read-only; its endpoint requires the
+Account journal (`#account`) displays this sequence read-only; its endpoint requires the
 per-run local token. Never include API keys in the import file.
 
 A missing row does not prove a trade was canceled/absent. A terminal status
@@ -83,7 +84,26 @@ change-only `book_top`, `trades`, `quality_events` and the immutable `regime_eve
 
 The first run preloads the preset `usdt-irt-october-2026`: USDTTMN closed 21:00-09:00 Tehran from 30 Sep, then 23:30-11:30
 from 18 Oct, plus a 2,000 USDT purchase cap per Tehran day. Status is REPORTED, from an announcement. Edit it in
-Settings -> Venue rules.
+Venue rules (`#rules`).
+
+## Local operator workspace
+
+The default Overview (`#overview`) combines observed markets, saved paper evidence, mission shortcuts, safety and
+known constraints. The shared shell has nine destinations: Overview, Markets (`#markets`), Paper research
+(`#research`), Account journal (`#account`), Offline ticket (`#operate`), Venue rules (`#rules`), System health
+(`#health`), Safety (`#safety`) and Backups (`#backups`). English/Persian and light/dark controls are in the navigation;
+tables scroll within their own region on small screens.
+
+Offline ticket offers structured fields and a JSON editor for the same bounded cost preview. Use exact decimal
+strings for amounts; the synthetic example remains labelled. Editing a ticket invalidates its previous result.
+The preview submits no venue order and grants no capital authority. Safety exposes missing execution gates.
+Backups documents the existing protected-console backup/restore commands; the web API has no archive inventory or
+last-recovery status, so the screen explicitly reports **Status not connected**. Keep credentials and recovery
+passphrases out of browser fields. System health displays only existing collector, venue-evidence and saved
+simulation records; missing evidence is not a successful check.
+
+The UI remains native HTML/CSS/JavaScript. [Design system](../DESIGN.md) and
+[surface contract](../.impeccable/surfaces/operator-workspace.md) describe its shared visual and capability boundaries.
 
 ## Paper sessions, Journal and economic evidence
 
@@ -104,7 +124,7 @@ only on later qualified observations; ending never sells a holding. Live duratio
 post-warmup deadline and drains pending orders until their fill or timeout. Replay ends at its explicit data cut,
 recording any unsettled request as a nonfill. Missing intervals are recorded, not filled with invented HOLDs.
 
-Open **Research / Journal** in the local UI for saved runs, equity, gross-to-net costs, the active-trading
+Open **Paper research** (`#research`) in the local UI for saved runs, equity, gross-to-net costs, the active-trading
 USDT-equivalent ranking, matched replay baselines, reports and expandable decisions (snapshot, feature hash, request,
 order/veto, +15m/+1h/+4h outcome marks). Zero-trade results remain visible as abstainers and are excluded from the
 active rank. Public Wallex instrument metadata is stored as complete, point-in-time vintages with source, availability
