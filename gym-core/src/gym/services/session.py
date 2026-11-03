@@ -10,7 +10,7 @@ from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order
 from ..domain.strategy import Snapshot
 
-ENGINE_VERSION = "paper-session/5"
+ENGINE_VERSION = "paper-session/6"
 
 
 @dataclass
@@ -22,7 +22,7 @@ class PendingOrder:
 
 
 class PaperSession:
-    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=()):
+    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None):
         if not cash.is_finite() or cash <= 0:
             raise ValueError("cash must be positive and finite")
         self.portal = portal
@@ -32,7 +32,14 @@ class PaperSession:
         self.instrument = portal.instrument(symbol)
         self.cost = cost
         self.bar_spec = BarSpec(resolution, "MID")
-        resolutions = tuple(dict.fromkeys((resolution, *subscriptions)))
+        required = getattr(strategy, "required_resolutions", ())
+        if any(BarSpec(r).step <= self.bar_spec.step for r in required):
+            raise ValueError("confirmation resolution must be longer than the decision resolution")
+        resolutions = tuple(dict.fromkeys((resolution, *subscriptions, *required)))
+        self.reference_symbol = reference_symbol or getattr(strategy, "reference_symbol", None)
+        if self.reference_symbol == symbol:
+            raise ValueError("reference asset must differ from the traded asset")
+        self.latest_bars = {}
         periods = {"session": self.session_of} if "session" in resolutions else {}
         self.closes = CloseSubscriptions(symbol, resolutions, periods)
         self.consolidator = self.closes.by_resolution[resolution]
@@ -65,16 +72,25 @@ class PaperSession:
         self.events.append({"state": state, "t": iso(at), "reason": reason})
 
     def scan(self, at):
-        for bar in self.closes.scan(at):
+        closed_bars = self.closes.scan(at)
+        for bar in closed_bars:
             self.bar_events.append({"t": iso(bar.avail), "resolution": bar.spec.resolution,
                                     "start": iso(bar.start), "close": str(bar.close)})
             if bar.spec != self.bar_spec:
                 continue
             quote = self.last_quote if self.last_quote and bar.avail - self.last_quote.ts_avail <= timedelta(seconds=120) else None
-            snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask, quote and quote.ts_avail)
+            visible = {**self.latest_bars, **{b.spec.resolution: b for b in closed_bars if b.avail <= bar.avail}}
+            context = tuple(b for r, b in sorted(visible.items()) if r != self.bar_spec.resolution)
+            reference = None
+            if self.reference_symbol:
+                references = self.portal.tops(self.reference_symbol, bar.avail - timedelta(seconds=120),
+                                              bar.avail + timedelta(microseconds=1))
+                reference = next((q for q in reversed(references) if qualified(q)), None)
+            snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
+                                quote and quote.ts_avail, context, reference)
             holding = bool(quote) and self.book.get(self.instrument.base) * quote.bid > self.book.equity(self.instrument, quote.bid) / 100
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
-            if self.state == "WARMING_UP" and action != "ABSTAIN_WARMUP":
+            if self.state == "WARMING_UP" and action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE"):
                 self.running_at = bar.avail
                 self.transition("RUNNING", bar.avail)
             decision = {"t": iso(bar.avail), "snapshot": snapshot.id, "close": str(bar.close), "action": action,
@@ -96,9 +112,11 @@ class PaperSession:
                 self.curve.append((iso(bar.avail), str(self.book.equity(self.instrument, quote.bid))))
             next_start = self.consolidator.period_of(at)[0]
             if next_start > bar.end:
-                closed = is_closed(self.rules_for(bar.end), self.instrument, bar.end)
+                venue_closed = is_closed(self.rules_for(bar.end), self.instrument, bar.end)
                 self.skipped.append({"from": iso(bar.end), "to": iso(next_start),
-                                     "reason": "VENUE_CLOSED" if closed else "NO_OBSERVATIONS"})
+                                     "reason": "VENUE_CLOSED" if venue_closed else "NO_OBSERVATIONS"})
+
+        self.latest_bars.update({b.spec.resolution: b for b in closed_bars})
 
     def settle(self, top, at, closing=False):
         if not self.pending:

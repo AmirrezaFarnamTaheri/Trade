@@ -71,4 +71,4 @@ pub mod fake_venue;
 pub mod authority;
 
 /// C-series pure preflight vetoes; NEVER a funded authorization token.
-pub mod c_admission;
+pub mod execution_admission;

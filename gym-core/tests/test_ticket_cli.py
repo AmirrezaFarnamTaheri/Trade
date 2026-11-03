@@ -4,7 +4,7 @@ import json
 from gym.cli import main
 
 
-def test_c2_ticket_preview_cli_is_dry_run_only(tmp_path, capsys):
+def test_ticket_preview_cli_is_dry_run_only(tmp_path, capsys):
     params = {
         "symbol": "BTCUSDT", "side": "BUY", "intent": "ENTRY",
         "quantity": "0.01", "bid": "100", "ask": "101", "worst_price": "103",

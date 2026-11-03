@@ -34,7 +34,10 @@ pub struct Advisory {
 
 impl Advisory {
     fn blocked(reason: Blocker) -> Self {
-        Self { blocker: Some(reason), funded_authority: false }
+        Self {
+            blocker: Some(reason),
+            funded_authority: false,
+        }
     }
 }
 

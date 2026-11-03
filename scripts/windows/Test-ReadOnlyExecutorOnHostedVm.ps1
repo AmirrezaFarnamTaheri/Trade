@@ -155,12 +155,12 @@ try {
     $null = New-Item -ItemType Directory -Path $ReportRoot -ErrorAction Stop
     $ReportCreated = $true
 
-    & $Installer -BinaryPath $binary -WhatIf
+    & $Installer -BinaryPath $binary -OperatorAccount $identity.Name -OperatorProcessId $PID -WhatIf
     if ((Get-CimInstance -ClassName Win32_Service -Filter "Name = 'TradingGYMExecutor'") -or
         (Test-Path -LiteralPath $CodeRoot) -or (Test-Path -LiteralPath $DataRoot)) {
         throw '-WhatIf created an installation unexpectedly.'
     }
-    & $Installer -BinaryPath $binary -Confirm:$false
+    & $Installer -BinaryPath $binary -OperatorAccount $identity.Name -OperatorProcessId $PID -Confirm:$false
     Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'
     & $Audit
     if ((Get-FileHash -LiteralPath $ExePath -Algorithm SHA256).Hash -ne
@@ -169,11 +169,22 @@ try {
     }
 
     # A real SCM launch is needed to exercise the OS-issued restricted service
-    # token gate. This read-only service has no pipe, keys, network or order path.
+    # token gate. No credentials or orders are provisioned by this harness.
     Invoke-ScChecked -Arguments @('config', $ServiceName, 'start=', 'demand')
     Start-Service -Name $ServiceName -ErrorAction Stop
     Assert-ServiceState -StartMode 'Manual' -State 'Running'
     Write-Output 'PASS: OS launched read-only service under verified restricted token.'
+    # Fresh installation has no credential metadata: this must fail before opening WinHTTP.
+    $accountOut = Join-Path $ReportRoot 'account-read-no-key.stdout'
+    $accountErr = Join-Path $ReportRoot 'account-read-no-key.stderr'
+    $accountProbe = Start-Process -FilePath (Join-Path $CodeDir 'gym-account-read.exe') -ArgumentList 'balances' -PassThru -RedirectStandardOutput $accountOut -RedirectStandardError $accountErr
+    if (-not $accountProbe.WaitForExit(25000)) { $accountProbe.Kill(); throw 'No-key account probe timed out.' }
+    $accountProbe.Refresh()
+    if ($accountProbe.ExitCode -ne 2 -or (Get-Item -LiteralPath $accountOut).Length -ne 0 -or
+        (Get-Content -LiteralPath $accountErr -Raw).Trim() -cne 'NOT_VERIFIED: account observation unavailable; no authority granted') {
+        throw 'No-key service account read did not fail closed with sanitized output.'
+    }
+    Write-Output 'PASS: service account read with no credential rejected; no venue request or money authority.'
     # Report *only boolean* token characteristics, never reusable SIDs or
     # secrets. A grant to the installer logon SID cannot authorize a client
     # from a different logon, or a token subject to a deny NETWORK ACE.

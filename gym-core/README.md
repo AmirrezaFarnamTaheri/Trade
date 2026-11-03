@@ -61,6 +61,10 @@ GET-only Wallex adapter is not wired to an authenticated account and has
 **no order-write methods**. There is no service-owned trading credential, T2
 authority or funded capability in this release candidate.
 
+## Optional advisory model connections
+
+`gymctl models` exposes Pi-backed provider/OAuth connections, explicit environment-key pools and portable preset import/export/catalog sync. It is off by default, runs outside R0, and has no trading tools or funded authority. See the [setup, schema and tested limits](../model-gateway/README.md). Existing collector/paper commands do not require Node.
+
 ## Code organization
 
 - `src/gym/domain/`: pure market types, bars, rules, strategies and simulation/accounting.
@@ -143,5 +147,30 @@ validated/promising claim or gate promotion. DEMO permits only NONE/zero capital
 never trading permission. Existing decisions are never edited. Live sessions disclose that baselines and USDT
 attribution need a separate matched replay; live-session diagnostics are explicitly NOT_RUN.
 
-Deferred: independent parity oracle, depth/queue-position stress, event/schedule/regime strategy clocks, limit orders,
-automatic promotion, tray and Rust Executor. No monitoring stack or new dependency was added.
+## Persistent paper research and read-only MCP
+
+Hypotheses pin the built-in strategy, parameters, code/engine identity and symbol. For example, save this as `hypothesis.json`:
+
+```json
+{"symbol":"BTCUSDT","strategy":"ema-trend","params":{"fast":8,"slow":21}}
+```
+
+```powershell
+uv run gymctl --data ../data research register hypothesis.json
+uv run gymctl --data ../data research list
+uv run gymctl --data ../data research shadow-open shadow.json
+uv run gymctl --data ../data research shadow-close close.json
+uv run gymctl --data ../data research schedule schedule.json
+uv run gymctl --data ../data research tick --at 2026-11-03T12:00:00Z
+uv run gymctl --data ../data research pause <job-id>
+uv run gymctl --data ../data research mcp
+uv run gymctl paper-research input.json --output report.json
+```
+
+Registration returns the `hypothesis_id`. A shadow-open input has exactly `position_id`, `hypothesis_id`, `quote`, `gross_quantity`, `fee_rate`; close has `position_id`, `quote`. Quote fields are `at`, `bid`, `ask`, `state` (`OPEN`/`CLOSED`), `qualified` (`true`). Quantity, price and fee values are plain finite decimal strings. Fees reduce the asset received on each side. A closed-market close remains `PENDING_REOPEN`; it never fabricates an executable fill.
+
+A schedule has exactly `hypothesis_id`, `every_seconds` (60–86400), `lookback_seconds` (60–2678400), `first_at` (zoned ISO timestamp), `resolution`, `cash`, `fee_rate`. `tick` is bounded to ten due jobs and must be invoked by an operator/scheduler; no hidden daemon is installed. Failed windows persist a retry time instead of starving healthy jobs. Report, alert and successful clock advance commit together. Research alerts are not execution Proposals. Add `--demo` to each research command for an isolated synthetic store.
+
+The stdio MCP server exposes only `strategy_catalog`, `research_state`, `market_coverage`, with fixed arguments and read-only SQLite access. No credential/account tool, arbitrary file path, dynamic tool or execution capability is exposed. The market/expiry report also remains PAPER_ONLY; product terms/liquidity calibration need real venue evidence.
+
+Still not certified: independent parity, depth/queue-position stress, installed-worker isolation, trusted funded execution/protection and automatic promotion. See [acceptance status](docs/acceptance-status.md). No monitoring stack was added.

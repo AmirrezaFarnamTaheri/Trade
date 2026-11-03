@@ -64,6 +64,27 @@
 
       <section id="v-research" class="view" aria-labelledby="research-title" hidden>
         <header class="view-header"><div><p class="eyebrow" data-t="researchEyebrow">Test before you trust</p><h1 id="research-title" data-t="researchTitle">Paper research</h1><p class="lead" data-t="researchLead">Inspect saved runs, compare costs, and trace every decision.</p></div><span class="observation-label" data-t="paperOnly">Paper results only</span></header>
+        <form id="compare-form" class="panel comparison-panel" aria-labelledby="compare-title">
+          <div class="panel-heading"><h2 id="compare-title" class="panel-title" data-t="compareTitle">Compare paper strategies</h2><span class="chip chip-warn" data-t="paperOnly">Paper results only</span></div>
+          <p class="field-help" data-t="compareHelp">Both accounts use the same stored window, quotes, close snapshots, cash and costs. No execution proposals or orders.</p>
+          <div id="paper-coverage" class="field-help" role="status"></div>
+          <fieldset id="comparison-fields" class="comparison-fields" disabled>
+            <div class="ticket-fields">
+              <label for="compare-symbol"><span data-t="symbol">Symbol</span><select id="compare-symbol" required dir="ltr"></select></label>
+              <label for="compare-from"><span data-t="windowFrom">From · UTC</span><input id="compare-from" class="input" type="datetime-local" step="1" required dir="ltr"></label>
+              <label for="compare-to"><span data-t="windowTo">To · UTC (exclusive)</span><input id="compare-to" class="input" type="datetime-local" step="1" required dir="ltr"></label>
+              <label for="compare-resolution"><span data-t="decisionResolution">Decision close</span><select id="compare-resolution" dir="ltr"><option>1min</option><option selected>15min</option><option>1h</option><option>1day</option></select></label>
+              <label for="compare-cash"><span data-t="startingCash">Starting quote cash</span><input id="compare-cash" class="input" type="text" inputmode="decimal" value="1000" required dir="ltr"></label>
+              <label for="compare-fee"><span data-t="feeFraction">Fee per fill · fraction</span><input id="compare-fee" class="input" type="text" inputmode="decimal" value="0.001" required dir="ltr"></label>
+            </div>
+            <div class="grid-2">
+              <fieldset><legend data-t="firstCandidate">First candidate</legend><label class="field-label" for="candidate-first" data-t="strategy">Strategy</label><select id="candidate-first" dir="ltr"></select><div id="candidate-first-params" class="ticket-fields candidate-parameters"></div></fieldset>
+              <fieldset><legend data-t="secondCandidate">Second candidate</legend><label class="field-label" for="candidate-second" data-t="strategy">Strategy</label><select id="candidate-second" dir="ltr"></select><div id="candidate-second-params" class="ticket-fields candidate-parameters"></div></fieldset>
+            </div>
+            <div class="actions"><button id="compare-submit" class="button button-primary" type="submit" data-t="compareAction">Run matched comparison</button><span class="field-help" data-t="compareCostNote">Fee 0.001 = 0.1% per fill. Latency: 500 ms. Point-in-time venue rules.</span></div>
+          </fieldset>
+          <div id="compare-result" role="status" aria-live="polite"></div>
+        </form>
         <div class="research"><aside class="panel run-panel"><h2 class="panel-title" data-t="paperRuns">Saved runs</h2><p class="field-help" data-t="runLimit">Latest 50 runs</p><ul id="run-list" class="run-list"></ul></aside><div id="run-detail" class="run-detail"></div></div>
       </section>
 

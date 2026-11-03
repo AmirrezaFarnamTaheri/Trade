@@ -5,7 +5,7 @@ import sys
 from gym.services.restore_gate import inspect_ledger
 
 ROOT = Path(__file__).resolve().parents[2]
-PROBE = ROOT / "gym-core" / "scripts" / "b3_portability_probe.py"
+PROBE = ROOT / "gym-core" / "scripts" / "restore_portability_probe.py"
 
 
 def test_cli_can_produce_and_restore_an_authenticated_synthetic_ledger(tmp_path):

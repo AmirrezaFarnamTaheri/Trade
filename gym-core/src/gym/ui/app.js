@@ -207,6 +207,21 @@ Object.assign(vocabulary, {
   previewChanged: ["Ticket changed. Preview again to calculate costs for these inputs.", "سفارش تغییر کرد. برای محاسبهٔ هزینهٔ این ورودی‌ها دوباره پیش‌نمایش بگیرید."],
   BUY: ["Buy", "خرید"], SELL: ["Sell", "فروش"], ENTRY: ["Entry", "ورود"], EXIT: ["Exit", "خروج"],
   savedRunCount: ["Saved paper runs", "اجراهای آزمایشی ذخیره‌شده"], runCountNote: ["Latest 50 records", "۵۰ رکورد آخر"], executionStatus: ["Autonomous execution", "اجرای خودکار"],
+  compareTitle: ["Compare paper strategies", "مقایسهٔ راهبردهای آزمایشی"],
+  compareHelp: ["Both accounts use the same stored window, quotes, close snapshots, cash and costs. No execution proposals or orders.", "هر دو حساب از بازه، مظنه‌ها، تصاویر بسته‌شدن، سرمایه و هزینه‌های یکسان استفاده می‌کنند. بدون پیشنهاد اجرایی یا سفارش."],
+  compareAction: ["Run matched comparison", "اجرای مقایسهٔ همسان"], comparing: ["Comparing…", "در حال مقایسه…"],
+  compareCostNote: ["Fee 0.001 = 0.1% per fill. Latency: 500 ms. Point-in-time venue rules.", "کارمزد ۰٫۰۰۱ برابر ۰٫۱٪ هر معامله است. تأخیر: ۵۰۰ میلی‌ثانیه. قواعد صرافی در زمان رویداد."],
+  windowFrom: ["From · UTC", "از · UTC"], windowTo: ["To · UTC (exclusive)", "تا · UTC (بدون نقطهٔ پایان)"],
+  decisionResolution: ["Decision close", "بازهٔ بسته‌شدن برای تصمیم"], startingCash: ["Starting quote cash", "سرمایهٔ اولیهٔ ارز مظنه"],
+  feeFraction: ["Fee per fill · fraction", "کارمزد هر معامله · کسر اعشاری"], firstCandidate: ["First candidate", "گزینهٔ اول"], secondCandidate: ["Second candidate", "گزینهٔ دوم"],
+  coverageTitle: ["Stored coverage", "پوشش دادهٔ ذخیره‌شده"], coverageGaps: ["Gaps over 120 seconds", "وقفه‌های بیش از ۱۲۰ ثانیه"],
+  coverageNote: ["Stored observations are not proof of a continuous paper session. Gaps are not filled in.", "داده‌های ذخیره‌شده اثبات اجرای پیوستهٔ آزمایشی نیستند. وقفه‌ها با دادهٔ ساختگی پر نمی‌شوند."],
+  researchUnavailable: ["Comparison setup unavailable. Saved runs remain readable.", "آماده‌سازی مقایسه در دسترس نیست. اجراهای ذخیره‌شده همچنان قابل خواندن‌اند."],
+  compareError: ["Comparison failed. Check the window, cash, costs and parameter constraints; no order was submitted.", "مقایسه ناموفق بود. بازه، سرمایه، هزینه‌ها و محدودیت پارامترها را بررسی کنید؛ سفارشی ارسال نشده است."],
+  comparisonChanged: ["Inputs changed. Run a new matched comparison.", "ورودی‌ها تغییر کردند. مقایسهٔ همسان تازه‌ای اجرا کنید."],
+  comparisonLimit: ["Independent paper accounts, not a multi-asset portfolio. Results cannot authorize capital.", "حساب‌های آزمایشی مستقل، نه پرتفوی چنددارایی. نتایج مجوز استفاده از سرمایه نیستند."],
+  inspectRun: ["Inspect run", "بررسی اجرا"], parameterFast: ["Fast EMA bars", "تعداد کندل EMA سریع"], parameterSlow: ["Slow EMA bars", "تعداد کندل EMA کند"],
+  parameterLookback: ["Lookback bars", "تعداد کندل گذشته"], parameterEntry: ["Entry distance · bps", "فاصلهٔ ورود · واحد پایه"], parameterConfirmation: ["Closed confirmation bar", "کندل بسته‌شدهٔ تأیید"], parameterReference: ["Reference market", "بازار مرجع"],
   recentEvidenceEmpty: ["No saved run evidence yet.", "هنوز شواهد اجرای ذخیره‌شده‌ای نیست."],
 });
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,
@@ -220,7 +235,9 @@ function remember(key, value) { try { localStorage.setItem(key, value); } catch 
 let lang = saved("lang", "en", ["en", "fa"]);
 let theme = saved("theme", "light", ["light", "dark"]);
 const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [],
-  selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false };
+  selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
+  researchSetup: null, comparison: null, comparing: false, candidateParams: {} };
+let comparisonRevision = 0;
 const t = key => T[lang][key] ?? key;
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const digits = value => lang === "fa" ? String(value).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]) : String(value);
@@ -268,9 +285,9 @@ function setHTML(id, html) {
   if (focusedInside) [...element.querySelectorAll("[data-focus]")].find(node => node.dataset.focus === focus)?.focus({ preventScroll: true });
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, timeoutMs = 10000) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(path, { ...options, cache: "no-store", credentials: "same-origin", signal: controller.signal,
       headers: { "Content-Type": "application/json", "X-Gym-Token": TOKEN, ...options.headers } });
@@ -299,6 +316,8 @@ function applyLang() {
   if (state.health) renderHealth(state.health);
   if (state.rules) renderRules(state.rules);
   renderOverview(); renderTicketFields(); renderFeed(); updateClock();
+  if (state.researchSetup) { for (const slot of ["first", "second"]) renderCandidate(slot); renderCoverage(); }
+  renderComparison();
 }
 
 const invalidQuoteFlags = new Set(["STALE", "CROSSED", "ZERO_SPREAD", "NON_FINITE", "NON_POSITIVE"]);
@@ -425,7 +444,99 @@ function renderRun(record) {
       ${disclosure(t("reportDetails"), { report: evidence || null, capital_decisions: record.capital_decisions || [] }, "economic-evidence")}${disclosure(t("runInputs"), { inputs, session: result.session, fx: record.fx, outputs_digest: record.outputs_digest }, "run-inputs")}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("lastDecisions"))}</h3><p class="field-help">${esc(t("decisionHelp"))}</p>${decisions.length ? decisions.map((decision, i) => `<details class="decision disclosure" data-key="decision-${esc(decision.t)}-${esc(decision.order || i)}"><summary><span>${esc(when(decision.t))}</span> <strong>${esc(decision.action)}</strong> <span class="muted">${list(decision.reasons).map(esc).join("; ")}</span></summary>${json({ ...decision, order: list(result.orders).find(order => order.ref === decision.order) || null })}</details>`).join("") : empty(t("noDecisions"))}</section>`);
 }
+function renderCandidate(slot) {
+  const entry = list(state.researchSetup?.strategies).find(item => item.id === $("candidate-" + slot).value);
+  if (!entry) return;
+  const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference" };
+  const values = state.candidateParams[slot] || {};
+  setHTML("candidate-" + slot + "-params", Object.entries(entry.parameters.properties).map(([key, spec]) => {
+    const id = `parameter-${slot}-${key}`, value = values[key] ?? spec.default;
+    const attrs = `id="${id}" data-slot="${slot}" data-parameter="${esc(key)}" required dir="ltr"`;
+    const input = spec.enum ? `<select ${attrs}>${spec.enum.map(option => `<option${option === value ? " selected" : ""}>${esc(option)}</option>`).join("")}</select>`
+      : `<input class="input" ${attrs} type="${spec.type === "integer" ? "number" : "text"}" value="${esc(value)}" ${spec.type === "integer" ? `min="${spec.minimum}" max="${spec.maximum}" step="1"` : `pattern="[A-Z0-9]{2,24}" maxlength="24"`}>`;
+    return `<label for="${id}"><span>${esc(t(names[key] || key))}</span>${input}</label>`;
+  }).join(""));
+}
+function renderCoverage() {
+  const data = state.researchSetup?.coverage;
+  if (!data) return;
+  setHTML("paper-coverage", `<p><strong>${esc(t("coverageTitle"))} · ${code(data.symbol)}</strong> ${esc(when(data.from))} → ${esc(when(data.to))}</p><p>${esc(t("observations"))}: ${num(data.observations)} · ${esc(t("coverageGaps"))}: ${num(data.gaps_over_120s)}</p><p>${esc(t("coverageNote"))}</p>`);
+}
+async function setupResearch(symbol = "") {
+  $("comparison-fields").disabled = true;
+  try {
+    const setup = await api("/api/research" + (symbol ? "?symbol=" + encodeURIComponent(symbol) : ""));
+    if (symbol && $("compare-symbol").value !== symbol) return;
+    const initial = !state.researchSetup;
+    state.researchSetup = setup;
+    if (initial) {
+      $("compare-symbol").innerHTML = list(setup.symbols).map(item => `<option>${esc(item)}</option>`).join("");
+      $("compare-symbol").value = setup.coverage.symbol;
+      $("compare-fee").value = setup.defaults.fee_rate;
+      for (const [index, slot] of ["first", "second"].entries()) {
+        $("candidate-" + slot).innerHTML = list(setup.strategies).map(entry => `<option value="${esc(entry.id)}">${esc(entry.title)}</option>`).join("");
+        $("candidate-" + slot).value = setup.strategies[index]?.id || setup.strategies[0]?.id || "";
+        renderCandidate(slot);
+      }
+    }
+    $("compare-cash").value = setup.coverage.symbol.endsWith("TMN") ? "300000000" : "1000";
+    for (const [field, value] of [["from", setup.coverage.from], ["to", setup.coverage.to]]) {
+      $("compare-" + field).value = value ? new Date(value).toISOString().slice(0, 19) : "";
+    }
+    $("comparison-fields").disabled = !setup.coverage.observations;
+    renderCoverage();
+  } catch (_) {
+    if (symbol && $("compare-symbol").value !== symbol) return;
+    $("comparison-fields").disabled = true; $("paper-coverage").textContent = t("researchUnavailable");
+  }
+}
+function invalidateComparison() {
+  comparisonRevision += 1;
+  const hadResult = state.comparison !== null || state.comparing;
+  state.comparison = null;
+  if (hadResult) setHTML("compare-result", empty(t("comparisonChanged")));
+}
+function renderComparison() {
+  $("compare-submit").textContent = t(state.comparing ? "comparing" : "compareAction");
+  const data = state.comparison;
+  if (!data) return;
+  const quote = data.runs[0]?.result?.quote || "";
+  setHTML("compare-result", `<section class="ticket-result"><h3>${esc(t("compareTitle"))} · ${code(data.comparison_id)}</h3><p>${esc(t("comparisonLimit"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), amount(record.result.end?.net), amount(record.result.end?.net_usdt_eq), num(record.result.fills), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}<h4>${esc(t("rankingTitle"))}</h4>${table([t("rank"), t("strategy"), t("usdtEquivalent")], list(data.ranking?.active).map(row => [num(row.rank), esc(row.name), amount(row.net_usdt_eq)]), t("noActiveRank"))}${disclosure(t("runInputs"), { shared: data.shared_inputs, candidates: data.runs.map(record => ({ run_id: record.run_id, config_hash: record.inputs.config_hash, params: record.inputs.params })) }, "comparison-inputs")}</section>`);
+}
+async function submitComparison(event) {
+  event.preventDefault();
+  if (state.comparing || !state.researchSetup || $("comparison-fields").disabled || $("compare-form").reportValidity?.() === false) return;
+  const revision = comparisonRevision;
+  const inputSignature = () => JSON.stringify([[...$("compare-form").querySelectorAll("input, select")].map(input => input.value), state.candidateParams]);
+  const signature = inputSignature();
+  const candidates = ["first", "second"].map(slot => {
+    const strategy = $("candidate-" + slot).value;
+    const entry = state.researchSetup.strategies.find(item => item.id === strategy);
+    const params = Object.fromEntries(Object.entries(entry.parameters.properties).map(([key, spec]) => {
+      const value = state.candidateParams[slot]?.[key] ?? spec.default;
+      return [key, spec.type === "integer" ? Number(value) : value];
+    }));
+    return { strategy, params };
+  });
+  state.comparison = null; state.comparing = true; $("compare-submit").disabled = true; $("compare-submit").setAttribute("aria-busy", "true");
+  setHTML("compare-result", empty(t("comparing"))); renderComparison();
+  try {
+    const data = await api("/api/compare", { method: "POST", body: JSON.stringify({ symbol: $("compare-symbol").value,
+      from: $("compare-from").value + "Z", to: $("compare-to").value + "Z", resolution: $("compare-resolution").value,
+      cash: $("compare-cash").value, fee_rate: $("compare-fee").value, latency_ms: 500, candidates }) }, 120000);
+    if (data.mode !== "COMPARE" || data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsafe comparison response");
+    if (revision === comparisonRevision && signature === inputSignature()) { state.comparison = data; renderComparison(); }
+    else if (revision === comparisonRevision) invalidateComparison();
+    await research();
+  } catch (_) {
+    if (revision === comparisonRevision && signature !== inputSignature()) invalidateComparison();
+    else if (revision === comparisonRevision) setHTML("compare-result", empty(t("compareError")));
+  }
+  finally { state.comparing = false; $("compare-submit").disabled = false; $("compare-submit").removeAttribute("aria-busy"); renderComparison(); }
+}
+
 async function research() {
+  if (!state.researchSetup) await setupResearch();
   state.runs = list(await api("/api/runs")).slice(0, 50);
   if (!state.runs.some(run => run.run_id === state.selectedRun)) { state.selectedRun = state.runs[0]?.run_id || ""; state.record = null; }
   renderRunList();
@@ -678,12 +789,24 @@ $("market-rows").addEventListener("click", event => {
   state.expanded = state.expanded === button.dataset.market ? "" : button.dataset.market;
   renderMarkets();
 });
-$("run-list").addEventListener("click", event => {
+function selectSavedRun(event) {
   const button = event.target.closest?.("[data-run]") || event.target;
   if (!button.dataset.run) return;
   state.selectedRun = button.dataset.run; state.record = null;
   renderRunList(); refresh();
+}
+$("run-list").addEventListener("click", selectSavedRun);
+$("compare-result").addEventListener("click", selectSavedRun);
+$("compare-form").addEventListener("submit", submitComparison);
+$("compare-form").addEventListener("input", event => {
+  const { slot, parameter } = event.target.dataset;
+  if (parameter) { state.candidateParams[slot] ||= {}; state.candidateParams[slot][parameter] = event.target.value; }
+  invalidateComparison();
 });
+for (const slot of ["first", "second"]) $("candidate-" + slot).addEventListener("change", () => {
+  state.candidateParams[slot] = {}; invalidateComparison(); renderCandidate(slot);
+});
+$("compare-symbol").addEventListener("change", () => { invalidateComparison(); setupResearch($("compare-symbol").value); });
 $("language-toggle").onclick = () => { lang = lang === "en" ? "fa" : "en"; remember("lang", lang); applyLang(); refresh(); };
 $("theme-toggle").onclick = () => { theme = theme === "light" ? "dark" : "light"; remember("theme", theme); applyLang(); };
 $("refresh-data").onclick = () => refresh();

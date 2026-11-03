@@ -72,7 +72,36 @@ if ($serviceSeen.Count -ne 3) {
     throw 'Required SCM principals missing from service security descriptor.'
 }
 
+$StopCtl = Join-Path $CodeDir 'gym-stopctl.exe'
+$HardStop = Join-Path $CodeDir 'gym-hardstop.exe'
+$Provision = Join-Path $CodeDir 'gym-provision.exe'
+$AccountRead = Join-Path $CodeDir 'gym-account-read.exe'
+$StopUser = Join-Path $CodeDir 'stop-user.sid'
+$StopLogon = Join-Path $CodeDir 'stop-logon.sid'
 $trusted = @('S-1-5-18', 'S-1-5-32-544', $sid)
+foreach ($bindingPath in @($StopUser, $StopLogon)) {
+    $binding = Get-Item -LiteralPath $bindingPath -ErrorAction Stop
+    if ($binding.Length -gt 256 -or ($binding.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'Invalid protected operator binding file.'
+    }
+    $bindingAcl = Get-Acl -LiteralPath $bindingPath
+    if (-not $bindingAcl.AreAccessRulesProtected -or
+        $bindingAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $trusted[0..1]) {
+        throw 'Untrusted operator binding owner or inheritance.'
+    }
+    foreach ($ace in $bindingAcl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+        if ($ace.AccessControlType -eq 'Allow' -and
+            ($ace.IdentityReference.Value -notin $trusted -or
+             ($ace.IdentityReference.Value -eq $sid -and
+              (([int64]$ace.FileSystemRights -band -bnot [int64]([Security.AccessControl.FileSystemRights]::Read -bor [Security.AccessControl.FileSystemRights]::Synchronize)) -ne 0)))) {
+            throw 'Operator binding permits untrusted access or service mutation.'
+        }
+    }
+}
+$operatorSid = [Security.Principal.SecurityIdentifier]::new((Get-Content -LiteralPath $StopUser -Raw).Trim()).Value
+if ($operatorSid -in $trusted) { throw 'Operator must be a distinct selected user.' }
+$operatorPaths = @($CodeRoot, $CodeDir, $StopCtl, $HardStop)
+$operatorRights = [int64]([Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Synchronize)
 $forbidden = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-19')
 $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::AppendData -bor
@@ -82,7 +111,7 @@ $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
     [Security.AccessControl.FileSystemRights]::TakeOwnership
 
-foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
+foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
     $item = Get-Item -LiteralPath $path -ErrorAction Stop
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Reparse point in protected path: $path"
@@ -95,9 +124,19 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
     if (-not $acl.AreAccessRulesProtected) { throw "ACL inheritance enabled: $path" }
     $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
     $seenService = $false
+    $seenOperator = $false
     foreach ($rule in $rules) {
         $ruleSid = $rule.IdentityReference.Value
         if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow) {
+            if ($ruleSid -eq $operatorSid) {
+                if ($path -notin $operatorPaths -or
+                    (([int64]$rule.FileSystemRights -band -bnot $operatorRights) -ne 0) -or
+                    (($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::ReadAndExecute) -ne [Security.AccessControl.FileSystemRights]::ReadAndExecute)) {
+                    throw "Operator access exceeds protected-code RX: $path"
+                }
+                $seenOperator = $true
+                continue
+            }
             if ($ruleSid -in $forbidden -or $ruleSid -notin $trusted) {
                 throw "Broad or unknown access rule on ${path}: $ruleSid"
             }
@@ -115,6 +154,9 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
     }
     if (-not $seenService) {
         throw "Missing service-SID allow rule: $path"
+    }
+    if ($path -in $operatorPaths -and -not $seenOperator) {
+        throw "Selected operator cannot read/execute the protected helper path: $path"
     }
 }
 if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) { throw 'Missing binary.' }

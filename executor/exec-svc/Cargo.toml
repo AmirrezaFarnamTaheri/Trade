@@ -11,7 +11,7 @@ exec-store = { path = "../exec-store" }
 
 [target.'cfg(windows)'.dependencies]
 tokio = { version = "1.53", features = ["rt", "net", "io-util", "time", "sync"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Threading", "Win32_System_Pipes"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Threading", "Win32_System_Pipes", "Win32_System_Services", "Win32_Security_Cryptography", "Win32_UI_Shell", "Win32_System_Com", "Win32_Networking_WinHttp", "Win32_Security_Isolation", "Win32_System_JobObjects", "Win32_System_Memory", "Win32_System_Environment"] }
 
 windows-service = "0.8"
 
@@ -26,3 +26,15 @@ path = "src/bin/gym-chaos.rs"
 [[bin]]
 name = "gym-stopctl"
 path = "src/bin/gym-stopctl.rs"
+
+[[bin]]
+name = "gym-hardstop"
+path = "src/bin/gym-hardstop.rs"
+
+[[bin]]
+name = "gym-provision"
+path = "src/bin/gym-provision.rs"
+
+[[bin]]
+name = "gym-account-read"
+path = "src/bin/gym-account-read.rs"

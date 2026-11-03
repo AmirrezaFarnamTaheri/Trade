@@ -186,13 +186,26 @@ def test_stop_authorization_requires_both_os_user_and_logon_sid():
     identity = (ROOT / "executor/exec-svc/src/windows_identity.rs").read_text("utf-8")
     pipe = PIPE.read_text("utf-8")
     assert "stop-user.sid" in installer
-    assert "$identity.User.Value" in installer
+    assert "$userSid = $operatorSid" in installer
+    assert "-OperatorProcessId $OperatorProcessId -ExpectedUserSid $operatorSid" in installer
+    assert "[string] $OperatorAccount" in installer
     assert "stop-user.sid" in main
     assert "provisioned_user_sid" in main
     assert "impersonated_thread_user_sid" in identity
     assert "TokenUser" in identity
     assert "expected_user" in pipe
     assert "impersonated_thread_user_sid" in pipe
+
+
+def test_installer_and_auditor_keep_provisioning_helper_admin_only():
+    installer = (ROOT / "scripts/windows/Install-ReadOnlyExecutor.ps1").read_text("utf-8")
+    auditor = (ROOT / "scripts/windows/Test-ReadOnlyExecutor.ps1").read_text("utf-8")
+    assert "if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe'))" in installer
+    operator_paths = auditor.split("$operatorPaths =", 1)[1].split("foreach", 1)[0]
+    assert "$StopCtl" in operator_paths and "$HardStop" in operator_paths
+    assert "$Provision" not in operator_paths
+    assert "Join-Path $CodeDir 'gym-provision.exe'" in auditor
+    assert "FileSystemRights]::ReadAndExecute" in auditor
 
 
 def test_hostile_probe_uses_independent_real_windows_user_identity():

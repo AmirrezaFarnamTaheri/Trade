@@ -59,6 +59,29 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run pytest -q
 
+  model-gateway:
+    name: Advisory model gateway (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: model-gateway
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
   windows-vm-smoke:
     name: Disposable Windows SCM + access-control integration
     # Never install services while processing untrusted pull_request code.
@@ -97,7 +120,7 @@ jobs:
         run: uv sync --locked --group dev
       - name: Create encrypted synthetic archive (no credentials)
         working-directory: gym-core
-        run: uv run python scripts/b3_portability_probe.py produce "$RUNNER_TEMP/b3-demo.tgbak"
+        run: uv run python scripts/restore_portability_probe.py produce "$RUNNER_TEMP/b3-demo.tgbak"
       - uses: actions/upload-artifact@v4
         with:
           name: b3-ci-synthetic-archive
@@ -125,4 +148,4 @@ jobs:
         working-directory: gym-core
         run: |
           uv sync --locked --group dev
-          uv run python scripts/b3_portability_probe.py restore "$env:RUNNER_TEMP\b3-input\b3-demo.tgbak" "$env:RUNNER_TEMP\b3-restored\exec_ledger.db"
+          uv run python scripts/restore_portability_probe.py restore "$env:RUNNER_TEMP\b3-input\b3-demo.tgbak" "$env:RUNNER_TEMP\b3-restored\exec_ledger.db"

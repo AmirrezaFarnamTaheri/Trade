@@ -29,7 +29,7 @@ operator-controlled deployment evidence.
    authenticated session on a properly controlled host. Do not run private
    account GETs under the browser or research worker identity.
 2. Save **sanitized metadata only**, in the exact format described in
-   `gym-core/docs/c1-readonly-venue-validation.md`, then run:
+   `gym-core/docs/readonly-venue-validation.md`, then run:
 
    ```sh
    gymctl --data data venue-fact-import safe-venue-metadata.json
@@ -111,7 +111,7 @@ operator-controlled deployment evidence.
   distinct increasing quote sequences with qualified freshness, verified
   units, no unknown orders and the active runtime epoch count. A closure
   shows protection **UNAVAILABLE**; a restart loses pre-crash quote credit.
-- Rust `exec_core::c_admission` has independent entry/exit pure vetoes.
+- Rust `exec_core::execution_admission` has independent entry/exit pure vetoes.
   Even when every caller-supplied fact is true, it refuses funded authority
   without the missing trusted service, T1/T2 principal and durable request.
 - The browser's `/api/automation-safety` is intentionally conservative:

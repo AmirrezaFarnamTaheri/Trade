@@ -2,14 +2,17 @@
 <#
 Install a DISABLED, read-only Windows SCM bootstrap (not funded, not a live
 stop-protection service). Run explicitly from an elevated PowerShell window.
-No secrets, T2 actions, network access, or venue APIs are provisioned.
+No secrets, network access, or venue APIs are provisioned. T2 pipe ACL is created
+by the service: SYSTEM/service full access, Administrators data-only (no pipe-create).
 Do not change the service to automatic start as part of this script.
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string] $BinaryPath
+    [string] $BinaryPath,
+    [Parameter(Mandatory = $true)][string] $OperatorAccount,
+    [Parameter(Mandatory = $true)][ValidateRange(1, 4294967295)][uint32] $OperatorProcessId
 )
 
 Set-StrictMode -Version Latest
@@ -48,6 +51,13 @@ foreach ($path in @($CodeRoot, $DataRoot)) {
     }
 }
 
+$operatorSid = ([Security.Principal.NTAccount]::new($OperatorAccount)).Translate([Security.Principal.SecurityIdentifier]).Value
+$null = & (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1') -OperatorProcessId $OperatorProcessId -ExpectedUserSid $operatorSid
+$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe') | ForEach-Object {
+    $file = Get-Item -LiteralPath (Join-Path $inputFile.DirectoryName $_) -ErrorAction Stop
+    if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Helper must be a regular staging executable.' }
+    @{ File = $file; Hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash }
+}
 $sourceHash = (Get-FileHash -LiteralPath $inputFile.FullName -Algorithm SHA256).Hash
 $target = "$ExePath / $DataDir (service remains DISABLED)"
 if (-not $PSCmdlet.ShouldProcess($target, 'Install read-only Executor service identity and ACLs')) {
@@ -85,6 +95,20 @@ try {
     Invoke-Icacls -Path $ExePath -Arguments @('/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F')
     Invoke-Icacls -Path $ExePath -Arguments @('/setowner', '*S-1-5-32-544')
 
+    foreach ($helper in $helpers) {
+        $destination = Join-Path $CodeDir $helper.File.Name
+        Copy-Item -LiteralPath $helper.File.FullName -Destination $destination -ErrorAction Stop
+        if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $helper.Hash) { throw 'Helper hash changed during copy.' }
+        Invoke-Icacls -Path $destination -Arguments @('/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F')
+        if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe')) {
+            Invoke-Icacls -Path $destination -Arguments @('/grant:r', "*${operatorSid}:RX")
+        }
+        Invoke-Icacls -Path $destination -Arguments @('/setowner', '*S-1-5-32-544')
+    }
+    foreach ($dir in @($CodeRoot, $CodeDir)) {
+        Invoke-Icacls -Path $dir -Arguments @('/grant:r', "*${operatorSid}:RX")
+    }
+
     # Native SCM syntax separates each key from its argument. No password is
     # accepted, and this deliberately does not start the service.
     Invoke-Sc -Arguments @('create', $ServiceName, 'type=', 'own',
@@ -97,7 +121,7 @@ try {
     Invoke-Sc -Arguments @('sdset', $ServiceName, $serviceScmDacl)
     Invoke-Sc -Arguments @('sidtype', $ServiceName, 'restricted')
     Invoke-Sc -Arguments @('description', $ServiceName,
-        'READ-ONLY bootstrap; no money, stop-protection or credential capability')
+        'DISARMED bootstrap; credential custody only; venue permissions UNVERIFIED; no funded authority')
 
     $serviceSid = ([Security.Principal.NTAccount]::new("NT SERVICE\$ServiceName")).Translate(
         [Security.Principal.SecurityIdentifier]).Value
@@ -112,8 +136,16 @@ try {
     Invoke-Icacls -Path $DataRoot -Arguments @('/grant:r', $readCode)
     Invoke-Icacls -Path $DataDir -Arguments @('/grant:r', $modifyData)
 
+    # OWNER RIGHTS suppresses shared LocalService implicit owner WRITE_DAC on new files.
+    # No LocalService ACE: access requires the restricted, enabled service SID.
+    $vaultDir = Join-Path $DataDir 'Vault'
+    $null = New-Item -ItemType Directory -Path $vaultDir
+    $vaultAcl = [Security.AccessControl.DirectorySecurity]::new()
+    $vaultAcl.SetSecurityDescriptorSddlForm("O:BAD:P(A;OICI;RC;;;OW)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;${serviceSid})")
+    Set-Acl -LiteralPath $vaultDir -AclObject $vaultAcl
+
     # Derive the operator SID from the actual TokenLogonSid OS token class.
-    $logonSid = & (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1')
+    $logonSid = & (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1') -OperatorProcessId $OperatorProcessId -ExpectedUserSid $operatorSid
     if ($logonSid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') {
         throw 'Windows did not return a valid operator logon SID.'
     }
@@ -126,7 +158,7 @@ try {
     )
     Invoke-Icacls -Path $stopSidPath -Arguments @('/setowner', '*S-1-5-32-544')
     # The exact OS-issued operator user SID is a second mandatory principal.
-    $userSid = $identity.User.Value
+    $userSid = $operatorSid
     if ($userSid -notmatch '^S-1-[0-9]+(-[0-9]+){2,12}$' -or $userSid.Length -gt 120) {
         throw 'Windows did not provide a valid operator user SID.'
     }

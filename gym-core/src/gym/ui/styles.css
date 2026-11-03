@@ -177,6 +177,12 @@ table.data { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ticket-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
 .ticket-fields label { display: grid; gap: 5px; font-size: 11px; font-weight: 600; }
 .ticket-fields .input, .ticket-fields select { width: 100%; min-width: 0; font-size: 12px; font-weight: 400; }
+.comparison-panel { margin-bottom: 20px; }
+.comparison-fields { border: 0; padding: 0; margin: 16px 0; min-width: 0; display: grid; gap: 18px; }
+.comparison-fields fieldset { border: 1px solid var(--border); border-radius: 5px; padding: 14px; min-width: 0; }
+.comparison-fields legend { padding-inline: 6px; font-size: 12px; font-weight: 600; }
+.comparison-fields .candidate-parameters { margin-top: 14px; }
+#compare-result { overflow-wrap: anywhere; }
 .research { display: grid; grid-template-columns: 228px minmax(0, 1fr); gap: 20px; align-items: start; }
 .run-panel { position: sticky; top: 20px; max-height: calc(100dvh - 40px); overflow: auto; padding: 17px; }
 .run-list { display: grid; gap: 6px; list-style: none; padding: 0; margin: 0; }

@@ -108,3 +108,6 @@ impl StopGate {
 
 /// Durably replayed, offline-only B2 intents; never grants money authority.
 pub mod offline_recovery;
+
+/// Durable service composition with an in-process fake venue, never a live adapter.
+pub mod fake_execution;

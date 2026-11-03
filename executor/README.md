@@ -18,7 +18,7 @@ All existing tests run through GitHub Actions; Rust uses
 `cargo test --locked --workspace --all-targets` on Linux/Windows,
 plus Windows disposable SCM integration and the Python suite.
 
-**See [B1 progress](docs/b1-progress.md) for passing evidence and outstanding
+**See [B1 progress](docs/service-security-status.md) for passing evidence and outstanding
 T2 credential, operator stop channel, real Wallex account reader and journal
 end-to-end gates.** No venue-write API, trade key, funded authority, emergency
 exit guarantee or reliable external coverage exists in this branch.

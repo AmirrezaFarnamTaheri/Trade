@@ -14,11 +14,13 @@ def test_hard_stop_is_elevated_and_requires_explicit_loss_of_protection_consent(
     assert "ConfirmImpact = 'High'" in body
     assert "$AcknowledgeLossOfProtection" in body
     assert "ShouldProcess" in body
-    assert "UNPROTECTED" in body
-    assert "Stop-Service" in body
-    assert "start=', 'disabled'" in body
-    assert "NT AUTHORITY\\LocalService" in body
-    assert "gym-executor.exe" in body
+    native = (ROOT / "executor/exec-svc/src/bin/gym-hardstop.rs").read_text("utf-8")
+    assert "gym-hardstop.exe" in body and "--acknowledge-loss-of-protection" in body
+    assert "CONFIRMED UNPROTECTED" in native
+    assert "ServiceStartType::Disabled" in native
+    assert "TerminateProcess(pinned.process, 1)" in native
+    assert "Duration::from_secs(10)" in native
+    assert "pinned.verify()?" in native
     assert "client_id" not in body.lower()
     assert "secrets.dat" not in body.lower()
 

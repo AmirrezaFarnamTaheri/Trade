@@ -14,16 +14,20 @@ use tokio::net::windows::named_pipe::{NamedPipeServer, PipeMode, ServerOptions};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 use windows_sys::Win32::Foundation::LocalFree;
-use windows_sys::Win32::Security::RevertToSelf;
-use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
+use windows_sys::Win32::Security::RevertToSelf;
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 
 pub const STOP_PIPE_NAME: &str = r"\\.\pipe\TradingGYM.Stop.v1";
 const CLIENT_DEADLINE: Duration = Duration::from_millis(750);
 
 fn valid_sid_parts(sid: &str) -> bool {
-    sid.starts_with("S-1-5-") && sid.split('-').skip(1).all(|v| !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()))
+    sid.starts_with("S-1-5-")
+        && sid
+            .split('-')
+            .skip(1)
+            .all(|v| !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// Only explicitly provisioned service and operator logon SIDs are allowed.
@@ -33,10 +37,15 @@ fn valid_sid_parts(sid: &str) -> bool {
 /// requested. Disposable OS tests proved 0x00100003 fails, 0x00100083 opens.
 /// Generic write is unsafe here because it includes pipe creation.
 pub fn stop_pipe_sddl(service_sid: &str, logon_sid: &str) -> io::Result<String> {
-    if !valid_sid_parts(service_sid) || !service_sid.starts_with("S-1-5-80-")
-        || !valid_sid_parts(logon_sid) || !logon_sid.starts_with("S-1-5-5-")
+    if !valid_sid_parts(service_sid)
+        || !service_sid.starts_with("S-1-5-80-")
+        || !valid_sid_parts(logon_sid)
+        || !logon_sid.starts_with("S-1-5-5-")
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "expected service SID and logon SID"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "expected service SID and logon SID",
+        ));
     }
     Ok(format!(
         "D:P(A;;GA;;;SY)(A;;GA;;;{service_sid})(A;;0x00100083;;;{logon_sid})"
@@ -60,7 +69,12 @@ fn create_pipe(service_sid: &str, logon_sid: &str, first: bool) -> io::Result<Na
     let mut raw: PSECURITY_DESCRIPTOR = ptr::null_mut();
     // SAFETY: wide is NUL-terminated and raw is a valid out-parameter.
     let ok = unsafe {
-        ConvertStringSecurityDescriptorToSecurityDescriptorW(wide.as_ptr(), 1, &mut raw, ptr::null_mut())
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            wide.as_ptr(),
+            1,
+            &mut raw,
+            ptr::null_mut(),
+        )
     };
     if ok == 0 {
         return Err(io::Error::last_os_error());
@@ -95,7 +109,11 @@ fn create_pipe(service_sid: &str, logon_sid: &str, first: bool) -> io::Result<Na
 /// access mask is unexpectedly permissive on the installed Windows host.
 /// There are deliberately NO awaits during impersonation: the stop listener
 /// runs on its own single-thread Tokio runtime. Revert failure is fatal.
-fn verified_client_logon(client: &NamedPipeServer, expected_logon: &str, expected_user: &str) -> io::Result<()> {
+fn verified_client_logon(
+    client: &NamedPipeServer,
+    expected_logon: &str,
+    expected_user: &str,
+) -> io::Result<()> {
     // SAFETY: the server owns this connected pipe; it has already received
     // the client's request bytes, as required by ImpersonateNamedPipeClient.
     if unsafe { ImpersonateNamedPipeClient(client.as_raw_handle()) } == 0 {
@@ -105,8 +123,10 @@ fn verified_client_logon(client: &NamedPipeServer, expected_logon: &str, expecte
         let logon = crate::windows_identity::impersonated_thread_logon_sid()?;
         let user = crate::windows_identity::impersonated_thread_user_sid()?;
         if logon != expected_logon || user != expected_user {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied,
-                "stop pipe client does not match provisioned OS user and logon"));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "stop pipe client does not match provisioned OS user and logon",
+            ));
         }
         Ok(())
     })();
@@ -130,7 +150,10 @@ async fn handle_client(
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "stop request read timeout"))??;
     if received != FRAME_SIZE {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid stop message size"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid stop message size",
+        ));
     }
     verified_client_logon(&client, &expected_logon, &expected_user)?;
     let reply = gate
@@ -153,22 +176,17 @@ pub async fn serve_stop_only(
 ) -> io::Result<()> {
     let mut listening = create_pipe(service_sid, logon_sid, true)?;
     // SCM RUNNING may only follow successful secure instance creation.
-    if let Some(ready) = ready { let _ = ready.send(()); }
+    if let Some(ready) = ready {
+        let _ = ready.send(());
+    }
     let slots = Arc::new(Semaphore::new(16));
     loop {
         let connect_result = listening.connect().await;
         // Retain the first instance until a replacement is available; do
         // not tear down the emergency channel after a local client abort.
-        let replacement = loop {
-            match create_pipe(service_sid, logon_sid, false) {
-                Ok(pipe) => break pipe,
-                Err(_) => tokio::time::sleep(Duration::from_millis(50)).await,
-            }
-        };
+        let replacement = create_pipe(service_sid, logon_sid, false)?;
         let connected = std::mem::replace(&mut listening, replacement);
-        if connect_result.is_err() {
-            // Windows ERROR_NO_DATA (232) can occur after client disconnect.
-            // This is not a reason to terminate the stop-only listener.
+        if !connected_or_disconnected(connect_result)? {
             continue;
         }
         if let Ok(slot) = slots.clone().try_acquire_owned() {
@@ -184,16 +202,42 @@ pub async fn serve_stop_only(
     }
 }
 
+fn connected_or_disconnected(result: io::Result<()>) -> io::Result<bool> {
+    match result {
+        Ok(()) => Ok(true),
+        Err(error) if error.raw_os_error() == Some(232) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn unhealthy_listener_is_fatal_not_an_infinite_retry() {
+        assert!(connected_or_disconnected(Ok(())).unwrap());
+        assert!(!connected_or_disconnected(Err(io::Error::from_raw_os_error(232))).unwrap());
+        assert!(connected_or_disconnected(Err(io::Error::from_raw_os_error(6))).is_err());
+        let (tx, rx) = std::sync::mpsc::channel();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let result = rt.block_on(serve_stop_only(
+            Arc::new(StopGate::new(1).unwrap()),
+            "invalid",
+            "invalid",
+            "invalid",
+            Some(tx),
+        ));
+        assert!(result.is_err());
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
     fn strictly_scoped_sddl_has_no_default_everyone_or_pipe_create_ace() {
-        let value = stop_pipe_sddl(
-            "S-1-5-80-123-456-789-111-222",
-            "S-1-5-5-100-200",
-        ).unwrap();
+        let value = stop_pipe_sddl("S-1-5-80-123-456-789-111-222", "S-1-5-5-100-200").unwrap();
         assert!(!value.contains("(D;;GA;;;NU)"));
         assert!(value.contains("D:P(A;;GA;;;SY)"));
         assert!(value.contains("(A;;0x00100083;;;S-1-5-5-100-200)"));

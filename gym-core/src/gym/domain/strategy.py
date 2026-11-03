@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
 from .bars import Bar
+from .model import BookTop
 
 
 def digest(obj) -> str:
@@ -41,10 +43,17 @@ class Snapshot:
     bid: Decimal | None
     ask: Decimal | None
     quote_time: datetime | None
+    context_bars: tuple[Bar, ...] = ()
+    reference: BookTop | None = None
 
     @property
     def id(self) -> str:
-        return digest([self.as_of, self.symbol, self.bar.start, self.bar.close, self.bid, self.ask, self.quote_time])[:16]
+        cut = [self.as_of, self.symbol, self.bar.start, self.bar.close, self.bid, self.ask, self.quote_time]
+        if self.context_bars or self.reference:
+            reference = self.reference
+            cut += [[(b.spec.resolution, b.start, b.avail, b.open, b.close) for b in self.context_bars],
+                    [reference.symbol, reference.ts_avail, reference.bid, reference.ask] if reference else None]
+        return digest(cut)[:16]
 
 
 @dataclass(frozen=True)
@@ -87,6 +96,85 @@ class EmaTrend:
         if not up and holding:
             return "SELL_REQUEST", Decimal(1), ("fast EMA crossed below slow",), fh
         return "HOLD", Decimal(0), ("trend up, already long" if up else "trend down, already flat",), fh
+
+
+def long_flat(snap, holding, trend, features):
+    fingerprint = digest(features)[:16]
+    if trend is None:
+        return "ABSTAIN_WARMUP", Decimal(0), ("required closed history unavailable",), fingerprint
+    if snap.bid is None:
+        return "ABSTAIN_NO_QUOTE", Decimal(0), ("no qualified quote at decision time",), fingerprint
+    action = "BUY_REQUEST" if trend and not holding else "SELL_REQUEST" if not trend and holding else "HOLD"
+    return action, Decimal(int(action != "HOLD")), ("long condition" if trend else "flat condition",), fingerprint
+
+
+class SmaReversion:
+    """Buy below a closed-bar rolling mean; exit at the mean. No shorts or leverage."""
+    name = "sma-reversion"
+
+    def __init__(self, lookback=20, entry_bps=50):
+        self.params = {"lookback": lookback, "entry_bps": entry_bps}
+        self.closes = deque(maxlen=lookback)
+        self.feature_values = {}
+
+    def decide(self, snap, holding):
+        self.closes.append(snap.bar.close)
+        mean = sum(self.closes) / len(self.closes)
+        ready = len(self.closes) == self.closes.maxlen
+        threshold = mean if holding else mean * (1 - Decimal(self.params["entry_bps"]) / 10000)
+        trend = snap.bar.close < threshold if ready else None
+        self.feature_values = {"mean": str(mean), "threshold": str(threshold), "trend": trend}
+        return long_flat(snap, holding, trend, self.feature_values)
+
+
+class ConfirmedTrend(EmaTrend):
+    """Trade fast/slow EMA direction only while the last higher-timeframe bar is positive."""
+    name = "ema-confirmed"
+
+    def __init__(self, fast=8, slow=21, confirmation="1h"):
+        super().__init__(fast, slow)
+        self.params["confirmation"] = confirmation
+        self.required_resolutions = (confirmation,)
+        self.confirmation_bar = None
+
+    @property
+    def feature_values(self):
+        values = super().feature_values
+        bar = self.confirmation_bar
+        values.update(confirmation_open=str(bar.open) if bar else None,
+                      confirmation_close=str(bar.close) if bar else None,
+                      trend=values["trend"] and bar.close > bar.open if bar and self.slow.ready else None)
+        return values
+
+    def decide(self, snap, holding):
+        self.confirmation_bar = next((b for b in snap.context_bars if b.spec.resolution == self.params["confirmation"]), None)
+        super().decide(snap, holding)
+        return long_flat(snap, holding, self.feature_values["trend"], self.feature_values)
+
+
+class RelativeMomentum:
+    """Buy the traded asset only when its trailing return is positive and exceeds the reference asset's."""
+    name = "relative-momentum"
+
+    def __init__(self, lookback=20, reference="ETHUSDT"):
+        self.params = {"lookback": lookback, "reference": reference}
+        self.reference_symbol = reference
+        self.history = deque(maxlen=lookback + 1)
+        self.feature_values = {}
+
+    def decide(self, snap, holding):
+        if snap.reference is None:
+            self.feature_values = {"trend": None, "reference": self.reference_symbol}
+            return "ABSTAIN_NO_REFERENCE", Decimal(0), ("no fresh qualified reference quote",), digest(self.feature_values)[:16]
+        reference = (snap.reference.bid + snap.reference.ask) / 2
+        self.history.append((snap.bar.close, reference))
+        primary_return = snap.bar.close / self.history[0][0] - 1
+        reference_return = reference / self.history[0][1] - 1
+        ready = len(self.history) == self.history.maxlen
+        trend = primary_return > 0 and primary_return > reference_return if ready else None
+        self.feature_values = {"primary_return": str(primary_return), "reference_return": str(reference_return),
+                               "reference": self.reference_symbol, "trend": trend}
+        return long_flat(snap, holding, trend, self.feature_values)
 
 
 class BuyAndHold:

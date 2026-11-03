@@ -84,9 +84,9 @@ def test_windows_negative_probe_rejects_uac_filtered_admin_tokens():
     assert "IsInRole" in code
 
 
-def test_stop_listener_recovers_from_client_abort_and_pipe_recreate_errors():
+def test_stop_listener_recovers_from_client_abort_but_fails_on_listener_recreation_error():
     code = (ROOT / "executor/exec-svc/src/windows_pipe.rs").read_text("utf-8")
     assert "let connect_result = listening.connect().await" in code
-    assert "if connect_result.is_err()" in code
-    assert "tokio::time::sleep(Duration::from_millis(50)).await" in code
-    assert "create_pipe(service_sid, logon_sid, false)" in code
+    assert "connected_or_disconnected(connect_result)?" in code
+    assert "let replacement = create_pipe(service_sid, logon_sid, false)?;" in code
+    assert code.index("let replacement = create_pipe") < code.index("connected_or_disconnected(connect_result)?")

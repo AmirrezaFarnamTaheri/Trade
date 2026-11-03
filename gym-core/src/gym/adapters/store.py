@@ -44,7 +44,10 @@ def s(x) -> str | None:
 
 
 class MarketDB:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, readonly=False):
+        if readonly:
+            self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None)
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         self.c = sqlite3.connect(path, isolation_level=None)
         self.c.execute("pragma journal_mode=WAL")

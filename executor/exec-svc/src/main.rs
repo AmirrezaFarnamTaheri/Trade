@@ -1,12 +1,21 @@
 //! Disarmed Windows service with independent stop-only T0 listener.
 //! This controls only the monotone in-memory gate; NO orders, keys or exits.
+#[cfg(windows)]
+mod credential_vault;
+#[cfg(windows)]
+mod privileged_pipe;
+#[cfg(windows)]
+mod service_account;
+
 #[cfg(not(windows))]
 fn main() {
     eprintln!("gym-executor is available only as a Windows service");
     std::process::exit(2);
 }
 #[cfg(windows)]
-fn main() -> windows_service::Result<()> { windows_host::start() }
+fn main() -> windows_service::Result<()> {
+    windows_host::start()
+}
 
 #[cfg(windows)]
 mod windows_host {
@@ -18,8 +27,8 @@ mod windows_host {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use windows_service::define_windows_service;
     use windows_service::service::{
-        ServiceControl, ServiceControlAccept, ServiceExitCode,
-        ServiceState, ServiceStatus, ServiceType,
+        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        ServiceType,
     };
     use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
     use windows_service::service_dispatcher;
@@ -29,7 +38,9 @@ mod windows_host {
     pub(super) fn start() -> windows_service::Result<()> {
         service_dispatcher::start(NAME, ffi_service_main)
     }
-    fn service_main(_args: Vec<OsString>) { let _ = run_service(); }
+    fn service_main(args: Vec<OsString>) {
+        let _ = run_service(args);
+    }
 
     fn status(state: ServiceState, code: u32) -> ServiceStatus {
         ServiceStatus {
@@ -37,7 +48,9 @@ mod windows_host {
             current_state: state,
             controls_accepted: if state == ServiceState::Running {
                 ServiceControlAccept::STOP
-            } else { ServiceControlAccept::empty() },
+            } else {
+                ServiceControlAccept::empty()
+            },
             exit_code: ServiceExitCode::Win32(code),
             checkpoint: 0,
             wait_hint: Duration::default(),
@@ -51,21 +64,30 @@ mod windows_host {
         let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramData")
         })?;
-        let file = PathBuf::from(root).join("TradingGYM").join("Executor")
+        let file = PathBuf::from(root)
+            .join("TradingGYM")
+            .join("Executor")
             .join("stop-logon.sid");
         let info = std::fs::symlink_metadata(&file)?;
         if !info.file_type().is_file() || info.file_type().is_symlink() || info.len() > 120 {
-            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,
-                "untrusted stop SID configuration"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "untrusted stop SID configuration",
+            ));
         }
         let text = std::fs::read_to_string(file)?;
         let sid = text.trim();
         let components: Vec<&str> = sid.split('-').collect();
-        if !sid.starts_with("S-1-5-5-") || components.len() != 6
-            || components[4..].iter().any(|x| x.is_empty() || !x.bytes().all(|b| b.is_ascii_digit()))
+        if !sid.starts_with("S-1-5-5-")
+            || components.len() != 6
+            || components[4..]
+                .iter()
+                .any(|x| x.is_empty() || !x.bytes().all(|b| b.is_ascii_digit()))
         {
-            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,
-                "invalid provisioned logon SID"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "invalid provisioned logon SID",
+            ));
         }
         Ok(sid.to_owned())
     }
@@ -76,27 +98,36 @@ mod windows_host {
         let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramFiles")
         })?;
-        let file = PathBuf::from(root).join("TradingGYM").join("Executor")
+        let file = PathBuf::from(root)
+            .join("TradingGYM")
+            .join("Executor")
             .join("stop-user.sid");
         let info = std::fs::symlink_metadata(&file)?;
         if !info.file_type().is_file() || info.file_type().is_symlink() || info.len() > 120 {
-            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,
-                "untrusted operator user SID configuration"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "untrusted operator user SID configuration",
+            ));
         }
         let value = std::fs::read_to_string(file)?;
         let sid = value.trim();
         let components: Vec<&str> = sid.split('-').collect();
-        if !sid.starts_with("S-1-") || !(5..=16).contains(&components.len())
-            || components.iter().skip(1).any(|x| x.is_empty()
-                || !x.bytes().all(|b| b.is_ascii_digit()))
+        if !sid.starts_with("S-1-")
+            || !(5..=16).contains(&components.len())
+            || components
+                .iter()
+                .skip(1)
+                .any(|x| x.is_empty() || !x.bytes().all(|b| b.is_ascii_digit()))
         {
-            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,
-                "invalid provisioned operator user SID"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "invalid provisioned operator user SID",
+            ));
         }
         Ok(sid.to_owned())
     }
 
-    fn run_service() -> windows_service::Result<()> {
+    fn run_service(args: Vec<OsString>) -> windows_service::Result<()> {
         let should_stop = Arc::new(AtomicBool::new(false));
         let callback_stop = Arc::clone(&should_stop);
         let handler = move |event| match event {
@@ -108,6 +139,21 @@ mod windows_host {
             _ => ServiceControlHandlerResult::NotImplemented,
         };
         let status_handle = service_control_handler::register(NAME, handler)?;
+        // StartService arguments are SCM-admin controlled, never accepted from a pipe.
+        let arguments: Option<Vec<String>> = args
+            .iter()
+            .skip(1)
+            .map(|s| s.to_str().map(str::to_owned))
+            .collect();
+        let mode = match arguments
+            .and_then(|a| exec_ipc::provision::StartupMode::from_scm_arguments(&a).ok())
+        {
+            Some(mode) => mode,
+            None => {
+                status_handle.set_service_status(status(ServiceState::Stopped, 87))?;
+                return Ok(());
+            }
+        };
         if !exec_svc::windows_identity::is_restricted_executor_service() {
             status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
             return Ok(());
@@ -133,8 +179,10 @@ mod windows_host {
                 return Ok(());
             }
         };
-        let epoch = SystemTime::now().duration_since(UNIX_EPOCH)
-            .map(|t| t.as_nanos() as u64).unwrap_or(0);
+        let epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|t| t.as_nanos() as u64)
+            .unwrap_or(0);
         let gate = match exec_svc::StopGate::new(epoch) {
             Ok(gate) => Arc::new(gate),
             Err(_) => {
@@ -142,6 +190,38 @@ mod windows_host {
                 return Ok(());
             }
         };
+        let (privileged_tx, privileged_rx) = mpsc::channel();
+        let privileged_sid = service_sid.clone();
+        let privileged_failed = Arc::new(AtomicBool::new(false));
+        let failed_t2 = privileged_failed.clone();
+        let stop_t2 = should_stop.clone();
+        thread::spawn(move || {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(std::io::Error::other)
+                    .and_then(|rt| {
+                        rt.block_on(crate::privileged_pipe::serve(
+                            &privileged_sid,
+                            privileged_tx,
+                            mode,
+                        ))
+                    })
+            }));
+            if mode != exec_ipc::provision::StartupMode::CredentialRecovery
+                || !matches!(result, Ok(Ok(())))
+            {
+                failed_t2.store(true, Ordering::SeqCst);
+            }
+            stop_t2.store(true, Ordering::SeqCst);
+        });
+        if privileged_rx.recv_timeout(Duration::from_secs(5)).is_err()
+            || privileged_failed.load(Ordering::SeqCst)
+        {
+            status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+            return Ok(());
+        }
         let (ready_tx, ready_rx) = mpsc::channel();
         let listener_failed = Arc::new(AtomicBool::new(false));
         let failed = Arc::clone(&listener_failed);
@@ -149,16 +229,25 @@ mod windows_host {
         // This independent T0 thread never waits for Python, UI or the main
         // proposal/reconciliation loop and cannot gain funded permissions.
         thread::spawn(move || {
-            let result = tokio::runtime::Builder::new_current_thread()
-                .enable_all().build()
-                .map_err(std::io::Error::other)
-                .and_then(|rt| rt.block_on(exec_svc::windows_pipe::serve_stop_only(
-                    gate, &service_sid, &logon_sid, &operator_user, Some(ready_tx),
-                )));
-            if result.is_err() {
-                failed.store(true, Ordering::SeqCst);
-                stop_on_failure.store(true, Ordering::SeqCst);
-            }
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(std::io::Error::other)
+                    .and_then(|rt| {
+                        rt.block_on(exec_svc::windows_pipe::serve_stop_only(
+                            gate,
+                            &service_sid,
+                            &logon_sid,
+                            &operator_user,
+                            Some(ready_tx),
+                        ))
+                    })
+            }));
+            // Any return (or panic) loses T0; never leave SCM RUNNING.
+            let _ = result;
+            failed.store(true, Ordering::SeqCst);
+            stop_on_failure.store(true, Ordering::SeqCst);
         });
         if ready_rx.recv_timeout(Duration::from_secs(5)).is_err()
             || listener_failed.load(Ordering::SeqCst)
@@ -172,8 +261,14 @@ mod windows_host {
         while !should_stop.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(50));
         }
-        status_handle.set_service_status(status(ServiceState::Stopped,
-            if listener_failed.load(Ordering::SeqCst) { 5 } else { 0 }))?;
+        status_handle.set_service_status(status(
+            ServiceState::Stopped,
+            if listener_failed.load(Ordering::SeqCst) || privileged_failed.load(Ordering::SeqCst) {
+                5
+            } else {
+                0
+            },
+        ))?;
         Ok(())
     }
 }

@@ -15,6 +15,7 @@ class Element {
     this.innerHTML = "";
     this.value = node.attrs.value || "";
     this.hidden = "hidden" in node.attrs;
+    this.disabled = "disabled" in node.attrs;
     this.style = {};
     this.listeners = {};
     this.classList = {
@@ -25,7 +26,21 @@ class Element {
   }
   set textContent(value) { this._text = String(value ?? ""); this._html = ""; }
   get textContent() { return this._text || this._html.replace(/<[^>]*>/g, ""); }
-  set innerHTML(value) { this._html = String(value ?? ""); this._text = ""; }
+  set innerHTML(value) {
+    this._html = String(value ?? ""); this._text = "";
+    // Only generated candidate controls need a parsed subtree in this harness.
+    if (!/^candidate-(first|second)-params$/.test(this.id || "")) return;
+    for (const element of elements) if (element.parentIndex === elements.indexOf(this)) { element.parentIndex = null; element.detached = true; }
+    for (const match of this._html.matchAll(/<(input|select)\b([^>]*)(?:>([\s\S]*?)<\/select>)?/g)) {
+      const attrs = Object.fromEntries([...match[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g)].map(([, key, val]) => [key, val ?? ""]));
+      const control = new Element({ tag: match[1], attrs, parent: elements.indexOf(this) });
+      if (match[1] === "select") {
+        const options = [...(match[3] || "").matchAll(/<option([^>]*)>([^<]*)<\/option>/g)];
+        control.value = (options.find(option => option[1].includes("selected")) || options[0])?.[2] || "";
+      }
+      elements.push(control);
+    }
+  }
   get innerHTML() { return this._html; }
   setAttribute(key, value) {
     this.attributes[key] = String(value ?? "");
@@ -38,6 +53,8 @@ class Element {
   addEventListener(name, callback) { this.listeners[name] = callback; }
   querySelectorAll(selector) { return select(selector, this); }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+  checkValidity() { return this.valid !== false; }
+  reportValidity() { return this.checkValidity(); }
   focus() {}
   scrollIntoView() {}
 }
@@ -56,7 +73,7 @@ function matches(element, selector) {
 function ancestor(element) { return elements[element.parentIndex] || null; }
 function inside(element, scope) { for (let parent = ancestor(element); parent; parent = ancestor(parent)) if (parent === scope) return true; return false; }
 function select(selector, scope) {
-  return elements.filter(element => (!scope || inside(element, scope)) && selector.split(",").some(part => {
+  return elements.filter(element => !element.detached && (!scope || inside(element, scope)) && selector.split(",").some(part => {
     const chain = part.trim().split(/\s+/);
     if (!matches(element, chain.pop())) return false;
     let parent = ancestor(element);
@@ -70,7 +87,7 @@ function select(selector, scope) {
   }));
 }
 const byId = id => {
-  const element = elements.find(e => e.id === id);
+  const element = elements.find(e => !e.detached && e.id === id);
   assert.ok(element, `Application references missing page element #${id}`);
   return element;
 };
@@ -87,9 +104,25 @@ const replies = new Map([
 ]);
 let responseStatus = 200;
 let delayedTicket = null;
+let delayedCompare = null;
+let delayedSetup = null;
+let abortHealth = false;
+const strategies = [
+  { id: "ema-trend", title: "EMA trend", parameters: { properties: { fast: { type: "integer", default: 8, minimum: 1, maximum: 10000 }, slow: { type: "integer", default: 21, minimum: 2, maximum: 10000 } } } },
+  { id: "sma-reversion", title: "SMA reversion", parameters: { properties: { lookback: { type: "integer", default: 20, minimum: 2, maximum: 10000 }, entry_bps: { type: "integer", default: 50, minimum: 0, maximum: 1000 } } } },
+  { id: "ema-confirmed", title: "Confirmed", parameters: { properties: { confirmation: { type: "string", default: "1h", enum: ["15min", "1h", "1day"] } } } },
+  { id: "relative-momentum", title: "Relative", parameters: { properties: { reference: { type: "string", default: "ETHUSDT" } } } },
+];
+const setup = { strategies, symbols: ["BTCUSDT"], coverage: { symbol: "BTCUSDT", observations: 30, from: "2026-10-29T12:30:00+03:30", to: "2026-10-29T13:00:00+03:30", gaps_over_120s: 0 }, defaults: { fee_rate: "0.001", resolution: "15min", latency_ms: 500 }, authority: "PAPER_ONLY", funded_authority: false };
+replies.set("/api/research", setup);
+replies.set("/api/research?symbol=BTCUSDT", setup);
+const comparison = { comparison_id: "paired-test", mode: "COMPARE", authority: "PAPER_ONLY", funded_authority: false, order_submitted: false, shared_inputs: {}, ranking: { active: [] }, runs: ["a", "b"].map((id, i) => ({ run_id: id.repeat(16), inputs: { strategy: strategies[i].id, symbol: "BTCUSDT", params: {}, config_hash: id }, result: { symbol: "BTCUSDT", strategy: strategies[i].id, quote: "USDT", end: { net: "1.123456789012345678" }, fills: 2 } })) };
+replies.set("/api/compare", comparison);
 const httpReply = (data, status = responseStatus) => ({ ok: status >= 200 && status < 300, status, json: async () => data });
 const windowEvents = new Map();
 const storage = new Map([["lang", "unsupported-language"], ["theme", "unsupported-theme"]]);
+const timers = new Map();
+let timerId = 0;
 const sandbox = {
   document: {
     documentElement: elements.find(element => element.tagName === "HTML"), visibilityState: "visible", hidden: false,
@@ -100,12 +133,17 @@ const sandbox = {
   location: { hash: "" }, history: { replaceState() {} },
   addEventListener(name, callback) { windowEvents.set(name, callback); }, removeEventListener() {},
   matchMedia: () => ({ matches: false }),
-  setInterval() {}, clearInterval() {}, setTimeout() {}, clearTimeout() {},
+  setInterval() {}, clearInterval() {},
+  setTimeout(callback, delay) { const id = ++timerId; timers.set(id, { callback, delay }); return id; },
+  clearTimeout(id) { timers.delete(id); },
   console, Intl, URL, URLSearchParams, AbortController,
   confirm: () => false,
   fetch: async (path, options = {}) => {
     requests.push({ path, options });
     assert.ok(replies.has(path), `Unexpected API request: ${path}`);
+    if (path.startsWith("/api/research") && delayedSetup) return delayedSetup;
+    if (path === "/api/compare" && delayedCompare) return delayedCompare;
+    if (path === "/api/health" && abortHealth) return new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted"))));
     if (path === "/api/dry-run/ticket" && delayedTicket) return delayedTicket;
     return httpReply(replies.get(path));
   },
@@ -113,7 +151,7 @@ const sandbox = {
 sandbox.window = sandbox;
 const context = vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context, { timeout: 5000 });
-const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure })", context);
+const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch })", context);
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(setImmediate); };
 const plain = value => String(value).replace(/<[^>]*>/g, "");
 const click = async id => {
@@ -329,6 +367,131 @@ const click = async id => {
     await preview();
     assert.ok(!ticketText().includes("FORGED-AUTHORITY"), "Unexpected trading authority must never appear as a valid preview");
   }
+  const form = byId("compare-form");
+  const submit = () => form.listeners.submit({ preventDefault() {} });
+  const comparisonText = () => byId("compare-result").textContent;
+  const edit = target => form.listeners.input({ target });
+  await app.showView("research");
+  await settle();
+  assert.equal(byId("compare-from").value, "2026-10-29T09:00:00", "Coverage dates must be converted to UTC, not browser local time");
+  assert.equal(byId("compare-to").value, "2026-10-29T09:30:00");
+  assert.equal(byId("comparison-fields").disabled, false);
+  assert.equal(byId("parameter-first-fast").value, "8");
+  assert.equal(byId("parameter-first-fast").getAttribute("min"), "1");
+  assert.equal(byId("parameter-second-lookback").value, "20");
+  byId("compare-resolution").value = "1min";
+  const exactCash = "12345678901234567890.123456789012345678";
+  const exactFee = "0.001234567890123456789";
+  byId("compare-cash").value = exactCash;
+  byId("compare-fee").value = exactFee;
+  const fast = byId("parameter-first-fast");
+  fast.value = "3"; edit(fast);
+  await submit();
+  const sent = JSON.parse(requests.findLast(request => request.path === "/api/compare").options.body);
+  assert.equal(sent.cash, exactCash); assert.equal(sent.fee_rate, exactFee);
+  assert.equal(sent.from, "2026-10-29T09:00:00Z"); assert.equal(sent.to, "2026-10-29T09:30:00Z");
+  assert.equal(sent.resolution, "1min"); assert.equal(sent.latency_ms, 500);
+  assert.deepEqual(sent.candidates, [{ strategy: "ema-trend", params: { fast: 3, slow: 21 } }, { strategy: "sma-reversion", params: { lookback: 20, entry_bps: 50 } }]);
+  assert.ok(comparisonText().includes("paired-test"));
+  assert.ok(comparisonText().includes("1.123456789012345678"));
+  assert.ok(byId("compare-result").innerHTML.includes('data-run="bbbbbbbbbbbbbbbb"'));
+  assert.ok(comparisonText().includes(app.T.en.comparisonLimit));
+  edit(byId("compare-cash"));
+  assert.equal(app.state.comparison, null);
+  assert.ok(comparisonText().includes(app.T.en.comparisonChanged));
+
+  // Generated enum and string parameters must remain strings in requests.
+  for (const [slot, strategy] of [["first", "ema-confirmed"], ["second", "relative-momentum"]]) {
+    byId("candidate-" + slot).value = strategy;
+    byId("candidate-" + slot).listeners.change();
+  }
+  assert.equal(select('[data-parameter="confirmation"]', byId("candidate-first-params"))[0].value, "1h");
+  assert.equal(select('[data-parameter="reference"]', byId("candidate-second-params"))[0].value, "ETHUSDT");
+  await submit();
+  const stringParams = JSON.parse(requests.findLast(request => request.path === "/api/compare").options.body).candidates;
+  assert.equal(stringParams[0].params.confirmation, "1h"); assert.equal(stringParams[1].params.reference, "ETHUSDT");
+
+  for (const language of ["en", "fa"]) {
+    if (sandbox.document.documentElement.lang !== language) await click("language-toggle");
+    await submit();
+    assert.ok(comparisonText().includes(app.T[language].comparisonLimit));
+    assert.ok(comparisonText().includes("paired-test"));
+    responseStatus = 400;
+    await submit();
+    assert.ok(comparisonText().includes(app.T[language].compareError));
+    responseStatus = 200;
+    for (const forged of [{ funded_authority: true }, { order_submitted: true }, { mode: "LIVE" }, { authority: "FUNDED" }, { funded_authority: "false" }]) {
+      replies.set("/api/compare", { ...comparison, ...forged, comparison_id: "FORGED-COMPARISON" });
+      await submit();
+      assert.equal(app.state.comparison, null);
+      assert.ok(!comparisonText().includes("FORGED-COMPARISON"));
+      assert.ok(comparisonText().includes(app.T[language].compareError));
+    }
+    replies.set("/api/compare", comparison);
+    for (const [dispatchInput, status] of [[true, 200], [false, 200], [true, 400], [false, 400]]) {
+      let resolveCompare;
+      delayedCompare = new Promise(resolve => { resolveCompare = resolve; });
+      const pending = submit();
+      await settle();
+      assert.equal(byId("compare-submit").disabled, true);
+      assert.equal(byId("compare-submit").getAttribute("aria-busy"), "true");
+      assert.ok(comparisonText().includes(app.T[language].comparing));
+      const count = requests.length;
+      await submit(); assert.equal(requests.length, count, "No duplicate pending comparisons");
+      byId("compare-cash").value += "1";
+      if (dispatchInput) edit(byId("compare-cash"));
+      resolveCompare(httpReply({ ...comparison, comparison_id: "STALE-COMPARISON" }, status));
+      await pending; delayedCompare = null;
+      assert.equal(app.state.comparison, null);
+      assert.ok(!comparisonText().includes("STALE-COMPARISON"));
+      assert.ok(comparisonText().includes(app.T[language].comparisonChanged));
+      assert.equal(byId("compare-submit").disabled, false);
+      assert.equal(byId("compare-submit").getAttribute("aria-busy"), null);
+    }
+    replies.set("/api/research?symbol=BTCUSDT", { ...setup, coverage: { ...setup.coverage, observations: 0, from: null, to: null } });
+    await app.setupResearch("BTCUSDT");
+    assert.equal(byId("comparison-fields").disabled, true);
+    const count = requests.length; await submit(); assert.equal(requests.length, count, "No coverage must prevent submission");
+    replies.set("/api/research?symbol=BTCUSDT", setup);
+    await app.setupResearch("BTCUSDT");
+    responseStatus = 503;
+    await app.setupResearch("BTCUSDT");
+    assert.equal(byId("comparison-fields").disabled, true, "Failed coverage must not leave old inputs enabled");
+    assert.ok(byId("paper-coverage").textContent.includes(app.T[language].researchUnavailable));
+    responseStatus = 200; await app.setupResearch("BTCUSDT");
+    form.valid = false;
+    const beforeInvalid = requests.length; await submit(); assert.equal(requests.length, beforeInvalid);
+    form.valid = true;
+  }
+  if (sandbox.document.documentElement.lang !== "en") await click("language-toggle");
+  replies.set("/api/runs", comparison.runs);
+  for (const record of comparison.runs) replies.set("/api/runs/" + record.run_id, record);
+  await submit();
+  byId("compare-result").listeners.click({ target: { dataset: { run: "bbbbbbbbbbbbbbbb" } } });
+  await settle();
+  assert.equal(app.state.selectedRun, "bbbbbbbbbbbbbbbb");
+  assert.equal(app.state.record.run_id, "bbbbbbbbbbbbbbbb");
+  assert.ok(requests.some(request => request.path === "/api/runs/bbbbbbbbbbbbbbbb"));
+
+  let resolveSetup;
+  delayedSetup = new Promise(resolve => { resolveSetup = resolve; });
+  const loadingSetup = app.setupResearch("BTCUSDT");
+  assert.equal(byId("comparison-fields").disabled, true, "Coverage loading must disable stale inputs");
+  const beforeCoverage = requests.length; await submit(); assert.equal(requests.length, beforeCoverage);
+  resolveSetup(httpReply(setup)); await loadingSetup; delayedSetup = null;
+  assert.equal(byId("comparison-fields").disabled, false);
+
+  const baselineTimers = timers.size;
+  await app.api("/api/health"); assert.equal(timers.size, baselineTimers, "Success must clear request timer");
+  responseStatus = 503;
+  await assert.rejects(app.api("/api/health")); assert.equal(timers.size, baselineTimers, "HTTP errors must clear request timer");
+  responseStatus = 200;
+  abortHealth = true;
+  const timedOut = assert.rejects(app.api("/api/health", {}, 17));
+  const timeout = [...timers.values()].find(timer => timer.delay === 17);
+  assert.ok(timeout); timeout.callback(); await timedOut;
+  abortHealth = false;
+  assert.equal(timers.size, baselineTimers, "Aborted requests must clear their timer");
   for (const request of requests) assert.equal(request.options.headers["X-Gym-Token"], "test-local-token");
   responseStatus = 503;
   await assert.rejects(app.api("/api/health"));

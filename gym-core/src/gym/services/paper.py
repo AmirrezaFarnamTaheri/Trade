@@ -7,7 +7,8 @@ from ..domain.bars import qualified
 from ..domain.model import InstrumentId, dec, iso
 from ..domain.rules import is_closed
 from ..domain.sim import CostModel, Spec
-from ..domain.strategy import BuyAndHold, EmaTrend, digest
+from ..domain.strategy import BuyAndHold, digest
+from ..domain.registry import create_strategy
 from .data_portal import DataPortal, rate_at
 from .rules import RuleService
 from .session import ENGINE_VERSION
@@ -16,12 +17,11 @@ CENT = Decimal("1e-8")
 
 
 def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: datetime, resolution: str,
-        cash: Decimal, cost: CostModel, subscriptions=()) -> dict:
+        cash: Decimal, cost: CostModel, subscriptions=(), reference_symbol=None) -> dict:
     from .session import PaperSession
 
-    inst = portal.instrument(symbol)
     tops = portal.tops(symbol, t0, t1)
-    session = PaperSession(portal, rules_for, strategy, symbol, t0, resolution, cash, cost, subscriptions)
+    session = PaperSession(portal, rules_for, strategy, symbol, t0, resolution, cash, cost, subscriptions, reference_symbol)
     for top in tops:
         session.feed(top)
     session.finish(t1)
@@ -56,7 +56,7 @@ def session_result(session, tops, cash):
             nonfills[o["reason"]] = nonfills.get(o["reason"], 0) + 1
     return {"strategy": strategy.name, "params": strategy.params, "symbol": symbol, "quote": inst.quote, "base": inst.base,
             "start_cash": str(cash), "observations": len(tops), "qualified": sum(map(qualified, tops)),
-            "data_digest": digest([(iso(x.ts_avail), x.bid, x.ask, sorted(x.flags)) for x in tops]),
+            "data_digest": digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags)) for x in tops]),
             "bars": len(decisions), "fills": len(fills), "nonfills": nonfills, "end": end,
             "balances": {k: str(v) for k, v in book.balances.items()}, "curve": curve,
             "decisions": decisions, "orders": orders, "postings": book.postings,
@@ -68,7 +68,7 @@ def session_result(session, tops, cash):
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,
           slow: int = 21, cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), rules_mode: str = "point-in-time",
-          store: str = "live", subscriptions=()) -> dict:
+          store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None) -> dict:
     """A replayable paper run plus matched baselines. Same inputs give the same run_id and outputs."""
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
@@ -76,7 +76,10 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     today = svc.load()[1]
     rules_for = (lambda t: today) if rules_mode == "today" else (lambda t: svc.load(t)[1])
     inst = portal.instrument(symbol)
-    main = run(portal, rules_for, EmaTrend(fast, slow), symbol, t0, t1, resolution, cash, cost, subscriptions)
+    strategy = create_strategy(strategy_id, {"fast": fast, "slow": slow} if params is None and strategy_id == "ema-trend" else params)
+    subscriptions = tuple(dict.fromkeys((resolution, *subscriptions, *getattr(strategy, "required_resolutions", ()))))
+    reference_symbol = reference_symbol or getattr(strategy, "reference_symbol", None)
+    main = run(portal, rules_for, strategy, symbol, t0, t1, resolution, cash, cost, subscriptions, reference_symbol)
     if main["qualified"] == 0:
         raise ValueError(f"no qualified {symbol} quotes between {iso(t0)} and {iso(t1)}")
     base_syms = {f"hold {inst.base}": symbol}
@@ -116,13 +119,17 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
         "raw_digest": metadata["raw_digest"],
     }
     inputs = {"engine": ENGINE_VERSION, "symbol": symbol, "from": iso(t0), "to": iso(t1), "resolution": resolution,
-              "subscriptions": list(dict.fromkeys((resolution, *subscriptions))), "params": main["params"],
+              "subscriptions": list(subscriptions), "params": main["params"],
+              "strategy": strategy.name, "strategy_version": 1, "config_hash": strategy.config_hash,
+              "reference_symbol": reference_symbol,
               "cash": str(cash), "cost": cost.describe(), "rules_mode": rules_mode, "store": store,
-              "data": main["data_digest"], "metadata": metadata_ref, "ruleset_version_now": svc.load()[0]}
+              "data": main["data_digest"],
+              "snapshots": digest([(d["t"], d["snapshot"]) for d in main["decisions"]]),
+              "metadata": metadata_ref, "ruleset_version_now": svc.load()[0]}
     rank = ranking(main, baselines)
     out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "numeraire": "USDT-equivalent" if fx or inst.quote == "USDT" else inst.quote,
            "fx": fx, "result": main, "baselines": baselines, "ranking": rank,
-           "warnings": warnings(main, store, rules_mode, portal, symbol, t0)}
+           "warnings": warnings(main, store, rules_mode, portal, symbol, t0, cost)}
     if fx and "STALE_CLOSED" in (fx["start_status"], fx["end_status"]):
         out["warnings"].append("USDT/IRT was closed at a valuation boundary: the FX factor is STALE_CLOSED (last pre-closure mid).")
     if inst.quote == "TMN" and fx is None:
@@ -131,10 +138,10 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     return out
 
 
-def ranking(main, baselines):
+def ranking(main, baselines, main_name="strategy"):
     """Matched ranking view; zero-trade results remain visible but are not active strategies."""
     rows = []
-    for name, record in {"strategy": main, **baselines}.items():
+    for name, record in {main_name: main, **baselines}.items():
         end = record.get("end")
         if not end:
             rows.append({"name": name, "status": "UNAVAILABLE", "reason": record.get("unavailable")})
@@ -154,7 +161,7 @@ def ranking(main, baselines):
             "note": "Zero-trade runs are retained as abstainers and excluded from active-trading rank."}
 
 
-def warnings(main, store, rules_mode, portal, symbol, t0) -> list[str]:
+def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
     w = []
     if store == "demo":
         w.append("DEMO data: synthetic quotes. Not evidence; can never reach a gate report.")
@@ -171,5 +178,5 @@ def warnings(main, store, rules_mode, portal, symbol, t0) -> list[str]:
         w.append("Precision and minimums unknown at the start of the window; not enforced.")
     if main["fills"] < 30:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
-    w.append("Fee rate 0.2% is the documentation example and fee currency is an assumption; confirm the account's real fees.")
+    w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
     return w

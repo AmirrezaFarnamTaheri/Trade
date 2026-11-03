@@ -105,7 +105,7 @@ def test_fee_rates_parse_documented_per_symbol_shape_exactly():
             run(WallexAccountReader(Session(data={"success": True, "result": bad})).fee_rates())
 
 
-def test_c1_read_only_fee_probe_preserves_unknown_contract_and_redacts_private_fields():
+def test_read_only_fee_probe_preserves_unknown_contract_and_redacts_private_fields():
     session = Session(data={"success": True, "result": {
         "makerFee": "0.001", "takerFee": "0.002",
         "api_key": "SECRET-MUST-NOT-ESCAPE"}})

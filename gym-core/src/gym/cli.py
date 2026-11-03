@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import secrets
+import sqlite3
 import sys
 from decimal import Decimal, DecimalException
 from pathlib import Path
@@ -56,29 +57,39 @@ def demo_seed(args) -> int:
     return 0
 
 
-def paper_cmd(args) -> int:
+def replay_cmd(args) -> int:
     from .domain.sim import CostModel
     from .adapters.run_store import save_run
     from .services.paper import paper
+    from .services.research import compare
     from .services.reports import text_report
 
     if not (store_root(args) / "market.db").exists():
-        print(f"error: no data in {store_root(args)}" + ("; run gymctl demo-seed first" if args.demo else ""), file=sys.stderr)
-        return 2
-    db, sym = open_db(args), args.symbol.upper()
-    span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{sym}",)).fetchone()
-    if not span[0]:
-        print(f"error: no {sym} quotes stored", file=sys.stderr)
-        return 2
-    t0, t1 = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
-    cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if sym.endswith("TMN") else 1000)
-    cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
-    subscriptions = tuple(x.strip() for x in args.subscribe.split(",") if x.strip())
-    out = paper(db, sym, t0, t1, resolution=args.res, fast=args.fast, slow=args.slow, cash=cash, cost=cost,
-                rules_mode=args.rules, store="demo" if args.demo else "live", subscriptions=subscriptions)
-    path = save_run(out, store_root(args) / "runs")
-    print(text_report(out))
-    print(f"\nrun record: {path}")
+        raise ValueError(f"no data in {store_root(args)}")
+    db, symbol = open_db(args), args.symbol.upper()
+    try:
+        span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
+        if not span[0]:
+            raise ValueError(f"no {symbol} quotes stored")
+        start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
+        cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
+        options = {"resolution": args.res, "cash": cash, "cost": CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms)),
+                   "rules_mode": args.rules, "store": "demo" if args.demo else "live",
+                   "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
+        if args.cmd == "compare":
+            result = compare(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate], **options)
+            records = result["runs"]
+            print(f"COMPARE {result['comparison_id']} · identical window, costs and snapshots · PAPER ONLY")
+        else:
+            records = [paper(db, symbol, start, end, strategy_id=args.strategy,
+                             params=json.loads(args.params) if args.params else None,
+                             fast=args.fast, slow=args.slow, **options)]
+        for record in records:
+            path = save_run(record, store_root(args) / "runs")
+            print(text_report(record))
+            print(f"\nrun record: {path}")
+    finally:
+        db.c.close()
     return 0
 
 
@@ -223,12 +234,14 @@ def account_cmd(args) -> int:
             reader = WallexAccountReader(session)
             balances = await reader.balances()
             fee = await reader.fee_rates()
-            orders = [await reader.manual_order(cid) for cid in args.order]
-        return balances, fee, orders
+            evidence = [await reader.manual_order_evidence(cid) for cid in args.order]
+        orders = [{"client_id": row["client_id"], "status": row["raw_status"],
+                   "symbol": row["symbol"], "filled": row["executed_qty"]} for row in evidence]
+        return balances, fee, orders, evidence
 
     from .adapters.wallex_account_read import ReadUncertain
     try:
-        balances, fee, orders = asyncio.run(read())
+        balances, fee, orders, evidence = asyncio.run(read())
     except ReadUncertain as e:
         print(f"error: {e} (state UNKNOWN, nothing recorded)", file=sys.stderr)
         return 3
@@ -238,7 +251,8 @@ def account_cmd(args) -> int:
     fee = {"symbols": len(fee), "maker_taker_rates": [list(p) for p in pairs],
            **{s: fee[s] for s in ("BTCUSDT", "USDTTMN", "BTCTMN") if s in fee}}
     print(json.dumps({"observed_at": observed["observed_at"], "fee": fee, "balances": nonzero,
-                      "orders": observed["orders"]}, ensure_ascii=False, indent=2))
+                      "orders": observed["orders"], "order_evidence": evidence,
+                      "funded_authority": False}, ensure_ascii=False, indent=2))
     if args.record:
         root = store_root(args)
         root.mkdir(parents=True, exist_ok=True)
@@ -368,6 +382,23 @@ def conversion_report_cmd(args) -> int:
     print(json.dumps(workload.shortfall(
         mark_price=obj["mark_price"], observed_at=obj["observed_at"],
     ), ensure_ascii=False, indent=2))
+    return 0
+
+
+def paper_research_cmd(args) -> int:
+    """Evaluate a bounded offline artifact without opening a store or venue."""
+    from .domain.market_models import evaluate_artifact
+
+    report = evaluate_artifact(_strict_offline_json(args.path, max_bytes=2_000_000))
+    text = json.dumps(report, ensure_ascii=False, indent=2, default=str)
+    if args.output:
+        destination = Path(args.output).resolve()
+        data_root = Path(args.data).resolve()
+        if data_root == destination or data_root in destination.parents or any(part.lower() == "data" for part in destination.parts):
+            raise ValueError("paper-research output must be outside data/")
+        with destination.open("x", encoding="utf-8") as output:
+            output.write(text + "\n")
+    print(text)
     return 0
 
 
@@ -537,10 +568,52 @@ async def serve(args):
         offline_reviews.conn.close()
 
 
+def research_cmd(args):
+    from .services.research_ledger import ResearchLedger
+    root = store_root(args)
+    if args.action == "mcp":
+        from .services.research_mcp import serve_stdio
+        return serve_stdio(root)
+    root.mkdir(parents=True, exist_ok=True)
+    with ResearchLedger(root / "research.sqlite3") as ledger:
+        if args.action == "list":
+            result = ledger.overview()
+        elif args.action == "pause":
+            result = ledger.pause(args.input)
+        elif args.action == "tick":
+            db = open_db(args)
+            try:
+                result = ledger.run_due(db, args.at or iso(now_utc()), store="demo" if args.demo else "live")
+            finally:
+                db.c.close()
+        else:
+            if not args.input:
+                raise ValueError("this research action requires an input JSON file")
+            with Path(args.input).open("rb") as source:
+                raw = source.read(65537)
+            if len(raw) > 65536:
+                raise ValueError("research input exceeds 64 KiB")
+            try:
+                request = json.loads(raw)
+            except (ValueError, UnicodeDecodeError, RecursionError):
+                raise ValueError("invalid research JSON") from None
+            methods = {"register": ledger.register, "shadow-open": ledger.open_shadow,
+                       "shadow-close": ledger.settle_shadow, "schedule": ledger.schedule}
+            result = methods[args.action](request)
+    print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    return 0
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="gymctl")
     p.add_argument("--data", default="data", help="data directory (default ./data)")
     sub = p.add_subparsers(dest="cmd", required=True)
+    models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
+    models.add_argument("model_args", nargs=argparse.REMAINDER)
+    research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
+    research.add_argument("action", choices=("register", "shadow-open", "shadow-close", "schedule", "tick", "pause", "list", "mcp"))
+    research.add_argument("input", nargs="?", help="input JSON file, or job ID for pause")
+    research.add_argument("--at", help="zoned ISO time for a bounded scheduler tick")
+    research.add_argument("--demo", action="store_true", help="use the isolated DEMO research ledger")
     r = sub.add_parser("run", help="run collector + local API + UI")
     r.add_argument("--demo", action="store_true", help="synthetic DEMO feed, stored separately")
     r.add_argument("--port", type=int, default=8765)
@@ -567,19 +640,29 @@ def main(argv=None):
     ck.add_argument("intent", choices=["ENTRY", "EXIT"])
     ck.add_argument("--at")
     ck.add_argument("--used", default="0", help="quota already used today (all channels)")
-    pp = sub.add_parser("paper", help="replay the EMA strategy on stored quotes, with baselines and a cost waterfall")
-    pp.add_argument("symbol")
-    pp.add_argument("--demo", action="store_true")
-    pp.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
-    pp.add_argument("--to", dest="end", help="UTC ISO time with zone (default: last stored quote)")
-    pp.add_argument("--res", default="15min", help="primary decision close: 1min | 15min | 1h | 1day | session")
-    pp.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
-    pp.add_argument("--fast", type=int, default=8)
-    pp.add_argument("--slow", type=int, default=21)
-    pp.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
-    pp.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
-    pp.add_argument("--latency-ms", type=int, default=500)
-    pp.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
+    from .domain.registry import catalog
+    replay = sub.add_parser("paper", help="replay a registered strategy with matched baselines and costs")
+    replay.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
+    replay.add_argument("--params", help="strategy parameter JSON; omitted values use registry defaults")
+    replay.add_argument("--fast", type=int, default=8, help="legacy EMA fast length; use --params for other strategies")
+    replay.add_argument("--slow", type=int, default=21, help="legacy EMA slow length")
+    comparison = sub.add_parser("compare", help="paired PAPER ONLY replay on identical data, costs and snapshots")
+    comparison.add_argument("--candidate", action="append", required=True,
+                            help='candidate JSON, e.g. {"strategy":"ema-trend","params":{"fast":3,"slow":8}}; repeat 2..4 times')
+    for command in (replay, comparison):
+        command.add_argument("symbol")
+        command.add_argument("--demo", action="store_true")
+        command.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
+        command.add_argument("--to", dest="end", help="exclusive UTC ISO cut (default: last stored quote)")
+        command.add_argument("--res", default="15min", help="decision close: 1min | 15min | 1h | 1day | session")
+        command.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
+        command.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
+        command.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
+        command.add_argument("--latency-ms", type=int, default=500)
+        command.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
+    research = sub.add_parser("paper-research", help="offline PAPER_ONLY liquidity, spacing, FX or financing JSON diagnostic")
+    research.add_argument("path", help='JSON object with "model" and exact "parameters"; decimals are strings')
+    research.add_argument("--output", help="create a JSON report outside data/; never overwrite")
     spreads = sub.add_parser("spreads", help="observed spread distributions by pair and Tehran hour")
     spreads.add_argument("symbol", nargs="?", help="default: every observed market")
     spreads.add_argument("--demo", action="store_true")
@@ -666,12 +749,16 @@ def main(argv=None):
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     args = p.parse_args(argv)
 
-    commands = {"key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": paper_cmd,
+    if args.cmd == "models":
+        from .services.model_gateway import run
+        return run(args.model_args)
+
+    commands = {"research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd,
                 "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
     if args.cmd in commands:
         try:
             return commands[args.cmd](args)
-        except (ValueError, OSError, DecimalException) as e:
+        except (ValueError, OSError, DecimalException, sqlite3.Error) as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
     if args.cmd == "run":

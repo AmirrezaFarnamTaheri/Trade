@@ -24,7 +24,7 @@ def sample(**change):
     return record
 
 
-def test_c1_evidence_is_durable_and_never_grants_funded_authority(tmp_path):
+def test_evidence_is_durable_and_never_grants_funded_authority(tmp_path):
     db = tmp_path / "venue_facts.db"
     with VenueFactsJournal(db) as journal:
         assert journal.capabilities()["read_only_account"]["state"] == "NOT_CONFIGURED"
@@ -43,7 +43,7 @@ def test_c1_evidence_is_durable_and_never_grants_funded_authority(tmp_path):
         assert reopened.capabilities()["read_only_account"]["state"] == "EVIDENCE_ONLY"
 
 
-def test_c1_probe_reports_never_self_certify_a_write_or_exit_method(tmp_path):
+def test_probe_reports_never_self_certify_a_write_or_exit_method(tmp_path):
     with VenueFactsJournal(tmp_path / "facts.db") as journal:
         for number, kind in enumerate(("CLIENT_ID_ECHO", "DUPLICATE_ID", "CANCEL_RACE", "VENUE_STOP")):
             journal.record(sample(evidence_id=f"probe-{number}", kind=kind,

@@ -1,13 +1,21 @@
 """Loopback-only local API and static UI."""
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
+import os
+import re
+from decimal import Decimal, DecimalException
 from pathlib import Path
 
 from aiohttp import web
 
-from ..adapters.run_store import list_runs, load_run
+from ..adapters.run_store import list_runs, load_run, save_run
+from ..adapters.store import MarketDB
+from ..domain.registry import catalog
+from ..domain.sim import CostModel
+from ..services.research import compare, coverage
 from ..domain.account_observations import project_account
 from ..domain.bars import qualified
 from ..domain.model import TOMAN, InstrumentId, iso, parse_ts
@@ -212,6 +220,74 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             "reviews": [] if offline_review_journal is None else offline_review_journal.review_events(),
         }, headers={"Cache-Control": "no-store"})
 
+    comparison_lock = asyncio.Lock()
+
+    async def research_setup(req):
+        observed = [row[0] for row in col.db.c.execute("select distinct substr(instrument_id, 8) from book_top order by 1")]
+        symbol = req.query.get("symbol") or ("BTCTMN" if "BTCTMN" in observed else observed[0] if observed else "BTCUSDT")
+        return web.json_response({"strategies": catalog(), "symbols": observed,
+                                  "coverage": coverage(col.db, symbol),
+                                  "defaults": {"fee_rate": os.environ.get("GYM_FEE_RATE", str(CostModel().fee_rate)),
+                                               "latency_ms": 500, "resolution": "15min"},
+                                  "authority": "PAPER_ONLY", "funded_authority": False},
+                                 headers={"Cache-Control": "no-store"})
+
+    async def compare_runs(req):
+        if runs is None:
+            raise ValueError("paper run storage is not configured")
+        if comparison_lock.locked():
+            return web.json_response({"error": "a comparison is already running"}, status=409)
+        body = await req.json()
+        allowed = {"symbol", "from", "to", "resolution", "cash", "fee_rate", "latency_ms", "rules_mode", "candidates"}
+        if not isinstance(body, dict) or body.keys() - allowed:
+            raise ValueError("invalid comparison fields")
+        if any(key in body and not isinstance(body[key], str) for key in ("symbol", "resolution", "rules_mode")):
+            raise ValueError("comparison symbol, resolution and rules_mode must be strings")
+        try:
+            if not all(isinstance(body.get(key), str) for key in ("from", "to")):
+                raise ValueError("zoned timestamp strings required")
+            cash_text = body.get("cash", "1000")
+            fee_text = body.get("fee_rate", os.environ.get("GYM_FEE_RATE", "0.001"))
+            if any(not isinstance(value, str) or len(value) > 64 or not re.fullmatch(r"[0-9]+(?:[.][0-9]+)?", value)
+                   for value in (cash_text, fee_text)):
+                raise ValueError("bounded decimal strings required")
+            start, end = parse_ts(body["from"]), parse_ts(body["to"])
+            cash, fee = Decimal(cash_text), Decimal(fee_text)
+            latency = body.get("latency_ms", 500)
+            if type(latency) is not int or not 0 <= latency <= 60000 or end > now_utc():
+                raise ValueError("invalid comparison bounds")
+            if not cash.is_finite() or cash <= 0:
+                raise ValueError("cash must be positive and finite")
+            from datetime import timedelta
+            cost = CostModel(fee, timedelta(milliseconds=latency))
+        except (ValueError, TypeError, KeyError, DecimalException):
+            raise ValueError("invalid comparison window, cash or costs") from None
+        database_path = col.db.c.execute("pragma database_list").fetchone()[2]
+        def compute():
+            db = MarketDB(Path(database_path), readonly=True)
+            try:
+                symbol = body.get("symbol")
+                if not isinstance(symbol, str) or not db.c.execute(
+                    "select 1 from book_top where instrument_id=? limit 1", ("wallex:" + symbol,)
+                ).fetchone():
+                    raise ValueError("comparison requires an observed symbol")
+                result = compare(db, symbol, start, end, body.get("candidates"),
+                                 resolution=body.get("resolution", "15min"), cash=cash, cost=cost,
+                                 rules_mode=body.get("rules_mode", "point-in-time"), store="demo" if col.demo else "live")
+                for record in result["runs"]:
+                    save_run(record, runs)
+                result["runs"] = [{"run_id": record["run_id"], "inputs": record["inputs"],
+                                   "result": {key: record["result"][key] for key in ("strategy", "quote", "end", "fills", "observations", "qualified")},
+                                   "warnings": record["warnings"]} for record in result["runs"]]
+                return result
+            finally:
+                db.c.close()
+        if comparison_lock.locked():
+            return web.json_response({"error": "a comparison is already running"}, status=409)
+        async with comparison_lock:
+            result = await asyncio.to_thread(compute)
+        return web.json_response(result, headers={"Cache-Control": "no-store"})
+
     async def run_list(_):
         return web.json_response([] if runs is None else list_runs(runs))
 
@@ -252,6 +328,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/dry-run/ticket", dry_run_ticket),
         web.get("/api/automation-safety", automation_safety),
         web.get("/api/offline-ticket-reviews", offline_ticket_reviews),
+        web.get("/api/research", research_setup), web.post("/api/compare", compare_runs),
         web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
