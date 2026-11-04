@@ -227,6 +227,16 @@ def test_new_api_actions_require_token_reject_ambiguous_json_and_use_same_servic
                 assert (await client.post(route, data=raw, headers=headers)).status == 400
             response = await client.post(route, json={"action": "rebalance", "value": portfolio()}, headers=headers)
             assert response.status == 200 and not (await response.json())["funded_authority"]
+            from tests.test_strategy_audit import request as audit_request
+            for action, value, schema in (
+                ("strategy-audit", audit_request(), "strategy-audit/1"),
+                ("return-bootstrap", {"run_id": out["run_id"], "seed": 21, "simulations": 100,
+                                      "mean_block_length": 5, "max_gap_seconds": 120}, "return-bootstrap/1"),
+            ):
+                response = await client.post(route, json={"action": action, "value": value}, headers=headers)
+                assert response.status == 200, await response.text()
+                report = await response.json()
+                assert report["schema"] == schema and not report["funded_authority"]
             response = await client.post(route, json={"action": "experiment-run", "value": experiment()}, headers=headers)
             assert response.status == 200
             key = (await response.json())["experiment"]["id"]

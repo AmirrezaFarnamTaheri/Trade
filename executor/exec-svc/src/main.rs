@@ -19,9 +19,10 @@ fn main() -> windows_service::Result<()> {
 
 #[cfg(windows)]
 mod windows_host {
+    use exec_svc::ServiceFailure;
     use std::ffi::OsString;
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
     use std::sync::{mpsc, Arc};
     use std::thread;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -56,6 +57,12 @@ mod windows_host {
             wait_hint: Duration::default(),
             process_id: None,
         }
+    }
+
+    fn startup_failure(failure: ServiceFailure) -> ServiceStatus {
+        let mut result = status(ServiceState::Stopped, 0);
+        result.exit_code = ServiceExitCode::ServiceSpecific(failure as u32);
+        result
     }
 
     /// The elevated installer binds a single OS-issued operator *logon* SID.
@@ -155,27 +162,29 @@ mod windows_host {
             }
         };
         if !exec_svc::windows_identity::is_restricted_executor_service() {
-            status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+            status_handle
+                .set_service_status(startup_failure(ServiceFailure::RestrictedIdentity))?;
             return Ok(());
         }
         let service_sid = match exec_svc::windows_identity::executor_service_sid_from_os() {
             Ok(sid) => sid,
             Err(_) => {
-                status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+                status_handle
+                    .set_service_status(startup_failure(ServiceFailure::ServiceIdentity))?;
                 return Ok(());
             }
         };
         let logon_sid = match provisioned_logon_sid() {
             Ok(sid) if exec_svc::windows_pipe::stop_pipe_sddl(&service_sid, &sid).is_ok() => sid,
             _ => {
-                status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+                status_handle.set_service_status(startup_failure(ServiceFailure::OperatorLogon))?;
                 return Ok(());
             }
         };
         let operator_user = match provisioned_user_sid() {
             Ok(sid) => sid,
             Err(_) => {
-                status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+                status_handle.set_service_status(startup_failure(ServiceFailure::OperatorUser))?;
                 return Ok(());
             }
         };
@@ -186,13 +195,15 @@ mod windows_host {
         let gate = match exec_svc::StopGate::new(epoch) {
             Ok(gate) => Arc::new(gate),
             Err(_) => {
-                status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+                status_handle.set_service_status(startup_failure(ServiceFailure::StopGate))?;
                 return Ok(());
             }
         };
         let (privileged_tx, privileged_rx) = mpsc::channel();
         let privileged_sid = service_sid.clone();
         let privileged_failed = Arc::new(AtomicBool::new(false));
+        let privileged_phase = Arc::new(AtomicU32::new(ServiceFailure::PrivilegedListener as u32));
+        let failure_phase = privileged_phase.clone();
         let failed_t2 = privileged_failed.clone();
         let stop_t2 = should_stop.clone();
         thread::spawn(move || {
@@ -206,6 +217,7 @@ mod windows_host {
                             &privileged_sid,
                             privileged_tx,
                             mode,
+                            failure_phase,
                         ))
                     })
             }));
@@ -216,11 +228,16 @@ mod windows_host {
             }
             stop_t2.store(true, Ordering::SeqCst);
         });
-        if privileged_rx.recv_timeout(Duration::from_secs(5)).is_err()
-            || privileged_failed.load(Ordering::SeqCst)
-        {
-            status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
-            return Ok(());
+        match privileged_rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(Ok(())) if !privileged_failed.load(Ordering::SeqCst) => {}
+            result => {
+                let failure = match result {
+                    Ok(Err(failure)) => failure,
+                    _ => ServiceFailure::PrivilegedListener,
+                };
+                status_handle.set_service_status(startup_failure(failure))?;
+                return Ok(());
+            }
         }
         let (ready_tx, ready_rx) = mpsc::channel();
         let listener_failed = Arc::new(AtomicBool::new(false));
@@ -253,7 +270,7 @@ mod windows_host {
             || listener_failed.load(Ordering::SeqCst)
             || should_stop.load(Ordering::SeqCst)
         {
-            status_handle.set_service_status(status(ServiceState::Stopped, 5))?;
+            status_handle.set_service_status(startup_failure(ServiceFailure::StopListener))?;
             return Ok(());
         }
         // SCM RUNNING means the stop pipe exists, NOT exit protection.
@@ -267,14 +284,32 @@ mod windows_host {
         while !should_stop.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(50));
         }
-        status_handle.set_service_status(status(
+        let mut stopped = status(
             ServiceState::Stopped,
             if listener_failed.load(Ordering::SeqCst) || privileged_failed.load(Ordering::SeqCst) {
                 5
             } else {
                 0
             },
-        ))?;
+        );
+        if privileged_failed.load(Ordering::SeqCst) {
+            stopped.exit_code =
+                ServiceExitCode::ServiceSpecific(privileged_phase.load(Ordering::SeqCst));
+        }
+        status_handle.set_service_status(stopped)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn a_diagnostic_failure_is_stopped_without_control_authority() {
+            let failure = startup_failure(ServiceFailure::RestrictedIdentity);
+            assert_eq!(failure.current_state, ServiceState::Stopped);
+            assert!(failure.controls_accepted.is_empty());
+            assert_eq!(failure.exit_code, ServiceExitCode::ServiceSpecific(1001));
+        }
     }
 }

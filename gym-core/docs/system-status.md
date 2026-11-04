@@ -1,4 +1,49 @@
-# System status — 2026-11-04
+# System status — 2026-11-05
+
+## Archive implementation and service publication update
+
+Added native decision-linked SVG replay with keyboard access, bounded
+full/prefix and prehistory strategy diagnostics, and seeded saved-return block
+diagnostics. Scheduled jobs now commit exact attempt claims before calculation;
+explicit interruption fences late publication without holding a database write
+lock during replay. Crash/publication failures remain visibly RUNNING with
+unknown liveness until explicit recovery. These are paper-only capabilities;
+the complete archive request remains open in [the plan](implementation-plan.md).
+
+Verification: **880 Python tests passed, five skipped, 39 subtests passed** in
+79.18s. Rust workspace tests, Clippy with warnings denied, formatting, release
+build, Ruff, JavaScript syntax and two chart tests passed. Offline npm audit
+reported zero vulnerabilities; pip-audit reported none for installed packages
+and could not audit the unpublished editable application. No dependencies added.
+
+Actual browser replay of saved run `9e989c89cc5882a8` supports next/previous,
+marker selection and arrow-key navigation. Recorded-data causality report
+`eecb263dcab5918a` matched 19 and 39 prefix decisions while reporting recursive
+prehistory sensitivity. Saved-return report `ed555f927421f1cf` uses 56 intervals,
+excludes one three-minute gap and reports two segments. Neither result qualifies
+profitability or an unbiased strategy. Screenshot: `.pi/replay-chart-20261105.png`.
+The local observatory was restarted; the resulting collection interruption is
+not backfilled. The held missing-data job was not silently skipped.
+
+The protected diagnostic service reached RUNNING_DISARMED, then was stopped and
+disabled. Synthetic provisioning remained unacknowledged with service code 1011
+(ciphertext publication). Empty inspection-created WAL/SHM sidecars required
+owner repair to LocalService; existing ledger/history and ACLs were preserved.
+An ordinary Windows regression subsequently reproduced the actual child-rename
+sharing violation (OS 32). Ancestor directory pins now permit write sharing but
+deny delete sharing, while ciphertext pins retain write denial. The regression
+failed before this fix and passes after it. Stage diagnostics distinguish safe
+startup/publication failures without disclosing credentials.
+
+The next administrator prompt was canceled. Therefore the final local binaries
+were **not installed or qualified** through custody/restart/corruption, actual
+worker isolation or STOP/hung-process drills. The service remains stopped and
+disabled; no real credential, account request or funded order was used. Second
+physical-machine recovery remains unavailable as previously confirmed.
+
+A fresh whole-record archive audit verifies **85 ZIP hashes**, all present in
+Downloads/archive with none of those reviewed ZIPs loose in Downloads. Receipt:
+`.pi/archive-verification.json`. Older sections below are historical snapshots.
 
 ## Current implementation update
 

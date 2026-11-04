@@ -112,7 +112,7 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path):
             assert "hold USDT" in saved["baselines"]
             assert not db.c.in_transaction
         with ResearchLedger(path) as ledger:
-            assert len(ledger.overview()["alerts"]) == 1
+            assert len(ledger.overview()["alerts"]) == 2
             ledger.pause(job["job_id"])
             assert ledger.run_due(db, iso(due + timedelta(days=1)))["completed"] == []
     finally:
@@ -134,7 +134,7 @@ def test_explicit_recovery_preserves_failure_and_checks_the_due_window(tmp_path)
             assert skipped["next_at"] == iso(due + timedelta(hours=1))
             report = json.loads(ledger.conn.execute("SELECT body FROM reports").fetchone()[0])
             assert report["status"] == "SKIPPED" and report["previous_failure"]["status"] == "FAILED"
-            assert len(ledger.overview()["alerts"]) == 3
+            assert len(ledger.overview()["alerts"]) == 4
             with pytest.raises(ValueError, match="changed"):
                 ledger.recover(request, at=due + timedelta(minutes=3))
             with pytest.raises(ValueError):
@@ -157,8 +157,9 @@ def test_result_publication_failure_does_not_advance_or_report_completion(tmp_pa
                 ledger.run_due(db, iso(START + timedelta(hours=1)))
             after = ledger.overview()
             assert after["jobs"][0]["next_at"] == before
-            assert after["jobs"][0]["last_report"] is None
-            assert after["alerts"] == []
+            assert after["jobs"][0]["last_report"]["status"] == "RUNNING"
+            assert after["jobs"][0]["last_report"]["liveness"] == "UNKNOWN"
+            assert [a["kind"] for a in after["alerts"]] == ["RESEARCH_STARTED"]
             assert after["jobs"][0]["id"] == job["job_id"]
     finally:
         db.c.close()

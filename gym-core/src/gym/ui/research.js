@@ -32,6 +32,9 @@ window.gymResearch = (() => {
     'research-notes': ['Validate and save analyst notes', 'بررسی و ذخیره یادداشت تحلیلگر', 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status']);
+  actions['strategy-audit'] = ['Check causality and warm-up', 'بررسی علیت و دورهٔ آماده‌سازی', 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
+  actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
+  actions['job-interrupt'] = ['Release an interrupted paper attempt', 'آزادسازی تلاش متوقف‌شدهٔ آزمایشی', 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];
   const $ = id => document.getElementById(id);
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
@@ -111,23 +114,53 @@ window.gymResearch = (() => {
     async function jobs() {
       const result = await call('list', null);
       $('recovery-jobs').innerHTML = result.jobs.map((job, i) => `<article class="panel"><p dir="ltr">${esc(job.id)}</p><p>${esc(job.next_at)} · ${esc(job.last_report?.status ?? 'WAITING')}</p><div class="actions"><button type="button" class="button" data-job-index="${i}" data-recover="RETRY" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text('Allow retry', 'اجازه تلاش مجدد')}</button><button type="button" class="button" data-job-index="${i}" data-recover="SKIP" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text('Record skip of this window', 'ثبت صرف‌نظر از این بازه')}</button><button type="button" class="button" data-job-index="${i}" data-recover="CATCHUP" ${job.enabled ? '' : 'disabled'}>${text('Run up to 10 due windows', 'اجرای حداکثر ۱۰ بازه سررسیدشده')}</button></div></article>`).join('') || text('No scheduled jobs.', 'کاری زمان‌بندی نشده است.');
+      $('recovery-jobs').querySelectorAll('article').forEach((panel, i) => {
+        const report = result.jobs[i].last_report;
+        if (report?.status !== 'RUNNING') return;
+        panel.insertAdjacentHTML('beforeend', json(report));
+        const release = document.createElement('button');
+        release.type = 'button'; release.className = 'button'; release.dataset.jobIndex = i; release.dataset.recover = 'INTERRUPT';
+        release.textContent = text('Release this attempt · does not stop its process', 'آزادسازی این تلاش · فرایند آن متوقف نمی‌شود');
+        panel.append(release);
+      });
       $('recovery-jobs').querySelectorAll('button').forEach(button => { button.onclick = () => act(button, async () => {
         const job = result.jobs[Number(button.dataset.jobIndex)], action = button.dataset.recover;
-        const response = action === 'CATCHUP' ? await call('job-catch-up', {job_id: job.id, limit: 10}) : await call('job-recover', {job_id: job.id, expected_due: job.next_at, action, reason: $('recovery-reason').value});
+        const response = action === 'INTERRUPT'
+          ? await call('job-interrupt', {job_id: job.id, expected_due: job.next_at, expected_claim: job.last_report.claim_id, reason: $('recovery-reason').value})
+          : action === 'CATCHUP' ? await call('job-catch-up', {job_id: job.id, limit: 10}) : await call('job-recover', {job_id: job.id, expected_due: job.next_at, action, reason: $('recovery-reason').value});
         await jobs(); $('research-workspace-status').textContent = JSON.stringify(response);
       }); });
     }
     $('recovery-refresh').onclick = event => act(event.target, jobs);
-    let offset = 0, runId = '', total = 0;
+    let offset = 0, runId = '', total = 0, replayBusy = false;
     async function replay() {
-      const result = await call('replay', {run_id: runId, offset, limit: 1}); total = result.total;
-      const row = result.decisions[0];
+      if (replayBusy) return;
+      replayBusy = true;
+      try {
+      const start = Math.max(0, offset - 149);
+      const result = await call('replay', {run_id: runId, offset: start, limit: offset - start + 1}); total = result.total;
+      const row = result.decisions.at(-1);
       $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text('Known at decision', 'اطلاعات هنگام تصمیم')}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text('Bid / Ask', 'خرید / فروش')}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text('Holdings before decision', 'دارایی پیش از تصمیم')}</h3><p>${esc(row.balance_status)}</p>${json(row.balances_before)}<details><summary>${text('Indicator values and readiness', 'مقدار و آمادگی شاخص‌ها')}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text('Recorded rules', 'قواعد ثبت‌شده')}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text('Bar and reference observations', 'مشاهدات شمع و مرجع')}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text('Later modeled order outcome · not known at decision', 'نتیجه بعدی سفارش شبیه‌سازی‌شده · هنگام تصمیم معلوم نبود')}</summary>${json(row.subsequent_modeled_order)}</details>` : text('No recorded decisions.', 'تصمیمی ثبت نشده است.');
+      $('replay-decision').insertAdjacentHTML('afterbegin', window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa));
+      $('replay-decision').onclick = event => {
+        const point = event.target.closest('[data-replay-index]');
+        if (point && !replayBusy) act($('replay-form').querySelector('button'), async () => { offset = Number(point.dataset.replayIndex); await replay(); });
+      };
+      $('replay-decision').onkeydown = event => {
+        const point = event.target.closest('[data-replay-index]');
+        if (replayBusy || !point || !['Enter', ' ', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        event.preventDefault();
+        act($('replay-form').querySelector('button'), async () => {
+          offset = Math.max(0, Math.min(total - 1, Number(point.dataset.replayIndex) + (event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0)));
+          await replay(); $('replay-decision').querySelector(`[data-replay-index="${offset}"]`)?.focus();
+        });
+      };
       $('replay-previous').disabled = offset === 0; $('replay-next').disabled = offset + 1 >= total;
+      } finally { replayBusy = false; }
     }
-    $('replay-form').onsubmit = event => { event.preventDefault(); runId = $('replay-run').value; offset = 0; act(event.target.querySelector('button'), replay); };
-    $('replay-previous').onclick = event => act(event.target, async () => { offset = Math.max(0, offset - 1); await replay(); event.target.disabled = offset === 0; });
-    $('replay-next').onclick = event => act(event.target, async () => { offset = Math.min(total - 1, offset + 1); await replay(); event.target.disabled = offset + 1 >= total; });
+    $('replay-form').onsubmit = event => { event.preventDefault(); if (replayBusy) return; runId = $('replay-run').value; offset = 0; act(event.target.querySelector('button'), replay); };
+    $('replay-previous').onclick = event => { if (!replayBusy) act(event.target, async () => { offset = Math.max(0, offset - 1); await replay(); event.target.disabled = offset === 0; }); };
+    $('replay-next').onclick = event => { if (!replayBusy) act(event.target, async () => { offset = Math.min(total - 1, offset + 1); await replay(); event.target.disabled = offset + 1 >= total; }); };
     $('research-packet-send').onclick = event => act(event.target, async () => {
       const preset = $('research-packet-preset').value.trim(); if (!preset) throw new Error('preset required');
       const response = await api('/api/models', {method: 'POST', body: JSON.stringify({action: 'complete', value: {preset, prompt: $('research-packet-prompt').value}})}, 150000);

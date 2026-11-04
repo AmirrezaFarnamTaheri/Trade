@@ -106,7 +106,8 @@ mod client {
         {
             let dir = OpenOptions::new()
                 .read(true)
-                .share_mode(FILE_SHARE_READ)
+                // Pin directory identity without blocking service-side child publication.
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
                 .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
                 .open(parent)
                 .map_err(|_| err())?;

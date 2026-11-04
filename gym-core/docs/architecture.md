@@ -68,6 +68,17 @@ work limits, unknown historical state and unauthenticated input boundaries.
 
 ## Source adaptation
 
+Archive follow-up owners: `strategy_audit.py` reuses the native paper engine and
+point-in-time portal for selected causality/prehistory comparisons;
+`return_bootstrap.py` reads verified saved equity with explicit gap/dependence
+assumptions. `ui/replay-chart.js` renders bounded saved decisions, using the
+existing replay route and exact labels rather than a second chart calculation
+engine. `ResearchLedger` stores claim ownership in the existing version-1 report
+JSON and retains attempt audit events; exact-claim interruption prevents stale
+publication. It does not certify process liveness or termination. Inspection
+and interruption bypass the workbench calculation lock while retaining token
+authentication and SQLite serialization of mutations.
+
 The exact Penguin source supplied in Downloads was inspected for provider-fleet
 controls, encrypted storage, redaction and PKCE lifecycle concepts. The exact Pi
 source was inspected for provider auth interactions, callback/manual input and

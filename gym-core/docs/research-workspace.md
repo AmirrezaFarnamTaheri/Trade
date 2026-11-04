@@ -155,3 +155,57 @@ price bps, fee differences and first-fill latency. Base fees are converted at
 their individual fill prices for a disclosed quote-equivalent diagnostic.
 These supplied observations are unauthenticated; no real fill is fabricated
 from a paper order, and missing observations never become measured zero cost.
+
+## Causality and prehistory diagnostics
+
+`strategy-audit`: `symbol`, `strategy`, `params`, `from`, `to`, `resolution`,
+`cash`, `fee_rate`, `latency_ms`, `checkpoints`, `history_starts`. Amounts are
+decimal strings; time bounds are zoned past timestamps. A single read snapshot
+and fresh native strategy instance per replay compare the full decision prefix
+with each independently truncated replay. Later outcome marks are omitted.
+Prehistory variants compare only recorded feature values at the same final
+decision time; legitimate different holdings/actions are not convergence errors.
+Absent features are NOT_COMPARABLE. Bounds: 31 days, 1,440 bars, 1..8 endpoints,
+0..4 prehistory starts and 500,000 quote-read units across repeats. No arbitrary
+strategy code or missing market observation is generated. Selected matches do
+not prove absence of bias or future profitability.
+
+`return-bootstrap`: `run_id`, `seed`, `simulations`, `mean_block_length`,
+`max_gap_seconds`. Verifies the saved run/output identity and selected store.
+Uses simple equity returns including the saved modeled costs; marks must be
+strictly chronological, finite and positive. At least 20 intervals are required.
+Intervals exceeding the declared gap bound are excluded and break blocks;
+endpoints also restart blocks. Reports segments, gaps, the centered null mean
+distribution and a finite-sample upper-tail fraction. Limits: 10,000 marks,
+100..2,000 simulations, 1..1,000 mean block length, one million sampled returns.
+This is per-interval, not annualized; selection across trials is uncorrected.
+It does not produce a signal, confidence score, promotion or funded permission.
+
+Both actions are available through the existing `research ACTION INPUT.json`
+CLI, authenticated `/api/research/action` and advanced browser workbench.
+
+## Durable scheduled attempt ownership
+
+A scheduler commits RUNNING and its unique claim before calculation, without
+holding the ledger write lock during market replay. The final claim check,
+immutable artifact publication and clock advance share a write transaction.
+Started/failure/interruption/completion audit records are retained. Unexpected
+exceptions or publication failures leave RUNNING with liveness UNKNOWN; elapsed
+time or a readable database does not certify a live worker. No automatic lease
+expiry or silent retry of these claims is performed.
+
+`job-interrupt`: `job_id`, `expected_due`, `expected_claim`, `reason` (1..256
+characters). An exact current claim becomes FAILED and eligible for retry;
+stale requests fail. Old calculations cannot publish over the replacement.
+This fences publication only: it does not terminate a process, cancel an order
+or imply that an interrupted calculation has stopped consuming CPU. GUI recovery
+shows the claim and an explicit release control. Authenticated inspection and
+interruption remain available while a workbench catch-up action is running.
+Existing RETRY/SKIP controls retain their failed-window audit and due-time checks.
+
+The replay chart displays at most 150 points through the selected decision.
+Missing bar continuity is not connected, older unavailable trace fields stay
+unknown, and geometry floats do not replace stored exact decimal labels. Mouse,
+Enter/Space and left/right keys select actual saved decision indexes. It is a
+price/decision view; drawings, equity panes and live historical corrections are
+not implemented by this chart.

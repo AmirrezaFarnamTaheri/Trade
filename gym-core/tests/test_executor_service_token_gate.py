@@ -17,7 +17,9 @@ def test_windows_host_requires_restricted_service_token_not_just_account():
     body = HOST.read_text(encoding="utf-8")
     assert "is_restricted_executor_service" in body
     assert "if !exec_svc::windows_identity::is_local_service()" not in body
-    assert "ServiceState::Stopped, 5" in body
+    rejection = body.split("if !exec_svc::windows_identity::is_restricted_executor_service()", 1)[1].split("let service_sid", 1)[0]
+    assert "startup_failure(ServiceFailure::RestrictedIdentity)" in rejection
+    assert "return Ok(())" in rejection
 
 
 def test_service_identity_comes_from_os_token_groups_and_restrictions():

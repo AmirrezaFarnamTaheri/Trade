@@ -21,12 +21,14 @@ from .replay_debugger import replay_decisions, execution_quality
 from ..domain.portfolio import rebalance_preview
 from .experiment_registry import ExperimentRegistry
 from .research_notes import prepare_packet, save_notes
+from .strategy_audit import audit_strategy
+from .return_bootstrap import return_bootstrap
 
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived"))
 WORKSPACE_ACTIONS = ("coverage", "market-screen", "replay", "rebalance", "execution-quality", "experiment-run",
-                     "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up")
+                     "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
                            *[a for a in WORKSPACE_ACTIONS if a not in ("experiment-list", "experiment-status")]))
@@ -49,13 +51,17 @@ def research_action(root, action, value=None, *, store="live", at=None):
         raise ValueError("protocol mutations use the actual clock, without --at overrides")
     if action == "diagnostic":
         return evaluate_artifact(value)
+    if action == "return-bootstrap":
+        return return_bootstrap(root / "runs", value, store=store)
     if action in ("replay", "execution-quality"):
         return (replay_decisions if action == "replay" else execution_quality)(root / "runs", value, store=store)
     if action == "rebalance":
         return rebalance_preview(value)
-    if action in ("coverage", "market-screen", "experiment-run"):
+    if action in ("coverage", "market-screen", "experiment-run", "strategy-audit"):
         db = _market_db(root)
         try:
+            if action == "strategy-audit":
+                return audit_strategy(db, value, store=store)
             if action != "experiment-run":
                 return (coverage_timeline if action == "coverage" else screen_markets)(db, value, store=store)
             with ExperimentRegistry(root, store=store) as registry:
@@ -69,8 +75,10 @@ def research_action(root, action, value=None, *, store="live", at=None):
             if action == "experiment-status":
                 return registry.read(value)
             return (prepare_packet if action == "research-packet" else save_notes)(registry, value)
-    if action in ("job-recover", "job-catch-up"):
+    if action in ("job-recover", "job-catch-up", "job-interrupt"):
         with ResearchLedger(root / "research.sqlite3") as ledger:
+            if action == "job-interrupt":
+                return ledger.interrupt(value, at=now_utc())
             if action == "job-recover":
                 return ledger.recover(value, at=now_utc())
             fields(value, "job_id limit")

@@ -105,7 +105,7 @@ def test_unexpected_failure_surfaces_without_advancing_job(tmp_path, monkeypatch
         asyncio.run(research_runner.watch(tmp_path))
     with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
         assert ledger.overview()["jobs"][0]["next_at"] == iso(START + timedelta(hours=1))
-        assert ledger.conn.execute("SELECT count(*) FROM reports").fetchone()[0] == 0
+        assert ledger.overview()["jobs"][0]["last_report"]["status"] == "RUNNING"
 
 
 @pytest.mark.parametrize("poll", [0, -1, True, float("nan"), float("inf"), 61, "5"])

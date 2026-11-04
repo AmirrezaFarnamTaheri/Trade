@@ -38,7 +38,8 @@ def replay_decisions(root, request, *, store):
                      "balance_status": balance_status,
                      "subsequent_modeled_order": orders.get(decision.get("order"))})
     return {"schema": "decision-replay/1", "run_id": out["run_id"], "store": store,
-            "outputs_digest": out["outputs_digest"], "total": len(result["decisions"]), "offset": offset,
+            "outputs_digest": out["outputs_digest"], "symbol": result["symbol"], "quote_currency": result["quote"],
+            "total": len(result["decisions"]), "offset": offset,
             "next_offset": offset + len(rows) if offset + len(rows) < len(result["decisions"]) else None,
             "decisions": rows, "future_outcomes_are_decision_evidence": False, "funded_authority": False}
 

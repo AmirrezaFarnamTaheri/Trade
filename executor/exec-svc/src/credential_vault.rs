@@ -123,6 +123,15 @@ fn open_read(path: &Path) -> io::Result<File> {
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
         .open(path)
 }
+fn open_directory(path: &Path) -> io::Result<File> {
+    // Permit child publication while still denying deletion/renaming of this directory.
+    OpenOptions::new()
+        .read(true)
+        .access_mode(FILE_GENERIC_READ | READ_CONTROL)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+}
 pub fn random_id() -> io::Result<[u8; 16]> {
     let mut out = [0; 16];
     if unsafe {
@@ -290,7 +299,7 @@ impl Vault {
         let root = root.join("TradingGYM").join("Executor").join("Vault");
         let mut directories = Vec::new();
         for ancestor in root.ancestors().collect::<Vec<_>>().into_iter().rev() {
-            let handle = open_read(ancestor)?;
+            let handle = open_directory(ancestor)?;
             if !handle.metadata()?.is_dir()
                 || handle.metadata()?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
             {
@@ -376,12 +385,24 @@ impl Vault {
         verify_digest(&bytes, &metadata.ciphertext_digest)?;
         Ok(bytes)
     }
-    pub fn provision(&mut self, mut secret: Secret) -> io::Result<[u8; 16]> {
+    pub fn provision(
+        &mut self,
+        mut secret: Secret,
+        phase: &std::sync::atomic::AtomicU32,
+    ) -> io::Result<[u8; 16]> {
         if !(1..=exec_ipc::provision::MAX_SECRET).contains(&secret.0.len()) {
             return Err(denied());
         }
+        phase.store(
+            exec_svc::ServiceFailure::CredentialProtection as u32,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         let ciphertext = protect(&mut secret)?;
         drop(secret);
+        phase.store(
+            exec_svc::ServiceFailure::CiphertextPublication as u32,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         let generation = random_id()?;
         let final_path = self.root.join(generation_name(&generation));
         let temporary = self
@@ -394,6 +415,10 @@ impl Vault {
             bInheritHandle: 0,
         };
         let wide: Vec<_> = temporary.as_os_str().encode_wide().chain(Some(0)).collect();
+        phase.store(
+            exec_svc::ServiceFailure::CiphertextCreation as u32,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         let raw = unsafe {
             CreateFileW(
                 wide.as_ptr(),
@@ -411,8 +436,16 @@ impl Vault {
         use std::os::windows::io::FromRawHandle;
         let mut file = unsafe { File::from_raw_handle(raw) };
         let publication = (|| -> io::Result<()> {
+            phase.store(
+                exec_svc::ServiceFailure::CiphertextWrite as u32,
+                std::sync::atomic::Ordering::SeqCst,
+            );
             file.write_all(&ciphertext)?;
             file.sync_all()?;
+            phase.store(
+                exec_svc::ServiceFailure::CiphertextSeal as u32,
+                std::sync::atomic::Ordering::SeqCst,
+            );
             let immutable = descriptor(&sddl(&self.sid, false, true))?;
             let mut acl = ptr::null_mut();
             let mut present = 0;
@@ -439,6 +472,10 @@ impl Vault {
             }
             file.sync_all()?;
             drop(file);
+            phase.store(
+                exec_svc::ServiceFailure::CiphertextRename as u32,
+                std::sync::atomic::Ordering::SeqCst,
+            );
             let destination: Vec<_> = final_path
                 .as_os_str()
                 .encode_wide()
@@ -464,12 +501,20 @@ impl Vault {
             ciphertext_digest: digest(&ciphertext),
             permission: CredentialPermission::Unverified,
         };
+        phase.store(
+            exec_svc::ServiceFailure::CiphertextVerification as u32,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         if let Err(error) = self.load_ciphertext(&metadata) {
             std::fs::remove_file(&final_path).map_err(|_| {
                 io::Error::other("credential verification failed; orphan cleanup failed")
             })?;
             return Err(error);
         }
+        phase.store(
+            exec_svc::ServiceFailure::CredentialCommit as u32,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         self.journal
             .commit_credential(metadata)
             .map_err(|_| io::Error::other("credential metadata commit failed"))?;
@@ -540,6 +585,46 @@ fn check_inherited(file: &File, sid: &str) -> io::Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ciphertext_rename_works_while_directory_is_pinned() {
+        use std::os::windows::ffi::OsStrExt;
+        let unique = super::generation_name(&super::random_id().unwrap());
+        let directory = std::env::temp_dir().join(format!("gym-publication-{unique}"));
+        std::fs::create_dir(&directory).unwrap();
+        let pending = directory.join("ciphertext.pending");
+        let published = directory.join("ciphertext.dpapi");
+        let held = super::open_directory(&directory).unwrap();
+        assert!(std::fs::rename(&directory, directory.with_extension("moved")).is_err());
+        std::fs::write(&pending, b"synthetic-publication-test").unwrap();
+        let ciphertext_pin = super::open_read(&pending).unwrap();
+        assert!(std::fs::OpenOptions::new()
+            .write(true)
+            .open(&pending)
+            .is_err());
+        drop(ciphertext_pin);
+        let from: Vec<_> = pending.as_os_str().encode_wide().chain(Some(0)).collect();
+        let to: Vec<_> = published.as_os_str().encode_wide().chain(Some(0)).collect();
+        let ok = unsafe {
+            windows_sys::Win32::Storage::FileSystem::MoveFileExW(
+                from.as_ptr(),
+                to.as_ptr(),
+                windows_sys::Win32::Storage::FileSystem::MOVEFILE_WRITE_THROUGH,
+            )
+        };
+        let error = std::io::Error::last_os_error();
+        drop(held);
+        for path in [&pending, &published] {
+            if path.exists() {
+                std::fs::remove_file(path).unwrap();
+            }
+        }
+        std::fs::remove_dir(directory).unwrap();
+        assert_ne!(
+            ok, 0,
+            "atomic publication failed with a pinned directory: {error}"
+        );
+    }
+
     #[test]
     fn ordinary_process_cannot_open_vault_or_use_service_dpapi() {
         assert!(!exec_svc::windows_identity::is_restricted_executor_service());

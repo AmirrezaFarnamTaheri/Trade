@@ -5,6 +5,64 @@ use exec_ipc::{
 };
 use std::sync::atomic::{AtomicU8, Ordering};
 
+/// Stable SCM service-specific startup and custody failures; never include credential or request data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ServiceFailure {
+    RestrictedIdentity = 1001,
+    ServiceIdentity = 1002,
+    OperatorLogon = 1003,
+    OperatorUser = 1004,
+    StopGate = 1005,
+    Vault = 1006,
+    PrivilegedPipe = 1007,
+    PrivilegedListener = 1008,
+    StopListener = 1009,
+    CredentialProtection = 1010,
+    CiphertextPublication = 1011,
+    CiphertextVerification = 1012,
+    CredentialCommit = 1013,
+    CiphertextCreation = 1014,
+    CiphertextWrite = 1015,
+    CiphertextSeal = 1016,
+    CiphertextRename = 1017,
+}
+
+#[cfg(test)]
+mod startup_failure_tests {
+    use super::ServiceFailure::*;
+
+    #[test]
+    fn startup_failures_have_distinct_stable_service_codes() {
+        let codes = [
+            RestrictedIdentity,
+            ServiceIdentity,
+            OperatorLogon,
+            OperatorUser,
+            StopGate,
+            Vault,
+            PrivilegedPipe,
+            PrivilegedListener,
+            StopListener,
+            CredentialProtection,
+            CiphertextPublication,
+            CiphertextVerification,
+            CredentialCommit,
+            CiphertextCreation,
+            CiphertextWrite,
+            CiphertextSeal,
+            CiphertextRename,
+        ];
+        assert_eq!(
+            codes.map(|phase| phase as u32),
+            [
+                1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014,
+                1015, 1016, 1017
+            ]
+        );
+    }
+}
+
 /// The LocalService primary user is required but is not sufficient by itself.
 /// The SCM host also checks its restricted service-SID membership at runtime.
 pub fn is_local_service_sid(sid: &str) -> bool {

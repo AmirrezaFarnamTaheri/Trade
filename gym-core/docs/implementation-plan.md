@@ -1,6 +1,6 @@
 # Implementation and acceptance plan
 
-Updated 2026-11-04. The request to complete all deferred work remains open.
+Updated 2026-11-05. The request to complete all archive-derived work remains open.
 Implemented code, passing local tests and operational acceptance are separate.
 Nothing in this plan enables funded orders or promotes a strategy.
 
@@ -45,8 +45,8 @@ their exact inputs, bounds and authority limits.
 
 CLI and authenticated API tests cover the shared services. Browser checks use
 actual recorded BTCUSDT data, not donor samples. The documented Downloads source
-archives are already archived; `.pi/archive-verification.json` verifies 53 ZIPs,
-including the final six-source batch, with none left in Downloads at the audit.
+archives are already archived; `.pi/archive-verification.json` verifies 85 ZIPs,
+including the platform batch, with none left in Downloads at the audit.
 The eight-module implementation does not close the execution/acceptance work or
 broader research extensions listed below.
 
@@ -68,6 +68,11 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Point-in-time candle checks | Native crosscheck adds an optional exclusive receipt/fetch cutoff; the bounded local-only workbench action requires it. Current venue storage does not retain superseded candle vintages. |
 | GUI report and ticket journal | Saved runs download the existing offline HTML report. Canonical previews can be saved and acknowledged/rejected from the GUI using the native journal and actual server review time. No Executor permission is issued. |
 | Descriptive average distance and range oscillator | Shared indicator diagnostics include SMA200, close/SMA distance percentages for 20/50/200 observed bars and the 5/34 Awesome Oscillator from actual high/low ranges. Missing history stays warmup; no new strategy or intrinsic-value claim. |
+| Decision-linked chart | Native bounded SVG replay displays up to 150 recorded points through the selected decision, explicit gaps, escaped exact-price labels and keyboard navigation. No chart framework or donor data imported. |
+| Causality and warm-up audit | Shared `strategy-audit` action compares full versus truncated native decision traces at selected endpoints and separately varies prehistory. Missing comparisons stay unavailable; matching selected endpoints does not prove all branches unbiased. |
+| Saved-return uncertainty | Shared `return-bootstrap` action verifies saved artifacts and computes seeded stationary-block centered-return diagnostics. Real timestamp gaps break block adjacency. Declared assumptions, interval counts, modeled costs and uncorrected strategy selection remain visible; no promotion verdict. |
+| Durable paper attempt ownership | Scheduler records an attempt before calculation and releases the write lock during replay. Exact-claim interruption fences late publication; crash claims remain visible until explicit recovery. CLI/API/GUI expose claim, start, progress and unknown liveness separately. This does not terminate processes or cancel orders. |
+| Windows ciphertext publication | Reproduced child-file rename failure under strict ancestor sharing (OS error 32). Directory pins now permit write sharing while denying delete sharing; ciphertext/secret-file pins remain stricter. Regression checks publication, directory rename denial and ciphertext write denial. New binary is built locally; protected installation is not qualified. |
 
 | Work | Implementation | Verification |
 | --- | --- | --- |
@@ -77,7 +82,7 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Closed-bar technical diagnostics | domain/indicators.py, services/technical_analysis.py, `technicals` CLI | 15 cases and real recorded-data report `fbf96b7fde2b7681`; null warmup, invalid-quote/gap handling, bounded read snapshot and no-overwrite output. Descriptive only; no new strategy or authority. |
 | Multiple technical timeframes | Existing `technical_analysis.py`, repeated `technicals --res` | Ten further cases: one observation snapshot/digest, per-view closed bars and warmup, combined work bounds, invalid selections, unchanged single-view output and real writer between calculations. Recorded-data report `f3f90d2996f1b1f8`. No consensus/confidence or trading rule. |
 | Useful custody failure diagnostics | `gym-provision` retains the existing fixed client failure/OS error instead of discarding it | One Rust regression distinguishes request failure, timeout and disconnected client. The diagnostic retains uncertain-commit wording and grants no authority. It has not been installed over the protected binary. |
-| Read-only custody-state diagnosis | Existing ledger integrity checker, administrator-only inspection | Current service is stopped/disabled with exit code 5. The retained ledger has schema 1, zero events, zero chain head and file SHA-256 `33ee21f91bcaef3fa7c99361658a19a63305e8e2a3f047e35aae4bdc9d641580`. No ciphertext generation was present. No custody data, ACL, binding or service configuration was changed; no secret content was read. This narrows the old failed attempt but does not prove its cause. |
+| Installed custody diagnosis | Stage-specific SCM codes; retained zero-event ledger and synthetic-only continuation | Instrumented service reached RUNNING_DISARMED, then stopped/disabled. Later synthetic provision failed at ciphertext publication (1011), without acknowledgement or funded authority. Empty inspection-created WAL/SHM sidecar ownership was repaired to LocalService, preserving ledger/history and ACLs. Subsequent administrator prompt was canceled; the local rename fix remains uninstalled/unqualified. |
 
 The new commands use existing dependencies. The original three-tool MCP surface
 and research ledger schema are retained; outcome/vintage/final-window records use
@@ -98,7 +103,19 @@ funded boundary were not expanded by these research features.
 | Actual-versus-modeled costs | Open | Independently reconcile measured fills, fees, depth and latency with modeled assumptions. Real orders require a specific approved probe and loss budget; neither is supplied by this broad implementation request. |
 | Physical-machine recovery | Blocked: user confirmed no second machine is available | Restore and verify on a separate physical host, explicitly reprovision credentials, retain DISARMED state. Same-machine WSL does not satisfy this gate. |
 
-## Deferred research expansion still requiring implementation
+## Open archive-derived implementation and acceptance
+
+The latest request makes the useful documented integration candidates active work;
+the historical assessments' wording that they were only candidates is not a
+completion claim. The additions above close only their stated local contracts.
+Remaining implementation includes correction-aware indicator/replay fixtures,
+resumable snapshot-bound projections, saved annotations and linked chart panes,
+sequence-checked depth, aligned-return correlation, bounded result bytes/pages,
+persisted entry locks and remaining GUI journal/conversion/probe inputs. Protected
+runtime, real venue, portfolio settlement, vendor feeds and independent-custody
+contracts below also remain open. Excluded predictive ML and unrelated donor
+applications are not silently reinstated. No unavailable operational acceptance
+is replaced with a mock or marked complete.
 
 | Capability | Required work before claiming completion |
 | --- | --- |
@@ -135,6 +152,27 @@ module-family decisions and 187 indicator declarations catalogued in the
 with matching hashes. Useful candidates are mapped to the eight-module
 [research workspace plan](research-workspace-plan.md); this review does not mark
 those modules complete.
+
+Further source reviews are recorded in the [four-source interface assessment](interface-source-assessment.md)
+(3,085 entries, 31 family decisions), the [eleven-source analytics assessment](analytics-source-assessment.md)
+(8,394 entries, 40 family decisions), and the [fourteen-source library assessment](trading-library-assessment.md)
+(9,257 entries, 64 family decisions). Their strongest candidates concern indicator
+contracts and cache corrections, event-linked charting, fill/balance reconciliation
+and cancellation under failed entry constraints. These are assessed candidates,
+not newly implemented features or expanded ML commitments. Each assessment maps
+its findings to existing native owners and records verification limits.
+
+The [Freqtrade/OctoBot/Jesse platform assessment](platform-source-assessment.md)
+adds 8,207 hashed entries and 45 family decisions, including OctoBot's sixteen
+functional package directories. Its strongest additional candidates are
+future-data invariance and recursive warm-up checks, timestamp/fast-full replay
+parity, worker claim fencing with separate progress/liveness, and pending-cancel
+reconciliation. Optional statistical diagnostics require declared assumptions
+and all attempted trials; they do not reopen predictive ML or authorize trading.
+The causality/prehistory audit, saved-return block diagnostic and durable native
+paper claim fencing now implement specific parts of these findings. Timestamp
+parity, hard process deadlines, bounded result publication and the other
+contracts retain their separate acceptance requirements.
 
 ## Evidence and authority
 

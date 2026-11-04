@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
+from uuid import uuid4
 
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, quote, rate
@@ -248,13 +249,13 @@ class ResearchLedger:
             raise ValueError("research tick requires a separate market read snapshot")
         if job_id is not None:
             _id(job_id)
-        completed, failed = [], []
+        completed, failed, superseded = [], [], []
         for _ in range(limit):
             with self._write():
                 row = self.conn.execute("""SELECT j.id,j.body,j.next_at,r.body FROM jobs j
                     LEFT JOIN reports r ON r.job_id=j.id AND r.due_at=j.next_at
                     WHERE j.enabled=1 AND j.next_at<=? AND (? IS NULL OR j.id=?) AND
-                    (r.body IS NULL OR COALESCE(json_extract(r.body,'$.retry_at'),'')<=?)
+                    (r.body IS NULL OR (json_extract(r.body,'$.status')='FAILED' AND COALESCE(json_extract(r.body,'$.retry_at'),'')<=?))
                     ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), job_id, job_id, iso(now))).fetchone()
                 if row is None:
                     break
@@ -266,23 +267,30 @@ class ResearchLedger:
                 if digest(job) != key:
                     raise ValueError("research job digest mismatch")
                 end = parse_ts(due)
+                attempt = 1 + (previous["attempts"] if previous else 0)
+                claim = _result(status="RUNNING", claim_id=uuid4().hex, attempts=attempt,
+                                started_at=iso(now), progress="REPLAY_STARTED", liveness="UNKNOWN")
+                self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(claim)))
+                started = _result(kind="RESEARCH_STARTED", job_id=key, due_at=due, **claim)
+                self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(started), _json(started)))
+            try:
+                hypothesis = self._hypothesis(job["hypothesis_id"])
+                strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
+                db.c.execute("BEGIN")
                 try:
-                    hypothesis = self._hypothesis(job["hypothesis_id"])
-                    strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
-                    db.c.execute("BEGIN")
-                    try:
-                        result = paper(db, hypothesis["symbol"], end - timedelta(seconds=job["lookback_seconds"]), end,
-                                       strategy_id=hypothesis["strategy"], params=hypothesis["params"],
-                                       resolution=job["resolution"], cash=decimal(job["cash"], "cash", positive=True),
-                                       cost=CostModel(fee_rate=rate(job["fee_rate"])), store=store,
-                                       subscriptions=getattr(strategy, "required_resolutions", ()),
-                                       reference_symbol=getattr(strategy, "reference_symbol", None))
-                        # Publish immutable results before advancing the durable job clock.
-                        save_run(result, self.path.parent / "runs")
-                    finally:
-                        db.c.rollback()
-                except ValueError as error:
-                    attempt = 1 + (previous["attempts"] if previous else 0)
+                    result = paper(db, hypothesis["symbol"], end - timedelta(seconds=job["lookback_seconds"]), end,
+                                   strategy_id=hypothesis["strategy"], params=hypothesis["params"],
+                                   resolution=job["resolution"], cash=decimal(job["cash"], "cash", positive=True),
+                                   cost=CostModel(fee_rate=rate(job["fee_rate"])), store=store,
+                                   subscriptions=getattr(strategy, "required_resolutions", ()),
+                                   reference_symbol=getattr(strategy, "reference_symbol", None))
+                finally:
+                    db.c.rollback()
+            except ValueError as error:
+                with self._write():
+                    if not self._owns(key, due, claim["claim_id"]):
+                        superseded.append({"job_id": key, "due_at": due, "claim_id": claim["claim_id"]})
+                        continue
                     alert = _result(kind="RESEARCH_FAILED", job_id=key, due_at=due, status="FAILED",
                                     attempts=attempt, error_type=type(error).__name__,
                                     retry_at=iso(now + timedelta(seconds=job["every_seconds"])),
@@ -291,24 +299,60 @@ class ResearchLedger:
                     self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(alert), _json(alert)))
                     failed.append(alert)
                     continue
+            with self._write():
+                if not self._owns(key, due, claim["claim_id"]):
+                    superseded.append({"job_id": key, "due_at": due, "claim_id": claim["claim_id"]})
+                    continue
+                # Ownership check and publication share the final write transaction.
+                save_run(result, self.path.parent / "runs")
                 self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(result)))
                 alert = _result(kind="RESEARCH_COMPLETED", job_id=key, due_at=due, run_id=result["run_id"],
                                 message="Paper replay completed; review matched baselines and warnings. This is not an execution proposal.")
                 self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(alert), _json(alert)))
                 self.conn.execute("UPDATE jobs SET next_at=? WHERE id=?", (iso(end + timedelta(seconds=job["every_seconds"])), key))
                 completed.append(alert)
-        return _result(completed=completed, failed=failed)
+        return _result(completed=completed, failed=failed, superseded=superseded)
+
+    def _owns(self, key, due, claim_id):
+        row = self.conn.execute("SELECT body FROM reports WHERE job_id=? AND due_at=?", (key, due)).fetchone()
+        report = json.loads(row[0]) if row else {}
+        return report.get("status") == "RUNNING" and report.get("claim_id") == claim_id
+
+    def interrupt(self, request, *, at):
+        """Fence one exact attempt; this does not terminate a process or cancel orders."""
+        fields(request, "job_id expected_due expected_claim reason")
+        if type(request["expected_due"]) is not str:
+            raise ValueError("expected due must be a zoned timestamp")
+        key, due, now = _id(request["job_id"]), iso(parse_ts(request["expected_due"])), iso(at)
+        claim_id = _id(request["expected_claim"])
+        if type(request["reason"]) is not str or not 1 <= len(request["reason"].strip()) <= 256:
+            raise ValueError("interruption requires a bounded reason")
+        with self._write():
+            job = self.conn.execute("SELECT next_at FROM jobs WHERE id=?", (key,)).fetchone()
+            if not job or job[0] != due or not self._owns(key, due, claim_id):
+                raise ValueError("job attempt changed; refresh before interruption")
+            claim = json.loads(self.conn.execute("SELECT body FROM reports WHERE job_id=? AND due_at=?", (key, due)).fetchone()[0])
+            event = _result(kind="RESEARCH_INTERRUPTED", job_id=key, due_at=due, claim_id=claim_id,
+                            recorded_at=now, reason=request["reason"].strip(), process_terminated=False)
+            report = _result(status="FAILED", attempts=claim["attempts"], retry_at=now,
+                             error_type="OperatorInterrupted", interrupted_attempt=claim, interruption=event)
+            self.conn.execute("UPDATE reports SET body=? WHERE job_id=? AND due_at=?", (_json(report), key, due))
+            self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(event), _json(event)))
+        return event
 
     def overview(self):
         jobs = []
-        for key, body, at, enabled, due, status, run_id, retry, attempts in self.conn.execute("""
+        for key, body, at, enabled, due, status, run_id, retry, attempts, claim_id, started, progress, liveness in self.conn.execute("""
             SELECT j.id,j.body,j.next_at,j.enabled,r.due_at,json_extract(r.body,'$.status'),
-                   json_extract(r.body,'$.run_id'),json_extract(r.body,'$.retry_at'),json_extract(r.body,'$.attempts')
+                   json_extract(r.body,'$.run_id'),json_extract(r.body,'$.retry_at'),json_extract(r.body,'$.attempts'),
+                   json_extract(r.body,'$.claim_id'),json_extract(r.body,'$.started_at'),
+                   json_extract(r.body,'$.progress'),json_extract(r.body,'$.liveness')
             FROM jobs j LEFT JOIN reports r ON r.job_id=j.id AND r.due_at=(
                 SELECT MAX(due_at) FROM reports WHERE job_id=j.id)
             ORDER BY j.id LIMIT 200"""):
             last = None if due is None else {"due_at": due, "status": status or "COMPLETED",
-                                             "run_id": run_id, "retry_at": retry, "attempts": attempts}
+                                             "run_id": run_id, "retry_at": retry, "attempts": attempts,
+                                             "claim_id": claim_id, "started_at": started, "progress": progress, "liveness": liveness}
             jobs.append({"id": key, "next_at": at, "enabled": bool(enabled),
                          **json.loads(body), "last_report": last})
         return _result(hypotheses=[{"id": key, **json.loads(body)} for key, body in self.conn.execute("SELECT id,body FROM hypotheses ORDER BY id LIMIT 200")],

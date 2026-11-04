@@ -73,17 +73,31 @@ async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Re
 }
 pub async fn serve(
     sid: &str,
-    ready: std::sync::mpsc::Sender<()>,
+    ready: std::sync::mpsc::Sender<Result<(), exec_svc::ServiceFailure>>,
     mode: StartupMode,
+    phase: std::sync::Arc<std::sync::atomic::AtomicU32>,
 ) -> io::Result<()> {
-    let mut vault = if mode != StartupMode::CredentialRecovery {
-        Vault::open(sid)?
+    let opened = if mode != StartupMode::CredentialRecovery {
+        Vault::open(sid)
     } else {
-        Vault::open_mode(sid, mode)?
+        Vault::open_mode(sid, mode)
     };
-    let mut listening = create(sid, true)?;
+    let mut vault = match opened {
+        Ok(vault) => vault,
+        Err(error) => {
+            let _ = ready.send(Err(exec_svc::ServiceFailure::Vault));
+            return Err(error);
+        }
+    };
+    let mut listening = match create(sid, true) {
+        Ok(pipe) => pipe,
+        Err(error) => {
+            let _ = ready.send(Err(exec_svc::ServiceFailure::PrivilegedPipe));
+            return Err(error);
+        }
+    };
     ready
-        .send(())
+        .send(Ok(()))
         .map_err(|_| io::Error::other("service startup cancelled"))?;
     loop {
         let result = listening.connect().await;
@@ -95,7 +109,11 @@ pub async fn serve(
                     match request {
                         Request::Provision(secret, correlation) => {
                             // A vault error is fatal, including an uncertain journal commit.
-                            let generation = vault.provision(secret)?;
+                            let generation = vault.provision(secret, &phase)?;
+                            phase.store(
+                                exec_svc::ServiceFailure::PrivilegedListener as u32,
+                                std::sync::atomic::Ordering::SeqCst,
+                            );
                             let _ = timeout(
                                 DEADLINE,
                                 client.write_all(&committed(correlation, generation)),

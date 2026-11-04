@@ -3,6 +3,7 @@ import asyncio
 import hmac
 import json
 import sqlite3
+from contextlib import nullcontext
 
 from aiohttp import web
 
@@ -42,12 +43,13 @@ def install(app, token, root, *, store):
         # Scheduled work uses the existing tick route and its separate batching lock.
         if body["action"] in ("tick", "start", "mcp"):
             raise ValueError("use the dedicated research runner")
-        if lock.locked():
+        inspection = body["action"] in ("list", "job-interrupt")
+        if not inspection and lock.locked():
             return web.json_response({"error": "research action is already running"}, status=409)
         if root is None:
             raise ValueError("research store is not configured")
         try:
-            async with lock:
+            async with nullcontext() if inspection else lock:
                 task = asyncio.create_task(asyncio.to_thread(research_action, root, body["action"], body["value"], store=store))
                 try:
                     result = await asyncio.shield(task)
