@@ -13,7 +13,7 @@ from tests.support import START, market_db, quote, quote_history
 
 
 def test_registry_normalizes_defaults_and_rejects_bad_parameters():
-    assert len(catalog()) == 6
+    assert len(catalog()) == 10
     assert create_strategy().config_hash == create_strategy("ema-trend", {"slow": 21, "fast": 8}).config_hash
     assert create_strategy("ema-trend", {"fast": 2}).config_hash != create_strategy().config_hash
     for name, params in (("unknown", {}), ("ema-trend", {"fast": True}), ("ema-trend", {"slow": 1}),

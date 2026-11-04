@@ -1,6 +1,7 @@
 const { token: TOKEN, demo: DEMO } = JSON.parse(document.getElementById("gym-config").textContent);
 
 const vocabulary = {
+  navModels: ["AI connections", "اتصال‌های هوش مصنوعی"],
   skipToContent: ["Skip to content", "رفتن به محتوا"],
   observedDepth: ["Observed book depth", "عمق مشاهده‌شدهٔ دفتر سفارش"],
   depthNote: ["Quantities within 10 / 25 / 50 bps of mid use only received levels. They do not establish full-book depth or executable capacity.", "حجم‌های فاصلهٔ ۱۰، ۲۵ و ۵۰ واحد پایه از میانه فقط از ردیف‌های دریافت‌شده‌اند؛ عمق کامل یا ظرفیت اجرای سفارش را اثبات نمی‌کنند."],
@@ -355,6 +356,8 @@ function applyLang() {
   if (state.researchSetup) { for (const slot of ["first", "second"]) renderCandidate(slot); renderCoverage(); }
   renderComparison();
   if (state.researchState) renderResearchJobs(state.researchState);
+  if (state.view === "models") window.gymModels?.mount(api, esc);
+  if (state.view === "research") window.gymResearch?.mount(api, esc);
 }
 
 const invalidQuoteFlags = new Set(["STALE", "CROSSED", "ZERO_SPREAD", "NON_FINITE", "NON_POSITIVE"]);
@@ -816,6 +819,7 @@ function updateClock() {
 }
 let pollTimer, refreshTask, refreshAgain = false;
 async function collectView(name, healthTask) {
+  if (name === "models") await window.gymModels?.mount(api, esc);
   if (name === "overview") {
     const results = await Promise.allSettled([
       api("/api/markets").then(data => { state.markets = data; renderMarkets(); }),
@@ -826,6 +830,7 @@ async function collectView(name, healthTask) {
   }
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
   if (name === "research") {
+    window.gymResearch?.mount(api, esc);
     const results = await Promise.allSettled([research(), researchJobs()]);
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
   }
@@ -859,7 +864,7 @@ async function refresh() {
     if (!document.hidden) pollTimer = setTimeout(refresh, again ? 0 : 2000);
   }
 }
-const viewKeys = { overview: "navOverview", markets: "navMarkets", research: "navResearch", account: "navAccount", operate: "navOperate", rules: "navRules", health: "navHealth", safety: "navSafety", backups: "navBackups" };
+const viewKeys = { overview: "navOverview", markets: "navMarkets", research: "navResearch", account: "navAccount", operate: "navOperate", rules: "navRules", health: "navHealth", safety: "navSafety", backups: "navBackups", models: "navModels" };
 async function showView(name, focus = false) {
   if (!Object.hasOwn(viewKeys, name)) name = "overview";
   state.view = name;

@@ -46,7 +46,7 @@ def test_ui_navigation_and_form_labels():
     ids = [e["attrs"]["id"] for e in elements if "id" in e["attrs"]]
     assert len(ids) == len(set(ids)), "Duplicate IDs make label and view targets ambiguous"
     routes = [e["attrs"]["data-view"] for e in elements if "data-view" in e["attrs"]]
-    assert set(routes) == {"overview", "markets", "research", "account", "operate", "rules", "health", "safety", "backups"}
+    assert set(routes) == {"overview", "markets", "research", "account", "operate", "rules", "health", "safety", "backups", "models"}
     assert len(routes) == len(set(routes))
     for route in routes:
         section = next(e for e in elements if e["attrs"].get("id") == "v-" + route)
@@ -60,8 +60,9 @@ def test_ui_navigation_and_form_labels():
 
 
 def test_ui_javascript_syntax():
-    result = subprocess.run([node(), "--check", str(UI.with_name("app.js"))], capture_output=True, encoding="utf-8")
-    assert result.returncode == 0, result.stderr
+    for name in ("app.js", "models.js", "research.js"):
+        result = subprocess.run([node(), "--check", str(UI.with_name(name))], capture_output=True, encoding="utf-8")
+        assert result.returncode == 0, result.stderr
 
 
 def test_ui_runtime_contracts():

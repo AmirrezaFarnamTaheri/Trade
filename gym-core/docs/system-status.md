@@ -1,5 +1,53 @@
 # System status — 2026-11-04
 
+## Current implementation update
+
+The shared registry now has ten strategies. New indicator features, deterministic
+numeric roles, resolution-time outcomes, future consume-once evaluations,
+user-supplied observation vintages/screening, cash-flow return arithmetic and
+forecast scoring are implemented. The CLI and advanced browser workbench share
+`research_actions.py`; model controls have dedicated API/UI modules and one
+private stdio gateway process. The **AI connections** page supports actual SDK
+sign-in interactions and Windows DPAPI-stored API keys. No credentials were
+entered, no live sign-in completed, and no paid provider request was made.
+
+Current Python suite: **815 passed, five skipped, 39 subtests passed** in 64.44s.
+Ruff passes. Gateway full suite: **29 passed, one privilege skip**, including
+the actual stdio host roundtrip and stored-key SDK requests to a local server.
+The suite uses synthetic credentials/local servers; Windows tests exercised
+real DPAPI and ACL protection as ACER outside the restricted test sandbox.
+Both npm audit and pip-audit reported no known vulnerabilities in this pass;
+pip-audit excludes the editable application, which is covered by source tests.
+
+One preceding repeated gateway run hit `attempts_exhausted` in the local
+key-rotation fixture. Its isolated test and the subsequent complete suite passed
+without changing retry limits. The intermittent local transport failure was not
+reproduced or assigned a proven root cause; the runtime rejected that request.
+
+Actual running browser checks show the ten-strategy catalog, advanced workbench
+and AI settings in English/Persian. The new GUI numeric review reproduced saved
+run `385bcd9aa23442dd`: −12.53677481 USDT, sampled drawdown 1.25367748 percent,
+and the same cash-benchmark excess. Its three roles match stored arithmetic;
+semantic grounding remains false. Screenshot: `.pi/ai-connections-persian.png`.
+Expanded indicator receipt `e57c33ed39099448` reads the retained 2,208 BTCUSDT
+observations: 178 closed bars and 43 final contiguous bars. ATR/ADX/Keltner are
+available; EMA50/200, SMA50 and TRIX remain warmup. Receipt:
+`.pi/reports/btcusdt-indicators-20261104.json`. No missing history was synthesized.
+The observatory was restarted to load routes, briefly interrupting collection.
+No gap was filled. The protected executor was not restarted or changed.
+The unused 3 MB `repo_core_source.txt` generated dump was removed after verifying
+there were no active references. The eight reviewed ZIPs were moved into
+Downloads/archive with identical before/after hashes and no overwrites.
+
+The broader plan is still open. [Architecture and interface coverage](architecture.md)
+lists remaining terminal-only inputs. [Implementation plan](implementation-plan.md)
+separates unimplemented integrations from operational gates. No installed custody,
+funded venue transport/protection, independent final evidence or physical-machine
+recovery is certified. Rust/installed-host and full desktop/mobile browser checks
+below are prior receipts, not reruns for this slice.
+
+## Earlier review snapshot
+
 The review spans production modules, callers, tests, workflow, UI and local
 operational state. Current membership/hash/symbol/direct-test-import inventory:
 `.pi/donor-integration/module-inventory.json`, 113 production files: 66 Python,
@@ -27,8 +75,8 @@ Inventory membership is not a line-by-line correctness certificate.
 
 ## Verification
 
-- **752 Python passed, five skipped, 39 subtests passed** in the full suite
-  (50.02 seconds), including 15 technical-report cases, ten multi-window validation/CLI cases and ten
+- **762 Python passed, five skipped, 39 subtests passed** in the full suite
+  (78.54 seconds), including 25 technical-report cases, ten multi-window validation/CLI cases and ten
   follow-up API/error-path cases, plus the earlier 12 trade-flow, 18 band/economics
   and 25 sizing/provenance cases.
   Ruff also passed. In an earlier pass, actual stdio calls verified
@@ -140,3 +188,17 @@ bars and 43 final contiguous bars; SMA50 correctly remains unavailable.
 The 15 new cases and full Python suite passed; Ruff passed. Rust, gateway,
 Windows, browser and network-audit checks were not repeated for this addition;
 no collector or scheduler restart was performed. See [capabilities](capabilities.md).
+
+## Latest eight-source assessment
+
+All 570 files from the latest eight Downloads archives are inventoried and
+assigned to 52 documented family decisions; no members are unclassified and
+all rehashed contents match. All 21 standalone Python files parse. The nested
+desk package is a duplicate and the bundled Gemini database remains opaque.
+The repeated-resolution technical CLI now shares a single observation snapshot
+across up to four views, with independent warmup and no signal synthesis.
+Ten additional tests, full Python and Ruff pass. Actual recorded-data report
+f3f90d2996f1b1f8 binds all views to the same 2,208 observations.
+No UI/API, Rust, gateway, Windows, dependencies or live processes changed.
+Their runtime checks and network dependency audits were not repeated.
+See [source assessment](source-assessment.md) for every decision and open item.

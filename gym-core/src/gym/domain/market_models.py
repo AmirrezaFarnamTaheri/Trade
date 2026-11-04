@@ -363,12 +363,14 @@ def trade_economics(quote_currency, entry_price, stop_price, target_price, gross
 
 
 def evaluate_artifact(artifact):
-    from .portfolio import portfolio_sizing
+    from .portfolio import cashflow_returns, portfolio_sizing
+    from .forecast_evaluation import forecast_calibration
 
     fields(artifact, "model parameters")
     models = {"liquidity": liquidity, "spacing": roundtrip_spacing, "fx": implied_fx, "financing": financing,
               "position-sizing": position_sizing, "trade-economics": trade_economics,
-              "portfolio-sizing": portfolio_sizing}
+              "portfolio-sizing": portfolio_sizing, "cashflow-returns": cashflow_returns,
+              "forecast-calibration": forecast_calibration}
     name = artifact["model"]
     if not isinstance(name, str) or name not in models:
         raise ValueError("unknown paper market model")

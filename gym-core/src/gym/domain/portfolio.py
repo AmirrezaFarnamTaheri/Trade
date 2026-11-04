@@ -2,7 +2,7 @@
 import re
 from decimal import Decimal, ROUND_FLOOR
 
-from .market_models import currency, decimal, fields, position_sizing, rate
+from .market_models import currency, decimal, elapsed, fields, instant, position_sizing, rate
 
 
 def portfolio_sizing(quote_currency, equity, cash, total_risk_fraction, cash_buffer_fraction,
@@ -52,3 +52,46 @@ def portfolio_sizing(quote_currency, equity, cash, total_risk_fraction, cash_buf
             "assumptions": "new paper entries only, in supplied rank order; shared cash reserve and modeled "
                            "stop-loss budget; received-asset fees and adverse slippage; existing positions, "
                            "correlations, settlement and executable protection are not verified"}
+
+
+def cashflow_returns(quote_currency, started_at, ended_at, initial_equity, final_equity, cashflows):
+    """Time-weighted return requires an observed equity mark immediately before each flow."""
+    currency(quote_currency)
+    start, end = instant(started_at), instant(ended_at)
+    initial, final = decimal(initial_equity, "initial_equity", positive=True), decimal(final_equity, "final_equity")
+    if not start < end or type(cashflows) is not list or len(cashflows) > 1000:
+        raise ValueError("need a positive period and at most 1000 ordered flows")
+    previous, base, factor, total, weighted, available = start, initial, Decimal(1), Decimal(0), Decimal(0), True
+    for row in cashflows:
+        fields(row, "at equity_before_flow flow_quote equity_after_flow")
+        at = instant(row["at"])
+        before = decimal(row["equity_before_flow"], "equity_before_flow")
+        after = decimal(row["equity_after_flow"], "equity_after_flow")
+        # Flow is signed; validate its magnitude through the canonical exact-number boundary.
+        raw = row["flow_quote"]
+        if type(raw) is not str:
+            raise ValueError("flow_quote must be an exact decimal string")
+        flow = -decimal(raw[1:], "flow_quote") if raw.startswith("-") else decimal(raw, "flow_quote")
+        if not previous < at < end or after != before + flow:
+            raise ValueError("flows must be strictly ordered inside the period with after = before + flow")
+        if base:
+            factor *= before / base
+        else:
+            available = False
+        total += flow
+        weighted += flow * elapsed(at, end) / elapsed(start, end)
+        previous, base = at, after
+    if base:
+        factor *= final / base
+    else:
+        available = False
+    net, denominator = final - initial - total, initial + weighted
+    return {"quote_currency": quote_currency, "external_flow_quote": total, "net_profit_quote": net,
+            "time_weighted_return_percent": (factor - 1) * 100 if available else None,
+            "time_weighted_status": "CALCULATED" if available else "UNAVAILABLE_ZERO_EQUITY",
+            "modified_dietz_return_percent": net / denominator * 100 if denominator > 0 else None,
+            "dietz_denominator_quote": denominator, "flow_count": len(cashflows),
+            "inputs_verified": False, "cashflows_reconciled": False,
+            "assumptions": "single quote currency; pre/post-flow equity marks at each external contribution or withdrawal; "
+                           "fees and unrealized holdings belong in supplied equity, not external flows; "
+                           "Dietz assumes linear time weights and is an approximation. No prices or missing equity marks are synthesized."}

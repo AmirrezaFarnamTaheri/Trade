@@ -42,9 +42,10 @@ export function validate(input, { allowLoopback = false } = {}) {
       check(['openai-completions', 'openai-responses', 'anthropic-messages'].includes(c.protocol));
       c.baseURL = endpoint(c.baseURL, allowLoopback);
     } else check(!!catalog.getProvider(c.provider));
-    exact(c.auth, ['type', 'env']);
+    exact(c.auth, ['type', 'env', 'stored']);
     if (c.auth.type === 'api_key') {
-      check(Array.isArray(c.auth.env) && c.auth.env.length >= 1 && c.auth.env.length <= 100);
+      check(c.auth.stored === undefined || c.auth.stored === true);
+      check(Array.isArray(c.auth.env) && c.auth.env.length >= (c.auth.stored ? 0 : 1) && c.auth.env.length <= 100);
       check(c.auth.env.every(n => typeof n === 'string' && /^[A-Z_][A-Z0-9_]{0,127}$/.test(n)) && new Set(c.auth.env).size === c.auth.env.length);
       check(!!c.protocol || !!catalog.getProvider(c.provider)?.auth.apiKey);
     } else {

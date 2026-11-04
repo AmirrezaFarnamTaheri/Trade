@@ -68,6 +68,19 @@ function run(args, { home, input = '', extraEnv = {} } = {}) {
 const cli = resolve(import.meta.dirname, '../gateway.mjs');
 const worker = resolve(import.meta.dirname, 'refresh-worker.mjs');
 
+test('stored API keys drive the actual SDK without environment fallback and retain connection scope', async t => {
+  const { state, config, calls } = await fixture(t);
+  config.connections[0].auth = { type: 'api_key', env: [], stored: true };
+  await state.apiKeys(config.connections[0], ['synthetic-stored-key']);
+  const result = await complete(state, config, 'research', { prompt: 'advisory test' }, { env: {} });
+  assert.equal(result.text, 'Advisory only.');
+  assert.equal(calls[0].auth, 'Bearer synthetic-stored-key');
+  config.connections[0].id = 'other';
+  config.presets[0].connection = 'other';
+  await assert.rejects(complete(state, config, 'research', { prompt: 'not sent' }, { env: {} }), /no_environment_keys/);
+  assert.equal(calls.length, 1);
+});
+
 test('default disabled and strict trust-boundary validation', () => {
   assert.equal(emptyConfig().enabled, false);
   const base = configuration('https://example.invalid/v1');

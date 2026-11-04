@@ -102,7 +102,7 @@ export async function main(args = process.argv.slice(2)) {
       const connections = [];
       for (const c of config.connections) {
         const auth = c.auth.type === 'oauth' ? { type: 'oauth', loggedIn: (await state.credentials(c).list({ signal: controller.signal })).length > 0 }
-          : { type: 'api_key', env: c.auth.env, configuredKeys: new Set(c.auth.env.map(n => process.env[n]).filter(v => typeof v === 'string' && v.trim().length > 0)).size };
+          : { type: 'api_key', env: c.auth.env, configuredKeys: new Set([...(c.auth.stored ? await state.apiKeys(c) : []), ...c.auth.env.map(n => process.env[n]).filter(v => typeof v === 'string' && v.trim().length > 0)]).size };
         connections.push({ id: c.id, provider: c.provider, auth });
       }
       return { schema: 1, enabled: config.enabled, mode: 'RESEARCH_ONLY', funded_authority: false, connections, presets: config.presets.length };

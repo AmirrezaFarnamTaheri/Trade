@@ -3,6 +3,7 @@ from decimal import Decimal, localcontext
 
 from .market_models import decimal
 from .strategy import EMA
+from .technical_features import TechnicalFeatures
 
 
 def indicator_values(closes):
@@ -40,4 +41,29 @@ def indicator_values(closes):
                                    "signal": str(signal.value) if ready else None,
                                    "histogram": str(line - signal.value) if ready else None,
                                    "ema_seed": "FIRST_CLOSE", "signal_seed": "FIRST_MATURE_MACD_LINE"}
+    return values
+
+
+def bar_indicator_values(bars):
+    """Range values refer to observed MID quote bars, never exchange trade volume."""
+    if type(bars) is not list or len(bars) > 10000:
+        raise ValueError("indicators require at most 10000 closed bars")
+    state, values, previous = TechnicalFeatures(), None, None
+    for bar in bars:
+        if bar.forming or bar.end > bar.avail or (previous is not None and previous.end != bar.start):
+            raise ValueError("indicators require contiguous closed bars")
+        if not bar.low <= bar.open <= bar.high:
+            raise ValueError("bar open is outside its observed range")
+        values = state.update(bar.close, high=bar.high, low=bar.low)
+        previous = bar
+    if values is not None:
+        return values
+    values = indicator_values([])
+    for n in (20, 50, 200):
+        values[f"ema_{n}"] = {"status": "WARMUP", "required_bars": n, "value": None,
+                               "slope_5_bars": None, "ema_seed": "FIRST_CLOSE"}
+    for name, required, fields in (("atr_14", 15, ("value",)), ("adx_14", 28, ("value", "plus_di", "minus_di")),
+                                   ("trix_15_9", 52, ("value", "signal")),
+                                   ("keltner_20_14_2", 20, ("middle", "upper", "lower"))):
+        values[name] = {"status": "WARMUP", "required_bars": required, **dict.fromkeys(fields)}
     return values

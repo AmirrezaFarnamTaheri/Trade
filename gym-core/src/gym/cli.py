@@ -139,15 +139,21 @@ def market_statistics_cmd(args) -> int:
     return 0
 
 def technical_report_cmd(args) -> int:
-    from .services.technical_analysis import technical_report
+    from .services.technical_analysis import technical_report, technical_reports
 
     path = store_root(args) / "market.db"
     if not path.is_file():
         raise ValueError("technicals require an existing market store")
     db = MarketDB(path, readonly=True)
     try:
-        report = technical_report(db, args.symbol.upper(), parse_ts(args.start), parse_ts(args.end),
-                                  resolution=args.res, store="demo" if args.demo else "live")
+        resolutions = args.res or ["15min"]
+        options = {"store": "demo" if args.demo else "live"}
+        if len(resolutions) == 1:
+            report = technical_report(db, args.symbol.upper(), parse_ts(args.start), parse_ts(args.end),
+                                      resolution=resolutions[0], **options)
+        else:
+            report = technical_reports(db, args.symbol.upper(), parse_ts(args.start), parse_ts(args.end),
+                                       resolutions=resolutions, **options)
     finally:
         db.c.close()
     text = json.dumps(report, ensure_ascii=False, indent=2)
@@ -637,54 +643,26 @@ async def serve(args):
 
 
 def research_cmd(args):
-    from .services.research_ledger import ResearchLedger
+    from .services.research_actions import OBJECT_ACTIONS, research_action
+
     root = store_root(args)
-    if args.action == "claim-check":
-        from .services.research_grounding import check_claims
-        if not args.input:
-            raise ValueError("claim-check requires an input JSON file")
-        result = check_claims(root / "runs", _strict_offline_json(args.input, max_bytes=65536),
-                              store="demo" if args.demo else "live")
-        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-        return 0 if result["all_matched"] else 3
     if args.action == "mcp":
         from .services.research_mcp import serve_stdio
         return serve_stdio(root)
-    root.mkdir(parents=True, exist_ok=True)
     if args.action == "start":
         from .services.research_runner import watch
+        root.mkdir(parents=True, exist_ok=True)
         result = asyncio.run(watch(root, store="demo" if args.demo else "live", poll_seconds=args.poll_seconds))
-        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-        return 0
-    with ResearchLedger(root / "research.sqlite3") as ledger:
-        if args.action == "list":
-            result = ledger.overview()
-        elif args.action == "pause":
-            result = ledger.pause(args.input)
-        elif args.action == "resume":
-            result = ledger.resume(args.input)
-        elif args.action == "tick":
-            db = open_db(args)
-            try:
-                result = ledger.run_due(db, args.at or iso(now_utc()), store="demo" if args.demo else "live")
-            finally:
-                db.c.close()
-        else:
-            if not args.input:
+    else:
+        value = args.input
+        if args.action in OBJECT_ACTIONS:
+            if not value:
                 raise ValueError("this research action requires an input JSON file")
-            with Path(args.input).open("rb") as source:
-                raw = source.read(65537)
-            if len(raw) > 65536:
-                raise ValueError("research input exceeds 64 KiB")
-            try:
-                request = json.loads(raw)
-            except (ValueError, UnicodeDecodeError, RecursionError):
-                raise ValueError("invalid research JSON") from None
-            methods = {"register": ledger.register, "shadow-open": ledger.open_shadow,
-                       "shadow-close": ledger.settle_shadow, "schedule": ledger.schedule}
-            result = methods[args.action](request)
+            value = _strict_offline_json(value, max_bytes=65536)
+        result = research_action(root, args.action, value, store="demo" if args.demo else "live", at=args.at)
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-    return 0
+    return 3 if args.action == "claim-check" and not result["all_matched"] else 0
+
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="gymctl")
@@ -693,7 +671,8 @@ def main(argv=None):
     models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
     models.add_argument("model_args", nargs=argparse.REMAINDER)
     research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
-    research.add_argument("action", choices=("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list", "mcp", "claim-check"))
+    research.add_argument("action", choices=("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list", "mcp", "claim-check",
+                                            "review", "outcome-add", "outcomes", "final-register", "final-run", "final-status", "observe-import", "screen"))
     research.add_argument("input", nargs="?", help="input JSON file, or job ID for pause/resume")
     research.add_argument("--at", help="zoned ISO time for a bounded scheduler tick")
     research.add_argument("--poll-seconds", type=float, default=5, help="supervised research polling interval, 1..60 seconds")
@@ -748,7 +727,7 @@ def main(argv=None):
         command.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
         command.add_argument("--latency-ms", type=int, default=500)
         command.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
-    research = sub.add_parser("paper-research", help="offline PAPER_ONLY liquidity, spacing, FX, financing, sizing, portfolio-sizing or trade-economics JSON diagnostic")
+    research = sub.add_parser("paper-research", help="offline market, portfolio, cash-flow return and forecast scoring diagnostics")
     research.add_argument("path", help='JSON object with "model" and exact "parameters"; decimals are strings')
     research.add_argument("--output", help="create a JSON report outside data/; never overwrite")
     for name, help_text in (("spreads", "observed spread distributions by pair and Tehran hour"),
@@ -759,11 +738,11 @@ def main(argv=None):
         statistics.add_argument("--from", dest="start")
         statistics.add_argument("--to", dest="end")
         statistics.add_argument("--output", help="create a JSON report (never overwrite an existing file)")
-    technicals = sub.add_parser("technicals", help="read-only closed MID bar SMA/RSI/MACD diagnostics; no trading signals")
+    technicals = sub.add_parser("technicals", help="read-only closed-bar averages, RSI/MACD, ATR/ADX, Keltner and TRIX; no trading signals")
     technicals.add_argument("symbol")
     technicals.add_argument("--from", dest="start", required=True)
     technicals.add_argument("--to", dest="end", required=True)
-    technicals.add_argument("--res", default="15min")
+    technicals.add_argument("--res", action="append", help="fixed resolution; repeat for up to four views of one snapshot (default: 15min)")
     technicals.add_argument("--demo", action="store_true")
     technicals.add_argument("--output", help="create a new JSON report; never overwrite")
     candles = sub.add_parser("candles", help="cross-check internal trade bars against venue candles (DATA-05)")

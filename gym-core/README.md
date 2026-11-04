@@ -4,6 +4,14 @@ Public Wallex collector, venue-rule service and a bilingual (EN/FA) operator wor
 The current app is **DISARMED**: observation, paper research and offline preparation do not authorize funded execution.
 Nothing here can place, cancel or sign venue orders.
 
+The **AI connections** page provides provider setup, protected API-key storage,
+supported browser sign-in, model presets and explicit advisory prompts. It uses
+the optional [model gateway](../model-gateway/README.md); requests start disabled.
+Paper research also includes an advanced workbench for hypotheses, observations,
+numeric reviews, outcome memory, future evaluation and native diagnostics.
+See [structure and GUI coverage](docs/architecture.md) for module owners and the
+remaining terminal-only or protected-console workflows.
+
 ```powershell
 cd gym-core
 uv sync
@@ -111,9 +119,9 @@ Venue rules (`#rules`).
 ## Local operator workspace
 
 The default Overview (`#overview`) combines observed markets, saved paper evidence, mission shortcuts, safety and
-known constraints. The shared shell has nine destinations: Overview, Markets (`#markets`), Paper research
+known constraints. The shared shell has ten destinations: Overview, Markets (`#markets`), Paper research
 (`#research`), Account journal (`#account`), Offline ticket (`#operate`), Venue rules (`#rules`), System health
-(`#health`), Safety (`#safety`) and Backups (`#backups`). English/Persian and light/dark controls are in the navigation;
+(`#health`), Safety (`#safety`), Backups (`#backups`) and AI connections (`#models`). English/Persian and light/dark controls are in the navigation;
 tables scroll within their own region on small screens.
 
 Offline ticket offers structured fields and a JSON editor for the same bounded cost preview. Use exact decimal
@@ -229,8 +237,9 @@ The model includes adverse slippage and fees in the received asset on both legs.
 It neither verifies these assumptions nor supplies a stop order, venue minimums,
 portfolio allocation, account permissions or funded authority.
 
-The shared registry contains six strategies: `ema-trend`, `sma-cross`,
-`sma-reversion`, `bollinger-reversion`, `ema-confirmed` and `relative-momentum`. Closed-bar `sma-cross`
+The shared registry contains ten strategies: `ema-trend`, `sma-cross`,
+`sma-reversion`, `bollinger-reversion`, `ema-confirmed`, `relative-momentum`,
+`rsi-rebound`, `macd-cross`, `trix-cross` and `keltner-breakout`. Closed-bar `sma-cross`
 requires `slow + 1` observations to compare previous/current averages. Its
 crossovers use actual holding state; an unfilled entry does not create a position.
 Replay, live paper, schedules, comparisons, validation and the UI use the same
@@ -379,3 +388,12 @@ first-close-seeded EMA; its signal averages available MACD history and needs 34
 closes. This convention does not promise numerical parity with other libraries.
 Quote volume is unavailable. These are descriptive observations, without a
 buy/sell signal, calibrated probability, new strategy or order authority.
+
+Repeat `--res` to compare up to four distinct fixed resolutions from one read:
+`gymctl technicals BTCUSDT --from 2026-11-03T17:13:00Z --to 2026-11-03T20:13:00Z --res 1min --res 15min --res 1h --output timeframes.json`.
+Multiple resolutions produce `technical-timeframes/1`, with a shared observation
+digest and cutoff and independent closed bars, quality exclusions and warmup per
+view. The 10,000-period budget applies across all requested views. One resolution
+keeps the original report format; omitting `--res` still uses `15min`. Agreement
+between views is not a probability or order instruction. The complete latest
+source-family decisions are in [source assessment](docs/source-assessment.md).

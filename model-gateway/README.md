@@ -2,6 +2,29 @@
 
 Requires Node >=22.19.0. Dependency: public `@earendil-works/pi-ai` pinned to `1.5.0` (MIT, Mario Zechner). No donor code or private Pi auth storage is used.
 
+The local workspace now has an **AI connections** screen. Add a named provider
+connection, choose API key or supported browser sign-in, then sync model presets.
+OpenAI's current browser sign-in is under **OpenAI**; the separate Codex entry is
+the SDK's legacy provider. Actual account entitlements remain provider-dependent.
+Requests remain disabled until explicitly enabled; sending a prompt is a separate
+action and can incur provider charges. No test prompt runs automatically.
+
+Browser-added API connections use `{"type":"api_key","env":[],"stored":true}`.
+Stored key pools use the existing private credential database and Windows
+current-user DPAPI, in namespaces distinct from OAuth. Configuration exports
+contain references, never key values, and export disabled. Existing environment
+key pools keep working; OAuth never falls back to API keys. The browser's masked
+key field replaces the stored pool for that connection, and deletion leaves
+environment keys untouched. Non-Windows private-file plaintext storage remains
+explicitly disclosed. Do not enter venue keys in this model-provider screen.
+
+`control.mjs` reuses native state/config/runtime ownership. `host.mjs` accepts
+bounded correlated JSON lines only from the Python application's private stdin;
+it opens no new control port. OAuth sessions expose only a short-lived ID,
+provider URL, device code and current prompt. Cancellation and app shutdown
+terminate the pending flow. Provider diagnostics/tokens are never returned as
+errors. See [workflow ownership](../gym-core/docs/architecture.md).
+
 ```sh
 cd model-gateway
 npm ci --ignore-scripts

@@ -72,10 +72,12 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
     from gym.api import server
 
     ui = tmp_path / "index.html"
-    ui.write_text('<script src="/app.js"></script><link href="/styles.css">', encoding="utf-8")
+    ui.write_text('<script src="/app.js"></script><script src="/models.js"></script><script src="/research.js"></script><link href="/styles.css">', encoding="utf-8")
     script, style = tmp_path / "app.js", tmp_path / "styles.css"
     script.write_text("// old", encoding="utf-8")
     style.write_text("body {}", encoding="utf-8")
+    (tmp_path / "models.js").write_text("// model controls", encoding="utf-8")
+    (tmp_path / "research.js").write_text("// research controls", encoding="utf-8")
     monkeypatch.setattr(server, "UI", ui)
 
     async def check():
@@ -89,9 +91,11 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
                 updated = await (await client.get("/")).text()
                 assert first != updated
                 urls = re.findall(r'(?:src|href)="([^"]+)"', updated)
-                assert len(urls) == 2 and all("?v=" in url for url in urls)
+                assert len(urls) == 4 and all("?v=" in url for url in urls)
                 assert (await (await client.get(urls[0])).text()) == "// new"
-                assert (await (await client.get(urls[1])).text()) == "body {}"
+                assert (await (await client.get(urls[1])).text()) == "// model controls"
+                assert (await (await client.get(urls[2])).text()) == "// research controls"
+                assert (await (await client.get(urls[3])).text()) == "body {}"
         finally:
             db.c.close()
 

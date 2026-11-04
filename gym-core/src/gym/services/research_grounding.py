@@ -9,6 +9,10 @@ from ..domain.strategy import digest
 from .reports import economic_report, sampled_drawdown
 
 
+class MetricUnavailable(ValueError):
+    """The artifact is present but its requested metric is not observed."""
+
+
 def _number(value):
     if type(value) is not str or len(value) > 64 or not re.fullmatch(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", value):
         raise ValueError("claim values must be bounded finite decimal strings")
@@ -46,7 +50,7 @@ def _source(root, reference, store):
     else:
         raise ValueError("unsupported numeric research metric")
     if raw is None:
-        raise ValueError("claimed metric is unavailable")
+        raise MetricUnavailable("claimed metric is unavailable")
     value = _number(raw)
     provenance = {**reference, "outputs_digest": out["outputs_digest"],
                   "config_hash": out["inputs"]["config_hash"], "data_digest": out["inputs"]["data"],
@@ -54,6 +58,13 @@ def _source(root, reference, store):
                   "value": str(value), "unit": unit, "valuation": economic_report(out)["valuation"]}
     matched = {k: out["inputs"][k] for k in ("symbol", "from", "to", "resolution", "cash", "cost", "data", "snapshots", "rules_mode", "store")}
     return value, unit, provenance, matched
+
+
+def resolve_run_metric(root, reference, *, store):
+    try:
+        return _source(root, reference, store)
+    except (KeyError, TypeError, AttributeError, RecursionError):
+        raise ValueError("invalid run artifact structure") from None
 
 
 def check_claims(root, request, *, store):
@@ -76,10 +87,7 @@ def check_claims(root, request, *, store):
             references = claim["sources"]
             if type(references) is not list or len(references) != (1 if operation == "VALUE" else 2):
                 raise ValueError("claim operation has the wrong number of sources")
-            try:
-                sources = [_source(root, reference, store) for reference in references]
-            except (KeyError, TypeError, AttributeError, RecursionError):
-                raise ValueError("invalid run artifact structure") from None
+            sources = [resolve_run_metric(root, reference, store=store) for reference in references]
             value, unit = sources[0][:2]
             if len(sources) == 2:
                 other, other_unit, _, other_inputs = sources[1]

@@ -2,6 +2,14 @@
 
 Reviewed local sources:
 
+Current native implementations and module owners are summarized in
+[architecture](architecture.md). The follow-up adds four strategy rules,
+availability-safe numeric review/outcome/vintage workflows, future consume-once
+evaluations, cash-flow and forecast diagnostics, and the AI connections GUI.
+Earlier source-review sections below retain the state and receipts of their
+respective review slice; the current [implementation plan](implementation-plan.md)
+and [system status](system-status.md) distinguish completed code and open gates.
+
 - `D:\GitHub\AGI\jev-trader-main.zip`, SHA-256
   `1f3481d146871d1d23970a7f60c271253fd63e62963ae5dff14f51f833519dee`.
   Its 62 regular files were extracted into the ignored review directory;
@@ -157,8 +165,8 @@ net **−56.62608896 USDT**; holding BTC lost 5.93189390 USDT and holding
 USDT stayed flat. This short historical diagnostic supports integration,
 not profitability or prospective qualification. Five strategies now share the
 native registry at that stage; the latest band addition brings the total to six.
-Current full Python verification: 752 passed, five skipped, 39 subtests
-(50.02 seconds).
+Current full Python verification: 762 passed, five skipped, 39 subtests
+(78.54 seconds).
 The real downloaded crossover summary matched both its checksum and saved output;
 decimal durations remain strings across the browser JSON round trip. Script/style
 URLs now use content hashes after browser checks exposed retained older labels.
@@ -339,3 +347,21 @@ two excluded bad-quote bars and a final contiguous 43-bar segment. SMA20 is
 `.pi/reports/btcusdt-technicals.json`. No source application, broker, wallet,
 notebook, model or weights ran. Rust/gateway/Windows/browser checks and network
 dependency audits were not repeated for this Python CLI-only addition.
+
+## Latest eight-source follow-up
+
+The DEX kit, nof1.ai, Rizzo, Agentic Trading Desk, Gemini signal app, GPT stock
+app, browser trading agent and nof1 tracker are assessed in
+[source assessment](source-assessment.md). All 570 files have hashes and an
+explicit module-family decision, with no unclassified members or hash mismatches.
+All 21 standalone Python files parse. Duplicate desk scripts/nested package and
+the Gemini app's opaque bundled database are accounted for without importing state.
+
+The useful new adaptation is multiple technical timeframes over one captured
+observation snapshot through repeated `technicals --res`. It retains per-view
+warmup and exclusions, exact numbers, no-overwrite output and the single-view
+contract. Ten additional native cases pass, including a database writer between
+calculations. No source implementation or runtime was imported. Deferred feeds,
+forecasting, indicators and real protection are named explicitly in the assessment
+and implementation plan; complete inventory does not mean every source subsystem
+was integrated or certified.

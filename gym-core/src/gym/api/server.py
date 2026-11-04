@@ -33,6 +33,8 @@ from ..services.offline_review_journal import OfflineReviewJournal
 from ..services.research_ledger import ResearchLedger
 from ..services.readiness import current_top, operational_readiness
 from ..services.temporal_validation import validate as temporal_validate
+from .models import install as install_models
+from .research import install as install_research
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -62,7 +64,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
 
     async def index(_):
         html = UI.read_text("utf-8").replace("__GYM_TOKEN__", token).replace("__GYM_DEMO__", json.dumps(col.demo))
-        for asset in ("app.js", "styles.css"):
+        for asset in ("app.js", "models.js", "research.js", "styles.css"):
             version = sha256(UI.with_name(asset).read_bytes()).hexdigest()[:16]
             html = html.replace(f'"/{asset}"', f'"/{asset}?v={version}"')
         return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
@@ -425,6 +427,8 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
     app = web.Application(middlewares=[guard], client_max_size=1024 * 1024)
     app.add_routes([
         web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
+        web.get("/models.js", browser_asset),
+        web.get("/research.js", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health), web.get("/api/ready", ready),
         web.get("/api/account-observations", account_observations),
         web.get("/api/external-order-events", external_events),
@@ -444,4 +448,6 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/rules/{id}/disable", rule_disable), web.post("/api/rules/{id}/rollback", rule_rollback),
         web.post("/api/presets/{name}", preset),
     ])
+    install_models(app, token)
+    install_research(app, token, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
     return app

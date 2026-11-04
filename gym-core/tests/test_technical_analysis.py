@@ -8,7 +8,7 @@ import pytest
 
 from gym.cli import main
 from gym.domain.indicators import indicator_values
-from gym.services.technical_analysis import technical_report
+from gym.services.technical_analysis import technical_report, technical_reports
 from tests.support import START, market_db, quote
 
 
@@ -144,3 +144,88 @@ def test_real_cli_reads_existing_store_without_creating_research_state(tmp_path,
     assert result["closed_bars"] == 60 and not result["order_submitted"]
     assert not (live / "research.sqlite3").exists()
     assert main(args) == 2
+
+
+def test_timeframes_share_one_read_and_keep_the_single_report_contract(tmp_path, monkeypatch):
+    import gym.services.technical_analysis as service
+    db = market_db(tmp_path, observations())
+    try:
+        expected = technical_report(db, "BTCUSDT", START, START + timedelta(hours=1), resolution="1min")
+        original = service.DataPortal.tops
+        calls = []
+        def read(portal, *args):
+            calls.append(args)
+            return original(portal, *args)
+        monkeypatch.setattr(service.DataPortal, "tops", read)
+        result = technical_reports(db, "BTCUSDT", START, START + timedelta(hours=1), resolutions=["1min", "15min", "1h"])
+        assert len(calls) == 1 and not db.c.in_transaction
+        assert result["timeframes"]["1min"] == expected
+        assert [r["closed_bars"] for r in result["timeframes"].values()] == [60, 4, 1]
+        assert len({r["data_digest"] for r in result["timeframes"].values()}) == 1
+        assert result["timeframes"]["15min"]["indicators"]["rsi_14"]["value"] is None
+        assert result["funded_authority"] is False and result["order_submitted"] is False
+    finally:
+        db.c.close()
+
+
+@pytest.mark.parametrize("resolutions", [[], ["1min"] * 2, ["session"], ["5min"], "1min", ["1min"] * 5])
+def test_invalid_timeframe_sets_reject_before_reading(tmp_path, resolutions):
+    db = market_db(tmp_path, observations(1))
+    try:
+        with pytest.raises(ValueError):
+            technical_reports(db, "BTCUSDT", START, START + timedelta(hours=1), resolutions=resolutions)
+        assert not db.c.in_transaction
+    finally:
+        db.c.close()
+
+
+def test_repeated_resolution_cli_creates_one_consistent_report(tmp_path, capsys):
+    live = tmp_path / "live"
+    live.mkdir()
+    market_db(live, observations()).c.close()
+    target = tmp_path / "timeframes.json"
+    args = ["--data", str(tmp_path), "technicals", "BTCUSDT", "--from", START.isoformat(),
+            "--to", (START + timedelta(hours=1)).isoformat(), "--res", "1min", "--res", "15min", "--output", str(target)]
+    assert main(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result == json.loads(target.read_text())
+    assert list(result["timeframes"]) == ["1min", "15min"]
+    assert main(args) == 2
+    assert not (live / "research.sqlite3").exists()
+
+
+def test_writer_between_timeframe_calculations_cannot_change_the_snapshot(tmp_path, monkeypatch):
+    import gym.services.technical_analysis as service
+    from gym.adapters.store import MarketDB
+    db = market_db(tmp_path, observations())
+    writer = MarketDB(tmp_path / "market.db")
+    try:
+        options = {"resolutions": ["1min", "15min"]}
+        expected = technical_reports(db, "BTCUSDT", START, START + timedelta(hours=1), **options)
+        original = service._report_from_quotes
+        calls = []
+        def calculate(*args):
+            calls.append(args[4].resolution)
+            if len(calls) == 1:
+                writer.add_book_top(quote(START + timedelta(minutes=14, seconds=50), "999", "1001"), None)
+            return original(*args)
+        monkeypatch.setattr(service, "_report_from_quotes", calculate)
+        actual = technical_reports(db, "BTCUSDT", START, START + timedelta(hours=1), **options)
+        assert calls == ["1min", "15min"] and actual == expected
+        assert technical_reports(db, "BTCUSDT", START, START + timedelta(hours=1), **options) != expected
+    finally:
+        db.c.close()
+        writer.c.close()
+
+
+def test_total_bar_budget_and_empty_timeframes_stay_explicit(tmp_path):
+    db = market_db(tmp_path, [])
+    try:
+        with pytest.raises(ValueError, match="10000"):
+            technical_reports(db, "BTCUSDT", START, START + timedelta(minutes=9500), resolutions=["1min", "15min"])
+        assert not db.c.in_transaction
+        result = technical_reports(db, "BTCUSDT", START, START + timedelta(hours=1), resolutions=["1min", "1h"])
+        assert all(r["status"] == "UNAVAILABLE" for r in result["timeframes"].values())
+        assert all(r["indicators"]["rsi_14"]["value"] is None for r in result["timeframes"].values())
+    finally:
+        db.c.close()

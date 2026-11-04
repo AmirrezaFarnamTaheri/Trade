@@ -180,6 +180,33 @@ foreach ($name in @('config.json','state.sqlite','state.sqlite-journal','state.s
       delete: (provider, options) => { scoped(provider); return this.tx(db => { db.prepare('DELETE FROM credentials WHERE namespace=?').run(namespace); }, options); },
     };
   }
+  async apiKeys(connection, keys, options) {
+    check(connection.auth.type === 'api_key' && connection.auth.stored === true, 'stored_keys_unavailable');
+    const namespace = JSON.stringify(['api_keys', connection.id, connection.provider]);
+    const valid = values => Array.isArray(values) && values.length <= 100 && values.every(k =>
+      typeof k === 'string' && k.trim().length > 0 && Buffer.byteLength(k) <= 16384 && !/[\x00-\x1f\x7f]/.test(k));
+    if (keys !== undefined) check(valid(keys) && new Set(keys).size === keys.length, 'invalid_api_keys');
+    return this.tx(async db => {
+      if (keys !== undefined) {
+        if (!keys.length) db.prepare('DELETE FROM credentials WHERE namespace=?').run(namespace);
+        else {
+          const raw = Buffer.from(JSON.stringify(keys));
+          check(raw.length <= 65536, 'credential_too_large');
+          const bytes = await this.seal(raw);
+          check(bytes.length > 0 && bytes.length <= 65536, 'credential_storage_failed');
+          db.prepare('INSERT OR REPLACE INTO credentials VALUES (?, ?)').run(namespace, bytes);
+        }
+        return keys;
+      }
+      const row = db.prepare('SELECT value FROM credentials WHERE namespace=?').get(namespace);
+      if (!row) return [];
+      try {
+        const values = JSON.parse(Buffer.from(await this.unseal(Buffer.from(row.value))).toString('utf8'));
+        check(valid(values), 'corrupt_credentials');
+        return values;
+      } catch { throw new GatewayError('corrupt_credentials'); }
+    }, options);
+  }
   async deviceId() { return this.tx(db => db.prepare('SELECT value FROM meta WHERE key=?').get('device').value); }
   async fingerprints(values, options) {
     return this.tx(db => {

@@ -2,6 +2,7 @@
 import re
 
 from .strategy import BollingerReversion, ConfirmedTrend, EmaTrend, RelativeMomentum, SmaCross, SmaReversion, digest
+from .technical_strategies import KeltnerBreakout, MacdCross, RsiRebound, TrixCross
 
 
 STRATEGIES = {
@@ -30,6 +31,10 @@ STRATEGIES = {
         "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 10000},
         "reference": {"type": "string", "default": "ETHUSDT", "pattern": "^[A-Z0-9]{2,24}$"},
     }),
+    "rsi-rebound": (RsiRebound, "RSI rebound (30/70)", {}),
+    "macd-cross": (MacdCross, "MACD crossover (12/26/9)", {}),
+    "trix-cross": (TrixCross, "TRIX crossover (15/9)", {}),
+    "keltner-breakout": (KeltnerBreakout, "Keltner breakout (20/14/2, ADX25)", {}),
 }
 
 

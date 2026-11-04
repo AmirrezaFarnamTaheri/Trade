@@ -94,7 +94,8 @@ export async function complete(state, config, presetId, input, { signal: externa
   let keys = [], fingerprints = [], models;
   try {
     if (c.auth.type === 'api_key') {
-      keys = [...new Set(c.auth.env.map(n => env[n]).filter(v => typeof v === 'string' && v.trim().length > 0))];
+      const stored = c.auth.stored ? await state.apiKeys(c, undefined, options) : [];
+      keys = [...new Set([...stored, ...c.auth.env.map(n => env[n]).filter(v => typeof v === 'string' && v.trim().length > 0)])];
       check(keys.every(k => Buffer.byteLength(k) <= 16384 && !/[\r\n\x00]/.test(k)), 'invalid_environment_key');
       fingerprints = await state.fingerprints(keys, options);
       await state.pool(scope, fingerprints, () => {}, options);
