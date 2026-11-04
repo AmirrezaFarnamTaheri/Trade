@@ -10,6 +10,19 @@ from ..domain.market_models import fields
 from ..services.research_actions import research_action
 
 
+def _unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate research JSON field")
+        result[key] = value
+    return result
+
+
+def _reject_constant(_):
+    raise ValueError("research numbers must be finite")
+
+
 def install(app, token, root, *, store):
     lock = asyncio.Lock()
 
@@ -20,7 +33,7 @@ def install(app, token, root, *, store):
         if len(raw) > 65536:
             raise ValueError("research input exceeds 64 KiB")
         try:
-            body = json.loads(raw)
+            body = json.loads(raw, object_pairs_hook=_unique_object, parse_constant=_reject_constant)
         except (ValueError, UnicodeDecodeError, RecursionError):
             raise ValueError("invalid research JSON") from None
         fields(body, "action value")

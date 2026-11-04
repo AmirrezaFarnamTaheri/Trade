@@ -14,8 +14,9 @@ from ..domain.sim import Spec
 class DataPortal:
     """Point-in-time reads: quotes in availability order; specs and rules as they were known at a time."""
 
-    def __init__(self, db: MarketDB):
+    def __init__(self, db: MarketDB, *, excluded=()):
         self.db = db
+        self.excluded = tuple(excluded)
 
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
         if not t0 < t1:
@@ -26,7 +27,7 @@ class DataPortal:
             return None if value is None else dec(value)
 
         return [BookTop(symbol, parse_ts(r[0]), optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]), optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))))
-                for r in rows]
+                for r in rows if not any(start <= parse_ts(r[0]) < end for start, end in self.excluded)]
 
     def trades_by_event(self, symbol: str, t0: datetime, t1: datetime) -> list[TradeTick]:
         rows = self.db.c.execute("select ts_event, ts_avail, price, qty, aggressor from trades where instrument_id=? "

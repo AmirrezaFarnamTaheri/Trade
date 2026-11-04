@@ -209,20 +209,53 @@ class ResearchLedger:
                 raise ValueError("unknown research job")
         return _result(job_id=key, enabled=True)
 
-    def run_due(self, db, at, *, store="live", limit=10):
+    def recover(self, request, *, at):
+        """Explicitly retry or skip one failed window; retain its failure and audit event."""
+        fields(request, "job_id expected_due action reason")
+        if type(request["expected_due"]) is not str:
+            raise ValueError("expected due must be a zoned timestamp")
+        key, now = _id(request["job_id"]), parse_ts(iso(at))
+        if (request["action"] not in ("RETRY", "SKIP") or type(request["reason"]) is not str
+                or not 1 <= len(request["reason"].strip()) <= 256):
+            raise ValueError("recovery requires RETRY/SKIP and a bounded reason")
+        expected = iso(parse_ts(request["expected_due"]))
+        with self._write():
+            row = self.conn.execute("SELECT body,next_at FROM jobs WHERE id=?", (key,)).fetchone()
+            if row is None or row[1] != expected:
+                raise ValueError("job due window changed; refresh before recovery")
+            job = json.loads(row[0])
+            if digest(job) != key or parse_ts(expected) > now:
+                raise ValueError("invalid or future job recovery")
+            record = self.conn.execute("SELECT body FROM reports WHERE job_id=? AND due_at=?", (key, expected)).fetchone()
+            previous = json.loads(record[0]) if record else None
+            if previous is None or previous.get("status") != "FAILED":
+                raise ValueError("only a failed window can be recovered")
+            next_at = iso(parse_ts(expected) + timedelta(seconds=job["every_seconds"])) if request["action"] == "SKIP" else expected
+            event = _result(kind="RESEARCH_RECOVERY", job_id=key, due_at=expected, action=request["action"],
+                            reason=request["reason"].strip(), recorded_at=iso(now), next_at=next_at)
+            report = (_result(status="SKIPPED", recovery=event, previous_failure=previous)
+                      if request["action"] == "SKIP" else {**previous, "retry_at": iso(now)})
+            self.conn.execute("UPDATE reports SET body=? WHERE job_id=? AND due_at=?", (_json(report), key, expected))
+            self.conn.execute("UPDATE jobs SET next_at=? WHERE id=?", (next_at, key))
+            self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(event), _json(event)))
+        return event
+
+    def run_due(self, db, at, *, store="live", limit=10, job_id=None):
         now = parse_ts(at)
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("research tick limit must be 1..100")
         if store not in ("live", "demo") or db.c.in_transaction:
             raise ValueError("research tick requires a separate market read snapshot")
+        if job_id is not None:
+            _id(job_id)
         completed, failed = [], []
         for _ in range(limit):
             with self._write():
                 row = self.conn.execute("""SELECT j.id,j.body,j.next_at,r.body FROM jobs j
                     LEFT JOIN reports r ON r.job_id=j.id AND r.due_at=j.next_at
-                    WHERE j.enabled=1 AND j.next_at<=? AND
+                    WHERE j.enabled=1 AND j.next_at<=? AND (? IS NULL OR j.id=?) AND
                     (r.body IS NULL OR COALESCE(json_extract(r.body,'$.retry_at'),'')<=?)
-                    ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), iso(now))).fetchone()
+                    ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), job_id, job_id, iso(now))).fetchone()
                 if row is None:
                     break
                 key, encoded, due, previous = row

@@ -193,7 +193,8 @@ def candles_cmd(args) -> int:
                 finally:
                     seg.close()
             print(f"fetched {asyncio.run(fetch())} venue candles", file=sys.stderr)
-        report = candle_crosscheck(DataPortal(db), symbol, start, end, tolerance_bps=Decimal(args.tolerance_bps))
+        report = candle_crosscheck(DataPortal(db), symbol, start, end, tolerance_bps=Decimal(args.tolerance_bps),
+                                  as_of=parse_ts(args.as_of) if args.as_of else None)
         if args.record:
             for row in report["periods"]:
                 if row["status"] in ("DIVERGENT", "MISSING_INTERNAL"):
@@ -671,8 +672,9 @@ def main(argv=None):
     models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
     models.add_argument("model_args", nargs=argparse.REMAINDER)
     research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
+    from .services.research_actions import WORKSPACE_ACTIONS
     research.add_argument("action", choices=("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list", "mcp", "claim-check",
-                                            "review", "outcome-add", "outcomes", "final-register", "final-run", "final-status", "observe-import", "screen"))
+                                            "review", "outcome-add", "outcomes", "final-register", "final-run", "final-status", "observe-import", "screen", "derived", "candles", *WORKSPACE_ACTIONS))
     research.add_argument("input", nargs="?", help="input JSON file, or job ID for pause/resume")
     research.add_argument("--at", help="zoned ISO time for a bounded scheduler tick")
     research.add_argument("--poll-seconds", type=float, default=5, help="supervised research polling interval, 1..60 seconds")
@@ -751,6 +753,7 @@ def main(argv=None):
     candles.add_argument("--from", dest="start", help="default: two hours before --to")
     candles.add_argument("--to", dest="end", help="default: now")
     candles.add_argument("--tolerance-bps", default="10")
+    candles.add_argument("--as-of", help="exclude receipts/fetches at or after this zoned knowledge cutoff")
     candles.add_argument("--fetch", action="store_true", help="fetch venue candles for the range first")
     candles.add_argument("--record", action="store_true", help="write CROSS_FEED_DIVERGENCE quality events")
     candles.add_argument("--json", action="store_true")

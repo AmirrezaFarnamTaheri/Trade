@@ -1,11 +1,9 @@
 """Bounded numeric claim checks against native paper artifacts, never prose approval."""
 from decimal import Decimal, ROUND_HALF_EVEN, localcontext
-import json
 import re
 
-from ..adapters.run_store import run_path
+from ..adapters.run_store import load_verified_run
 from ..domain.market_models import fields
-from ..domain.strategy import digest
 from .reports import economic_report, sampled_drawdown
 
 
@@ -23,18 +21,7 @@ def _source(root, reference, store):
     fields(reference, "run_id metric")
     if type(reference["run_id"]) is not str or type(reference["metric"]) is not str:
         raise ValueError("claim run ID and metric must be strings")
-    path = run_path(root, reference["run_id"])
-    if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= 16 * 1024 * 1024:
-        raise ValueError("claim source must be a bounded regular run artifact")
-    try:
-        out = json.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
-        raise ValueError("claim source is not a valid run artifact") from None
-    if (out["run_id"] != reference["run_id"] or digest(out["inputs"])[:16] != out["run_id"]
-            or digest({k: out[k] for k in ("result", "baselines", "ranking", "fx")})[:16] != out["outputs_digest"]):
-        raise ValueError("run digest mismatch")
-    if out["inputs"]["store"] != store:
-        raise ValueError("claim source store mismatch")
+    out = load_verified_run(root, reference["run_id"], store=store)
     result, metric = out["result"], reference["metric"]
     unit = result["quote"]
     if metric in ("net_quote", "equity_quote"):

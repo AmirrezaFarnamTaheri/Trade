@@ -13,10 +13,13 @@ def indicator_values(closes):
     with localcontext() as context:
         context.prec = 160
         values = {}
-        for period in (20, 50):
+        for period in (20, 50, 200):
             ready = len(closes) >= period
+            average = sum(closes[-period:]) / period if ready else None
             values[f"sma_{period}"] = {"status": "AVAILABLE" if ready else "WARMUP", "required_bars": period,
-                                        "value": str(sum(closes[-period:]) / period) if ready else None}
+                                        "value": str(average) if ready else None}
+            values[f"sma_distance_{period}_percent"] = {"status": "AVAILABLE" if ready else "WARMUP", "required_bars": period,
+                "value": str(100 * (closes[-1] / average - 1)) if ready else None, "unit": "percent", "basis": "CLOSE_OVER_SMA_MINUS_ONE"}
         rsi = None
         if len(closes) >= 15:
             changes = [last - first for first, last in zip(closes, closes[1:])]
@@ -66,4 +69,6 @@ def bar_indicator_values(bars):
                                    ("trix_15_9", 52, ("value", "signal")),
                                    ("keltner_20_14_2", 20, ("middle", "upper", "lower"))):
         values[name] = {"status": "WARMUP", "required_bars": required, **dict.fromkeys(fields)}
+    values["awesome_5_34"] = {"status": "WARMUP", "required_bars": 34, "value": None,
+                              "basis": "SMA5_MINUS_SMA34_OF_HIGH_LOW_MIDPOINT"}
     return values

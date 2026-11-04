@@ -65,6 +65,29 @@ def load_run(root: Path, run_id: str) -> dict:
     ]
     return record
 
+
+def load_verified_run(root, run_id, *, store):
+    """Read one bounded native artifact once; fingerprints are integrity, not source authentication."""
+    if type(run_id) is not str or store not in ("live", "demo"):
+        raise ValueError("invalid run reference or store")
+    path = run_path(root, run_id)
+    if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= 16 * 1024 * 1024:
+        raise ValueError("run source must be a bounded regular artifact")
+    try:
+        with path.open("rb") as source:
+            raw = source.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            raise ValueError("run source exceeds size bound")
+        out = json.loads(raw)
+        if (out["run_id"] != run_id or digest(out["inputs"])[:16] != run_id
+                or digest({k: out[k] for k in ("result", "baselines", "ranking", "fx")})[:16] != out["outputs_digest"]):
+            raise ValueError("run digest mismatch")
+        if out["inputs"]["store"] != store:
+            raise ValueError("run source store mismatch")
+        return out
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, KeyError, TypeError, AttributeError):
+        raise ValueError("invalid run artifact structure") from None
+
 def record_decision(root, out, claim, cap, currency, note, now):
     cap = Decimal(cap)
     if not cap.is_finite() or cap < 0 or claim not in ("NONE", "EXPERIMENTAL"):

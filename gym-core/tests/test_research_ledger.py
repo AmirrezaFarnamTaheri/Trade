@@ -119,6 +119,30 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path):
         db.c.close()
 
 
+def test_explicit_recovery_preserves_failure_and_checks_the_due_window(tmp_path):
+    db = market_db(tmp_path, [])
+    due = START + timedelta(hours=1)
+    try:
+        with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+            job = schedule(ledger)
+            assert len(ledger.run_due(db, iso(due))["failed"]) == 1
+            request = {"job_id": job["job_id"], "expected_due": iso(due), "action": "RETRY", "reason": "collector restored"}
+            result = ledger.recover(request, at=due + timedelta(minutes=1))
+            assert result["next_at"] == iso(due)
+            assert ledger.overview()["jobs"][0]["last_report"]["attempts"] == 1
+            skipped = ledger.recover({**request, "action": "SKIP", "reason": "confirmed historical coverage gap"}, at=due + timedelta(minutes=2))
+            assert skipped["next_at"] == iso(due + timedelta(hours=1))
+            report = json.loads(ledger.conn.execute("SELECT body FROM reports").fetchone()[0])
+            assert report["status"] == "SKIPPED" and report["previous_failure"]["status"] == "FAILED"
+            assert len(ledger.overview()["alerts"]) == 3
+            with pytest.raises(ValueError, match="changed"):
+                ledger.recover(request, at=due + timedelta(minutes=3))
+            with pytest.raises(ValueError):
+                ledger.recover({**request, "expected_due": skipped["next_at"]}, at=due + timedelta(minutes=3))
+    finally:
+        db.c.close()
+
+
 def test_result_publication_failure_does_not_advance_or_report_completion(tmp_path, monkeypatch):
     from gym.services import research_ledger
     db = market_db(tmp_path, quote_history(n=500))

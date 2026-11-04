@@ -4,6 +4,52 @@ Updated 2026-11-04. The request to complete all deferred work remains open.
 Implemented code, passing local tests and operational acceptance are separate.
 Nothing in this plan enables funded orders or promotes a strategy.
 
+## Current delivery scope
+
+Decision updated 2026-11-04: predictive ML and reinforcement learning are outside
+the current delivery scope. DQN/PPO agents, neural price forecasting, automated
+model search and trained-model order execution are not deferred commitments or
+release requirements. This is a scope change, not a claim that those capabilities
+were implemented or qualified. Historical donor assessments retain their findings;
+their ML candidates do not override this decision.
+
+Keep indicators, explicit market screening, decision replay, experiment tracking,
+robustness checks and supplied-forecast scoring. Keep optional Codex/Anthropic
+connections for evidence-linked research and explanations, with explicit sending
+and no trading authority. No working feature is removed by this plan change.
+
+Prioritize data coverage/recovery, exact accounting/reservations, realistic paper
+costs, protected execution/recovery and prospective evidence. Reconsider predictive
+ML only as a separately approved research project after adequate data coverage
+exists and a simple model demonstrates repeatable improvement over fixed-rule
+baselines on untouched chronological future periods after modeled costs. Training
+and selection must exclude future information; historical scores alone are not
+an acceptance criterion.
+
+## Eight-module research workspace implementation
+
+The selected eight modules are implemented through existing native owners and
+shared CLI/API dispatch. [Research workspace](research-workspace.md) documents
+their exact inputs, bounds and authority limits.
+
+| Module | Implemented behavior |
+| --- | --- |
+| Coverage and recovery | Bucket timeline, delayed receipts, stale carried quote ages, readiness resets; current-window retry/recorded skip and selected-job bounded catch-up with retained failure/audit. No silent recovery of missing quote history. |
+| Replay debugger | Verified/paginated saved decisions, actual pre-decision balances, bar/context/reference/rule snapshots and separate later modeled outcomes. Old missing trace fields remain unknown. |
+| Experiment registry | Immutable definitions, code/config lineage, every planned attempt recorded before calculation, retained failed/incomplete/pending states and checked frozen-final links. Local integrity does not establish independent custody. |
+| Market screening | Explicit comparable universe, momentum/reference-relative return, SMA distance, spread, top notional and observed dispersion; exclusions remain visible. |
+| Portfolio preview | Supplied current/target holdings, locks/reserved cash, bid/ask/fees/minimums/steps, conditional sale proceeds, turnover and post-cost projected concentration/shortfalls. Ownership/basis/settlement are not inferred. |
+| Robustness laboratory | Native replay across chronological windows, parameter trials, bounded fees/latency and feed removal, with matched baselines and all attempt outcomes retained. No arbitrary extra-slippage model or automatic promotion. |
+| AI research notes | Allowlisted evidence packets, explicit optional provider send, bounded roles/citations/numeric checks/disagreement and immutable notes. Prose and model provenance stay unverified. |
+| Execution quality | Supplied partial-fill aggregation, fees/latency/VWAP/adverse-price comparisons, unmatched references, missing observations and modeled nonfills. Real account authenticity remains a separate acceptance gate. |
+
+CLI and authenticated API tests cover the shared services. Browser checks use
+actual recorded BTCUSDT data, not donor samples. The documented Downloads source
+archives are already archived; `.pi/archive-verification.json` verifies 53 ZIPs,
+including the final six-source batch, with none left in Downloads at the audit.
+The eight-module implementation does not close the execution/acceptance work or
+broader research extensions listed below.
+
 ## Completed in the current implementation pass
 
 The subsequent implementation/refactoring slice adds these native capabilities:
@@ -18,6 +64,10 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Return and forecast arithmetic | Cash-flow-adjusted TWR/Modified Dietz with reconciled supplied marks; point forecast errors, empirical interval coverage and optional Brier scoring. Inputs are unverified and scoring does not establish independent predictive calibration. |
 | AI connections | Dedicated GUI/API and private gateway control process for supported SDK OAuth, DPAPI-stored API keys, connection status, preset sync/import/export and explicit advisory prompts. No real sign-in, key replacement or paid provider completion was performed. |
 | Shared CLI/browser workflows | `research_actions.py` owns fixed dispatch. Separate `api/models.py`, `api/research.py`, `ui/models.js` and `ui/research.js` avoid adding these workflows to the observatory monolith. See [architecture and interface gaps](architecture.md). |
+| Measurement-aligned arithmetic | Optional numeric measurement clocks preserve old observation hashes. `research derived` resolves two known vintages in one snapshot, with explicit units/freshness/skew and unavailable results. No source authentication, sector model or forecast accuracy is inferred. |
+| Point-in-time candle checks | Native crosscheck adds an optional exclusive receipt/fetch cutoff; the bounded local-only workbench action requires it. Current venue storage does not retain superseded candle vintages. |
+| GUI report and ticket journal | Saved runs download the existing offline HTML report. Canonical previews can be saved and acknowledged/rejected from the GUI using the native journal and actual server review time. No Executor permission is issued. |
+| Descriptive average distance and range oscillator | Shared indicator diagnostics include SMA200, close/SMA distance percentages for 20/50/200 observed bars and the 5/34 Awesome Oscillator from actual high/low ranges. Missing history stays warmup; no new strategy or intrinsic-value claim. |
 
 | Work | Implementation | Verification |
 | --- | --- | --- |
@@ -52,15 +102,14 @@ funded boundary were not expanded by these research features.
 
 | Capability | Required work before claiming completion |
 | --- | --- |
-| Semantic analyst/debate roles | Fixed numeric role dispatch is implemented above. Prose grounding, independently authenticated observations and bounded model debate remain open; numeric matching does not complete them. |
-| Outcome reflection | Resolution-time numeric memory is implemented. A model's narrative lesson remains unverified judgment and is not automatically persisted as economic truth. |
+| Semantic analyst/debate roles | Bounded cited role notes, disagreement and exact numeric checks are implemented. Independently authenticated observations and verified prose semantics remain unestablished; numeric matching never certifies them. |
+| Outcome reflection | Resolution-time numeric memory and immutable evidence-linked narrative notes are implemented. A model's narrative lesson remains unverified judgment and is never persisted as economic truth. |
 | Independent final evaluation | Local consume-once enforcement is implemented. Independent custody/access control, a real prospective future window and external qualification remain open. Repeated historical windows are diagnostics. |
 | Indicator-based strategy qualification | ATR/ADX/Keltner/TRIX, EMA slopes and four closed-bar strategy rules are implemented and tested. Real prospective cost/coverage evidence and independent selection accounting remain required before any promotion. No TA-Lib numerical parity is claimed. |
-| Portfolio execution and partial exits | Cash-flow return arithmetic is implemented for supplied exact marks. Actual holdings/basis, cash-flow/fee-currency reconciliation, shared reservations and partial settlement remain required for executable targets and tiered exits. |
-| DQN/PPO/RL training and artifact evaluation | Build a separate local research path with leak-free train/validation/final periods, exact account rewards, reproducible seeds/artifact identity and hardware/runtime checks. Existing short, gapped observations are not validated training or profitability evidence. No paid service or model runtime was activated. |
-| Additional clocks/component forms/unit-epoch derived views | Define consumers and preserve availability ordering, confirmation time and explicit units; no historical raw rows may be silently relabeled. |
+| Portfolio execution and partial exits | Exact supplied-mark return arithmetic, reservation-aware target preview and supplied partial-fill comparison are implemented. Actual holdings/basis, authenticated fee reconciliation and partial settlement remain required for executable targets and tiered exits. |
+| Additional clocks/component forms/unit-epoch derived views | Measurement clocks and two-input aligned arithmetic are implemented. Component forms, confirmation clocks and cross-epoch derived views still need explicit consumer contracts; no historical raw rows may be silently relabeled. |
 | New news/fundamental/social/vendor feeds | The user-supplied vintage store and screener are implemented. Actual adapters, source authentication, feed availability/rights and release/revision verification remain open. Live search cannot replace historical vintages. |
-| Macro/whale/funding/open-interest models and forecasts | Source-specific numeric screening and supplied-forecast scoring are implemented. Timestamp-aligned breadth/credit/yield/sector ratios, transfer context, actual forecast generation and independent predictive calibration remain open. Vendor scores or Prophet intervals are not measured confidence. |
+| Macro/whale/funding/open-interest diagnostics | Source-specific screening, supplied-forecast scoring and aligned two-series ratios/differences are implemented. Breadth/sector diagnostics and transfer context still require explicit input/consumer contracts. Predictive training and forecast generation are outside current scope; vendor scores or Prophet intervals are not measured confidence. |
 | Maker orders, trade credit, relay and multi-leg execution | Implement their distinct custody, idempotency, ownership, settlement, protection and outage contracts after the core executor gates. No derivative, loan, cloud or relay authority is implied. |
 
 Unrelated monetization, social/community infrastructure, Pixel Office, a second
@@ -69,6 +118,23 @@ order handlers remain explicit exclusions in [capabilities](capabilities.md).
 They are not silently installed as a consequence of completing useful deferred work.
 The latest eight sources have complete file accounting and 52 family decisions
 in [source assessment](source-assessment.md); all 570 files have a disposition.
+The subsequent OpenAlice/Zipline/AITD inventory covers 4,353 regular files, with
+selected implementation reads and explicit module-family decisions in the
+[research source assessment](research-source-assessment.md). Its useful remaining
+ideas are not all implemented. These three ZIPs are now in Downloads/archive, and the
+source snapshots remain review references; local changes are now authorized for commit.
+The next six unique Downloads ZIPs have 454 entries assigned to 30 module-family
+decisions, plus an individual catalogue of all 61 supplied strategy examples in
+the [trading source assessment](trading-source-assessment.md). Their native
+additions and remaining research candidates are listed separately. Neither the
+resource catalogues nor historical backtests qualify a live strategy.
+
+The subsequent six market-infrastructure sources have 432 hashed entries, 32
+module-family decisions and 187 indicator declarations catalogued in the
+[market source assessment](market-source-assessment.md). Their ZIPs were archived
+with matching hashes. Useful candidates are mapped to the eight-module
+[research workspace plan](research-workspace-plan.md); this review does not mark
+those modules complete.
 
 ## Evidence and authority
 

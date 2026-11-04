@@ -126,6 +126,8 @@ main { padding: 28px 30px 40px; min-width: 0; max-width: 1660px; width: 100%; ma
 .input:focus, select:focus, .search-field:focus-within { border-color: var(--accent); }
 .input[aria-invalid="true"] { border-color: var(--negative); }
 textarea.input { width: 100%; resize: vertical; direction: ltr; text-align: left; line-height: 1.75; background: var(--page); }
+#research-action-form { display: grid; gap: 10px; }
+#research-action-form > * { min-width: 0; }
 .field-label { display: block; font-size: 12px; font-weight: 600; }
 .search-field { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 5px; padding-inline: 11px; color: var(--text-muted); flex: 1 1 240px; max-width: 440px; background: var(--page); }
 .search-field svg { width: 17px; height: 17px; }
@@ -283,3 +285,8 @@ table.data { width: 100%; border-collapse: collapse; font-size: 12px; }
   .workspace-footer { padding-inline: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+.workspace-table { overflow-x: auto; max-height: 32rem; overflow-y: auto; }
+#research-workspace input, #research-workspace select, #research-workspace textarea { max-width: 100%; box-sizing: border-box; }
+#research-workspace label { display: grid; gap: .35rem; margin-block: .75rem; }
+#research-workspace textarea { width: 100%; }
+#research-workspace details { margin-block: 1rem; }

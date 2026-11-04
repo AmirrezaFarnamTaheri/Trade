@@ -9,6 +9,12 @@ const vocabulary = {
   bidDepth: ["Bid quantity", "حجم خرید"], askDepth: ["Ask quantity", "حجم فروش"],
   imbalance: ["Base-quantity imbalance", "عدم تعادل حجم دارایی"],
   exportSummary: ["Download paper summary", "دریافت خلاصهٔ آزمایشی"],
+  exportHtml: ["Download offline HTML report", "دریافت گزارش HTML آفلاین"],
+  savePreview: ["Save preview to offline journal", "ذخیرهٔ پیش‌نمایش در دفتر آفلاین"],
+  acknowledgeOffline: ["Acknowledge offline", "تأیید مشاهدهٔ آفلاین"],
+  rejectOffline: ["Reject offline", "رد آفلاین"],
+  journalSaved: ["Saved in offline journal", "در دفتر آفلاین ذخیره شد"],
+  reviewWriteError: ["Journal write failed. Refresh the journal before retrying; the ticket may have expired or already been reviewed.", "ثبت ناموفق بود. پیش از تلاش دوباره دفتر را تازه کنید؛ ممکن است سفارش منقضی یا قبلاً بررسی شده باشد."],
   summaryNote: ["Includes run fingerprints, valuation, modeled costs and sampled drawdown. Private notes and account records are excluded.", "شامل شناسه‌های اجرا، ارزش‌گذاری، هزینه‌های فرضی و افت نمونه‌برداری‌شده است؛ یادداشت خصوصی و سوابق حساب در آن نیست."],
   sampledDrawdown: ["Sampled maximum drawdown", "بیشترین افت در نمونه‌ها"],
   drawdownNote: ["Measured from starting cash and recorded equity marks, including the end estimate. Missing intervals can hide larger losses.", "از سرمایهٔ اولیه و ارزش‌های ثبت‌شده، شامل برآورد انتهایی، محاسبه شده است. فاصله‌های بدون داده می‌توانند زیان بزرگ‌تری را پنهان کنند."],
@@ -322,14 +328,14 @@ function setHTML(id, html) {
   if (focusedInside) [...element.querySelectorAll("[data-focus]")].find(node => node.dataset.focus === focus)?.focus({ preventScroll: true });
 }
 
-async function api(path, options = {}, timeoutMs = 10000) {
+async function api(path, options = {}, timeoutMs = 10000, asText = false) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(path, { ...options, cache: "no-store", credentials: "same-origin", signal: controller.signal,
       headers: { "Content-Type": "application/json", "X-Gym-Token": TOKEN, ...options.headers } });
     if (!response.ok) throw new Error(t("requestError"));
-    return await response.json();
+    return asText ? await response.text() : await response.json();
   } catch (_) {
     // Server errors may contain submitted material; show only a fixed local message.
     throw new Error(t("requestError"));
@@ -482,7 +488,8 @@ function renderRun(record) {
       ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), amount(row.net_quote), amount(row.net_usdt_eq)]))}` : ""}</section>
     <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("evidenceTitle"))}</h3>${chip(t("noCapital"))}</div>${evidence ? `<p>${esc(evidence.primary_limitation)}</p>${keyValues([[t("roundTrips"), num(evidence.completed_round_trips)], [t("claimCeiling"), code(evidence.claim_ceiling)], [t("evidenceGate"), esc(t(evidence.gate_eligible === true ? "yes" : "no"))]])}` : `<p>${esc(t("noEvidence"))}</p>`}
       ${list(record.warnings || evidence?.warnings).length ? `<ul class="evidence-warnings">${list(record.warnings || evidence?.warnings).map(warning => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-      <button type="button" class="button" data-export-run="${esc(record.run_id)}">${esc(t("exportSummary"))}</button><p class="field-help">${esc(t("summaryNote"))}</p>
+      <button type="button" class="button" data-export-run="${esc(record.run_id)}">${esc(t("exportSummary"))}</button>
+      <button type="button" class="button" data-export-run="${esc(record.run_id)}" data-format="html">${esc(t("exportHtml"))}</button><p class="field-help">${esc(t("summaryNote"))}</p>
       ${disclosure(t("reportDetails"), { report: evidence || null, capital_decisions: record.capital_decisions || [] }, "economic-evidence")}${disclosure(t("runInputs"), { inputs, session: result.session, fx: record.fx, outputs_digest: record.outputs_digest }, "run-inputs")}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("lastDecisions"))}</h3><p class="field-help">${esc(t("decisionHelp"))}</p>${decisions.length ? decisions.map((decision, i) => `<details class="decision disclosure" data-key="decision-${esc(decision.t)}-${esc(decision.order || i)}"><summary><span>${esc(when(decision.t))}</span> <strong>${esc(decision.action)}</strong> <span class="muted">${list(decision.reasons).map(esc).join("; ")}</span></summary>${json({ ...decision, order: list(result.orders).find(order => order.ref === decision.order) || null })}</details>`).join("") : empty(t("noDecisions"))}</section>`);
 }
@@ -670,7 +677,7 @@ async function externalJournal() {
 async function offlineReviews() {
   try {
     const data = await api("/api/offline-ticket-reviews");
-    setHTML("offline-review-events", table([t("previewHash"), t("state"), t("funded_authority")], list(data.tickets).slice(-100).reverse().map(row => [code(row.preview_sha256), esc(row.state), esc(t(row.funded_authority === true ? "yes" : "no"))]), t("offlineReviewEmpty")));
+    setHTML("offline-review-events", table([t("previewHash"), t("state"), t("funded_authority"), t("actions")], list(data.tickets).slice(-100).reverse().map(row => [code(row.preview_sha256), esc(row.state), esc(t(row.funded_authority === true ? "yes" : "no")), row.state === "PREVIEWED" ? `<button class="button button-small" data-review-key="${esc(row.preview_sha256)}" data-decision="ACKNOWLEDGE">${esc(t("acknowledgeOffline"))}</button> <button class="button button-small" data-review-key="${esc(row.preview_sha256)}" data-decision="REJECT">${esc(t("rejectOffline"))}</button>` : ""]), t("offlineReviewEmpty")));
   } catch (_) { setHTML("offline-review-events", empty(t("offlineReviewReadError"))); throw new Error(t("requestError")); }
 }
 async function operate() {
@@ -714,8 +721,10 @@ function renderTicketFields() {
   }).join(""));
 }
 let ticketRevision = 0;
+let currentPreview = null;
 function invalidateTicket() {
   ticketRevision++;
+  currentPreview = null;
   $("offline-ticket").removeAttribute("aria-invalid");
   setHTML("ticket-output", `<p class="field-help">${esc(t("previewChanged"))}</p>`);
 }
@@ -746,12 +755,13 @@ async function previewTicket() {
     const preview = await api("/api/dry-run/ticket", { method: "POST", body: raw });
     if (ticketRevision !== revision || input.value !== raw) return;
     if (preview.mode !== "DRY_RUN" || preview.funded_authority !== false || preview.order_submitted !== false) throw new Error("unsupported preview authority");
+    currentPreview = preview;
     setHTML("ticket-output", `<div class="ticket-result"><h3>${esc(t("offlineTicketResult"))}</h3><p class="field-help">${esc(t("quoteFeeOnly"))}</p>${keyValues([
       [t("pair"), code(preview.symbol)], [t("quantity"), amount(preview.quantity)],
       [t("expectedGross"), amount(preview.estimated_gross_quote)], [t("worstGross"), amount(preview.worst_gross_quote)],
       [t("worstFee"), amount(preview.worst_fee_quote)], [t(preview.side === "SELL" ? "worstProceeds" : "worstSpend"), amount(preview.worst_total_quote)],
       [t("breakEven"), amount(preview.break_even_bid)], [t("effective"), `${esc(when(preview.observed_at))} → ${esc(when(preview.expires_at))}`],
-    ])}${disclosure(t("fullRecord"), preview, "ticket-preview")}</div>`);
+    ])}<button type="button" class="button" id="save-preview">${esc(t("savePreview"))}</button>${disclosure(t("fullRecord"), preview, "ticket-preview")}</div>`);
   } catch (_) {
     if (ticketRevision !== revision || input.value !== raw) return;
     input.setAttribute("aria-invalid", "true");
@@ -900,11 +910,12 @@ $("run-detail").addEventListener("click", async event => {
   if (!button.dataset.exportRun) return;
   button.disabled = true;
   try {
-    const card = await api("/api/runs/" + encodeURIComponent(button.dataset.exportRun) + "/summary");
-    const url = URL.createObjectURL(new Blob([JSON.stringify(card, null, 2)], { type: "application/json" }));
+    const html = button.dataset.format === "html";
+    const card = await api("/api/runs/" + encodeURIComponent(button.dataset.exportRun) + (html ? "/summary.html" : "/summary"), {}, 10000, html);
+    const url = URL.createObjectURL(new Blob([html ? card : JSON.stringify(card, null, 2)], { type: html ? "text/html" : "application/json" }));
     try {
       const link = document.createElement("a");
-      link.href = url; link.download = `paper-${button.dataset.exportRun}.json`; link.click();
+      link.href = url; link.download = `paper-${button.dataset.exportRun}.${html ? "html" : "json"}`; link.click();
     } finally { URL.revokeObjectURL(url); }
   } catch (_) { state.apiError = true; renderFeed(); }
   finally { button.disabled = false; }
@@ -939,6 +950,25 @@ $("ticket-example").onclick = () => {
   setHTML("ticket-output", `<p class="field-help">${esc(t("syntheticExample"))}</p>`);
 };
 $("preview-ticket").onclick = previewTicket;
+async function writeOfflineReview(button, action, value) {
+  button.disabled = true;
+  const status = action === "record" ? $("ticket-output") : $("offline-review-status");
+  try {
+    const result = await api("/api/offline-ticket-reviews", { method: "POST", body: JSON.stringify({ action, value }) });
+    if (action === "record" && currentPreview === value) setHTML("ticket-output", `<p role="status">${esc(t("journalSaved"))} · ${code(result.preview_sha256)}</p>`);
+    else if (action === "review") status.textContent = `${t("journalSaved")} · ${result.state}`;
+    await offlineReviews();
+  } catch { if (action !== "record" || currentPreview === value) status.textContent = t("reviewWriteError"); }
+  finally { if (button.isConnected) button.disabled = false; }
+}
+$("ticket-output").addEventListener("click", event => {
+  const button = event.target.closest?.("#save-preview");
+  if (button && currentPreview) writeOfflineReview(button, "record", currentPreview);
+});
+$("offline-review-events").addEventListener("click", event => {
+  const button = event.target.closest?.("[data-review-key]");
+  if (button) writeOfflineReview(button, "review", { preview_sha256: button.dataset.reviewKey, decision: button.dataset.decision });
+});
 $("offline-ticket").addEventListener("input", invalidateTicket);
 $("ticket-fields").addEventListener("input", editTicketField);
 $("ticket-fields").addEventListener("change", editTicketField);

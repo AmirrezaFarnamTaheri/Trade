@@ -14,7 +14,8 @@ class TechnicalFeatures:
             self.signal = EMA(9)
             self.triple = [EMA(15) for _ in range(3)]
             self.trix_signal = EMA(9)
-        self.closes = deque(maxlen=50)
+        self.closes = deque(maxlen=200)
+        self.medians = deque(maxlen=34)
         self.slopes = {n: deque(maxlen=6) for n in (20, 50, 200)}
         self.count = self.range_count = 0
         self.gain = self.loss = self.atr = self.plus = self.minus = self.adx = Decimal(0)
@@ -49,10 +50,19 @@ class TechnicalFeatures:
                     "status": "AVAILABLE" if ema.ready else "WARMUP", "required_bars": n,
                     "slope_5_bars": str(history[-1] - history[0]) if len(history) == 6 else None,
                     "ema_seed": "FIRST_CLOSE"}
-        for n in (20, 50):
+        for n in (20, 50, 200):
             ready = self.count >= n
+            average = sum(list(self.closes)[-n:]) / n if ready else None
             result[f"sma_{n}"] = {"status": "AVAILABLE" if ready else "WARMUP", "required_bars": n,
-                                    "value": str(sum(list(self.closes)[-n:]) / n) if ready else None}
+                                    "value": str(average) if ready else None}
+            result[f"sma_distance_{n}_percent"] = {"status": "AVAILABLE" if ready else "WARMUP", "required_bars": n,
+                "value": str(100 * (close / average - 1)) if ready else None, "unit": "percent", "basis": "CLOSE_OVER_SMA_MINUS_ONE"}
+        if high is not None:
+            self.medians.append((high + low) / 2)
+        ready = len(self.medians) == 34
+        result["awesome_5_34"] = {"status": "AVAILABLE" if ready else "WARMUP", "required_bars": 34,
+            "value": str(sum(list(self.medians)[-5:]) / 5 - sum(self.medians) / 34) if ready else None,
+            "basis": "SMA5_MINUS_SMA34_OF_HIGH_LOW_MIDPOINT"}
         if self.previous is not None:
             move = close - self.previous
             gain, loss = max(Decimal(0), move), max(Decimal(0), -move)

@@ -8,9 +8,9 @@ from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.model import iso, parse_ts
 from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order
-from ..domain.strategy import Snapshot
+from ..domain.strategy import Snapshot, digest
 
-ENGINE_VERSION = "paper-session/6"
+ENGINE_VERSION = "paper-session/8"
 
 
 @dataclass
@@ -48,6 +48,7 @@ class PaperSession:
         self.pending: PendingOrder | None = None
         self.cursor = start
         self.decisions = []
+        self.rule_snapshots = {}
         self.orders = []
         self.curve = []
         self.quota = {}
@@ -97,6 +98,20 @@ class PaperSession:
                    "reasons": list(reasons), "features": feature_hash, "bid": quote and str(quote.bid), "ask": quote and str(quote.ask),
                    "quote_time": quote and iso(quote.ts_avail)}
             decision["feature_values"] = self.strategy.feature_values
+            decision["balances_before"] = {k: str(v) for k, v in self.book.balances.items()}
+            decision["bar_known"] = {"start": iso(bar.start), "end": iso(bar.end), "available_at": iso(bar.avail),
+                                     "open": str(bar.open), "high": str(bar.high), "low": str(bar.low)}
+            decision["context_known"] = [{"resolution": b.spec.resolution, "start": iso(b.start), "end": iso(b.end),
+                "available_at": iso(b.avail), "open": str(b.open), "high": str(b.high), "low": str(b.low), "close": str(b.close)} for b in context]
+            decision["reference_known"] = None if reference is None else {"symbol": reference.symbol,
+                "available_at": iso(reference.ts_avail), "bid": str(reference.bid), "ask": str(reference.ask)}
+            rules_known = [{"id": r.id, "family": r.family, "class": r.cls, "action": r.action,
+                "scope": r.scope, "params": r.params, "effective_from": iso(r.effective_from),
+                "effective_until": r.effective_until and iso(r.effective_until), "status": r.status,
+                "disabled": r.disabled, "source": r.source, "last_confirmed_at": r.last_confirmed_at and iso(r.last_confirmed_at),
+                "review_hours": r.review_hours, "exit_confirmed": r.exit_confirmed} for r in self.rules_for(bar.avail)]
+            decision["rules_ref"] = digest(rules_known)
+            self.rule_snapshots[decision["rules_ref"]] = rules_known
             if action in ("BUY_REQUEST", "SELL_REQUEST"):
                 if self.pending:
                     decision["skipped"] = "PENDING_ORDER"

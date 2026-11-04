@@ -50,7 +50,8 @@ def technical_reports(db, symbol, start, end, *, resolutions, store="live"):
     return result
 
 
-def _report_from_quotes(tops, symbol, start, end, spec, store, fingerprint):
+def closed_quote_bars(tops, symbol, start, end, spec):
+    """Shared closed-bar/quality cut for diagnostics and coverage views."""
     consolidator, bars, bad, last_quote = Consolidator(symbol, spec), [], set(), None
     for top in tops:
         bars += consolidator.scan(top.ts_avail)
@@ -61,6 +62,11 @@ def _report_from_quotes(tops, symbol, start, end, spec, store, fingerprint):
             bad.add(spec.bucket(top.ts_avail))
     bars += consolidator.scan(end)
     complete = [bar for bar in bars if bar.start >= start and bar.start not in bad]
+    return complete, bars, bad, last_quote
+
+
+def _report_from_quotes(tops, symbol, start, end, spec, store, fingerprint):
+    complete, bars, bad, last_quote = closed_quote_bars(tops, symbol, start, end, spec)
     segment, gaps, previous = [], 0, None
     for bar in complete:
         if previous is not None and previous.end != bar.start:

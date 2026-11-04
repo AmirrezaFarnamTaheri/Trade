@@ -25,6 +25,7 @@ from ..domain.rules import is_closed
 from ..services.collector import Collector, now_utc
 from ..services.rules import RuleService
 from ..services.reports import economic_report, paper_summary
+from ..services.portable_report import render_html
 from ..services.liquidity import liquidity_snapshot
 from ..services.external_journal import ExternalJournal
 from ..services.venue_facts import VenueFactsJournal
@@ -35,6 +36,7 @@ from ..services.readiness import current_top, operational_readiness
 from ..services.temporal_validation import validate as temporal_validate
 from .models import install as install_models
 from .research import install as install_research
+from .offline_reviews import install as install_offline_reviews
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -236,16 +238,6 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             "executor_state_verified": False,
         }, headers={"Cache-Control": "no-store"})
 
-    async def offline_ticket_reviews(req):
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "offline review token required"}, status=403)
-        return web.json_response({
-            "state": "NOT_CONFIGURED" if offline_review_journal is None else "OFFLINE_ONLY",
-            "authority": "OFFLINE_ONLY", "funded_authority": False,
-            "tickets": [] if offline_review_journal is None else offline_review_journal.tickets(),
-            "reviews": [] if offline_review_journal is None else offline_review_journal.review_events(),
-        }, headers={"Cache-Control": "no-store"})
-
     comparison_lock = asyncio.Lock()
 
     async def research_setup(req):
@@ -393,6 +385,12 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             record = load_run(runs, req.match_info["id"])
         except FileNotFoundError:
             raise web.HTTPNotFound() from None
+        if record["run_id"] != req.match_info["id"]:
+            raise ValueError("run identity mismatch")
+        if req.path.endswith("/summary.html"):
+            return web.Response(text=render_html(record), content_type="text/html", headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": 'attachment; filename="paper-' + record["run_id"] + '.html"'})
         return web.json_response(paper_summary(record), headers={
             "Cache-Control": "no-store",
             "Content-Disposition": 'attachment; filename="paper-' + record["run_id"] + '.json"'})
@@ -435,7 +433,6 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/api/venue-facts", venue_facts_api), web.get("/api/chaos-report", chaos_report_api),
         web.post("/api/dry-run/ticket", dry_run_ticket),
         web.get("/api/automation-safety", automation_safety),
-        web.get("/api/offline-ticket-reviews", offline_ticket_reviews),
         web.get("/api/research", research_setup), web.post("/api/compare", compare_runs),
         web.post("/api/validate", compare_runs),
         web.get("/api/research-state", research_state),
@@ -443,6 +440,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/research/tick", research_tick),
         web.get("/api/runs", run_list), web.get("/api/runs/{id}", run_detail),
         web.get("/api/runs/{id}/summary", run_summary),
+        web.get("/api/runs/{id}/summary.html", run_summary),
         web.get("/api/check", check), web.get("/api/rules", rule_list), web.get("/api/rules/export", rule_export),
         web.post("/api/rules", rule_put), web.post("/api/rules/import", rule_import),
         web.post("/api/rules/{id}/disable", rule_disable), web.post("/api/rules/{id}/rollback", rule_rollback),
@@ -450,4 +448,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
     ])
     install_models(app, token)
     install_research(app, token, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
+    review_path = (Path(offline_review_journal.conn.execute("PRAGMA database_list").fetchone()[2])
+                   if offline_review_journal is not None else runs.parent / "offline_reviews.db" if runs is not None else None)
+    install_offline_reviews(app, token, review_path)
     return app

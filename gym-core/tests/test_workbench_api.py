@@ -39,6 +39,14 @@ def test_research_workbench_uses_native_ledger_and_rejects_runner_or_clock_injec
             assert diagnostic.status == 200
             report = await diagnostic.json()
             assert set(report["timeframes"]) == {"1min", "15min"} and report["funded_authority"] is False
+            candle_input = {"symbol": "BTCUSDT", "from": "2026-01-01T00:00:00Z", "to": "2026-01-01T00:10:00Z",
+                            "as_of": "2026-01-01T00:11:00Z", "tolerance_bps": "10"}
+            candle = await client.post(route, json={"action": "candles", "value": candle_input}, headers={"X-Gym-Token": "tok"})
+            assert candle.status == 200
+            assert (await candle.json())["knowledge_mode"] == "POINT_IN_TIME"
+            for change in ({"tolerance_bps": "NaN"}, {"tolerance_bps": "1e99999"}, {"tolerance_bps": "-1"}, {"as_of": "2099-01-01T00:00:00Z"},
+                           {"as_of": "2026-01-01T00:09:00Z"}, {"to": "2026-03-01T00:00:00Z"}):
+                assert (await client.post(route, json={"action": "candles", "value": {**candle_input, **change}}, headers={"X-Gym-Token": "tok"})).status == 400
             for bad in ({**body, "at": "2020-01-01T00:00:00Z"}, {"action": "shell", "value": "anything"},
                         {"action": "tick", "value": None}, {"action": [], "value": None}):
                 assert (await client.post(route, json=bad, headers={"X-Gym-Token": "tok"})).status == 400

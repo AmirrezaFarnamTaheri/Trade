@@ -2,15 +2,46 @@
 from datetime import timedelta
 from html import unescape
 import json
+import asyncio
 
 import pytest
 
 from gym.adapters.run_store import save_run
+from gym.adapters.store import SegmentWriter
+from gym.api.server import make_app
 from gym.cli import main
 from gym.services.paper import paper
 from gym.services.portable_report import render_html
 from gym.services.reports import paper_summary
+from gym.services.collector import Collector
+from gym.services.rules import RuleService
+from aiohttp.test_utils import TestClient, TestServer
 from tests.support import START, market_db, quote_history
+
+
+def test_html_download_requires_token_and_uses_the_existing_allowlisted_report(tmp_path):
+    db = market_db(tmp_path, quote_history(n=180))
+    out = paper(db, "BTCUSDT", START, START + timedelta(minutes=29), resolution="1min", fast=2, slow=3)
+    out["private_notes"] = "private-canary"
+    save_run(out, tmp_path / "runs")
+    col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
+
+    async def check():
+        async with TestClient(TestServer(make_app(col, RuleService(db), "tok", tmp_path / "runs"))) as client:
+            route = "/api/runs/" + out["run_id"] + "/summary.html"
+            assert (await client.get(route)).status == 403
+            result = await client.get(route, headers={"X-Gym-Token": "tok"})
+            assert result.status == 200 and result.content_type == "text/html"
+            assert await result.text() == render_html(out)
+            assert result.headers["Cache-Control"] == "no-store"
+            assert result.headers["Content-Disposition"].endswith('.html"')
+            assert (await client.get(route, headers={"X-Gym-Token": "tok", "Host": "evil.example"})).status == 403
+            (tmp_path / "runs" / (out["run_id"] + ".json")).write_text(json.dumps({**out, "run_id": "forged"}), encoding="utf-8")
+            assert (await client.get(route, headers={"X-Gym-Token": "tok"})).status == 400
+    try:
+        asyncio.run(check())
+    finally:
+        db.c.close()
 
 
 def test_portable_report_escapes_fields_and_omits_private_records(tmp_path, capsys):

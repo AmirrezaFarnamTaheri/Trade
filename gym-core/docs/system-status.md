@@ -2,6 +2,48 @@
 
 ## Current implementation update
 
+The subsequent six-source review adds descriptive SMA200, close-to-average
+distances and the range-based Awesome Oscillator to the existing native indicator
+diagnostics. Full Python validation: **829 passed, five skipped, 39 subtests
+passed** in 60.52s; Ruff passes. The 454-entry/30-family assessment and 61 strategy
+references are in [trading source assessment](trading-source-assessment.md).
+No source app/dependency, sample data, credentials or placeholder program was
+installed; no new trading strategy, funded permission, commit or archive move.
+The actual recorded BTCUSDT report `f2e08aa0a0bcfbf3` reads 2,208 observations,
+178 closed bars and a final uninterrupted segment of 43 bars. Its 20-bar distance
+is approximately +0.07243934 percent and Awesome Oscillator is -16.75886765 in
+the quoted price unit; SMA50/200 remain WARMUP. CLI and the restarted GUI produce
+the same report ID. Receipt: `.pi/reports/btcusdt-average-distance.json`;
+GUI proof: `.pi/technical-diagnostics.png`. No synthetic records were imported.
+
+### Previous resumed implementation receipt
+
+The resumed pass adds measurement-aware supplied vintages, snapshot-consistent
+two-series ratios/differences, receipt/fetch-cutoff candle checks, a GUI download
+for the existing portable HTML report and canonical offline ticket review controls.
+Python suite: **827 passed, five skipped, 39 subtests passed** in 67.23s. Ruff and
+JavaScript syntax checks pass. The gateway and protected executor were not changed
+or requalified in this pass. The prior receipts below remain historical evidence.
+
+The local observatory was restarted under ACER with the reviewed project command.
+An actual recorded-data candle check through the GUI reports POINT_IN_TIME and
+MISSING_VENUE where the stored venue candle was unavailable at the cutoff; it
+does not fetch a replacement. The preview GUI exposes its journal save control;
+synthetic test previews were not saved to the live journal. Durable writes are
+tested through the API against temporary journals.
+
+The existing scheduled paper job is currently held on its 2026-11-04 03:13 UTC
+window. A read-only replay confirmed `PaperDataUnavailable`: no qualified BTCUSDT
+quotes in 02:13–03:13 UTC. Its retries and failure alerts are real missing-data
+evidence. No backfill, successful-result substitution or silent clock advance was
+applied. Sustained collection and explicit missed-window handling remain open.
+
+Three new source ZIPs were inventoried and selectively reviewed without executing
+them; see [assessment](research-source-assessment.md). No further commit/archive
+move, credentials, paid model call or funded order was performed.
+
+### Previous implementation receipt
+
 The shared registry now has ten strategies. New indicator features, deterministic
 numeric roles, resolution-time outcomes, future consume-once evaluations,
 user-supplied observation vintages/screening, cash-flow return arithmetic and
@@ -202,3 +244,47 @@ f3f90d2996f1b1f8 binds all views to the same 2,208 observations.
 No UI/API, Rust, gateway, Windows, dependencies or live processes changed.
 Their runtime checks and network dependency audits were not repeated.
 See [source assessment](source-assessment.md) for every decision and open item.
+## Research workspace follow-up — 2026-11-04
+
+The eight selected research modules now have native services and shared CLI/API
+dispatch. Coverage/recovery and saved-decision replay have dedicated controls;
+the other detailed offline inputs are in the advanced research workbench.
+[Contracts and limits](research-workspace.md) document historical unknowns,
+conditional cash, append-only attempt retention and explicit optional AI sending.
+
+Browser checks on actual saved BTCUSDT observations produced coverage report
+`03a603df7e7a72af` (178 observed and two degraded minute buckets) before the
+subsequent addition of carried quote ages. Registered experiment
+`7d5b93d2f501339d22e97fe32d0dda4dae2c5cab6bc5c42e826fc7d74a3698c4`
+retained completed runs `8e59c9c1f3ca471b` and `4677f805201f710b`: modeled net
+−16.38027536 and −19.63777658 USDT respectively. The latter used the disclosed
+higher fee, 2s latency and two-minute outage assumptions. These initial GUI
+receipts use trace version 7; current version 8 deduplicates rule snapshots.
+They are historical diagnostics, not strategy promotion or prospective evidence.
+
+The archive coverage check verified 53 documented reviewed ZIPs under
+`C:\Users\ACER\Downloads\archive`; no documented reviewed ZIP remained loose
+in Downloads. `.pi/archive-verification.json` retains the audit. Existing ZIPs,
+extracted folders, protected custody state and unrelated working changes were
+preserved. No paid AI call, provider sign-in, funded order, protected service
+update, push or deployment was performed in this follow-up.
+
+Final implementation verification: **856 Python tests passed, five skipped,
+39 subtests passed**; Ruff and JavaScript syntax checks passed. Browser checks
+confirmed the final compact replay view, previous/next navigation and English/
+Persian labels. Repeating the recorded-data experiment through trace version 8
+produced runs `b721c3626ce1683e` and `9e989c89cc5882a8` with the same modeled net
+results as above. Evidence packet
+`d214ea79e9989b0dde0b871efd5fc0d1c28dc9c33b1e6795a428943d1c1deda8`
+was prepared from the first run; `paid_request_sent` remained false. Visual
+receipt: `.pi/research-workspace.png`. Actual paid completion and physical-host
+qualification were not exercised.
+## Scope decision — 2026-11-04
+
+Predictive ML/RL training, neural forecasting, automated model search and
+trained-model order execution are removed from current delivery commitments.
+They are not completed features or release blockers. Working research tools,
+supplied-forecast scoring and optional AI provider connections remain in scope.
+The [implementation plan](implementation-plan.md) records the conditions for any
+separately approved future ML research. No runtime feature or dependency was
+removed by this plan update.

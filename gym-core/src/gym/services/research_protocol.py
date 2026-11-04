@@ -221,7 +221,8 @@ class ResearchProtocol:
             raise ValueError("import requires 1..100 observations")
         now, prepared = instant(self.clock()), []
         for row in rows:
-            fields(row, "source_id series subject kind unit value published_at revision_at")
+            names = "source_id series subject kind unit value published_at revision_at"
+            fields(row, names + " measured_at" if type(row) is dict and "measured_at" in row else names)
             for key in ("source_id", "series", "subject", "unit", "kind"):
                 if type(row[key]) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/%-]{0,95}", row[key]):
                     raise ValueError("observation labels must be bounded identifiers")
@@ -231,6 +232,11 @@ class ResearchProtocol:
             revised = parse_ts(row["revision_at"]) if type(row["revision_at"]) is str else None
             if published is None or (row["revision_at"] is not None and revised is None) or (revised and revised < published):
                 raise ValueError("invalid publication/revision timestamps")
+            if "measured_at" in row:
+                measured = parse_ts(row["measured_at"]) if type(row["measured_at"]) is str else None
+                if measured is None or measured > published or row["kind"] == "NEWS":
+                    raise ValueError("numeric measurement must precede publication")
+                row = {**row, "measured_at": iso(measured)}
             if row["kind"] == "NEWS":
                 if row["unit"] != "text" or type(row["value"]) is not str or not 1 <= len(row["value"]) <= 2000:
                     raise ValueError("news requires bounded text with unit=text")
@@ -244,6 +250,32 @@ class ResearchProtocol:
                 self.conn.execute("INSERT OR IGNORE INTO observations VALUES(?,?,?)", (key, body, known))
         return {"authority": "PAPER_ONLY", "funded_authority": False, "imported_ids": [key for key, _, _ in prepared],
                 "limitation": "Native receipt time prevents backdating knowledge. User-supplied source labels, rights and values remain unverified."}
+
+    def observation(self, reference, as_of):
+        """Latest known value for one exact source/series/subject/kind/unit reference."""
+        fields(reference, "source_id series subject kind unit")
+        for value in reference.values():
+            if type(value) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/%-]{0,95}", value):
+                raise ValueError("invalid observation reference")
+        cutoff = instant(as_of)
+        if cutoff > instant(self.clock()):
+            raise ValueError("observation cutoff is in the future")
+        row = self.conn.execute("""SELECT id,body,known_at FROM observations WHERE known_at<=?
+            AND json_extract(body,'$.store')=? AND json_extract(body,'$.source_id')=?
+            AND json_extract(body,'$.series')=? AND json_extract(body,'$.subject')=?
+            AND json_extract(body,'$.kind')=? AND json_extract(body,'$.unit')=?
+            ORDER BY coalesce(json_extract(body,'$.measured_at'),json_extract(body,'$.published_at')) DESC,
+            json_extract(body,'$.published_at') DESC,
+            coalesce(json_extract(body,'$.revision_at'),json_extract(body,'$.published_at')) DESC,
+            known_at DESC,id DESC LIMIT 1""",
+            (iso(cutoff), self.store, *(reference[k] for k in ("source_id", "series", "subject", "kind", "unit")))).fetchone()
+        if row is None:
+            return None
+        key, raw, known = row
+        body = json.loads(raw)
+        if digest(body) != key:
+            raise ValueError("observation digest mismatch")
+        return {**body, "observation_id": key, "known_at": known}
 
     def screen(self, request):
         fields(request, "source_id series kind unit as_of descending limit max_age_seconds")

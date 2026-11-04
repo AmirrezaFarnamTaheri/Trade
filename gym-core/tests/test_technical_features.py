@@ -57,8 +57,34 @@ def test_trix_warmup_long_ema_slopes_and_bounded_memory():
         assert (result["ema_200"]["slope_5_bars"] is None) == (i < 204)
     assert Decimal(result["trix_15_9"]["value"]) == Decimal(result["trix_15_9"]["signal"]) == 0
     assert Decimal(result["ema_200"]["slope_5_bars"]) == 0
-    assert len(state.closes) == 50 and all(len(q) == 6 for q in state.slopes.values())
+    assert len(state.closes) == 200 and len(state.medians) == 0 and all(len(q) == 6 for q in state.slopes.values())
     assert result["atr_14"]["value"] is None
+
+
+def test_long_average_distance_is_descriptive_and_uses_the_average_denominator():
+    state = TechnicalFeatures()
+    for _ in range(199):
+        result = state.update(Decimal(100))
+    assert result["sma_200"]["value"] is None
+    assert result["sma_distance_200_percent"]["value"] is None
+    result = state.update(Decimal(200))
+    assert Decimal(result["sma_200"]["value"]) == Decimal("100.5")
+    with localcontext() as context:
+        context.prec = 160
+        assert Decimal(result["sma_distance_200_percent"]["value"]) == 100 * (Decimal(200) / Decimal("100.5") - 1)
+    assert result["sma_distance_200_percent"]["unit"] == "percent"
+    assert result["awesome_5_34"]["value"] is None
+
+
+def test_awesome_oscillator_uses_range_midpoints_not_closes_and_waits_for_34_ranges():
+    state = TechnicalFeatures()
+    for i in range(34):
+        result = state.update(Decimal(100), high=Decimal(100 + 2 * i), low=Decimal(100))
+        assert (result["awesome_5_34"]["value"] is None) == (i < 33)
+    # Median prices are 100..133: final SMA5=131, SMA34=116.5.
+    assert Decimal(result["awesome_5_34"]["value"]) == Decimal("14.5")
+    assert len(state.medians) == 34
+    assert bar_indicator_values([])["awesome_5_34"]["value"] is None
 
 
 @pytest.mark.parametrize("options", [{"high": "99", "low": "98"}, {"high": "101"}, {"high": "NaN", "low": "99"}])
@@ -69,8 +95,9 @@ def test_invalid_ranges_reject_without_advancing_state(options):
     assert state.count == 0
 
 
-def test_streaming_and_batch_closed_bar_values_match():
-    bars = [bar(i, str(100 + i % 17)) for i in range(80)]
+@pytest.mark.parametrize("length", [14, 15, 20, 28, 34, 52, 80, 200, 205])
+def test_streaming_and_batch_closed_bar_values_match(length):
+    bars = [bar(i, str(100 + i % 17)) for i in range(length)]
     result = bar_indicator_values(bars)
     old = indicator_values([b.close for b in bars])
     for key in old:
@@ -79,6 +106,10 @@ def test_streaming_and_batch_closed_bar_values_match():
     for b in bars:
         stream = state.update(b.close, high=b.high, low=b.low)
     assert stream == result
+    # Later observations must not mutate saved feature values at this cutoff.
+    saved = {name: dict(value) for name, value in stream.items()}
+    state.update(Decimal(1000000), high=Decimal(1000001), low=Decimal(999999))
+    assert stream == saved == bar_indicator_values(bars)
     with pytest.raises(ValueError, match="contiguous"):
         bar_indicator_values([bars[0], bars[2]])
     assert all(row["status"] == "WARMUP" for row in bar_indicator_values([]).values())

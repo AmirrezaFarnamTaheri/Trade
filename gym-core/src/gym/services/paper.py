@@ -67,16 +67,18 @@ def session_result(session, tops, cash):
             "session": {"state": session.state, "events": session.events, "cursor": iso(session.cursor),
                         "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped,
                         "subscriptions": list(session.closes.by_resolution), "bar_events": session.bar_events,
-                        "reopenings": session.reopenings}}
+                        "reopenings": session.reopenings, "rule_snapshots": session.rule_snapshots}}
 
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,
           slow: int = 21, cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), rules_mode: str = "point-in-time",
-          store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None) -> dict:
+          store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None, outages=()) -> dict:
     """A replayable paper run plus matched baselines. Same inputs give the same run_id and outputs."""
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
-    portal, svc = DataPortal(db), RuleService(db)
+    if any(not t0 <= start < end <= t1 for start, end in outages):
+        raise ValueError("outage intervals must be inside the replay window")
+    portal, svc = DataPortal(db, excluded=outages), RuleService(db)
     today = svc.load()[1]
     rules_for = (lambda t: today) if rules_mode == "today" else (lambda t: svc.load(t)[1])
     inst = portal.instrument(symbol)
@@ -137,7 +139,8 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
               "data": main["data_digest"],
               "auxiliary_evidence": {"baselines": baseline_evidence, "fx": fx},
               "snapshots": digest([(d["t"], d["snapshot"]) for d in main["decisions"]]),
-              "metadata": metadata_ref, "ruleset_version_now": svc.load()[0]}
+              "metadata": metadata_ref, "ruleset_version_now": svc.load()[0],
+              "modeled_feed_outages": [(iso(start), iso(end)) for start, end in outages]}
     rank = ranking(main, baselines)
     out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "numeraire": "USDT-equivalent" if fx or inst.quote == "USDT" else inst.quote,
            "fx": fx, "result": main, "baselines": baselines, "ranking": rank,

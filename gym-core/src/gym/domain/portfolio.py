@@ -1,8 +1,87 @@
 """Joint paper-entry sizing from an explicitly ordered candidate list."""
 import re
-from decimal import Decimal, ROUND_FLOOR
+from decimal import Decimal, ROUND_FLOOR, localcontext
 
 from .market_models import currency, decimal, elapsed, fields, instant, position_sizing, rate
+
+
+def rebalance_preview(request):
+    """Supplied holdings and targets only; sale proceeds are conditional, never settled cash."""
+    fields(request, "quote_currency cash reserved_cash fee_rate positions")
+    quote = currency(request["quote_currency"])
+    cash, reserved = decimal(request["cash"], "cash"), decimal(request["reserved_cash"], "reserved_cash")
+    fee = rate(request["fee_rate"], "fee_rate")
+    positions = request["positions"]
+    if reserved > cash or type(positions) is not list or not 1 <= len(positions) <= 100:
+        raise ValueError("need reserved cash <= cash and 1..100 positions")
+    with localcontext() as ctx:
+        ctx.prec = 160
+        parsed, symbols = [], set()
+        for row in positions:
+            fields(row, "symbol held reserved target_weight bid ask quantity_step minimum_quote")
+            symbol = row["symbol"]
+            if (type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol)
+                    or not symbol.endswith(quote) or len(symbol) <= len(quote) or symbol in symbols):
+                raise ValueError("need unique symbols in the declared quote currency")
+            symbols.add(symbol)
+            p = {key: decimal(row[key], key, positive=key in ("bid", "ask", "quantity_step"))
+                 for key in ("held", "reserved", "bid", "ask", "quantity_step")}
+            p.update(symbol=symbol, target_weight=decimal(row["target_weight"], "target_weight"),
+                     minimum_quote=None if row["minimum_quote"] is None else decimal(row["minimum_quote"], "minimum_quote"))
+            if p["bid"] > p["ask"] or p["reserved"] > p["held"] or p["target_weight"] > 1:
+                raise ValueError("crossed quote or reserved quantity exceeds holding")
+            parsed.append(p)
+        if sum(p["target_weight"] for p in parsed) > 1:
+            raise ValueError("target weights exceed one shared portfolio")
+        equity = cash + sum(p["held"] * p["bid"] for p in parsed)
+        if equity <= 0:
+            raise ValueError("need positive supplied portfolio equity")
+        available, sale_proceeds, turnover, legs = cash - reserved, Decimal(0), Decimal(0), []
+        projected = {p["symbol"]: p["held"] for p in parsed}
+        for side in ("SELL", "BUY"):
+            for p in parsed:
+                target = equity * p["target_weight"]
+                current = p["held"] * p["bid"]
+                if (side == "SELL") != (current > target) or current == target:
+                    continue
+                price, step = p["bid" if side == "SELL" else "ask"], p["quantity_step"]
+                desired = ((current - target) / price if side == "SELL" else (target - current) / (p["bid"] * (1 - fee)))
+                capacity = p["held"] - p["reserved"] if side == "SELL" else available / price
+                quantity = (min(desired, capacity) / step).to_integral_value(rounding=ROUND_FLOOR) * step
+                notional = quantity * price
+                status = ("UNKNOWN_MINIMUM" if p["minimum_quote"] is None else "NO_CAPACITY" if not quantity
+                          else "BELOW_MINIMUM" if notional < p["minimum_quote"] else "PLANNED")
+                before = available
+                if status == "PLANNED":
+                    turnover += notional
+                    if side == "SELL":
+                        received = notional * (1 - fee)
+                        sale_proceeds += received
+                        available += received
+                        projected[p["symbol"]] -= quantity
+                    else:
+                        available -= notional
+                        projected[p["symbol"]] += quantity * (1 - fee)
+                legs.append({"symbol": p["symbol"], "side": side, "status": status,
+                             "gross_quantity": str(quantity), "notional_quote": str(notional),
+                             "net_base_quantity": str(quantity * (1 - fee) if side == "BUY" else quantity),
+                             "fee_currency": p["symbol"][:-len(quote)] if side == "BUY" else quote,
+                             "fee_amount": str(quantity * fee if side == "BUY" else notional * fee),
+                             "conditional_on_sale_settlement": side == "BUY" and notional > max(Decimal(0), before - sale_proceeds)})
+        if available < 0:
+            raise ValueError("precision cannot establish shared cash capacity")
+        projected_equity = available + reserved + sum(projected[p["symbol"]] * p["bid"] for p in parsed)
+        return {"schema": "rebalance-preview/1", "quote_currency": quote, "equity_at_supplied_bid": str(equity),
+                "available_cash_before_sales": str(cash - reserved), "reserved_cash": str(reserved),
+                "conditional_sale_proceeds": str(sale_proceeds), "conditional_remaining_cash": str(available),
+                "turnover_quote": str(turnover), "turnover_fraction": str(turnover / equity), "legs": legs,
+                "conditional_equity_after_costs": str(projected_equity),
+                "concentration": [{"symbol": p["symbol"], "current_weight": str(p["held"] * p["bid"] / equity),
+                                   "target_weight": str(p["target_weight"]), "conditional_held": str(projected[p["symbol"]]),
+                                   "conditional_weight": str(projected[p["symbol"]] * p["bid"] / projected_equity) if projected_equity else None,
+                                   "target_quantity_shortfall": str(equity * p["target_weight"] / p["bid"] - projected[p["symbol"]])} for p in parsed],
+                "fee_assumption": "RECEIVED_ASSET", "holdings_authenticated": False,
+                "cost_basis_known": False, "settlement_verified": False, "funded_authority": False}
 
 
 def portfolio_sizing(quote_currency, equity, cash, total_risk_fraction, cash_buffer_fraction,

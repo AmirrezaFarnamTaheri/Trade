@@ -75,3 +75,19 @@ def test_venue_candles_still_forming_when_fetched_are_not_compared(tmp_path):
 def test_venue_trading_while_the_collector_was_off_is_not_a_divergence(tmp_path):
     portal = crosscheck_db(tmp_path, [], [candle(0, "100", "100", "100", "100")], listening=False)
     assert candle_crosscheck(portal, "BTCUSDT", START, START + timedelta(minutes=2))["counts"] == {"NOT_COVERED": 1}
+
+
+def test_point_in_time_crosscheck_excludes_later_receipts_and_fetched_candles(tmp_path):
+    late = TradeTick("BTCUSDT", START, START + timedelta(minutes=20), Decimal("100"), Decimal("1"), "BUY")
+    portal = crosscheck_db(tmp_path, [late], [candle(0, "100", "100", "100", "100")])
+    cut = START + timedelta(minutes=2)
+    earlier = candle_crosscheck(portal, "BTCUSDT", START, cut, as_of=cut)
+    assert earlier["counts"] == {} and earlier["knowledge_mode"] == "POINT_IN_TIME"
+    observed = candle_crosscheck(portal, "BTCUSDT", START, cut, as_of=START + timedelta(minutes=11))
+    assert observed["counts"] == {"MISSING_INTERNAL": 1}
+    later = candle_crosscheck(portal, "BTCUSDT", START, cut, as_of=START + timedelta(minutes=21))
+    assert later["counts"] == {"AGREE": 1}
+    assert candle_crosscheck(portal, "BTCUSDT", START, cut)["knowledge_mode"] == "RETROSPECTIVE"
+    for options in ({"as_of": START}, {"tolerance_bps": Decimal("NaN")}, {"tolerance_bps": Decimal("-1")}):
+        with pytest.raises(ValueError):
+            candle_crosscheck(portal, "BTCUSDT", START, cut, **options)

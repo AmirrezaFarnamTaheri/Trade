@@ -397,3 +397,61 @@ view. The 10,000-period budget applies across all requested views. One resolutio
 keeps the original report format; omitting `--res` still uses `15min`. Agreement
 between views is not a probability or order instruction. The complete latest
 source-family decisions are in [source assessment](docs/source-assessment.md).
+
+## Measurement-aligned research and offline review
+
+Observation imports optionally accept `measured_at` for numeric series. It must
+precede publication; actual receipt still determines when a supplied vintage
+becomes known. Older records retain their identities and missing measurement
+times remain unknown. The observation store does not authenticate supplied data.
+
+`gymctl research derived ratio.json` and the advanced workbench accept exactly
+`left`, `right`, `operation`, `as_of`, `max_age_seconds`, `max_skew_seconds`.
+Each side identifies `source_id`, `series`, `subject`, `kind`, `unit`.
+`RATIO` returns an explicit unit ratio (dimensionless for matching units);
+`DIFFERENCE` requires identical units. Both sides use one read snapshot and the
+latest measurement known at the cutoff. Stale, misaligned, missing-clock and
+zero-denominator results remain unavailable. Arithmetic uses 160 significant
+digits with half-even rounding. No external feed or prediction is generated.
+
+`gymctl candles BTCUSDT --from 2026-11-03T17:13:00Z --to 2026-11-03T17:18:00Z --as-of 2026-11-03T17:20:00Z`
+excludes trade receipts and candle fetches at or after the cutoff. Omitting
+`--as-of` preserves the retrospective CLI report. The advanced workbench action
+requires `symbol`, `from`, `to`, `as_of`, `tolerance_bps` and only reads recorded
+one-minute candles. It neither fetches replacements nor reconstructs superseded
+venue candle vintages.
+
+Saved runs now offer **Download offline HTML report**. The offline ticket form
+can save its canonical preview; **Account journal** provides one-time offline
+acknowledgment/rejection within the preview's validity window. Web review times
+come from the server. These records never grant Executor approval or submit an
+order. Other GUI and execution gaps remain in the [implementation plan](docs/implementation-plan.md).
+The three subsequent sources and remaining ideas are recorded in the
+[research source assessment](docs/research-source-assessment.md).
+
+Technical reports also expose `sma_200`, `sma_distance_20_percent`,
+`sma_distance_50_percent`, `sma_distance_200_percent` and `awesome_5_34`.
+Distance is `100 * (last_close / SMA - 1)`, a descriptive price comparison;
+it does not measure intrinsic value. Awesome Oscillator uses five- and 34-bar
+averages of observed high/low midpoints. Periods are contiguous observed bars,
+not necessarily days. The existing 31-day read bound cannot provide a 200-day
+average; missing history remains WARMUP. No new strategy is enabled.
+See the [six-source trading assessment](docs/trading-source-assessment.md)
+for complete file accounting, module decisions and all 61 strategy references.
+## Research workspace follow-up
+
+The Research page now exposes recorded-data coverage/recovery and stepwise saved
+decision replay. Its advanced workbench also provides comparable market ranking,
+offline target rebalance previews, immutable experiment/robustness runs,
+evidence-linked AI notes and supplied execution-quality comparisons. The CLI
+uses the same services. See [workflow contracts](docs/research-workspace.md) and
+[implementation/acceptance state](docs/implementation-plan.md).
+
+These are bounded paper/research capabilities. Paid AI sending requires an
+explicit action; supplied holdings/fills are unauthenticated and no workflow
+grants funded trading authority.
+
+Predictive ML/RL training, neural price forecasting, automated model search and
+trained-model order execution are outside current delivery scope. Indicators,
+replay, screening, experiment/robustness tools, supplied-forecast scoring and
+optional evidence-linked AI connections remain supported.
