@@ -26,6 +26,18 @@ def coverage(db, symbol):
 
 def compare(db, symbol, t0, t1, candidates, *, resolution="15min", cash=Decimal(1000),
             cost=CostModel(), rules_mode="point-in-time", store="live", subscriptions=()):
+    if db.c.in_transaction:
+        raise ValueError("comparison requires its own read snapshot")
+    db.c.execute("BEGIN")
+    try:
+        return _compare_in_snapshot(db, symbol, t0, t1, candidates, resolution=resolution, cash=cash,
+                                    cost=cost, rules_mode=rules_mode, store=store, subscriptions=subscriptions)
+    finally:
+        db.c.rollback()
+
+
+def _compare_in_snapshot(db, symbol, t0, t1, candidates, *, resolution="15min", cash=Decimal(1000),
+                         cost=CostModel(), rules_mode="point-in-time", store="live", subscriptions=()):
     if not isinstance(symbol, str) or not re.fullmatch("[A-Z0-9]{2,24}", symbol):
         raise ValueError("invalid market symbol")
     if not t0 < t1 or t1 - t0 > timedelta(days=31):
@@ -41,17 +53,11 @@ def compare(db, symbol, t0, t1, candidates, *, resolution="15min", cash=Decimal(
     if len(references) > 1:
         raise ValueError("paired comparison supports one common reference asset")
     reference = next(iter(references), None)
-    if db.c.in_transaction:
-        raise ValueError("comparison requires its own read snapshot")
-    db.c.execute("BEGIN")
-    try:
-        runs = [paper(db, symbol, t0, t1, resolution=resolution, cash=cash, cost=cost,
-                      rules_mode=rules_mode, store=store, subscriptions=resolutions,
-                      strategy_id=s.name, params=s.params, reference_symbol=reference) for s in strategies]
-        if len({(r["inputs"]["data"], r["inputs"]["snapshots"]) for r in runs}) != 1:
-            raise ValueError("comparison data or decision snapshots diverged")
-    finally:
-        db.c.rollback()
+    runs = [paper(db, symbol, t0, t1, resolution=resolution, cash=cash, cost=cost,
+                  rules_mode=rules_mode, store=store, subscriptions=resolutions,
+                  strategy_id=s.name, params=s.params, reference_symbol=reference) for s in strategies]
+    if len({(r["inputs"]["data"], r["inputs"]["snapshots"]) for r in runs}) != 1:
+        raise ValueError("comparison data or decision snapshots diverged")
     labels = [f"{chr(65 + i)}: {r['inputs']['strategy']}" for i, r in enumerate(runs)]
     ranked = ranking(runs[0]["result"], {**{label: r["result"] for label, r in zip(labels[1:], runs[1:])},
                                       **runs[0]["baselines"]}, labels[0])

@@ -5,7 +5,7 @@ Refuses developer/self-hosted machines. Never connects to a trading venue or
 passes credentials to the Executor. Two random local non-admin accounts are
 created only to exercise the OS's effective access checks, then removed.
 
-On this disposable hosted runner ONLY, the no-op read-only service is briefly
+On this disposable hosted runner ONLY, the disarmed read-only service is briefly
 changed to manual start to prove its OS-token identity gate, then stopped and
 restored to DISABLED before the hostile-account probes and cleanup.
 #>

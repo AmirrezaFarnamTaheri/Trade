@@ -44,12 +44,15 @@ pub fn confirms(raw: &[u8], correlation: [u8; 16]) -> bool {
 pub enum StartupMode {
     Normal,
     CredentialRecovery,
+    /// Explicit SCM-admin fault injection; main loop hangs, account reads stay disabled.
+    StopIsolationDrill,
 }
 impl StartupMode {
     pub fn from_scm_arguments(args: &[String]) -> Result<Self, &'static str> {
         match args {
             [] => Ok(Self::Normal),
             [arg] if arg == "--credential-recovery" => Ok(Self::CredentialRecovery),
+            [arg] if arg == "--stop-isolation-drill" => Ok(Self::StopIsolationDrill),
             _ => Err("invalid SCM startup arguments"),
         }
     }

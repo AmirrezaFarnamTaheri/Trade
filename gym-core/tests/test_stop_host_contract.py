@@ -3,6 +3,7 @@
 Real Windows named-pipe creation and ACKs must be tested by hosted CI.
 """
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "executor/exec-svc/src/main.rs"
@@ -200,7 +201,10 @@ def test_stop_authorization_requires_both_os_user_and_logon_sid():
 def test_installer_and_auditor_keep_provisioning_helper_admin_only():
     installer = (ROOT / "scripts/windows/Install-ReadOnlyExecutor.ps1").read_text("utf-8")
     auditor = (ROOT / "scripts/windows/Test-ReadOnlyExecutor.ps1").read_text("utf-8")
-    assert "if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe'))" in installer
+    operator_helpers = installer.split("if ($helper.File.Name -in @(", 1)[1].split("))", 1)[0]
+    assert set(re.findall(r"'([^']+[.]exe)'", operator_helpers)) == {
+        "gym-stopctl.exe", "gym-hardstop.exe", "gym-research-worker.exe",
+    }
     operator_paths = auditor.split("$operatorPaths =", 1)[1].split("foreach", 1)[0]
     assert "$StopCtl" in operator_paths and "$HardStop" in operator_paths
     assert "$Provision" not in operator_paths

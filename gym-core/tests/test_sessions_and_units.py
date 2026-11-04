@@ -70,6 +70,34 @@ def test_fx_factor_is_labeled_stale_while_usdt_irt_is_closed(tmp_path):
     assert any("STALE_CLOSED" in w for w in out["warnings"])
 
 
+@pytest.mark.parametrize("start_age,end_age,start_status,end_status", [
+    (120, 1, "LIVE", "LIVE"),
+    (121, 1, "STALE", "LIVE"),
+    (0, 120, "LIVE", "LIVE"),
+    (0, 121, "LIVE", "STALE"),
+])
+def test_open_market_fx_freshness_uses_each_boundary_age(
+        tmp_path, start_age, end_age, start_status, end_status):
+    start, end = START, START + timedelta(minutes=10)
+    rows = [replace(quote(start + timedelta(minutes=i), "70000000", "70000100"), symbol="BTCTMN")
+            for i in range(10)]
+    rows += [replace(quote(at, "1000", "1002"), symbol="USDTTMN")
+             for at in (start - timedelta(seconds=start_age), end - timedelta(seconds=end_age))]
+    db = market_db(tmp_path, rows)
+    try:
+        out = paper(db, "BTCTMN", start, end, resolution="1min", fast=1, slow=2)
+        assert out["fx"]["start_status"] == start_status
+        assert out["fx"]["end_status"] == end_status
+        assert out["fx"]["start_age_seconds"] == start_age
+        assert out["fx"]["end_age_seconds"] == end_age
+        assert out["fx"]["start"] == out["fx"]["end"] == "1001"
+        assert (any("STALE" in warning and "last known" in warning for warning in out["warnings"])
+                == ("STALE" in (start_status, end_status)))
+        assert out["inputs"]["auxiliary_evidence"]["fx"] == out["fx"]
+    finally:
+        db.c.close()
+
+
 def test_rescale_exponent_recognises_only_powers_of_ten():
     assert rescale_exponent(Decimal("0.001")) == -3 and rescale_exponent(Decimal("1000.9")) == 3
     assert rescale_exponent(Decimal("1.04")) is None and rescale_exponent(Decimal("3")) is None

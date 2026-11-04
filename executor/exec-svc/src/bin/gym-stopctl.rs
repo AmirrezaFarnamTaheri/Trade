@@ -19,14 +19,13 @@ fn main() {
     }
 }
 #[cfg(windows)]
-#[path = "../windows_control.rs"]
-mod windows_control;
+use exec_svc::windows_control;
 #[cfg(windows)]
 mod client {
     use exec_ipc::{StopCommand, StopReply, StopRequest, StopResult, FRAME_SIZE};
     use std::fs::File;
     use std::io::{Read, Write};
-    use std::os::windows::io::FromRawHandle;
+    use std::os::windows::io::{AsHandle, FromRawHandle};
     use std::ptr;
     use std::sync::mpsc;
     use std::thread;
@@ -83,7 +82,7 @@ mod client {
                     ));
                 }
                 let mut pipe = unsafe { File::from_raw_handle(raw.cast()) };
-                super::windows_control::authenticate_pipe(raw, expected_pid)?;
+                super::windows_control::authenticate_pipe(pipe.as_handle(), expected_pid)?;
                 pipe.write_all(&frame)
                     .map_err(|_| "stop request not delivered".to_owned())?;
                 let mut response = [0u8; FRAME_SIZE];

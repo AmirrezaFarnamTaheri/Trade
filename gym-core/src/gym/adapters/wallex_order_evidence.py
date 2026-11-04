@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\Z")
-_ASSET = re.compile(r"[A-Z0-9]{2,20}\Z")
+_ASSET = re.compile(r"[A-Z0-9]{1,20}\Z")
 _SYMBOL = re.compile(r"[A-Z0-9]{3,32}\Z")
 _STATUS = re.compile(r"[A-Za-z0-9_ .:-]{1,128}\Z")
 
@@ -32,6 +32,8 @@ def _decimal(value: object, *, label: str, zero: bool = True) -> Decimal:
         raise InvalidOrderEvidence(f"invalid {label} decimal") from None
     if not number.is_finite() or number < 0 or (not zero and number == 0):
         raise InvalidOrderEvidence(f"invalid {label} decimal")
+    if number.adjusted() > 79 or number.as_tuple().exponent < -24:
+        raise InvalidOrderEvidence(f"unsupported {label} decimal precision")
     # Fixed-point up to 24 decimals (no exponent/floating-binary promotion).
     normalized = format(number, "f")
     if len(normalized) > 80 or (
@@ -104,7 +106,9 @@ def parse_manual_order_evidence(payload: object, requested_id: str) -> dict:
             fee_asset = fill.get("feeAsset")
             if not isinstance(fee_asset, str) or not _ASSET.fullmatch(fee_asset):
                 raise InvalidOrderEvidence("invalid fee asset")
-            total += quantity
+            with localcontext() as exact:
+                exact.prec = 256  # Preserve all digits across up to 256 bounded fills.
+                total += quantity
             if total > requested_qty:
                 raise InvalidOrderEvidence("total fills exceed order quantity")
             fills.append({

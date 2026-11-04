@@ -8,12 +8,13 @@ non-Windows, and self-hosted runners. The workflow job runs on trusted repositor
 
 Execution steps:
 
-1. Build gym-executor.exe with cargo build --release --locked and refuse a
+1. Build the service and every protected helper with cargo build --release --locked
+   -p exec-svc --bins and refuse a
    pre-existing TradingGYM service or installation directory on the runner.
 2. Verify that the installer -WhatIf makes no changes. Register the read-only
    service DISABLED, compare binary SHA-256, run the elevated service/ACL audit.
-3. **Temporarily on this disposable VM only**, switch this no-op, no-secret,
-   no-venue service to manual startup, start it via SCM to exercise its
+3. **Temporarily on this disposable VM only**, switch this DISARMED service
+   without a provisioned venue credential to manual startup, start it via SCM to exercise its
    LocalService/restricted-service-SID token guard, then stop it and restore
    DISABLED. If the service cannot report RUNNING, the test fails.
 4. Create two distinct randomly named local **standard-user** accounts (operator

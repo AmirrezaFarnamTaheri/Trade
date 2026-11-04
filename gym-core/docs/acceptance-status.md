@@ -4,20 +4,43 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop, hung-service containment or independent-machine recovery is claimed.
 
-## Current implementation and evidence — 2026-11-03
+## Current implementation and evidence — 2026-11-04
 
 - **B1:** authenticated independent STOP listener, SCM-pinned clients, explicit OS-derived operator/user-logon binding, protected helpers, separate elevated-admin provisioning and service-context DPAPI custody are implemented. `gym-account-read balances|fees|known-client-order <id>` now has a service-owned, fixed-origin, bounded WinHTTP GET path. Its output is **RAW_UNPARSED**, not a normalized money posting. Key permissions remain **UNVERIFIED**; a successful GET is not proof that a key cannot trade. Explicit SCM recovery-only provisioning preserves ledger history and rejects account reads. These new service paths have build/unit checks, not a successful installed-host/live-venue drill.
 - **B2:** the real durable order journal now composes fake approval/preflight, atomic reservations, first-byte retry rules, unknown-order holds, STOP gates, partial fills, received-asset fees and restart/reconciliation. Regressions cover zero-fill cancellation, disjoint protective-sale credits during an unknown buy, idempotent settlement and unexplained-credit refusal. The separate actual Python R0 AppContainer launcher, protected runtime/public-snapshot packaging and real-child probes are implemented. Installed-worker isolation remains unverified; an ordinary account named `worker` is not SEC-02 proof.
 - **B3:** the previous verified Windows-to-WSL restore remains same-hardware portability evidence only. DPAPI ciphertext is host/account bound: restored credential metadata needs explicit reprovisioning, not a copied plaintext key. Recovery-only startup fixes the missing/nonportable-ciphertext bootstrap; its installed-host drill remains unverified.
-- **D/local research:** four version-pinned strategies, matched comparisons, higher-timeframe/reference inputs, closure-aware periods, paper market/expiry models, persistent hypotheses/shadow positions, retry-aware scheduled research/alerts, and a fixed three-tool read-only MCP stdio interface are implemented. These are limited **PAPER_ONLY/R0** features, not an assertion that every original D backlog item is accepted.
+- **D/local research:** six version-pinned strategies, matched comparisons, higher-timeframe/reference inputs, closure-aware periods, paper market/expiry models, explicit offline sizing and cost-aware trade economics, persistent hypotheses/shadow positions, retry-aware scheduled research/alerts, and a fixed three-tool read-only MCP stdio interface are implemented. `bollinger-reversion` adds closed-price population-deviation bands. Unknown inference costs remain unavailable; modeled break-even is not a probability forecast. MCP results include input/output checksums without attesting source authenticity or installed isolation. These are limited **PAPER_ONLY/R0** features, not an assertion that every original D backlog item is accepted.
 - **UI:** all nine destinations, a real paired comparison, persisted inputs, EN/FA RTL, light/dark, keyboard focus and 1440px/390px overflow were exercised in actual Edge. Screenshots/report: `.pi/ui-verification/`. The user's reference image is not a generated test artifact.
-- **Verified current local regression:** **490 Python passed, 5 skipped, 39 subtests passed** (36.71 s); the complete Rust workspace test command also exited **0**, including the new custody/read/recovery/worker slices. The five Windows symlink checks skip where the OS cannot create symlinks. This is unit/simulation/build evidence, not installed-service, real-worker-boundary or funded certification.
+- **Verified local regression:** latest full Python suite **752 passed, 5 skipped, 39 subtests passed** (50.02 s), with 15 technical-report cases, ten multi-window validation/CLI cases, ten follow-up API/error-path cases and Ruff green. Three UI runtime tests pass; the actual Research page reproduces the three-window validation in English and Persian. Earlier native checks had **104 Rust tests passed in 31 suites**, locked/offline all-target tests, strict Clippy/formatting green; **23 gateway tests passed, one symlink skip** as ordinary ACER; all 14 Windows scripts parse. Actual stdio calls verified the three research tools. The browser exercised all nine routes, the band comparison/export and English/Persian desktop/mobile layout. Dependency locks did not change; network audits retain the preceding zero-advisory receipts and were not rerun. Release binaries were built in the earlier slice. The five Python skips require Windows symlink privilege. This is unit/simulation/build evidence, not completed installed-worker or funded certification.
+- **Review fixes:** paper identities include independently consumed baseline/FX evidence; all six registry strategies are available to live paper sessions. Supervised foreground research supports start/pause/resume/restart using durable clocks. Service-owned observations are normalized into an immutable version-2 snapshot journal and the protected account API; concurrent migrations, exact fill summation, decimal expansion bounds and one-letter fee assets have regressions. Stale final valuations are explicitly disclosed. Download summaries encode decimal durations as strings so browser JSON cannot change their checksum. Earlier independent Python, Rust, database and security review findings were addressed.
+- **Installed-host attempt:** the user approved the administrator drill. The read-only service was installed and its disabled/stopped, restricted-SID and code/data ACL audit passed. Two actual script defects were fixed: native image-path quotation loss and a `Sc` function shadowed by PowerShell's `Set-Content` alias. The next custody stage returned **NOT_ACKNOWLEDGED** for synthetic provisioning, so custody/recovery, actual worker denial, STOP and hung-service containment remain **NOT PASSED**. The service was left stopped/disabled; uncertain custody history is preserved. No account API or venue order was called.
+- **Source reuse / full-project review:** readiness, current two-sided quote ages, durable research job controls/report publication, and chronological validation were adapted from TradingGym. Additional source review added actual observed depth/imbalance, authenticated allowlisted paper-summary downloads and sampled drawdown from initial cash. The CLI also supports 1..5 disjoint chronological validation windows sharing one read snapshot, each with fresh cash/state and explicit incomplete/error outcomes; Research and the validation API expose the same bounded window choice, defaulting to one. Unexpected replay errors propagate instead of being mislabeled as missing data. Details and explicit exclusions/deferred modules: [capabilities](capabilities.md), [system status](system-status.md). No donor runtime, key, account data or new dependency was imported.
 
-The optional trusted-host model gateway is now included: Pi-backed provider/OAuth catalogs, environment-key rotation and portable presets, with **21 native SDK tests passed / 1 Windows symlink-privilege skip** in the canonical checkout. It remains disabled by default, outside R0, with no trading tools or account attachments. Live OAuth/entitlements and paid model requests were not exercised.
+The optional trusted-host model gateway is now included: Pi-backed provider/OAuth catalogs, environment-key rotation and portable presets, with **23 native SDK tests passed / 1 Windows symlink-privilege skip** in the canonical checkout. It remains disabled by default, outside R0, with no trading tools or account attachments. Live OAuth/entitlements and paid model requests were not exercised.
 
 ### Actual paper evidence and capital decision
 
-The public BTCUSDT store has **3,152 observations over 50.736 elapsed hours** on three calendar dates, with **11.5-hour and 35-hour gaps**. That is **not** a continuous multi-day collection or paper session. The only older saved run was a three-minute replay, not a completed live session. No missing interval was filled with synthetic observations.
+**New real-time paper session (2026-11-03):** run `134d1c79dba9f64c`
+observed 16:24:52–16:50:00 UTC, warmed up until 16:30 and completed its
+20-minute trading window. It used 1,000 virtual USDT, EMA 2/5, one-minute
+decisions, modeled 0.1% fee per side and 500 ms latency. There were 298
+observations, 290 qualified, and one fill. The last-mark net was **−1.45235742
+USDT**; that mark was at 16:42:08 and **471.514 seconds old** at the end.
+The end valuation is therefore **STALE**, not a current final balance. Live
+collection experienced DNS/TLS/timeouts/reconnects; no missing quotes were invented.
+Four paired replays of exactly that observed window yielded EMA −1.45235742,
+SMA 0 (abstainer), confirmed EMA −1.45235742 and relative momentum −11.29549036
+USDT, all using the same stale end mark. The live run and four replays have
+immutable **NONE / 0-USDT** decisions. Machine report:
+`.pi/paper-qualification/results.json`; comparison `01458ef081f15954`.
+This is a short actual session with a degraded feed, not uninterrupted multi-day
+evidence, an independent simulator validation or real-order permission.
+
+**Earlier evidence:** before the November 3 collector restart, the public BTCUSDT
+store had **3,152 observations over 50.736 elapsed hours**, with **11.5-hour and
+35-hour gaps**. The earlier saved session was a three-minute replay. Those
+historical coverage reports remain unchanged; the collector now appends new
+observations. No missing interval was filled with synthetic observations.
 
 Two genuinely observed windows were replayed with identical data/decision snapshots, 1-minute decisions, 1,000 USDT per independent account, 0.1% modeled fee per side, and the existing hold-cash/hold-BTC baselines. All eight runs passed repeatability, midpoint lookahead, streaming/replay and warmup diagnostics (shared engine, not an independent oracle).
 
@@ -57,7 +80,7 @@ All eight immutable decisions are **NONE, full-loss ceiling 0 USDT**, never exec
 
 | Epic | Latest draft | Implemented in code | Still missing for release |
 | --- | --- | --- | --- |
-| C1 | #14 | Bounded VenueFacts and external-observation journals; interactive-user authenticated read-only client; separate service-owned WinHTTP GET/provisioning code | Installed service reads and permission verification; normalized service observation integration; real pagination/status/exposure probes and validated operator budget/provenance |
+| C1 | #14 | Bounded VenueFacts and external-observation journals; interactive-user reader; service-owned WinHTTP GET/provisioning; normalized persistent service-source account snapshots/API | Installed service reads and permission verification; real pagination/status/exposure probes and validated operator budget/provenance |
 | C2 | #15 | Exact-decimal offline tickets; durable fake approvals/reservations/first-byte rules/received-asset fee reconciliation and restart tests | Real trusted-path T1 approvals, funded identity and venue submission/cancel/reconcile transport; assisted conversion and actual-versus-modeled costs |
 | C3 | #16 | Offline, non-executable Exit Guard and reopening veto policy; epoch and unknown-order checks | Certified protective venue stops, real Exit Guard and independently verified funded Autopilot with capped/session-reconciled operations |
 
@@ -96,6 +119,86 @@ boundaries and live venue acceptance are completed.
 - Post-fix interim spreads: `D:/GitHub/Trade/data/live/spreads-postfix-interim.json`, 3,374 observations / 0 excluded / 10 groups over the same 38-minute window.
 ## Next acceptance gates
 
-Finish and verify the real sandboxed R0 worker, then perform an explicitly authorized installed-host read-only service/recovery drill with the chosen human operator logon. T1/funded venue transport is still missing code, not just missing live evidence. No funded probe may run without an explicit budget, suitable key permissions and the original capability/protection gates. A separate-machine restore and a genuine uninterrupted multi-day collection/session also remain outstanding.
+Diagnose the unacknowledged synthetic custody provisioning before retrying against
+retained history, then complete the actual sandboxed R0/service drill with the
+selected ACER operator logon. T1/funded venue transport remains missing code, not just
+missing live evidence. The user requested paper results before real-order
+practice; no loss budget or exact real order has been approved. Venue permission/
+protection gates, a separate-machine restore and genuinely uninterrupted
+multi-day collection/session also remain outstanding. Source/publication work
+must not be counted as live acceptance.
 
 Demo observations are not venue-cost evidence. No passing row grants trading authority.
+
+## Authenticity review and priorities — 2026-11-03
+
+The production Python, browser interface, Rust service/helpers and model gateway
+were traced separately from their tests. The running app reported `demo=false`;
+Markets displayed observed quotes, Account showed no configured balance snapshot,
+and Offline Ticket started with empty inputs and an explicit synthetic-example
+button. Safety exposed `executor_state_verified=false`. No hidden fallback to
+invented live prices, balances or provider completions was found in these paths.
+Historical imported external-order observations remain unverified; their presence
+does not prove a fresh venue query or settlement.
+
+Intentional synthetic code remains: explicit isolated demo data, simulated paper
+fills, offline conversion/shadow policies, Fake Venue chaos fixtures, local model
+test servers and synthetic Windows security drills. They are not live execution
+or venue evidence. The installed service does not call the Fake Venue, and its
+installer excludes the chaos-report binary. Removing these tests would remove
+failure coverage required by the master plan, section 14.
+
+Two misleading claims were corrected during this audit: open-market FX values
+older than the existing 120-second limit are now `STALE`, with boundary ages and
+a warning; unknown custom model prices and capacities are now explicitly unknown,
+with nullable prices rather than fabricated zero costs. SDK catalog prices are
+labeled estimates. The real provider request path is unchanged.
+
+| Order | Remaining core work | Current state / completion evidence |
+| --- | --- | --- |
+| 1 | Installed Windows custody, isolated worker, STOP and hung-service containment | Installed ACL/path audit passed after script repairs; synthetic provisioning did not acknowledge. Preserve history and diagnose before continuing custody/operator/containment stages. |
+| 2 | Service-owned account permission, exposure and lifecycle checks | Real GET/parser/journal exist; verify actual permissions, pagination, freshness and manual-order evidence. |
+| 3 | Trusted operator approval and funded submit/cancel/reconcile transport | Missing integration code; implement durable real order handling and recovery before any real probe. |
+| 4 | Protective stops, live Exit Guard and one capped Autopilot workload | Offline policies exist; real venue integration and capability evidence remain missing. |
+| 5 | Recovery on another machine | Same-host WSL portability is verified; a separate-machine restore with explicit credential reprovisioning is not. |
+| 6 | Sustained prospective paper evidence and actual-versus-modeled costs | Collect fresh per-pair coverage across uninterrupted sessions; retain outages, nonfills and stale marks honestly. Real-order calibration follows separately approved probes. |
+
+The best refinements now are reliable collection with per-pair outage/coverage
+reporting; independently calculated money/fill fixtures and measured depth,
+latency and fees; UI access to existing research schedules/retries/alerts; and an
+authenticated read-only service status projection. The current conservative
+safety response describes the local unprivileged process, not connected service
+telemetry. Reuse those existing services before adding new orchestration.
+
+The master plan's D/E expansion remains conditional: additional event clocks,
+component forms, strategies, full typed model roles and mediated tools, maker
+orders, trade credit, relay, multi-leg portfolios and RL. The current six
+strategies and text-only advisory gateway do not complete that expansion backlog.
+
+## Deferred-work implementation follow-up
+
+Joint ranked paper-entry sizing, typed numeric run-claim checks and portable
+script-free HTML summaries are implemented with 36 new Python cases. No new
+dependency, broker, model request or order authority was added. The actual saved
+holdout's −12.53677481 USDT result passed the claim checker and its standalone
+report passed browser rendering and 390px overflow checks.
+
+The provisioning diagnostic now preserves the safe failure reason; it is not yet
+installed. Read-only administrator inspection confirms the retained custody
+ledger has zero events and an intact chain, with no ciphertext generation. The
+service remains stopped/disabled; custody, worker denial, STOP and containment
+acceptance remain open. No retained history was deleted to retry a fresh drill.
+The user confirmed that a second physical machine is unavailable, so hardware-loss
+recovery is blocked. See the full [implementation plan](implementation-plan.md)
+for missing code and separate operational gates; not all deferred tasks are done.
+
+## Latest source-derived diagnostic addition
+
+The five-source review adds read-only closed-bar SMA/RSI/MACD diagnostics,
+without changing the six strategies or funded authority. Fifteen focused tests,
+the full Python suite and Ruff pass. The recorded-data CLI receipt is
+.pi/reports/btcusdt-technicals.json; absent warmup and volume remain unavailable.
+The latest addition changed no API/UI, Rust, gateway, Windows or dependencies;
+checks for those unchanged surfaces were not repeated in this pass. Source
+runtimes and provider/broker calls were not executed. Reuse decisions and
+remaining limits are in [capabilities](capabilities.md).

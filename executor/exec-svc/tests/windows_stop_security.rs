@@ -5,7 +5,7 @@ fn security_wiring_stays_fail_closed() {
     let client = include_str!("../src/bin/gym-stopctl.rs");
     assert!(
         client
-            .find("authenticate_pipe(raw, expected_pid)?")
+            .find("authenticate_pipe(pipe.as_handle(), expected_pid)?")
             .unwrap()
             < client.find("pipe.write_all(&frame)").unwrap()
     );

@@ -5,8 +5,7 @@ fn main() {
     std::process::exit(2);
 }
 #[cfg(windows)]
-#[path = "../windows_control.rs"]
-mod windows_control;
+use exec_svc::windows_control;
 #[cfg(windows)]
 fn main() {
     if std::env::args().skip(1).collect::<Vec<_>>() != ["--acknowledge-loss-of-protection"] {

@@ -76,10 +76,17 @@ def replay_cmd(args) -> int:
         options = {"resolution": args.res, "cash": cash, "cost": CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms)),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
-        if args.cmd == "compare":
-            result = compare(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate], **options)
+        if args.cmd in ("compare", "validate"):
+            from .services.temporal_validation import validate
+            if args.cmd == "validate":
+                options["folds"] = args.folds
+            compute = validate if args.cmd == "validate" else compare
+            result = compute(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate], **options)
             records = result["runs"]
-            print(f"COMPARE {result['comparison_id']} · identical window, costs and snapshots · PAPER ONLY")
+            if args.cmd == "validate":
+                report = {"run_id": result["validation_id"], **{k: v for k, v in result.items() if k != "runs"}}
+            else:
+                print(f"COMPARE {result['comparison_id']} · identical window, costs and snapshots · PAPER ONLY")
         else:
             records = [paper(db, symbol, start, end, strategy_id=args.strategy,
                              params=json.loads(args.params) if args.params else None,
@@ -88,42 +95,68 @@ def replay_cmd(args) -> int:
             path = save_run(record, store_root(args) / "runs")
             print(text_report(record))
             print(f"\nrun record: {path}")
+        if args.cmd == "validate":
+            print(json.dumps(report, indent=2))
+            print("validation record:", save_run(report, store_root(args) / "runs" / "validations"))
     finally:
         db.c.close()
     return 0
 
 
-def spreads_cmd(args) -> int:
+def market_statistics_cmd(args) -> int:
     from datetime import timedelta
 
-    from .services.market_statistics import spread_report
+    from .services.market_statistics import spread_report, trade_flow_report
 
     path = store_root(args) / "market.db"
     if not path.exists():
         raise ValueError(f"no market data in {path.parent}")
-    db = MarketDB(path)
+    db = MarketDB(path, readonly=True)
     try:
         symbol = args.symbol.upper() if args.symbol else None
-        query = "select min(ts_avail), max(ts_avail) from book_top"
-        if symbol:
-            span = db.c.execute(query + " where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
-        else:
-            span = db.c.execute(query).fetchone()
-        if not span[0]:
-            raise ValueError("no stored quotes for the requested markets")
-        start = parse_ts(args.start or span[0])
-        end = parse_ts(args.end) if args.end else parse_ts(span[1]) + timedelta(microseconds=1)
-        report = spread_report(db, start, end, symbol=symbol, store="demo" if args.demo else "live")
+        flow = args.cmd == "trade-flow"
+        query = ("select ts_event, ts_avail from trades" if flow else
+                 "select min(ts_avail), max(ts_avail) from book_top")
+        records = db.c.execute(query + (" where instrument_id=?" if symbol else ""),
+                               (f"wallex:{symbol}",) if symbol else ()).fetchall()
+        if not records or not records[0][0]:
+            raise ValueError("no stored observations for the requested markets")
+        first = min(parse_ts(row[0]) for row in records) if flow else parse_ts(records[0][0])
+        last = max(parse_ts(value) for row in records for value in row) if flow else parse_ts(records[0][1])
+        start = parse_ts(args.start) if args.start else first
+        end = parse_ts(args.end) if args.end else last + timedelta(microseconds=1)
+        report = (trade_flow_report if flow else spread_report)(
+            db, start, end, symbol=symbol, store="demo" if args.demo else "live")
         text = json.dumps(report, ensure_ascii=False, indent=2)
         if args.output:
             with Path(args.output).open("x", encoding="utf-8") as output:
                 output.write(text + "\n")
-            print(f"spread report: {args.output}; {report['samples']} observations, {len(report['groups'])} pair/hour groups")
+            print(f"{args.cmd} report: {args.output}; {report['samples']} observations, {len(report['groups'])} pair/hour groups")
         else:
             print(text)
     finally:
         db.c.close()
     return 0
+
+def technical_report_cmd(args) -> int:
+    from .services.technical_analysis import technical_report
+
+    path = store_root(args) / "market.db"
+    if not path.is_file():
+        raise ValueError("technicals require an existing market store")
+    db = MarketDB(path, readonly=True)
+    try:
+        report = technical_report(db, args.symbol.upper(), parse_ts(args.start), parse_ts(args.end),
+                                  resolution=args.res, store="demo" if args.demo else "live")
+    finally:
+        db.c.close()
+    text = json.dumps(report, ensure_ascii=False, indent=2)
+    if args.output:
+        with Path(args.output).open("x", encoding="utf-8") as destination:
+            destination.write(text + "\n")
+    print(text)
+    return 0
+
 
 def candles_cmd(args) -> int:
     """DATA-05: compare internal LAST bars from collected trades with venue candles."""
@@ -166,6 +199,25 @@ def candles_cmd(args) -> int:
         db.c.close()
     return 0
 
+def summary_cmd(args):
+    from .adapters.run_store import load_run
+    from .services.portable_report import render_html
+    from .services.reports import paper_summary
+
+    try:
+        out = load_run(store_root(args) / "runs", args.run_id)
+        text = render_html(out) if args.format == "html" else json.dumps(paper_summary(out), ensure_ascii=False)
+    except (KeyError, TypeError, AttributeError, RecursionError, UnicodeDecodeError):
+        raise ValueError("invalid run artifact structure") from None
+    if args.output:
+        with Path(args.output).open("x", encoding="utf-8") as destination:
+            destination.write(text)
+        print(args.output)
+    else:
+        print(text)
+    return 0
+
+
 def evidence_cmd(args):
     from .adapters.run_store import record_decision, run_path
     from .services.diagnostics import diagnostics
@@ -195,8 +247,13 @@ def session_cmd(args):
     cash = Decimal(args.cash or (300_000_000 if args.symbol.upper().endswith("TMN") else 1000))
     subscriptions = tuple(x.strip() for x in args.subscribe.split(",") if x.strip())
     cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
-    asyncio.run(watch(open_db(args), store_root(args) / "runs", args.symbol.upper(), args.seconds,
-                      args.res, args.fast, args.slow, cash, args.demo, subscriptions, cost))
+    db = open_db(args)
+    try:
+        asyncio.run(watch(db, store_root(args) / "runs", args.symbol.upper(), args.seconds,
+                          args.res, args.fast, args.slow, cash, args.demo, subscriptions, cost,
+                          strategy_id=args.strategy, params=json.loads(args.params) if args.params else None))
+    finally:
+        db.c.close()
     return 0
 
 
@@ -220,26 +277,33 @@ def key_cmd(args) -> int:
 
 
 def account_cmd(args) -> int:
-    """Authenticated read-only Wallex observation with the stored read key."""
-    import aiohttp
-    from .adapters import secret_store
-    from .adapters.wallex_account_read import WallexAccountReader
+    """Sanitized account observations from the selected read-only transport."""
+    from .adapters.wallex_account_read import ReadUncertain
     from .domain.account_observations import project_account
     from .domain.model import iso
     from .services.external_journal import ExternalJournal
 
-    async def read():
-        headers = {"x-api-key": secret_store.load("read")}
-        async with aiohttp.ClientSession(headers=headers) as session:
-            reader = WallexAccountReader(session)
-            balances = await reader.balances()
-            fee = await reader.fee_rates()
-            evidence = [await reader.manual_order_evidence(cid) for cid in args.order]
+    async def observe(reader):
+        balances = await reader.balances()
+        fee = await reader.fee_rates()
+        evidence = [await reader.manual_order_evidence(cid) for cid in args.order]
         orders = [{"client_id": row["client_id"], "status": row["raw_status"],
                    "symbol": row["symbol"], "filled": row["executed_qty"]} for row in evidence]
         return balances, fee, orders, evidence
 
-    from .adapters.wallex_account_read import ReadUncertain
+    service_source = getattr(args, "source", "user") == "service"
+
+    async def read():
+        if service_source:
+            from .adapters.service_account_read import ServiceAccountReader
+            return await observe(ServiceAccountReader())
+        import aiohttp
+        from .adapters import secret_store
+        from .adapters.wallex_account_read import WallexAccountReader
+        headers = {"x-api-key": secret_store.load("read")}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            return await observe(WallexAccountReader(session))
+
     try:
         balances, fee, orders, evidence = asyncio.run(read())
     except ReadUncertain as e:
@@ -247,17 +311,21 @@ def account_cmd(args) -> int:
         return 3
     observed = project_account("main", iso(now_utc()), balances=balances, orders=orders)
     nonzero = [b for b in observed["balances"] if Decimal(b["venue_value"]) or Decimal(b["venue_locked"])]
+    fee_rates = fee
+    transport = "EXECUTOR_SERVICE_WINHTTP" if service_source else "INTERACTIVE_USER_GET"
     pairs = sorted({(r["maker"], r["taker"]) for r in fee.values()})
     fee = {"symbols": len(fee), "maker_taker_rates": [list(p) for p in pairs],
            **{s: fee[s] for s in ("BTCUSDT", "USDTTMN", "BTCTMN") if s in fee}}
     print(json.dumps({"observed_at": observed["observed_at"], "fee": fee, "balances": nonzero,
                       "orders": observed["orders"], "order_evidence": evidence,
+                      "transport": transport,
+                      "permission_status": "UNVERIFIED",
                       "funded_authority": False}, ensure_ascii=False, indent=2))
     if args.record:
         root = store_root(args)
         root.mkdir(parents=True, exist_ok=True)
         with ExternalJournal(root / "external_journal.db") as journal:
-            print(f"{journal.record(observed)} observations recorded to the Journal")
+            print(f"{journal.record(observed, fee_rates=fee_rates, transport=transport)} order events and account snapshot recorded to the Journal")
     return 0
 
 
@@ -571,15 +639,30 @@ async def serve(args):
 def research_cmd(args):
     from .services.research_ledger import ResearchLedger
     root = store_root(args)
+    if args.action == "claim-check":
+        from .services.research_grounding import check_claims
+        if not args.input:
+            raise ValueError("claim-check requires an input JSON file")
+        result = check_claims(root / "runs", _strict_offline_json(args.input, max_bytes=65536),
+                              store="demo" if args.demo else "live")
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        return 0 if result["all_matched"] else 3
     if args.action == "mcp":
         from .services.research_mcp import serve_stdio
         return serve_stdio(root)
     root.mkdir(parents=True, exist_ok=True)
+    if args.action == "start":
+        from .services.research_runner import watch
+        result = asyncio.run(watch(root, store="demo" if args.demo else "live", poll_seconds=args.poll_seconds))
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        return 0
     with ResearchLedger(root / "research.sqlite3") as ledger:
         if args.action == "list":
             result = ledger.overview()
         elif args.action == "pause":
             result = ledger.pause(args.input)
+        elif args.action == "resume":
+            result = ledger.resume(args.input)
         elif args.action == "tick":
             db = open_db(args)
             try:
@@ -610,9 +693,10 @@ def main(argv=None):
     models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
     models.add_argument("model_args", nargs=argparse.REMAINDER)
     research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
-    research.add_argument("action", choices=("register", "shadow-open", "shadow-close", "schedule", "tick", "pause", "list", "mcp"))
-    research.add_argument("input", nargs="?", help="input JSON file, or job ID for pause")
+    research.add_argument("action", choices=("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list", "mcp", "claim-check"))
+    research.add_argument("input", nargs="?", help="input JSON file, or job ID for pause/resume")
     research.add_argument("--at", help="zoned ISO time for a bounded scheduler tick")
+    research.add_argument("--poll-seconds", type=float, default=5, help="supervised research polling interval, 1..60 seconds")
     research.add_argument("--demo", action="store_true", help="use the isolated DEMO research ledger")
     r = sub.add_parser("run", help="run collector + local API + UI")
     r.add_argument("--demo", action="store_true", help="synthetic DEMO feed, stored separately")
@@ -649,7 +733,11 @@ def main(argv=None):
     comparison = sub.add_parser("compare", help="paired PAPER ONLY replay on identical data, costs and snapshots")
     comparison.add_argument("--candidate", action="append", required=True,
                             help='candidate JSON, e.g. {"strategy":"ema-trend","params":{"fast":3,"slow":8}}; repeat 2..4 times')
-    for command in (replay, comparison):
+    validation = sub.add_parser("validate", help="chronological 70/30 paper selection diagnostic, with one decision period purged")
+    validation.add_argument("--candidate", action="append", required=True, help="registered candidate JSON; repeat 2..4 times")
+    validation.add_argument("--folds", type=int, choices=range(1, 6), default=1,
+                            help="1..5 successive independent 70/30 windows; default 1, not an expanding training run")
+    for command in (replay, comparison, validation):
         command.add_argument("symbol")
         command.add_argument("--demo", action="store_true")
         command.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
@@ -660,15 +748,24 @@ def main(argv=None):
         command.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
         command.add_argument("--latency-ms", type=int, default=500)
         command.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
-    research = sub.add_parser("paper-research", help="offline PAPER_ONLY liquidity, spacing, FX or financing JSON diagnostic")
+    research = sub.add_parser("paper-research", help="offline PAPER_ONLY liquidity, spacing, FX, financing, sizing, portfolio-sizing or trade-economics JSON diagnostic")
     research.add_argument("path", help='JSON object with "model" and exact "parameters"; decimals are strings')
     research.add_argument("--output", help="create a JSON report outside data/; never overwrite")
-    spreads = sub.add_parser("spreads", help="observed spread distributions by pair and Tehran hour")
-    spreads.add_argument("symbol", nargs="?", help="default: every observed market")
-    spreads.add_argument("--demo", action="store_true")
-    spreads.add_argument("--from", dest="start")
-    spreads.add_argument("--to", dest="end")
-    spreads.add_argument("--output", help="create a JSON report (never overwrite an existing file)")
+    for name, help_text in (("spreads", "observed spread distributions by pair and Tehran hour"),
+                            ("trade-flow", "observed VWAP, volume and aggressor flow, bounded by receipt time")):
+        statistics = sub.add_parser(name, help=help_text)
+        statistics.add_argument("symbol", nargs="?", help="default: every observed market")
+        statistics.add_argument("--demo", action="store_true")
+        statistics.add_argument("--from", dest="start")
+        statistics.add_argument("--to", dest="end")
+        statistics.add_argument("--output", help="create a JSON report (never overwrite an existing file)")
+    technicals = sub.add_parser("technicals", help="read-only closed MID bar SMA/RSI/MACD diagnostics; no trading signals")
+    technicals.add_argument("symbol")
+    technicals.add_argument("--from", dest="start", required=True)
+    technicals.add_argument("--to", dest="end", required=True)
+    technicals.add_argument("--res", default="15min")
+    technicals.add_argument("--demo", action="store_true")
+    technicals.add_argument("--output", help="create a new JSON report; never overwrite")
     candles = sub.add_parser("candles", help="cross-check internal trade bars against venue candles (DATA-05)")
     candles.add_argument("symbol")
     candles.add_argument("--demo", action="store_true")
@@ -722,11 +819,18 @@ def main(argv=None):
     kys.add_parser("set").add_argument("role", choices=["read", "trade"])
     kys.add_parser("show", help="masked key IDs only")
     ac = sub.add_parser("account", help="read-only Wallex balances, fee and order status with the stored read key")
+    ac.add_argument("--source", choices=("user", "service"), default="user",
+                    help="user: stored read key; service: protected installed helper (administrator only)")
     ac.add_argument("--order", action="append", default=[], metavar="CLIENT_ID", help="order to look up (repeatable)")
     ac.add_argument("--record", action="store_true", help="append the observation to the local Journal")
     ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
     ext.add_argument("path", help="local sanitized observation JSON file; no API keys")
     ext.add_argument("--demo", action="store_true")
+    summary = sub.add_parser("summary", help="allowlisted portable paper summary, without private notes or account records")
+    summary.add_argument("run_id")
+    summary.add_argument("--format", choices=("json", "html"), default="json")
+    summary.add_argument("--output", help="create a new report file; never overwrite")
+    summary.add_argument("--demo", action="store_true")
     ev = sub.add_parser("evidence", help="economic report and optional immutable claim/capital decision (never arms trading)")
     ev.add_argument("run_id")
     ev.add_argument("--demo", action="store_true")
@@ -743,6 +847,8 @@ def main(argv=None):
     se.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
     se.add_argument("--fast", type=int, default=8)
     se.add_argument("--slow", type=int, default=21)
+    se.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
+    se.add_argument("--params", help="strategy parameters as JSON; uses registry defaults when omitted")
     se.add_argument("--cash")
     se.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
     se.add_argument("--latency-ms", type=int, default=500)
@@ -753,8 +859,9 @@ def main(argv=None):
         from .services.model_gateway import run
         return run(args.model_args)
 
-    commands = {"research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd,
-                "demo-seed": demo_seed, "spreads": spreads_cmd, "candles": candles_cmd}
+    commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd,
+                "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
+                "candles": candles_cmd, "validate": replay_cmd, "technicals": technical_report_cmd}
     if args.cmd in commands:
         try:
             return commands[args.cmd](args)

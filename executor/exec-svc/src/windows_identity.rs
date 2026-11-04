@@ -81,23 +81,6 @@ fn admits_elevation(elevated: u32, kind: i32, enabled_admin: i32) -> bool {
     // Full (2) and non-split elevated administrators (Default=1), never Limited=3.
     elevated == 1 && matches!(kind, 1 | 2) && enabled_admin == 1
 }
-#[cfg(test)]
-mod elevation_tests {
-    #[test]
-    fn elevated_enabled_admin_only() {
-        for elevation in [0, 1, 2] {
-            for kind in [0, 1, 2, 3, 4] {
-                for member in [0, 1] {
-                    assert_eq!(
-                        super::admits_elevation(elevation, kind, member),
-                        elevation == 1 && (kind == 1 || kind == 2) && member == 1
-                    );
-                }
-            }
-        }
-    }
-}
-
 struct OwnedToken(HANDLE);
 impl Drop for OwnedToken {
     fn drop(&mut self) {
@@ -138,7 +121,7 @@ pub fn process_user_sid() -> io::Result<String> {
     }
     // TOKEN_USER is pointer-aligned, unlike Vec<u8>. Use pointer-sized storage.
     let word_size = std::mem::size_of::<usize>();
-    let mut storage = vec![0_usize; (size as usize + word_size - 1) / word_size];
+    let mut storage = vec![0_usize; (size as usize).div_ceil(word_size)];
     // SAFETY: storage is aligned, sized at least 'size', token and output live.
     if unsafe {
         GetTokenInformation(
@@ -217,8 +200,7 @@ pub fn executor_service_sid_from_os() -> io::Result<String> {
             "invalid service SID lookup size",
         ));
     }
-    let words =
-        (sid_len as usize + std::mem::size_of::<usize>() - 1) / std::mem::size_of::<usize>();
+    let words = (sid_len as usize).div_ceil(std::mem::size_of::<usize>());
     let mut sid_memory = vec![0_usize; words];
     let mut domain = vec![0_u16; domain_len as usize];
     let domain_ptr = if domain.is_empty() {
@@ -304,7 +286,7 @@ fn current_token_groups(
         ));
     }
     let word = std::mem::size_of::<usize>();
-    let mut aligned = vec![0_usize; (size as usize + word - 1) / word];
+    let mut aligned = vec![0_usize; (size as usize).div_ceil(word)];
     let allocated = aligned.len() * word;
     // SAFETY: an aligned buffer with the OS-requested capacity.
     let ok =
@@ -391,7 +373,7 @@ pub fn impersonated_thread_user_sid() -> io::Result<String> {
         ));
     }
     let word = std::mem::size_of::<usize>();
-    let mut aligned = vec![0_usize; (size as usize + word - 1) / word];
+    let mut aligned = vec![0_usize; (size as usize).div_ceil(word)];
     if unsafe {
         GetTokenInformation(
             token.0,
@@ -447,7 +429,7 @@ pub fn impersonated_thread_logon_sid() -> io::Result<String> {
     }
     // The token's SID pointers require pointer-aligned storage.
     let word = std::mem::size_of::<usize>();
-    let mut storage = vec![0_usize; (length as usize + word - 1) / word];
+    let mut storage = vec![0_usize; (length as usize).div_ceil(word)];
     let allocated = storage.len() * word;
     if unsafe {
         GetTokenInformation(
@@ -499,4 +481,21 @@ pub fn impersonated_thread_logon_sid() -> io::Result<String> {
         ));
     }
     Ok(sid)
+}
+
+#[cfg(test)]
+mod elevation_tests {
+    #[test]
+    fn elevated_enabled_admin_only() {
+        for elevation in [0, 1, 2] {
+            for kind in [0, 1, 2, 3, 4] {
+                for member in [0, 1] {
+                    assert_eq!(
+                        super::admits_elevation(elevation, kind, member),
+                        elevation == 1 && (kind == 1 || kind == 2) && member == 1
+                    );
+                }
+            }
+        }
+    }
 }

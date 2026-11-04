@@ -136,3 +136,31 @@ def test_partial_fill_fee_uses_actual_asset_not_quote_assumption():
     result, _ = fetch(order(fills=[fill(asset="USDT")]))
     assert result["fills"][0]["fee_asset"] == "USDT"
     assert result["settlement"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("amount", ["1e999999999", "1e-999999999", "0e-999999999"])
+def test_order_decimals_are_bounded_before_fixed_point_formatting(amount):
+    with pytest.raises(ReadUncertain, match="precision|quantity"):
+        fetch(order(executed=amount))
+
+
+def test_fill_sum_never_rounds_an_overfill_into_matching_quantity():
+    payload = order(executed="10000", fills=[fill(quantity="10000.000000000000000000000001")])
+    payload["result"]["origQty"] = "10000"
+    with pytest.raises(ReadUncertain, match="exceed|inconsistent"):
+        fetch(payload)
+
+
+def test_fill_sum_keeps_valid_high_precision_split_quantities():
+    payload = order(executed="10000", fills=[
+        fill(quantity="9999.999999999999999999999999"),
+        fill(quantity="0.000000000000000000000001"),
+    ])
+    payload["result"]["origQty"] = "10000"
+    result, _ = fetch(payload)
+    assert result["fill_coverage"] == "REPORTED_QUANTITY_MATCHES"
+
+
+def test_single_letter_venue_asset_is_valid_fill_fee_evidence():
+    result, _ = fetch(order(fills=[fill(asset="A")]))
+    assert result["fills"][0]["fee_asset"] == "A"

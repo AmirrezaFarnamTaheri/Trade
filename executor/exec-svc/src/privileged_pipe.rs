@@ -76,7 +76,7 @@ pub async fn serve(
     ready: std::sync::mpsc::Sender<()>,
     mode: StartupMode,
 ) -> io::Result<()> {
-    let mut vault = if mode == StartupMode::Normal {
+    let mut vault = if mode != StartupMode::CredentialRecovery {
         Vault::open(sid)?
     } else {
         Vault::open_mode(sid, mode)?

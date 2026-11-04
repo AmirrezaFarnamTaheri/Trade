@@ -4,8 +4,7 @@ fn main() {
     std::process::exit(2);
 }
 #[cfg(windows)]
-#[path = "../windows_control.rs"]
-mod windows_control;
+use exec_svc::windows_control;
 #[cfg(windows)]
 fn main() {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -42,7 +41,10 @@ fn run() -> Result<Vec<u8>, ()> {
     use std::{
         fs::File,
         io::{Read, Write},
-        os::windows::{ffi::OsStrExt, io::FromRawHandle},
+        os::windows::{
+            ffi::OsStrExt,
+            io::{AsHandle, FromRawHandle},
+        },
         ptr,
     };
     use windows_sys::Win32::{
@@ -77,7 +79,7 @@ fn run() -> Result<Vec<u8>, ()> {
     }
     let mut pipe = unsafe { File::from_raw_handle(raw) };
     pinned.verify().map_err(|_| ())?;
-    windows_control::authenticate_pipe(raw, pinned.pid).map_err(|_| ())?;
+    windows_control::authenticate_pipe(pipe.as_handle(), pinned.pid).map_err(|_| ())?;
     let mut correlation = [0; 16];
     if unsafe {
         BCryptGenRandom(
@@ -98,6 +100,6 @@ fn run() -> Result<Vec<u8>, ()> {
     let mut body = vec![0; len];
     pipe.read_exact(&mut body).map_err(|_| ())?;
     pinned.verify().map_err(|_| ())?;
-    windows_control::authenticate_pipe(raw, pinned.pid).map_err(|_| ())?;
+    windows_control::authenticate_pipe(pipe.as_handle(), pinned.pid).map_err(|_| ())?;
     Ok(body)
 }

@@ -49,8 +49,8 @@ def crosscheck_db(tmp_path, trades, candles, fetched_late=True, listening=True):
     return DataPortal(db)
 
 
-def candle(minute, o, h, l, c, v="1"):
-    return {"t": START + timedelta(minutes=minute), **{k: Decimal(x) for k, x in zip("ohlcv", (o, h, l, c, v))}}
+def candle(minute, o, h, low, c, v="1"):
+    return {"t": START + timedelta(minutes=minute), **{k: Decimal(x) for k, x in zip("ohlcv", (o, h, low, c, v))}}
 
 
 def test_agreeing_divergent_and_missing_periods_are_classified(tmp_path):

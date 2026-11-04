@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import InstrumentId, dec, iso
+from ..domain.model import InstrumentId, QualityLimits, dec, iso
 from ..domain.rules import is_closed
 from ..domain.sim import CostModel, Spec
 from ..domain.strategy import BuyAndHold, digest
@@ -14,6 +14,10 @@ from .rules import RuleService
 from .session import ENGINE_VERSION
 
 CENT = Decimal("1e-8")
+
+
+class PaperDataUnavailable(ValueError):
+    """A paper replay has no qualified market observations."""
 
 
 def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: datetime, resolution: str,
@@ -81,15 +85,18 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     reference_symbol = reference_symbol or getattr(strategy, "reference_symbol", None)
     main = run(portal, rules_for, strategy, symbol, t0, t1, resolution, cash, cost, subscriptions, reference_symbol)
     if main["qualified"] == 0:
-        raise ValueError(f"no qualified {symbol} quotes between {iso(t0)} and {iso(t1)}")
+        raise PaperDataUnavailable(f"no qualified {symbol} quotes between {iso(t0)} and {iso(t1)}")
     base_syms = {f"hold {inst.base}": symbol}
     if inst.quote == "TMN":
         base_syms["hold USDT"] = "USDTTMN"
     if inst.base != "BTC":
         base_syms["hold BTC"] = "BTC" + inst.quote
     baselines = {f"hold {inst.quote}": {"end": {"equity": str(cash), "net": "0"}, "fills": 0}}
+    baseline_evidence = {}
     for name, s in base_syms.items():
         b = run(portal, rules_for, BuyAndHold(), s, t0, t1, resolution, cash, cost, subscriptions)
+        # Keep raw-data and rule/spec-dependent results before reducing the baseline display.
+        baseline_evidence[s] = digest(b)
         baselines[name] = {k: b[k] for k in ("symbol", "end", "fills", "nonfills")} if b["end"] else {"unavailable": f"no qualified {s} quotes"}
 
     # Headline numeraire: USDT-equivalent through a disclosed, non-executable valuation rate.
@@ -100,10 +107,14 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
         if r0 and r1:
             fx = {"pair": "USDTTMN", "start": str(r0[0]), "start_time": iso(r0[1]), "end": str(r1[0]), "end_time": iso(r1[1]),
                   "basis": "MID of last qualified quote; derived valuation rate, not executable"}
-            # While USDT/IRT is closed the factor is the last pre-closure mid: usable for valuation, labeled stale.
             usdt = InstrumentId.wallex("USDTTMN")
-            for edge, at in (("start", t0), ("end", t1)):
-                fx[f"{edge}_status"] = "STALE_CLOSED" if is_closed(rules_for(at), usdt, at) else "LIVE"
+            for edge, at, rate in (("start", t0, r0), ("end", t1, r1)):
+                age = (at - rate[1]).total_seconds()
+                fx[f"{edge}_age_seconds"] = age
+                if is_closed(rules_for(at), usdt, at):
+                    fx[f"{edge}_status"] = "STALE_CLOSED"
+                else:
+                    fx[f"{edge}_status"] = "STALE" if age > QualityLimits().stale_s else "LIVE"
     for row in [main, *baselines.values()]:
         e = row.get("end")
         if not e:
@@ -124,6 +135,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
               "reference_symbol": reference_symbol,
               "cash": str(cash), "cost": cost.describe(), "rules_mode": rules_mode, "store": store,
               "data": main["data_digest"],
+              "auxiliary_evidence": {"baselines": baseline_evidence, "fx": fx},
               "snapshots": digest([(d["t"], d["snapshot"]) for d in main["decisions"]]),
               "metadata": metadata_ref, "ruleset_version_now": svc.load()[0]}
     rank = ranking(main, baselines)
@@ -132,6 +144,11 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
            "warnings": warnings(main, store, rules_mode, portal, symbol, t0, cost)}
     if fx and "STALE_CLOSED" in (fx["start_status"], fx["end_status"]):
         out["warnings"].append("USDT/IRT was closed at a valuation boundary: the FX factor is STALE_CLOSED (last pre-closure mid).")
+    if fx and "STALE" in (fx["start_status"], fx["end_status"]):
+        out["warnings"].append(
+            "USDT/IRT FX factor is STALE at an open-market valuation boundary "
+            f"(start age {fx['start_age_seconds']:g}s; end age {fx['end_age_seconds']:g}s). "
+            "USDT-equivalent results and ranking use the last known MID, not a current price.")
     if inst.quote == "TMN" and fx is None:
         out["warnings"].append("USDT-equivalent unavailable: no point-in-time FX valuation at the window start/end.")
     out["outputs_digest"] = digest({k: out[k] for k in ("result", "baselines", "ranking", "fx")})[:16]

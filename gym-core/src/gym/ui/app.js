@@ -2,6 +2,16 @@ const { token: TOKEN, demo: DEMO } = JSON.parse(document.getElementById("gym-con
 
 const vocabulary = {
   skipToContent: ["Skip to content", "رفتن به محتوا"],
+  observedDepth: ["Observed book depth", "عمق مشاهده‌شدهٔ دفتر سفارش"],
+  depthNote: ["Quantities within 10 / 25 / 50 bps of mid use only received levels. They do not establish full-book depth or executable capacity.", "حجم‌های فاصلهٔ ۱۰، ۲۵ و ۵۰ واحد پایه از میانه فقط از ردیف‌های دریافت‌شده‌اند؛ عمق کامل یا ظرفیت اجرای سفارش را اثبات نمی‌کنند."],
+  depthBand: ["Band (bps)", "فاصله (واحد پایه)"],
+  bidDepth: ["Bid quantity", "حجم خرید"], askDepth: ["Ask quantity", "حجم فروش"],
+  imbalance: ["Base-quantity imbalance", "عدم تعادل حجم دارایی"],
+  exportSummary: ["Download paper summary", "دریافت خلاصهٔ آزمایشی"],
+  summaryNote: ["Includes run fingerprints, valuation, modeled costs and sampled drawdown. Private notes and account records are excluded.", "شامل شناسه‌های اجرا، ارزش‌گذاری، هزینه‌های فرضی و افت نمونه‌برداری‌شده است؛ یادداشت خصوصی و سوابق حساب در آن نیست."],
+  sampledDrawdown: ["Sampled maximum drawdown", "بیشترین افت در نمونه‌ها"],
+  drawdownNote: ["Measured from starting cash and recorded equity marks, including the end estimate. Missing intervals can hide larger losses.", "از سرمایهٔ اولیه و ارزش‌های ثبت‌شده، شامل برآورد انتهایی، محاسبه شده است. فاصله‌های بدون داده می‌توانند زیان بزرگ‌تری را پنهان کنند."],
+  recordedObservations: ["Recorded observations", "مشاهدات ثبت‌شده"],
   title: ["TradingGYM · Agent workspace", "تریدینگ‌جیم · محیط عامل معاملاتی"],
   appTagline: ["Autonomous agent workspace", "محیط عامل معاملاتی خودکار"],
   navigation: ["Workspace navigation", "ناوبری محیط"],
@@ -220,9 +230,35 @@ Object.assign(vocabulary, {
   compareError: ["Comparison failed. Check the window, cash, costs and parameter constraints; no order was submitted.", "مقایسه ناموفق بود. بازه، سرمایه، هزینه‌ها و محدودیت پارامترها را بررسی کنید؛ سفارشی ارسال نشده است."],
   comparisonChanged: ["Inputs changed. Run a new matched comparison.", "ورودی‌ها تغییر کردند. مقایسهٔ همسان تازه‌ای اجرا کنید."],
   comparisonLimit: ["Independent paper accounts, not a multi-asset portfolio. Results cannot authorize capital.", "حساب‌های آزمایشی مستقل، نه پرتفوی چنددارایی. نتایج مجوز استفاده از سرمایه نیستند."],
-  inspectRun: ["Inspect run", "بررسی اجرا"], parameterFast: ["Fast EMA bars", "تعداد کندل EMA سریع"], parameterSlow: ["Slow EMA bars", "تعداد کندل EMA کند"],
-  parameterLookback: ["Lookback bars", "تعداد کندل گذشته"], parameterEntry: ["Entry distance · bps", "فاصلهٔ ورود · واحد پایه"], parameterConfirmation: ["Closed confirmation bar", "کندل بسته‌شدهٔ تأیید"], parameterReference: ["Reference market", "بازار مرجع"],
+  inspectRun: ["Inspect run", "بررسی اجرا"], parameterFast: ["Fast average bars", "تعداد کندل میانگین سریع"], parameterSlow: ["Slow average bars", "تعداد کندل میانگین کند"],
+  parameterLookback: ["Lookback bars", "تعداد کندل گذشته"], parameterEntry: ["Entry distance · bps", "فاصلهٔ ورود · واحد پایه"], parameterConfirmation: ["Closed confirmation bar", "کندل بسته‌شدهٔ تأیید"], parameterReference: ["Reference market", "بازار مرجع"], parameterDeviations: ["Standard deviations", "تعداد انحراف معیار"],
   recentEvidenceEmpty: ["No saved run evidence yet.", "هنوز شواهد اجرای ذخیره‌شده‌ای نیست."],
+  researchJobs: ["Scheduled paper research", "پژوهش آزمایشی زمان‌بندی‌شده"], researchAlerts: ["Research alerts", "اعلان‌های پژوهش"],
+  runDueResearch: ["Run due jobs now", "اجرای پژوهش‌های سررسیدشده"],
+  researchScheduleNote: ["Schedules are stored locally. Continuous execution requires the foreground research runner; this button runs one bounded batch.", "زمان‌بندی‌ها محلی ذخیره می‌شوند. اجرای پیوسته به برنامهٔ پژوهش در حال اجرا نیاز دارد؛ این دکمه یک نوبت محدود را اجرا می‌کند."],
+  noResearchJobs: ["No research schedules recorded.", "زمان‌بندی پژوهشی ثبت نشده است."],
+  noResearchAlerts: ["No research alerts recorded.", "اعلان پژوهشی ثبت نشده است."],
+  nextResearchRun: ["Next due time", "سررسید بعدی"], lastResearchRun: ["Latest result", "آخرین نتیجه"],
+  researchRetry: ["Retry at", "زمان تلاش مجدد"], researchPause: ["Pause", "مکث"], researchResume: ["Resume", "ادامه"],
+  researchPaused: ["Paused", "متوقف"], researchEnabled: ["Enabled", "فعال"],
+  researchControlDone: ["Research control completed. No order was submitted.", "عملیات پژوهشی انجام شد. سفارشی ارسال نشد."],
+  researchControlError: ["Research operation failed. Refresh the recorded job state before retrying.", "عملیات پژوهشی ناموفق بود. پیش از تلاش مجدد، وضعیت ثبت‌شده را تازه کنید."],
+  researchStateError: ["Research schedules could not be read.", "خواندن زمان‌بندی‌های پژوهش ممکن نیست."],
+  RESEARCH_FAILED: ["Paper research failed", "پژوهش آزمایشی ناموفق بود"], RESEARCH_COMPLETED: ["Paper research completed", "پژوهش آزمایشی تکمیل شد"],
+  COMPLETED: ["Completed", "تکمیل‌شده"], READY: ["Ready", "آماده"], DEGRADED: ["Degraded", "ناقص"],
+  MISSING: ["Missing data", "داده موجود نیست"], FUTURE: ["Future timestamp", "زمان در آینده"],
+  publicReadiness: ["Public-data readiness", "آمادگی داده‌های عمومی"],
+  publicReadinessNote: ["Checks current book sides. A connected stream or fresh ping does not prove fresh quotes or trading authority.", "دو سمت دفتر سفارش اکنون بررسی می‌شوند. اتصال جریان یا پیام تازه، تازگی مظنه یا مجوز معامله را ثابت نمی‌کند."],
+  bidAge: ["Bid age · seconds", "سن خرید · ثانیه"], askAge: ["Ask age · seconds", "سن فروش · ثانیه"],
+  actions: ["Actions", "عملیات"], FAILED: ["Failed", "ناموفق"], BLOCKED: ["Blocked", "مسدود"],
+  validateAction: ["Run chronological validation", "اجرای اعتبارسنجی زمانی"],
+  validationWindows: ["Validation windows", "تعداد بازه‌های اعتبارسنجی"],
+  validationWindowsHelp: ["Validation only · separate accounts in each window.", "فقط اعتبارسنجی · حساب جداگانه برای هر بازه."],
+  validationWindow: ["Window", "بازه"], INCOMPLETE: ["Incomplete evaluation", "ارزیابی ناقص"],
+  validationNote: ["Chronological validation selects on the first 70%, skips one decision period, then evaluates the fixed choice on later data. Repeated historical tests are not independent final evidence.", "اعتبارسنجی زمانی با ۷۰٪ نخست انتخاب می‌کند، یک دورهٔ تصمیم را کنار می‌گذارد و انتخاب ثابت را با داده‌های بعدی می‌سنجد. آزمون تاریخی تکراری، شاهد نهایی مستقل نیست."],
+  validationTitle: ["Chronological validation", "اعتبارسنجی زمانی"], selectionWindow: ["Selection window", "بازهٔ انتخاب"], holdoutWindow: ["Later evaluation window", "بازهٔ ارزیابی بعدی"],
+  selectedCandidate: ["Selected candidate", "گزینهٔ انتخاب‌شده"], ABSTAIN: ["No eligible candidate", "گزینهٔ واجد شرایط وجود ندارد"],
+  EVALUATED: ["Evaluated", "ارزیابی‌شده"], STALE_HOLDOUT: ["Later valuation is stale", "ارزش‌گذاری بازهٔ بعدی کهنه است"],
 });
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,
   Object.fromEntries(Object.entries(vocabulary).map(([key, values]) => [key, values[i]]))]));
@@ -236,7 +272,7 @@ let lang = saved("lang", "en", ["en", "fa"]);
 let theme = saved("theme", "light", ["light", "dark"]);
 const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [],
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
-  researchSetup: null, comparison: null, comparing: false, candidateParams: {} };
+  researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };
 let comparisonRevision = 0;
 const t = key => T[lang][key] ?? key;
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -318,6 +354,7 @@ function applyLang() {
   renderOverview(); renderTicketFields(); renderFeed(); updateClock();
   if (state.researchSetup) { for (const slot of ["first", "second"]) renderCandidate(slot); renderCoverage(); }
   renderComparison();
+  if (state.researchState) renderResearchJobs(state.researchState);
 }
 
 const invalidQuoteFlags = new Set(["STALE", "CROSSED", "ZERO_SPREAD", "NON_FINITE", "NON_POSITIVE"]);
@@ -376,12 +413,13 @@ function renderMarkets() {
       ${expanded ? `<tr class="market-detail-row"><td colspan="8"><section class="market-detail" id="${esc(id)}" aria-label="${esc(t("pairDetails") + " " + market.symbol)}">
         ${keyValues([[t("bestBidQuantity"), `${amount(market.bid_qty)} ${code(market.base)}`], [t("bestAskQuantity"), `${amount(market.ask_qty)} ${code(market.base)}`],
           [t("absoluteSpread"), `${amount(market.spread)} ${code(market.quote)}`], ...(market.unit ? [[t("unitEpoch"), `${code(market.unit.code)} · ${num(market.unit.epoch)}`]] : [])])}
+        <h3>${esc(t("observedDepth"))}</h3><p class="field-help">${esc(t("depthNote"))}</p>${market.liquidity?.status === "AVAILABLE" ? table([t("depthBand"), `${t("bidDepth")} · ${market.base}`, `${t("askDepth")} · ${market.base}`, t("imbalance")], market.liquidity.bands.map(band => [num(band.width_bps), amount(band.bid_base), amount(band.ask_base), amount(band.imbalance)])) : empty(t("unavailable"))}
         <div class="detail-grid">${verdictDetails(t("entry"), market.act?.entry)}${verdictDetails(t("exit"), market.act?.exit)}</div></section></td></tr>` : ""}`;
   }).join(""));
 }
 
 function renderRunList() {
-  setHTML("run-list", state.runs.map(run => `<li><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(when(run.inputs?.from, true))}</span><span class="sub">${code(run.run_id)} · ${esc(run.inputs?.store || run.mode || "PAPER")}</span></button></li>`).join(""));
+  setHTML("run-list", state.runs.map(run => `<li><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(when(run.inputs?.from, true))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
 }
 function curveFigure(result) {
   const points = list(result.curve).filter(point => Array.isArray(point) && point.length > 1 && Number.isFinite(Number(point[1])));
@@ -434,20 +472,21 @@ function renderRun(record) {
   const decisions = list(result.decisions).slice(-100).reverse();
   setHTML("run-detail", `<header class="run-heading"><div><span class="eyebrow">${esc(inputs.store === "demo" ? t("synthetic") : t("paperOnly"))}</span><h2>${code(result.symbol || inputs.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h2><p class="field-help">${esc(when(inputs.from))} → ${esc(when(inputs.to))} · ${code(inputs.resolution)} · ${code(result.session?.state || record.mode || "PAPER")}</p></div>${chip(t("noCapital"))}</header>
     <div class="stats">${stat(t("equity"), `${amount(end.equity)} <small>${esc(quote)}</small>`)}${stat(t("net"), `${amount(end.net)} <small>${esc(quote)}</small>`)}${stat(t("fills"), num(result.fills))}${stat(t("observations"), `${num(result.qualified)} <small>/ ${num(result.observations)}</small>`)}</div>
-    <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}</section>
+    <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
     <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${waterfallFigure(entries, quote)}${costs}<p class="field-help">${esc(t("updated"))} ${esc(when(end.mark_time))}</p></section>
     <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3><p class="field-help">${esc(t("baselineNote"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines)}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), amount(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"))}
       ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), amount(row.net_quote), amount(row.net_usdt_eq)]))}` : ""}</section>
     <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("evidenceTitle"))}</h3>${chip(t("noCapital"))}</div>${evidence ? `<p>${esc(evidence.primary_limitation)}</p>${keyValues([[t("roundTrips"), num(evidence.completed_round_trips)], [t("claimCeiling"), code(evidence.claim_ceiling)], [t("evidenceGate"), esc(t(evidence.gate_eligible === true ? "yes" : "no"))]])}` : `<p>${esc(t("noEvidence"))}</p>`}
       ${list(record.warnings || evidence?.warnings).length ? `<ul class="evidence-warnings">${list(record.warnings || evidence?.warnings).map(warning => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
+      <button type="button" class="button" data-export-run="${esc(record.run_id)}">${esc(t("exportSummary"))}</button><p class="field-help">${esc(t("summaryNote"))}</p>
       ${disclosure(t("reportDetails"), { report: evidence || null, capital_decisions: record.capital_decisions || [] }, "economic-evidence")}${disclosure(t("runInputs"), { inputs, session: result.session, fx: record.fx, outputs_digest: record.outputs_digest }, "run-inputs")}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("lastDecisions"))}</h3><p class="field-help">${esc(t("decisionHelp"))}</p>${decisions.length ? decisions.map((decision, i) => `<details class="decision disclosure" data-key="decision-${esc(decision.t)}-${esc(decision.order || i)}"><summary><span>${esc(when(decision.t))}</span> <strong>${esc(decision.action)}</strong> <span class="muted">${list(decision.reasons).map(esc).join("; ")}</span></summary>${json({ ...decision, order: list(result.orders).find(order => order.ref === decision.order) || null })}</details>`).join("") : empty(t("noDecisions"))}</section>`);
 }
 function renderCandidate(slot) {
   const entry = list(state.researchSetup?.strategies).find(item => item.id === $("candidate-" + slot).value);
   if (!entry) return;
-  const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference" };
+  const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference", deviations: "parameterDeviations" };
   const values = state.candidateParams[slot] || {};
   setHTML("candidate-" + slot + "-params", Object.entries(entry.parameters.properties).map(([key, spec]) => {
     const id = `parameter-${slot}-${key}`, value = values[key] ?? spec.default;
@@ -460,7 +499,7 @@ function renderCandidate(slot) {
 function renderCoverage() {
   const data = state.researchSetup?.coverage;
   if (!data) return;
-  setHTML("paper-coverage", `<p><strong>${esc(t("coverageTitle"))} · ${code(data.symbol)}</strong> ${esc(when(data.from))} → ${esc(when(data.to))}</p><p>${esc(t("observations"))}: ${num(data.observations)} · ${esc(t("coverageGaps"))}: ${num(data.gaps_over_120s)}</p><p>${esc(t("coverageNote"))}</p>`);
+  setHTML("paper-coverage", `<p><strong>${esc(t("coverageTitle"))} · ${code(data.symbol)}</strong> ${esc(when(data.from))} → ${esc(when(data.to))}</p><p>${esc(t("recordedObservations"))}: ${num(data.observations)} · ${esc(t("coverageGaps"))}: ${num(data.gaps_over_120s)}</p><p>${esc(t("coverageNote"))}</p>`);
 }
 async function setupResearch(symbol = "") {
   $("comparison-fields").disabled = true;
@@ -500,10 +539,18 @@ function renderComparison() {
   $("compare-submit").textContent = t(state.comparing ? "comparing" : "compareAction");
   const data = state.comparison;
   if (!data) return;
+  if (["TEMPORAL_VALIDATION", "MULTI_WINDOW_VALIDATION"].includes(data.mode)) {
+    const windowText = window => `${esc(when(window.from))} → ${esc(when(window.to))}`;
+    const windows = data.mode === "MULTI_WINDOW_VALIDATION" ? list(data.folds) : [data];
+    setHTML("compare-result", `<section class="ticket-result"><h3>${esc(t("validationTitle"))} · ${code(data.validation_id)}</h3>${keyValues([
+      [t("status"), label(data.status)], [t("validationWindows"), num(windows.length)],
+    ])}<p class="field-help">${esc(t("validationNote"))}</p>${table([t("validationWindow"), t("status"), t("selectionWindow"), t("holdoutWindow"), t("selectedCandidate")], windows.map((fold, index) => [num(index + 1), label(fold.status), windowText(fold.windows.selection), windowText(fold.windows.holdout), code(fold.selected?.strategy)]))}${table([t("strategy"), t("time"), t("net"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), esc(when(record.inputs.to)), amount(record.result.end?.net), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}${disclosure(t("runInputs"), { folds: windows, trial_count: data.trial_count, limitation: data.limitation }, "validation-inputs")}</section>`);
+    return;
+  }
   const quote = data.runs[0]?.result?.quote || "";
   setHTML("compare-result", `<section class="ticket-result"><h3>${esc(t("compareTitle"))} · ${code(data.comparison_id)}</h3><p>${esc(t("comparisonLimit"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), amount(record.result.end?.net), amount(record.result.end?.net_usdt_eq), num(record.result.fills), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}<h4>${esc(t("rankingTitle"))}</h4>${table([t("rank"), t("strategy"), t("usdtEquivalent")], list(data.ranking?.active).map(row => [num(row.rank), esc(row.name), amount(row.net_usdt_eq)]), t("noActiveRank"))}${disclosure(t("runInputs"), { shared: data.shared_inputs, candidates: data.runs.map(record => ({ run_id: record.run_id, config_hash: record.inputs.config_hash, params: record.inputs.params })) }, "comparison-inputs")}</section>`);
 }
-async function submitComparison(event) {
+async function submitComparison(event, validation = false) {
   event.preventDefault();
   if (state.comparing || !state.researchSetup || $("comparison-fields").disabled || $("compare-form").reportValidity?.() === false) return;
   const revision = comparisonRevision;
@@ -518,13 +565,17 @@ async function submitComparison(event) {
     }));
     return { strategy, params };
   });
-  state.comparison = null; state.comparing = true; $("compare-submit").disabled = true; $("compare-submit").setAttribute("aria-busy", "true");
+  state.comparison = null; state.comparing = true; $("compare-submit").disabled = true; $("validate-submit").disabled = true; $("compare-submit").setAttribute("aria-busy", "true");
   setHTML("compare-result", empty(t("comparing"))); renderComparison();
   try {
-    const data = await api("/api/compare", { method: "POST", body: JSON.stringify({ symbol: $("compare-symbol").value,
+    const folds = Number($("validation-folds").value);
+    const payload = { symbol: $("compare-symbol").value,
       from: $("compare-from").value + "Z", to: $("compare-to").value + "Z", resolution: $("compare-resolution").value,
-      cash: $("compare-cash").value, fee_rate: $("compare-fee").value, latency_ms: 500, candidates }) }, 120000);
-    if (data.mode !== "COMPARE" || data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsafe comparison response");
+      cash: $("compare-cash").value, fee_rate: $("compare-fee").value, latency_ms: 500, candidates };
+    if (validation) payload.folds = folds;
+    const data = await api(validation ? "/api/validate" : "/api/compare", { method: "POST", body: JSON.stringify(payload) }, 120000);
+    const expected = validation ? (folds === 1 ? "TEMPORAL_VALIDATION" : "MULTI_WINDOW_VALIDATION") : "COMPARE";
+    if (data.mode !== expected || data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsafe comparison response");
     if (revision === comparisonRevision && signature === inputSignature()) { state.comparison = data; renderComparison(); }
     else if (revision === comparisonRevision) invalidateComparison();
     await research();
@@ -532,7 +583,7 @@ async function submitComparison(event) {
     if (revision === comparisonRevision && signature !== inputSignature()) invalidateComparison();
     else if (revision === comparisonRevision) setHTML("compare-result", empty(t("compareError")));
   }
-  finally { state.comparing = false; $("compare-submit").disabled = false; $("compare-submit").removeAttribute("aria-busy"); renderComparison(); }
+  finally { state.comparing = false; $("compare-submit").disabled = false; $("validate-submit").disabled = false; $("compare-submit").removeAttribute("aria-busy"); renderComparison(); }
 }
 
 async function research() {
@@ -551,6 +602,44 @@ async function research() {
     const record = await api("/api/runs/" + encodeURIComponent(id));
     if (state.selectedRun === id) { state.record = record; renderRun(record); }
   } catch (_) { if (state.selectedRun === id) setHTML("run-detail", empty(t("runReadError"))); throw new Error(t("requestError")); }
+}
+
+function renderResearchJobs(data) {
+  const hypotheses = new Map(list(data.hypotheses).map(row => [row.id, row]));
+  const jobs = list(data.jobs);
+  $("research-tick").disabled = state.researchBusy || !jobs.some(job => job.enabled === true);
+  setHTML("research-jobs", table([t("strategy"), t("symbol"), t("status"), t("nextResearchRun"), t("lastResearchRun"), t("researchRetry"), t("actions")], jobs.map(job => {
+    const hypothesis = hypotheses.get(job.hypothesis_id), action = job.enabled ? "pause" : "resume";
+    return [code(hypothesis?.strategy), code(hypothesis?.symbol), esc(t(job.enabled ? "researchEnabled" : "researchPaused")),
+      esc(when(job.next_at)), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : label(job.last_report?.status), esc(when(job.last_report?.retry_at)),
+      `<button type="button" class="button button-small" data-research-action="${action}" data-job="${esc(job.id)}" data-focus="research-${esc(job.id)}"${state.researchBusy ? " disabled" : ""}>${esc(t(action === "pause" ? "researchPause" : "researchResume"))}</button>`];
+  }), t("noResearchJobs")));
+  setHTML("research-alerts", table([t("time"), t("status"), t("researchRetry")], list(data.alerts).slice(0, 20).map(alert => [esc(when(alert.due_at)), label(alert.kind), esc(when(alert.retry_at))]), t("noResearchAlerts")));
+}
+async function researchJobs() {
+  try {
+    const data = await api("/api/research-state");
+    if (data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsupported research authority");
+    state.researchState = data; renderResearchJobs(data);
+  } catch (_) {
+    state.researchState = null;
+    $("research-tick").disabled = true;
+    setHTML("research-jobs", empty(t("researchStateError")));
+    throw new Error(t("requestError"));
+  }
+}
+async function controlResearch(action, id = "") {
+  if (state.researchBusy || !["tick", "pause", "resume"].includes(action)) return;
+  state.researchBusy = true;
+  if (state.researchState) renderResearchJobs(state.researchState);
+  try {
+    const path = action === "tick" ? "/api/research/tick" : `/api/research/jobs/${encodeURIComponent(id)}/${action}`;
+    const result = await api(path, { method: "POST", body: "{}" }, 120000);
+    if (result.authority !== "PAPER_ONLY" || result.funded_authority !== false || result.order_submitted !== false) throw new Error("unsupported research authority");
+    setHTML("research-control-result", `<p>${esc(t("researchControlDone"))}</p>`);
+    await researchJobs();
+  } catch (_) { setHTML("research-control-result", empty(t("researchControlError"))); }
+  finally { state.researchBusy = false; if (state.researchState) renderResearchJobs(state.researchState); }
 }
 
 async function accountJournal() {
@@ -694,6 +783,8 @@ function renderHealth(data) {
   const events = [...(data.fatal ? [data.fatal] : []), ...list(data.errors)];
   setHTML("health-errors", events.length ? `<ul class="event-list">${events.map(event => `<li>${typeof event === "string" ? esc(event) : json(event)}</li>`).join("")}</ul>` : empty(t("noCollectorEvents")));
   setHTML("health-quality", table([t("time"), t("instrument"), t("flag"), t("detail")], list(data.quality).map(row => [esc(when(row.ts)), code(row.instrument), label(row.flag), esc(row.detail)]), t("noQualityEvents")));
+  const readiness = data.readiness;
+  setHTML("health-readiness", `<h2 class="panel-title">${esc(t("publicReadiness"))}</h2><p class="field-help">${esc(t("publicReadinessNote"))}</p><p>${label(readiness?.status)}</p>${table([t("pair"), t("status"), t("bidAge"), t("askAge")], list(readiness?.markets).map(row => [code(row.symbol), label(row.state), num(row.bid_age_seconds), num(row.ask_age_seconds)]), t("unavailable"))}`);
 }
 async function venueFacts() {
   try {
@@ -734,7 +825,10 @@ async function collectView(name, healthTask) {
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
   }
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
-  if (name === "research") await research();
+  if (name === "research") {
+    const results = await Promise.allSettled([research(), researchJobs()]);
+    if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
+  }
   if (name === "account") {
     const results = await Promise.allSettled([accountJournal(), externalJournal(), offlineReviews()]);
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
@@ -796,8 +890,29 @@ function selectSavedRun(event) {
   renderRunList(); refresh();
 }
 $("run-list").addEventListener("click", selectSavedRun);
+$("run-detail").addEventListener("click", async event => {
+  const button = event.target.closest?.("[data-export-run]") || event.target;
+  if (!button.dataset.exportRun) return;
+  button.disabled = true;
+  try {
+    const card = await api("/api/runs/" + encodeURIComponent(button.dataset.exportRun) + "/summary");
+    const url = URL.createObjectURL(new Blob([JSON.stringify(card, null, 2)], { type: "application/json" }));
+    try {
+      const link = document.createElement("a");
+      link.href = url; link.download = `paper-${button.dataset.exportRun}.json`; link.click();
+    } finally { URL.revokeObjectURL(url); }
+  } catch (_) { state.apiError = true; renderFeed(); }
+  finally { button.disabled = false; }
+});
 $("compare-result").addEventListener("click", selectSavedRun);
 $("compare-form").addEventListener("submit", submitComparison);
+$("validate-submit").onclick = event => submitComparison(event, true);
+$("research-tick").onclick = () => controlResearch("tick");
+$("research-jobs").addEventListener("click", event => {
+  const button = event.target.closest?.("[data-research-action]") || event.target;
+  if (button.dataset.researchAction) controlResearch(button.dataset.researchAction, button.dataset.job);
+  else selectSavedRun(event);
+});
 $("compare-form").addEventListener("input", event => {
   const { slot, parameter } = event.target.dataset;
   if (parameter) { state.candidateParams[slot] ||= {}; state.candidateParams[slot][parameter] = event.target.value; }

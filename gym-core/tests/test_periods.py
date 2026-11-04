@@ -1,6 +1,6 @@
 """Original D backlog #2/#3: canonical periods and causal event delivery."""
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal as D
 from itertools import permutations
 from random import Random
@@ -9,7 +9,7 @@ import pytest
 
 from gym.domain.bars import (BarSpec, ClockEvent, CloseSubscriptions, Consolidator, EventClock,
                              quote_bars)
-from gym.domain.model import TEHRAN, UTC, TradeTick, parse_ts
+from gym.domain.model import TEHRAN, TradeTick, parse_ts
 from gym.domain.periods import Calendar, Count, DirectionalChange, Fixed, Mixed, Volume
 from tests.support import START, quote
 

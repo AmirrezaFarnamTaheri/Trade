@@ -1,6 +1,5 @@
 """C1-C3 operator cockpit must never imply funded or certified permissions."""
 import asyncio
-import json
 
 from aiohttp.test_utils import TestClient, TestServer
 from gym.adapters.store import MarketDB, SegmentWriter

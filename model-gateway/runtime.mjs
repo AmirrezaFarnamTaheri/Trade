@@ -22,7 +22,8 @@ function requestModel(c, p) {
   const model = known ? { ...known } : {
     id: p.model, name: p.model, provider: c.provider, api: c.protocol,
     baseUrl: c.baseURL, reasoning: false, input: ['text'],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 65536,
+    // SDK numeric placeholders: zero context means unknown; costs never leave this adapter as prices.
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 0, maxTokens: 65536,
   };
   if (c.protocol) { model.api = c.protocol; model.baseUrl = c.baseURL; delete model.headers; }
   check(supported.has(model.api), 'unsupported_protocol');
@@ -82,6 +83,8 @@ export async function complete(state, config, presetId, input, { signal: externa
   check(p, 'unknown_preset');
   const c = config.connections.find(c => c.id === p.connection);
   const model = requestModel(c, p);
+  const catalogModel = c.protocol ? undefined : catalog.getModel(c.provider, p.model);
+  const maxTokens = p.maxTokens ?? Math.min(1024, model.maxTokens);
   const timer = AbortSignal.timeout(config.policy.timeoutMs);
   const signal = external ? AbortSignal.any([timer, external]) : timer;
   const options = { signal };
@@ -140,7 +143,7 @@ export async function complete(state, config, presetId, input, { signal: externa
       try {
         result = await abortable(models.complete(model, context, {
           signal, fetch: guardedFetch, maxRetries: 0, timeoutMs: config.policy.timeoutMs,
-          transport: 'sse', sessionId, maxTokens: p.maxTokens ?? Math.min(1024, model.maxTokens),
+          transport: 'sse', sessionId, maxTokens,
           ...(p.temperature === undefined ? {} : { temperature: p.temperature }),
         }), signal);
       } catch { if (signal.aborted) throw new GatewayError('cancelled_or_deadline'); }
@@ -149,7 +152,22 @@ export async function complete(state, config, presetId, input, { signal: externa
         check(result.stopReason !== 'toolUse' && result.content.every(b => b.type !== 'toolCall'), 'unexpected_tool_call');
         const text = result.content.filter(b => b.type === 'text').map(b => b.text).join('');
         check(Buffer.byteLength(text) <= 1024 * 1024, 'response_too_large');
-        return { mode: 'RESEARCH_ONLY', funded_authority: false, text, usage: result.usage, model: { provider: c.provider, id: model.id, preset: p.id, connection: c.id }, stopReason: result.stopReason };
+        const costSource = result.usage.cost.totalFromProvider ? 'PROVIDER_REPORTED' : catalogModel ? 'SDK_CATALOG_ESTIMATE' : 'UNKNOWN';
+        const cost = costSource === 'PROVIDER_REPORTED' ? { total: result.usage.cost.total, totalFromProvider: true } : catalogModel ? result.usage.cost : null;
+        return {
+          mode: 'RESEARCH_ONLY', funded_authority: false, text,
+          usage: { ...result.usage, cost, costSource },
+          model: {
+            provider: c.provider, id: model.id, preset: p.id, connection: c.id,
+            metadata: {
+              source: catalogModel ? 'SDK_CATALOG' : 'UNKNOWN', providerVerified: false,
+              contextWindow: catalogModel?.contextWindow ?? null, maxOutputTokens: catalogModel?.maxTokens ?? null,
+              reasoning: catalogModel?.reasoning ?? null, input: catalogModel?.input ?? null,
+            },
+            requestOutputTokens: maxTokens, gatewayOutputCeiling: 65536,
+          },
+          stopReason: result.stopReason,
+        };
       }
       const kind = !sent || responseError || (info?.status >= 200 && info?.status < 400) ? 'fatal' : failure(info);
       if (c.auth.type === 'api_key' && (kind === 'auth' || kind === 'cooldown')) {

@@ -2,11 +2,12 @@
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
+import re
 
 from gym.adapters.store import MarketDB, SegmentWriter
 from gym.adapters.run_store import save_run
 from gym.api.server import make_app
-from gym.domain.model import UTC, BookTop
+from gym.domain.model import UTC
 from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.rules import RuleService
@@ -43,8 +44,11 @@ def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
     async def check():
         db = MarketDB(tmp_path / "market.db")
         col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT", "ETHUSDT", "LTCUSDT"])
-        col.tops["BTCUSDT"] = BookTop("BTCUSDT", START, Decimal("1E-8"), Decimal("2E-8"), Decimal("1"), Decimal("2"), frozenset())
-        col.tops["ETHUSDT"] = BookTop("ETHUSDT", START, Decimal("2E-8"), Decimal("1E-8"), Decimal("1"), Decimal("2"), frozenset())
+        now = datetime.now(UTC)
+        for symbol, bid, ask in (("BTCUSDT", "1E-8", "2E-8"), ("ETHUSDT", "2E-8", "1E-8")):
+            col.on_depth(symbol, "bid", [(Decimal(bid), Decimal("1"))], now, "fixture")
+            col.on_depth(symbol, "ask", [(Decimal(ask), Decimal("2"))], now, "fixture")
+        col.tick(now)
         try:
             async with TestClient(TestServer(make_app(col, RuleService(db), "tok"), host="127.0.0.1")) as client:
                 response = await client.get("/api/markets")
@@ -54,9 +58,40 @@ def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
                 assert rows["BTCUSDT"]["bid"] == "1E-8"
                 assert rows["BTCUSDT"]["ask"] == "2E-8"
                 assert rows["ETHUSDT"]["qualified"] is False
-                assert rows["ETHUSDT"]["flags"] == []
+                assert "CROSSED" in rows["ETHUSDT"]["flags"]
                 assert rows["LTCUSDT"]["qualified"] is False
                 assert rows["LTCUSDT"]["bid"] is None
+        finally:
+            db.c.close()
+
+    asyncio.run(check())
+
+
+def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch):
+    from aiohttp.test_utils import TestClient, TestServer
+    from gym.api import server
+
+    ui = tmp_path / "index.html"
+    ui.write_text('<script src="/app.js"></script><link href="/styles.css">', encoding="utf-8")
+    script, style = tmp_path / "app.js", tmp_path / "styles.css"
+    script.write_text("// old", encoding="utf-8")
+    style.write_text("body {}", encoding="utf-8")
+    monkeypatch.setattr(server, "UI", ui)
+
+    async def check():
+        db = MarketDB(tmp_path / "market.db")
+        col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
+        try:
+            async with TestClient(TestServer(make_app(col, RuleService(db), "tok"), host="127.0.0.1")) as client:
+                first = await (await client.get("/")).text()
+                assert first == await (await client.get("/")).text()
+                script.write_text("// new", encoding="utf-8")
+                updated = await (await client.get("/")).text()
+                assert first != updated
+                urls = re.findall(r'(?:src|href)="([^"]+)"', updated)
+                assert len(urls) == 2 and all("?v=" in url for url in urls)
+                assert (await (await client.get(urls[0])).text()) == "// new"
+                assert (await (await client.get(urls[1])).text()) == "body {}"
         finally:
             db.c.close()
 

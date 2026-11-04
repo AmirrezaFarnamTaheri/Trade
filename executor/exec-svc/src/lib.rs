@@ -1,6 +1,8 @@
 //! Stop control is outside the money loop: an atomic, monotone gate with
 //! independent request validation. No venue execution or credential handling.
-use exec_ipc::{ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE};
+use exec_ipc::{
+    ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE,
+};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 /// The LocalService primary user is required but is not sufficient by itself.
@@ -40,7 +42,9 @@ pub fn is_restricted_executor_token(
     {
         return false;
     }
-    groups.iter().any(|group| group.enabled && group.sid == service_sid)
+    groups
+        .iter()
+        .any(|group| group.enabled && group.sid == service_sid)
         && restricting_sids.iter().any(|sid| sid == service_sid)
 }
 
@@ -49,6 +53,9 @@ pub mod windows_identity;
 
 #[cfg(windows)]
 pub mod windows_pipe;
+
+#[cfg(windows)]
+pub mod windows_control;
 
 pub struct StopGate {
     runtime_epoch: u64,
@@ -60,11 +67,17 @@ impl StopGate {
         if runtime_epoch == 0 {
             return Err(ProtocolError::InvalidIdentity);
         }
-        Ok(Self { runtime_epoch, mode: AtomicU8::new(StopMode::Disarmed as u8) })
+        Ok(Self {
+            runtime_epoch,
+            mode: AtomicU8::new(StopMode::Disarmed as u8),
+        })
     }
 
     pub fn mode(&self) -> StopMode {
-        self.mode.load(Ordering::SeqCst).try_into().expect("mode only stored by StopGate")
+        self.mode
+            .load(Ordering::SeqCst)
+            .try_into()
+            .expect("mode only stored by StopGate")
     }
 
     pub fn runtime_epoch(&self) -> u64 {

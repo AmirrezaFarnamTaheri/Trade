@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal, localcontext
+from decimal import ROUND_FLOOR, Decimal, localcontext
 import re
 from statistics import median
 
@@ -292,9 +292,83 @@ def financing(product, side, quote_currency, collateral, quantity, borrowed, int
             "assumptions": "simple interest on remaining principal; quote fees; mark/close long at bid and short at ask; no top-up; closed markets never send"}
 
 
+def position_sizing(quote_currency, equity, cash, entry_price, stop_price, risk_fraction,
+                    max_position_fraction, cash_buffer_fraction, quantity_step, fee_rate, slippage_rate):
+    """Long-only paper sizing; a hypothetical stop price is not guaranteed execution."""
+    currency(quote_currency)
+    equity, cash = decimal(equity, "equity", positive=True), decimal(cash, "cash")
+    entry, stop, step = (decimal(value, name, positive=True) for value, name in
+                         ((entry_price, "entry_price"), (stop_price, "stop_price"), (quantity_step, "quantity_step")))
+    risk, position, buffer, fee, slip = (rate(value, name) for value, name in
+        ((risk_fraction, "risk_fraction"), (max_position_fraction, "max_position_fraction"),
+         (cash_buffer_fraction, "cash_buffer_fraction"), (fee_rate, "fee_rate"), (slippage_rate, "slippage_rate")))
+    if cash > equity or stop >= entry or not risk or not position:
+        raise ValueError("need cash <= equity, stop_price < entry_price and positive risk/position fractions")
+    entry_per_unit = entry * (1 + slip)
+    stop_per_unit = stop * (1 - slip) * (1 - fee)**2
+    loss_per_unit = entry_per_unit - stop_per_unit
+    risk_budget, position_budget = equity * risk, equity * position
+    spendable = max(D(0), cash - equity * buffer)
+    caps = {"risk": risk_budget / loss_per_unit, "position": position_budget / entry_per_unit,
+            "cash_buffer": spendable / entry_per_unit}
+    quantity = (min(caps.values()) / step).to_integral_value(rounding=ROUND_FLOOR) * step
+    entry_cash, loss = quantity * entry_per_unit, quantity * loss_per_unit
+    if entry_cash > min(spendable, position_budget) or loss > risk_budget:
+        raise ValueError("sizing precision cannot establish the supplied caps")
+    return {"status": "SIZED" if quantity else "NO_CAPACITY", "quote_currency": quote_currency,
+            "equity": equity, "cash": cash, "entry_price": entry, "stop_price": stop,
+            "risk_fraction": risk, "max_position_fraction": position, "cash_buffer_fraction": buffer,
+            "gross_base_quantity": quantity, "net_base_quantity": quantity * (1 - fee),
+            "entry_cash_quote": entry_cash, "modeled_stop_proceeds_quote": quantity * stop_per_unit,
+            "modeled_loss_quote": loss, "risk_budget_quote": risk_budget,
+            "position_budget_quote": position_budget, "spendable_cash_quote": spendable,
+            "limiting_constraints": [key for key, cap in caps.items() if cap == min(caps.values())],
+            "fee_rate": fee, "slippage_rate": slip, "quantity_step": step,
+            "stop_execution_verified": False, "venue_minimums_verified": False,
+            "assumptions": "supplied long-only spot inputs; fee in received base on buy and quote on sell; "
+                           "adverse slippage at entry and hypothetical stop; no partial fills or protective order guarantee"}
+
+
+def trade_economics(quote_currency, entry_price, stop_price, target_price, gross_base_quantity,
+                    fee_rate, slippage_rate, inference_cost_quote):
+    """Hypothetical long outcomes; an assumed two-outcome break-even is not a forecast."""
+    currency(quote_currency)
+    entry, stop, target, quantity = (decimal(value, name, positive=True) for value, name in
+        ((entry_price, "entry_price"), (stop_price, "stop_price"),
+         (target_price, "target_price"), (gross_base_quantity, "gross_base_quantity")))
+    fee, slip = rate(fee_rate, "fee_rate"), rate(slippage_rate, "slippage_rate")
+    inference = None if inference_cost_quote is None else decimal(inference_cost_quote, "inference_cost_quote")
+    if not stop < entry < target:
+        raise ValueError("need stop_price < entry_price < target_price")
+    cash = quantity * entry * (1 + slip)
+    exit_factor = quantity * (1 - slip) * (1 - fee)**2
+    gain, loss = target * exit_factor - cash, cash - stop * exit_factor
+    scenarios = {"before_inference": D(0)}
+    if inference is not None:
+        scenarios["after_inference"] = inference
+    result = {"after_inference": {"status": "UNAVAILABLE", "reason": "INFERENCE_COST_UNKNOWN",
+                                 "gain_quote": None, "loss_quote": None,
+                                 "reward_to_risk": None, "break_even_win_fraction": None}}
+    for name, cost in scenarios.items():
+        net_gain, net_loss = gain - cost, loss + cost
+        result[name] = {"status": "MODELED" if net_gain > 0 else "COST_DOMINATED",
+                        "gain_quote": net_gain, "loss_quote": net_loss, "reward_to_risk": net_gain / net_loss,
+                        "break_even_win_fraction": net_loss / (net_gain + net_loss) if net_gain > 0 else None}
+    return {"quote_currency": quote_currency, "entry_price": entry, "stop_price": stop, "target_price": target,
+            "gross_base_quantity": quantity, "net_base_quantity": quantity * (1 - fee),
+            "entry_cash_quote": cash, "fee_rate": fee, "slippage_rate": slip, "inference_cost_quote": inference,
+            **result, "inputs_verified": False, "stop_execution_verified": False,
+            "assumptions": "long-only two-outcome arithmetic; adverse slippage and received-asset fees on both legs; "
+                           "supplied round-trip inference cost is in quote currency; no probability forecast or fill guarantee"}
+
+
 def evaluate_artifact(artifact):
+    from .portfolio import portfolio_sizing
+
     fields(artifact, "model parameters")
-    models = {"liquidity": liquidity, "spacing": roundtrip_spacing, "fx": implied_fx, "financing": financing}
+    models = {"liquidity": liquidity, "spacing": roundtrip_spacing, "fx": implied_fx, "financing": financing,
+              "position-sizing": position_sizing, "trade-economics": trade_economics,
+              "portfolio-sizing": portfolio_sizing}
     name = artifact["model"]
     if not isinstance(name, str) or name not in models:
         raise ValueError("unknown paper market model")

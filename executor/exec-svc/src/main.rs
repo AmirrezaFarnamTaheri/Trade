@@ -1,5 +1,5 @@
-//! Disarmed Windows service with independent stop-only T0 listener.
-//! This controls only the monotone in-memory gate; NO orders, keys or exits.
+//! Disarmed Windows service with independent T0 STOP and privileged custody/account listeners.
+//! Custody and account GETs are implemented; funded orders and protective exits are not.
 #[cfg(windows)]
 mod credential_vault;
 #[cfg(windows)]
@@ -258,6 +258,12 @@ mod windows_host {
         }
         // SCM RUNNING means the stop pipe exists, NOT exit protection.
         status_handle.set_service_status(status(ServiceState::Running, 0))?;
+        // Explicit SCM-admin drill: T0 must remain responsive while this loop is hung.
+        if mode == exec_ipc::provision::StartupMode::StopIsolationDrill {
+            loop {
+                thread::park();
+            }
+        }
         while !should_stop.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(50));
         }

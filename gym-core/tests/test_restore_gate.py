@@ -47,7 +47,8 @@ def test_altered_bytes_and_missing_sequence_fail_closed(tmp_path):
     db.execute("UPDATE ledger_events SET event_bytes=? WHERE sequence=1", (b"evil",))
     db.executescript("CREATE TRIGGER ledger_events_no_update BEFORE UPDATE ON ledger_events "
                      "BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;")
-    db.commit(); db.close()
+    db.commit()
+    db.close()
     with pytest.raises(RestoreUnsafe, match="hash"):
         inspect_ledger(path)
 
@@ -60,12 +61,14 @@ def test_gap_and_missing_guard_fail_closed(tmp_path):
     db.execute("DELETE FROM ledger_events WHERE sequence=1")
     db.executescript("CREATE TRIGGER ledger_events_no_delete BEFORE DELETE ON ledger_events "
                      "BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;")
-    db.commit(); db.close()
+    db.commit()
+    db.close()
     with pytest.raises(RestoreUnsafe, match="sequence"):
         inspect_ledger(path)
     db = sqlite3.connect(path)
     db.execute("DROP TRIGGER ledger_events_no_delete")
-    db.commit(); db.close()
+    db.commit()
+    db.close()
     with pytest.raises(RestoreUnsafe, match="guard"):
         inspect_ledger(path)
 
@@ -75,12 +78,14 @@ def test_future_schema_and_sidecars_are_rejected(tmp_path):
     make_candidate(path)
     db = sqlite3.connect(path)
     db.execute("PRAGMA user_version=99")
-    db.commit(); db.close()
+    db.commit()
+    db.close()
     with pytest.raises(RestoreUnsafe, match="schema"):
         inspect_ledger(path)
     db = sqlite3.connect(path)
     db.execute("PRAGMA user_version=1")
-    db.commit(); db.close()
+    db.commit()
+    db.close()
     (tmp_path / "snapshot.db-wal").write_bytes(b"uncommitted")
     with pytest.raises(RestoreUnsafe, match="sidecar"):
         inspect_ledger(path)

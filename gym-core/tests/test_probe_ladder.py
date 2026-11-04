@@ -1,5 +1,4 @@
 """C1 probe ladder: no trade submission, hard budget not raised by venue minimum."""
-import sqlite3
 import pytest
 
 from gym.services.probe_budget import ProbeBudgetBook, ProbeUnsafe, assess_probe_read

@@ -136,7 +136,7 @@ def book_top(symbol: str, bid: BookSide | None, ask: BookSide | None, now: datet
     flags: set[str] = set()
     best: dict[str, tuple[Decimal, Decimal] | None] = {}
     for name, side, pick in (("bid", bid, max), ("ask", ask, min)):
-        if side is None or (now - side.ts).total_seconds() > lim.stale_s:
+        if side is None or not 0 <= (now - side.ts).total_seconds() <= lim.stale_s:
             flags.add("STALE")
         if side is None or not side.levels:
             best[name] = None

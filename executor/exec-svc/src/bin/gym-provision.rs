@@ -4,8 +4,7 @@ fn main() {
     std::process::exit(2);
 }
 #[cfg(windows)]
-#[path = "../windows_control.rs"]
-mod windows_control;
+use exec_svc::windows_control;
 #[cfg(windows)]
 fn main() {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -14,10 +13,47 @@ fn main() {
     });
     match rx.recv_timeout(std::time::Duration::from_secs(10)) {
         Ok(Ok(())) => println!("COMMITTED: permission UNVERIFIED; executor remains DISARMED"),
-        _ => {
-            eprintln!("NOT_ACKNOWLEDGED: provisioning failed or timed out; outcome may be committed. No authority granted.");
+        failure => {
+            eprintln!(
+                "NOT_ACKNOWLEDGED: {}; outcome may be committed. No authority granted.",
+                failure_reason(failure)
+            );
             std::process::exit(2);
         }
+    }
+}
+
+#[cfg(any(windows, test))]
+fn failure_reason(result: Result<Result<(), String>, std::sync::mpsc::RecvTimeoutError>) -> String {
+    match result {
+        Ok(Err(reason)) => reason,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => "client deadline exceeded".into(),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            "client terminated without a result".into()
+        }
+        Ok(Ok(())) => unreachable!("successful provisioning is handled separately"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::failure_reason;
+    use std::sync::mpsc::RecvTimeoutError;
+
+    #[test]
+    fn preserves_fixed_client_failure_and_distinguishes_deadline_from_termination() {
+        assert_eq!(
+            failure_reason(Ok(Err("T2 admission denied".into()))),
+            "T2 admission denied"
+        );
+        assert_eq!(
+            failure_reason(Err(RecvTimeoutError::Timeout)),
+            "client deadline exceeded"
+        );
+        assert_eq!(
+            failure_reason(Err(RecvTimeoutError::Disconnected)),
+            "client terminated without a result"
+        );
     }
 }
 #[cfg(windows)]
@@ -26,7 +62,7 @@ mod client {
     use std::os::windows::{
         ffi::OsStrExt,
         fs::{MetadataExt, OpenOptionsExt},
-        io::{AsRawHandle, FromRawHandle},
+        io::{AsHandle, AsRawHandle, FromRawHandle},
     };
     use std::{
         fs::{File, OpenOptions},
@@ -210,7 +246,7 @@ mod client {
         }
         let mut pipe = unsafe { File::from_raw_handle(raw) };
         pinned.verify()?;
-        super::windows_control::authenticate_pipe(raw, pinned.pid)?;
+        super::windows_control::authenticate_pipe(pipe.as_handle(), pinned.pid)?;
         let mut correlation = [0; 16];
         if unsafe {
             BCryptGenRandom(
@@ -232,7 +268,7 @@ mod client {
             return Err("invalid admission response".into());
         }
         pinned.verify()?;
-        super::windows_control::authenticate_pipe(raw, pinned.pid)?;
+        super::windows_control::authenticate_pipe(pipe.as_handle(), pinned.pid)?;
         pipe.write_all(&secret.0)
             .map_err(|_| "secret transfer failed")?;
         drop(secret);

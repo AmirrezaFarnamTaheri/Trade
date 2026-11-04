@@ -9,10 +9,25 @@ import pytest
 
 from gym.cli import main
 from gym.domain.model import iso
-from gym.services import research_ledger
 from gym.services.research_ledger import ResearchLedger
 from gym.services.research_mcp import handle, serve_stdio
 from tests.support import START, market_db, quote_history
+
+
+def test_mcp_discovery_declares_only_the_enforced_local_read_capabilities(tmp_path):
+    tools = handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, tmp_path)["result"]["tools"]
+    for tool in tools:
+        assert tool["annotations"] == {"readOnlyHint": True, "destructiveHint": False,
+                                       "idempotentHint": True, "openWorldHint": False}
+    reply = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                    "params": {"name": "strategy_catalog", "arguments": {}}}, tmp_path)
+    capabilities = json.loads(reply["result"]["content"][0]["text"])["capabilities"]
+    assert set(capabilities["tools"]) == {tool["name"] for tool in tools}
+    assert capabilities["read_only"] is True and capabilities["runtime_isolation_verified"] is False
+    assert capabilities["external_requests"] is False and capabilities["order_submission"] is False
+    denied = handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                     "params": {"name": "place_order", "arguments": {}}}, tmp_path)
+    assert denied["result"]["isError"] is True
 
 
 def hypothesis(ledger):
@@ -104,6 +119,27 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path):
         db.c.close()
 
 
+def test_result_publication_failure_does_not_advance_or_report_completion(tmp_path, monkeypatch):
+    from gym.services import research_ledger
+    db = market_db(tmp_path, quote_history(n=500))
+    try:
+        with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+            job = schedule(ledger)
+            before = ledger.overview()["jobs"][0]["next_at"]
+            def unavailable(*_):
+                raise OSError("publication unavailable")
+            monkeypatch.setattr(research_ledger, "save_run", unavailable)
+            with pytest.raises(OSError):
+                ledger.run_due(db, iso(START + timedelta(hours=1)))
+            after = ledger.overview()
+            assert after["jobs"][0]["next_at"] == before
+            assert after["jobs"][0]["last_report"] is None
+            assert after["alerts"] == []
+            assert after["jobs"][0]["id"] == job["job_id"]
+    finally:
+        db.c.close()
+
+
 def test_failed_tick_persists_retry_without_advancing_clock_or_starving_healthy_job(tmp_path):
     db = market_db(tmp_path, quote_history())
     path = tmp_path / "research.sqlite3"
@@ -181,3 +217,24 @@ def test_unknown_database_is_not_modified(tmp_path):
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 0
         assert conn.execute("SELECT value FROM keep").fetchone()[0] == 42
         assert conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0] == 1
+
+
+def test_research_tool_provenance_binds_arguments_and_actual_payload(tmp_path):
+    from hashlib import sha256
+    from gym.domain.strategy import digest
+
+    db = market_db(tmp_path, quote_history(n=10))
+    db.c.close()
+    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+               "params": {"name": "market_coverage", "arguments": {"symbol": "BTCUSDT"}}}
+    result = handle(request, tmp_path)["result"]
+    assert result["isError"] is False
+    payload = result["content"][0]["text"]
+    provenance = result["_meta"]["tradinggym/provenance"]
+    assert provenance["tool"] == "market_coverage"
+    assert provenance["arguments_digest"] == digest({"symbol": "BTCUSDT"})
+    assert provenance["payload_sha256"] == sha256(payload.encode("utf-8")).hexdigest()
+    assert provenance["source_authenticity_verified"] is False
+    value = json.loads(payload)
+    value["observations"] += 1
+    assert provenance["payload_sha256"] != sha256(json.dumps(value).encode("utf-8")).hexdigest()

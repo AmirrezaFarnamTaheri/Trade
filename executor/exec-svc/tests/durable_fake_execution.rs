@@ -7,13 +7,18 @@ use exec_svc::{
 };
 use std::{
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 fn path() -> PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     std::env::temp_dir().join(format!(
-        "tg-execution-{}-{}.db",
+        "tg-execution-{}-{}-{}.db",
         std::process::id(),
+        NEXT_ID.fetch_add(1, Ordering::Relaxed),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

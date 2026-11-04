@@ -23,17 +23,23 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
       - name: Test Rust workspace
         run: cargo test --locked --workspace --all-targets
+      - name: Check Rust warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Check Windows bootstrap script syntax (no install)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($file in @('scripts/windows/Invoke-ExecutorHardStop.ps1', 'scripts/windows/Install-ReadOnlyExecutor.ps1', 'scripts/windows/Get-OperatorLogonSid.ps1', 'scripts/windows/Test-ReadOnlyExecutor.ps1', 'scripts/windows/Test-UnprivilegedExecutorAccess.ps1', 'scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1')) {
+          foreach ($file in Get-ChildItem -LiteralPath scripts/windows -Filter *.ps1) {
             $tokens = $null
             $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -ne 0) { throw "$file syntax error: $($errors | Out-String)" }
           }
       - name: Verify OS-issued operator logon SID without installing service
@@ -57,6 +63,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv lock --check
       - run: uv sync --locked --group dev
+      - name: Check Python lint
+        run: uvx ruff==0.12.4 check src tests
       - run: uv run pytest -q
 
   model-gateway:
@@ -95,10 +103,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build read-only service using pinned dependencies
-        run: cargo build --release --locked -p exec-svc --bin gym-executor
-      - name: Build stop-only client from pinned dependencies
-        run: cargo build --release --locked -p exec-svc --bin gym-stopctl
+      - name: Build read-only service and every protected helper using pinned dependencies
+        run: cargo build --release --locked -p exec-svc --bins
       - name: Verify service identity, DACL and two non-admin OS principals
         shell: pwsh
         run: |

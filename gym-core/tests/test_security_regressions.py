@@ -2,7 +2,6 @@
 
 OS/CI source guards supplement, but never replace, hosted Windows execution.
 """
-from decimal import Decimal
 from pathlib import Path
 import sqlite3
 
@@ -10,7 +9,6 @@ import pytest
 import gym.services.external_journal as journal_mod
 from gym.services.external_journal import ExternalJournal
 from gym.domain.account_observations import project_account
-from gym.adapters.wallex_account_read import WallexAccountReader
 
 ROOT = Path(__file__).resolve().parents[2]
 

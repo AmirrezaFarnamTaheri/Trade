@@ -4,11 +4,13 @@
    dependencies and gym under Lib\site-packages. No network/package installation.
    PublicSourceDirectory MUST be a separately curated public-only publication,
    never executor/service data. The operator attests this; no secret scanning claim.
-   Run elevated as the same Windows identity that will launch R0 (profile is per-user).
+   Initialize-ResearchWorkerProfile.ps1 runs first in the ordinary operator logon;
+   this protected publication runs under the separate elevated administrator.
 #>
 [CmdletBinding(SupportsShouldProcess=$true, ConfirmImpact='High')]
 param(
     [Parameter(Mandatory=$true)][string]$InstallDirectory,
+    [Parameter(Mandatory=$true)][string]$OperatorAccount,
     [Parameter(Mandatory=$true)][string]$RuntimeSource,
     [Parameter(Mandatory=$true)][string]$PublicSourceDirectory,
     [Parameter(Mandatory=$true)][switch]$ConfirmPublicOnly,
@@ -16,11 +18,13 @@ param(
     [Parameter(Mandatory=$true)][string]$T2Pipe,
     [Parameter(Mandatory=$true)][string]$VaultPath,
     [Parameter(Mandatory=$true)][string]$CoreJournalPath,
+    [Parameter(Mandatory=$true)][string]$ProfileCanaryPath,
     [Parameter(Mandatory=$true)][string]$ServiceName
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $ConfirmPublicOnly) { throw 'Public-only publication attestation required; never use service data.' }
+$operatorSid = ([Security.Principal.NTAccount]::new($OperatorAccount)).Translate([Security.Principal.SecurityIdentifier]).Value
 function LocalPath([string]$Path) {
     if ($Path.Length -le 3 -or $Path -notmatch '^[A-Za-z]:\\' -or $Path.Substring(3) -match '[:"\r\n]' -or $Path -match '(^|\\)\.\.?($|\\)') { throw "Explicit local absolute path required: $Path" }
     return [IO.Path]::GetFullPath($Path).TrimEnd('\')
@@ -49,7 +53,7 @@ function ProtectedSource([string]$Path, [bool]$Contents) {
     if ($null -eq $raw.DiscretionaryAcl -or $raw.Owner.Value -notin $trustedSids) { throw "Untrusted owner or null DACL: $Path" }
     $mask = if ($Contents) { 0x500d0156 } else { 0x500d0040 }
     foreach ($ace in $raw.DiscretionaryAcl) {
-        if ($ace.AceFlags -band [Security.AccessControl.AceFlags]::InheritOnly) { continue }
+        if ([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) { continue }
         if ($ace.AceType -notin @([Security.AccessControl.AceType]::AccessAllowed, [Security.AccessControl.AceType]::AccessDenied)) { throw "Unsupported ACL ACE: $Path" }
         if ($ace.AceType -eq [Security.AccessControl.AceType]::AccessAllowed -and ([int64]$ace.AccessMask -band $mask) -ne 0 -and $ace.SecurityIdentifier.Value -notin $trustedSids) { throw "User-writable source or ancestor: $Path" }
     }
@@ -82,22 +86,25 @@ foreach ($name in @('market.db', 'research.sqlite3')) {
 if ($StopPipe -notmatch '^\\\\\.\\pipe\\[^\\]+$' -or $T2Pipe -notmatch '^\\\\\.\\pipe\\[^\\]+$') { throw 'Explicit local stop/T2 pipe names required' }
 $VaultPath = LocalPath $VaultPath
 $CoreJournalPath = LocalPath $CoreJournalPath
+$ProfileCanaryPath = LocalPath $ProfileCanaryPath
+$canary = Get-Item -LiteralPath $ProfileCanaryPath
+if ($canary.PSIsContainer -or ($canary.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+    $canary.Name -notmatch '^TradingGYM-boundary-[a-f0-9]{32}\.txt$' -or $canary.Length -gt 128 -or
+    (Get-Content -LiteralPath $ProfileCanaryPath -Raw) -cne 'TradingGYM AppContainer boundary canary; no private data.') { throw 'Existing harmless regular per-drill operator-profile canary required.' }
 if ($ServiceName -notmatch '^[A-Za-z0-9_.-]{1,128}$') { throw 'Invalid SCM service name' }
-if (-not $PSCmdlet.ShouldProcess($InstallDirectory, 'Create no-capability AppContainer profile; copy/protect trusted runtime; publish public SQLite backups')) { return }
+if (-not $PSCmdlet.ShouldProcess($InstallDirectory, 'Publish protected runtime and public SQLite backups for selected operator AppContainer')) { return }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Explicit elevated operator step required' }
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class ResearchContainerInstall {
- [DllImport("userenv.dll", CharSet=CharSet.Unicode)] public static extern int CreateAppContainerProfile(string name, string display, string description, IntPtr caps, uint count, out IntPtr sid);
  [DllImport("userenv.dll", CharSet=CharSet.Unicode)] public static extern int DeriveAppContainerSidFromAppContainerName(string name, out IntPtr sid);
  [DllImport("advapi32.dll")] public static extern IntPtr FreeSid(IntPtr sid);
 }
 '@
 $sidPointer = [IntPtr]::Zero
-$hr = [ResearchContainerInstall]::CreateAppContainerProfile('TradingGym.Research.R0', 'TradingGym R0', 'Public research only; no capabilities', [IntPtr]::Zero, 0, [ref]$sidPointer)
-if ($hr -eq -2147024713) { $hr = [ResearchContainerInstall]::DeriveAppContainerSidFromAppContainerName('TradingGym.Research.R0', [ref]$sidPointer) } # ERROR_ALREADY_EXISTS
+$hr = [ResearchContainerInstall]::DeriveAppContainerSidFromAppContainerName('TradingGym.Research.R0', [ref]$sidPointer)
 if ($hr -lt 0) { [Runtime.InteropServices.Marshal]::ThrowExceptionForHR($hr) }
 try { $appSid = [Security.Principal.SecurityIdentifier]::new($sidPointer).Value }
 finally { [void][ResearchContainerInstall]::FreeSid($sidPointer) }
@@ -107,7 +114,7 @@ function Seal([string]$Path, [bool]$Directory) {
     $acl.SetAccessRuleProtection($true, $false)
     $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
     $inherit = if ($Directory) { [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit' } else { [Security.AccessControl.InheritanceFlags]::None }
-    foreach ($sid in @('S-1-5-18', 'S-1-5-32-544', $appSid, $identity.User.Value)) {
+    foreach ($sid in @('S-1-5-18', 'S-1-5-32-544', $appSid, $operatorSid)) {
         $rights = if ($sid -in @('S-1-5-18', 'S-1-5-32-544')) { [Security.AccessControl.FileSystemRights]::FullControl } else { [Security.AccessControl.FileSystemRights]::ReadAndExecute }
         $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid), $rights, $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
     }
@@ -149,7 +156,7 @@ for name in ('market.db', 'research.sqlite3'):
 '@
 & (Join-Path $runtime 'python.exe') -I -S -B -c $backup $PublicSourceDirectory $inputs
 if ($LASTEXITCODE -ne 0) { throw 'Public snapshot publication failed; no binding published' }
-$targets = @{ stop_pipe=$StopPipe; t2_pipe=$T2Pipe; vault=$VaultPath; core_journal=$CoreJournalPath; service=$ServiceName }
+$targets = @{ stop_pipe=$StopPipe; t2_pipe=$T2Pipe; vault=$VaultPath; core_journal=$CoreJournalPath; profile_canary=$ProfileCanaryPath; service=$ServiceName }
 [IO.File]::WriteAllText((Join-Path $InstallDirectory 'boundary.json'), ($targets | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
 Get-ChildItem -LiteralPath $InstallDirectory -Force -Recurse | ForEach-Object { Seal $_.FullName $_.PSIsContainer }
 [IO.File]::WriteAllText((Join-Path $InstallDirectory 'binding.txt'), $appSid, [Text.UTF8Encoding]::new($false))

@@ -21,10 +21,10 @@ function sse(res, events) {
   for (const e of events) res.write(typeof e === 'string' ? e : `data: ${JSON.stringify(e)}\n\n`);
   res.end();
 }
-function openai(res) {
+function openai(res, usage = {}) {
   sse(res, [
     { id: 'test', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', content: 'Advisory only.' }, finish_reason: null }] },
-    { id: 'test', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 } },
+    { id: 'test', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7, ...usage } },
     'data: [DONE]\n\n',
   ]);
 }
@@ -99,9 +99,47 @@ test('actual OpenAI SDK: stable model/endpoint, no tools, usage, unique-key roun
     const result = await complete(state, f.config, 'research', { prompt: 'Assess risk' }, { env });
     assert.equal(result.text, 'Advisory only.'); assert.equal(result.mode, 'RESEARCH_ONLY'); assert.equal(result.funded_authority, false);
     assert.equal(result.usage.input, 3); assert.equal(result.usage.output, 4);
+    assert.equal(result.usage.cost, null); assert.equal(result.usage.costSource, 'UNKNOWN');
+    assert.deepEqual(result.model.metadata, { source: 'UNKNOWN', providerVerified: false, contextWindow: null, maxOutputTokens: null, reasoning: null, input: null });
+    assert.equal(result.model.requestOutputTokens, 128); assert.equal(result.model.gatewayOutputCeiling, 65536);
   }
   assert.deepEqual(f.calls.map(c => c.auth), ['Bearer test-secret-a', 'Bearer test-secret-b', 'Bearer test-secret-a', 'Bearer test-secret-b']);
   for (const call of f.calls) { assert.equal(call.path, '/v1/chat/completions'); assert.equal(call.body.model, 'fixed-model'); assert.equal(call.body.tools, undefined); assert.equal(call.body.max_tokens ?? call.body.max_completion_tokens, 128); }
+});
+
+test('built-in SDK catalog prices are estimates; custom endpoints cannot inherit them by model name', async t => {
+  const f = await fixture(t, (_, res) => anthropic(res), 'anthropic-messages');
+  const model = catalog.getModels('anthropic').find(m => m.api === 'anthropic-messages' && m.cost.input > 0 && m.cost.output > 0);
+  assert.ok(model);
+  const config = structuredClone(f.config);
+  config.connections[0].provider = 'anthropic';
+  config.presets[0].model = model.id;
+  const custom = await complete(f.state, validate(config, { allowLoopback: true }), 'research', { prompt: 'risk' }, { env });
+  assert.equal(custom.usage.cost, null); assert.equal(custom.usage.costSource, 'UNKNOWN');
+  assert.equal(custom.model.metadata.contextWindow, null);
+
+  const localURL = `${f.config.connections[0].baseURL}/messages`;
+  const realFetch = globalThis.fetch;
+  // Exercise the built-in SDK route while sending every request exclusively to the local fixture.
+  t.mock.method(globalThis, 'fetch', (_url, init) => realFetch(localURL, init));
+  delete config.connections[0].protocol; delete config.connections[0].baseURL;
+  const result = await complete(f.state, validate(config), 'research', { prompt: 'risk' }, { env });
+  assert.equal(result.usage.costSource, 'SDK_CATALOG_ESTIMATE');
+  assert.equal(result.usage.cost.input, (model.cost.input / 1000000) * 3);
+  assert.equal(result.usage.cost.output, (model.cost.output / 1000000) * 4);
+  assert.ok(result.usage.cost.total > 0);
+  assert.deepEqual(result.model.metadata, { source: 'SDK_CATALOG', providerVerified: false, contextWindow: model.contextWindow, maxOutputTokens: model.maxTokens, reasoning: model.reasoning, input: model.input });
+  assert.equal(f.calls.length, 2);
+});
+
+test('provider-reported total does not fabricate a price breakdown for custom models', async t => {
+  const f = await fixture(t, (_, res) => openai(res, { cost: 0.023, is_byok: false }));
+  f.config.connections[0].provider = 'openrouter';
+  const result = await complete(f.state, f.config, 'research', { prompt: 'risk' }, { env });
+  assert.equal(result.usage.costSource, 'PROVIDER_REPORTED');
+  assert.deepEqual(result.usage.cost, { total: 0.023, totalFromProvider: true });
+  assert.equal(result.model.metadata.source, 'UNKNOWN');
+  assert.equal(f.calls.length, 1);
 });
 
 test('actual OpenAI Responses SDK completion and fixed endpoint', async t => {

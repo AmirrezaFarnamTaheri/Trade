@@ -72,10 +72,14 @@ fn recovery_is_explicit_and_never_enables_reads() {
     let recovery = StartupMode::from_scm_arguments(&["--credential-recovery".into()]).unwrap();
     assert!(normal.allows_account_read());
     assert!(!recovery.allows_account_read());
+    let drill = StartupMode::from_scm_arguments(&["--stop-isolation-drill".into()]).unwrap();
+    assert_eq!(drill, StartupMode::StopIsolationDrill);
+    assert!(!drill.allows_account_read());
     for args in [
         vec!["recovery".into()],
         vec!["--credential-recovery".into(), "extra".into()],
         vec!["--normal".into()],
+        vec!["--stop-isolation-drill".into(), "extra".into()],
     ] {
         assert!(StartupMode::from_scm_arguments(&args).is_err());
     }

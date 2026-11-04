@@ -1,11 +1,11 @@
 """Poll the collector's local database; elapsed duration starts after strategy warmup."""
 import asyncio
 from datetime import timedelta
-from decimal import Decimal
 
 from ..domain.model import iso
+from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
-from ..domain.strategy import EmaTrend, digest
+from ..domain.strategy import digest
 from .collector import now_utc
 from ..adapters.run_store import save_run
 from .data_portal import DataPortal
@@ -15,12 +15,13 @@ from .session import ENGINE_VERSION, PaperSession
 
 
 async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=False, subscriptions=(),
-                cost=None):
+                cost=None, strategy_id="ema-trend", params=None):
     if duration <= 0:
         raise ValueError("duration must be positive")
     start, tops = now_utc(), []
     portal, svc, cost = DataPortal(db), RuleService(db), cost or CostModel()
-    session = PaperSession(portal, lambda t: svc.load(t)[1], EmaTrend(fast, slow), symbol, start, resolution, cash, cost,
+    strategy = create_strategy(strategy_id, {"fast": fast, "slow": slow} if params is None and strategy_id == "ema-trend" else params)
+    session = PaperSession(portal, lambda t: svc.load(t)[1], strategy, symbol, start, resolution, cash, cost,
                            subscriptions)
     reason = None
     print("WARMING_UP: run the collector separately; duration begins at RUNNING.", flush=True)
@@ -53,10 +54,12 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
         result = session_result(session, tops, cash)
         inputs = {"engine": ENGINE_VERSION, "kind": "live-session", "symbol": symbol, "from": iso(start),
                   "to": iso(session.cursor), "resolution": resolution,
-                  "subscriptions": list(dict.fromkeys((resolution, *subscriptions))),
-                  "params": {"fast": fast, "slow": slow},
+                  "subscriptions": list(session.closes.by_resolution),
+                  "strategy": strategy.name, "strategy_version": 1, "config_hash": strategy.config_hash,
+                  "params": strategy.params, "reference_symbol": session.reference_symbol,
                   "cash": str(cash), "cost": cost.describe(), "rules_mode": "point-in-time",
-                  "store": "demo" if demo else "live", "data": result["data_digest"]}
+                  "store": "demo" if demo else "live", "data": result["data_digest"],
+                  "snapshots": digest([(d["t"], d["snapshot"]) for d in session.decisions])}
         out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "result": result,
                "baselines": {}, "fx": None, "numeraire": result["quote"],
                "outputs_digest": digest(result)[:16],

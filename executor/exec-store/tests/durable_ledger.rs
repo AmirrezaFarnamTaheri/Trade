@@ -38,9 +38,28 @@ fn second_writer_is_refused_until_first_closes() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("exec_ledger.db");
     let first = Ledger::open(&path).unwrap();
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::WriterLocked)));
+    assert!(matches!(
+        Ledger::open(&path),
+        Err(LedgerError::WriterLocked)
+    ));
     drop(first);
     let _second = Ledger::open(&path).unwrap();
+}
+
+#[test]
+fn reopening_or_contending_for_writer_lock_preserves_its_bytes() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("exec_ledger.db");
+    let lock_path = dir.path().join("exec_ledger.db.writer.lock");
+    std::fs::write(&lock_path, b"existing lock bytes").unwrap();
+    let first = Ledger::open(&path).unwrap();
+    assert!(matches!(
+        Ledger::open(&path),
+        Err(LedgerError::WriterLocked)
+    ));
+    drop(first);
+    drop(Ledger::open(&path).unwrap());
+    assert_eq!(std::fs::read(&lock_path).unwrap(), b"existing lock bytes");
 }
 
 #[test]
@@ -50,9 +69,19 @@ fn immutable_triggers_prevent_accidental_rewrites() {
     let mut ledger = Ledger::open(&path).unwrap();
     ledger.append(b"original").unwrap();
     let other = Connection::open(&path).unwrap();
-    assert!(other.execute("UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1", [b"changed".as_slice()]).is_err());
-    assert!(other.execute("DELETE FROM ledger_events WHERE sequence=1", []).is_err());
-    assert_eq!(ledger.replay_from(0).unwrap()[0].event_bytes.as_slice(), b"original".as_slice());
+    assert!(other
+        .execute(
+            "UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1",
+            [b"changed".as_slice()]
+        )
+        .is_err());
+    assert!(other
+        .execute("DELETE FROM ledger_events WHERE sequence=1", [])
+        .is_err());
+    assert_eq!(
+        ledger.replay_from(0).unwrap()[0].event_bytes.as_slice(),
+        b"original".as_slice()
+    );
 }
 
 #[test]
@@ -64,13 +93,21 @@ fn corrupt_existing_events_fail_closed_on_restart() {
         ledger.append(b"original").unwrap();
     }
     let db = Connection::open(&path).unwrap();
-    db.execute_batch("DROP TRIGGER ledger_events_no_update;").unwrap();
-    db.execute("UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1", [b"altered".as_slice()]).unwrap();
+    db.execute_batch("DROP TRIGGER ledger_events_no_update;")
+        .unwrap();
+    db.execute(
+        "UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1",
+        [b"altered".as_slice()],
+    )
+    .unwrap();
     // Restore the immutable guard after synthetic tampering, so the next
     // startup failure proves the stored-byte hash mismatch, not absent DDL.
     db.execute_batch("CREATE TRIGGER ledger_events_no_update BEFORE UPDATE ON ledger_events BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;").unwrap();
     drop(db);
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::Integrity { sequence: 1, .. })));
+    assert!(matches!(
+        Ledger::open(&path),
+        Err(LedgerError::Integrity { sequence: 1, .. })
+    ));
 }
 
 #[test]
@@ -83,11 +120,17 @@ fn missing_sequence_fails_closed_even_when_later_hashes_still_match() {
         ledger.append(b"second").unwrap();
     }
     let db = Connection::open(&path).unwrap();
-    db.execute_batch("DROP TRIGGER ledger_events_no_delete; DELETE FROM ledger_events WHERE sequence=1;").unwrap();
+    db.execute_batch(
+        "DROP TRIGGER ledger_events_no_delete; DELETE FROM ledger_events WHERE sequence=1;",
+    )
+    .unwrap();
     // Recreate the DDL protection to test chain sequencing independently.
     db.execute_batch("CREATE TRIGGER ledger_events_no_delete BEFORE DELETE ON ledger_events BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;").unwrap();
     drop(db);
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::Integrity { sequence: 1, .. })));
+    assert!(matches!(
+        Ledger::open(&path),
+        Err(LedgerError::Integrity { sequence: 1, .. })
+    ));
 }
 
 #[test]
@@ -95,8 +138,14 @@ fn oversized_or_empty_events_do_not_mutate_authoritative_state() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("exec_ledger.db");
     let mut ledger = Ledger::open(&path).unwrap();
-    assert!(matches!(ledger.append(&[]), Err(LedgerError::InvalidSize(0))));
-    assert!(matches!(ledger.append(&vec![7; MAX_EVENT_BYTES + 1]), Err(LedgerError::InvalidSize(_))));
+    assert!(matches!(
+        ledger.append(&[]),
+        Err(LedgerError::InvalidSize(0))
+    ));
+    assert!(matches!(
+        ledger.append(&vec![7; MAX_EVENT_BYTES + 1]),
+        Err(LedgerError::InvalidSize(_))
+    ));
     assert!(ledger.replay_from(0).unwrap().is_empty());
     assert_eq!(ledger.append(b"valid").unwrap().sequence, 1);
 }
@@ -108,9 +157,14 @@ fn incompatible_future_schema_is_not_rewritten() {
     let db = Connection::open(&path).unwrap();
     db.execute_batch("PRAGMA user_version=99;").unwrap();
     drop(db);
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::UnsupportedSchema(99))));
+    assert!(matches!(
+        Ledger::open(&path),
+        Err(LedgerError::UnsupportedSchema(99))
+    ));
     let db = Connection::open(&path).unwrap();
-    let version: i64 = db.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+    let version: i64 = db
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
     assert_eq!(version, 99);
 }
 
@@ -138,7 +192,11 @@ fn missing_immutability_trigger_blocks_startup() {
     let path = dir.path().join("exec_ledger.db");
     drop(Ledger::open(&path).unwrap());
     let db = Connection::open(&path).unwrap();
-    db.execute_batch("DROP TRIGGER ledger_events_no_update;").unwrap();
+    db.execute_batch("DROP TRIGGER ledger_events_no_update;")
+        .unwrap();
     drop(db);
-    assert!(matches!(Ledger::open(&path), Err(LedgerError::Configuration(_))));
+    assert!(matches!(
+        Ledger::open(&path),
+        Err(LedgerError::Configuration(_))
+    ));
 }

@@ -1,104 +1,72 @@
-# Windows Executor — restricted, read-only SCM bootstrap
+# Windows Executor setup and qualification
 
-**Status: development-only / NOT protective / NOT funded.** This is a deliberately
-incomplete B1 service-host milestone, not a deployable real-money system.
+The current host activates independent STOP and elevated provisioning/account-read
+listeners. It remains **DISARMED, NOT CERTIFIED and without venue-write transport**.
+SCM RUNNING means the host passed startup checks, not that a position is protected.
 
-The Windows-only `gym-executor.exe` binary supports SCM lifecycle and verifies
-its primary process user SID is **LocalService** (`S-1-5-19`) *and* the
-OS-derived `NT SERVICE\TradingGYMExecutor` service SID is present as both an
-enabled token group and a restricted token SID before it can report RUNNING.
-The SID is resolved with Windows `LookupAccountNameW`; the group/restricting
-lists are read from the process token with `GetTokenInformation`, not from a
-user-writable configuration or a claimed IPC identity. Failure results in
-SCM STOPPED/access-denied, not a fallback identity. It contains **no** venue credentials, IPC listener, order code,
-stop guard wiring, trading ledger input or funding authority. SCM RUNNING only
-means the no-op host process is alive; it does **not** mean that exits or
-emergency stops are available. Do not run it while an account or position is
-relying on TradingGYM for protection.
+## Build and protected installation
 
-## Packaging (Windows build machine, after CI is repaired)
+Build every helper from the same reviewed revision:
 
-1. Obtain a trusted, reviewed source revision and build using a locked Cargo
-   dependency graph (the repository now tracks a generated `Cargo.lock`; CI runs with `--locked`).
-2. Build `cargo build --release -p exec-svc --bin gym-executor` on Windows.
-3. From an **elevated** PowerShell 5.1+ prompt, inspect then run:
+    cargo build --release --locked -p exec-svc --bins
 
-   ```powershell
-   .\scripts\windows\Install-ReadOnlyExecutor.ps1 -BinaryPath 'C:\staging\gym-executor.exe' -WhatIf
-   .\scripts\windows\Install-ReadOnlyExecutor.ps1 -BinaryPath 'C:\staging\gym-executor.exe' -Confirm:$false
-   .\scripts\windows\Test-ReadOnlyExecutor.ps1
-   ```
+Choose the human operator account and an existing process from that operator's
+actual logon. OperatorProcessId is checked against the OS token; do not copy a
+claimed SID into configuration. From a separate elevated administrator console:
 
-   `-WhatIf` makes no changes. Full installation requires explicit
-   administrator intent and creates only a **DISABLED** service, not a running
-   one. The installer refuses existing installations for manual audit.
+    .\scripts\windows\Install-ReadOnlyExecutor.ps1 -BinaryPath D:\GitHub\Trade\target\release\gym-executor.exe -OperatorAccount "$env:USERDOMAIN\ACER" -OperatorProcessId <operator-process-id> -WhatIf
+    .\scripts\windows\Install-ReadOnlyExecutor.ps1 -BinaryPath D:\GitHub\Trade\target\release\gym-executor.exe -OperatorAccount "$env:USERDOMAIN\ACER" -OperatorProcessId <operator-process-id>
+    .\scripts\windows\Test-ReadOnlyExecutor.ps1
 
-The installer places code beneath Program Files, data under ProgramData,
-removes inherited ACLs, sets protected-path ownership to Administrators,
-grants only SYSTEM/Administrators and the exact `NT SERVICE\TradingGYMExecutor` SID, and configures
-`NT AUTHORITY\LocalService` with a **restricted** service SID. On an error,
-the SCM service remains disabled; inspect/remove partial files manually.
-Both scripts have Windows-only behaviors and require an isolated Windows VM.
-The installer now also sets a **protected SCM service DACL**: SYSTEM and
-Administrators have full control; authenticated users can query service
-configuration/status only, never change configuration, start, stop, pause,
-delete, or change service permissions. The elevated verifier checks the
-service descriptor and file ACLs independently; its `sc qsidtype` parsing still
-requires validation across localized Windows variants.
+Replace the angle-bracket example with the selected operator's numeric process ID.
+The installer creates a **DISABLED** service under restricted LocalService,
+protects Program Files code and ProgramData custody/ledger files, and grants the
+selected operator only required stop/launcher execute rights. Existing
+installations and reparse paths are refused rather than overwritten. Failed
+installation remains disabled for inspection. Installation supplies no real key.
 
-## Required negative probes, two separate standard Windows identities
+Binding a later operator logon is a separate administrator action through
+Bind-ExecutorOperator.ps1, using the actual operator process token. The operator
+cannot rewrite binding files, change SCM configuration, provision credentials or
+invoke account reads.
 
-On an isolated Windows test VM, after an explicit disabled-only install and an
-**elevated** `Test-ReadOnlyExecutor.ps1` pass, run these commands from an
-**unelevated** PowerShell session for the ordinary operator account:
+## Credential custody and observations
 
-```powershell
-.\scripts\windows\Test-UnprivilegedExecutorAccess.ps1
-```
+The protected gym-provision helper requires an elevated administrator, pins the
+installed SCM process and accepts only a protected, current-user-owned regular
+secret file through --secret-file. The service encrypts bytes with its own DPAPI
+identity and commits immutable custody metadata before acknowledging. Never pass
+a key on a command line, put it in browser fields or retain it in diagnostics.
 
-Then run the same command under the separately restricted **research/worker**
-principal. The script refuses an elevated administrator token, checks that the
-service is still DISABLED and STOPPED, and uses real OS access attempts to
-prove that these principals cannot read/write the executable, create files in
-the private authority data directory, or open SCM handles with START, STOP,
-CHANGE_CONFIG, PAUSE, DELETE, WRITE_DAC or WRITE_OWNER authority. Service
-query-status remains intentionally readable. The only filesystem mutation
-attempt creates a uniquely named harmless canary; if a misconfiguration allows
-it, the script attempts cleanup and **fails** the security check.
+The administrator-only gym-account-read helper supports balances, fees and one
+known-client-order ID. The service decrypts the current key and makes a bounded
+HTTPS GET to the fixed Wallex origin. The helper emits RAW_UNPARSED, permission
+UNVERIFIED and funded_authority=false. The Python service-source adapter validates
+and sanitizes that envelope before optional observation-journal recording.
+Neither GET success nor a venue status proves no-withdrawal permissions or settlement.
 
-Record the user SID, token groups, service DACL and output from **both** runs.
-Neither a static Python check nor an administrator-run audit can substitute
-for these two real Windows negative probes. Do not install on a funded machine.
-The independent named-pipe, T2 and credential-denial checks from ARCH-01,
-ARCH-02, ARCH-04, SEC-01/02 remain outstanding; these SCM/NTFS probes do not
-certify those gates.
+Restored custody history with missing or nonportable DPAPI ciphertext needs
+explicit Invoke-ExecutorCredentialRecovery.ps1 with a protected -SecretFile.
+Recovery accepts reprovisioning and STOP only, preserves history, rejects account
+reads, then restarts normal DISARMED operation with startup still DISABLED.
 
-## Required before activation or B1 acceptance
+## Runtime and recovery evidence
 
-- Windows build, syntax validation and end-to-end installer/rollback tests on
-  non-production Windows VMs with clean and pre-existing installations.
-- **Real Windows proof** of the new runtime service-SID membership check,
-  including wrong service SID, missing restricted SID and token-query failures;
-  Windows Rust tests and an installed-service negative test are pending.
-  Also perform token/ACL negative probes from the interactive user and sandboxed
-  worker, plus a separate `SEC-02` proof.
-- Trusted, session-bound **operator logon SID discovery**. Never accept a SID
-  claimed over IPC or a user-writable configuration file. The existing stop
-  pipe library is intentionally **not** activated by this bootstrap.
-- Install a dedicated emergency stop runtime that acknowledges within 1s even
-  with the Python/browser/main loop dead; verify real OS pipe DACL, remote and
-  hostile-client rejection and SCM hard-stop failure behavior.
-- Separate T2 principal, provisioning, service-context DPAPI, key/ledger ACL
-  self-tests, funded authority ceilings, independent recovery and Fake Venue.
-- GitHub Actions runner-startup issue #5 has been resolved and the Rust/Python
-  CI checks run on hosted Windows and Linux. This verifies the testable code,
-  **not** installed Windows SCM/ACL/operator/worker security integration.
+Use the installed-host drill only after reviewing its separate administrator
+and operator stages. Synthetic custody must not be mixed with real credentials.
+It is not a substitute for an independently budgeted venue test.
 
-**No live order path, trade key or withdrawal capability is introduced.**
+Required evidence includes actual AppContainer access denials, service-context
+DPAPI provision/restart/corruption refusal/recovery, authenticated STOP within one
+second during application/main-loop failure, retained-handle containment within
+ten seconds, and a DISARMED restart. A standard account merely named worker
+does not prove the AppContainer boundary.
 
-The source contains a fail-closed token-membership gate and Rust policy tests.
-Hosted Windows CI builds and runs compiled tests; this development container
-still lacks a Rust/Windows toolchain. Static Python source guards and Windows
-compilation **do not** prove installed-service identity isolation. A clean-VM
-service launch, OS-token membership evidence and hostile-user/worker ACL audits
-remain mandatory before B1 acceptance. The service remains DISABLED by default.
+The hosted-VM test covers its documented disposable SCM/ACL checks only. A local
+WSL restore proves cross-OS portability on the same hardware; loss-of-machine
+recovery still needs a separately controlled machine and credential reprovisioning.
+
+See [current security status](service-security-status.md) and
+[acceptance status](../../gym-core/docs/acceptance-status.md). Real venue
+submission/cancel/reconciliation, trusted T1 approvals and certified protective
+exits remain separate integration work. Do not use this service to protect a funded position.

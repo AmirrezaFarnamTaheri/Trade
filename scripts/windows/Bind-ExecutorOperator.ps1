@@ -29,7 +29,7 @@ foreach ($path in @($env:ProgramFiles, $root, $code)) {
     }
 }
 if (-not $PSCmdlet.ShouldProcess($OperatorAccount, 'Bind STOP to actual selected user token and current logon')) { return }
-foreach ($path in @($root, $code, (Join-Path $code 'gym-stopctl.exe'), (Join-Path $code 'gym-hardstop.exe'))) {
+foreach ($path in @($root, $code, (Join-Path $code 'gym-stopctl.exe'), (Join-Path $code 'gym-hardstop.exe'), (Join-Path $code 'gym-research-worker.exe'))) {
     $item = Get-Item -LiteralPath $path
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked helper path.' }
     & icacls.exe $path /grant:r "*${userSid}:RX" | Out-Null

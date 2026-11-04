@@ -35,7 +35,10 @@ fn main() {
     let seeds: u64 = match args.get(2).map(|s| s.parse()) {
         None => 500,
         Some(Ok(n)) if (1..=100_000).contains(&n) => n,
-        _ => { eprintln!("SEEDS must be 1..=100000"); std::process::exit(2); }
+        _ => {
+            eprintln!("SEEDS must be 1..=100000");
+            std::process::exit(2);
+        }
     };
     let mut rows = Vec::new();
     let mut total_violations = 0usize;
@@ -45,9 +48,17 @@ fn main() {
         let mut first_violation: Option<Outcome> = None;
         for seed in 1..=seeds {
             let o = run(f, seed);
-            if o.reservation_released { settled += 1 }
-            if o.frozen { frozen += 1 }
-            if let Some(i) = o.incident { if !incidents.contains(&i) { incidents.push(i) } }
+            if o.reservation_released {
+                settled += 1
+            }
+            if o.frozen {
+                frozen += 1
+            }
+            if let Some(i) = o.incident {
+                if !incidents.contains(&i) {
+                    incidents.push(i)
+                }
+            }
             if !o.violations.is_empty() {
                 violations += o.violations.len();
                 first_violation.get_or_insert(o);
@@ -67,6 +78,11 @@ fn main() {
         eprintln!("cannot write report: {e}");
         std::process::exit(2);
     }
-    println!("{} fixtures x {seeds} seeds, {total_violations} violations -> {out}", FIXTURES.len());
-    if total_violations != 0 { std::process::exit(1) }
+    println!(
+        "{} fixtures x {seeds} seeds, {total_violations} violations -> {out}",
+        FIXTURES.len()
+    );
+    if total_violations != 0 {
+        std::process::exit(1)
+    }
 }

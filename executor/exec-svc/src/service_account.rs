@@ -78,45 +78,6 @@ fn finish_observation(body: Secret, key: &Secret, elapsed: Duration) -> io::Resu
     Ok(body)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn header_injection_and_out_of_bounds_keys_fail_before_winhttp() {
-        for key in [
-            b"".as_slice(),
-            b"a\r\nInjected: x",
-            b"has space",
-            b"nul\0",
-            b"\xff",
-        ] {
-            assert!(key_header(&Secret(key.to_vec())).is_err());
-        }
-        assert!(key_header(&Secret(vec![b'a'; exec_ipc::provision::MAX_SECRET + 1])).is_err());
-        assert!(key_header(&Secret(b"synthetic-not-a-key".to_vec())).is_ok());
-    }
-    #[test]
-    fn response_bound_deadline_and_credential_echo_fail_closed() {
-        let key = Secret(b"synthetic-not-a-key".to_vec());
-        for size in [1, MAX_ACCOUNT_BODY] {
-            assert!(finish_observation(Secret(vec![b'x'; size]), &key, Duration::ZERO).is_ok());
-        }
-        for size in [0, MAX_ACCOUNT_BODY + 1] {
-            assert!(finish_observation(Secret(vec![b'x'; size]), &key, Duration::ZERO).is_err());
-        }
-        assert!(
-            finish_observation(Secret(b"unknown".to_vec()), &key, Duration::from_secs(12)).is_err()
-        );
-        assert!(finish_observation(
-            Secret(b"prefix synthetic-not-a-key suffix".to_vec()),
-            &key,
-            Duration::ZERO
-        )
-        .is_err());
-        assert_eq!(uncertain().to_string(), "account observation unavailable");
-    }
-}
-
 pub fn read(vault: &Vault, resource: &AccountResource) -> io::Result<Secret> {
     let path = wide(&resource.path().map_err(|_| uncertain())?);
     let key = vault.load_current_secret()?.ok_or_else(uncertain)?;
@@ -206,5 +167,44 @@ pub fn read(vault: &Vault, resource: &AccountResource) -> io::Result<Secret> {
             body.0.extend_from_slice(&chunk.0[..count as usize]);
         }
         finish_observation(body, &key, started.elapsed())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn header_injection_and_out_of_bounds_keys_fail_before_winhttp() {
+        for key in [
+            b"".as_slice(),
+            b"a\r\nInjected: x",
+            b"has space",
+            b"nul\0",
+            b"\xff",
+        ] {
+            assert!(key_header(&Secret(key.to_vec())).is_err());
+        }
+        assert!(key_header(&Secret(vec![b'a'; exec_ipc::provision::MAX_SECRET + 1])).is_err());
+        assert!(key_header(&Secret(b"synthetic-not-a-key".to_vec())).is_ok());
+    }
+    #[test]
+    fn response_bound_deadline_and_credential_echo_fail_closed() {
+        let key = Secret(b"synthetic-not-a-key".to_vec());
+        for size in [1, MAX_ACCOUNT_BODY] {
+            assert!(finish_observation(Secret(vec![b'x'; size]), &key, Duration::ZERO).is_ok());
+        }
+        for size in [0, MAX_ACCOUNT_BODY + 1] {
+            assert!(finish_observation(Secret(vec![b'x'; size]), &key, Duration::ZERO).is_err());
+        }
+        assert!(
+            finish_observation(Secret(b"unknown".to_vec()), &key, Duration::from_secs(12)).is_err()
+        );
+        assert!(finish_observation(
+            Secret(b"prefix synthetic-not-a-key suffix".to_vec()),
+            &key,
+            Duration::ZERO
+        )
+        .is_err());
+        assert_eq!(uncertain().to_string(), "account observation unavailable");
     }
 }

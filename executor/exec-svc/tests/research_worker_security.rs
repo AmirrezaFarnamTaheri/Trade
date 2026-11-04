@@ -26,6 +26,8 @@ fn rejects_non_operator_paths_before_any_process_or_profile_operation() {
 const NATIVE: &str = include_str!("../src/research_worker.rs");
 const BINARY: &str = include_str!("../src/bin/gym-research-worker.rs");
 const INSTALL: &str = include_str!("../../../scripts/windows/Install-ResearchWorker.ps1");
+const INITIALIZE: &str =
+    include_str!("../../../scripts/windows/Initialize-ResearchWorkerProfile.ps1");
 const PROBE: &str = include_str!("../../../scripts/windows/Test-ResearchWorkerBoundary.ps1");
 const PYTHON: &str = include_str!("../../../gym-core/src/gym/services/research_worker.py");
 
@@ -96,8 +98,8 @@ fn install_is_explicit_and_probes_do_not_fake_absent_targets() {
         "SetAccessRuleProtection($true, $false)",
         "src.backup(dst)",
         "journal_mode=DELETE",
-        "CreateAppContainerProfile",
-        "[IntPtr]::Zero, 0",
+        "DeriveAppContainerSidFromAppContainerName",
+        "$operatorSid",
         "NOT_VERIFIED",
     ] {
         assert!(INSTALL.contains(evidence), "missing {evidence}");
@@ -115,12 +117,17 @@ fn install_is_explicit_and_probes_do_not_fake_absent_targets() {
     }
     assert!(!PROBE.contains("CreateAppContainerProfile"));
     assert!(!PROBE.contains("Set-Acl"));
+    assert!(INITIALIZE.contains("CreateAppContainerProfile"));
+    assert!(INITIALIZE.contains("[IntPtr]::Zero,0"));
+    assert!(INITIALIZE.contains("actual unelevated operator logon"));
+    assert!(!INSTALL.contains("CreateAppContainerProfile"));
     for evidence in [
         "FAIL_OPENED",
         "NOT_VERIFIED_WIN32_",
         "OpenServiceW",
         "CreateFileW",
         "os.getpid()",
+        "profile_canary",
     ] {
         assert!(PYTHON.contains(evidence), "missing {evidence}");
     }

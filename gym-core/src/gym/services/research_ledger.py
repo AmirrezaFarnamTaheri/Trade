@@ -13,6 +13,7 @@ from ..domain.model import iso, parse_ts
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
+from ..adapters.run_store import save_run
 from .paper import paper
 from .session import ENGINE_VERSION
 
@@ -45,6 +46,7 @@ def _result(**values):
 class ResearchLedger:
     def __init__(self, path, *, readonly=False):
         path = Path(path)
+        self.path = path
         if path.is_symlink() or (path.exists() and not path.is_file()):
             raise ValueError("research ledger must be a regular file")
         self.conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5, isolation_level=None) if readonly else sqlite3.connect(path, timeout=5, isolation_level=None)
@@ -200,6 +202,13 @@ class ResearchLedger:
                 raise ValueError("unknown research job")
         return _result(job_id=key, enabled=False)
 
+    def resume(self, key):
+        """Resume at the committed due time, retaining reports and retry deadlines."""
+        with self._write():
+            if self.conn.execute("UPDATE jobs SET enabled=1 WHERE id=?", (_id(key),)).rowcount != 1:
+                raise ValueError("unknown research job")
+        return _result(job_id=key, enabled=True)
+
     def run_due(self, db, at, *, store="live", limit=10):
         now = parse_ts(at)
         if type(limit) is not int or not 1 <= limit <= 100:
@@ -235,6 +244,8 @@ class ResearchLedger:
                                        cost=CostModel(fee_rate=rate(job["fee_rate"])), store=store,
                                        subscriptions=getattr(strategy, "required_resolutions", ()),
                                        reference_symbol=getattr(strategy, "reference_symbol", None))
+                        # Publish immutable results before advancing the durable job clock.
+                        save_run(result, self.path.parent / "runs")
                     finally:
                         db.c.rollback()
                 except ValueError as error:
@@ -256,8 +267,18 @@ class ResearchLedger:
         return _result(completed=completed, failed=failed)
 
     def overview(self):
+        jobs = []
+        for key, body, at, enabled, due, status, run_id, retry, attempts in self.conn.execute("""
+            SELECT j.id,j.body,j.next_at,j.enabled,r.due_at,json_extract(r.body,'$.status'),
+                   json_extract(r.body,'$.run_id'),json_extract(r.body,'$.retry_at'),json_extract(r.body,'$.attempts')
+            FROM jobs j LEFT JOIN reports r ON r.job_id=j.id AND r.due_at=(
+                SELECT MAX(due_at) FROM reports WHERE job_id=j.id)
+            ORDER BY j.id LIMIT 200"""):
+            last = None if due is None else {"due_at": due, "status": status or "COMPLETED",
+                                             "run_id": run_id, "retry_at": retry, "attempts": attempts}
+            jobs.append({"id": key, "next_at": at, "enabled": bool(enabled),
+                         **json.loads(body), "last_report": last})
         return _result(hypotheses=[{"id": key, **json.loads(body)} for key, body in self.conn.execute("SELECT id,body FROM hypotheses ORDER BY id LIMIT 200")],
                        shadows=[self.shadow(row[0]) for row in self.conn.execute("SELECT id FROM shadows ORDER BY id LIMIT 200")],
-                       jobs=[{"id": key, "next_at": at, "enabled": bool(enabled), **json.loads(body)}
-                             for key, body, at, enabled in self.conn.execute("SELECT id,body,next_at,enabled FROM jobs ORDER BY id LIMIT 200")],
+                       jobs=jobs,
                        alerts=[json.loads(row[0]) for row in self.conn.execute("SELECT body FROM alerts ORDER BY rowid DESC LIMIT 200")])

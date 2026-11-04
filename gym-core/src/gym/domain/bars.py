@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from .model import TEHRAN, UTC, BookTop
-from .periods import Calendar, Count, DirectionalChange, Fixed, Mixed, PeriodSpec, Volume, instant
+from .periods import Calendar, Count, DirectionalChange, Fixed, Mixed, Volume, instant
 
 # "session" is bounded by TradingWindow closures and Tehran midnight; 86400 s is only its nominal step.
 RESOLUTIONS = {"1min": 60, "15min": 900, "1h": 3600, "1day": 86400, "session": 86400}

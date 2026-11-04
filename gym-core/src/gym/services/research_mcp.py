@@ -1,5 +1,6 @@
 """Fixed R0 stdio MCP tools. No credentials, proposals, writes or dynamic tools."""
 from contextlib import closing
+from hashlib import sha256
 import json
 from pathlib import Path
 import sqlite3
@@ -7,6 +8,7 @@ import sys
 from types import SimpleNamespace
 
 from ..domain.registry import catalog
+from ..domain.strategy import digest
 from .research import coverage
 from .research_ledger import ResearchLedger
 
@@ -19,6 +21,9 @@ _TOOLS = [
      "inputSchema": {"type": "object", "properties": {"symbol": {"type": "string", "pattern": "^[A-Z0-9]{2,24}$"}},
                      "required": ["symbol"], "additionalProperties": False}},
 ]
+for tool in _TOOLS:
+    tool["annotations"] = {"readOnlyHint": True, "destructiveHint": False,
+                           "idempotentHint": True, "openWorldHint": False}
 
 
 def handle(request, root):
@@ -47,7 +52,12 @@ def handle(request, root):
             name, args = params["name"], params["arguments"]
             root = Path(root)
             if name == "strategy_catalog" and not args:
-                value = {"strategies": catalog(), "authority": "PAPER_ONLY", "funded_authority": False}
+                value = {"strategies": catalog(), "authority": "PAPER_ONLY", "funded_authority": False,
+                         "capabilities": {"tools": [tool["name"] for tool in _TOOLS],
+                                          "scope": "THIS_TOOL_SERVER", "read_only": True,
+                                          "external_requests": False, "credential_operations": False,
+                                          "order_submission": False,
+                                          "runtime_isolation_verified": False}}
             elif name == "research_state" and not args:
                 with ResearchLedger(root / "research.sqlite3", readonly=True) as ledger:
                     value = ledger.overview()
@@ -61,7 +71,12 @@ def handle(request, root):
                 value = {**value, "authority": "PUBLIC_OBSERVATIONS", "funded_authority": False}
             else:
                 raise ValueError("unknown or non-read-only research tool")
-            result = {"content": [{"type": "text", "text": json.dumps(value, allow_nan=False)}], "isError": False}
+            payload = json.dumps(value, allow_nan=False)
+            # Preserve content using result metadata: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/schema/2024-11-05/schema.json
+            result = {"content": [{"type": "text", "text": payload}], "isError": False,
+                      "_meta": {"tradinggym/provenance": {"tool": name, "arguments_digest": digest(args),
+                                "payload_sha256": sha256(payload.encode("utf-8")).hexdigest(),
+                                "source_authenticity_verified": False}}}
         except (ValueError, TypeError, KeyError, OSError, sqlite3.Error):
             result = {"content": [{"type": "text", "text": "Read-only research request rejected or data unavailable."}], "isError": True}
     else:

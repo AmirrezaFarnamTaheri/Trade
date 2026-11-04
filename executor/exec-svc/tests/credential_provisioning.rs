@@ -2,12 +2,15 @@ use exec_store::Ledger;
 use exec_svc::offline_recovery::{CredentialMetadata, CredentialPermission, DurableOrderJournal};
 use std::{
     path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 fn root() -> PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
-        "gym-provision-test-{}-{}",
+        "gym-provision-test-{}-{}-{}",
         std::process::id(),
+        NEXT_ID.fetch_add(1, Ordering::Relaxed),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

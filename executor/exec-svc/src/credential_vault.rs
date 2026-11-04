@@ -388,7 +388,7 @@ impl Vault {
             .root
             .join(format!("{}.pending", generation_name(&generation)));
         let sd = descriptor(&sddl(&self.sid, false, false))?;
-        let mut sa = SECURITY_ATTRIBUTES {
+        let sa = SECURITY_ATTRIBUTES {
             nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
             lpSecurityDescriptor: sd.0,
             bInheritHandle: 0,
@@ -399,7 +399,7 @@ impl Vault {
                 wide.as_ptr(),
                 FILE_GENERIC_WRITE | READ_CONTROL | WRITE_DAC,
                 0,
-                &mut sa,
+                &sa,
                 CREATE_NEW,
                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH,
                 ptr::null_mut(),

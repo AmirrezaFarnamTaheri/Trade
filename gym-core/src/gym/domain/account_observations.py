@@ -22,12 +22,16 @@ def _name(v: object, label: str) -> str:
 def _amount(v: object, label: str) -> str:
     if isinstance(v, (bool, float)) or not isinstance(v, (Decimal, int, str)):
         raise TypeError(f"{label} must be an exact decimal, not float")
+    if len(str(v)) > 256:
+        raise ValueError(f"unbounded {label}")
     try:
         value = Decimal(str(v))
     except (InvalidOperation, ValueError) as exc:
         raise ValueError(f"invalid {label}") from exc
     if not value.is_finite() or value < 0:
         raise ValueError(f"{label} must be finite and nonnegative")
+    if value.adjusted() > 255 or value.as_tuple().exponent < -255:
+        raise ValueError(f"unbounded {label}")
     return format(value, "f")
 
 
@@ -59,9 +63,11 @@ def parse_wallex_balances(payload: object) -> dict[str, dict[str, str]]:
         raise ValueError("unrecognized Wallex balance result")
     out = {}
     for asset, item in body.items():
+        if not isinstance(asset, str) or not _ASSET.fullmatch(asset.upper()) or asset.upper() in out:
+            raise ValueError("invalid or duplicate balance asset")
         if not isinstance(item, dict) or "value" not in item or "locked" not in item:
             raise ValueError("incomplete balance item")
-        out[asset] = {
+        out[asset.upper()] = {
             "value": _amount(item["value"], "value"),
             "locked": _amount(item["locked"], "locked"),
         }

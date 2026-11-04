@@ -59,7 +59,7 @@ def test_ci_runs_smoke_only_on_trusted_repo_push_and_locked_build():
     assert "github.event_name == 'push'" in ci
     assert "github.repository == 'AmirrezaFarnamTaheri/Trade'" in ci
     assert 'permissions:' in ci and 'contents: read' in ci
-    assert 'cargo build --release --locked -p exec-svc --bin gym-executor' in ci
+    assert 'cargo build --release --locked -p exec-svc --bins' in ci
     assert 'Test-ReadOnlyExecutorOnHostedVm.ps1' in ci
     assert 'timeout-minutes:' in ci
 

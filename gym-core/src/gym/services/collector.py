@@ -375,19 +375,24 @@ class Collector:
         self.db.upsert_candles(symbol, resolution, candles, now)
         return len(candles)
 
-    async def _housekeeping(self, session):
+    async def _housekeeping(self):
+        while True:
+            await asyncio.sleep(2)
+            self.tick(now_utc())
+
+    async def _refresh_rest(self, session):
+        # Network refresh cannot delay freshness checks or observation heartbeats.
         last_reseed = last_candles = time.monotonic()
         reseed_cursor = candle_cursor = 0
         while True:
             await asyncio.sleep(2)
-            self.tick(now_utc())
             symbols = list(self.books)
             if session and symbols and time.monotonic() - last_reseed > 60:
                 last_reseed = time.monotonic()
                 ordered = symbols[reseed_cursor:] + symbols[:reseed_cursor]
-                stale = [s for s in ordered if s in self.tops and "STALE" in self.tops[s].flags][:RESEED_BATCH]
+                stale = [s for s in ordered if s not in self.tops or "STALE" in self.tops[s].flags][:RESEED_BATCH]
                 reseed_cursor = (reseed_cursor + RESEED_BATCH) % len(symbols)
-                if stale and self.status["connected"]:
+                if stale:
                     await self.seed(session, stale, trades=False)
             if session and symbols and time.monotonic() - last_candles > CANDLE_REFRESH_S:
                 last_candles, now = time.monotonic(), now_utc()
@@ -398,7 +403,10 @@ class Collector:
 
     async def run(self):
         if self.demo:
-            return await asyncio.gather(self._housekeeping(None), self._demo())
+            async with asyncio.TaskGroup() as tasks:
+                tasks.create_task(self._housekeeping())
+                tasks.create_task(self._demo())
+            return
         async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
             await self.load_catalog(session)
             symbols = list(self.insts)
@@ -406,8 +414,11 @@ class Collector:
                 raise RuntimeError("catalog produced no observable markets")
             batch_size = wallex.MAX_CHANNELS // 3
             shards = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
-            await asyncio.gather(self._housekeeping(session),
-                                 *(self._ws_loop(session, batch, i + 1) for i, batch in enumerate(shards)))
+            async with asyncio.TaskGroup() as tasks:
+                tasks.create_task(self._housekeeping())
+                tasks.create_task(self._refresh_rest(session))
+                for i, batch in enumerate(shards):
+                    tasks.create_task(self._ws_loop(session, batch, i + 1))
 
     # --- demo: synthetic Wallex-shaped frames through the same ingestion path ---
     def demo_frames(self, rng: random.Random, st: dict, now: datetime):

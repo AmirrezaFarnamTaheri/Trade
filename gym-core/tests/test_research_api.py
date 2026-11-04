@@ -43,7 +43,7 @@ def test_setup_compare_and_saved_runs(research_app):
             assert setup_response.headers["Cache-Control"] == "no-store"
             assert setup["authority"] == "PAPER_ONLY" and setup["funded_authority"] is False
             assert setup["symbols"] == ["BTCUSDT"]
-            assert len(setup["strategies"]) == 4
+            assert len(setup["strategies"]) == 6
             assert setup["coverage"]["observations"] == 180
             assert setup["defaults"]["fee_rate"] == "0.001"
             unknown = await (await client.get("/api/research?symbol=UNKNOWN")).json()
@@ -78,7 +78,66 @@ def test_setup_compare_and_saved_runs(research_app):
     asyncio.run(check())
 
 
+def test_chronological_validation_api_saves_referenced_runs_before_manifest(research_app):
+    import json
+    db, col, runs = research_app
+
+    async def check():
+        async with TestClient(TestServer(server.make_app(col, RuleService(db), "tok", runs))) as client:
+            assert (await client.post("/api/validate", json=request_body())).status == 403
+            response = await client.post("/api/validate", json=request_body(), headers={"X-Gym-Token": "tok"})
+            assert response.status == 200, await response.text()
+            report = await response.json()
+            assert report["mode"] == "TEMPORAL_VALIDATION" and report["independent_final_evidence"] is False
+            manifest = runs / "validations" / (report["validation_id"] + ".json")
+            saved = json.loads(manifest.read_text("utf-8"))
+            assert saved["funded_authority"] is False
+            assert saved["selection"] == report["selection"]
+            for run in report["runs"]:
+                assert (await client.get("/api/runs/" + run["run_id"])).status == 200
+            assert "runs" not in saved
+    asyncio.run(check())
+
+
+def test_multi_window_api_retains_references_and_rejects_missing_authority(research_app):
+    import json
+    db, col, runs = research_app
+
+    async def check():
+        async with TestClient(TestServer(server.make_app(col, RuleService(db), "tok", runs))) as client:
+            body = {**request_body(), "folds": 2}
+            assert (await client.post("/api/validate", json=body)).status == 403
+            response = await client.post("/api/validate", json=body, headers={"X-Gym-Token": "tok"})
+            assert response.status == 200, await response.text()
+            report = await response.json()
+            assert report["mode"] == "MULTI_WINDOW_VALIDATION" and report["fold_count"] == 2
+            assert report["funded_authority"] is False and report["order_submitted"] is False
+            assert response.headers["Cache-Control"] == "no-store"
+            saved = json.loads((runs / "validations" / (report["validation_id"] + ".json")).read_text("utf-8"))
+            assert saved["folds"] == report["folds"] and "runs" not in saved
+            ids = {row["run_id"] for row in report["runs"]}
+            for fold in report["folds"]:
+                assert set(fold["selection"]["run_ids"]) <= ids
+                assert fold["holdout_run_id"] is None or fold["holdout_run_id"] in ids
+            for run_id in ids:
+                assert (await client.get("/api/runs/" + run_id)).status == 200
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize("folds", [True, 0, 6, "2", 1.5, None])
+def test_invalid_api_window_counts_never_publish(research_app, folds):
+    db, col, runs = research_app
+
+    async def check():
+        async with TestClient(TestServer(server.make_app(col, RuleService(db), "tok", runs))) as client:
+            response = await client.post("/api/validate", json={**request_body(), "folds": folds}, headers={"X-Gym-Token": "tok"})
+            assert response.status == 400, await response.text()
+            assert not list(runs.rglob("*.json"))
+    asyncio.run(check())
+
+
 BAD_FIELDS = [
+    {"folds": 2},
     {"symbol": "UNKNOWN"}, {"symbol": "../BTCUSDT"}, {"symbol": None},
     {"candidates": []}, {"candidates": [{}]}, {"candidates": [None, {}]},
     {"candidates": [{"strategy": "unknown"}, {"strategy": "ema-trend"}]},

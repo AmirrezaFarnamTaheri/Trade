@@ -1,7 +1,7 @@
 """Explicit, versioned paper strategies and their public parameter schemas."""
 import re
 
-from .strategy import ConfirmedTrend, EmaTrend, RelativeMomentum, SmaReversion, digest
+from .strategy import BollingerReversion, ConfirmedTrend, EmaTrend, RelativeMomentum, SmaCross, SmaReversion, digest
 
 
 STRATEGIES = {
@@ -12,6 +12,14 @@ STRATEGIES = {
     "sma-reversion": (SmaReversion, "SMA reversion", {
         "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 10000},
         "entry_bps": {"type": "integer", "default": 50, "minimum": 0, "maximum": 1000},
+    }),
+    "sma-cross": (SmaCross, "SMA crossover", {
+        "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 10000},
+        "slow": {"type": "integer", "default": 21, "minimum": 2, "maximum": 10000},
+    }),
+    "bollinger-reversion": (BollingerReversion, "Bollinger reversion", {
+        "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 10000},
+        "deviations": {"type": "integer", "default": 2, "minimum": 1, "maximum": 5},
     }),
     "ema-confirmed": (ConfirmedTrend, "Higher-timeframe EMA confirmation", {
         "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 10000},

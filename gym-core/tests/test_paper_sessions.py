@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 from gym.adapters.run_store import run_path
 from gym.domain.model import iso
+from gym.domain.registry import create_strategy
 from gym.domain.sim import CostModel
 from gym.domain.strategy import EmaTrend
 from gym.services.data_portal import DataPortal
@@ -106,3 +107,37 @@ def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch):
     assert r["session"]["state"] == "ENDED"
     assert max(d["t"] for d in r["decisions"]) <= iso(START + timedelta(seconds=125))
     assert any(e["state"] == "FINISHING" and e["t"] == iso(START + timedelta(seconds=125)) for e in r["session"]["events"])
+
+
+@pytest.mark.parametrize("name,params", [
+    ("ema-trend", {"fast": 1, "slow": 2}),
+    ("sma-reversion", {"lookback": 2, "entry_bps": 1}),
+    ("sma-cross", {"fast": 2, "slow": 3}),
+    ("bollinger-reversion", {"lookback": 6, "deviations": 1}),
+    ("ema-confirmed", {"fast": 1, "slow": 2, "confirmation": "15min"}),
+    ("relative-momentum", {"lookback": 2, "reference": "ETHUSDT"}),
+])
+def test_live_watch_uses_registered_strategy_and_context(tmp_path, monkeypatch, name, params):
+    from gym.services import live_paper
+
+    db = market_db(tmp_path, quote_history(n=200) + quote_history(n=200, sym="ETHUSDT"))
+    times = iter([START, START + timedelta(minutes=30), START + timedelta(minutes=30, seconds=1)])
+    monkeypatch.setattr(live_paper, "now_utc", lambda: next(times))
+
+    async def interrupt(_):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(live_paper.asyncio, "sleep", interrupt)
+    try:
+        out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 10000, "1min", 1, 2,
+                                         Decimal(1000), strategy_id=name, params=params))
+        strategy = create_strategy(name, params)
+        assert out["inputs"]["strategy"] == out["result"]["strategy"] == name
+        assert out["inputs"]["params"] == strategy.params
+        assert out["inputs"]["config_hash"] == strategy.config_hash
+        assert out["inputs"]["reference_symbol"] == getattr(strategy, "reference_symbol", None)
+        assert set(getattr(strategy, "required_resolutions", ())) <= set(out["inputs"]["subscriptions"])
+        assert any(d["action"] != "ABSTAIN_WARMUP" for d in out["result"]["decisions"])
+        assert out["result"]["session"]["state"] == "ABORTED"
+    finally:
+        db.c.close()

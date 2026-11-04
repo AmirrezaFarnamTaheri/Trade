@@ -108,6 +108,33 @@ def long_flat(snap, holding, trend, features):
     return action, Decimal(int(action != "HOLD")), ("long condition" if trend else "flat condition",), fingerprint
 
 
+class SmaCross:
+    """Closed-bar SMA crossovers; decisions use actual holding state, never assumed fills."""
+    name = "sma-cross"
+
+    def __init__(self, fast=8, slow=21):
+        if not 1 <= fast < slow:
+            raise ValueError("need 1 <= fast < slow")
+        self.params = {"fast": fast, "slow": slow}
+        self.closes = deque(maxlen=slow + 1)
+        self.feature_values = {}
+
+    def decide(self, snap, holding):
+        self.closes.append(snap.bar.close)
+        values = list(self.closes)
+        fast, slow = self.params["fast"], self.params["slow"]
+        self.feature_values = {"observations": len(values), "required": slow + 1, "trend": None}
+        if len(values) < slow + 1:
+            return long_flat(snap, holding, None, self.feature_values)
+        f, s = sum(values[-fast:]) / fast, sum(values[-slow:]) / slow
+        pf, ps = sum(values[-fast-1:-1]) / fast, sum(values[-slow-1:-1]) / slow
+        cross = "UP" if pf <= ps and f > s else "DOWN" if pf >= ps and f < s else None
+        self.feature_values.update(fast_sma=str(f), slow_sma=str(s),
+                                   previous_fast_sma=str(pf), previous_slow_sma=str(ps), cross=cross, trend=f > s)
+        target = True if cross == "UP" else False if cross == "DOWN" else holding
+        return long_flat(snap, holding, target, self.feature_values)
+
+
 class SmaReversion:
     """Buy below a closed-bar rolling mean; exit at the mean. No shorts or leverage."""
     name = "sma-reversion"
@@ -124,6 +151,27 @@ class SmaReversion:
         threshold = mean if holding else mean * (1 - Decimal(self.params["entry_bps"]) / 10000)
         trend = snap.bar.close < threshold if ready else None
         self.feature_values = {"mean": str(mean), "threshold": str(threshold), "trend": trend}
+        return long_flat(snap, holding, trend, self.feature_values)
+
+
+class BollingerReversion:
+    """Long below a closed-price population-deviation band; exit at the rolling mean."""
+    name = "bollinger-reversion"
+
+    def __init__(self, lookback=20, deviations=2):
+        self.params = {"lookback": lookback, "deviations": deviations}
+        self.closes = deque(maxlen=lookback)
+        self.feature_values = {}
+
+    def decide(self, snap, holding):
+        self.closes.append(snap.bar.close)
+        mean = sum(self.closes) / len(self.closes)
+        deviation = (sum((value - mean)**2 for value in self.closes) / len(self.closes)).sqrt()
+        lower = mean - self.params["deviations"] * deviation
+        ready = len(self.closes) == self.closes.maxlen
+        trend = snap.bar.close < (mean if holding else lower) if ready else None
+        self.feature_values = {"mean": str(mean), "standard_deviation": str(deviation),
+                               "lower_band": str(lower), "trend": trend}
         return long_flat(snap, holding, trend, self.feature_values)
 
 

@@ -1,4 +1,8 @@
-use std::{io, time::Duration};
+use std::{
+    io,
+    os::windows::io::{AsRawHandle, BorrowedHandle},
+    time::Duration,
+};
 use windows_service::{
     service::{Service, ServiceAccess, ServiceState, ServiceType},
     service_manager::{ServiceManager, ServiceManagerAccess},
@@ -136,11 +140,12 @@ impl Pinned {
         unsafe { WaitForSingleObject(self.process, budget.as_millis() as u32) == 0 }
     }
 }
-pub fn authenticate_pipe(pipe: HANDLE, expected_pid: u32) -> Result<(), String> {
+pub fn authenticate_pipe(pipe: BorrowedHandle<'_>, expected_pid: u32) -> Result<(), String> {
     let service = service(false)?;
     let before = service.query_status().map_err(|e| e.to_string())?;
     let mut pid = 0;
-    if unsafe { GetNamedPipeServerProcessId(pipe, &mut pid) } == 0 {
+    // SAFETY: the borrowed handle remains open through the kernel identity query.
+    if unsafe { GetNamedPipeServerProcessId(pipe.as_raw_handle(), &mut pid) } == 0 {
         return Err(error());
     }
     let after = service.query_status().map_err(|e| e.to_string())?;

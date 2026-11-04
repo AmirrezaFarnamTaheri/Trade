@@ -53,7 +53,7 @@ foreach ($path in @($CodeRoot, $DataRoot)) {
 
 $operatorSid = ([Security.Principal.NTAccount]::new($OperatorAccount)).Translate([Security.Principal.SecurityIdentifier]).Value
 $null = & (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1') -OperatorProcessId $OperatorProcessId -ExpectedUserSid $operatorSid
-$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe') | ForEach-Object {
+$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe', 'gym-research-worker.exe') | ForEach-Object {
     $file = Get-Item -LiteralPath (Join-Path $inputFile.DirectoryName $_) -ErrorAction Stop
     if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Helper must be a regular staging executable.' }
     @{ File = $file; Hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash }
@@ -100,7 +100,7 @@ try {
         Copy-Item -LiteralPath $helper.File.FullName -Destination $destination -ErrorAction Stop
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $helper.Hash) { throw 'Helper hash changed during copy.' }
         Invoke-Icacls -Path $destination -Arguments @('/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F')
-        if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe')) {
+        if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-research-worker.exe')) {
             Invoke-Icacls -Path $destination -Arguments @('/grant:r', "*${operatorSid}:RX")
         }
         Invoke-Icacls -Path $destination -Arguments @('/setowner', '*S-1-5-32-544')
@@ -109,11 +109,13 @@ try {
         Invoke-Icacls -Path $dir -Arguments @('/grant:r', "*${operatorSid}:RX")
     }
 
-    # Native SCM syntax separates each key from its argument. No password is
-    # accepted, and this deliberately does not start the service.
-    Invoke-Sc -Arguments @('create', $ServiceName, 'type=', 'own',
-        'start=', 'disabled', 'obj=', 'NT AUTHORITY\LocalService',
-        'binPath=', ('"' + $ExePath + '"'))
+    # CIM preserves literal image-path quotes across Windows PowerShell versions.
+    $registration = Invoke-CimMethod -ClassName Win32_Service -MethodName Create -Arguments @{
+        Name = $ServiceName; DisplayName = $ServiceName; PathName = ('"' + $ExePath + '"')
+        ServiceType = [byte]16; ErrorControl = [byte]1; StartMode = 'Disabled'
+        StartName = 'NT AUTHORITY\LocalService'
+    }
+    if ($registration.ReturnValue -ne 0) { throw "Service registration failed: $($registration.ReturnValue)" }
     $created = $true
     # Without this descriptor Windows may grant interactive users SERVICE_START
     # or SERVICE_STOP.  Only query rights are intentionally exposed to AU.
@@ -133,6 +135,9 @@ try {
     Invoke-Icacls -Path $CodeRoot -Arguments @('/grant:r', $readCode)
     Invoke-Icacls -Path $CodeDir -Arguments @('/grant:r', $readCode)
     Invoke-Icacls -Path $ExePath -Arguments @('/grant:r', "*${serviceSid}:RX")
+    foreach ($helper in $helpers) {
+        Invoke-Icacls -Path (Join-Path $CodeDir $helper.File.Name) -Arguments @('/grant:r', "*${serviceSid}:RX")
+    }
     Invoke-Icacls -Path $DataRoot -Arguments @('/grant:r', $readCode)
     Invoke-Icacls -Path $DataDir -Arguments @('/grant:r', $modifyData)
 

@@ -18,4 +18,6 @@ try { $null = & $helper -OperatorProcessId 0 -ExpectedUserSid $identity.User.Val
 if (-not $rejected) { throw 'Zero selected operator process ID accepted.' }
 $hard = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Invoke-ExecutorHardStop.ps1') -Raw
 if ($hard -match 'Stop-Service' -or $hard -notmatch 'acknowledge-loss-of-protection') { throw 'Unbounded or unconfirmed hard-stop wrapper.' }
+& (Join-Path $PSScriptRoot 'Assert-ExecutorDrillManifest.ps1') -SelfTest
+& (Join-Path $PSScriptRoot 'Test-ExecutorInstalledHost.ps1') -Stage SelfTest
 Write-Output 'PASS: scripts parse; actual token user/logon matched; mismatched and zero-PID bindings rejected. No privileged operations performed.'

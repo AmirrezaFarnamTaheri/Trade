@@ -2,7 +2,6 @@
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from io import BytesIO
 
 import pytest
 
@@ -103,6 +102,18 @@ def test_fee_rates_parse_documented_per_symbol_shape_exactly():
                 {"BTCUSDT": {"makerFeeRate": "0.001", "takerFeeRate": "1"}}):
         with pytest.raises(ReadUncertain):
             run(WallexAccountReader(Session(data={"success": True, "result": bad})).fee_rates())
+
+
+@pytest.mark.parametrize("rows", [
+    {"BTCUSDT": {"takerFeeRate": "0.002"}},
+    {"BTCUSDT": {"makerFeeRate": "1e-999999999", "takerFeeRate": "0.002"}},
+    {"BTCUSDT": {"makerFeeRate": "0e999999999", "takerFeeRate": "0.002"}},
+    {"BTCUSDT": {"makerFeeRate": "0.001", "takerFeeRate": "0.002"},
+     "btcusdt": {"makerFeeRate": "0.001", "takerFeeRate": "0.002"}},
+])
+def test_fee_rates_reject_incomplete_duplicate_or_unbounded_rows(rows):
+    with pytest.raises(ReadUncertain):
+        run(WallexAccountReader(Session(data={"success": True, "result": rows})).fee_rates())
 
 
 def test_read_only_fee_probe_preserves_unknown_contract_and_redacts_private_fields():

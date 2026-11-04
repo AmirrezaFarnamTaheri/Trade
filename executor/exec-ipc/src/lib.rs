@@ -148,7 +148,13 @@ fn parse_frame(raw: &[u8]) -> Result<(u8, u8, u8, u64, [u8; 16]), ProtocolError>
 
 impl StopRequest {
     pub fn encode(self) -> Result<[u8; FRAME_SIZE], ProtocolError> {
-        encode_frame(self.command as u8, 0, 0, self.runtime_epoch, &self.correlation)
+        encode_frame(
+            self.command as u8,
+            0,
+            0,
+            self.runtime_epoch,
+            &self.correlation,
+        )
     }
 
     pub fn decode(raw: &[u8]) -> Result<Self, ProtocolError> {
@@ -156,7 +162,11 @@ impl StopRequest {
         if mode != 0 || changed != 0 {
             return Err(ProtocolError::InvalidHeader);
         }
-        Ok(Self { command: code.try_into()?, runtime_epoch, correlation })
+        Ok(Self {
+            command: code.try_into()?,
+            runtime_epoch,
+            correlation,
+        })
     }
 }
 
@@ -196,6 +206,12 @@ impl StopReply {
         if changed > 1 || (result == StopResult::StaleRuntime && changed != 0) {
             return Err(ProtocolError::InvalidReply);
         }
-        Ok(Self { result, mode, changed: changed == 1, runtime_epoch, correlation })
+        Ok(Self {
+            result,
+            mode,
+            changed: changed == 1,
+            runtime_epoch,
+            correlation,
+        })
     }
 }

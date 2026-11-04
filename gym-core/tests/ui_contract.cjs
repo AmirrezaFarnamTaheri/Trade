@@ -97,6 +97,7 @@ const replies = new Map([
   ["/api/markets", { now: "2026-11-02T08:00:00Z", demo: true, markets: [], universe: { observed_assets: [], observed_markets: 0 } }],
   ["/api/health", { demo: true, connected: false, fatal: null, reconnects: 0, last_frame_age_s: null, errors: [], quality: [] }],
   ["/api/runs", []], ["/api/rules", { version: 0, rules: [], quarantined: [] }],
+  ["/api/research-state", { state: "NOT_CONFIGURED", authority: "PAPER_ONLY", funded_authority: false, order_submitted: false, hypotheses: [], jobs: [], alerts: [] }],
   ["/api/automation-safety", { mode: "DISARMED", protection: "UNAVAILABLE", venue_stops: "NOT_CERTIFIED", funded_authority: false, entries_enabled: false, autopilot_enabled: false, executor_state_verified: false }],
   ["/api/account-observations", { state: "NOT_CONFIGURED", authority: "READ_ONLY", balances: [], orders: [], exposure: [] }],
   ["/api/external-order-events", { events: [] }], ["/api/offline-ticket-reviews", { tickets: [], reviews: [] }],
@@ -112,6 +113,7 @@ const strategies = [
   { id: "sma-reversion", title: "SMA reversion", parameters: { properties: { lookback: { type: "integer", default: 20, minimum: 2, maximum: 10000 }, entry_bps: { type: "integer", default: 50, minimum: 0, maximum: 1000 } } } },
   { id: "ema-confirmed", title: "Confirmed", parameters: { properties: { confirmation: { type: "string", default: "1h", enum: ["15min", "1h", "1day"] } } } },
   { id: "relative-momentum", title: "Relative", parameters: { properties: { reference: { type: "string", default: "ETHUSDT" } } } },
+  { id: "bollinger-reversion", title: "Bollinger reversion", parameters: { properties: { lookback: { type: "integer", default: 20, minimum: 2, maximum: 10000 }, deviations: { type: "integer", default: 2, minimum: 1, maximum: 5 } } } },
 ];
 const setup = { strategies, symbols: ["BTCUSDT"], coverage: { symbol: "BTCUSDT", observations: 30, from: "2026-10-29T12:30:00+03:30", to: "2026-10-29T13:00:00+03:30", gaps_over_120s: 0 }, defaults: { fee_rate: "0.001", resolution: "15min", latency_ms: 500 }, authority: "PAPER_ONLY", funded_authority: false };
 replies.set("/api/research", setup);
@@ -141,7 +143,7 @@ const sandbox = {
   fetch: async (path, options = {}) => {
     requests.push({ path, options });
     assert.ok(replies.has(path), `Unexpected API request: ${path}`);
-    if (path.startsWith("/api/research") && delayedSetup) return delayedSetup;
+    if ((path === "/api/research" || path.startsWith("/api/research?")) && delayedSetup) return delayedSetup;
     if (path === "/api/compare" && delayedCompare) return delayedCompare;
     if (path === "/api/health" && abortHealth) return new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted"))));
     if (path === "/api/dry-run/ticket" && delayedTicket) return delayedTicket;
@@ -151,7 +153,7 @@ const sandbox = {
 sandbox.window = sandbox;
 const context = vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context, { timeout: 5000 });
-const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch })", context);
+const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch, renderResearchJobs, controlResearch })", context);
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(setImmediate); };
 const plain = value => String(value).replace(/<[^>]*>/g, "");
 const click = async id => {
@@ -197,11 +199,23 @@ const click = async id => {
   const zeroWaterfall = app.waterfallFigure(costs.map(([key]) => [key, "0"]), "USDT");
   assert.equal((zeroWaterfall.match(/<rect\b/g) || []).length, 5);
   assert.doesNotMatch(zeroWaterfall, /NaN|Infinity/);
-  app.renderRun({ inputs: { store: "demo" }, result: { symbol: "BTCUSDT", quote: "USDT", end: {
+  app.renderRun({ run_id: "1234567890abcdef", inputs: { store: "demo" }, evidence: {
+    sampled_drawdown: { status: "AVAILABLE", maximum_percent: "1.12345678" },
+  }, result: { symbol: "BTCUSDT", quote: "USDT", end: {
     equity: "1000.123456789012345678", net: "83.123456789012345678", waterfall: Object.fromEntries(costs),
   } } });
   assert.ok(byId("run-detail").innerHTML.includes("1,000.123456789012345678"), "Chart rounding must not round the exact equity statistic");
   assert.ok(byId("run-detail").innerHTML.includes("83.123456789012345678"), "Chart rounding must not round the exact net statistic");
+  assert.ok(byId("run-detail").innerHTML.includes("1.12345678"));
+  assert.ok(byId("run-detail").innerHTML.includes('data-export-run="1234567890abcdef"'));
+  replies.set("/api/runs/1234567890abcdef/summary", {});
+  responseStatus = 503;
+  const exportButton = { dataset: { exportRun: "1234567890abcdef" }, disabled: false };
+  await byId("run-detail").listeners.click({ target: exportButton });
+  assert.equal(exportButton.disabled, false, "Failed download must allow retry");
+  assert.equal(app.state.apiError, true);
+  assert.equal(byId("connection-error").hidden, false, "Download failure needs visible feedback");
+  responseStatus = 200;
   for (const raw of ["null", "[]", "42", '"text"', "true"]) {
     byId("offline-ticket").value = raw;
     assert.doesNotThrow(() => app.renderTicketFields(), `Structured form must tolerate JSON ${raw}`);
@@ -400,6 +414,16 @@ const click = async id => {
   assert.equal(app.state.comparison, null);
   assert.ok(comparisonText().includes(app.T.en.comparisonChanged));
 
+  byId("candidate-first").value = "bollinger-reversion";
+  byId("candidate-first").listeners.change();
+  const deviations = byId("parameter-first-deviations");
+  assert.equal(deviations.value, "2");
+  assert.equal(deviations.getAttribute("max"), "5");
+  deviations.value = "1"; edit(deviations);
+  await submit();
+  assert.deepEqual(JSON.parse(requests.findLast(request => request.path === "/api/compare").options.body).candidates[0],
+    { strategy: "bollinger-reversion", params: { lookback: 20, deviations: 1 } });
+
   // Generated enum and string parameters must remain strings in requests.
   for (const [slot, strategy] of [["first", "ema-confirmed"], ["second", "relative-momentum"]]) {
     byId("candidate-" + slot).value = strategy;
@@ -480,6 +504,45 @@ const click = async id => {
   const beforeCoverage = requests.length; await submit(); assert.equal(requests.length, beforeCoverage);
   resolveSetup(httpReply(setup)); await loadingSetup; delayedSetup = null;
   assert.equal(byId("comparison-fields").disabled, false);
+
+  const jobs = { state: "CONFIGURED", authority: "PAPER_ONLY", funded_authority: false, order_submitted: false,
+    hypotheses: [{ id: "hypothesis", strategy: "ema-trend", symbol: "BTCUSDT" }],
+    jobs: [{ id: "job1", hypothesis_id: "hypothesis", enabled: true, next_at: "2026-11-03T08:00:00Z", last_report: { status: "FAILED", retry_at: "2026-11-03T09:00:00Z" } }],
+    alerts: [{ kind: "RESEARCH_FAILED", due_at: "2026-11-03T08:00:00Z" }] };
+  replies.set("/api/research-state", jobs);
+  await app.showView("research"); await settle();
+  assert.match(byId("research-jobs").innerHTML, /ema-trend/);
+  assert.match(byId("research-jobs").innerHTML, /data-research-action="pause"/);
+  assert.equal(byId("research-tick").disabled, false);
+  replies.set("/api/research/jobs/job1/pause", { authority: "PAPER_ONLY", funded_authority: false, order_submitted: false, enabled: false });
+  jobs.jobs[0].enabled = false;
+  await app.controlResearch("pause", "job1");
+  assert.match(byId("research-jobs").innerHTML, /data-research-action="resume"/);
+  assert.equal(byId("research-tick").disabled, true);
+  assert.equal(requests.find(row => row.path === "/api/research/jobs/job1/pause").options.body, "{}");
+  app.renderHealth({ quality: [], errors: [], readiness: { status: "DEGRADED", markets: [{ symbol: "BTCUSDT", state: "STALE", bid_age_seconds: 121, ask_age_seconds: 4 }] } });
+  assert.match(byId("health-readiness").innerHTML, /121/);
+  const validation = { ...comparison, mode: "TEMPORAL_VALIDATION", validation_id: "abc", status: "EVALUATED", selected: { strategy: "ema-trend" },
+    windows: { selection: { from: setup.coverage.from, to: setup.coverage.to }, holdout: { from: setup.coverage.from, to: setup.coverage.to } }, selection: { run_ids: [] }, trial_count: 3 };
+  replies.set("/api/validate", validation);
+  await click("validate-submit");
+  assert.ok(requests.some(row => row.path === "/api/validate"));
+  assert.match(byId("compare-result").innerHTML, /Chronological validation/);
+  assert.equal(JSON.parse(requests.filter(row => row.path === "/api/validate").at(-1).options.body).folds, 1);
+  const multi = { ...validation, mode: "MULTI_WINDOW_VALIDATION", fold_count: 2,
+    status: "INCOMPLETE", folds: [validation, { ...validation, status: "ABSTAIN", selected: null }] };
+  byId("validation-folds").value = "2";
+  replies.set("/api/validate", multi);
+  for (const language of ["en", "fa"]) {
+    if (sandbox.document.documentElement.lang !== language) await click("language-toggle");
+    await click("validate-submit");
+    assert.equal(JSON.parse(requests.filter(row => row.path === "/api/validate").at(-1).options.body).folds, 2);
+    assert.ok(byId("compare-result").innerHTML.includes(app.T[language].INCOMPLETE));
+    assert.ok(byId("compare-result").innerHTML.includes(app.T[language].ABSTAIN));
+    edit(byId("validation-folds"));
+    assert.equal(app.state.comparison, null, "Changing windows invalidates the displayed evaluation");
+  }
+  byId("validation-folds").value = "1";
 
   const baselineTimers = timers.size;
   await app.api("/api/health"); assert.equal(timers.size, baselineTimers, "Success must clear request timer");

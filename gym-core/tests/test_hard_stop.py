@@ -31,6 +31,6 @@ def test_disposable_windows_runner_runs_hard_stop_only_on_own_noop_service():
     assert "AcknowledgeLossOfProtection" in smoke
     assert "Assert-ServiceState -StartMode 'Disabled' -State 'Stopped'" in smoke
     workflow = WORKFLOW.read_text("utf-8")
-    assert "Invoke-ExecutorHardStop.ps1" in workflow
+    assert "Get-ChildItem -LiteralPath scripts/windows -Filter *.ps1" in workflow
     assert "windows-vm-smoke:" in workflow
     assert "github.event_name == 'push'" in workflow

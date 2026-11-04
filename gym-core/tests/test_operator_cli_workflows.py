@@ -1,6 +1,5 @@
 """C operator CLI must allow offline evidence, not secrets or funded orders."""
 import json
-from pathlib import Path
 
 from gym.cli import main
 from gym.services.probe_budget import ProbeBudgetBook

@@ -66,7 +66,7 @@ def test_backup_is_portable_authenticated_and_restores_to_new_machine_path(tmp_p
 def test_wrong_passphrase_and_ciphertext_tampering_never_publish_restore(tmp_path):
     source = tmp_path / "exec_ledger.db"
     bundle = tmp_path / "portable.tgbak"
-    expected = make_ledger(source)
+    make_ledger(source)
     create_backup(source, bundle, passphrase="correct horse battery staple")
     wrong_dest = tmp_path / "wrong.db"
     with pytest.raises(BackupAuthenticationError):

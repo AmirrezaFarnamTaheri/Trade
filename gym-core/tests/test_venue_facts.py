@@ -1,6 +1,5 @@
 """C1 immutable, non-authoritative venue evidence and fail-closed capability registry."""
 import hashlib
-import json
 import sqlite3
 
 import pytest
