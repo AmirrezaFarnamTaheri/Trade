@@ -16,7 +16,7 @@ from .technical_analysis import technical_reports
 from .research_series import derived_series
 from .data_portal import DataPortal
 from .feed_crosscheck import candle_crosscheck
-from .research_market import coverage_timeline, screen_markets
+from .research_market import coverage_timeline, screen_markets, return_correlations
 from .replay_debugger import replay_decisions, execution_quality
 from ..domain.portfolio import rebalance_preview
 from .experiment_registry import ExperimentRegistry
@@ -27,7 +27,7 @@ from .return_bootstrap import return_bootstrap
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived"))
-WORKSPACE_ACTIONS = ("coverage", "market-screen", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = ("coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
@@ -57,11 +57,13 @@ def research_action(root, action, value=None, *, store="live", at=None):
         return (replay_decisions if action == "replay" else execution_quality)(root / "runs", value, store=store)
     if action == "rebalance":
         return rebalance_preview(value)
-    if action in ("coverage", "market-screen", "experiment-run", "strategy-audit"):
+    if action in ("coverage", "market-screen", "return-correlations", "experiment-run", "strategy-audit"):
         db = _market_db(root)
         try:
             if action == "strategy-audit":
                 return audit_strategy(db, value, store=store)
+            if action == "return-correlations":
+                return return_correlations(db, value, store=store)
             if action != "experiment-run":
                 return (coverage_timeline if action == "coverage" else screen_markets)(db, value, store=store)
             with ExperimentRegistry(root, store=store) as registry:

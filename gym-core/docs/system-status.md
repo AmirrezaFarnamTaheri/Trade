@@ -2,6 +2,17 @@
 
 ## Archive implementation and service publication update
 
+Follow-up: aligned market-return correlations and bounded workbench delivery are
+also implemented through shared native CLI/API/GUI actions. **889 Python tests
+passed, five skipped, 39 subtests passed** in 79.66s; the final API correlation
+case also passed with the workspace suite. Ruff and JavaScript syntax pass.
+Recorded BTCUSDT/ETHUSDT report `01216786e5a83ad1` compares 57 identical adjacent
+intervals per pair and explicitly excludes a disqualified bucket/gap in each
+series. Its correlation is descriptive, not a diversification or confidence
+claim. GUI proof: `.pi/return-correlations-20261105.png`. Responses exceeding
+2 MiB fail without economic truncation and warn that mutations may have committed;
+a real native-ledger regression verifies this uncertain-delivery behavior.
+
 Added native decision-linked SVG replay with keyboard access, bounded
 full/prefix and prehistory strategy diagnostics, and seeded saved-return block
 diagnostics. Scheduled jobs now commit exact attempt claims before calculation;

@@ -64,6 +64,13 @@ Tax-lot algorithms are accounting references, not jurisdiction-specific tax advi
 
 ## Concrete incompatibilities and hazards
 
+Native follow-up, 2026-11-05: `return-correlations` implements the explicit-universe
+return-alignment diagnostic from priority 7 through existing market/CLI/API/UI
+owners. Pair overlap, gap exclusions, zero variance and stale markets remain
+visible. No donor calculation or filled price-level matrix was copied. The
+[research contracts](research-workspace.md) define the bounds and limitations;
+the original static review below is not its runtime verification receipt.
+
 * Wealthfolio explicitly separates its pure calculation kernel from clocks,
   network/storage and host adapters. Its policy has business-date/account-scope
   semantics appropriate to portfolio reporting; those are not interchangeable

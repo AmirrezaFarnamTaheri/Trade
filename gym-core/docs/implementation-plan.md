@@ -71,6 +71,8 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Decision-linked chart | Native bounded SVG replay displays up to 150 recorded points through the selected decision, explicit gaps, escaped exact-price labels and keyboard navigation. No chart framework or donor data imported. |
 | Causality and warm-up audit | Shared `strategy-audit` action compares full versus truncated native decision traces at selected endpoints and separately varies prehistory. Missing comparisons stay unavailable; matching selected endpoints does not prove all branches unbiased. |
 | Saved-return uncertainty | Shared `return-bootstrap` action verifies saved artifacts and computes seeded stationary-block centered-return diagnostics. Real timestamp gaps break block adjacency. Declared assumptions, interval counts, modeled costs and uncorrected strategy selection remain visible; no promotion verdict. |
+| Aligned market-return correlations | Shared `return-correlations` action compares actual adjacent closed MID return intervals in one market snapshot. Reports pairwise overlap/missingness, disqualified buckets and stale exclusions; constant series remain unavailable. No price-level filling, diversification advice or statistical-significance claim. |
+| Bounded workbench delivery | Authenticated research responses have a 2 MiB UTF-8 delivery cap alongside existing action row/work limits. Oversized outputs are not truncated: the response explicitly says a mutation may have committed and forbids automatic retry. GUI clears old output and asks for saved-state inspection. |
 | Durable paper attempt ownership | Scheduler records an attempt before calculation and releases the write lock during replay. Exact-claim interruption fences late publication; crash claims remain visible until explicit recovery. CLI/API/GUI expose claim, start, progress and unknown liveness separately. This does not terminate processes or cancel orders. |
 | Windows ciphertext publication | Reproduced child-file rename failure under strict ancestor sharing (OS error 32). Directory pins now permit write sharing while denying delete sharing; ciphertext/secret-file pins remain stricter. Regression checks publication, directory rename denial and ciphertext write denial. New binary is built locally; protected installation is not qualified. |
 
@@ -110,7 +112,7 @@ the historical assessments' wording that they were only candidates is not a
 completion claim. The additions above close only their stated local contracts.
 Remaining implementation includes correction-aware indicator/replay fixtures,
 resumable snapshot-bound projections, saved annotations and linked chart panes,
-sequence-checked depth, aligned-return correlation, bounded result bytes/pages,
+sequence-checked depth, further snapshot-bound result pagination,
 persisted entry locks and remaining GUI journal/conversion/probe inputs. Protected
 runtime, real venue, portfolio settlement, vendor feeds and independent-custody
 contracts below also remain open. Excluded predictive ML and unrelated donor

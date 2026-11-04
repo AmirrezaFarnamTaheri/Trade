@@ -232,6 +232,9 @@ def test_new_api_actions_require_token_reject_ambiguous_json_and_use_same_servic
                 ("strategy-audit", audit_request(), "strategy-audit/1"),
                 ("return-bootstrap", {"run_id": out["run_id"], "seed": 21, "simulations": 100,
                                       "mean_block_length": 5, "max_gap_seconds": 120}, "return-bootstrap/1"),
+                ("return-correlations", {"symbols": ["BTCUSDT", "ETHUSDT"], "quote_currency": "USDT",
+                                         "from": iso(START), "to": iso(START + timedelta(minutes=39)),
+                                         "resolution": "1min", "min_overlap": 10}, "return-correlations/1"),
             ):
                 response = await client.post(route, json={"action": action, "value": value}, headers=headers)
                 assert response.status == 200, await response.text()

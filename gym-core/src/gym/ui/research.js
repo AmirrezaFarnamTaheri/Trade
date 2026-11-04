@@ -35,6 +35,7 @@ window.gymResearch = (() => {
   actions['strategy-audit'] = ['Check causality and warm-up', 'بررسی علیت و دورهٔ آماده‌سازی', 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
   actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
   actions['job-interrupt'] = ['Release an interrupted paper attempt', 'آزادسازی تلاش متوقف‌شدهٔ آزمایشی', 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];
+  actions['return-correlations'] = ['Compare aligned market returns', 'مقایسهٔ بازده هم‌زمان بازارها', 'symbols: [market], quote_currency, from, to, resolution, min_overlap'];
   const $ = id => document.getElementById(id);
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
@@ -55,6 +56,7 @@ window.gymResearch = (() => {
       event.preventDefault();
       const submit = event.target.querySelector('button'); submit.disabled = true;
       $('research-action-status').textContent = '';
+      $('research-action-result').textContent = '';
       try {
         const action = $('research-action').value;
         const input = $('research-action-input').value;
@@ -66,7 +68,7 @@ window.gymResearch = (() => {
           $('research-packet-id').textContent = result.packet.id;
           $('research-packet-send').disabled = false;
         }
-      } catch { $('research-action-status').textContent = fa ? 'عملیات ناموفق بود. ورودی و وضعیت دفتر را بررسی کنید؛ ارزیابی نهایی را تکرار نکنید.' : 'Workflow failed. Check the input and ledger state. Do not repeat a consumed final evaluation.'; }
+      } catch { $('research-action-status').textContent = fa ? 'نتیجه دریافت نشد. ممکن است عملیات ثبت شده باشد؛ پیش از تکرار، ورودی و وضعیت ذخیره‌شده را بررسی کنید. ارزیابی مصرف‌شده را تکرار نکنید.' : 'Result was not delivered. The operation may have committed; inspect the input and saved state before retrying. Do not repeat a consumed evaluation.'; }
       finally { submit.disabled = false; }
     };
   }

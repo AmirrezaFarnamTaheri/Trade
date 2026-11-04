@@ -209,3 +209,25 @@ unknown, and geometry floats do not replace stored exact decimal labels. Mouse,
 Enter/Space and left/right keys select actual saved decision indexes. It is a
 price/decision view; drawings, equity panes and live historical corrections are
 not implemented by this chart.
+
+## Aligned market returns and response bounds
+
+`return-correlations`: `symbols` (2..8 distinct), `quote_currency` (`USDT` or
+`TMN`), `from`, `to`, `resolution`, `min_overlap` (2..1,440). Uses the existing
+31-day/1,440-bucket/100,000-observation bounds and one read snapshot. Every
+market must have the declared quote currency. Computes simple MID returns only
+between adjacent eligible closed bars, then aligns the exact interval start and
+end for each pair. No carried price or gap return is manufactured. The upper
+triangle includes self comparisons; constant inputs return ZERO_VARIANCE,
+insufficient pairs return INSUFFICIENT_OVERLAP. Last-quote degradation/staleness
+excludes a market while preserving its coverage details. Per-pair overlap and
+one-sided missing intervals are explicit; pairwise matrices need not share one
+sample and are not a covariance model or diversification advice. No inference,
+significance, annualization or trading confidence is attached.
+
+Research workbench responses additionally cap delivery at 2 MiB of UTF-8 JSON.
+Serialization stops when the bound is exceeded, without returning partial
+economic fields. HTTP 413 indicates that output was not delivered, a mutation
+may have committed, and automatic retry is prohibited. Inspect saved state or
+request a smaller supported page/window. The bound limits delivered bytes, not
+all service memory allocation; existing per-action read/work bounds still apply.

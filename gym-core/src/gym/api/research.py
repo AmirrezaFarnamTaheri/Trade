@@ -10,6 +10,8 @@ from aiohttp import web
 from ..domain.market_models import fields
 from ..services.research_actions import research_action
 
+MAX_RESULT_BYTES = 2 * 1024 * 1024
+
 
 def _unique_object(pairs):
     result = {}
@@ -61,7 +63,15 @@ def install(app, token, root, *, store):
                         raise
         except (OSError, sqlite3.Error):
             return web.json_response({"error": "research store unavailable"}, status=503)
-        return web.Response(text=json.dumps(result, default=str, allow_nan=False), content_type="application/json",
+        chunks, size = [], 0
+        for chunk in json.JSONEncoder(default=str, allow_nan=False).iterencode(result):
+            size += len(chunk.encode("utf-8"))
+            if size > MAX_RESULT_BYTES:
+                return web.json_response({"error": "research result exceeds 2 MiB; inspect saved state or narrow the requested page/window",
+                                          "result_delivered": False, "operation_may_have_committed": True,
+                                          "automatic_retry_allowed": False}, status=413, headers={"Cache-Control": "no-store"})
+            chunks.append(chunk)
+        return web.Response(text="".join(chunks), content_type="application/json",
                             headers={"Cache-Control": "no-store"})
 
     app.router.add_post("/api/research/action", action)

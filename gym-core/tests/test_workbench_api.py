@@ -15,6 +15,7 @@ from gym.api import research
 from gym.api.server import make_app
 from gym.services.collector import Collector
 from gym.services.rules import RuleService
+from gym.services.research_ledger import ResearchLedger
 from tests.support import market_db, quote_history
 
 
@@ -119,4 +120,21 @@ def test_cancelled_research_client_keeps_lock_until_durable_work_finishes(tmp_pa
         with pytest.raises(asyncio.CancelledError):
             await task
 
+    asyncio.run(check())
+
+
+def test_oversized_native_result_is_not_truncated_or_claimed_rolled_back(tmp_path, monkeypatch):
+    monkeypatch.setattr(research, "MAX_RESULT_BYTES", 64)
+    async def check():
+        app = web.Application()
+        research.install(app, "tok", tmp_path, store="live")
+        async with TestClient(TestServer(app)) as client:
+            request = {"action": "register", "value": {"symbol": "BTCUSDT", "strategy": "ema-trend", "params": {}}}
+            response = await client.post("/api/research/action", json=request, headers={"X-Gym-Token": "tok"})
+            assert response.status == 413 and response.headers["Cache-Control"] == "no-store"
+            error = await response.json()
+            assert error["operation_may_have_committed"] and not error["automatic_retry_allowed"]
+            assert not error["result_delivered"] and "hypothesis" not in error
+        with ResearchLedger(tmp_path / "research.sqlite3", readonly=True) as ledger:
+            assert len(ledger.overview()["hypotheses"]) == 1
     asyncio.run(check())

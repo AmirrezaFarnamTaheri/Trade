@@ -179,3 +179,63 @@ def screen_markets(db, request, *, store):
                           "quote notional, not full book depth or fill capacity. No confidence, intrinsic value or order recommendation."}
     result["report_id"] = digest(result)[:16]
     return result
+
+
+def return_correlations(db, request, *, store):
+    """Pairwise descriptive Pearson correlation of exactly aligned closed-bar returns."""
+    fields(request, "symbols quote_currency from to resolution min_overlap")
+    start, end, spec = _window(request)
+    symbols, minimum = request["symbols"], request["min_overlap"]
+    if (type(symbols) is not list or not 2 <= len(symbols) <= 8
+            or any(type(s) is not str for s in symbols) or len(set(symbols)) != len(symbols)):
+        raise ValueError("need 2..8 distinct explicit markets")
+    for symbol in symbols:
+        _symbol(symbol)
+    if type(minimum) is not int or not 2 <= minimum <= 1440:
+        raise ValueError("minimum overlap must be 2..1440 intervals")
+    if store not in ("live", "demo") or request["quote_currency"] not in ("USDT", "TMN"):
+        raise ValueError("need a selected store and supported quote currency")
+    with _read_quotes(db, symbols, start, end) as quotes:
+        if any(DataPortal(db).instrument(s).quote != request["quote_currency"] for s in symbols):
+            raise ValueError("all markets must share the declared quote currency")
+    series, coverage, fingerprints = {}, [], {}
+    with localcontext() as context:
+        context.prec = 80
+        for symbol in symbols:
+            tops = quotes[symbol]
+            bars, _, bad, last = closed_quote_bars(tops, symbol, start, end, spec)
+            values = {(a.end, b.end): b.close / a.close - 1 for a, b in zip(bars, bars[1:])
+                      if a.end == b.start and a.close > 0 and b.close > 0}
+            reason = ("NO_OBSERVATIONS" if last is None else "DISQUALIFIED_LATEST_QUOTE" if not qualified(tops[-1])
+                      else "STALE_AT_WINDOW_END" if (end - last.ts_avail).total_seconds() > QualityLimits().stale_s else None)
+            series[symbol] = values if reason is None else {}
+            fingerprints[symbol] = digest([(iso(t.ts_avail), t.bid, t.ask, sorted(t.flags)) for t in tops])
+            coverage.append({"symbol": symbol, "closed_bars": len(bars), "eligible_intervals": len(series[symbol]),
+                             "discarded_nonadjacent_intervals": sum(a.end != b.start for a, b in zip(bars, bars[1:])),
+                             "disqualified_buckets": len(bad), "excluded_reason": reason,
+                             "latest_observation_at": iso(last.ts_avail) if last else None})
+        pairs = []
+        for i, left in enumerate(symbols):
+            for right in symbols[i:]:
+                a, b = series[left], series[right]
+                keys = sorted(a.keys() & b.keys())
+                n, correlation, reason = len(keys), None, "INSUFFICIENT_OVERLAP"
+                if n >= minimum:
+                    x, y = [a[k] for k in keys], [b[k] for k in keys]
+                    mx, my = sum(x) / n, sum(y) / n
+                    xx, yy = sum((v - mx)**2 for v in x), sum((v - my)**2 for v in y)
+                    if not xx or not yy:
+                        reason = "ZERO_VARIANCE"
+                    else:
+                        correlation = str(max(Decimal(-1), min(Decimal(1), sum((u - mx) * (v - my) for u, v in zip(x, y)) / (xx * yy).sqrt())))
+                        reason = None
+                pairs.append({"left": left, "right": right, "overlap": n, "left_only": len(a.keys() - b.keys()),
+                              "right_only": len(b.keys() - a.keys()), "correlation": correlation, "unavailable_reason": reason})
+    result = {"schema": "return-correlations/1", "request": request, "store": store, "synthetic": store == "demo",
+              "coverage": coverage, "pairs": pairs, "data_digests": fingerprints, "funded_authority": False,
+              "limitations": ["Pairwise simple MID returns on identical adjacent closed-bar intervals; no filling or interpolation.",
+                             "Overlap differs by pair. Stale latest quotes exclude a market; bucket coverage is not continuous-feed proof.",
+                             "Explicit universe and quote currency, native UTC fixed bars; venue calendars may exclude intervals.",
+                             "Descriptive only: no diversification, causality, confidence, significance or execution verdict."]}
+    result["report_id"] = digest(result)[:16]
+    return result
