@@ -1600,7 +1600,7 @@ impl DurableOrderJournal {
     pub fn record_account_observation(
         &mut self,
         value: AccountObservation,
-    ) -> Result<(), RecoveryError> {
+    ) -> Result<exec_ipc::account::ObservationReceipt, RecoveryError> {
         check_account_observation(
             self.credential.as_ref(),
             &self.account_observations,
@@ -1611,11 +1611,12 @@ impl DurableOrderJournal {
         raw.push(ACCOUNT_OBSERVATION);
         add_name(&mut raw, "main")?;
         raw.extend_from_slice(&value.encode().map_err(|_| RecoveryError::InvalidIdentity)?);
-        self.ledger.append(&raw)?;
+        let entry = self.ledger.append(&raw)?;
+        let receipt = value.receipt(entry.sequence, entry.event_hash);
         self.account_requests.insert(value.request_id());
         self.account_observations.insert(value.kind(), value);
         self.records += 1;
-        Ok(())
+        Ok(receipt)
     }
 
     pub fn installation_ceiling(&self) -> Option<&(u64, CeilingChange)> {

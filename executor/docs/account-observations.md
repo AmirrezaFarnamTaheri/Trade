@@ -3,7 +3,8 @@
 The service's existing administrator-only account GET path now records successful
 balance and fee observations in the protected custody ledger before replying.
 The account helper, Python adapter, CLI and GUI retain their existing read-only
-contracts. No caller-supplied JSON, balance, unit precision or permission flag can
+contracts and now expose optional receipt references through the
+[v2 account delivery contract](../../contracts/account-read-v2.md). No caller-supplied JSON, balance, unit precision or permission flag can
 enter this service path. Order pages remain raw observations without native
 completeness or settlement proof.
 
@@ -72,6 +73,12 @@ that understands this tag; deleting or rewriting custody history is not a
 migration. Publication itself does not append account observations.
 
 ## Remaining execution requirements
+
+The current binary bundle was installed and passed ordinary ACER operator review,
+preparation/replay refusal/revocation, seven actual worker denials and four STOP
+acknowledgements in 11–80 ms. The service was stopped/disabled afterward. No
+authenticated account read was made; this host test does not qualify venue
+response schemas or the new receipt header against a real account.
 
 This closes protected capture/normalization of balances and fee observations.
 It does not establish key permissions, account ownership beyond the provisioned

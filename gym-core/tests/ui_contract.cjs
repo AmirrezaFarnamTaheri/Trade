@@ -153,7 +153,7 @@ const sandbox = {
 sandbox.window = sandbox;
 const context = vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context, { timeout: 5000 });
-const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch, renderResearchJobs, controlResearch })", context);
+const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch, renderResearchJobs, controlResearch, accountJournal, serviceReceiptDetails })", context);
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(setImmediate); };
 const plain = value => String(value).replace(/<[^>]*>/g, "");
 const click = async id => {
@@ -190,6 +190,23 @@ const click = async id => {
   assert.equal(plain(app.num("12345678901234567890.123456789012345678")), "12,345,678,901,234,567,890.123456789012345678");
   assert.equal(plain(app.num("0")), "0");
   assert.equal(app.esc('<img src="x" onerror="x">&'), "&lt;img src=&quot;x&quot; onerror=&quot;x&quot;&gt;&amp;");
+  const receipt = {resource:'BALANCES',sequence:'9007199254740993',runtime_epoch:'10',started_at_ms:'1000',received_at_ms:'1010',credential_generation:'33'.repeat(16),request_id:'11'.repeat(16),response_digest:'44'.repeat(32),event_hash:'55'.repeat(32)};
+  assert.equal(app.serviceReceiptDetails(undefined), '');
+  replies.set('/api/account-observations', {state:'OBSERVED',account_id:'main',observed_at:'2026-11-05T16:00:00Z',balances:[],orders:[],exposure:[],service_receipts:[receipt],fee_rates:{BTCUSDT:{maker:'0.001000000000000001',taker:'0.002'}}});
+  for (const language of ['en','fa']) {
+    if (sandbox.document.documentElement.lang !== language) await click('language-toggle');
+    await app.accountJournal();
+    const output = byId('account-observations').innerHTML;
+    assert.ok(output.includes(app.T[language].serviceReceiptsNote));
+    assert.ok(output.includes(app.T[language].accountFeeNote));
+    assert.ok(output.includes(language === 'en' ? '0.001000000000000001' : '۰.۰۰۱۰۰۰۰۰۰۰۰۰۰۰۰۰۰۱'), 'Recorded fee strings must remain exact');
+    assert.ok(output.includes('9007199254740993'), 'Journal sequences must retain exact decimal strings');
+    assert.match(output, /<details><summary>/);
+  }
+  if (sandbox.document.documentElement.lang !== 'en') await click('language-toggle');
+  const escapedReceipt = app.serviceReceiptDetails([{...receipt,event_hash:'<img src=x onerror=x>',received_at_ms:'<script>x</script>'}]);
+  assert.doesNotMatch(escapedReceipt, /<img|<script/);
+  assert.match(escapedReceipt, /&lt;img/);
   const costs = [["directional", "100"], ["spread", "-10"], ["fees", "-5"], ["latency_drift", "-2"], ["net", "83"]];
   const waterfall = app.waterfallFigure(costs, '<img src="x">&');
   assert.equal((waterfall.match(/<rect\b/g) || []).length, 5, "Cost waterfall must include each step and the net total");

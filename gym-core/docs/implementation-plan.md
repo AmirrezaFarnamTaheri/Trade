@@ -98,6 +98,21 @@ funded boundary were not expanded by these research features.
 
 ## Remaining execution and acceptance work
 
+Receipt delivery is now end to end: actual native journal sequence/hash and
+service context pass through a versioned header, protected helper, strict Python
+parser, saved snapshot, token-guarded API and EN/FA account details. Both consumers
+check the raw body digest; exact fee fractions and 64-bit identifiers are
+displayed without floating-point conversion. Receipt copies remain unverified
+local references, not spendable balances or admission. The current bundle was
+published and passed ordinary-user review, seven-target isolation and all four
+STOP checks; service cleanup left it stopped/disabled. No private account call
+was made. See [account delivery](../../contracts/account-read-v2.md).
+
+The active paper schedule is caught up: four actual replay windows completed,
+two independently checked empty windows were recorded as skipped, and its next
+window is future. The original retired-version schedule remains paused with
+history intact. The public collector was gracefully restarted with current code.
+
 The protected service now captures exact balance/fee receipts from its own
 fixed-origin transport, binds key generation/runtime/receive clocks and commits
 sanitized data before delivery. Replays, duplicate identities, stale keys,
@@ -113,8 +128,9 @@ Real prospective paper run ca730c8a5b186393 completed ten running minutes with
 995.70570135 USDT (net -4.29429865); postings, equity and the reported cost
 waterfall reconciled separately. Assumed fees and absent depth/queue modeling
 still prevent actual-cost or sustained strategy qualification. The current
-Windows publication attempt was canceled at elevation; the previous installed
-bundle remains stopped/disabled and the new source is not host-qualified.
+earlier Windows publication attempt was canceled at elevation. The subsequent
+current-bundle operator/isolation/STOP qualification passed; authenticated venue
+observations and current-build custody corruption/recovery remain unqualified.
 
 The native offline join from prepared review to exact ticket/attempt/reservation
 is implemented and replay-checked in one journal event. It rechecks current

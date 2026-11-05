@@ -1,4 +1,55 @@
-# System status — 2026-11-05
+# System status — 2026-11-06
+
+## Receipt delivery, installed qualification and paper schedule recovery
+
+The protected balance/fee receipts now reach the account helper, CLI, persisted
+account journal, token-guarded account endpoint and English/Persian account page.
+The v2 native header binds the actual committed sequence/event hash to resource,
+correlation, key generation, runtime and service clocks. Native and Python
+consumers check the raw response digest. Canonical decimal strings preserve
+64-bit identifiers. Cross-run/key receipt combinations, changed response bytes,
+unknown fields and invalid clocks are refused. Failed refreshes cannot retain
+that resource's preceding receipt. V1 clients retain their old wire contract;
+legacy helper output never receives invented metadata. The UI also displays
+recorded maker/taker rates exactly, with decimal-fraction units. Saved receipt
+copies do not independently authenticate the protected journal or grant money
+authority. See [account delivery](../../contracts/account-read-v2.md).
+
+Source validation passed: **964 Python tests, five skipped, 39 subtests; 148
+native tests across 39 result groups**. Strict Clippy, Windows release build,
+formatting, JavaScript syntax and actual renderer contract checks passed.
+The renderer checks cover EN/FA receipt/fee output, exact long identifiers and
+escaping. New Python files/tests pass strict lint; touched older modules retain
+their existing import/modernization lint exceptions. npm audit and pip-audit
+found no known vulnerabilities; the local editable project remains unaudited.
+
+The updated exact eight-binary bundle was published with retained previous code
+and custody history. Actual ordinary ACER review/preparation/duplicate refusal/
+inspection/revocation passed. The actual R0 worker was denied all seven private
+targets. Four STOP requests acknowledged in **80/11/11/12 ms**. The final strict
+installation audit passed; the service is **STOPPED/DISABLED**. No account API,
+real credential replacement or exchange order occurred. Receipts:
+`.pi/qualification/20261105T2142352538618/administrator.json` and `operator.json`
+(2026-11-06 local time). These results supersede the earlier canceled publication
+attempt below; current-build corruption/recovery and real account delivery are
+not newly qualified by this operator drill.
+
+The active engine-8 paper schedule's retained failed window replayed successfully
+under current source. Bounded recovery then completed **four overdue windows**
+and recorded **two verified empty windows as skipped**, preserving failure
+history and a prior SQLite backup. Its next due time is 2026-11-05T22:36:46Z
+(2026-11-06 02:06:46 Asia/Tehran), which was future at recovery. The engine-6 job
+remains paused with its explicit unavailable-version reason. Receipt:
+`.pi/paper-qualification/schedule-recovery-20261105T214522019236.json`.
+The long-running collector was gracefully interrupted only after checking its
+dedicated console/process identities, then restarted on loopback port 8765
+with current source and the same 50-asset selection. Receipt:
+`.pi/paper-qualification/collector-20261105T2146391209454.json`.
+Completed historical catch-up does not establish sustained prospective success.
+
+Live admission, arming, submit/cancel/reconciliation, protective exits, complete
+exposure/settlement, additional provider contracts and independent-host recovery
+remain unfinished. No browser-rendering or live account acceptance is claimed.
 
 ## Protected account receipt capture
 

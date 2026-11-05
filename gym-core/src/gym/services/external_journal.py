@@ -13,9 +13,13 @@ from decimal import Decimal
 from pathlib import Path
 from time import monotonic, sleep
 
-from ..adapters.wallex_account_read import ReadUncertain, parse_account_json, parse_fee_rates
+from ..adapters.wallex_account_read import (
+    ReadUncertain,
+    parse_account_json,
+    parse_fee_rates,
+)
+from ..contracts.account_receipt import service_receipts
 from ..domain.account_observations import project_account
-
 
 SCHEMA = """
 CREATE TABLE external_order_events (
@@ -112,8 +116,13 @@ def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -
         }})
     except (KeyError, TypeError, AttributeError, ReadUncertain):
         raise ValueError("invalid sanitized account snapshot") from None
-    return {**clean, "fee_rates": fees, "transport": transport,
-            "permission_status": "UNVERIFIED", "funded_authority": False}
+    out = {**clean, "fee_rates": fees, "transport": transport,
+           "permission_status": "UNVERIFIED", "funded_authority": False}
+    if "service_receipts" in snapshot:
+        if transport != "EXECUTOR_SERVICE_WINHTTP" or snapshot["account_id"] != "main":
+            raise ValueError("service receipts require the main service account")
+        out["service_receipts"] = service_receipts(snapshot["service_receipts"])
+    return out
 
 
 def _utc(text: str) -> str:

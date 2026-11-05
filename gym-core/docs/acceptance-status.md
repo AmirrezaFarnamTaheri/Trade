@@ -4,6 +4,25 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
+Current delivery: **964 Python passed, five skipped, 39 subtests; 148 native
+tests passed**. Native committed account receipt references now pass through the
+helper, CLI, saved journal and guarded account API to EN/FA account details.
+Exact recorded fee rates are visible too. A local receipt copy is not independent
+journal authentication, verified permissions or funded authority.
+
+The current bundle was published and passed ordinary ACER review/preparation/
+duplicate refusal/revocation, all seven actual worker denials and four STOP
+acknowledgements in 11–80 ms. Final strict audit passed; service stopped/disabled.
+Receipts: `.pi/qualification/20261105T2142352538618`. No account API or order call.
+This supersedes the canceled elevation snapshot below. Current-build custody
+corruption/recovery and real venue response delivery remain unverified.
+
+The active paper schedule completed four overdue windows and recorded two
+verified empty windows as skipped; its next due window was future at recovery.
+The obsolete engine-6 schedule remains paused. The public collector restarted
+gracefully with current source. These actions do not qualify sustained profit,
+actual execution costs or independent-host recovery.
+
 Latest source work adds protected, durable balance/fee observation capture and
 decoded-JSON credential-echo refusal. **146 native tests and 944 Python tests
 passed, with five skipped and 39 subtests passed**, plus the selected 70

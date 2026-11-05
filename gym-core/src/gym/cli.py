@@ -309,7 +309,7 @@ def account_cmd(args) -> int:
         evidence = list(by_id.values())
         orders = [{"client_id": row["client_id"], "status": row["raw_status"],
                    "symbol": row["symbol"], "filled": row["executed_qty"]} for row in evidence]
-        return balances, fee, orders, evidence, pages
+        return balances, fee, orders, evidence, pages, getattr(reader, "receipts", [])
 
     service_source = getattr(args, "source", "user") == "service"
 
@@ -325,11 +325,13 @@ def account_cmd(args) -> int:
             return await observe(WallexAccountReader(session))
 
     try:
-        balances, fee, orders, evidence, pages = asyncio.run(read())
+        balances, fee, orders, evidence, pages, receipts = asyncio.run(read())
     except ReadUncertain as e:
         print(f"error: {e} (state UNKNOWN, nothing recorded)", file=sys.stderr)
         return 3
     observed = project_account("main", iso(now_utc()), balances=balances, orders=orders)
+    if receipts:
+        observed["service_receipts"] = receipts
     nonzero = [b for b in observed["balances"] if Decimal(b["venue_value"]) or Decimal(b["venue_locked"])]
     fee_rates = fee
     transport = "EXECUTOR_SERVICE_WINHTTP" if service_source else "INTERACTIVE_USER_GET"
@@ -340,6 +342,7 @@ def account_cmd(args) -> int:
                       "orders": observed["orders"], "order_evidence": evidence,
                       "order_pages": pages, "collection_complete": False,
                       "transport": transport,
+                      **({"service_receipts": receipts} if receipts else {}),
                       "permission_status": "UNVERIFIED",
                       "funded_authority": False}, ensure_ascii=False, indent=2))
     if args.record:

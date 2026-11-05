@@ -39,8 +39,16 @@ fn exact_sanitized_observations_survive_restart_but_not_a_new_runtime_or_key() {
     let fees = observed(AccountKind::Fees,
         br#"{"success":true,"result":{"levels":[],"BTCUSDT":{"makerFeeRate":"0.0010","takerFeeRate":"0.002","private":"OMIT"}}}"#, 2, 1010);
     let mut ledger = journal(&path);
-    ledger.record_account_observation(balance.clone()).unwrap();
-    ledger.record_account_observation(fees.clone()).unwrap();
+    let balance_receipt = ledger.record_account_observation(balance.clone()).unwrap();
+    let fees_receipt = ledger.record_account_observation(fees.clone()).unwrap();
+    assert_eq!(balance_receipt.sequence, 2);
+    assert_eq!(fees_receipt.sequence, 3);
+    assert_eq!(balance_receipt.runtime_epoch, 10);
+    assert_eq!(balance_receipt.credential_generation, [3; 16]);
+    assert_eq!(
+        balance_receipt.response_digest,
+        exec_store::hash_event(&[0; 32], balances())
+    );
     assert_eq!(ledger.record_count(), 3);
     let data = balance.data();
     assert_eq!(
@@ -51,6 +59,11 @@ fn exact_sanitized_observations_survive_restart_but_not_a_new_runtime_or_key() {
     assert!(!data.to_string().contains("OMIT"));
     assert!(!fees.data().to_string().contains("levels"));
     drop(ledger);
+    let raw = exec_store::Ledger::open(&path).unwrap();
+    let entries = raw.replay_from(0).unwrap();
+    assert_eq!(balance_receipt.event_hash, entries[1].event_hash);
+    assert_eq!(fees_receipt.event_hash, entries[2].event_hash);
+    drop(raw);
     let mut ledger = DurableOrderJournal::open(&path).unwrap();
     assert_eq!(
         ledger.account_observation(AccountKind::Balances, [3; 16], 10, 1020, 100),

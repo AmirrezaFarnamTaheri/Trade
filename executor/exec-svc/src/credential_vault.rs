@@ -585,7 +585,7 @@ impl Vault {
         resource: &exec_ipc::provision::AccountResource,
         request_id: [u8; 16],
         runtime_epoch: u64,
-    ) -> io::Result<Option<Secret>> {
+    ) -> io::Result<Option<(Secret, Option<exec_ipc::account::ObservationReceipt>)>> {
         use exec_ipc::provision::AccountResource;
         use exec_svc::account_observation::{AccountKind, AccountObservation};
         use exec_svc::offline_recovery::RecoveryError;
@@ -615,7 +615,7 @@ impl Vault {
             AccountResource::Balances => AccountKind::Balances,
             AccountResource::Fees => AccountKind::Fees,
             // Order pages are still observations only, without native completeness/settlement proof.
-            _ => return Ok(Some(body)),
+            _ => return Ok(Some((body, None))),
         };
         let observation = match AccountObservation::from_response(
             kind,
@@ -630,7 +630,7 @@ impl Vault {
             Err(_) => return Ok(None),
         };
         match self.journal.record_account_observation(observation) {
-            Ok(()) => Ok(Some(body)),
+            Ok(receipt) => Ok(Some((body, Some(receipt)))),
             Err(RecoveryError::Ledger(_)) => Err(io::Error::other(
                 "account receipt commit uncertain; service must stop",
             )),

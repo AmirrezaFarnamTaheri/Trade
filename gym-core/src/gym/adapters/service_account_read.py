@@ -6,17 +6,23 @@ permission restrictions and settlement are unverified even after a good read.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import re
 import subprocess
 from pathlib import Path
 
+from ..contracts.account_receipt import service_receipts
 from ..domain.account_observations import parse_wallex_balances
 from .wallex_account_read import ReadUncertain, parse_account_json, parse_fee_rates
-from .wallex_order_evidence import InvalidOrderEvidence, parse_manual_order_evidence, parse_order_page
+from .wallex_order_evidence import (
+    InvalidOrderEvidence,
+    parse_manual_order_evidence,
+    parse_order_page,
+)
 
 _BODY_LIMIT = 1_048_576
-_OUTPUT_LIMIT = _BODY_LIMIT * 2 + 256
+_OUTPUT_LIMIT = _BODY_LIMIT * 2 + 2048
 _TIMEOUT = 22  # The protected helper has its own 20-second deadline.
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\Z")
 _HEX = re.compile(r"[0-9a-f]+\Z")
@@ -58,10 +64,10 @@ def _helper_path(name="gym-account-read.exe") -> Path:
     return path
 
 
-def _payload(raw: bytes) -> object:
+def _payload(raw: bytes, resource: str) -> tuple[object, dict | None]:
     envelope = parse_account_json(raw)
     expected = {"source", "state", "permission_status", "funded_authority", "raw_body_hex"}
-    if not isinstance(envelope, dict) or envelope.keys() != expected or (
+    if not isinstance(envelope, dict) or envelope.keys() not in (expected, expected | {"service_receipt"}) or (
         envelope["source"] != "EXECUTOR_SERVICE_WINHTTP"
         or envelope["state"] != "RAW_UNPARSED"
         or envelope["permission_status"] != "UNVERIFIED"
@@ -71,14 +77,31 @@ def _payload(raw: bytes) -> object:
     body = envelope["raw_body_hex"]
     if not isinstance(body, str) or not 2 <= len(body) <= _BODY_LIMIT * 2 or len(body) % 2 or not _HEX.fullmatch(body):
         raise ReadUncertain("invalid Executor account body")
-    return parse_account_json(bytes.fromhex(body))
+    body = bytes.fromhex(body)
+    receipt = None
+    if "service_receipt" in envelope:
+        try:
+            receipt = service_receipts([envelope["service_receipt"]])[0]
+            if receipt["resource"] != {"balances": "BALANCES", "fees": "FEES"}.get(resource):
+                raise ValueError("receipt resource mismatch")
+            digest = hashlib.sha256(bytes(32) + len(body).to_bytes(8, "big") + body).hexdigest()
+            if receipt["response_digest"] != digest:
+                raise ValueError("receipt body mismatch")
+        except (ValueError, TypeError):
+            raise ReadUncertain("invalid Executor account receipt") from None
+    return parse_account_json(body), receipt
 
 
 class ServiceAccountReader:
     """Same sanitized observations as WallexAccountReader, without Python keys."""
 
+    def __init__(self):
+        self.receipts = []
+
     async def _get(self, *arguments: str) -> object:
         process = None
+        resource = {"balances": "BALANCES", "fees": "FEES"}.get(arguments[0])
+        self.receipts = [receipt for receipt in self.receipts if receipt["resource"] != resource]
         try:
             helper = _helper_path()
             async with asyncio.timeout(_TIMEOUT):
@@ -95,7 +118,13 @@ class ServiceAccountReader:
                     raw.extend(chunk)
                 if await process.wait() != 0:
                     raise ReadUncertain("Executor account observation unavailable")
-                return _payload(raw)
+                payload, receipt = _payload(raw, arguments[0])
+                if receipt is not None:
+                    try:
+                        self.receipts = service_receipts([*self.receipts, receipt])
+                    except (ValueError, TypeError):
+                        raise ReadUncertain("inconsistent Executor account receipts") from None
+                return payload
         except (OSError, asyncio.TimeoutError):
             raise ReadUncertain("Executor account observation unavailable") from None
         finally:

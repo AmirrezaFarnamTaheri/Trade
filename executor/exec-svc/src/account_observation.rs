@@ -3,11 +3,7 @@ use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{json, Map, Value};
 use std::fmt;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum AccountKind {
-    Balances = 1,
-    Fees = 2,
-}
+pub use exec_ipc::account::ObservationKind as AccountKind;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccountObservation {
@@ -228,6 +224,22 @@ impl AccountObservation {
     }
     pub fn data(&self) -> &Value {
         &self.data
+    }
+    pub(crate) fn receipt(
+        &self,
+        sequence: u64,
+        event_hash: [u8; 32],
+    ) -> exec_ipc::account::ObservationReceipt {
+        exec_ipc::account::ObservationReceipt {
+            kind: self.kind,
+            sequence,
+            runtime_epoch: self.runtime_epoch,
+            started_at_ms: self.started_at_ms,
+            received_at_ms: self.received_at_ms,
+            credential_generation: self.generation,
+            response_digest: self.response_digest,
+            event_hash,
+        }
     }
     pub fn is_fresh(&self, generation: [u8; 16], epoch: u64, now: u64, max_age: u64) -> bool {
         (1..=30_000).contains(&max_age)

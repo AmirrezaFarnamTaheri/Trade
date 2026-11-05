@@ -53,7 +53,7 @@ fn admit<T>(pipe: &NamedPipeServer, inspect: impl FnOnce() -> io::Result<T>) -> 
 }
 enum Request {
     Provision(Secret, [u8; 16]),
-    Account(AccountResource, [u8; 16]),
+    Account(AccountResource, [u8; 16], bool),
     Ceiling(exec_ipc::ceiling::CeilingRequest, Administrator),
 }
 async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Request> {
@@ -74,13 +74,13 @@ async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Re
         return Ok(Request::Ceiling(request, principal));
     }
     admit(pipe, || Ok(()))?;
-    if hello[..count].starts_with(b"TGAREAD1") {
+    if hello[..count].starts_with(b"TGAREAD1") || hello[..count].starts_with(b"TGAREAD2") {
         if !mode.allows_account_read() {
             return Err(io::Error::other("recovery accepts provisioning only"));
         }
-        let (resource, correlation) =
-            AccountResource::decode(&hello[..count]).map_err(io::Error::other)?;
-        return Ok(Request::Account(resource, correlation));
+        let (resource, correlation, receipts) =
+            exec_ipc::account::decode_request(&hello[..count]).map_err(io::Error::other)?;
+        return Ok(Request::Account(resource, correlation, receipts));
     }
     let (length, correlation) = parse_header(&hello[..count]).map_err(io::Error::other)?;
     pipe.write_all(READY).await?;
@@ -171,7 +171,7 @@ pub async fn serve(
                                 return Ok(());
                             }
                         }
-                        Request::Account(resource, correlation) => {
+                        Request::Account(resource, correlation, receipts) => {
                             // This T2 thread may block; independent authenticated T0 never waits on it.
                             let observed = {
                                 let mut owner = vault
@@ -183,9 +183,21 @@ pub async fn serve(
                                     operator.gate.runtime_epoch(),
                                 )?
                             };
-                            if let Some(body) = observed {
-                                let reply = account_reply(body.0.len(), correlation)
-                                    .map_err(io::Error::other)?;
+                            if let Some((body, receipt)) = observed {
+                                let reply = if receipts {
+                                    exec_ipc::account::encode_reply(
+                                        &resource,
+                                        body.0.len(),
+                                        correlation,
+                                        receipt.as_ref(),
+                                    )
+                                    .map_err(io::Error::other)?
+                                    .to_vec()
+                                } else {
+                                    account_reply(body.0.len(), correlation)
+                                        .map_err(io::Error::other)?
+                                        .to_vec()
+                                };
                                 let _ = timeout(DEADLINE, async {
                                     client.write_all(&reply).await?;
                                     for chunk in body.0.chunks(16384) {

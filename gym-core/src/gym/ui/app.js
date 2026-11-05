@@ -136,6 +136,17 @@ const vocabulary = {
   accountError: ["Account observation unavailable. Previously shown balances have been cleared.", "مشاهدهٔ حساب در دسترس نیست. موجودی‌های قبلی از نمایش پاک شده‌اند."],
   accountBalance: ["Observed balances", "موجودی‌های مشاهده‌شده"],
   accountBalanceNote: ["Venue values and locked amounts are observations, not spendable or protectable balances.", "مقدار و مبلغ بلوکه‌شدهٔ صرافی فقط مشاهده‌اند؛ موجودی قابل خرج یا قابل حفاظت نیستند."],
+  serviceReceipts: ["Service observation receipts", "رسیدهای مشاهدهٔ سرویس"],
+  accountFeeRates: ["Recorded fee rates", "نرخ‌های ثبت‌شدهٔ کارمزد"],
+  accountFeeNote: ["Rates are decimal fractions: 0.001 means 0.1%. Actual charged fees remain unreconciled.", "نرخ‌ها به‌صورت اعشاری‌اند: ۰٫۰۰۱ یعنی ۰٫۱٪. کارمزد واقعی کسرشده هنوز تطبیق داده نشده است."],
+  makerFeeRate: ["Maker rate", "نرخ سفارش‌گذار"], takerFeeRate: ["Taker rate", "نرخ سفارش‌بردار"],
+  noAccountFees: ["No fee rates recorded.", "نرخ کارمزدی ثبت نشده است."],
+  serviceReceiptsNote: ["These saved references record when the service received balances and fees. They may be stale; this local copy does not independently verify the protected journal or grant trading permission.", "این ارجاع‌های ذخیره‌شده زمان دریافت موجودی و کارمزد توسط سرویس را ثبت می‌کنند. ممکن است قدیمی باشند؛ این نسخهٔ محلی صحت دفتر محافظت‌شده را مستقلاً تأیید نمی‌کند و مجوز معامله نمی‌دهد."],
+  receiptBalances: ["Balances", "موجودی‌ها"], receiptFees: ["Fees", "کارمزدها"],
+  receiptEntry: ["Journal entry", "رویداد دفتر"], receiptReceived: ["Received", "دریافت"],
+  receiptRequested: ["Requested", "درخواست"], receiptRuntime: ["Service run", "اجرای سرویس"],
+  receiptGeneration: ["Credential version", "نسخهٔ کلید"], receiptRequest: ["Request reference", "ارجاع درخواست"],
+  receiptResponse: ["Response fingerprint", "اثر انگشت پاسخ"], receiptEvent: ["Journal fingerprint", "اثر انگشت دفتر"],
   asset: ["Asset", "دارایی"], venueValue: ["Venue value", "مقدار صرافی"], venueLocked: ["Locked", "بلوکه‌شده"],
   accountOrders: ["External / manual orders", "سفارش‌های خارجی / دستی"], clientId: ["Client ID", "شناسهٔ سفارش کاربر"],
   rawStatus: ["Venue status", "وضعیت صرافی"], settlement: ["Settlement", "تسویه"], filledObserved: ["Observed filled amount", "مقدار پرشدهٔ مشاهده‌شده"],
@@ -664,6 +675,20 @@ async function controlResearch(action, id = "") {
   finally { state.researchBusy = false; if (state.researchState) renderResearchJobs(state.researchState); }
 }
 
+function serviceReceiptDetails(receipts) {
+  if (!list(receipts).length) return "";
+  const stamp = value => {
+    const date = new Date(Number(value));
+    return Number.isFinite(date.getTime()) ? when(date.toISOString()) : String(value);
+  };
+  return `<h3>${esc(t("serviceReceipts"))}</h3><p class="field-help">${esc(t("serviceReceiptsNote"))}</p>` + list(receipts).map(row =>
+    `<details><summary>${esc(t(row.resource === "BALANCES" ? "receiptBalances" : "receiptFees"))} · ${esc(stamp(row.received_at_ms))} · ${esc(t("receiptEntry"))} ${esc(row.sequence)}</summary>${keyValues([
+      [t("receiptRequested"), esc(stamp(row.started_at_ms))], [t("receiptReceived"), esc(stamp(row.received_at_ms))],
+      [t("receiptRuntime"), code(row.runtime_epoch)], [t("receiptGeneration"), code(row.credential_generation)],
+      [t("receiptRequest"), code(row.request_id)], [t("receiptResponse"), code(row.response_digest)],
+      [t("receiptEvent"), code(row.event_hash)],
+    ])}</details>`).join("");
+}
 async function accountJournal() {
   const summary = $("account-state");
   try {
@@ -675,7 +700,8 @@ async function accountJournal() {
     }
     if (observation.state !== "OBSERVED") throw new Error(t("accountError"));
     summary.textContent = `${t("accountObserved")} · ${observation.account_id || ""} · ${when(observation.observed_at)}`;
-    setHTML("account-observations", `<h3>${esc(t("accountBalance"))}</h3><p class="field-help">${esc(t("accountBalanceNote"))}</p>${table([t("asset"), t("venueValue"), t("venueLocked")], list(observation.balances).map(row => [code(row.asset), amount(row.venue_value), amount(row.venue_locked)]), t("noBalances"))}
+    setHTML("account-observations", `${serviceReceiptDetails(observation.service_receipts)}<h3>${esc(t("accountBalance"))}</h3><p class="field-help">${esc(t("accountBalanceNote"))}</p>${table([t("asset"), t("venueValue"), t("venueLocked")], list(observation.balances).map(row => [code(row.asset), amount(row.venue_value), amount(row.venue_locked)]), t("noBalances"))}
+      <h3>${esc(t("accountFeeRates"))}</h3><p class="field-help">${esc(t("accountFeeNote"))}</p>${table([t("pair"), t("makerFeeRate"), t("takerFeeRate")], Object.entries(observation.fee_rates || {}).map(([symbol, row]) => [code(symbol), amount(row.maker), amount(row.taker)]), t("noAccountFees"))}
       <h3>${esc(t("accountOrders"))}</h3>${table([t("clientId"), t("pair"), t("rawStatus"), t("filledObserved"), t("settlement")], list(observation.orders).map(row => [code(row.client_id), code(row.symbol), esc(row.raw_status), amount(row.filled_observed), chip(t(row.settlement || "UNKNOWN"))]), t("noAccountOrders"))}
       <h3>${esc(t("accountExposure"))}</h3>${table([t("account"), t("product"), t("obligation"), t("status")], list(observation.exposure).map(row => [code(row.account_id), esc(row.raw_product || row.product), `${amount(row.obligation)} ${code(row.obligation_asset)}`, esc(row.status)]), t("noExposure"))}`);
   } catch (_) { summary.textContent = t("accountError"); setHTML("account-observations", ""); throw new Error(t("requestError")); }

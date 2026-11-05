@@ -5,7 +5,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from gym.adapters import service_account_read as service
 from gym.adapters.wallex_account_read import ReadUncertain
 from gym.domain.account_observations import project_account
@@ -19,6 +18,22 @@ def envelope(body):
         "permission_status": "UNVERIFIED", "funded_authority": False,
         "raw_body_hex": raw.hex(),
     }).encode()
+
+
+def receipt_envelope(body, *, resource="BALANCES", sequence="2", request="11" * 16,
+                     start="1000", received="1010"):
+    import hashlib
+    raw = json.loads(envelope(body))
+    encoded = bytes.fromhex(raw["raw_body_hex"])
+    raw["service_receipt"] = {
+        "source": "EXECUTOR_SERVICE_JOURNAL", "authority": "OBSERVATION_ONLY",
+        "resource": resource, "sequence": sequence, "runtime_epoch": "10",
+        "started_at_ms": start, "received_at_ms": received,
+        "credential_generation": "33" * 16, "request_id": request,
+        "response_digest": hashlib.sha256(bytes(32) + len(encoded).to_bytes(8, "big") + encoded).hexdigest(),
+        "event_hash": "55" * 32,
+    }
+    return raw
 
 
 class Process:
@@ -83,6 +98,111 @@ def test_service_fees_reuse_exact_documented_parser(monkeypatch):
     assert asyncio.run(service.ServiceAccountReader().fee_rates()) == {
         "BTCUSDT": {"maker": "0.0010", "taker": "0.002"},
     }
+
+
+def test_service_receipt_checks_body_and_can_refresh_a_resource(monkeypatch):
+    body = {"success": True, "result": {"balances": {"USDT": {"value": "10.20", "locked": "1"}}}}
+    install(monkeypatch, json.dumps(receipt_envelope(body)).encode())
+    reader = service.ServiceAccountReader()
+    assert asyncio.run(reader.balances())["USDT"]["value"] == "10.20"
+    assert reader.receipts[0]["sequence"] == "2"
+    install(monkeypatch, json.dumps(receipt_envelope(body, sequence="3", request="22" * 16,
+                                                  start="1020", received="1030")).encode())
+    asyncio.run(reader.balances())
+    assert len(reader.receipts) == 1 and reader.receipts[0]["sequence"] == "3"
+    install(monkeypatch, b"FAILED", code=2)
+    with pytest.raises(ReadUncertain):
+        asyncio.run(reader.balances())
+    assert reader.receipts == []
+
+
+@pytest.mark.parametrize("field,value", [
+    ("resource", "FEES"), ("source", "USER"), ("authority", "FUNDED"),
+    ("sequence", "0"), ("sequence", "01"), ("sequence", True), ("sequence", "18446744073709551616"),
+    ("runtime_epoch", "0"), ("started_at_ms", "0"), ("received_at_ms", "999"),
+    ("received_at_ms", "13000"), ("request_id", "00" * 16),
+    ("credential_generation", "33" * 32), ("response_digest", "66" * 32),
+    ("event_hash", "AB" * 32), ("unknown", "DO-NOT-COPY"),
+])
+def test_service_receipt_rejects_malformed_context_without_exposing_input(monkeypatch, field, value):
+    raw = receipt_envelope({"success": True, "result": {"balances": {}}})
+    raw["service_receipt"][field] = value
+    install(monkeypatch, json.dumps(raw).encode())
+    with pytest.raises(ReadUncertain) as error:
+        asyncio.run(service.ServiceAccountReader().balances())
+    assert "DO-NOT-COPY" not in str(error.value)
+
+
+def test_saved_service_receipts_reach_token_guarded_api_and_cli(monkeypatch, capsys, tmp_path):
+    from aiohttp.test_utils import TestClient, TestServer
+    from gym.adapters.store import MarketDB, SegmentWriter
+    from gym.api.server import make_app
+    from gym.cli import main
+    from gym.services.collector import Collector
+    from gym.services.rules import RuleService
+
+    balance_body = {"success": True, "result": {"balances": {"USDT": {"value": "10.20", "locked": "1"}}}}
+    fee_body = {"success": True, "result": {"BTCUSDT": {"makerFeeRate": "0.001", "takerFeeRate": "0.002"}}}
+    balance = receipt_envelope(balance_body)
+    fees = receipt_envelope(fee_body, resource="FEES", sequence="3", request="22" * 16,
+                            start="1020", received="1030")
+    helper = Path("C:/Program Files/TradingGYM/Executor/gym-account-read.exe")
+    monkeypatch.setattr(service, "_helper_path", lambda: helper)
+
+    async def spawn(*args, **_options):
+        return Process(json.dumps(balance if args[1] == "balances" else fees).encode())
+
+    monkeypatch.setattr(service.asyncio, "create_subprocess_exec", spawn)
+    assert main(["--data", str(tmp_path), "account", "--source", "service", "--record"]) == 0
+    printed = json.JSONDecoder().raw_decode(capsys.readouterr().out)[0]
+    expected = [balance["service_receipt"], fees["service_receipt"]]
+    assert printed["service_receipts"] == expected
+    assert printed["funded_authority"] is False
+
+    async def inspect():
+        db = MarketDB(tmp_path / "market.db")
+        col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
+        with ExternalJournal(tmp_path / "live" / "external_journal.db") as journal:
+            assert journal.latest_snapshot()["service_receipts"] == expected
+            app = make_app(col, RuleService(db), "secret", external_journal=journal)
+            async with TestClient(TestServer(app)) as client:
+                assert (await client.get("/api/account-observations")).status == 403
+                response = await client.get("/api/account-observations", headers={"X-Gym-Token": "secret"})
+                saved = await response.json()
+                assert saved["service_receipts"] == expected
+                assert saved["balances"][0]["spendable"] is None and saved["funded_authority"] is False
+        db.c.close()
+    asyncio.run(inspect())
+
+
+def test_receipt_context_changes_refuse_combined_snapshot(monkeypatch):
+    reader = service.ServiceAccountReader()
+    balance_body = {"success": True, "result": {"balances": {}}}
+    fee_body = {"success": True, "result": {"BTCUSDT": {"makerFeeRate": "0.001", "takerFeeRate": "0.002"}}}
+    install(monkeypatch, json.dumps(receipt_envelope(balance_body)).encode())
+    asyncio.run(reader.balances())
+    fees = receipt_envelope(fee_body, resource="FEES", sequence="3", request="22" * 16,
+                            start="1020", received="1030")
+    fees["service_receipt"]["runtime_epoch"] = "11"
+    install(monkeypatch, json.dumps(fees).encode())
+    with pytest.raises(ReadUncertain, match="inconsistent"):
+        asyncio.run(reader.fee_rates())
+
+
+def test_persisted_receipt_metadata_is_sanitized_again(tmp_path):
+    from gym.contracts.account_receipt import service_receipts
+    data = project_account("main", "2026-11-05T12:00:00Z", balances={})
+    receipts = [receipt_envelope({"success": True, "result": {"balances": {}}})["service_receipt"]]
+    data["service_receipts"] = receipts
+    with ExternalJournal(tmp_path / "journal.db") as journal:
+        with pytest.raises(ValueError):
+            journal.record(data, transport="MANUAL_IMPORT")
+        data["service_receipts"][0]["private"] = "DO-NOT-COPY"
+        with pytest.raises(ValueError):
+            journal.record(data, transport="EXECUTOR_SERVICE_WINHTTP")
+        assert journal.latest_snapshot() is None
+    with pytest.raises(ValueError):
+        service_receipts(receipts * 3)
 
 
 def test_service_order_is_identity_bound_and_journal_stays_unknown(monkeypatch, tmp_path):
