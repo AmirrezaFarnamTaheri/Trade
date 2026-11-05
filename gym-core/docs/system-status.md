@@ -1,5 +1,60 @@
 # System status — 2026-11-05
 
+## Current replay, observation and installed-host receipt
+
+Implemented verified replay checkpoints/resume, immutable decision annotations,
+linked equity/indicator panes, fixed-snapshot registry pages, persistent paper
+entry locks, shared GUI/CLI journal/conversion/probe actions, supplied sequenced
+depth validation, confirmation/component/unit-epoch observation contracts and
+market-group breadth. Native collector writes now retain candle revisions from
+schema 3 onward. Prior discarded vintages are unavailable. These additions use
+existing owners and dependencies; supplied inputs remain unauthenticated.
+
+Full Python suite: **907 passed, five skipped, 39 subtests passed** in 72.78s.
+Ruff, JavaScript syntax and all three chart tests passed. Rust workspace tests,
+Clippy with warnings denied and the release worker build passed after the native
+launch fix. PowerShell parse/security self-tests passed. Offline npm audit found
+zero vulnerabilities; pip-audit found none in installed packages, excluding the
+unpublished editable application. No dependencies were added.
+
+The installed Windows drill now passed under the actual ordinary ACER logon:
+
+* Synthetic DPAPI provision, restart, corruption refusal and missing-ciphertext
+  recovery preserved the retained journal/history.
+* Actual no-capability AppContainer Python child denied all six existing targets:
+  custody ciphertext, custody journal, STOP pipe, T2 pipe, profile canary and SCM.
+  Its positive MCP response contained exactly the three read-only research tools.
+* Operator status/pause/exit-only/halt acknowledged in **17/17/12/12 ms** with the
+  main loop parked and startup DISARMED.
+* Retained-handle containment of the suspended exact service process completed
+  in **1,037 ms**. Normal restart completed; final audit confirmed stopped and
+  disabled with protected code/data ACLs.
+
+Two real defects were fixed during this qualification: parent-directory ACL
+validation now uses intrinsic file attributes rather than provider-only metadata;
+the worker environment contains only OS-resolved LOCALAPPDATA, required for
+Windows AppContainer launch, instead of an unusable empty block. Caller variables,
+keys, PYTHONPATH and DLL search paths are not inherited. These measured results
+apply to this installation/token/policy, not arbitrary future deployments.
+
+Receipts: `.pi/paper-qualification/custody-continuation.json`,
+`launcher-publication.json`, `operator-20261105.json`, and `containment.json`.
+Browser verification of actual saved run `9e989c89cc5882a8` confirmed linked
+panes, exact stored values, keyboard selection and preserved open controls:
+`.pi/replay-workspace-20261105.png`. Synthetic notes were not added to live runs.
+The browser created checkpoint
+`412916facc5e5182145ce5e16544551c95630a64f363134d38cd1cd4532b03a9`
+from that recorded run; resume rebuilt 19 quotes and continued 466 with
+EXACT_MATCH against saved and independent full replay. Registry paging returned
+a fixed sequence ceiling and bounded events from the actual local journal.
+
+Real venue transport/permissions/protection, authenticated feed adapters,
+independent final-data custody, prospective paper evidence and actual measured
+execution costs remain open. No real credentials, account API request, paid model
+completion, funded order, push or deployment occurred. Separate physical-host
+recovery cannot be tested because no second machine is available. The sections
+below are historical receipts, superseded where the current receipt differs.
+
 ## Archive implementation and service publication update
 
 Follow-up: aligned market-return correlations and bounded workbench delivery are

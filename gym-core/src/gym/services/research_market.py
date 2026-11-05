@@ -239,3 +239,45 @@ def return_correlations(db, request, *, store):
                              "Descriptive only: no diversification, causality, confidence, significance or execution verdict."]}
     result["report_id"] = digest(result)[:16]
     return result
+
+
+def market_breadth(db, request, *, store):
+    fields(request, "groups quote_currency from to resolution")
+    groups, names, universe = request["groups"], set(), []
+    if type(groups) is not list or not 1 <= len(groups) <= 8:
+        raise ValueError("need 1..8 explicit market groups")
+    for group in groups:
+        fields(group, "name symbols")
+        name, symbols = group["name"], group["symbols"]
+        if type(name) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}", name) or name in names:
+            raise ValueError("group names must be distinct bounded identifiers")
+        if type(symbols) is not list or not 1 <= len(symbols) <= 20:
+            raise ValueError("each group needs 1..20 explicit symbols")
+        names.add(name)
+        for symbol in symbols:
+            _symbol(symbol)
+            if symbol in universe:
+                raise ValueError("market groups must not overlap or repeat symbols")
+            universe.append(symbol)
+    if len(universe) > 20:
+        raise ValueError("breadth universe is limited to 20 markets")
+    screened = screen_markets(db, {"symbols": universe, "reference": universe[0], "metric": "momentum_percent",
+                                  **{k: request[k] for k in ("quote_currency", "from", "to", "resolution")}}, store=store)
+    by_symbol = {r["symbol"]: r for r in screened["ranked"] + screened["excluded"]}
+    rows = []
+    for group in groups:
+        members = [by_symbol[s] for s in group["symbols"]]
+        eligible = [r for r in members if r["excluded_reason"] is None]
+        advances = sum(Decimal(r["momentum_percent"]) > 0 for r in eligible)
+        declines = sum(Decimal(r["momentum_percent"]) < 0 for r in eligible)
+        with localcontext() as context:
+            context.prec = 80
+            percent = str(Decimal(advances - declines) * 100 / len(eligible)) if eligible else None
+        rows.append({"name": group["name"], "declared_members": len(members), "eligible_members": len(eligible),
+                     "advances": advances, "declines": declines, "unchanged": len(eligible) - advances - declines,
+                     "net_breadth_percent": percent, "members": members})
+    result = {"schema": "market-breadth/1", "request": request, "store": store, "groups": rows,
+              "screen_report_id": screened["report_id"], "classifications_authenticated": False, "funded_authority": False,
+              "limitation": "Explicit nonoverlapping supplied groups and comparable observed windows. Excluded markets remain visible and do not count as unchanged. No historical listing census, confidence or causal sector effect."}
+    result["report_id"] = digest(result)[:16]
+    return result

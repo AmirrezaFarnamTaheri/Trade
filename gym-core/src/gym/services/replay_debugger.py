@@ -34,11 +34,17 @@ def replay_decisions(root, request, *, store):
             balance_status = "RECONSTRUCTED_BEFORE_TIMESTAMP_EQUAL_TIME_UNKNOWN"
         else:
             balance_status = "RECORDED_BEFORE_DECISION"
+        equity = None
+        if balance_status == "RECORDED_BEFORE_DECISION" and known["bid"] is not None:
+            with localcontext() as context:
+                context.prec = 160
+                equity = str(Decimal(balances.get(result["quote"], "0")) + Decimal(balances.get(result["base"], "0")) * Decimal(known["bid"]))
         rows.append({"index": index, "known_at_decision": known, "balances_before": balances,
+                     "equity_before_decision": equity,
                      "balance_status": balance_status,
                      "subsequent_modeled_order": orders.get(decision.get("order"))})
     return {"schema": "decision-replay/1", "run_id": out["run_id"], "store": store,
-            "outputs_digest": out["outputs_digest"], "symbol": result["symbol"], "quote_currency": result["quote"],
+            "outputs_digest": out["outputs_digest"], "symbol": result["symbol"], "quote_currency": result["quote"], "resolution": out["inputs"]["resolution"],
             "total": len(result["decisions"]), "offset": offset,
             "next_offset": offset + len(rows) if offset + len(rows) < len(result["decisions"]) else None,
             "decisions": rows, "future_outcomes_are_decision_evidence": False, "funded_authority": False}

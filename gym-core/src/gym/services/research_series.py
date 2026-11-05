@@ -1,5 +1,6 @@
 """Exact, measurement-aligned arithmetic over the native observation vintage store."""
 from decimal import ROUND_HALF_EVEN, localcontext
+import re
 
 from ..domain.market_models import fields
 from ..domain.model import iso, parse_ts
@@ -45,6 +46,8 @@ def derived_series(protocol, request):
             result["reason"] = "STALE_MEASUREMENT"
         elif abs((times[0] - times[1]).total_seconds()) > request["max_skew_seconds"]:
             result["reason"] = "MISALIGNED_MEASUREMENTS"
+        elif left["unit"] == right["unit"] and left.get("unit_epoch") != right.get("unit_epoch"):
+            result["reason"] = "UNIT_EPOCH_MISMATCH_REQUIRES_EXPLICIT_CONVERSION"
         elif request["operation"] == "DIFFERENCE" and left["unit"] != right["unit"]:
             raise ValueError("difference requires identical explicit units")
         elif request["operation"] == "RATIO" and _number(right["value"]) == 0:
@@ -57,5 +60,35 @@ def derived_series(protocol, request):
                 result["value"] = str(a / b if request["operation"] == "RATIO" else a - b)
             result["unit"] = ("dimensionless" if left["unit"] == right["unit"] else left["unit"] + "/" + right["unit"]) if request["operation"] == "RATIO" else left["unit"]
             result["status"] = "AVAILABLE"
+    result["report_id"] = digest(result)[:16]
+    return result
+
+
+def convert_series(protocol, request):
+    fields(request, "value factor from_epoch to_epoch target_unit as_of max_age_seconds max_skew_seconds")
+    for key in ("from_epoch", "to_epoch", "target_unit"):
+        pattern = r"[A-Za-z0-9][A-Za-z0-9_.:/%-]{0,63}" if key == "target_unit" else r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}"
+        if type(request[key]) is not str or not re.fullmatch(pattern, request[key]):
+            raise ValueError("conversion units/epochs must be explicit bounded identifiers")
+    if request["from_epoch"] == request["to_epoch"]:
+        raise ValueError("conversion requires two distinct unit epochs")
+    result = derived_series(protocol, {"left": request["value"], "right": request["factor"], "operation": "RATIO",
+        **{k: request[k] for k in ("as_of", "max_age_seconds", "max_skew_seconds")}})
+    value, factor = result["inputs"]
+    if value is not None and value.get("unit_epoch") != request["from_epoch"]:
+        raise ValueError("value does not declare the requested source epoch")
+    if value is not None and factor is not None:
+        if factor["unit"] != request["target_unit"] + "/" + value["unit"]:
+            raise ValueError("factor unit must be exactly target_unit/source_unit")
+        if _number(factor["value"]) <= 0:
+            raise ValueError("unit conversion factor must be positive")
+    if result["status"] == "AVAILABLE":
+        with localcontext() as context:
+            context.prec = 160
+            result["value"] = str(_number(value["value"]) * _number(factor["value"]))
+        result["unit"] = request["target_unit"]
+    result.update(operation="EXPLICIT_UNIT_CONVERSION", from_epoch=request["from_epoch"], unit_epoch=request["to_epoch"],
+                  limitation="Supplied vintage factor, measurement/knowledge cutoffs and declared units only. No raw row is relabeled or source authenticity certified.")
+    result.pop("report_id")
     result["report_id"] = digest(result)[:16]
     return result

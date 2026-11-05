@@ -13,25 +13,30 @@ from .research_protocol import ResearchProtocol
 from .research_review import review_runs
 from .market_statistics import spread_report, trade_flow_report
 from .technical_analysis import technical_reports
-from .research_series import derived_series
+from .research_series import derived_series, convert_series
 from .data_portal import DataPortal
 from .feed_crosscheck import candle_crosscheck
-from .research_market import coverage_timeline, screen_markets, return_correlations
+from .research_market import coverage_timeline, screen_markets, return_correlations, market_breadth
 from .replay_debugger import replay_decisions, execution_quality
 from ..domain.portfolio import rebalance_preview
 from .experiment_registry import ExperimentRegistry
 from .research_notes import prepare_packet, save_notes
 from .strategy_audit import audit_strategy
 from .return_bootstrap import return_bootstrap
+from .replay_annotations import annotations
+from .replay_checkpoint import checkpoint_replay
+from .entry_locks import add_entry_lock
+from .operator_actions import OPERATOR_ACTIONS, operator_action
+from .liquidity import audit_depth
 
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
-                              "final-status", "observe-import", "screen", "derived"))
-WORKSPACE_ACTIONS = ("coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+                              "final-status", "observe-import", "screen", "derived", "unit-convert"))
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
-                           *[a for a in WORKSPACE_ACTIONS if a not in ("experiment-list", "experiment-status")]))
+                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("experiment-list", "experiment-status", "entry-locks")]))
 
 
 def _market_db(root):
@@ -49,6 +54,10 @@ def research_action(root, action, value=None, *, store="live", at=None):
         raise ValueError("invalid research store")
     if at is not None and action not in ("review", "outcomes", "tick"):
         raise ValueError("protocol mutations use the actual clock, without --at overrides")
+    if action in OPERATOR_ACTIONS:
+        return operator_action(root, action, value, store=store)
+    if action == "depth-audit":
+        return audit_depth(value)
     if action == "diagnostic":
         return evaluate_artifact(value)
     if action == "return-bootstrap":
@@ -57,21 +66,46 @@ def research_action(root, action, value=None, *, store="live", at=None):
         return (replay_decisions if action == "replay" else execution_quality)(root / "runs", value, store=store)
     if action == "rebalance":
         return rebalance_preview(value)
-    if action in ("coverage", "market-screen", "return-correlations", "experiment-run", "strategy-audit"):
+    if action in ("entry-lock-add", "entry-locks"):
+        from .rules import RuleService
+        if not (root / "market.db").is_file():
+            raise ValueError("entry locks require an existing market store")
+        db = MarketDB(root / "market.db", readonly=action == "entry-locks")
+        try:
+            if action == "entry-lock-add":
+                return add_entry_lock(root, db, value, store=store)
+            return {"rules": [r for r in RuleService(db).listing(now_utc(), [])["rules"] if r["body"]["params"].get("entry_lock")],
+                    "funded_authority": False}
+        finally:
+            db.c.close()
+    if action in ("replay-checkpoint", "replay-resume"):
+        db = _market_db(root)
+        try:
+            with ExperimentRegistry(root, store=store) as registry:
+                return checkpoint_replay(registry, db, value, resume=action == "replay-resume")
+        finally:
+            db.c.close()
+    if action in ("coverage", "market-screen", "market-breadth", "return-correlations", "experiment-run", "strategy-audit"):
         db = _market_db(root)
         try:
             if action == "strategy-audit":
                 return audit_strategy(db, value, store=store)
             if action == "return-correlations":
                 return return_correlations(db, value, store=store)
+            if action == "market-breadth":
+                return market_breadth(db, value, store=store)
             if action != "experiment-run":
                 return (coverage_timeline if action == "coverage" else screen_markets)(db, value, store=store)
             with ExperimentRegistry(root, store=store) as registry:
                 return registry.run(db, value)
         finally:
             db.c.close()
-    if action in ("experiment-list", "experiment-status", "research-packet", "research-notes"):
+    if action in ("experiment-list", "experiment-status", "research-packet", "research-notes", "registry-page", "annotation-add", "annotation-list"):
         with ExperimentRegistry(root, store=store) as registry:
+            if action == "registry-page":
+                return registry.page(value)
+            if action in ("annotation-add", "annotation-list"):
+                return annotations(registry, value, save=action == "annotation-add")
             if action == "experiment-list":
                 return registry.listing()
             if action == "experiment-status":
@@ -130,7 +164,7 @@ def research_action(root, action, value=None, *, store="live", at=None):
     if action in PROTOCOL_ACTIONS:
         if action != "outcomes" and value is None:
             raise ValueError("this action requires an input file or ID")
-        if action in ("outcomes", "final-run", "final-status", "screen", "derived") and not (root / "research_protocol.sqlite3").is_file():
+        if action in ("outcomes", "final-run", "final-status", "screen", "derived", "unit-convert") and not (root / "research_protocol.sqlite3").is_file():
             raise ValueError("research protocol is not initialized")
         root.mkdir(parents=True, exist_ok=True)
         with ResearchProtocol(root, store=store) as protocol:
@@ -148,6 +182,8 @@ def research_action(root, action, value=None, *, store="live", at=None):
                 return protocol.screen(value)
             if action == "derived":
                 return derived_series(protocol, value)
+            if action == "unit-convert":
+                return convert_series(protocol, value)
             db = _market_db(root)
             try:
                 return protocol.consume(value, db)

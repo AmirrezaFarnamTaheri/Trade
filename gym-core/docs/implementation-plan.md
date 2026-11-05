@@ -65,7 +65,7 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | AI connections | Dedicated GUI/API and private gateway control process for supported SDK OAuth, DPAPI-stored API keys, connection status, preset sync/import/export and explicit advisory prompts. No real sign-in, key replacement or paid provider completion was performed. |
 | Shared CLI/browser workflows | `research_actions.py` owns fixed dispatch. Separate `api/models.py`, `api/research.py`, `ui/models.js` and `ui/research.js` avoid adding these workflows to the observatory monolith. See [architecture and interface gaps](architecture.md). |
 | Measurement-aligned arithmetic | Optional numeric measurement clocks preserve old observation hashes. `research derived` resolves two known vintages in one snapshot, with explicit units/freshness/skew and unavailable results. No source authentication, sector model or forecast accuracy is inferred. |
-| Point-in-time candle checks | Native crosscheck adds an optional exclusive receipt/fetch cutoff; the bounded local-only workbench action requires it. Current venue storage does not retain superseded candle vintages. |
+| Point-in-time candle checks | Native crosscheck uses an exclusive receipt/fetch cutoff. Market schema 3 retains immutable revisions from migration onward and selects the last eligible vintage. Previously discarded revisions remain unavailable. |
 | GUI report and ticket journal | Saved runs download the existing offline HTML report. Canonical previews can be saved and acknowledged/rejected from the GUI using the native journal and actual server review time. No Executor permission is issued. |
 | Descriptive average distance and range oscillator | Shared indicator diagnostics include SMA200, close/SMA distance percentages for 20/50/200 observed bars and the 5/34 Awesome Oscillator from actual high/low ranges. Missing history stays warmup; no new strategy or intrinsic-value claim. |
 | Decision-linked chart | Native bounded SVG replay displays up to 150 recorded points through the selected decision, explicit gaps, escaped exact-price labels and keyboard navigation. No chart framework or donor data imported. |
@@ -74,7 +74,7 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Aligned market-return correlations | Shared `return-correlations` action compares actual adjacent closed MID return intervals in one market snapshot. Reports pairwise overlap/missingness, disqualified buckets and stale exclusions; constant series remain unavailable. No price-level filling, diversification advice or statistical-significance claim. |
 | Bounded workbench delivery | Authenticated research responses have a 2 MiB UTF-8 delivery cap alongside existing action row/work limits. Oversized outputs are not truncated: the response explicitly says a mutation may have committed and forbids automatic retry. GUI clears old output and asks for saved-state inspection. |
 | Durable paper attempt ownership | Scheduler records an attempt before calculation and releases the write lock during replay. Exact-claim interruption fences late publication; crash claims remain visible until explicit recovery. CLI/API/GUI expose claim, start, progress and unknown liveness separately. This does not terminate processes or cancel orders. |
-| Windows ciphertext publication | Reproduced child-file rename failure under strict ancestor sharing (OS error 32). Directory pins now permit write sharing while denying delete sharing; ciphertext/secret-file pins remain stricter. Regression checks publication, directory rename denial and ciphertext write denial. New binary is built locally; protected installation is not qualified. |
+| Windows ciphertext publication | Reproduced and fixed child-file rename failure under strict ancestor sharing (OS error 32). Directory pins permit write sharing while denying delete sharing; ciphertext pins remain stricter. Installed synthetic custody/restart/corruption/recovery now passes with retained history. |
 
 | Work | Implementation | Verification |
 | --- | --- | --- |
@@ -83,8 +83,8 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Portable offline research reports | `services/portable_report.py`, `summary --format json|html --output FILE` | Nine cases, including private-data omission, escaping, malformed inputs and no-overwrite output. Actual recorded-data HTML opened in the browser, with working provenance disclosure, no scripts and no overflow at 390px. It is an English paper summary, not a full replay bundle or localized cockpit replacement. |
 | Closed-bar technical diagnostics | domain/indicators.py, services/technical_analysis.py, `technicals` CLI | 15 cases and real recorded-data report `fbf96b7fde2b7681`; null warmup, invalid-quote/gap handling, bounded read snapshot and no-overwrite output. Descriptive only; no new strategy or authority. |
 | Multiple technical timeframes | Existing `technical_analysis.py`, repeated `technicals --res` | Ten further cases: one observation snapshot/digest, per-view closed bars and warmup, combined work bounds, invalid selections, unchanged single-view output and real writer between calculations. Recorded-data report `f3f90d2996f1b1f8`. No consensus/confidence or trading rule. |
-| Useful custody failure diagnostics | `gym-provision` retains the existing fixed client failure/OS error instead of discarding it | One Rust regression distinguishes request failure, timeout and disconnected client. The diagnostic retains uncertain-commit wording and grants no authority. It has not been installed over the protected binary. |
-| Installed custody diagnosis | Stage-specific SCM codes; retained zero-event ledger and synthetic-only continuation | Instrumented service reached RUNNING_DISARMED, then stopped/disabled. Later synthetic provision failed at ciphertext publication (1011), without acknowledgement or funded authority. Empty inspection-created WAL/SHM sidecar ownership was repaired to LocalService, preserving ledger/history and ACLs. Subsequent administrator prompt was canceled; the local rename fix remains uninstalled/unqualified. |
+| Useful custody failure diagnostics | `gym-provision` retains the existing fixed client failure/OS error instead of discarding it | Rust regression distinguishes request failure, timeout and disconnected client. The reviewed helper is now installed and synthetic custody passes; uncertain-commit wording grants no authority. |
+| Installed custody and isolation | Reviewed protected binaries, retained journal and synthetic-only continuation | Actual service provision/restart/corruption refusal/recovery passed. Actual ACER child denied all six private targets, four STOP commands acknowledged in 12–17 ms and suspended-process containment took 1,037 ms. Service stopped/disabled. Real venue and funded ledger remain unqualified. |
 
 The new commands use existing dependencies. The original three-tool MCP surface
 and research ledger schema are retained; outcome/vintage/final-window records use
@@ -95,9 +95,9 @@ funded boundary were not expanded by these research features.
 
 | Work | Current state | Concrete completion requirement |
 | --- | --- | --- |
-| Installed custody/recovery | Open; prior attempt failed | Diagnose the actual service-side rejection, securely update reviewed binaries, preserve retained history and pass synthetic provision/restart/corruption/recovery. The fresh-install drill refuses an existing vault; deleting its ledger to retry is not acceptable. |
-| Actual worker isolation | Open, dependent on installed custody | Update and hash the protected package, run the selected ACER AppContainer and prove denial of custody files, STOP/T2 pipes, profile canary and SCM changes. Source tests do not prove actual process isolation. |
-| Independent STOP and hung containment | Open | Measure the selected operator's four stop commands under the parked loop (≤1s), retained-process containment (≤10s), and DISARMED restart. |
+| Installed custody/recovery | Passed on this host with synthetic credentials | Protected publication, provision/restart/corruption refusal/recovery passed with retained history. The service is stopped and disabled. Real credentials and future funded-ledger recovery are unqualified. |
+| Actual worker isolation | Passed on this host under ACER | Actual no-capability AppContainer child denied custody ciphertext/journal, STOP/T2 pipes, profile canary and SCM access; the positive MCP check returned exactly three read-only tools. Repeat after deployment/policy changes. |
+| Independent STOP and hung containment | Passed on this host | Operator commands acknowledged in 12–17 ms under the parked loop; suspended-process containment took 1,037 ms. Normal restart completed, then service stopped/disabled. No funded authority was granted. |
 | Service-owned venue permissions/exposure | Open | Establish the actual key permission contract, current balances/locked/external exposure, pagination, manual-order lifecycle and freshness. A successful GET alone cannot certify read-only permissions or settlement. |
 | Trusted T1 and real submit/cancel/reconcile | Missing integration | Implement principal-bound, payload-bound approvals, fixed-origin transport, durable first-byte outcomes, unknown-order reconciliation and real account/instrument identity. Exercise offline failures before any separately approved venue probe. |
 | Protective stops, Exit Guard and capped Autopilot | Missing integration | Qualify native venue protection, disjoint quantities, restart/reopening and loss/installation caps through the real money path. Existing offline policy outputs remain advisory. |
@@ -110,12 +110,14 @@ funded boundary were not expanded by these research features.
 The latest request makes the useful documented integration candidates active work;
 the historical assessments' wording that they were only candidates is not a
 completion claim. The additions above close only their stated local contracts.
-Remaining implementation includes correction-aware indicator/replay fixtures,
-resumable snapshot-bound projections, saved annotations and linked chart panes,
-sequence-checked depth, further snapshot-bound result pagination,
-persisted entry locks and remaining GUI journal/conversion/probe inputs. Protected
-runtime, real venue, portfolio settlement, vendor feeds and independent-custody
-contracts below also remain open. Excluded predictive ML and unrelated donor
+Correction-aware indicator/replay fixtures, resumable verified replay recipes,
+saved annotations, linked chart panes, sequence-checked supplied depth,
+snapshot-bound registry pagination, persistent paper entry locks and shared GUI
+journal/conversion/probe inputs are now implemented and tested. Replay resumes
+rebuild a verified prefix and reject changed engine/source/rules; they do not
+deserialize executable objects. Protected worker tests now pass on this host.
+Real venue, portfolio settlement, vendor feeds and independent-custody
+contracts below remain open. Excluded predictive ML and unrelated donor
 applications are not silently reinstated. No unavailable operational acceptance
 is replaced with a mock or marked complete.
 
@@ -126,9 +128,9 @@ is replaced with a mock or marked complete.
 | Independent final evaluation | Local consume-once enforcement is implemented. Independent custody/access control, a real prospective future window and external qualification remain open. Repeated historical windows are diagnostics. |
 | Indicator-based strategy qualification | ATR/ADX/Keltner/TRIX, EMA slopes and four closed-bar strategy rules are implemented and tested. Real prospective cost/coverage evidence and independent selection accounting remain required before any promotion. No TA-Lib numerical parity is claimed. |
 | Portfolio execution and partial exits | Exact supplied-mark return arithmetic, reservation-aware target preview and supplied partial-fill comparison are implemented. Actual holdings/basis, authenticated fee reconciliation and partial settlement remain required for executable targets and tiered exits. |
-| Additional clocks/component forms/unit-epoch derived views | Measurement clocks and two-input aligned arithmetic are implemented. Component forms, confirmation clocks and cross-epoch derived views still need explicit consumer contracts; no historical raw rows may be silently relabeled. |
+| Additional clocks/component forms/unit-epoch derived views | Implemented optional confirmation clocks, exact component reconciliation, explicit unit epochs and source/factor-linked conversions. Knowledge includes confirmation/actual receipt; mixed epochs fail without explicit conversion. Old omitted fields preserve hashes; no raw rows are relabeled. Vendor authenticity remains unestablished. |
 | New news/fundamental/social/vendor feeds | The user-supplied vintage store and screener are implemented. Actual adapters, source authentication, feed availability/rights and release/revision verification remain open. Live search cannot replace historical vintages. |
-| Macro/whale/funding/open-interest diagnostics | Source-specific screening, supplied-forecast scoring and aligned two-series ratios/differences are implemented. Breadth/sector diagnostics and transfer context still require explicit input/consumer contracts. Predictive training and forecast generation are outside current scope; vendor scores or Prophet intervals are not measured confidence. |
+| Macro/whale/funding/open-interest diagnostics | Source-specific screening, forecast scoring, aligned ratios/differences and explicit nonoverlapping market-group breadth are implemented. Group classifications remain supplied/unverified. Authenticated transfer context and feeds remain unavailable. Predictive training and forecast generation are outside current scope; vendor scores or Prophet intervals are not measured confidence. |
 | Maker orders, trade credit, relay and multi-leg execution | Implement their distinct custody, idempotency, ownership, settlement, protection and outage contracts after the core executor gates. No derivative, loan, cloud or relay authority is implied. |
 
 Unrelated monetization, social/community infrastructure, Pixel Office, a second
@@ -173,8 +175,9 @@ reconciliation. Optional statistical diagnostics require declared assumptions
 and all attempted trials; they do not reopen predictive ML or authorize trading.
 The causality/prehistory audit, saved-return block diagnostic and durable native
 paper claim fencing now implement specific parts of these findings. Timestamp
-parity, hard process deadlines, bounded result publication and the other
-contracts retain their separate acceptance requirements.
+parity for saved native checkpoint replays and bounded registry publication are
+now checked. Hard calculation-process deadlines, real transport/cancel recovery
+and other contracts retain their separate acceptance requirements.
 
 ## Evidence and authority
 

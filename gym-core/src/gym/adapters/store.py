@@ -36,6 +36,13 @@ MIGRATIONS = [
     create table venue_candles(instrument_id text, resolution text, t text, o text, h text, l text, c text, v text,
         fetched_at text, primary key(instrument_id, resolution, t));
     """,
+    """
+    create table candle_vintages(instrument_id text, resolution text, t text, o text, h text, l text, c text, v text,
+        fetched_at text, primary key(instrument_id, resolution, t, fetched_at));
+    insert into candle_vintages select * from venue_candles;
+    create trigger retain_candle_vintage before delete on candle_vintages begin select raise(abort,'retain candle vintage'); end;
+    create trigger freeze_candle_vintage before update on candle_vintages begin select raise(abort,'immutable candle vintage'); end;
+    """,
 ]
 
 
@@ -76,10 +83,24 @@ class MarketDB:
                        s(b.bid), s(b.ask), s(b.bid_qty), s(b.ask_qty), depth_ref, ",".join(sorted(b.flags))))
 
     def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
-        """Venue candles are revised while forming: the latest fetch of a period replaces the earlier one."""
-        self.c.executemany("insert or replace into venue_candles values(?,?,?,?,?,?,?,?,?)",
-                           [(f"wallex:{symbol}", resolution, iso(k["t"]), str(k["o"]), str(k["h"]), str(k["l"]),
-                             str(k["c"]), str(k["v"]), iso(fetched_at)) for k in candles])
+        """Retain each fetch; latest projection may advance but cannot erase older knowledge."""
+        self.c.execute("SAVEPOINT candle_batch")
+        try:
+            for k in candles:
+                row = (f"wallex:{symbol}", resolution, iso(k["t"]), *(str(k[name]) for name in "ohlcv"), iso(fetched_at))
+                prior = self.c.execute("SELECT o,h,l,c,v FROM candle_vintages WHERE instrument_id=? AND resolution=? AND t=? AND fetched_at=?",
+                                      (*row[:3], row[-1])).fetchone()
+                if prior is not None and prior != row[3:8]:
+                    raise ValueError("conflicting candle values at the same fetch identity")
+                self.c.execute("INSERT OR IGNORE INTO candle_vintages VALUES(?,?,?,?,?,?,?,?,?)", row)
+                self.c.execute("""INSERT INTO venue_candles VALUES(?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(instrument_id,resolution,t) DO UPDATE SET o=excluded.o,h=excluded.h,l=excluded.l,
+                    c=excluded.c,v=excluded.v,fetched_at=excluded.fetched_at WHERE excluded.fetched_at>venue_candles.fetched_at""", row)
+            self.c.execute("RELEASE candle_batch")
+        except BaseException:
+            self.c.execute("ROLLBACK TO candle_batch")
+            self.c.execute("RELEASE candle_batch")
+            raise
 
     def add_quality(self, now: datetime, symbol: str | None, flag: str, detail: str = ""):
         self.c.execute("insert into quality_events values(?,?,?,?)", (iso(now), symbol and f"wallex:{symbol}", flag, detail[:500]))

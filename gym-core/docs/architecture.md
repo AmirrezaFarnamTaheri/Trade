@@ -35,8 +35,8 @@ combine these authorities.
 | Accounting, portfolio, forecast scoring, spreads, flow, technical timeframes | Advanced research workbench | Native calculations/recorded data with explicit absent values. This is an advanced input/report interface, not a dedicated chart for each model. |
 | Provider/API-key/OAuth connections, preset sync/import/export, paid prompt | AI connections | Disabled by default. User initiates every key save/sign-in and paid prompt. SDK catalog support does not prove live entitlement. |
 | Account and imported orders | Account journal | Existing read-only observations. Venue-key provisioning remains protected-console work. |
-| Tickets, evidence and venue rules | Offline ticket, Account journal, saved runs, Venue rules | Canonical preview saving and offline acknowledgment/rejection are available in the GUI. Probe-budget staging, conversion evaluation, manual journal imports and some evidence decision commands still have terminal-only inputs. |
-| Candle crosscheck | Advanced research workbench | Bounded local reads with explicit exclusive receipt/fetch cutoff. No provider fetch or quality-table mutation. Superseded venue vintages are unavailable. |
+| Tickets, evidence and venue rules | Offline ticket, Account journal, saved runs, Venue rules, advanced workbench | Canonical preview review, offline probe staging, modeled conversion, manual account/venue-fact imports and evidence decisions share existing native owners with the CLI. No execution permission is issued. |
+| Candle crosscheck | Advanced research workbench | Bounded local reads with an exclusive receipt/fetch cutoff. Immutable candle revisions are retained from market schema 3 onward; discarded pre-migration history cannot be recovered. No provider fetch or quality-table mutation. |
 | Portable HTML summary | Saved run | Token-protected download of the existing escaped, script-free allowlisted report. |
 | Collector/session lifecycle | Terminal | The browser does not start arbitrary local processes or choose arbitrary filesystem paths. |
 | Backup, restore, release checks, executor provisioning and STOP | Backups, Safety and protected console | Explicit guidance/status limits. Passphrases, service custody and executor authority stay outside browser forms. |
@@ -58,6 +58,15 @@ journal. Scenario runs reuse `paper.py` and `DataPortal` under one read snapshot
 outages filter receipts without changing the market store. `session.py` records
 actual pre-decision balances and deduplicated rule snapshots. Its engine-version
 change keeps new trace outputs from colliding with older immutable runs.
+
+`replay_checkpoint.py` rebuilds a verified prefix and checks continuation against
+both the saved result and a fresh full native replay. `replay_annotations.py`
+keeps operator notes separate from immutable decision evidence. Registry pages
+retain a fixed sequence ceiling across requests. `entry_locks.py` uses the
+existing persistent rule ledger; `operator_actions.py` shares the existing
+journal/conversion/probe owners between terminal and authenticated workbench.
+The chart links recorded price, pre-decision equity and numeric feature panes
+by actual decision index, without reconstructing missing historical features.
 
 `services/research_notes.py` prepares allowlisted saved-evidence packets and
 validates role/citation/numeric-claim notes. Paid sending remains an explicit

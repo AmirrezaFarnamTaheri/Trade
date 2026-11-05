@@ -26,3 +26,16 @@ test('empty and non-finite prices do not manufacture chart values', () => {
   old.forEach(point => { delete point.known_at_decision.bar_known; });
   assert.ok(!window.GymReplayChart.render(old, 1, 'USDT', esc, false).includes('<path'));
 });
+
+test('linked panes retain negative indicators and unknown equity, without future points', () => {
+  const rows = [row(0, '01', 'a', 'b'), row(1, '02', 'b', 'c')];
+  rows[0].equity_before_decision = null; rows[1].equity_before_decision = '999.1234567890123456789';
+  rows[0].known_at_decision.feature_values = {signal: '-2'};
+  rows[1].known_at_decision.feature_values = {signal: '-1'};
+  const equity = window.GymReplayChart.render(rows, 1, 'USDT', esc, false, 'equity');
+  assert.equal((equity.match(/<circle /g) || []).length, 1);
+  assert.ok(equity.includes('999.1234567890123456789'));
+  const feature = window.GymReplayChart.render(rows, 1, 'USDT', esc, true, 'signal');
+  assert.equal((feature.match(/<circle /g) || []).length, 2);
+  assert.ok(feature.includes('replay-chart-caption-signal') && feature.includes('-2'));
+});

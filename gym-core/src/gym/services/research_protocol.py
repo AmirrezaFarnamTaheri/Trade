@@ -222,7 +222,8 @@ class ResearchProtocol:
         now, prepared = instant(self.clock()), []
         for row in rows:
             names = "source_id series subject kind unit value published_at revision_at"
-            fields(row, names + " measured_at" if type(row) is dict and "measured_at" in row else names)
+            optional = ("measured_at", "confirmed_at", "unit_epoch", "components")
+            fields(row, names + " " + " ".join(k for k in optional if type(row) is dict and k in row))
             for key in ("source_id", "series", "subject", "unit", "kind"):
                 if type(row[key]) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/%-]{0,95}", row[key]):
                     raise ValueError("observation labels must be bounded identifiers")
@@ -232,6 +233,14 @@ class ResearchProtocol:
             revised = parse_ts(row["revision_at"]) if type(row["revision_at"]) is str else None
             if published is None or (row["revision_at"] is not None and revised is None) or (revised and revised < published):
                 raise ValueError("invalid publication/revision timestamps")
+            confirmed = None
+            if "confirmed_at" in row:
+                confirmed = parse_ts(row["confirmed_at"]) if type(row["confirmed_at"]) is str else None
+                if confirmed is None or confirmed < (revised or published):
+                    raise ValueError("confirmation must follow the publication/revision")
+                row = {**row, "confirmed_at": iso(confirmed)}
+            if "unit_epoch" in row and (type(row["unit_epoch"]) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}", row["unit_epoch"])):
+                raise ValueError("unit epoch must be an explicit bounded identifier")
             if "measured_at" in row:
                 measured = parse_ts(row["measured_at"]) if type(row["measured_at"]) is str else None
                 if measured is None or measured > published or row["kind"] == "NEWS":
@@ -242,9 +251,26 @@ class ResearchProtocol:
                     raise ValueError("news requires bounded text with unit=text")
             else:
                 _number(row["value"])
+            if "components" in row:
+                components = row["components"]
+                if row["kind"] == "NEWS" or type(components) is not list or not 1 <= len(components) <= 32:
+                    raise ValueError("numeric component form requires 1..32 additive rows")
+                labels = set()
+                with localcontext() as context:
+                    context.prec = 160
+                    total = 0
+                    for component in components:
+                        fields(component, "label value")
+                        label = component["label"]
+                        if type(label) is not str or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}", label) or label in labels:
+                            raise ValueError("component labels must be distinct bounded identifiers")
+                        labels.add(label)
+                        total += _number(component["value"])
+                    if total != _number(row["value"]):
+                        raise ValueError("components must reconcile exactly to the numeric value in its declared unit")
             body = {**row, "published_at": iso(published), "revision_at": iso(revised), "store": self.store,
                     "source_authenticity_verified": False, "rights_verified": False, "origin": "USER_SUPPLIED_OBSERVATION"}
-            prepared.append((digest(body), json.dumps(body), iso(max(now, published, revised or published))))
+            prepared.append((digest(body), json.dumps(body), iso(max(now, published, revised or published, confirmed or published))))
         with self._write():
             for key, body, known in prepared:
                 self.conn.execute("INSERT OR IGNORE INTO observations VALUES(?,?,?)", (key, body, known))

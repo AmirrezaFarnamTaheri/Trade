@@ -338,25 +338,9 @@ def account_cmd(args) -> int:
 
 def external_observe_cmd(args) -> int:
     """Import only sanitized external observations, never account authority."""
-    from .domain.account_observations import project_account
-    from .services.external_journal import ExternalJournal
-
-    source = Path(args.path)
-    if source.stat().st_size > 1_048_576:
-        raise ValueError("external observation file exceeds 1 MiB")
-    raw = json.loads(source.read_text("utf-8"))
-    if not isinstance(raw, dict):
-        raise ValueError("external observation must be a JSON object")
-    observed = project_account(
-        raw["account_id"], raw["observed_at"],
-        orders=raw.get("orders"), balances=raw.get("balances"),
-        exposure=raw.get("exposure"),
-    )
-    root = store_root(args)
-    root.mkdir(parents=True, exist_ok=True)
-    with ExternalJournal(root / "external_journal.db") as journal:
-        count = journal.record(observed)
-    print(f"{count} external observations recorded (read-only, unverified; not funded).")
+    from .services.operator_actions import operator_action
+    report = operator_action(store_root(args), "external-import", _strict_offline_json(args.path, max_bytes=1_048_576))
+    print(f"{report['recorded_observations']} external observations recorded (read-only, unverified; not funded).")
     return 0
 
 
@@ -412,51 +396,20 @@ def ticket_queue_review_cmd(args) -> int:
 
 def probe_budget_stage_cmd(args) -> int:
     """Stage a fake/manual probe within an immutable offline full-loss budget."""
-    from .services.probe_budget import ProbeBudgetBook
+    from .services.operator_actions import operator_action
 
     record = _strict_offline_json(args.path, max_bytes=8192)
-    names = {"probe_id", "kind", "symbol", "worst_case_total_loss", "venue_minimum_quote"}
-    if set(record) != names:
-        raise ValueError("unsafe probe metadata; extra fields not permitted")
-    root = store_root(args)
-    root.mkdir(parents=True, exist_ok=True)
-    with ProbeBudgetBook(
-        root / "probe_budget.db", total_loss_limit=args.total_loss_limit,
-        quote_asset=args.quote_asset,
-    ) as book:
-        report = book.stage(**record)
+    report = operator_action(store_root(args), "probe-stage", {"total_loss_limit": args.total_loss_limit,
+                             "quote_asset": args.quote_asset, "probe": record})
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 
 def conversion_report_cmd(args) -> int:
     """Compute synthetic implementation shortfall; never submits orders."""
-    from .domain.conversion import ConversionWorkload
-
-    obj = _strict_offline_json(args.path, max_bytes=65_536)
-    if set(obj) != {"instruction", "fills", "mark_price", "observed_at"}:
-        raise ValueError("synthetic report requires exactly the documented fields")
-    instruction = obj["instruction"]
-    expected = {
-        "instruction_id", "account", "symbol", "side", "requested_base",
-        "arrival_price", "fee_rate", "started_at", "deadline",
-        "max_spread_bps", "quote_budget",
-    }
-    if type(instruction) is not dict or set(instruction) != expected:
-        raise ValueError("unsafe conversion input")
-    fills = obj["fills"]
-    if type(fills) is not list or len(fills) > 500:
-        raise ValueError("fake fill list is unbounded or invalid")
-    workload = ConversionWorkload(**instruction)
-    for row in fills:
-        if type(row) is not dict or set(row) != {
-            "fill_id", "quantity", "price", "quote_fee", "observed_at",
-        }:
-            raise ValueError("unsafe fake fill metadata")
-        workload.observe_fake_fill(**row)
-    print(json.dumps(workload.shortfall(
-        mark_price=obj["mark_price"], observed_at=obj["observed_at"],
-    ), ensure_ascii=False, indent=2))
+    from .services.operator_actions import operator_action
+    report = operator_action(store_root(args), "conversion-report", _strict_offline_json(args.path, max_bytes=65_536))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -492,15 +445,9 @@ def venue_fact_import_cmd(args) -> int:
     A claimed source is NOT authenticated. This command can never certify
     venue order methods, provision keys or authorize any funded operation.
     """
-    from .services.venue_facts import VenueFactsJournal, validate_venue_fact
-
-    raw = _strict_offline_json(args.path, max_bytes=16_384)
-    record = validate_venue_fact(raw)  # before creating the journal
-    root = store_root(args)
-    root.mkdir(parents=True, exist_ok=True)
-    with VenueFactsJournal(root / "venue_facts.db") as journal:
-        sequence = journal.record(record)
-    print(f"VenueFacts evidence #{sequence} recorded (unverified origin; no order authority).")
+    from .services.operator_actions import operator_action
+    report = operator_action(store_root(args), "venue-fact-import", _strict_offline_json(args.path, max_bytes=16_384))
+    print(f"VenueFacts evidence #{report['sequence']} recorded (unverified origin; no order authority).")
     return 0
 
 

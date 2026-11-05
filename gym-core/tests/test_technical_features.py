@@ -19,6 +19,23 @@ def bar(i, value, width=1):
                value, value + width, value - width, value, Decimal(0), 1)
 
 
+def test_historical_correction_recomputes_recursive_values_beyond_rolling_cache():
+    from dataclasses import replace
+    bars = [bar(i, 100 + i) for i in range(230)]
+    corrected = list(bars)
+    corrected[10] = replace(bars[10], open=Decimal(119), close=Decimal(119), high=Decimal(120), low=Decimal(118))
+    assert bar_indicator_values(bars[:10]) == bar_indicator_values(corrected[:10])
+    original, revised = bar_indicator_values(bars), bar_indicator_values(corrected)
+    assert original["ema_200"]["value"] != revised["ema_200"]["value"]
+    with localcontext() as context:
+        context.prec = 160
+        alpha, expected = Decimal(2) / 201, corrected[0].close
+        for current in corrected[1:]:
+            expected = alpha * current.close + (1 - alpha) * expected
+        # Algebraically equivalent EMA forms can round differently at the 160-digit boundary.
+        assert abs(Decimal(revised["ema_200"]["value"]) - expected) < Decimal("1e-150")
+
+
 def test_wilder_true_range_adx_and_flat_zero_are_measured_values():
     state = TechnicalFeatures()
     for i in range(28):

@@ -86,6 +86,44 @@ class ExperimentRegistry:
             "SELECT id FROM events WHERE kind='EXPERIMENT' AND json_extract(body,'$.store')=? ORDER BY seq DESC LIMIT 50", (self.store,))],
             "funded_authority": False, "independent_custody": False}
 
+    def page(self, request):
+        fields(request, "kind parent after through limit")
+        kind, parent = request["kind"], request["parent"]
+        if kind not in (None, "EXPERIMENT", "ATTEMPT", "RESULT", "EVIDENCE_PACKET", "RESEARCH_NOTES", "REPLAY_ANNOTATION", "REPLAY_CHECKPOINT"):
+            raise ValueError("invalid registry event kind")
+        if parent is not None and (type(parent) is not str or not 1 <= len(parent) <= 160):
+            raise ValueError("invalid registry parent")
+        after, through, limit = request["after"], request["through"], request["limit"]
+        if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("registry page requires after >= 0 and limit 1..100")
+        if through is not None and (type(through) is not int or through < after):
+            raise ValueError("invalid registry snapshot cursor")
+        self.conn.execute("BEGIN")
+        try:
+            maximum = self.conn.execute("SELECT COALESCE(MAX(seq),0) FROM events").fetchone()[0]
+            through = maximum if through is None else through
+            if through > maximum or after > through:
+                raise ValueError("registry snapshot cursor is beyond recorded events")
+            rows = self.conn.execute("""SELECT seq,id,body FROM events WHERE seq>? AND seq<=?
+                AND json_extract(body,'$.store')=? AND (? IS NULL OR kind=?) AND (? IS NULL OR parent=?)
+                ORDER BY seq LIMIT ?""", (after, through, self.store, kind, kind, parent, parent, limit + 1)).fetchall()
+            events, size = [], 0
+            for seq, key, encoded in rows[:limit]:
+                record = {"seq": seq, **self.read_record(key, encoded)}
+                used = len(json.dumps(record, ensure_ascii=False).encode("utf-8"))
+                if size + used > 262144:
+                    if not events:
+                        raise ValueError("single registry event exceeds page byte budget; inspect its saved ID")
+                    break
+                events.append(record)
+                size += used
+            more = len(rows) > len(events)
+            return {"schema": "registry-page/1", "store": self.store, "through": through, "after": after,
+                    "events": events, "next_after": events[-1]["seq"] if more and events else None,
+                    "event_bytes": size, "funded_authority": False, "independent_custody": False}
+        finally:
+            self.conn.rollback()
+
     def run(self, db, request):
         fields(request, "hypothesis symbol strategy trials windows resolution cash scenarios final_evaluation_id")
         if type(request["hypothesis"]) is not str or not 1 <= len(request["hypothesis"].strip()) <= 500:

@@ -29,7 +29,7 @@ def candle_crosscheck(portal: DataPortal, symbol: str, start: datetime, end: dat
     if as_of is not None:
         trades = [trade for trade in trades if trade.ts_avail < as_of]
     internal = {b.start: b for b in trade_bars(symbol, spec, trades, end)}
-    venue = {k["t"]: k for k in portal.venue_candles(symbol, resolution, start, end)
+    venue = {k["t"]: k for k in portal.venue_candles(symbol, resolution, start, end, as_of=as_of)
              if k["v"] > 0 and k["t"] + spec.step <= k["fetched_at"] and (as_of is None or k["fetched_at"] < as_of)}
     rows = []
     for t in sorted(set(internal) | set(venue)):
@@ -60,4 +60,4 @@ def candle_crosscheck(portal: DataPortal, symbol: str, start: datetime, end: dat
             "limitations": ["Internal bars use venue event time. Wallex public trades have no stable trade id; identical "
                             "prints are preserved, so source retransmissions cannot be distinguished from real fills.",
                             "MISSING_VENUE can be a venue candle not yet fetched, not only a venue omission.",
-                            "Point-in-time mode excludes late receipts and later fetches. Superseded venue candle vintages are not reconstructed."]}
+                            "Point-in-time mode selects the latest retained fetch strictly before the cutoff. Vintages erased before schema migration cannot be reconstructed."]}

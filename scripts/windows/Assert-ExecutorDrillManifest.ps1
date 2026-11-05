@@ -16,6 +16,15 @@ function Assert-MutationPolicy($Raw, [bool]$Directory) {
     }
 }
 if ($SelfTest) {
+    $node = [IO.FileInfo]::new($PSCommandPath)
+    $ancestors = 0
+    while ($null -ne $node) {
+        $directory = [bool]($node.Attributes -band [IO.FileAttributes]::Directory)
+        if ($directory -ne ($node -is [IO.DirectoryInfo])) { throw 'Filesystem ancestor classification failed.' }
+        $node = if ($directory) { $node.Parent } else { $node.Directory }
+        $ancestors++
+    }
+    if ($ancestors -lt 2) { throw 'Filesystem ancestor self-test did not reach a directory.' }
     # Creating unrelated children at C:\ cannot replace a protected descendant.
     Assert-MutationPolicy ([Security.AccessControl.RawSecurityDescriptor]::new('O:BAD:P(A;;FA;;;BA)(A;;0x00000004;;;AU)')) $true
     foreach ($case in @(@($false,'0x00000002'), @($true,'0x00000040'), @($true,'0x00040000'))) {
@@ -29,12 +38,13 @@ if ($SelfTest) {
 $expected = Join-Path $env:ProgramFiles 'TradingGYM\Executor\installed-host-drill.json'
 if ([IO.Path]::GetFullPath($Path) -ine [IO.Path]::GetFullPath($expected)) { throw 'Only the fixed protected drill manifest is accepted.' }
 $item = Get-Item -LiteralPath $Path -Force
-if ($item.PSIsContainer -or $item.Length -gt 65536) { throw 'Invalid drill manifest file.' }
+if (($item.Attributes -band [IO.FileAttributes]::Directory) -or $item.Length -gt 65536) { throw 'Invalid drill manifest file.' }
 while ($null -ne $item) {
+    $directory = [bool]($item.Attributes -band [IO.FileAttributes]::Directory)
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked drill manifest or ancestor rejected.' }
     $acl = Get-Acl -LiteralPath $item.FullName
     if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $trusted) { throw 'Untrusted drill manifest owner or ancestor.' }
     $raw = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorBinaryForm(), 0)
-    Assert-MutationPolicy $raw $item.PSIsContainer
-    $item = if ($item.PSIsContainer) { $item.Parent } else { $item.Directory }
+    Assert-MutationPolicy $raw $directory
+    $item = if ($directory) { $item.Parent } else { $item.Directory }
 }

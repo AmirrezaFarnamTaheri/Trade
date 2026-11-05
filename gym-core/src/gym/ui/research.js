@@ -36,6 +36,22 @@ window.gymResearch = (() => {
   actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
   actions['job-interrupt'] = ['Release an interrupted paper attempt', 'آزادسازی تلاش متوقف‌شدهٔ آزمایشی', 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];
   actions['return-correlations'] = ['Compare aligned market returns', 'مقایسهٔ بازده هم‌زمان بازارها', 'symbols: [market], quote_currency, from, to, resolution, min_overlap'];
+  actions['registry-page'] = ['Browse a registry snapshot', 'مرور نسخهٔ ثابت دفتر پژوهش', 'kind (null or event kind), parent (null or saved ID), after, through (null for first page), limit'];
+  actions['annotation-add'] = ['Save replay annotation', 'ثبت یادداشت مرور', 'run_id, outputs_digest, decision_index, request_id (32 hex characters), text'];
+  actions['annotation-list'] = ['Read replay annotations', 'خواندن یادداشت‌های مرور', 'run_id, outputs_digest, after, through, limit'];
+  actions['replay-checkpoint'] = ['Save verified replay checkpoint', 'ثبت نقطهٔ بازیابی مرور', 'run_id, quote_count'];
+  actions['replay-resume'] = ['Resume and verify saved replay', 'ادامه و بررسی مرور ثبت‌شده', 'checkpoint_id'];
+  actions['entry-lock-add'] = ['Record paper entry lock', 'ثبت محدودیت ورود آزمایشی', 'run_id, scope (PAIR/GLOBAL), reason (COOLDOWN/DRAWDOWN), duration_seconds, threshold_percent (null for cooldown)'];
+  actions['entry-locks'] = ['Inspect paper entry locks', 'بررسی محدودیت‌های ورود آزمایشی', ''];
+  actions['conversion-report'] = ['Evaluate modeled conversion', 'ارزیابی تبدیل شبیه‌سازی‌شده', 'instruction, fills, mark_price, observed_at (offline modeled fills only)'];
+  actions['probe-stage'] = ['Stage offline probe budget', 'ثبت بودجهٔ بررسی آفلاین', 'total_loss_limit, quote_asset, probe: {probe_id, kind, symbol, worst_case_total_loss, venue_minimum_quote} (no permission to trade)'];
+  actions['external-import'] = ['Import manual account observations', 'ثبت مشاهدات دستی حساب', 'account_id, observed_at, balances, orders, exposure (sanitized observations only; no credentials)'];
+  actions['venue-fact-import'] = ['Import sanitized venue evidence', 'ثبت شواهد پالایش‌شدهٔ بازار', 'evidence_id, observed_at, source, kind, endpoint, state, account_scope, response_version, evidence_sha256'];
+  actions['evidence-report'] = ['Inspect saved economic evidence', 'بررسی شواهد اقتصادی ثبت‌شده', 'run_id'];
+  actions['evidence-decision'] = ['Record offline evidence decision', 'ثبت تصمیم آفلاین دربارهٔ شواهد', 'run_id, claim (NONE/EXPERIMENTAL), cap (decimal string), currency (USDT/TMN), note; record only'];
+  actions['depth-audit'] = ['Validate supplied depth sequence', 'بررسی توالی عمق ورودی', 'source_id, as_of, max_age_seconds, max_levels, frames: [{kind, sequence, previous_sequence, event_at, observed_at, bids: [[price, quantity]], asks: [[price, quantity]]}]'];
+  actions['unit-convert'] = ['Convert explicit observation epochs', 'تبدیل دوره‌های واحد مشاهده', 'value, factor (exact observation references), from_epoch, to_epoch, target_unit, as_of, max_age_seconds, max_skew_seconds'];
+  actions['market-breadth'] = ['Compare market group breadth', 'مقایسهٔ گسترهٔ گروه‌های بازار', 'groups: [{name, symbols}], quote_currency, from, to, resolution'];
   const $ = id => document.getElementById(id);
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
@@ -134,16 +150,50 @@ window.gymResearch = (() => {
       }); });
     }
     $('recovery-refresh').onclick = event => act(event.target, jobs);
-    let offset = 0, runId = '', total = 0, replayBusy = false;
+    let offset = 0, runId = '', total = 0, replayBusy = false, feature = '', annotationPending = null;
     async function replay() {
       if (replayBusy) return;
       replayBusy = true;
       try {
+      const linkedOpen = $('replay-feature')?.closest('details')?.open ?? false;
+      const notesOpen = $('replay-annotation-form')?.closest('details')?.open ?? false;
       const start = Math.max(0, offset - 149);
       const result = await call('replay', {run_id: runId, offset: start, limit: offset - start + 1}); total = result.total;
       const row = result.decisions.at(-1);
       $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text('Known at decision', 'اطلاعات هنگام تصمیم')}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text('Bid / Ask', 'خرید / فروش')}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text('Holdings before decision', 'دارایی پیش از تصمیم')}</h3><p>${esc(row.balance_status)}</p>${json(row.balances_before)}<details><summary>${text('Indicator values and readiness', 'مقدار و آمادگی شاخص‌ها')}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text('Recorded rules', 'قواعد ثبت‌شده')}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text('Bar and reference observations', 'مشاهدات شمع و مرجع')}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text('Later modeled order outcome · not known at decision', 'نتیجه بعدی سفارش شبیه‌سازی‌شده · هنگام تصمیم معلوم نبود')}</summary>${json(row.subsequent_modeled_order)}</details>` : text('No recorded decisions.', 'تصمیمی ثبت نشده است.');
       $('replay-decision').insertAdjacentHTML('afterbegin', window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa));
+      if (row) {
+        const features = Object.keys(row.known_at_decision.feature_values ?? {}).filter(key => {
+          const value = row.known_at_decision.feature_values[key];
+          return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
+        });
+        if (!features.includes(feature)) feature = features[0] ?? '';
+        $('replay-decision').insertAdjacentHTML('beforeend', `<details><summary>${text('Linked equity and indicator panes', 'نمودارهای مرتبط ارزش و شاخص')}</summary>${window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, 'equity')}<label>${text('Recorded indicator', 'شاخص ثبت‌شده')}<select id="replay-feature">${features.map(key => `<option ${key === feature ? 'selected' : ''} value="${esc(key)}">${esc(key)}</option>`).join('')}</select></label><div id="replay-feature-chart"></div></details><details><summary>${text('Operator annotations · separate from decision evidence', 'یادداشت‌های کاربر · جدا از شواهد تصمیم')}</summary><form id="replay-annotation-form"><label>${text('Note on this decision', 'یادداشت این تصمیم')}<textarea id="replay-annotation-text" maxlength="2000" required></textarea></label><button class="button" type="submit">${text('Save annotation', 'ثبت یادداشت')}</button></form><div id="replay-annotations"></div><button id="replay-annotations-more" class="button" type="button" disabled>${text('More annotations', 'یادداشت‌های بیشتر')}</button></details>`);
+        const featureChart = () => { $('replay-feature-chart').innerHTML = feature ? window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, feature) : text('No numeric indicator trace.', 'ردپای عددی شاخص موجود نیست.'); };
+        $('replay-feature').onchange = event => { feature = event.target.value; featureChart(); }; featureChart();
+        $('replay-feature').closest('details').open = linkedOpen;
+        $('replay-annotation-form').closest('details').open = notesOpen;
+        const identity = {run_id: result.run_id, outputs_digest: result.outputs_digest};
+        let pageAfter = 0, pageThrough = null;
+        async function notes() {
+          const page = await call('annotation-list', {...identity, after: pageAfter, through: pageThrough, limit: 20});
+          pageThrough = page.through; pageAfter = page.next_after;
+          $('replay-annotations').insertAdjacentHTML('beforeend', page.events.map(note => `<article><button type="button" class="button" data-replay-index="${note.decision_index}">${esc(note.decision_at)}</button><p>${esc(note.text)}</p><small>${esc(note.recorded_at)} · ${esc(note.id)}</small></article>`).join(''));
+          $('replay-annotations-more').disabled = pageAfter == null;
+        }
+        await notes();
+        $('replay-annotations-more').onclick = async event => { await act(event.target, notes); event.target.disabled = pageAfter == null; };
+        $('replay-annotation-form').onsubmit = event => {
+          event.preventDefault();
+          act(event.target.querySelector('button'), async () => {
+            const value = {...identity, decision_index: row.index, text: $('replay-annotation-text').value};
+            const source = JSON.stringify(value);
+            if (annotationPending?.source !== source) annotationPending = {source, request_id: crypto.randomUUID().replaceAll('-', '')};
+            await call('annotation-add', {...value, request_id: annotationPending.request_id});
+            annotationPending = null; await replay();
+          });
+        };
+      }
       $('replay-decision').onclick = event => {
         const point = event.target.closest('[data-replay-index]');
         if (point && !replayBusy) act($('replay-form').querySelector('button'), async () => { offset = Number(point.dataset.replayIndex); await replay(); });

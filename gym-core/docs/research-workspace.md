@@ -207,8 +207,11 @@ The replay chart displays at most 150 points through the selected decision.
 Missing bar continuity is not connected, older unavailable trace fields stay
 unknown, and geometry floats do not replace stored exact decimal labels. Mouse,
 Enter/Space and left/right keys select actual saved decision indexes. It is a
-price/decision view; drawings, equity panes and live historical corrections are
-not implemented by this chart.
+linked price/equity/indicator view. Equity uses recorded pre-decision balances
+and the recorded bid; absent balances remain unknown. Indicator panes use saved
+numeric features, including negative values, without recomputing old decisions.
+Annotations are separate immutable operator notes. Drawings and silent rewriting
+of historical decisions are not implemented by this chart.
 
 ## Aligned market returns and response bounds
 
@@ -231,3 +234,81 @@ economic fields. HTTP 413 indicates that output was not delivered, a mutation
 may have committed, and automatic retry is prohibited. Inspect saved state or
 request a smaller supported page/window. The bound limits delivered bytes, not
 all service memory allocation; existing per-action read/work bounds still apply.
+
+## Replay, registry and paper controls
+
+`registry-page`: `kind` (null or an allowed event kind), `parent` (null or exact
+parent), `after` (initially 0), `through` (initially null), `limit` (1..100).
+Reuse the returned `through` and `next_after` for later pages. One read snapshot
+fixes the initial sequence ceiling; later appends cannot enter that page set.
+Each event is hash/store checked, and pages have a 262,144-byte event bound.
+An oversized first event fails explicitly rather than being truncated.
+
+`annotation-add`: `run_id`, `outputs_digest`, `decision_index`, `request_id`
+(32 lowercase hex characters), `text` (1..2,000 characters). The decision time,
+symbol, resolution and close come from verified saved evidence. A request ID is
+idempotent for identical content; different content with the same ID is rejected.
+`annotation-list`: `run_id`, `outputs_digest`, `after`, `through`, `limit`.
+Notes never become decision or economic evidence. The dedicated replay form
+retains its request identity after uncertain delivery.
+
+`replay-checkpoint`: `run_id`, `quote_count` (1..100,000).
+`replay-resume`: `checkpoint_id`. Current native point-in-time fixed-bar runs
+only, at most 31 days/5,000 bars/100,000 observed quotes. A checkpoint stores
+hashes of the engine, source prefix, saved artifacts, pending order and native
+state. Resume reconstructs that prefix from a new read snapshot, then continues;
+both saved-output and independent full-replay comparisons must match. Any gym
+Python source change invalidates the engine hash. Changed input/rules/metadata
+fail rather than reusing stale state. No executable objects are deserialized,
+and no new order or run result is fabricated.
+
+`entry-lock-add`: `run_id`, `scope` (PAIR/GLOBAL), `reason`
+(COOLDOWN/DRAWDOWN), `duration_seconds` (60..604800), `threshold_percent`
+(null for cooldown; positive and at most 100 for drawdown). Verified past-run
+fills or sampled drawdown trigger a persistent native BLOCK_ENTRY rule with
+actual creation/expiry times and evidence references. Repeating the same request
+does not extend expiry. `entry-locks` reads these rules, including expired ones.
+Exit and cancellation remain unrestricted by these paper locks.
+
+## Observation and supplied-market extensions
+
+Optional observation `confirmed_at` must follow publication/revision; knowledge
+time also includes actual receipt. Optional `components` are 1..32 unique
+`{label,value}` numeric entries whose exact sum must match the parent; news does
+not accept numeric components. Optional `unit_epoch` identifies a revision's
+scale. Omitted fields preserve old hashes. Derived arithmetic rejects mixed
+epochs. `unit-convert` takes `value`, `factor` (observation references),
+`from_epoch`, `to_epoch`, `target_unit`, `as_of`, `max_age_seconds`, and
+`max_skew_seconds`; the positive factor must have exact target/source
+units. Source references and clocks remain visible; raw rows are unchanged.
+
+`market-breadth` takes `groups` (1..8 named groups with disjoint `symbols`, at
+most 20 total), `quote_currency`, `from`, `to`, `resolution`. One native market
+screen snapshot counts advances/declines/flats only among eligible comparable
+markets. Missing/excluded members remain visible. Group classification is supplied,
+not an authenticated sector taxonomy.
+
+`depth-audit`: `source_id`, `as_of`, `max_age_seconds` (1..3600), `max_levels`
+(1..200), `frames` (1..500). Supplied SNAPSHOT/DELTA frames carry explicit sequence,
+previous sequence, event/receipt times and bid/ask price/quantity arrays. Limits:
+400 updates per side/frame and 50,000 total. Gaps, conflicting duplicates,
+crossed/empty books and overflow require a strictly newer snapshot; levels are
+never silently discarded. Exact duplicate last frames are idempotent. Stale or
+future books expose no usable quote. Inputs are unauthenticated. Current Wallex
+unsequenced side snapshots are not relabeled as this sequenced feed.
+
+Market schema 3 retains immutable candle vintages on the actual collector path.
+Latest projections never regress on an older fetch. Exclusive point-in-time
+checks select a retained eligible vintage; pre-migration discarded revisions
+remain unrecoverable.
+
+## Shared local journal actions
+
+The advanced GUI and generic research CLI/API expose `conversion-report`,
+`probe-stage`, `external-import`, `venue-fact-import`, `evidence-report`, and
+`evidence-decision` through `operator_actions.py`. Existing conversion, budget,
+account/venue journals and saved-evidence owners perform validation and writes.
+Conversion fills are explicitly modeled; imported facts remain unauthenticated;
+probe budgets and evidence decisions are records with no execution permission.
+No arbitrary filesystem path, command, provider call or account request is
+accepted. The original dedicated terminal commands reuse the same service.

@@ -32,7 +32,8 @@ mod windows {
         Foundation::*,
         Security::{Authorization::*, Isolation::*, *},
         Storage::FileSystem::*,
-        System::{JobObjects::*, Pipes::CreatePipe, Threading::*},
+        System::{Com::CoTaskMemFree, JobObjects::*, Pipes::CreatePipe, Threading::*},
+        UI::Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath},
     };
 
     struct Handle(HANDLE);
@@ -96,6 +97,40 @@ mod windows {
         }
         s.push(0);
         Ok(s)
+    }
+    fn environment() -> io::Result<Vec<u16>> {
+        let mut raw = ptr::null_mut();
+        let hr =
+            unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, 0, ptr::null_mut(), &mut raw) };
+        if hr < 0 {
+            return Err(fail("operator LocalAppData lookup failed"));
+        }
+        if raw.is_null() {
+            return Err(fail("operator LocalAppData missing"));
+        }
+        let mut block: Vec<u16> = "LOCALAPPDATA=".encode_utf16().collect();
+        let mut length = 0;
+        unsafe {
+            while length < 32768 && *raw.add(length) != 0 {
+                block.push(*raw.add(length));
+                length += 1;
+            }
+            CoTaskMemFree(raw.cast());
+        }
+        if length == 0 || length == 32768 {
+            return Err(fail("invalid operator LocalAppData"));
+        }
+        block.extend([0, 0]);
+        Ok(block)
+    }
+    #[test]
+    fn child_environment_contains_only_os_resolved_profile_location() {
+        let block = environment().unwrap();
+        assert!(block.ends_with(&[0, 0]));
+        assert!(!block[..block.len() - 2].contains(&0));
+        let text = String::from_utf16(&block[..block.len() - 2]).unwrap();
+        assert!(text.starts_with("LOCALAPPDATA="));
+        assert!(Path::new(text.strip_prefix("LOCALAPPDATA=").unwrap()).is_absolute());
     }
     fn sid_text(sid: PSID) -> io::Result<String> {
         if sid.is_null() || unsafe { IsValidSid(sid) } == 0 {
@@ -443,8 +478,8 @@ mod windows {
             inputs.display(),
             if probe { " --boundary-probe" } else { "" }
         ))?;
-        // Empty environment: no PYTHONPATH, secrets, profile, DLL path or service environment.
-        let mut environment = [0u16; 2];
+        // Windows requires this location to resolve the AppContainer; inherit no caller variables.
+        let mut environment = environment()?;
         let mut process: PROCESS_INFORMATION = unsafe { zeroed() };
         check(unsafe {
             CreateProcessW(
