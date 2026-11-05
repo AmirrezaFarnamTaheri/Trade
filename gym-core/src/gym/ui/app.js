@@ -262,6 +262,8 @@ Object.assign(vocabulary, {
   researchControlError: ["Research operation failed. Refresh the recorded job state before retrying.", "عملیات پژوهشی ناموفق بود. پیش از تلاش مجدد، وضعیت ثبت‌شده را تازه کنید."],
   researchStateError: ["Research schedules could not be read.", "خواندن زمان‌بندی‌های پژوهش ممکن نیست."],
   RESEARCH_FAILED: ["Paper research failed", "پژوهش آزمایشی ناموفق بود"], RESEARCH_COMPLETED: ["Paper research completed", "پژوهش آزمایشی تکمیل شد"],
+  HYPOTHESIS_VERSION_UNAVAILABLE: ["Registered version unavailable · review required", "نسخه ثبت‌شده در دسترس نیست · نیاز به بررسی"],
+  REPLAY_VALIDATION_FAILED: ["Paper replay could not complete", "بازپخش آزمایشی تکمیل نشد"],
   COMPLETED: ["Completed", "تکمیل‌شده"], READY: ["Ready", "آماده"], DEGRADED: ["Degraded", "ناقص"],
   MISSING: ["Missing data", "داده موجود نیست"], FUTURE: ["Future timestamp", "زمان در آینده"],
   publicReadiness: ["Public-data readiness", "آمادگی داده‌های عمومی"],
@@ -631,7 +633,7 @@ function renderResearchJobs(data) {
   setHTML("research-jobs", table([t("strategy"), t("symbol"), t("status"), t("nextResearchRun"), t("lastResearchRun"), t("researchRetry"), t("actions")], jobs.map(job => {
     const hypothesis = hypotheses.get(job.hypothesis_id), action = job.enabled ? "pause" : "resume";
     return [code(hypothesis?.strategy), code(hypothesis?.symbol), esc(t(job.enabled ? "researchEnabled" : "researchPaused")),
-      esc(when(job.next_at)), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : label(job.last_report?.status), esc(when(job.last_report?.retry_at)),
+      esc(when(job.next_at)), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : label(job.last_report?.error_code ?? job.last_report?.status), esc(when(job.last_report?.retry_at)),
       `<button type="button" class="button button-small" data-research-action="${action}" data-job="${esc(job.id)}" data-focus="research-${esc(job.id)}"${state.researchBusy ? " disabled" : ""}>${esc(t(action === "pause" ? "researchPause" : "researchResume"))}</button>`];
   }), t("noResearchJobs")));
   setHTML("research-alerts", table([t("time"), t("status"), t("researchRetry")], list(data.alerts).slice(0, 20).map(alert => [esc(when(alert.due_at)), label(alert.kind), esc(when(alert.retry_at))]), t("noResearchAlerts")));

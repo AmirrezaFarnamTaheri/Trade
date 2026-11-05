@@ -1,23 +1,22 @@
 """Persistent paper research; nothing in this database grants execution authority."""
+import json
+import re
+import sqlite3
 from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal, localcontext
-import json
 from pathlib import Path
-import re
-import sqlite3
 from uuid import uuid4
 
+from ..adapters.run_store import save_run
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, quote, rate
 from ..domain.model import iso, parse_ts
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from ..adapters.run_store import save_run
 from .paper import paper
 from .session import ENGINE_VERSION
-
 
 _SCHEMA = """
 CREATE TABLE hypotheses(id TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -42,6 +41,10 @@ def _id(value):
 def _result(**values):
     return {**values, "authority": "PAPER_ONLY", "funded_authority": False,
             "order_submitted": False, "venue_settled": False}
+
+
+class HypothesisUnavailable(ValueError):
+    pass
 
 
 class ResearchLedger:
@@ -117,9 +120,12 @@ class ResearchLedger:
         body = json.loads(row[0])
         if digest(body) != key:
             raise ValueError("hypothesis digest mismatch")
-        strategy = create_strategy(body["strategy"], body["params"])
+        try:
+            strategy = create_strategy(body["strategy"], body["params"])
+        except ValueError:
+            raise HypothesisUnavailable("registered hypothesis version is unavailable") from None
         if body["engine"] != ENGINE_VERSION or body["config_hash"] != strategy.config_hash:
-            raise ValueError("registered hypothesis version is unavailable")
+            raise HypothesisUnavailable("registered hypothesis version is unavailable")
         return body
 
     def open_shadow(self, request):
@@ -235,7 +241,7 @@ class ResearchLedger:
             event = _result(kind="RESEARCH_RECOVERY", job_id=key, due_at=expected, action=request["action"],
                             reason=request["reason"].strip(), recorded_at=iso(now), next_at=next_at)
             report = (_result(status="SKIPPED", recovery=event, previous_failure=previous)
-                      if request["action"] == "SKIP" else {**previous, "retry_at": iso(now)})
+                      if request["action"] == "SKIP" else {**previous, "retry_at": iso(now), "retryable": True})
             self.conn.execute("UPDATE reports SET body=? WHERE job_id=? AND due_at=?", (_json(report), key, expected))
             self.conn.execute("UPDATE jobs SET next_at=? WHERE id=?", (next_at, key))
             self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(event), _json(event)))
@@ -255,7 +261,9 @@ class ResearchLedger:
                 row = self.conn.execute("""SELECT j.id,j.body,j.next_at,r.body FROM jobs j
                     LEFT JOIN reports r ON r.job_id=j.id AND r.due_at=j.next_at
                     WHERE j.enabled=1 AND j.next_at<=? AND (? IS NULL OR j.id=?) AND
-                    (r.body IS NULL OR (json_extract(r.body,'$.status')='FAILED' AND COALESCE(json_extract(r.body,'$.retry_at'),'')<=?))
+                    (r.body IS NULL OR (json_extract(r.body,'$.status')='FAILED'
+                    AND COALESCE(json_extract(r.body,'$.retryable'),1)=1
+                    AND COALESCE(json_extract(r.body,'$.retry_at'),'')<=?))
                     ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), job_id, job_id, iso(now))).fetchone()
                 if row is None:
                     break
@@ -287,14 +295,18 @@ class ResearchLedger:
                 finally:
                     db.c.rollback()
             except ValueError as error:
+                unavailable = isinstance(error, HypothesisUnavailable)
                 with self._write():
                     if not self._owns(key, due, claim["claim_id"]):
                         superseded.append({"job_id": key, "due_at": due, "claim_id": claim["claim_id"]})
                         continue
                     alert = _result(kind="RESEARCH_FAILED", job_id=key, due_at=due, status="FAILED",
                                     attempts=attempt, error_type=type(error).__name__,
-                                    retry_at=iso(now + timedelta(seconds=job["every_seconds"])),
-                                    message="Paper replay failed; no result or proposal was produced. Other eligible jobs may continue.")
+                                    retry_at=None if unavailable else iso(now + timedelta(seconds=job["every_seconds"])),
+                                    retryable=not unavailable,
+                                    error_code="HYPOTHESIS_VERSION_UNAVAILABLE" if unavailable else "REPLAY_VALIDATION_FAILED",
+                                    message="Registered engine or strategy revision is unavailable. Pause this job and register a new version, or explicitly retry after restoring its revision."
+                                    if unavailable else "Paper replay failed; no result or proposal was produced. Other eligible jobs may continue.")
                     self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(alert)))
                     self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(alert), _json(alert)))
                     failed.append(alert)
@@ -342,17 +354,20 @@ class ResearchLedger:
 
     def overview(self):
         jobs = []
-        for key, body, at, enabled, due, status, run_id, retry, attempts, claim_id, started, progress, liveness in self.conn.execute("""
+        for key, body, at, enabled, due, status, run_id, retry, attempts, claim_id, started, progress, liveness, error_code, message, retryable in self.conn.execute("""
             SELECT j.id,j.body,j.next_at,j.enabled,r.due_at,json_extract(r.body,'$.status'),
                    json_extract(r.body,'$.run_id'),json_extract(r.body,'$.retry_at'),json_extract(r.body,'$.attempts'),
                    json_extract(r.body,'$.claim_id'),json_extract(r.body,'$.started_at'),
-                   json_extract(r.body,'$.progress'),json_extract(r.body,'$.liveness')
+                   json_extract(r.body,'$.progress'),json_extract(r.body,'$.liveness'),
+                   json_extract(r.body,'$.error_code'),json_extract(r.body,'$.message'),json_extract(r.body,'$.retryable')
             FROM jobs j LEFT JOIN reports r ON r.job_id=j.id AND r.due_at=(
                 SELECT MAX(due_at) FROM reports WHERE job_id=j.id)
             ORDER BY j.id LIMIT 200"""):
             last = None if due is None else {"due_at": due, "status": status or "COMPLETED",
                                              "run_id": run_id, "retry_at": retry, "attempts": attempts,
-                                             "claim_id": claim_id, "started_at": started, "progress": progress, "liveness": liveness}
+                                             "claim_id": claim_id, "started_at": started, "progress": progress, "liveness": liveness,
+                                             "error_code": error_code, "message": message,
+                                             "retryable": None if retryable is None else bool(retryable)}
             jobs.append({"id": key, "next_at": at, "enabled": bool(enabled),
                          **json.loads(body), "last_report": last})
         return _result(hypotheses=[{"id": key, **json.loads(body)} for key, body in self.conn.execute("SELECT id,body FROM hypotheses ORDER BY id LIMIT 200")],

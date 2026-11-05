@@ -1,16 +1,16 @@
 """Real persistent paper jobs, exact shadow accounting and a read-only MCP boundary."""
+import json
+import sqlite3
 from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
-import json
-import sqlite3
 
 import pytest
-
 from gym.cli import main
 from gym.domain.model import iso
 from gym.services.research_ledger import ResearchLedger
 from gym.services.research_mcp import handle, serve_stdio
+
 from tests.support import START, market_db, quote_history
 
 
@@ -119,6 +119,55 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path):
         db.c.close()
 
 
+def test_unavailable_hypothesis_waits_for_explicit_recovery_across_restart(tmp_path, monkeypatch):
+    from gym.services import research_ledger
+
+    db = market_db(tmp_path, quote_history())
+    path = tmp_path / "research.sqlite3"
+    due = START + timedelta(hours=1)
+    original_engine = research_ledger.ENGINE_VERSION
+    try:
+        with ResearchLedger(path) as ledger:
+            job = schedule(ledger)
+            monkeypatch.setattr(research_ledger, "ENGINE_VERSION", "unavailable-test-revision")
+            result = ledger.run_due(db, iso(due))
+            failure = result["failed"][0]
+            assert failure["error_code"] == "HYPOTHESIS_VERSION_UNAVAILABLE"
+            assert failure["retryable"] is False and failure["retry_at"] is None
+            assert ledger.overview()["jobs"][0]["last_report"]["error_code"] == failure["error_code"]
+        with ResearchLedger(path) as ledger:
+            assert ledger.run_due(db, iso(due + timedelta(days=1)))["failed"] == []
+            assert ledger.overview()["jobs"][0]["next_at"] == iso(due)
+            monkeypatch.setattr(research_ledger, "ENGINE_VERSION", original_engine)
+            ledger.recover({"job_id": job["job_id"], "expected_due": iso(due), "action": "RETRY",
+                            "reason": "The registered engine revision is available again."}, at=due)
+            result = ledger.run_due(db, iso(due), limit=1)
+            assert len(result["completed"]) == 1
+            assert len(ledger.overview()["alerts"]) == 5
+    finally:
+        db.c.close()
+
+
+def test_retired_registered_strategy_requires_explicit_revision_recovery(tmp_path, monkeypatch):
+    from gym.services import research_ledger
+
+    db = market_db(tmp_path, quote_history())
+    try:
+        with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+            schedule(ledger)
+
+            def retired_strategy(*_):
+                raise ValueError("strategy implementation was retired")
+
+            monkeypatch.setattr(research_ledger, "create_strategy", retired_strategy)
+            failure = ledger.run_due(db, iso(START + timedelta(hours=1)))["failed"][0]
+            assert failure["error_code"] == "HYPOTHESIS_VERSION_UNAVAILABLE"
+            assert failure["retryable"] is False
+            assert "retired" not in failure["message"]
+    finally:
+        db.c.close()
+
+
 def test_explicit_recovery_preserves_failure_and_checks_the_due_window(tmp_path):
     db = market_db(tmp_path, [])
     due = START + timedelta(hours=1)
@@ -198,9 +247,8 @@ def test_mcp_is_readonly_even_at_database_boundary_and_has_no_secret_tools(tmp_p
     path = tmp_path / "research.sqlite3"
     with ResearchLedger(path) as ledger:
         hypothesis(ledger)
-    with ResearchLedger(path, readonly=True) as ledger:
-        with pytest.raises(sqlite3.OperationalError):
-            hypothesis(ledger)
+    with ResearchLedger(path, readonly=True) as ledger, pytest.raises(sqlite3.OperationalError):
+        hypothesis(ledger)
     request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
     names = {tool["name"] for tool in handle(request, tmp_path)["result"]["tools"]}
     assert names == {"strategy_catalog", "research_state", "market_coverage"}
@@ -246,6 +294,7 @@ def test_unknown_database_is_not_modified(tmp_path):
 
 def test_research_tool_provenance_binds_arguments_and_actual_payload(tmp_path):
     from hashlib import sha256
+
     from gym.domain.strategy import digest
 
     db = market_db(tmp_path, quote_history(n=10))

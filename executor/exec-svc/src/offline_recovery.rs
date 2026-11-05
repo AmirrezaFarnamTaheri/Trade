@@ -23,6 +23,7 @@ const CEILING: u8 = 9;
 const APPROVAL: u8 = 10;
 const REVOKE_APPROVAL: u8 = 11;
 const PREPARE_INTENT: u8 = 12;
+const RESERVE_REVIEW: u8 = 13;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OperatorApproval {
@@ -211,6 +212,15 @@ fn check_preparation(
     requests: &BTreeSet<[u8; 16]>,
     value: &IntentPreparation,
 ) -> Result<(), RecoveryError> {
+    check_review_action(current, approvals, requests, value, false)
+}
+fn check_review_action(
+    current: Option<&(u64, CeilingChange)>,
+    approvals: &BTreeMap<String, ApprovalView>,
+    requests: &BTreeSet<[u8; 16]>,
+    value: &IntentPreparation,
+    prepared: bool,
+) -> Result<(), RecoveryError> {
     value.encode()?;
     let saved = approvals
         .get(&value.client_id)
@@ -221,12 +231,15 @@ fn check_preparation(
     }
     if saved.sequence != value.expected_sequence
         || saved.revoked_at_ms.is_some()
-        || saved.prepared_at_ms.is_some()
+        || saved.prepared_at_ms.is_some() != prepared
         || saved.approval.principal != value.principal
         || saved.approval.logon != value.logon
         || value.runtime_epoch != ticket.runtime_epoch
         || value.credential_generation != ticket.credential_generation
-        || value.recorded_at_ms < saved.approval.recorded_at_ms
+        || value.recorded_at_ms
+            < saved
+                .prepared_at_ms
+                .unwrap_or(saved.approval.recorded_at_ms)
     {
         return Err(RecoveryError::InvalidIdentity);
     }
@@ -401,6 +414,109 @@ pub struct ObservedIntent {
     pub attempt: Attempt,
     pub execution: Option<ExecutionIdentity>,
     pub execution_settlement: Option<ExecutionSettlement>,
+    /// Exact reviewed units/envelope; never reinterpret as legacy limit_price units.
+    pub review_ticket: Option<exec_ipc::review::Ticket>,
+}
+
+struct ReviewedReservation {
+    context: IntentPreparation,
+    ticket: exec_ipc::review::Ticket,
+    snapshot: BalanceSnapshot,
+}
+impl ReviewedReservation {
+    fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
+        let mut raw = self.context.encode()?;
+        raw[MAGIC.len()] = RESERVE_REVIEW;
+        raw.extend_from_slice(
+            &self
+                .ticket
+                .encode()
+                .map_err(|_| RecoveryError::InvalidIdentity)?,
+        );
+        raw.extend_from_slice(&self.snapshot.available_quanta.to_be_bytes());
+        raw.extend_from_slice(&self.snapshot.sequence.to_be_bytes());
+        Ok(raw)
+    }
+}
+fn apply_review_reservation(
+    current: Option<&(u64, CeilingChange)>,
+    approvals: &BTreeMap<String, ApprovalView>,
+    requests: &BTreeSet<[u8; 16]>,
+    intents: &mut BTreeMap<String, ObservedIntent>,
+    reservations: &mut ReservationBook,
+    value: &ReviewedReservation,
+) -> Result<(), RecoveryError> {
+    check_review_action(current, approvals, requests, &value.context, true)?;
+    let ticket = &approvals
+        .get(&value.context.client_id)
+        .unwrap()
+        .approval
+        .ticket;
+    if value.ticket != *ticket || intents.contains_key(&ticket.client_id) {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    let asset = if ticket.buy {
+        &ticket.quote
+    } else {
+        &ticket.base
+    };
+    let quanta = if ticket.buy {
+        ticket.max_quote_debit
+    } else {
+        ticket.quantity_quanta
+    };
+    let units = |value: &exec_ipc::review::Ticket| {
+        if value.base == *asset {
+            (value.base_epoch, value.base_decimals)
+        } else {
+            (value.quote_epoch, value.quote_decimals)
+        }
+    };
+    if intents.iter().any(|(id, order)| {
+        order.asset == *asset
+            && (ticket.buy || order.account == ticket.account)
+            && reservations.is_reserved(id)
+            && order
+                .review_ticket
+                .as_ref()
+                .is_none_or(|previous| units(previous) != units(ticket))
+    }) {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    if ticket.buy
+        && reservations
+            .total_reserved(asset)
+            .and_then(|total| total.checked_add(quanta))
+            .is_none_or(|sum| sum > current.unwrap().1.ceiling.capital_quanta)
+    {
+        return Err(RecoveryError::Reservation(
+            ReservationError::InsufficientAvailable,
+        ));
+    }
+    let attempt = Attempt::new(ticket.quantity_quanta).map_err(RecoveryError::Order)?;
+    reservations
+        .reserve(
+            &ticket.client_id,
+            &ticket.account,
+            asset,
+            quanta,
+            &value.snapshot,
+            &attempt,
+        )
+        .map_err(RecoveryError::Reservation)?;
+    intents.insert(
+        ticket.client_id.clone(),
+        ObservedIntent {
+            admission_index: intents.len(),
+            account: ticket.account.clone(),
+            asset: asset.clone(),
+            attempt,
+            execution: None,
+            execution_settlement: None,
+            review_ticket: Some(ticket.clone()),
+        },
+    );
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -485,6 +601,7 @@ pub struct DurableOrderJournal {
     approval_requests: BTreeSet<[u8; 16]>,
 }
 enum Record {
+    ReviewedReservation(ReviewedReservation),
     PrepareIntent(IntentPreparation),
     Approval(OperatorApproval),
     RevokeApproval(ApprovalRevocation),
@@ -780,7 +897,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
     let kind = r.one()?;
     let id = r.name()?;
     let rec = match kind {
-        PREPARE_INTENT => {
+        PREPARE_INTENT | RESERVE_REVIEW => {
             let value = IntentPreparation {
                 client_id: id,
                 expected_sequence: r.num()?,
@@ -796,7 +913,25 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                     .map_err(|_| RecoveryError::MalformedEvent)?,
             };
             value.encode()?;
-            Record::PrepareIntent(value)
+            if kind == PREPARE_INTENT {
+                Record::PrepareIntent(value)
+            } else {
+                let ticket =
+                    exec_ipc::review::Ticket::decode(r.take(exec_ipc::review::TICKET_SIZE)?)
+                        .map_err(|_| RecoveryError::MalformedEvent)?;
+                let asset = if ticket.buy {
+                    &ticket.quote
+                } else {
+                    &ticket.base
+                };
+                let snapshot = BalanceSnapshot::new(&ticket.account, asset, r.num()?, r.num()?)
+                    .map_err(RecoveryError::Reservation)?;
+                Record::ReviewedReservation(ReviewedReservation {
+                    context: value,
+                    ticket,
+                    snapshot,
+                })
+            }
         }
         APPROVAL => {
             let ticket = exec_ipc::review::Ticket::decode(r.take(exec_ipc::review::TICKET_SIZE)?)
@@ -1023,6 +1158,7 @@ fn apply_record(
 ) -> Result<(), RecoveryError> {
     match record {
         Record::Credential(_)
+        | Record::ReviewedReservation(_)
         | Record::Ceiling(_)
         | Record::Approval(_)
         | Record::PrepareIntent(_)
@@ -1073,6 +1209,7 @@ fn apply_record(
                     attempt,
                     execution: Some(identity),
                     execution_settlement: None,
+                    review_ticket: None,
                 },
             );
         }
@@ -1214,6 +1351,7 @@ fn apply_record(
                     attempt: Attempt::new(quantity).map_err(RecoveryError::Order)?,
                     execution: None,
                     execution_settlement: None,
+                    review_ticket: None,
                 },
             );
         }
@@ -1283,6 +1421,23 @@ impl DurableOrderJournal {
         let mut approval_requests = BTreeSet::new();
         for e in &records {
             let parsed = decode(&e.event_bytes)?;
+            if let Record::ReviewedReservation(value) = parsed {
+                apply_review_reservation(
+                    ceiling.as_ref(),
+                    &approvals,
+                    &approval_requests,
+                    &mut intents,
+                    &mut reservations,
+                    &value,
+                )
+                .map_err(|_| RecoveryError::MalformedEvent)?;
+                approval_requests.insert(value.context.request_id);
+                approvals
+                    .get_mut(&value.context.client_id)
+                    .unwrap()
+                    .sequence = e.sequence;
+                continue;
+            }
             if let Record::PrepareIntent(value) = parsed {
                 check_preparation(ceiling.as_ref(), &approvals, &approval_requests, &value)
                     .map_err(|_| RecoveryError::MalformedEvent)?;
@@ -1437,6 +1592,46 @@ impl DurableOrderJournal {
         Ok(())
     }
 
+    /// Offline admission mechanics only. A supplied balance is not authenticated evidence;
+    /// the live service exposes no reservation or transport command.
+    pub fn reserve_prepared_intent(
+        &mut self,
+        context: IntentPreparation,
+        snapshot: &BalanceSnapshot,
+    ) -> Result<(), RecoveryError> {
+        let ticket = self
+            .approvals
+            .get(&context.client_id)
+            .ok_or(RecoveryError::UnknownIdentity)?
+            .approval
+            .ticket
+            .clone();
+        let value = ReviewedReservation {
+            context,
+            ticket,
+            snapshot: snapshot.clone(),
+        };
+        let mut intents = self.intents.clone();
+        let mut reservations = self.reservations.clone();
+        apply_review_reservation(
+            self.ceiling.as_ref(),
+            &self.approvals,
+            &self.approval_requests,
+            &mut intents,
+            &mut reservations,
+            &value,
+        )?;
+        let entry = self.ledger.append(&value.encode()?)?;
+        self.intents = intents;
+        self.reservations = reservations;
+        self.approval_requests.insert(value.context.request_id);
+        self.approvals
+            .get_mut(&value.context.client_id)
+            .unwrap()
+            .sequence = entry.sequence;
+        self.records += 1;
+        Ok(())
+    }
     pub fn commit_ceiling(&mut self, change: CeilingChange) -> Result<(), RecoveryError> {
         check_ceiling(self.ceiling.as_ref(), &self.ceiling_requests, &change)?;
         let entry = self.ledger.append(&change.encode()?)?;

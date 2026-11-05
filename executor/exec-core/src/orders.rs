@@ -487,6 +487,18 @@ pub struct ReservationBook {
     newest_sequences: Vec<(String, String, u64)>,
 }
 impl ReservationBook {
+    pub fn is_reserved(&self, intent: &str) -> bool {
+        self.entries
+            .iter()
+            .any(|e| e.intent == intent && !e.released)
+    }
+    /// Installation-wide holds in one declared asset; overflow must veto admission.
+    pub fn total_reserved(&self, asset: &str) -> Option<u64> {
+        self.entries
+            .iter()
+            .filter(|e| e.asset == asset && !e.released)
+            .try_fold(0u64, |total, e| total.checked_add(e.quanta))
+    }
     pub fn reserved(&self, account: &str, asset: &str) -> u64 {
         self.entries
             .iter()

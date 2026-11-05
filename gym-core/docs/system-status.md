@@ -1,5 +1,53 @@
 # System status — 2026-11-05
 
+## Reviewed reservations and paper recovery
+
+Native offline admission now commits the exact prepared ticket, attempt and
+reservation together in journal tag 13. Replay rechecks the same identities,
+current limit, expiry, mode, units and cash constraints. Quote holds share an
+installation-wide checked total across accounts. Legacy untyped active holds,
+changed base precision/epochs and inconsistent/stale balance anchors are refused.
+Revocation cannot erase a hold; unknown outcomes retain it after restart. This
+method is not exposed by the service or browser: supplied balances are not
+authenticated venue evidence. Real admission, arming, session/loss/exposure caps,
+transport/reconciliation and protective exits remain unfinished.
+
+The actual research job had retried an empty historical window 32 times and
+targeted unavailable paper engine 6. Four verified empty windows were explicitly
+recorded as skipped, with prior failures retained. Catch-up then encountered the
+version mismatch; it did not relabel those inputs or silently reuse engine 8.
+The scheduler now exposes HYPOTHESIS_VERSION_UNAVAILABLE, stops automatic
+retries across restart and requires explicit recovery. EN/FA dashboard and
+recovery views show the reason. The old schedule is paused, and a separate
+current-engine hypothesis/schedule preserves the strategy parameters with a
+new future first window. Receipts:
+.pi/paper-qualification/schedule-recovery-20261105T153103760785.json and
+.pi/paper-qualification/schedule-renewal-20261105T153646417464.json.
+A research database snapshot was retained before recovery.
+
+The public collector was not listening when checked; it was restarted with
+50 observed assets on loopback port 8765. A no-data aborted session remains
+recorded; another attempt failed during finalization and is not qualification.
+Backward-clock regression now produces an explicit saved ABORTED run with
+original clock readings rather than losing the report. No earlier missing
+prices, elapsed duration or fills were fabricated.
+
+A subsequent real paper run **283fdcf2e906ce0a** ended normally. It observed
+56 qualified BTCUSDT quotes from 15:44:03 to 15:48:00 UTC, including two running
+minutes after warm-up, zero fills and unchanged virtual 1,000 USDT. Receipt:
+.pi/paper-qualification/prospective-20261105T154403968416.json.
+It is a short operational check, not sustained coverage, measured execution
+costs or profitability. The collector remains running; the native service
+remains stopped/disabled.
+
+Full regression: **944 Python passed, five skipped, 39 subtests passed;
+140 native tests passed across 37 result groups**. Strict Clippy, Windows release
+build, changed-file lint and JavaScript syntax checks passed. Both dependency
+audits reported no known vulnerabilities; the editable local Python project
+was omitted by pip-audit. The new native journal build was not installed;
+the last installed ordinary-operator qualification below covers its own bundle.
+Current browser rendering and second-machine recovery were not checked.
+
 ## Existing-install publication and operator qualification
 
 Added a guarded complete-bundle updater that requires the existing service

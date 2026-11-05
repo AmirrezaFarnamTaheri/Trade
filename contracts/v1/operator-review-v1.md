@@ -131,3 +131,32 @@ Still required: atomic admission/reservation of real order intents, independentl
 instrument/rule/cost identities, method certification, money-limit enforcement,
 arming and real transport/reconciliation. No real credential or loss budget was
 configured, and no exchange request is made by this workflow.
+
+## Native reservation mechanics
+
+The offline native journal now exposes reserve_prepared_intent(context, balance)
+to join an already prepared review, its exact canonical ticket, a fresh local
+attempt and its hold in **one** FULL-synchronous event. Replay validates the same
+transition. The service pipe, helper, GUI and MCP do not expose this method:
+caller-supplied balances are not authenticated account observations.
+
+Admission rechecks the review sequence, actor/logon, runtime, credential
+generation, current installation limit, expiry, stop mode and request identity.
+Buys hold the maximum reviewed quote debit; sells hold reviewed base quantity.
+Quote holds across accounts share the installation hold ceiling, with checked
+overflow. Existing active untyped holds and incompatible base units/epochs are
+refused; snapshot accounts/assets, monotone sequences and consistent shared-cash
+anchors are enforced by the existing reservation book. The reviewed price's
+explicit decimal scales are retained and never converted to legacy simulation
+price units.
+
+Revocation removes consent without releasing a hold. Local denial before sending
+can release it; unknown or unsettled outcomes retain it across restart. This is
+offline journal mechanics, not a funded permit, a session/loss/exposure cap, venue
+settlement proof or live transport integration.
+
+Journal tag **13** contains the preparation context with tag 13 replacing tag 12,
+the exact 352-byte ticket, then available balance quanta and observation sequence
+as two big-endian u64 values. Its account/asset derive from the exact ticket.
+Older binaries refuse this event. Preserve history and use a compatible build;
+do not downgrade or delete records to reopen it.

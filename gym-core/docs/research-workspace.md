@@ -36,6 +36,21 @@ windows only; it stops when no window is eligible. A failure retains the due
 window and retry deadline. The GUI exposes these as separate explicit controls.
 It does not silently skip the existing missing-data window.
 
+An unavailable registered engine or strategy revision now produces
+HYPOTHESIS_VERSION_UNAVAILABLE, retryable=false and no automatic retry time.
+The job clock remains unchanged and its failed attempt survives restart. The
+dashboard and recovery controls show the reason in English/Persian. An explicit
+RETRY permits one more attempt after restoring the original revision; it does
+not reinterpret an old hypothesis with current code. Alternatively pause that
+job and register/schedule a separate current-engine hypothesis.
+
+Live paper collection aborts on a backward wall clock and retains the observed
+finish clock, first regressed reading and last processed time in its run identity.
+Shutdown never moves the session cursor backward. If the wall clock has not
+caught up, the aborted session closes at its last processed time and discloses
+the earlier observed finish reading. This preserves the failed run rather than
+losing it to finalization; it is not successful duration or coverage evidence.
+
 ## Decision replay
 
 `replay`: `run_id`, `offset` (nonnegative integer), `limit` (1..200). The GUI

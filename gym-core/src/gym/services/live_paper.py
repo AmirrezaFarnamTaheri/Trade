@@ -2,12 +2,12 @@
 import asyncio
 from datetime import timedelta
 
+from ..adapters.run_store import save_run
 from ..domain.model import iso
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .collector import now_utc
-from ..adapters.run_store import save_run
 from .data_portal import DataPortal
 from .paper import session_result
 from .rules import RuleService
@@ -23,11 +23,15 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
     strategy = create_strategy(strategy_id, {"fast": fast, "slow": slow} if params is None and strategy_id == "ema-trend" else params)
     session = PaperSession(portal, lambda t: svc.load(t)[1], strategy, symbol, start, resolution, cash, cost,
                            subscriptions)
-    reason = None
+    reason, last_clock, regressed_at = None, start, None
     print("WARMING_UP: run the collector separately; duration begins at RUNNING.", flush=True)
     try:
         while True:
             now = now_utc()
+            if now < last_clock:
+                regressed_at = now
+                raise ValueError("Clock regression during paper observation")
+            last_clock = now
             for top in portal.tops(symbol, session.cursor, now):
                 if top.ts_avail > session.cursor:
                     if session.running_at and top.ts_avail >= session.running_at + timedelta(seconds=duration) and session.state != "FINISHING":
@@ -47,10 +51,17 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
             await asyncio.sleep(1)
     except asyncio.CancelledError:
         reason = "Operator interrupted (Ctrl+C)"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - every paper failure must retain an aborted run
         reason = f"Session error: {type(exc).__name__}: {exc}"
     finally:
-        session.finish(now_utc(), reason)
+        observed_finish = now_utc()
+        last_processed = max(last_clock, session.cursor)
+        if observed_finish < last_processed and regressed_at is None:
+            regressed_at = observed_finish
+        clock_regression = regressed_at is not None
+        if clock_regression:
+            reason = (reason + "; " if reason else "") + "Clock regression: session aborted; original wall-clock readings are retained."
+        session.finish(max(last_processed, observed_finish), reason)
         result = session_result(session, tops, cash)
         inputs = {"engine": ENGINE_VERSION, "kind": "live-session", "symbol": symbol, "from": iso(start),
                   "to": iso(session.cursor), "resolution": resolution,
@@ -60,6 +71,10 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
                   "cash": str(cash), "cost": cost.describe(), "rules_mode": "point-in-time",
                   "store": "demo" if demo else "live", "data": result["data_digest"],
                   "snapshots": digest([(d["t"], d["snapshot"]) for d in session.decisions])}
+        if clock_regression:
+            inputs["clock_regression"] = {"observed_finish_at": iso(observed_finish),
+                                          "last_processed_at": iso(last_processed),
+                                          "first_regressed_at": iso(regressed_at)}
         out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "result": result,
                "baselines": {}, "fx": None, "numeraire": result["quote"],
                "outputs_digest": digest(result)[:16],

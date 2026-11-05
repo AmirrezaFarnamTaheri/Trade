@@ -136,6 +136,13 @@ window.gymResearch = (() => {
       $('recovery-jobs').innerHTML = result.jobs.map((job, i) => `<article class="panel"><p dir="ltr">${esc(job.id)}</p><p>${esc(job.next_at)} · ${esc(job.last_report?.status ?? 'WAITING')}</p><div class="actions"><button type="button" class="button" data-job-index="${i}" data-recover="RETRY" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text('Allow retry', 'اجازه تلاش مجدد')}</button><button type="button" class="button" data-job-index="${i}" data-recover="SKIP" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text('Record skip of this window', 'ثبت صرف‌نظر از این بازه')}</button><button type="button" class="button" data-job-index="${i}" data-recover="CATCHUP" ${job.enabled ? '' : 'disabled'}>${text('Run up to 10 due windows', 'اجرای حداکثر ۱۰ بازه سررسیدشده')}</button></div></article>`).join('') || text('No scheduled jobs.', 'کاری زمان‌بندی نشده است.');
       $('recovery-jobs').querySelectorAll('article').forEach((panel, i) => {
         const report = result.jobs[i].last_report;
+        if (report?.error_code) {
+          const reason = document.createElement('p');
+          reason.textContent = report.error_code === 'HYPOTHESIS_VERSION_UNAVAILABLE'
+            ? text('This job requires an unavailable engine or strategy revision. Pause it and register a new version, or restore its original revision before retrying.', 'این کار به نسخه‌ای از موتور یا راهبرد نیاز دارد که در دسترس نیست. آن را متوقف و نسخه جدیدی ثبت کنید، یا پیش از تلاش مجدد نسخه اصلی را بازیابی کنید.')
+            : report.message;
+          panel.append(reason);
+        }
         if (report?.status !== 'RUNNING') return;
         panel.insertAdjacentHTML('beforeend', json(report));
         const release = document.createElement('button');

@@ -6,6 +6,37 @@ use exec_core::orders::{
 };
 
 #[test]
+fn installation_hold_total_checks_overflow_and_excludes_released_and_other_assets() {
+    let mut book = ReservationBook::default();
+    let mut first = Attempt::new(1).unwrap();
+    book.reserve(
+        "a",
+        "one",
+        "USDT",
+        u64::MAX,
+        &BalanceSnapshot::new("one", "USDT", u64::MAX, 1).unwrap(),
+        &first,
+    )
+    .unwrap();
+    book.reserve(
+        "b",
+        "two",
+        "USDT",
+        1,
+        &BalanceSnapshot::new("two", "USDT", 1, 1).unwrap(),
+        &Attempt::new(1).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(book.total_reserved("USDT"), None);
+    assert_eq!(book.total_reserved("BTC"), Some(0));
+    assert!(book.is_reserved("a"));
+    first.apply(Event::Denied).unwrap();
+    book.release_denied("a", &first).unwrap();
+    assert!(!book.is_reserved("a"));
+    assert_eq!(book.total_reserved("USDT"), Some(1));
+}
+
+#[test]
 fn locally_denied_intent_is_not_a_venue_rejection_or_open_slot() {
     let mut attempt = Attempt::new(10).unwrap();
     attempt.apply(Event::Denied).unwrap();

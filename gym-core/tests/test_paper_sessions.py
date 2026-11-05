@@ -12,11 +12,12 @@ from gym.domain.strategy import EmaTrend
 from gym.services.data_portal import DataPortal
 from gym.services.paper import paper
 from gym.services.session import PaperSession
+
 from tests.support import START, market_db, quote, quote_history
 
 
-def make_session(db, cost=CostModel()):
-    return PaperSession(DataPortal(db), lambda t: [], EmaTrend(1, 2), "BTCUSDT", START, "1min", Decimal(1000), cost)
+def make_session(db, cost=None):
+    return PaperSession(DataPortal(db), lambda t: [], EmaTrend(1, 2), "BTCUSDT", START, "1min", Decimal(1000), cost or CostModel())
 
 def test_replay_is_deterministic_and_waterfall_reconciles(tmp_path):
     db = market_db(tmp_path, quote_history())
@@ -92,6 +93,36 @@ def test_live_watch_abort_preserves_record(tmp_path, monkeypatch):
     out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 1000, "1min", 1, 2, Decimal(1000)))
     assert out["result"]["session"]["state"] == "ABORTED"
     assert run_path(tmp_path / "runs", out["run_id"]).exists()
+
+
+@pytest.mark.parametrize("phase", ["shutdown", "poll", "recovered"])
+def test_live_clock_regression_retains_an_explicit_aborted_receipt(tmp_path, monkeypatch, phase):
+    from gym.services import live_paper
+
+    db = market_db(tmp_path, quote_history(n=30))
+    finish_second = {"shutdown": 110, "poll": 111, "recovered": 140}[phase]
+    times = iter([START, START + timedelta(seconds=130), START + timedelta(seconds=110)]
+                 + ([] if phase == "shutdown" else [START + timedelta(seconds=finish_second)]))
+    monkeypatch.setattr(live_paper, "now_utc", lambda: next(times))
+
+    async def interrupt(_):
+        if phase == "shutdown":
+            raise asyncio.CancelledError()
+
+    monkeypatch.setattr(live_paper.asyncio, "sleep", interrupt)
+    try:
+        out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 1000, "1min", 1, 2, Decimal(1000)))
+        assert out["result"]["session"]["state"] == "ABORTED"
+        assert out["inputs"]["clock_regression"] == {
+            "observed_finish_at": iso(START + timedelta(seconds=finish_second)),
+            "last_processed_at": iso(START + timedelta(seconds=130)),
+            "first_regressed_at": iso(START + timedelta(seconds=110)),
+        }
+        assert out["inputs"]["to"] == iso(START + timedelta(seconds=max(130, finish_second)))
+        assert "Clock regression" in out["result"]["session"]["events"][-1]["reason"]
+        assert run_path(tmp_path / "runs", out["run_id"]).exists()
+    finally:
+        db.c.close()
 
 
 def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch):

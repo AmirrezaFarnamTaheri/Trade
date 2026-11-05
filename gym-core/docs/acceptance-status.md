@@ -4,6 +4,21 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
+Latest source regression: **944 Python passed, five skipped, 39 subtests passed;
+140 native tests passed**. The new offline journal transaction joins a prepared
+review to its exact ticket/attempt/hold atomically; supplied balance authenticity
+and live service admission remain unimplemented. The current native build was
+not installed, so installed results below qualify their named earlier bundle.
+
+Unavailable job revisions now require explicit recovery, with EN/FA UI reasons.
+The old engine-6 schedule is paused without rewriting its hypothesis; a distinct
+engine-8 schedule begins with a new future window. Four confirmed empty windows
+were recorded as skipped with failure history retained. The public collector was
+restored. Real paper run 283fdcf2e906ce0a ended normally with 56 qualified quotes,
+two running minutes, zero fills and unchanged virtual 1,000 USDT. Earlier failed
+attempts do not become successful evidence. Backward-clock finalization now
+retains an explicit aborted run. See the current [system status](system-status.md).
+
 ## Current receipt — 2026-11-05
 
 Latest regression: **939 Python passed, five skipped, 39 subtests passed;
