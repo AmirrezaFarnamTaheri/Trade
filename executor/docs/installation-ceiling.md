@@ -76,7 +76,9 @@ boundary. They use temporary journals and synthetic identities; they do not
 establish installed-host authentication or a real account balance.
 
 The installer and installed-host file checks include the administrator-only
-helper. These new binaries have not replaced the previously qualified protected
-installation. A different administrator SID alone does not certify a strong
+helper. The new binary set is installed; administrator recording/readback of an
+exact zero USDT budget and ordinary operator preparation passed in
+`.pi/qualification/20261105T1505191135205`. No positive loss budget or real balance
+was supplied. A different administrator SID alone does not certify a strong
 Windows security boundary when the daily operator also has administrator access.
 No protection qualification is inferred from the metadata or local tests.

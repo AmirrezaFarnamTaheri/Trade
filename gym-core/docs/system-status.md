@@ -1,5 +1,48 @@
 # System status — 2026-11-05
 
+## Existing-install publication and operator qualification
+
+Added a guarded complete-bundle updater that requires the existing service
+stopped/disabled, checks exact source/staged hashes, preserves prior code and
+records rollback outcomes without touching custody or journals. A flushed
+publication marker precedes file replacement. The new executor refuses startup
+with code 1019 if that marker is present, before creating listeners. Failure
+attempts reverse-order code rollback and never starts the service. Parent ACL
+mutation checks were added to the installation audit; migration preflight labels
+its relaxed treatment of absent new helpers explicitly.
+
+Operator rebinding now includes the review helper, invalidates the old logon
+before helper changes and removes the previous operator's explicit grants. The
+new ordinary-operator qualification script exercises an exact synthetic review,
+consume-once preparation, inspection/revocation, all seven worker-denial targets
+and four STOP acknowledgements, using a recent protected runtime manifest and
+an exact zero capital budget. It has no exchange/account API call.
+
+Local self-tests pass strict manifest validation, pinned file access, actual
+temporary-file replacement/rollback, exact u64 frames and correlation refusal.
+Native workspace regression passes 132 tests; strict Clippy and Windows release
+build pass. The new test scripts are syntax checked. Full Python regression
+passed 939 tests, five skips and 39 subtests. Both dependency audits reported no
+known vulnerabilities; pip-audit omitted the local editable project. No
+dependency was added.
+
+Installed publication and the actual ordinary ACER operator test passed at
+15:05 UTC. The retained receipt directory is
+`.pi/qualification/20261105T1505191135205`. Review/prepare/duplicate refusal/
+inspection/revocation passed; the actual R0 worker was denied all seven private
+targets; four STOP acknowledgements took 84/12/11/11 ms. The administrator
+stopped and disabled the service and the strict installation audit passed. The
+helper's unnecessary process-object access was removed after the ordinary-token
+failure: fixed SCM identity and connected pipe server identity are checked on
+both sides of the exchange. Administrator hard containment still pins the process.
+Custody was preserved, existing journal history was retained, and the test added
+only zero-budget metadata and clearly synthetic review events. It made no account
+API or order call. Earlier canceled/failed attempts remain recorded.
+Admission/reservations, arming, real order transport/reconciliation, protective
+exits and independent-machine recovery retain their separate implementation or
+acceptance requirements. Current browser rendering was not checked.
+See [publication and qualification](../../executor/docs/service-publication.md).
+
 ## Consume-once preparation and qualification follow-up
 
 The protected review workflow now supports `prepare`: the service rechecks the

@@ -148,6 +148,17 @@ mod windows_host {
             _ => ServiceControlHandlerResult::NotImplemented,
         };
         let status_handle = service_control_handler::register(NAME, handler)?;
+        let publication = std::env::current_exe().and_then(|image| {
+            exec_svc::require_complete_publication(
+                image
+                    .parent()
+                    .ok_or_else(|| std::io::Error::other("executor image directory unavailable"))?,
+            )
+        });
+        if publication.is_err() {
+            status_handle.set_service_status(startup_failure(ServiceFailure::IncompleteUpdate))?;
+            return Ok(());
+        }
         // StartService arguments are SCM-admin controlled, never accepted from a pipe.
         let arguments: Option<Vec<String>> = args
             .iter()

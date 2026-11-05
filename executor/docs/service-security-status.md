@@ -5,13 +5,28 @@ A compiled service, successful GET or acknowledged STOP does not establish certi
 
 ## Implemented locally
 
-- The `prepare` review operation consumes a review once into durable preparation, rechecking service-supplied actor/logon/runtime/key generation and current limit/expiry/mode. The consumed marker and immutable exact ticket reference commit together; no executable order/reservation is created. Restart or lost acknowledgement cannot permit repeat preparation; revocation remains possible. Worker publication/preflight now includes the operator pipe as a seventh denied target. Isolation-drill startup exposes it for negative probes and refuses all review operations. This build is not installed/host-qualified; six-target historical evidence does not cover it.
-- Separate OS-user/logon-authenticated operator review pipe and SCM-pinned `gym-review` helper record/revoke exact intent in the protected execution journal. Payloads bind units, current runtime/limit/key generation, expiry and evidence digests. The CLI and token/same-origin Operate relay have no order transport or trading capability. The new helper/ACLs and listener are not installed or host-qualified; approval consumption, arming and real limits enforcement remain open. See [operator review](../../contracts/v1/operator-review-v1.md).
+Current installed result (15:05 UTC): ordinary ACER review, consume-once
+preparation, duplicate refusal, inspection and revocation passed. The actual R0
+worker was denied all seven private targets and four STOP acknowledgements took
+11–84 ms. The complete bundle is installed, the strict audit passed, and the
+service is stopped/disabled. Zero-budget metadata was recorded/read back without
+an account API or order call. Receipts:
+`.pi/qualification/20261105T1505191135205`. Custody recovery and venue behavior on
+the new bundle remain unverified.
 
-- Administrator-only `gym-ceiling get|set` records exact currency/unit-epoch/precision and capital in the protected `Vault/exec_ledger.db`. Stale updates, changed unit/operator bindings and operator-account increases are rejected. Actual T2 identities come from the connected Windows token. The existing credential journal is retained. This source/release build is not installed; the metadata is not enforced by a real money path and grants no trading authority. See [installation capital limit](installation-ceiling.md).
+Ordinary review holds the SCM service handle and validates the fixed image/account,
+running PID and connected pipe server identity before/after exchange. It does
+not request access to the protected process object. Administrator hard containment
+continues to hold and verify the actual process object.
+
+- Existing-install publication has an explicitly hash-pinned complete bundle, retained old-code backup, reverse-order rollback and marker-based startup refusal before listeners (1019). The updater never starts the service or changes custody/journals. Rebinding includes the review helper and removes the previous operator's explicit grants. Publication/operator-protocol self-checks and the installed test above passed. See [service publication](service-publication.md).
+- The `prepare` review operation consumes a review once into durable preparation, rechecking service-supplied actor/logon/runtime/key generation and current limit/expiry/mode. The consumed marker and immutable exact ticket reference commit together; no executable order/reservation is created. Restart or lost acknowledgement cannot permit repeat preparation; revocation remains possible. Worker publication/preflight includes the operator pipe as a seventh denied target; actual R0 denial passed. Isolation-drill startup exposes it for negative probes and refuses all review operations.
+- Separate OS-user/logon-authenticated operator review pipe and SCM-pinned `gym-review` helper record/revoke exact intent in the protected execution journal. Payloads bind units, current runtime/limit/key generation, expiry and evidence digests. The CLI and token/same-origin Operate relay have no order transport or trading capability. Installed review/preparation/revocation passed; executable admission, arming and money-path limit enforcement remain open. See [operator review](../../contracts/v1/operator-review-v1.md).
+
+- Administrator-only `gym-ceiling get|set` records exact currency/unit-epoch/precision and capital in the protected `Vault/exec_ledger.db`. Stale updates, changed unit/operator bindings and operator-account increases are rejected. Actual T2 identities come from the connected Windows token. The existing journal is retained. Installed zero-budget recording/readback passed; the metadata is not enforced by a real money path and grants no trading authority. See [installation capital limit](installation-ceiling.md).
 
 - Restricted LocalService SCM host, disabled-by-default installer, protected code/data/SCM ACLs and exact-byte SHA-256/FULL-synchronous SQLite journal. All B1 draft PRs were merged earlier; this is not an unmerged PR #10 status report.
-- Independent authenticated STOP pipe/thread, network-client exclusion, fixed bounded codec and monotone stop gates. The client pins the protected installed service process before writing, and the server binds the selected operator's real OS user/logon token rather than trusting a supplied SID.
+- Independent authenticated STOP pipe/thread, network-client exclusion, fixed bounded codec and monotone stop gates. The client checks protected SCM and connected-pipe server identity before writing, and the server binds the selected operator's real OS user/logon token rather than trusting a supplied SID.
 - Explicit `Bind-ExecutorOperator.ps1` for the selected interactive process. Binding files and helpers have protected ACLs. Normal operators may execute STOP/hard-stop helpers, not the provisioning/account-read helpers or credential/data files.
 - Elevated hard-stop helper retains and revalidates the SCM process handle, imposes a ten-second deadline and reports explicit UNPROTECTED containment. It does not manufacture venue-side protection.
 - Separate elevated-admin provisioning pipe, actual impersonated-token admission, user-scope service DPAPI encryption/decryption, immutable ACL-protected ciphertext generations and typed durable metadata before acknowledgment. No key bytes enter the ledger or diagnostic logs.
@@ -33,7 +48,9 @@ and `containment.json`.
 
 The current source additionally implements fixed GET open/history pages and
 durable offline cancellation evidence, with all-target tests, strict Clippy and
-release build. These new binaries have not been installed or host/venue-qualified.
+release build. These new binaries are installed; current ordinary review,
+seven-target worker denial and STOP tests passed. Current custody recovery and
+venue behavior were not requalified.
 They do not add real order transport or certified protection. The failure history
 below records earlier attempts and is superseded only for the qualified set.
 

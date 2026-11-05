@@ -35,8 +35,8 @@ if ($SelfTest) {
     Write-Output 'PASS: manifest leaf writes and ancestor delete-child/DACL mutation rejected; unrelated ancestor child creation allowed.'
     return
 }
-$expected = Join-Path $env:ProgramFiles 'TradingGYM\Executor\installed-host-drill.json'
-if ([IO.Path]::GetFullPath($Path) -ine [IO.Path]::GetFullPath($expected)) { throw 'Only the fixed protected drill manifest is accepted.' }
+$expected = @('installed-host-drill.json','operator-qualification.json') | ForEach-Object { Join-Path $env:ProgramFiles ('TradingGYM\Executor\' + $_) }
+if ([IO.Path]::GetFullPath($Path) -notin $expected) { throw 'Only a fixed protected qualification manifest is accepted.' }
 $item = Get-Item -LiteralPath $Path -Force
 if (($item.Attributes -band [IO.FileAttributes]::Directory) -or $item.Length -gt 65536) { throw 'Invalid drill manifest file.' }
 while ($null -ne $item) {

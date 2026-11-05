@@ -102,16 +102,17 @@ The next prerequisite now has native code: administrator-only installation-limit
 recording in the protected execution ledger, exact currency/unit-epoch/precision,
 OS-derived administrator identity, retained history and stale-update rejection.
 The configured operator cannot raise it. CLI and installer wiring are implemented;
-installed-host qualification, executable admission/arming and actual money-path limit
-enforcement remain open. See [installation capital limit](../../executor/docs/installation-ceiling.md).
+installed zero-budget recording/readback passed. Executable admission/arming and
+actual money-path limit enforcement remain open. See [installation capital limit](../../executor/docs/installation-ceiling.md).
 
 Protected operator intent recording/revocation now has a separate OS-authenticated
 pipe, protected helper, exact bounded Python/Rust wire contract and durable native
 journal. The CLI and explicit EN/FA Operate controls use the same adapter; DEMO,
 research and MCP cannot invoke this workflow. Receipts carry no funded authority.
 Payloads bind the current runtime, limit and key generation and expire within
-30 seconds. Installed-host qualification and atomic consumption by a real order
-intent remain open. See [operator review](../../contracts/v1/operator-review-v1.md).
+30 seconds. Ordinary ACER installed-host review/preparation/revocation passed;
+atomic consumption by a real order intent remains open. See
+[operator review](../../contracts/v1/operator-review-v1.md).
 
 The `prepare` operation now consumes that exact review once for a durable
 preparation record, rechecking identity/logon, runtime, key generation, current
@@ -122,6 +123,20 @@ reservation or executable order intent. Worker qualification now requires seven
 explicit private targets, including the operator pipe; the isolation drill
 exposes that pipe only to return refusal. Old six-target results are historical
 and do not qualify this build.
+
+Existing-install publication is now implemented with an exact hash-pinned bundle,
+protected retained-code backup, reverse-order rollback and an incomplete-update
+startup veto. Operator rebinding now grants the review helper and removes the
+previous operator's explicit grants. Local filesystem/protocol self-checks pass.
+The installed update and ordinary ACER qualification passed at 15:05 UTC on
+2026-11-05: synthetic review/preparation/duplicate refusal/inspection/revocation,
+actual R0 denial of all seven private targets and four STOP acknowledgements
+in 11–84 ms. The service was stopped/disabled and strict installation audit passed.
+The helper now uses SCM and connected-pipe identity without requesting access to
+the protected process object; administrator hard containment still pins that
+process. Earlier failed receipts are retained. No account API/order call occurred.
+See
+[protected service publication](../../executor/docs/service-publication.md).
 
 | Work | Current state | Concrete completion requirement |
 | --- | --- | --- |

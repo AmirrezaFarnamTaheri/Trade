@@ -2,8 +2,9 @@
 
 This channel records, prepares and revokes exact operator intent. It does not submit an
 order, reserve money, arm a workload or issue a trading capability. Its native
-service/helper implementation has local build and regression evidence; this
-version has not been installed or qualified under the ordinary ACER logon.
+service/helper implementation has local build/regression evidence and passed
+the installed ordinary ACER test on 2026-11-05; see
+[the retained host result](../../executor/docs/service-publication.md#qualification).
 
 ## Entry points and authorization
 
@@ -17,12 +18,13 @@ startup does not expose this listener. The isolation drill exposes it for denial
 probes but refuses every review operation. Journal errors stop the service.
 
 `gym-review.exe` accepts one bounded binary request on stdin, authenticates the
-SCM-pinned service process before/after the exchange and emits only a bounded
-hex receipt envelope. It requires query permissions, not process termination or
+protected SCM identity and the connected pipe's kernel-reported server PID
+before/after the exchange and emits only a bounded hex receipt envelope. It
+requires SCM query permissions, not process-object access, termination or
 SCM modification. The installer grants this helper operator execution permission;
 credential provisioning, capital-limit changes and account-read helpers remain
-administrator-only. Worker denial and these helper permissions need a new
-installed-host drill for this binary set.
+administrator-only. The actual R0 worker was denied all seven protected targets
+in the installed test; policy/deployment changes require a fresh check.
 
 `gymctl operator-review INPUT.json` and the Operate page's **Protected operator
 intent** panel use the same Python adapter. The panel requires explicit input and
@@ -125,8 +127,7 @@ Preparation is command 5 and PREPARED is reply state 7. Older builds reject thes
 and journal tag 12; preserve history and use a compatible build rather than
 deleting records or assuming a rollback can interpret new events.
 
-Still required: installed ordinary-operator and worker-denial tests, atomic
-admission/reservation of real order intents, independently established account and
+Still required: atomic admission/reservation of real order intents, independently established account and
 instrument/rule/cost identities, method certification, money-limit enforcement,
 arming and real transport/reconciliation. No real credential or loss budget was
 configured, and no exchange request is made by this workflow.

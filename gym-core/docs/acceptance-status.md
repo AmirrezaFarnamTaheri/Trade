@@ -6,6 +6,24 @@ No funded submission, certified venue stop or independent-machine recovery is cl
 
 ## Current receipt — 2026-11-05
 
+Latest regression: **939 Python passed, five skipped, 39 subtests passed;
+132 native tests passed**. Strict Clippy, Windows release build, formatting and
+new-test lint passed. Both dependency audits reported no known vulnerabilities;
+pip-audit omitted the local editable project. No dependency was added.
+
+The complete pinned service bundle was published without replacing custody or
+resetting journal history. The ordinary ACER operator passed synthetic review,
+consume-once preparation, duplicate refusal, inspection and revocation. The
+actual R0 worker was denied all seven private targets; STOP commands acknowledged
+in 11–84 ms. Both administrator/operator reports are retained under
+`.pi/qualification/20261105T1505191135205`. The service is stopped/disabled and
+the final strict installation audit passed. Zero capital budget; no account
+API or exchange order call. Current browser rendering, custody recovery on this
+binary set, real venue behavior and independent-machine recovery remain unverified.
+
+The paragraphs below retain earlier snapshots; the installed result above
+supersedes their statements that the current review helper was not installed.
+
 Consume-once protected preparation now revalidates current service context and
 records the consumed review plus exact immutable ticket reference atomically.
 It creates neither an executable order nor a money reservation. Revocation and

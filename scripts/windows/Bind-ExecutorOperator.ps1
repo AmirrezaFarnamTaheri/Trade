@@ -29,15 +29,21 @@ foreach ($path in @($env:ProgramFiles, $root, $code)) {
     }
 }
 if (-not $PSCmdlet.ShouldProcess($OperatorAccount, 'Bind STOP to actual selected user token and current logon')) { return }
-foreach ($path in @($root, $code, (Join-Path $code 'gym-stopctl.exe'), (Join-Path $code 'gym-hardstop.exe'), (Join-Path $code 'gym-research-worker.exe'))) {
+$previousUser = ([Security.Principal.SecurityIdentifier]::new((Get-Content -LiteralPath (Join-Path $code 'stop-user.sid') -Raw).Trim())).Value
+if ($previousUser -in ($trusted + @($serviceSid))) { throw 'Previous operator is not a distinct user.' }
+# Invalidate before changing helper grants, so interrupted rebinding cannot reuse the old logon.
+$logonPath = Join-Path $code 'stop-logon.sid'
+Remove-Item -LiteralPath $logonPath -Force -ErrorAction Stop
+foreach ($path in @($root, $code, (Join-Path $code 'gym-stopctl.exe'), (Join-Path $code 'gym-hardstop.exe'), (Join-Path $code 'gym-review.exe'), (Join-Path $code 'gym-research-worker.exe'))) {
     $item = Get-Item -LiteralPath $path
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked helper path.' }
+    if ($previousUser -ne $userSid) {
+        & icacls.exe $path /remove:g "*$previousUser" | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Previous operator helper access removal failed.' }
+    }
     & icacls.exe $path /grant:r "*${userSid}:RX" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Operator helper access grant failed.' }
 }
-# Invalidate the old binding first: interruption must fail closed, never mix logons.
-$logonPath = Join-Path $code 'stop-logon.sid'
-Remove-Item -LiteralPath $logonPath -Force -ErrorAction Stop
 foreach ($entry in @(@('stop-user.sid', $userSid), @('stop-logon.sid', $logonSid))) {
     $path = Join-Path $code $entry[0]
     if (Test-Path -LiteralPath $path) {

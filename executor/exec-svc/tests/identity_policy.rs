@@ -16,3 +16,27 @@ fn only_windows_localservice_is_a_candidate_for_the_readonly_host() {
         assert!(!is_local_service_sid(sid), "unexpectedly permitted {sid}");
     }
 }
+
+#[test]
+fn an_incomplete_code_publication_cannot_start_the_service() {
+    let root = std::env::temp_dir().join(format!(
+        "gym-publication-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir(&root).unwrap();
+    assert!(exec_svc::require_complete_publication(&root).is_ok());
+    let marker = root.join("update.pending");
+    std::fs::write(&marker, b"incomplete").unwrap();
+    assert!(exec_svc::require_complete_publication(&root).is_err());
+    std::fs::remove_file(&marker).unwrap();
+    std::fs::create_dir(&marker).unwrap();
+    assert!(exec_svc::require_complete_publication(&root).is_err());
+    std::fs::remove_dir(&marker).unwrap();
+    assert!(exec_svc::require_complete_publication(&root).is_ok());
+    std::fs::remove_dir(&root).unwrap();
+    assert!(exec_svc::require_complete_publication(&root).is_err());
+}

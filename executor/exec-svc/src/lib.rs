@@ -27,6 +27,7 @@ pub enum ServiceFailure {
     CiphertextSeal = 1016,
     CiphertextRename = 1017,
     OperateListener = 1018,
+    IncompleteUpdate = 1019,
 }
 
 #[cfg(test)]
@@ -54,14 +55,27 @@ mod startup_failure_tests {
             CiphertextSeal,
             CiphertextRename,
             OperateListener,
+            IncompleteUpdate,
         ];
         assert_eq!(
             codes.map(|phase| phase as u32),
             [
                 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014,
-                1015, 1016, 1017, 1018
+                1015, 1016, 1017, 1018, 1019
             ]
         );
+    }
+}
+
+/// The SCM image folder is administrator-owned; any interrupted publication vetoes startup.
+pub fn require_complete_publication(code: &std::path::Path) -> std::io::Result<()> {
+    if !std::fs::metadata(code)?.is_dir() {
+        return Err(std::io::Error::other("invalid executor code directory"));
+    }
+    match std::fs::symlink_metadata(code.join("update.pending")) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+        Ok(_) => Err(std::io::Error::other("executor publication incomplete")),
     }
 }
 

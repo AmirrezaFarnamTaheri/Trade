@@ -56,13 +56,39 @@ fn same_identity(expected: u32, observed: u32, running: bool) -> bool {
 }
 
 pub fn pin() -> Result<Pinned, String> {
-    pin_with_access(true)
+    pin_with_access()
 }
-pub fn pin_readonly() -> Result<Pinned, String> {
-    pin_with_access(false)
+pub struct ReadOnlyPinned {
+    service: Service,
+    pub pid: u32,
 }
-fn pin_with_access(change: bool) -> Result<Pinned, String> {
-    let service = service(change)?;
+impl ReadOnlyPinned {
+    pub fn verify(&self) -> Result<(), String> {
+        validate_config(&self.service)?;
+        let status = self.service.query_status().map_err(|e| e.to_string())?;
+        if !same_identity(
+            self.pid,
+            status.process_id.unwrap_or(0),
+            status.current_state == ServiceState::Running,
+        ) {
+            return Err("executor service identity changed or exited".into());
+        }
+        Ok(())
+    }
+}
+pub fn pin_readonly() -> Result<ReadOnlyPinned, String> {
+    // Ordinary operators have SCM query rights, not access to the service process object.
+    // Every exchange also authenticates the held pipe's kernel-reported server PID.
+    let service = service(false)?;
+    let status = service.query_status().map_err(|e| e.to_string())?;
+    let pinned = ReadOnlyPinned {
+        service,
+        pid: status.process_id.ok_or("service has no process")?,
+    };
+    pinned.verify()?;
+    Ok(pinned)
+}
+fn validate_config(service: &Service) -> Result<(), String> {
     let config = service.query_config().map_err(|e| e.to_string())?;
     let expected = std::env::var_os("ProgramFiles").ok_or("missing ProgramFiles")?;
     let expected = std::path::PathBuf::from(expected)
@@ -81,6 +107,16 @@ fn pin_with_access(change: bool) -> Result<Pinned, String> {
     {
         return Err("fixed SCM service identity/path mismatch".into());
     }
+    Ok(())
+}
+fn pin_with_access() -> Result<Pinned, String> {
+    let service = service(true)?;
+    validate_config(&service)?;
+    let expected =
+        std::path::PathBuf::from(std::env::var_os("ProgramFiles").ok_or("missing ProgramFiles")?)
+            .join("TradingGYM")
+            .join("Executor")
+            .join("gym-executor.exe");
     let status = service.query_status().map_err(|e| e.to_string())?;
     let pid = status.process_id.ok_or("service has no process")?;
     if !same_identity(pid, pid, status.current_state != ServiceState::Stopped) {
@@ -89,9 +125,7 @@ fn pin_with_access(change: bool) -> Result<Pinned, String> {
     // Keep this exact kernel process object alive; never terminate by recycled PID.
     let process = unsafe {
         OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION
-                | 0x00100000
-                | if change { PROCESS_TERMINATE } else { 0 },
+            PROCESS_QUERY_LIMITED_INFORMATION | 0x00100000 | PROCESS_TERMINATE,
             0,
             pid,
         )

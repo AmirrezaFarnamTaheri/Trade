@@ -4,7 +4,7 @@ This is a host-side ACL/preflight, not proof of runtime Windows token isolation,
 client impersonation resistance, pipe DACL or 1-second stop responsiveness.
 #>
 [CmdletBinding()]
-param()
+param([switch]$MigrationPreflight)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Requires a Windows host.' }
@@ -12,9 +12,31 @@ if ($env:OS -ne 'Windows_NT') { throw 'Requires a Windows host.' }
 $ServiceName = 'TradingGYMExecutor'
 $CodeRoot = Join-Path ${env:ProgramFiles} 'TradingGYM'
 $CodeDir = Join-Path $CodeRoot 'Executor'
+if (-not $MigrationPreflight -and (Test-Path -LiteralPath (Join-Path $CodeDir 'update.pending'))) {
+    throw 'Incomplete executor publication requires administrator recovery.'
+}
 $Binary = Join-Path $CodeDir 'gym-executor.exe'
 $DataRoot = Join-Path ${env:ProgramData} 'TradingGYM'
 $DataDir = Join-Path $DataRoot 'Executor'
+# Untrusted sibling creation is harmless; replacing protected descendants is not.
+$ancestorTrusted = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+foreach ($root in @($CodeRoot, $DataRoot)) {
+    $ancestor = (Get-Item -LiteralPath $root).Parent
+    while ($null -ne $ancestor) {
+        if ($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked installation ancestor.' }
+        $ancestorAcl = Get-Acl -LiteralPath $ancestor.FullName
+        if ($ancestorAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $ancestorTrusted) { throw 'Untrusted installation ancestor owner.' }
+        $rawAncestor = [Security.AccessControl.RawSecurityDescriptor]::new($ancestorAcl.GetSecurityDescriptorBinaryForm(), 0)
+        if ($null -eq $rawAncestor.DiscretionaryAcl) { throw 'Null installation ancestor DACL.' }
+        foreach ($ace in $rawAncestor.DiscretionaryAcl) {
+            if ([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) { continue }
+            if ($ace.AceType -notin @([Security.AccessControl.AceType]::AccessAllowed, [Security.AccessControl.AceType]::AccessDenied)) { throw 'Unsupported installation ancestor ACE.' }
+            if ($ace.AceType -eq [Security.AccessControl.AceType]::AccessAllowed -and
+                ([int64]$ace.AccessMask -band 0x500d0040) -ne 0 -and $ace.SecurityIdentifier.Value -notin $ancestorTrusted) { throw 'Untrusted installation ancestor mutation.' }
+        }
+        $ancestor = $ancestor.Parent
+    }
+}
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name = 'TradingGYMExecutor'"
 if ($null -eq $service) { throw 'Missing SCM service registration.' }
 if ($service.StartName -ine 'NT AUTHORITY\LocalService') {
@@ -115,6 +137,7 @@ $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::TakeOwnership
 
 foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $CeilingControl, $OperatorReview, $ResearchWorker, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
+    if ($MigrationPreflight -and $path -in @($CeilingControl, $OperatorReview) -and -not (Test-Path -LiteralPath $path)) { continue }
     $item = Get-Item -LiteralPath $path -ErrorAction Stop
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Reparse point in protected path: $path"
@@ -163,4 +186,5 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provisio
     }
 }
 if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) { throw 'Missing binary.' }
-Write-Output "PASS: $ServiceName is disabled/stopped with isolated code/data ACLs. Runtime and funded gates are NOT certified."
+if ($MigrationPreflight) { Write-Output 'MIGRATION_PREFLIGHT_ONLY: missing ceiling/review helpers and a publication marker are permitted. Not an installed-host acceptance receipt.' }
+else { Write-Output "PASS: $ServiceName is disabled/stopped with isolated code/data ACLs. Runtime and funded gates are NOT certified." }
