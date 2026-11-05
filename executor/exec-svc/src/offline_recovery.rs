@@ -22,6 +22,7 @@ const CREDENTIAL: u8 = 8;
 const CEILING: u8 = 9;
 const APPROVAL: u8 = 10;
 const REVOKE_APPROVAL: u8 = 11;
+const PREPARE_INTENT: u8 = 12;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OperatorApproval {
@@ -37,6 +38,48 @@ pub struct ApprovalView {
     pub sequence: u64,
     pub approval: OperatorApproval,
     pub revoked_at_ms: Option<u64>,
+    pub prepared_at_ms: Option<u64>,
+}
+/// Consumes a review for durable preparation only; never reserves funds or permits transport.
+#[derive(Clone, Debug)]
+pub struct IntentPreparation {
+    pub client_id: String,
+    pub expected_sequence: u64,
+    pub principal: String,
+    pub logon: String,
+    pub runtime_epoch: u64,
+    pub credential_generation: [u8; 16],
+    pub recorded_at_ms: u64,
+    pub request_id: [u8; 16],
+    pub mode: exec_ipc::StopMode,
+}
+impl IntentPreparation {
+    fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
+        validate_review_actor(
+            &self.principal,
+            &self.logon,
+            self.recorded_at_ms,
+            self.request_id,
+        )?;
+        if self.expected_sequence == 0
+            || self.runtime_epoch == 0
+            || self.credential_generation == [0; 16]
+        {
+            return Err(RecoveryError::InvalidIdentity);
+        }
+        let mut raw = MAGIC.to_vec();
+        raw.push(PREPARE_INTENT);
+        add_name(&mut raw, &self.client_id)?;
+        raw.extend_from_slice(&self.expected_sequence.to_be_bytes());
+        add_name(&mut raw, &self.principal)?;
+        add_name(&mut raw, &self.logon)?;
+        raw.extend_from_slice(&self.runtime_epoch.to_be_bytes());
+        raw.extend_from_slice(&self.credential_generation);
+        raw.extend_from_slice(&self.recorded_at_ms.to_be_bytes());
+        raw.extend_from_slice(&self.request_id);
+        raw.push(self.mode as u8);
+        Ok(raw)
+    }
 }
 #[derive(Clone, Debug)]
 pub struct ApprovalRevocation {
@@ -127,25 +170,75 @@ fn check_approval(
     if requests.contains(&value.request_id) || approvals.contains_key(&ticket.client_id) {
         return Err(RecoveryError::DuplicateIdentity);
     }
-    if ticket.ceiling_sequence != *sequence
+    check_review_context(
+        *sequence,
+        limit,
+        ticket,
+        &value.principal,
+        value.recorded_at_ms,
+        value.mode,
+    )
+}
+fn check_review_context(
+    sequence: u64,
+    limit: &CeilingChange,
+    ticket: &exec_ipc::review::Ticket,
+    principal: &str,
+    at: u64,
+    mode: exec_ipc::StopMode,
+) -> Result<(), RecoveryError> {
+    if ticket.ceiling_sequence != sequence
         || ticket.quote != limit.ceiling.currency
         || ticket.quote_epoch != limit.ceiling.unit_epoch
         || ticket.quote_decimals != limit.ceiling.decimals
-        || value.principal != limit.operator_user
-        || value.recorded_at_ms < limit.recorded_at_ms
-        || ticket.expires_at_ms <= value.recorded_at_ms
+        || principal != limit.operator_user
+        || at < limit.recorded_at_ms
+        || ticket.expires_at_ms <= at
         || ticket.expires_at_ms
-            > value
-                .recorded_at_ms
-                .checked_add(30000)
+            > at.checked_add(30000)
                 .ok_or(RecoveryError::InvalidIdentity)?
-        || value.mode == exec_ipc::StopMode::Halted
-        || (ticket.buy && value.mode != exec_ipc::StopMode::Disarmed)
+        || mode == exec_ipc::StopMode::Halted
+        || (ticket.buy && mode != exec_ipc::StopMode::Disarmed)
         || ticket.max_quote_debit > limit.ceiling.capital_quanta
     {
         return Err(RecoveryError::InvalidIdentity);
     }
     Ok(())
+}
+fn check_preparation(
+    current: Option<&(u64, CeilingChange)>,
+    approvals: &BTreeMap<String, ApprovalView>,
+    requests: &BTreeSet<[u8; 16]>,
+    value: &IntentPreparation,
+) -> Result<(), RecoveryError> {
+    value.encode()?;
+    let saved = approvals
+        .get(&value.client_id)
+        .ok_or(RecoveryError::UnknownIdentity)?;
+    let ticket = &saved.approval.ticket;
+    if requests.contains(&value.request_id) {
+        return Err(RecoveryError::DuplicateIdentity);
+    }
+    if saved.sequence != value.expected_sequence
+        || saved.revoked_at_ms.is_some()
+        || saved.prepared_at_ms.is_some()
+        || saved.approval.principal != value.principal
+        || saved.approval.logon != value.logon
+        || value.runtime_epoch != ticket.runtime_epoch
+        || value.credential_generation != ticket.credential_generation
+        || value.recorded_at_ms < saved.approval.recorded_at_ms
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    let (sequence, limit) = current.ok_or(RecoveryError::InvalidIdentity)?;
+    check_review_context(
+        *sequence,
+        limit,
+        ticket,
+        &value.principal,
+        value.recorded_at_ms,
+        value.mode,
+    )
 }
 fn check_revocation(
     approvals: &BTreeMap<String, ApprovalView>,
@@ -392,6 +485,7 @@ pub struct DurableOrderJournal {
     approval_requests: BTreeSet<[u8; 16]>,
 }
 enum Record {
+    PrepareIntent(IntentPreparation),
     Approval(OperatorApproval),
     RevokeApproval(ApprovalRevocation),
     Ceiling(CeilingChange),
@@ -686,6 +780,24 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
     let kind = r.one()?;
     let id = r.name()?;
     let rec = match kind {
+        PREPARE_INTENT => {
+            let value = IntentPreparation {
+                client_id: id,
+                expected_sequence: r.num()?,
+                principal: r.name()?,
+                logon: r.name()?,
+                runtime_epoch: r.num()?,
+                credential_generation: r.take(16)?.try_into().unwrap(),
+                recorded_at_ms: r.num()?,
+                request_id: r.take(16)?.try_into().unwrap(),
+                mode: r
+                    .one()?
+                    .try_into()
+                    .map_err(|_| RecoveryError::MalformedEvent)?,
+            };
+            value.encode()?;
+            Record::PrepareIntent(value)
+        }
         APPROVAL => {
             let ticket = exec_ipc::review::Ticket::decode(r.take(exec_ipc::review::TICKET_SIZE)?)
                 .map_err(|_| RecoveryError::MalformedEvent)?;
@@ -913,6 +1025,7 @@ fn apply_record(
         Record::Credential(_)
         | Record::Ceiling(_)
         | Record::Approval(_)
+        | Record::PrepareIntent(_)
         | Record::RevokeApproval(_) => return Err(RecoveryError::MalformedEvent),
         Record::Execution {
             id,
@@ -1170,6 +1283,18 @@ impl DurableOrderJournal {
         let mut approval_requests = BTreeSet::new();
         for e in &records {
             let parsed = decode(&e.event_bytes)?;
+            if let Record::PrepareIntent(value) = parsed {
+                check_preparation(ceiling.as_ref(), &approvals, &approval_requests, &value)
+                    .map_err(|_| RecoveryError::MalformedEvent)?;
+                if intents.contains_key(&value.client_id) {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                approval_requests.insert(value.request_id);
+                let saved = approvals.get_mut(&value.client_id).unwrap();
+                saved.prepared_at_ms = Some(value.recorded_at_ms);
+                saved.sequence = e.sequence;
+                continue;
+            }
             if let Record::Approval(value) = parsed {
                 check_approval(ceiling.as_ref(), &approvals, &approval_requests, &value)
                     .map_err(|_| RecoveryError::MalformedEvent)?;
@@ -1183,6 +1308,7 @@ impl DurableOrderJournal {
                         sequence: e.sequence,
                         approval: value,
                         revoked_at_ms: None,
+                        prepared_at_ms: None,
                     },
                 );
                 continue;
@@ -1211,6 +1337,10 @@ impl DurableOrderJournal {
                 continue;
             }
             // Verified bytes that cannot form a legal state also fail closed.
+            if matches!(&parsed, Record::Open { id, .. } | Record::Execution { id, .. } if approvals.contains_key(id))
+            {
+                return Err(RecoveryError::MalformedEvent);
+            }
             apply_record(&mut intents, &mut reservations, parsed)
                 .map_err(|_| RecoveryError::MalformedEvent)?;
         }
@@ -1272,6 +1402,7 @@ impl DurableOrderJournal {
                 sequence: entry.sequence,
                 approval: value,
                 revoked_at_ms: None,
+                prepared_at_ms: None,
             },
         );
         self.records += 1;
@@ -1284,6 +1415,24 @@ impl DurableOrderJournal {
         let current = self.approvals.get_mut(&value.client_id).unwrap();
         current.sequence = entry.sequence;
         current.revoked_at_ms = Some(value.recorded_at_ms);
+        self.records += 1;
+        Ok(())
+    }
+    pub fn prepare_intent(&mut self, value: IntentPreparation) -> Result<(), RecoveryError> {
+        check_preparation(
+            self.ceiling.as_ref(),
+            &self.approvals,
+            &self.approval_requests,
+            &value,
+        )?;
+        if self.intents.contains_key(&value.client_id) {
+            return Err(RecoveryError::DuplicateIdentity);
+        }
+        let entry = self.ledger.append(&value.encode()?)?;
+        self.approval_requests.insert(value.request_id);
+        let saved = self.approvals.get_mut(&value.client_id).unwrap();
+        saved.prepared_at_ms = Some(value.recorded_at_ms);
+        saved.sequence = entry.sequence;
         self.records += 1;
         Ok(())
     }
@@ -1320,7 +1469,7 @@ impl DurableOrderJournal {
         asset: &str,
         quantity: u64,
     ) -> Result<(), RecoveryError> {
-        if self.intents.contains_key(id) {
+        if self.intents.contains_key(id) || self.approvals.contains_key(id) {
             return Err(RecoveryError::DuplicateIdentity);
         }
         let raw = record_intent(id, account, asset, quantity)?;
@@ -1397,6 +1546,10 @@ impl DurableOrderJournal {
         identity: &ExecutionIdentity,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        // Legacy simulation records cannot consume an authenticated operator review.
+        if self.approvals.contains_key(id) {
+            return Err(RecoveryError::DuplicateIdentity);
+        }
         let reserved = if identity.side == Side::Buy {
             identity.max_quote_quanta
         } else {

@@ -53,12 +53,12 @@ def ticket():
 def reply(request, *, state=2, correlation=bytes([4]) * 16):
     raw = bytearray(REPLY_SIZE)
     raw[:8] = b"TGREPLY1"
-    raw[8:11] = bytes([state, 0, int(state in (2, 3))])
+    raw[8:11] = bytes([state, 0, int(state in (2, 3, 7))])
     raw[16:32] = correlation
     raw[32:40] = (10).to_bytes(8, "big")
     raw[56:64] = (1).to_bytes(8, "big")
     raw[64:80] = bytes([3]) * 16
-    if state in (2, 3):
+    if state in (2, 3, 7):
         raw[40:56] = struct.pack(">QQ", 2, 1000)
         raw[80:] = ticket_bytes(request["ticket"])
     return bytes(raw)
@@ -112,7 +112,29 @@ def test_native_golden_contract_and_exact_amounts():
         decode_reply(reply(request), bytes([4]) * 16, changed)
 
 
-def test_helper_uses_only_fixed_stdin_frame_and_bounds_failure(monkeypatch, tmp_path, capsys):
+def test_preparation_codec_keeps_exact_version_identity_and_no_authority():
+    request = {"action": "prepare", "client_id": "intent-1", "expected_sequence": "1"}
+    frame = encode_request(request, bytes([4]) * 16)
+    assert frame[8] == 5 and int.from_bytes(frame[32:40], "big") == 1
+    raw = reply({"ticket": ticket()}, state=7)
+    result = decode_reply(raw, bytes([4]) * 16, request)
+    assert result["state"] == "PREPARED" and result["ticket"] == ticket()
+    assert not result["funded_authority"] and not result["order_submitted"]
+    for bad in (
+        {**request, "expected_sequence": "2"},
+        {**request, "client_id": "other"},
+        {"action": "status"},
+    ):
+        with pytest.raises(ValueError):
+            decode_reply(raw, bytes([4]) * 16, bad)
+    for bad in ({**request, "expected_sequence": 1}, {**request, "ticket": ticket()}):
+        with pytest.raises(ValueError):
+            encode_request(bad, bytes([4]) * 16)
+
+
+def test_helper_uses_only_fixed_stdin_frame_and_bounds_failure(
+    monkeypatch, tmp_path, capsys
+):
     from tests.test_service_account_read import Process
 
     request = {"action": "approve", "ticket": ticket()}

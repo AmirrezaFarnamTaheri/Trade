@@ -1,6 +1,6 @@
 # Protected operator review v1
 
-This channel records and revokes exact operator intent. It does not submit an
+This channel records, prepares and revokes exact operator intent. It does not submit an
 order, reserve money, arm a workload or issue a trading capability. Its native
 service/helper implementation has local build and regression evidence; this
 version has not been installed or qualified under the ordinary ACER logon.
@@ -12,8 +12,9 @@ creates it with the selected operator logon's narrow DACL, rejects remote client
 and verifies the connected Windows user and logon by impersonation before any
 journal access. Caller-supplied JSON never names the principal. The listener is
 separate from STOP and the elevated administrator pipe. A busy custody owner
-returns DEFERRED rather than waiting behind an account HTTP request. Recovery and
-drill startup do not expose this listener. Journal errors stop the service.
+returns DEFERRED rather than waiting behind an account HTTP request. Recovery
+startup does not expose this listener. The isolation drill exposes it for denial
+probes but refuses every review operation. Journal errors stop the service.
 
 `gym-review.exe` accepts one bounded binary request on stdin, authenticates the
 SCM-pinned service process before/after the exchange and emits only a bounded
@@ -40,6 +41,7 @@ Only these fields are accepted:
 | `status` | None |
 | `inspect` | `client_id` |
 | `approve` | `ticket` |
+| `prepare` | `client_id`, `expected_sequence` |
 | `revoke` | `client_id`, `expected_sequence` |
 
 An approval ticket contains `client_id`, `account`, `base`, `quote`, `side`,
@@ -79,11 +81,24 @@ operator and exact current review sequence; it appends history and retains the
 original ticket. It remains available after expiry, limit changes and clock
 regression. Journal sequence, not wall-clock monotonicity, orders revocations.
 
-Receipts report STATUS, APPROVAL_RECORDED, REVOKED, MISSING, DEFERRED or REFUSED,
+`prepare` consumes the referenced review exactly once for durable preparation.
+The service supplies its actual principal/logon, runtime, key generation, clock
+and mode; the caller supplies only the identity and expected sequence. Current
+limit/unit, expiry and mode checks run again. The clock cannot precede the review,
+and both principal and logon must still match. A single journal event commits
+the consumed state and its immutable ticket reference together. Restart or a lost
+receipt cannot permit another preparation. No separate order, money reservation,
+balance observation or transport attempt is created. Legacy simulation methods
+cannot reuse the reviewed identity. Revocation is still allowed using the
+preparation's new sequence, including after expiry or clock regression.
+
+Receipts report STATUS, APPROVAL_RECORDED, PREPARED, REVOKED, MISSING, DEFERRED or REFUSED,
 with the current runtime/limit/generation context and, when present, the exact
 historical ticket. Consumers validate action, correlation, identity, ticket and
 revocation version. Historical APPROVAL_RECORDED can be expired or invalidated by
-a restart, changed limit or key rotation. It never implies current authority.
+a restart, changed limit or key rotation. PREPARED has the same limitation; it is
+a preparation receipt, not an executable order intent or reservation. Neither
+state implies current authority.
 
 A timeout, disconnect or malformed receipt is **unacknowledged**, not a rollback.
 The change may already have committed. Inspect the same client identity before
@@ -94,7 +109,7 @@ states `funded_authority=false` and `order_submitted=false`.
 
 Unsigned integers use big endian. Request/reply sizes are 400/432 bytes; the
 ticket occupies 352 bytes. Request magic is `TGREVW01`, action is at byte 8,
-client ID length at 9, correlation at 16..32, expected revoke sequence at 32..40,
+client ID length at 9, correlation at 16..32, expected version at 32..40,
 and ticket/client ID at 48. Reply magic is `TGREPLY1`, state/mode/ticket flag at
 8/9/10, correlation at 16..32, current epoch at 32, record sequence at 40, record
 clock at 48, current ceiling sequence at 56, current credential generation at
@@ -106,9 +121,12 @@ an approval request and receipt. Python and Rust independently verify these
 bytes. Regression tests cover precision/overflow/rounding, padding, identity and
 action substitution, journal restart/revocation, token/origin checks, busy/size
 refusal, helper output bounds, DEMO and UI duplicate submission/error handling.
+Preparation is command 5 and PREPARED is reply state 7. Older builds reject these
+and journal tag 12; preserve history and use a compatible build rather than
+deleting records or assuming a rollback can interpret new events.
 
 Still required: installed ordinary-operator and worker-denial tests, atomic
-approval consumption by real order intents, independently established account and
+admission/reservation of real order intents, independently established account and
 instrument/rule/cost identities, method certification, money-limit enforcement,
 arming and real transport/reconciliation. No real credential or loss budget was
 configured, and no exchange request is made by this workflow.

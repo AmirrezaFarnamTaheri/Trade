@@ -63,6 +63,10 @@ fn all_commands_round_trip_and_reject_padding_lengths_and_identity_claims() {
             client_id: "intent-1".into(),
             expected_sequence: 5,
         },
+        Command::Prepare {
+            client_id: "intent-1".into(),
+            expected_sequence: 5,
+        },
     ] {
         let request = Request {
             command,
@@ -94,6 +98,38 @@ fn recorded_reply_is_exact_current_context_but_never_a_money_capability() {
         ticket: Some(ticket()),
     };
     let raw = reply.encode().unwrap();
+    let prepared = Reply {
+        state: ReviewState::Prepared,
+        ..reply.clone()
+    };
+    let prepare = Request {
+        command: Command::Prepare {
+            client_id: "intent-1".into(),
+            expected_sequence: 1,
+        },
+        correlation: [4; 16],
+    };
+    let encoded = prepared.encode().unwrap();
+    assert_eq!(Reply::decode(&encoded, [4; 16]).unwrap(), prepared);
+    assert!(prepared.validate_for(&prepare).is_ok());
+    assert!(prepared
+        .validate_for(&Request {
+            command: Command::Prepare {
+                client_id: "intent-1".into(),
+                expected_sequence: 2
+            },
+            ..prepare.clone()
+        })
+        .is_err());
+    assert!(prepared
+        .validate_for(&Request {
+            command: Command::Revoke {
+                client_id: "intent-1".into(),
+                expected_sequence: 1
+            },
+            ..prepare
+        })
+        .is_err());
     let request = Request {
         command: Command::Approve(Box::new(ticket())),
         correlation: [4; 16],

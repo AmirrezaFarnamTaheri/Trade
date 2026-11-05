@@ -156,7 +156,7 @@ for name in ('market.db', 'research.sqlite3'):
 '@
 & (Join-Path $runtime 'python.exe') -I -S -B -c $backup $PublicSourceDirectory $inputs
 if ($LASTEXITCODE -ne 0) { throw 'Public snapshot publication failed; no binding published' }
-$targets = @{ stop_pipe=$StopPipe; t2_pipe=$T2Pipe; vault=$VaultPath; core_journal=$CoreJournalPath; profile_canary=$ProfileCanaryPath; service=$ServiceName }
+$targets = @{ stop_pipe=$StopPipe; operate_pipe='\\.\pipe\TradingGYM.Operate.v1'; t2_pipe=$T2Pipe; vault=$VaultPath; core_journal=$CoreJournalPath; profile_canary=$ProfileCanaryPath; service=$ServiceName }
 [IO.File]::WriteAllText((Join-Path $InstallDirectory 'boundary.json'), ($targets | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
 Get-ChildItem -LiteralPath $InstallDirectory -Force -Recurse | ForEach-Object { Seal $_.FullName $_.PSIsContainer }
 [IO.File]::WriteAllText((Join-Path $InstallDirectory 'binding.txt'), $appSid, [Text.UTF8Encoding]::new($false))

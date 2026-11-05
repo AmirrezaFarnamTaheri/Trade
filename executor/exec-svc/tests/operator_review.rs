@@ -55,6 +55,110 @@ fn approval() -> OperatorApproval {
         mode: StopMode::Disarmed,
     }
 }
+fn preparation() -> IntentPreparation {
+    IntentPreparation {
+        client_id: "intent-1".into(),
+        expected_sequence: 2,
+        principal: approval().principal,
+        logon: approval().logon,
+        runtime_epoch: 10,
+        credential_generation: [3; 16],
+        recorded_at_ms: 2001,
+        request_id: [6; 16],
+        mode: StopMode::Disarmed,
+    }
+}
+#[test]
+fn preparing_consumes_the_exact_review_once_and_can_still_be_revoked_after_restart() {
+    let root = root();
+    let path = root.join("exec_ledger.db");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    journal.commit_ceiling(limit()).unwrap();
+    journal.record_approval(approval()).unwrap();
+    journal.prepare_intent(preparation()).unwrap();
+    assert!(journal
+        .create_intent("intent-1", "main", "USDT", 1)
+        .is_err());
+    assert_eq!(journal.record_count(), 3);
+    assert_eq!(
+        journal
+            .operator_approval("intent-1")
+            .unwrap()
+            .prepared_at_ms,
+        Some(2001)
+    );
+    assert_eq!(journal.reserved("main", "USDT"), 0);
+    assert!(journal.get("intent-1").is_none());
+    drop(journal);
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    let saved = journal.operator_approval("intent-1").unwrap();
+    assert_eq!(saved.sequence, 3);
+    assert_eq!(saved.approval.ticket, approval().ticket);
+    let mut retry = preparation();
+    retry.expected_sequence = 3;
+    retry.request_id = [7; 16];
+    assert!(journal.prepare_intent(retry).is_err());
+    journal
+        .revoke_approval(ApprovalRevocation {
+            client_id: "intent-1".into(),
+            expected_sequence: 3,
+            principal: approval().principal,
+            logon: approval().logon,
+            recorded_at_ms: 1500,
+            request_id: [8; 16],
+        })
+        .unwrap();
+    assert!(journal.prepare_intent(preparation()).is_err());
+    assert_eq!(journal.record_count(), 4);
+    drop(journal);
+    let journal = DurableOrderJournal::open(&path).unwrap();
+    let saved = journal.operator_approval("intent-1").unwrap();
+    assert_eq!(saved.prepared_at_ms, Some(2001));
+    assert_eq!(saved.revoked_at_ms, Some(1500));
+    drop(journal);
+    let mut ledger = exec_store::Ledger::open(&path).unwrap();
+    let preparation_bytes = ledger.replay_from(0).unwrap()[2].event_bytes.clone();
+    ledger.append(&preparation_bytes).unwrap();
+    drop(ledger);
+    assert!(DurableOrderJournal::open(&path).is_err());
+    std::fs::remove_dir_all(root).unwrap();
+}
+#[test]
+fn preparation_rechecks_versions_actors_time_generation_modes_and_limit_without_appending() {
+    let root = root();
+    let path = root.join("exec_ledger.db");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    journal.commit_ceiling(limit()).unwrap();
+    journal.record_approval(approval()).unwrap();
+    for case in 0..10 {
+        let mut value = preparation();
+        match case {
+            0 => value.expected_sequence = 1,
+            1 => value.principal = limit().principal,
+            2 => value.logon = "S-1-5-5-100-201".into(),
+            3 => value.runtime_epoch = 11,
+            4 => value.credential_generation = [4; 16],
+            5 => value.recorded_at_ms = 1999,
+            6 => value.recorded_at_ms = 20000,
+            7 => value.mode = StopMode::Halted,
+            8 => value.mode = StopMode::Paused,
+            9 => value.request_id = approval().request_id,
+            _ => unreachable!(),
+        }
+        assert!(journal.prepare_intent(value).is_err());
+        assert_eq!(journal.record_count(), 2);
+    }
+    let mut lower = limit();
+    lower.expected_sequence = 1;
+    lower.ceiling.capital_quanta = 0;
+    lower.recorded_at_ms = 2001;
+    lower.request_id = [9; 16];
+    journal.commit_ceiling(lower).unwrap();
+    assert!(journal.prepare_intent(preparation()).is_err());
+    assert_eq!(journal.record_count(), 3);
+    drop(journal);
+    std::fs::remove_dir_all(root).unwrap();
+}
 #[test]
 fn approval_is_exact_and_revocation_survives_limit_change_and_restart() {
     let root = root();

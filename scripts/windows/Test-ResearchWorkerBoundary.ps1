@@ -17,7 +17,7 @@ $targets = Get-Content -LiteralPath (Join-Path $InstallDirectory 'boundary.json'
 # target/ancestor being mistaken for proof that the intended resource was tested.
 try {
     $pipes = @([IO.Directory]::GetFiles('\\.\pipe\'))
-    foreach ($name in @('stop_pipe', 't2_pipe')) {
+    foreach ($name in @('stop_pipe', 'operate_pipe', 't2_pipe')) {
         if ($targets.$name -notin $pipes) { throw "missing pipe: $name" }
     }
     if ($ExistenceManifest) {
@@ -71,7 +71,7 @@ try {
     if ($report.probe -ne 'actual_R0_child' -or $report.pid -le 0 -or $errors -notmatch ([regex]::Escape("R0 child PID=$($report.pid) AppContainer=$sid capabilities=0 (verified suspended)"))) { throw 'NOT_VERIFIED: native token/Python child PID evidence mismatch' }
     $names = @($catalogs[0].result.tools | ForEach-Object { $_.name } | Sort-Object)
     if (($names -join ',') -ne 'market_coverage,research_state,strategy_catalog') { throw 'FAIL: actual child R0 tool set changed' }
-    $expected = @('core_journal', 'profile_canary', 'service', 'stop_pipe', 't2_pipe', 'vault')
+    $expected = @('core_journal', 'operate_pipe', 'profile_canary', 'service', 'stop_pipe', 't2_pipe', 'vault')
     if ((@($report.results.PSObject.Properties.Name | Sort-Object) -join ',') -ne ($expected -join ',')) { throw 'NOT_VERIFIED: incomplete probe report' }
     $report | ConvertTo-Json -Depth 5
     if ($process.ExitCode -ne 0 -or @($report.results.PSObject.Properties | Where-Object { $_.Value -ne 'DENIED' }).Count -ne 0) { throw 'FAIL/NOT_VERIFIED: one or more child-token probes were not denied' }

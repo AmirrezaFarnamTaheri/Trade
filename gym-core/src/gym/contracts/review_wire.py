@@ -193,18 +193,18 @@ def encode_request(value, correlation):
     if action == "status":
         fields(value, "action")
         raw[8] = 1
-    elif action in ("inspect", "revoke"):
+    elif action in ("inspect", "revoke", "prepare"):
         fields(
             value,
-            "action client_id" + (" expected_sequence" if action == "revoke" else ""),
+            "action client_id" + (" expected_sequence" if action != "inspect" else ""),
         )
         identity = _name(value["client_id"], 64)
         raw[8], raw[9], raw[48 : 48 + len(identity)] = (
-            (2 if action == "inspect" else 4),
+            {"inspect": 2, "revoke": 4, "prepare": 5}[action],
             len(identity),
             identity,
         )
-        if action == "revoke":
+        if action != "inspect":
             raw[32:40] = _uint(value["expected_sequence"], positive=True).to_bytes(
                 8, "big"
             )
@@ -222,7 +222,7 @@ def decode_reply(raw, correlation, request):
         or len(raw) != REPLY_SIZE
         or raw[:8] != b"TGREPLY1"
         or raw[16:32] != correlation
-        or raw[8] not in range(1, 7)
+        or raw[8] not in range(1, 8)
         or raw[9] > 3
         or raw[10] > 1
         or any(raw[11:16])
@@ -230,16 +230,17 @@ def decode_reply(raw, correlation, request):
         raise ValueError("invalid native review reply")
     allowed = {
         "status": (1, 5, 6),
-        "inspect": (2, 3, 4, 5, 6),
+        "inspect": (2, 3, 4, 5, 6, 7),
         "approve": (2, 5, 6),
         "revoke": (3, 4, 5, 6),
+        "prepare": (4, 5, 6, 7),
     }
     if raw[8] not in allowed.get(request.get("action"), ()):
         raise ValueError("native review state differs from requested action")
     sequence, at, epoch = (
         int.from_bytes(raw[offset : offset + 8], "big") for offset in (40, 48, 32)
     )
-    has_ticket = raw[8] in (2, 3)
+    has_ticket = raw[8] in (2, 3, 7)
     if (
         epoch == 0
         or bool(raw[10]) != has_ticket
@@ -255,17 +256,17 @@ def decode_reply(raw, correlation, request):
             and ticket_bytes(ticket) != ticket_bytes(request["ticket"])
         )
         or (
-            request["action"] in ("inspect", "revoke")
+            request["action"] in ("inspect", "revoke", "prepare")
             and ticket["client_id"] != request["client_id"]
         )
     ):
         raise ValueError("native receipt differs from requested ticket")
     if (
-        request["action"] == "revoke"
-        and raw[8] == 3
+        request["action"] in ("revoke", "prepare")
+        and raw[8] == {"revoke": 3, "prepare": 7}[request["action"]]
         and sequence <= _uint(request["expected_sequence"], positive=True)
     ):
-        raise ValueError("native revocation version did not advance")
+        raise ValueError("native review version did not advance")
     return {
         "state": (
             "STATUS",
@@ -274,6 +275,7 @@ def decode_reply(raw, correlation, request):
             "MISSING",
             "DEFERRED",
             "REFUSED",
+            "PREPARED",
         )[raw[8] - 1],
         "mode": ("DISARMED", "PAUSED", "EXIT_ONLY", "HALTED")[raw[9]],
         "current_epoch": str(epoch),

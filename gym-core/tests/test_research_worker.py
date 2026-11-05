@@ -55,7 +55,7 @@ class ResearchWorkerTests(unittest.TestCase):
         advapi.CloseServiceHandle = Function(1)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'inputs'
-            targets = {name: name for name in ('stop_pipe', 't2_pipe', 'vault', 'core_journal', 'profile_canary', 'service')}
+            targets = {name: name for name in ('stop_pipe', 'operate_pipe', 't2_pipe', 'vault', 'core_journal', 'profile_canary', 'service')}
             (root.parent / 'boundary.json').write_text(json.dumps(targets), encoding='utf-8')
             output = io.StringIO()
             with patch.object(ctypes, 'WinDLL', side_effect=[kernel, advapi], create=True), patch.object(ctypes, 'get_last_error', return_value=error, create=True), redirect_stdout(output):
@@ -78,7 +78,7 @@ class ResearchWorkerTests(unittest.TestCase):
         code, report = self.probe(5, accessible_access=1)
         self.assertEqual(code, 3)
         self.assertEqual(report['results']['service'], 'DENIED')
-        for name in ('stop_pipe', 't2_pipe', 'vault', 'core_journal', 'profile_canary'):
+        for name in ('stop_pipe', 'operate_pipe', 't2_pipe', 'vault', 'core_journal', 'profile_canary'):
             self.assertEqual(report['results'][name], 'FAIL_OPENED')
 
     def test_partial_data_grants_and_actual_ipc_access_cannot_pass(self):
@@ -86,14 +86,14 @@ class ResearchWorkerTests(unittest.TestCase):
             with self.subTest(access=access):
                 code, report = self.probe(5, accessible_access=access)
                 self.assertEqual(code, 3)
-                for name in ('stop_pipe', 't2_pipe', 'vault', 'core_journal', 'profile_canary'):
+                for name in ('stop_pipe', 'operate_pipe', 't2_pipe', 'vault', 'core_journal', 'profile_canary'):
                     self.assertEqual(report['results'][name], 'FAIL_OPENED')
 
     def test_operator_profile_access_cannot_be_hidden_by_denied_money_resources(self):
         code, report = self.probe(5, accessible_target='profile_canary')
         self.assertEqual(code, 3)
         self.assertEqual(report['results']['profile_canary'], 'FAIL_OPENED')
-        for name in ('stop_pipe', 't2_pipe', 'vault', 'core_journal', 'service'):
+        for name in ('stop_pipe', 'operate_pipe', 't2_pipe', 'vault', 'core_journal', 'service'):
             self.assertEqual(report['results'][name], 'DENIED')
 
 

@@ -184,6 +184,10 @@ pub enum Command {
         client_id: String,
         expected_sequence: u64,
     },
+    Prepare {
+        client_id: String,
+        expected_sequence: u64,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Request {
@@ -215,11 +219,19 @@ impl Request {
             Command::Revoke {
                 client_id,
                 expected_sequence,
+            }
+            | Command::Prepare {
+                client_id,
+                expected_sequence,
             } => {
                 if *expected_sequence == 0 {
                     return Err("invalid review version");
                 }
-                out[8] = 4;
+                out[8] = if matches!(self.command, Command::Prepare { .. }) {
+                    5
+                } else {
+                    4
+                };
                 out[32..40].copy_from_slice(&expected_sequence.to_be_bytes());
                 Some(client_id)
             }
@@ -250,6 +262,10 @@ impl Request {
                 client_id: id()?,
                 expected_sequence: u64::from_be_bytes(raw[32..40].try_into().unwrap()),
             },
+            5 => Command::Prepare {
+                client_id: id()?,
+                expected_sequence: u64::from_be_bytes(raw[32..40].try_into().unwrap()),
+            },
             _ => return Err("unknown review command"),
         };
         let request = Self {
@@ -271,6 +287,7 @@ pub enum ReviewState {
     Missing = 4,
     Deferred = 5,
     Refused = 6,
+    Prepared = 7,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Reply {
@@ -291,10 +308,13 @@ impl Reply {
             Command::Status => matches!(self.state, Status | Deferred | Refused),
             Command::Inspect(_) => matches!(
                 self.state,
-                Recorded | Revoked | Missing | Deferred | Refused
+                Recorded | Revoked | Prepared | Missing | Deferred | Refused
             ),
             Command::Approve(_) => matches!(self.state, Recorded | Deferred | Refused),
             Command::Revoke { .. } => matches!(self.state, Revoked | Missing | Deferred | Refused),
+            Command::Prepare { .. } => {
+                matches!(self.state, Prepared | Missing | Deferred | Refused)
+            }
         };
         if !allowed || self.correlation != request.correlation {
             return Err("review reply differs from requested action");
@@ -305,7 +325,9 @@ impl Reply {
             {
                 Err("review reply differs from requested ticket")
             }
-            Command::Inspect(id) | Command::Revoke { client_id: id, .. }
+            Command::Inspect(id)
+            | Command::Revoke { client_id: id, .. }
+            | Command::Prepare { client_id: id, .. }
                 if self
                     .ticket
                     .as_ref()
@@ -318,6 +340,11 @@ impl Reply {
             } if self.state == Revoked && self.sequence <= *expected_sequence => {
                 Err("review revocation version did not advance")
             }
+            Command::Prepare {
+                expected_sequence, ..
+            } if self.state == Prepared && self.sequence <= *expected_sequence => {
+                Err("review preparation version did not advance")
+            }
             _ => Ok(()),
         }
     }
@@ -325,7 +352,10 @@ impl Reply {
         if self.correlation == [0; 16]
             || self.current_epoch == 0
             || self.ticket.is_some()
-                != matches!(self.state, ReviewState::Recorded | ReviewState::Revoked)
+                != matches!(
+                    self.state,
+                    ReviewState::Recorded | ReviewState::Revoked | ReviewState::Prepared
+                )
             || self.ticket.is_some() != (self.sequence > 0 && self.recorded_at_ms > 0)
             || (self.ticket.is_none() && (self.sequence != 0 || self.recorded_at_ms != 0))
         {
@@ -358,6 +388,7 @@ impl Reply {
             4 => ReviewState::Missing,
             5 => ReviewState::Deferred,
             6 => ReviewState::Refused,
+            7 => ReviewState::Prepared,
             _ => return Err("unknown review state"),
         };
         let num = |offset| u64::from_be_bytes(raw[offset..offset + 8].try_into().unwrap());

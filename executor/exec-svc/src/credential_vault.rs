@@ -453,7 +453,9 @@ impl Vault {
         gate: &exec_svc::StopGate,
     ) -> io::Result<exec_ipc::review::Reply> {
         use exec_ipc::review::{Command, Reply, ReviewState};
-        use exec_svc::offline_recovery::{ApprovalRevocation, OperatorApproval, RecoveryError};
+        use exec_svc::offline_recovery::{
+            ApprovalRevocation, IntentPreparation, OperatorApproval, RecoveryError,
+        };
         require_service_identity()?;
         let generation = self
             .journal
@@ -490,7 +492,9 @@ impl Vault {
                 }
                 ticket.client_id.clone()
             }
-            Command::Revoke { client_id, .. } => client_id.clone(),
+            Command::Revoke { client_id, .. } | Command::Prepare { client_id, .. } => {
+                client_id.clone()
+            }
         };
         let Some(journal) = self.limits.as_mut() else {
             reply.state = if matches!(request.command, Command::Inspect(_)) {
@@ -507,6 +511,20 @@ impl Vault {
             .try_into()
             .map_err(io::Error::other)?;
         let result = match &request.command {
+            Command::Prepare {
+                client_id,
+                expected_sequence,
+            } => journal.prepare_intent(IntentPreparation {
+                client_id: client_id.clone(),
+                expected_sequence: *expected_sequence,
+                principal: user.into(),
+                logon: logon.into(),
+                runtime_epoch: gate.runtime_epoch(),
+                credential_generation: generation,
+                recorded_at_ms: at,
+                request_id: request.correlation,
+                mode: gate.mode(),
+            }),
             Command::Approve(ticket) => journal.record_approval(OperatorApproval {
                 ticket: ticket.as_ref().clone(),
                 principal: user.into(),
@@ -543,11 +561,16 @@ impl Vault {
         if let Some(saved) = journal.operator_approval(&client_id) {
             reply.state = if saved.revoked_at_ms.is_some() {
                 ReviewState::Revoked
+            } else if saved.prepared_at_ms.is_some() {
+                ReviewState::Prepared
             } else {
                 ReviewState::Recorded
             };
             reply.sequence = saved.sequence;
-            reply.recorded_at_ms = saved.revoked_at_ms.unwrap_or(saved.approval.recorded_at_ms);
+            reply.recorded_at_ms = saved
+                .revoked_at_ms
+                .or(saved.prepared_at_ms)
+                .unwrap_or(saved.approval.recorded_at_ms);
             reply.ticket = Some(saved.approval.ticket.clone());
         } else {
             reply.state = ReviewState::Missing;

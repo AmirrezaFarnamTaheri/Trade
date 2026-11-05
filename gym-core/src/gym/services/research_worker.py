@@ -23,10 +23,10 @@ def boundary_probe(root):
     advapi.OpenServiceW.restype = w.HANDLE
     advapi.CloseServiceHandle.argtypes = [w.HANDLE]
     targets = json.loads((root.parent / "boundary.json").read_text(encoding="utf-8-sig"))
-    if set(targets) != {"stop_pipe", "t2_pipe", "vault", "core_journal", "profile_canary", "service"}:
+    if set(targets) != {"stop_pipe", "operate_pipe", "t2_pipe", "vault", "core_journal", "profile_canary", "service"}:
         raise ValueError("incomplete protected probe targets")
     results = {}
-    for name in ("stop_pipe", "t2_pipe", "vault", "core_journal", "profile_canary"):
+    for name in ("stop_pipe", "operate_pipe", "t2_pipe", "vault", "core_journal", "profile_canary"):
         # Minimal data rights catch partial grants; overlapped opens do not require SYNCHRONIZE.
         attempts = []
         for access in (0x1, 0x2, 0x4, 0xC0000000):

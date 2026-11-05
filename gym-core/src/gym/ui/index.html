@@ -108,7 +108,7 @@
           <form id="native-review-form">
             <label for="native-review-input" data-t="nativeReviewInput">Explicit native request (JSON)</label>
             <textarea id="native-review-input" class="json-input" rows="8" spellcheck="false" dir="ltr"></textarea>
-            <p class="field-help" data-t="nativeReviewFields">Actions: status, inspect, approve, revoke. Approvals require exact units, amounts, current epoch/limit/generation, expiry and evidence digests. No credentials belong here.</p>
+            <p class="field-help" data-t="nativeReviewFields">Actions: status, inspect, approve, prepare, revoke. Prepare consumes an exact review once; it sends no order and reserves no money. Use the current client_id and expected_sequence. No credentials belong here.</p>
             <button id="native-review-submit" class="button" type="submit" data-t="nativeReviewSubmit">Run protected review</button>
           </form>
           <pre id="native-review-result" class="output" dir="ltr" aria-live="polite"></pre>

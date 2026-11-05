@@ -188,7 +188,7 @@ if ($Stage -eq 'BindWorker') {
     & (Join-Path $PSScriptRoot 'Test-ReadOnlyExecutor.ps1')
     $WorkerInstallDirectory = LocalPath $WorkerInstallDirectory
     $targets = Get-Content -LiteralPath (Join-Path $WorkerInstallDirectory 'boundary.json') -Raw | ConvertFrom-Json
-    if ($targets.stop_pipe -cne '\\.\pipe\TradingGYM.Stop.v1' -or $targets.t2_pipe -cne '\\.\pipe\TradingGYM.Privileged.v1' -or
+    if ($targets.stop_pipe -cne '\\.\pipe\TradingGYM.Stop.v1' -or $targets.operate_pipe -cne '\\.\pipe\TradingGYM.Operate.v1' -or $targets.t2_pipe -cne '\\.\pipe\TradingGYM.Privileged.v1' -or
         $targets.service -cne $serviceName -or (Split-Path -Parent $targets.vault) -ine $vault -or
         $targets.vault -ine $state.current_generation -or $targets.core_journal -ine (Join-Path $vault 'credentials.sqlite') -or
         $targets.profile_canary -ine $state.profile_canary) { throw 'Worker targets must name actual current private custody files, profile canary and fixed service pipes.' }

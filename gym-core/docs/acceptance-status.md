@@ -6,6 +6,18 @@ No funded submission, certified venue stop or independent-machine recovery is cl
 
 ## Current receipt — 2026-11-05
 
+Consume-once protected preparation now revalidates current service context and
+records the consumed review plus exact immutable ticket reference atomically.
+It creates neither an executable order nor a money reservation. Revocation and
+restart/replay/refusal regressions pass. Worker qualification now requires the
+new operator pipe as a seventh private target; current source is not installed
+or host-qualified. Latest full regression: **935 Python passed, five skipped,
+39 subtests passed; 131 native tests passed**, with strict Clippy passing.
+A further real paper run `d263cdeb46eecd2f` ended with 66 qualified observations,
+zero fills and unchanged virtual 1,000 USDT after two running minutes. It does
+not establish sustained evidence or profitability. See
+[current follow-up](system-status.md#consume-once-preparation-and-qualification-follow-up).
+
 Protected native operator intent recording/inspection/revocation now connects the
 OS-authenticated pipe and durable journal to the CLI and explicit EN/FA Operate
 controls. It does not consume approvals for execution, arm trading or send orders.

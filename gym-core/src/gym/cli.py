@@ -664,7 +664,7 @@ def main(argv=None):
     p.add_argument("--data", default="data", help="data directory (default ./data)")
     sub = p.add_subparsers(dest="cmd", required=True)
     native_review = sub.add_parser("operator-review", help="explicit protected Windows operator intent; never submits an order")
-    native_review.add_argument("input", help="native review JSON file (status, inspect, approve or revoke)")
+    native_review.add_argument("input", help="native review JSON file (status, inspect, approve, prepare or revoke)")
     models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
     models.add_argument("model_args", nargs=argparse.REMAINDER)
     research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")

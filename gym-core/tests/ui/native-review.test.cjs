@@ -32,10 +32,10 @@ test('explicit actions prevent duplicate pending calls and replace old receipts 
   await pending;
   assert.equal(nodes['native-review-submit'].disabled, false);
   assert.match(nodes['native-review-result'].textContent, /STATUS/);
-  nodes['native-review-input'].value = JSON.stringify({action:'revoke',client_id:'intent-1',expected_sequence:'2'});
+  nodes['native-review-input'].value = JSON.stringify({action:'prepare',client_id:'intent-1',expected_sequence:'2'});
   const mutation = nodes['native-review-form'].listeners.submit({preventDefault(){}});
   assert.equal(calls[1][1].method, 'POST');
-  assert.deepEqual(JSON.parse(calls[1][1].body), {action:'revoke',client_id:'intent-1',expected_sequence:'2'});
+  assert.deepEqual(JSON.parse(calls[1][1].body), {action:'prepare',client_id:'intent-1',expected_sequence:'2'});
   finish({state:'APPROVAL_RECORDED',funded_authority:true,order_submitted:false});
   await mutation;
   assert.match(nodes['native-review-result'].textContent, /unacknowledged/);

@@ -100,7 +100,7 @@ pub async fn serve(
     phase: std::sync::Arc<std::sync::atomic::AtomicU32>,
     operator: crate::operate_pipe::Context,
 ) -> io::Result<()> {
-    let opened = if mode != StartupMode::CredentialRecovery {
+    let opened = if mode == StartupMode::Normal {
         Vault::open(sid)
     } else {
         Vault::open_mode(sid, mode)
@@ -120,7 +120,7 @@ pub async fn serve(
             return Err(error);
         }
     };
-    if mode == StartupMode::Normal {
+    if mode != StartupMode::CredentialRecovery {
         if let Err(error) = crate::operate_pipe::start(sid, vault.clone(), operator.clone()) {
             let _ = ready.send(Err(exec_svc::ServiceFailure::OperateListener));
             return Err(error);

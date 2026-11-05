@@ -1,5 +1,43 @@
 # System status — 2026-11-05
 
+## Consume-once preparation and qualification follow-up
+
+The protected review workflow now supports `prepare`: the service rechecks the
+actual principal/logon, runtime, key generation, current installation limit,
+expiry and mode, then commits the consumed marker and immutable reviewed-ticket
+reference in one event. Restart, duplicate requests and lost receipts cannot
+prepare it twice. It remains revocable at the returned sequence. The legacy
+simulation intent APIs cannot reuse its identity. No executable order or money
+reservation is created, and no account/venue request occurs.
+
+The same operation reaches the fixed helper, CLI, token/origin-protected API and
+EN/FA Operate panel. Worker publication and host preflight now require seven
+negative targets, including the operator pipe. Isolation-drill startup keeps
+that listener available for denial probes but refuses all review operations;
+credential recovery does not create it. The new publication has not been
+installed, so old six-target host results do not qualify this change.
+
+Full local regression: **935 Python passed, five skipped, 39 subtests passed**;
+**131 native tests passed**. Strict Clippy, formatting, Windows release build,
+new-code style checks and repository-wide Python correctness lint pass. All three
+changed PowerShell scripts parse; the host-evidence and manifest-policy self-tests
+pass. Fresh Python and offline npm dependency audits report no known advisories.
+No dependency was added. The observatory was reloaded with the new API; the
+protected service remains stopped/disabled and is not updated. Live browser
+rendering remains unverified. The section below retains the preceding receipt.
+
+A new actual public-data BTCUSDT paper session `d263cdeb46eecd2f` ran from
+12:50:01 to 12:54:00 UTC on 2026-11-05, including warmup and two running minutes.
+It ended normally with 66 qualified observations, zero fills and unchanged
+virtual 1,000 USDT. It used declared example fees and has no matched baseline.
+Receipt: `.pi/paper-qualification/prospective-20261105T125001396769.json`.
+This adds operational evidence, not sustained collection or strategy qualification.
+
+Still open: executable admission and atomic money reservations, authenticated
+account/rule/cost facts, arming, real transport/reconciliation, protective exits,
+new installed-host tests, sustained paper qualification and independent-host
+recovery. These are not silently marked complete by the preparation feature.
+
 ## Protected operator intent
 
 The native service now has a separate OS-user/logon-authenticated operator pipe
