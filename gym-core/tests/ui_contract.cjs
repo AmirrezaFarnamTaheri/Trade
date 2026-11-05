@@ -91,7 +91,8 @@ const byId = id => {
   assert.ok(element, `Application references missing page element #${id}`);
   return element;
 };
-byId("gym-config").textContent = JSON.stringify({ token: "test-local-token", demo: true });
+const resolutions = ["1min", "3min", "5min", "15min", "30min", "1h", "2h", "4h", "6h", "12h", "1day"];
+byId("gym-config").textContent = JSON.stringify({ token: "test-local-token", demo: true, resolutions });
 const requests = [];
 const replies = new Map([
   ["/api/markets", { now: "2026-11-02T08:00:00Z", demo: true, markets: [], universe: { observed_assets: [], observed_markets: 0 } }],
@@ -190,6 +191,27 @@ const click = async id => {
   assert.equal(plain(app.num("12345678901234567890.123456789012345678")), "12,345,678,901,234,567,890.123456789012345678");
   assert.equal(plain(app.num("0")), "0");
   assert.equal(app.esc('<img src="x" onerror="x">&'), "&lt;img src=&quot;x&quot; onerror=&quot;x&quot;&gt;&amp;");
+  const workbenchControls = new Map();
+  const control = id => {
+    if (!workbenchControls.has(id)) workbenchControls.set(id, { value: id === "research-action" ? "register" : "", querySelector: () => ({ disabled: false }) });
+    return workbenchControls.get(id);
+  };
+  control("gym-config").textContent = JSON.stringify({ resolutions });
+  const coverageRequests = [];
+  const workbenchContext = vm.createContext({ window: {}, document: { documentElement: { lang: "en" }, getElementById: control } });
+  vm.runInContext(fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), "research.js"), "utf8"), workbenchContext);
+  for (const language of ["en", "fa"]) {
+    workbenchContext.document.documentElement.lang = language;
+    workbenchContext.window.gymResearch.mount(async (path, options) => { coverageRequests.push({ path, body: JSON.parse(options.body) }); return {}; }, app.esc);
+    for (const resolution of resolutions) assert.ok(control("research-workspace").innerHTML.includes(`<option>${resolution}</option>`), "Coverage must expose the shared timeframe catalogue in both languages");
+    control("coverage-symbol").value = "BTCUSDT";
+    control("coverage-from").value = "2026-11-05T00:00";
+    control("coverage-to").value = "2026-11-06T00:00";
+    control("coverage-resolution").value = "4h";
+    control("coverage-form").onsubmit({ preventDefault() {}, target: control("coverage-form") });
+    await settle();
+    assert.equal(coverageRequests.at(-1).body.value.resolution, "4h", "Coverage must send the selected timeframe to the backend");
+  }
   const receipt = {resource:'BALANCES',sequence:'9007199254740993',runtime_epoch:'10',started_at_ms:'1000',received_at_ms:'1010',credential_generation:'33'.repeat(16),request_id:'11'.repeat(16),response_digest:'44'.repeat(32),event_hash:'55'.repeat(32)};
   assert.equal(app.serviceReceiptDetails(undefined), '');
   replies.set('/api/account-observations', {state:'OBSERVED',account_id:'main',observed_at:'2026-11-05T16:00:00Z',balances:[],orders:[],exposure:[],service_receipts:[receipt],fee_rates:{BTCUSDT:{maker:'0.001000000000000001',taker:'0.002'}}});
@@ -248,7 +270,11 @@ const click = async id => {
     ],
   };
   app.state.markets = {
-    ...replies.get("/api/markets"), markets: [{
+    ...replies.get("/api/markets"),
+    capabilities: { collection: { mode: "all-spot" }, catalog_markets: 2, asset_capacity: 500, resolutions, venue_candle_fetch_resolutions: ["1min", "1h"] },
+    catalog: [{ symbol: "BTCUSDT", base: "BTC", quote: "USDT", reason: "OBSERVING", risk_flagged: false },
+      { symbol: '<script>EUR', base: "TEST", quote: "EUR", reason: "UNSUPPORTED_QUOTE", risk_flagged: true }],
+    markets: [{
       symbol: "BTCUSDT", base: "BTC", quote: "USDT", names: { en: '<img src="x" onerror="x">', fa: "بیت‌کوین" },
       bid: "12345678901234567890.123456789012345678", ask: "12345678901234567891", bid_qty: "1", ask_qty: "2",
       spread: "0.5", spread_bps: "2", flags: ["STALE"], book_age_s: 40, last_trade: null,
@@ -257,6 +283,10 @@ const click = async id => {
   };
   app.state.expanded = "BTCUSDT";
   app.renderMarkets();
+  assert.ok(byId("market-capabilities").innerHTML.includes("12h"), "Capability display must use the runtime timeframe catalogue");
+  assert.ok(byId("market-capabilities").innerHTML.includes(app.T.en.financingScopeNote), "Short and leverage diagnostics must not imply executable positions");
+  assert.ok(byId("market-catalogue").innerHTML.includes(app.T.en.UNSUPPORTED_QUOTE), "Unobserved listings need their exclusion reason");
+  assert.ok(!byId("market-catalogue").innerHTML.includes("<script>"), "Public catalogue fields must be escaped");
   const marketHTML = byId("market-rows").innerHTML;
   assert.ok(marketHTML.includes("Night closure") && marketHTML.includes("Balance limit"), "Expanded pair must disclose every blocker");
   assert.ok(marketHTML.includes("12,345,678,901,234,567,890.123456789012345678"), "Market rendering must retain decimal precision");
@@ -264,6 +294,7 @@ const click = async id => {
   assert.doesNotMatch(marketHTML, /\bopens\b/i, "Next rule change must not promise an opening");
   app.state.filter = "not-a-watched-pair";
   app.renderMarkets();
+  assert.ok(!byId("market-catalogue").innerHTML.includes("BTCUSDT"), "Search must also filter the complete catalogue");
   assert.ok(!byId("market-rows").innerHTML.includes("BTCUSDT"), "Search must filter market rows");
   app.state.filter = "";
   app.state.quote = "TMN";
@@ -286,6 +317,9 @@ const click = async id => {
   for (const name of ["overview", "research", "account", "operate", "rules", "health", "safety", "backups", "markets"]) {
     await app.showView(name);
     await settle();
+    if (name === "research") {
+      for (const resolution of resolutions) assert.ok(byId("compare-resolution").innerHTML.includes(`<option>${resolution}</option>`), "Comparison must expose every shared fixed timeframe");
+    }
     for (const section of elements.filter(e => e.id?.startsWith("v-"))) assert.equal(section.hidden, section.id !== "v-" + name);
     for (const button of select("[data-view]")) assert.equal(button.getAttribute("aria-current"), button.dataset.view === name ? "page" : null);
   }

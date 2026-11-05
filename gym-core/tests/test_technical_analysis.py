@@ -168,7 +168,7 @@ def test_timeframes_share_one_read_and_keep_the_single_report_contract(tmp_path,
         db.c.close()
 
 
-@pytest.mark.parametrize("resolutions", [[], ["1min"] * 2, ["session"], ["5min"], "1min", ["1min"] * 5])
+@pytest.mark.parametrize("resolutions", [[], ["1min"] * 2, ["session"], ["7min"], "1min", ["1min"] * 5])
 def test_invalid_timeframe_sets_reject_before_reading(tmp_path, resolutions):
     db = market_db(tmp_path, observations(1))
     try:

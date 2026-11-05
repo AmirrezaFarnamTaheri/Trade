@@ -1,5 +1,6 @@
 """Explicit, versioned paper strategies and their public parameter schemas."""
 import re
+from .bars import FIXED_RESOLUTIONS
 
 from .strategy import BollingerReversion, ConfirmedTrend, EmaTrend, RelativeMomentum, SmaCross, SmaReversion, digest
 from .technical_strategies import KeltnerBreakout, MacdCross, RsiRebound, TrixCross
@@ -22,10 +23,10 @@ STRATEGIES = {
         "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 10000},
         "deviations": {"type": "integer", "default": 2, "minimum": 1, "maximum": 5},
     }),
-    "ema-confirmed": (ConfirmedTrend, "Higher-timeframe EMA confirmation", {
+    "ema-confirmed": (ConfirmedTrend, "EMA timeframe confirmation", {
         "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 10000},
         "slow": {"type": "integer", "default": 21, "minimum": 2, "maximum": 10000},
-        "confirmation": {"type": "string", "default": "1h", "enum": ["15min", "1h", "1day"]},
+        "confirmation": {"type": "string", "default": "1h", "enum": list(FIXED_RESOLUTIONS)},
     }),
     "relative-momentum": (RelativeMomentum, "Relative momentum", {
         "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 10000},

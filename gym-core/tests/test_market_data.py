@@ -80,7 +80,7 @@ def test_identical_public_trade_prints_are_preserved(tmp_path):
 
 def test_invalid_ranges_and_resolutions_fail_explicitly(tmp_path):
     with pytest.raises(ValueError, match="unsupported resolution"):
-        BarSpec("5min")
+        BarSpec("7min")
     with pytest.raises(ValueError, match="inverted"):
         DataPortal(market_db(tmp_path, [])).tops("BTCUSDT", START, START - timedelta(hours=1))
     with pytest.raises(ValueError, match="no qualified"):

@@ -54,12 +54,14 @@
       <section id="v-markets" class="view" aria-labelledby="markets-title">
         <header class="view-header"><div><p class="eyebrow" data-t="observatory">Market observatory</p><h1 id="markets-title" data-t="marketsTitle">The market, in view.</h1><p class="lead" data-t="marketsLead">Follow quotes, inspect liquidity, and understand the rules before you act.</p></div><button type="button" id="refresh-data" class="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 7a6 6 0 1 0 0 6M16 3v4h-4"/></svg><span data-t="refresh">Refresh data</span></button></header>
         <div class="market-overview"><div id="market-summary" class="stats" aria-label="Market summary"></div><aside id="fx-summary" class="fx-panel"></aside></div>
+        <section class="panel"><h2 class="panel-title" data-t="workspaceCapabilities">Workspace capabilities</h2><div id="market-capabilities"></div></section>
         <section class="market-board" aria-labelledby="watch-title">
           <header class="board-header"><div><h2 id="watch-title" data-t="marketWatch">Market watch</h2><p id="market-count" class="muted" role="status"></p></div><span class="observation-label" data-t="observationOnly">Observation only</span></header>
           <div class="toolbar"><div class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><label class="sr-only" for="market-filter" data-t="filterPlaceholder">Search pair or asset</label><input id="market-filter" type="search" autocomplete="off" data-t-placeholder="filterPlaceholder" placeholder="Search pair or asset"></div><div id="quote-filter" class="segmented" role="group" data-t-label="quoteFilter"><button type="button" data-quote="" aria-pressed="true" data-t="quoteAll">All pairs</button><button type="button" data-quote="TMN" aria-pressed="false">TMN</button><button type="button" data-quote="USDT" aria-pressed="false">USDT</button></div></div>
           <div class="table-wrap" tabindex="0" data-t-label="marketWatch"><table class="data market-table"><thead><tr><th scope="col" data-t="pair">Market</th><th scope="col" class="num" data-t="bid">Bid</th><th scope="col" class="num" data-t="ask">Ask</th><th scope="col" class="num" data-t="spreadBps">Spread · bps</th><th scope="col" class="num" data-t="lastTrade">Last trade</th><th scope="col" data-t="bookAge">Quote quality</th><th scope="col" data-t="entry">Buy / entry</th><th scope="col" data-t="exit">Sell / exit</th></tr></thead><tbody id="market-rows"><tr><td colspan="8" class="empty" data-t="loading">Loading workspace…</td></tr></tbody></table></div>
           <footer class="board-footer"><span data-t="pairHint">Select a market to inspect its rules and order-book quantities.</span><span id="market-updated"></span></footer>
         </section>
+        <details class="panel"><summary data-t="venueCatalogue">Full venue catalogue</summary><p class="field-help" data-t="catalogueNote">The market search also filters this list. Listing is separate from data collection, paper eligibility and execution permission.</p><div id="market-catalogue"></div></details>
         <p class="footnote" data-t="marketNote">TMN prices are in toman. Rule eligibility is separate from execution permission; live trading remains disabled.</p>
       </section>
 
@@ -74,7 +76,7 @@
               <label for="compare-symbol"><span data-t="symbol">Symbol</span><select id="compare-symbol" required dir="ltr"></select></label>
               <label for="compare-from"><span data-t="windowFrom">From · UTC</span><input id="compare-from" class="input" type="datetime-local" step="1" required dir="ltr"></label>
               <label for="compare-to"><span data-t="windowTo">To · UTC (exclusive)</span><input id="compare-to" class="input" type="datetime-local" step="1" required dir="ltr"></label>
-              <label for="compare-resolution"><span data-t="decisionResolution">Decision close</span><select id="compare-resolution" dir="ltr"><option>1min</option><option selected>15min</option><option>1h</option><option>1day</option></select></label>
+              <label for="compare-resolution"><span data-t="decisionResolution">Decision close</span><select id="compare-resolution" dir="ltr"></select></label>
               <label for="compare-cash"><span data-t="startingCash">Starting quote cash</span><input id="compare-cash" class="input" type="text" inputmode="decimal" value="1000" required dir="ltr"></label>
               <label for="compare-fee"><span data-t="feeFraction">Fee per fill · fraction</span><input id="compare-fee" class="input" type="text" inputmode="decimal" value="0.001" required dir="ltr"></label>
               <label for="validation-folds"><span data-t="validationWindows">Validation windows</span><input id="validation-folds" class="input" type="number" min="1" max="5" step="1" value="1" required dir="ltr" aria-describedby="validation-windows-help"><small id="validation-windows-help" data-t="validationWindowsHelp">Validation only · separate accounts in each window.</small></label>
@@ -143,7 +145,7 @@
   </div>
 </div>
 <noscript><p>TradingGYM requires JavaScript to display the local workspace. / برای نمایش محیط، جاوااسکریپت را فعال کنید.</p></noscript>
-<script id="gym-config" type="application/json">{"token":"__GYM_TOKEN__","demo":__GYM_DEMO__}</script>
+<script id="gym-config" type="application/json">{"token":"__GYM_TOKEN__","demo":__GYM_DEMO__,"resolutions":__GYM_RESOLUTIONS__}</script>
 <script src="/models.js" defer></script>
 <script src="/research.js" defer></script>
 <script src="/native-review.js" defer></script>

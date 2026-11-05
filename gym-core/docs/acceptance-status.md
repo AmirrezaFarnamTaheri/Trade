@@ -4,11 +4,26 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
-Current delivery: **964 Python passed, five skipped, 39 subtests; 148 native
+Current delivery: **977 Python passed, five skipped, 39 subtests; 148 native
 tests passed**. Native committed account receipt references now pass through the
 helper, CLI, saved journal and guarded account API to EN/FA account details.
 Exact recorded fee rates are visible too. A local receipt copy is not independent
 journal authentication, verified permissions or funded authority.
+
+Market coverage now defaults to all listed TMN/USDT spot assets, including risk
+flags for observation. Ranked mode accepts 1..500 assets; automatic all-mode
+fails above its 500-asset resource ceiling. `/api/markets`, `/api/capabilities`
+and the bilingual Markets page share the actual selection policy, full catalogue
+and exclusion reasons. Eleven fixed timeframes now share the bar engine,
+strategy confirmation schemas, CLI, comparison selector and coverage selector.
+Replay/indicator tests verify added intervals and availability-safe closes.
+Spot paper remains 1× long/flat; supplied-debt LONG/SHORT diagnostics do not
+implement borrowing, margin execution or short settlement.
+The running collector uses `--assets all`; retained evidence shows 373 selected
+markets across 187 assets (18 WebSocket shards) from 469 catalogue rows. All
+373 recorded observations after restart; this is coverage evidence, not proof
+of continuously fresh quotes. Transient catalogue failure now leaves the UI
+available and retries with capped backoff. Receipt: `.pi/market-coverage.json`.
 
 The current bundle was published and passed ordinary ACER review/preparation/
 duplicate refusal/revocation, all seven actual worker denials and four STOP

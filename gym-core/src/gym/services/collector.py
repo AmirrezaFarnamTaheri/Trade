@@ -24,7 +24,7 @@ CANDLE_REFRESH_S = 60
 CANDLE_BATCH = 10
 RESEED_BATCH = 5
 REST_REQUESTS_PER_SECOND = 4
-MIN_ASSETS = 25
+MIN_ASSETS = 1
 MAX_ASSETS = 500
 
 
@@ -44,18 +44,33 @@ def _positive_decimal(value) -> Decimal:
     return n if n.is_finite() and n > 0 else Decimal(0)
 
 
-def select_universe(markets: list[dict], asset_count: int) -> tuple[list[str], dict]:
-    """Pick liquid, non-risky spot assets; observe both TMN/USDT legs when listed."""
-    if not MIN_ASSETS <= asset_count <= MAX_ASSETS:
-        raise ValueError(f"assets must be {MIN_ASSETS}..{MAX_ASSETS}")
+def parse_asset_count(value: str) -> int | None:
+    if value == "all":
+        return None
+    try:
+        count = int(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"assets must be all or {MIN_ASSETS}..{MAX_ASSETS}") from None
+    if not MIN_ASSETS <= count <= MAX_ASSETS:
+        raise ValueError(f"assets must be all or {MIN_ASSETS}..{MAX_ASSETS}")
+    return count
+
+
+def select_universe(markets: list[dict], asset_count: int | None) -> tuple[list[str], dict]:
+    """Observe all supported spot listings, or rank a bounded non-risky subset."""
+    if asset_count is not None and (type(asset_count) is not int or not MIN_ASSETS <= asset_count <= MAX_ASSETS):
+        raise ValueError(f"assets must be all or {MIN_ASSETS}..{MAX_ASSETS}")
     active = [m for m in markets if m.get("symbol") and _value(m, "base_asset", "baseAsset")
               and m.get("is_spot") is True and _value(m, "quote_asset", "quoteAsset") in {"TMN", "USDT"}]
     safe = [m for m in active if "isRisky" not in (m.get("flags") or [])]
     fx_market = next((m for m in active if str(m.get("symbol")).upper() == "USDTTMN"), {})
     fx = _positive_decimal(fx_market.get("price"))
     by_base: dict[str, list[dict]] = {}
-    for m in safe:
+    candidates = active if asset_count is None else safe
+    for m in candidates:
         by_base.setdefault(_value(m, "base_asset", "baseAsset"), []).append(m)
+    if asset_count is None and len(by_base) > MAX_ASSETS:
+        raise ValueError(f"all-asset collection exceeds capacity {MAX_ASSETS}; select a ranked count or explicit --watch list")
 
     def score(item):
         base, rows = item
@@ -72,19 +87,19 @@ def select_universe(markets: list[dict], asset_count: int) -> tuple[list[str], d
     bases = ranked[:asset_count]
     rank = {base: i for i, base in enumerate(bases)}
     selected = sorted(
-        (m for m in safe if _value(m, "base_asset", "baseAsset") in rank),
+        (m for m in candidates if _value(m, "base_asset", "baseAsset") in rank),
         key=lambda m: (rank[_value(m, "base_asset", "baseAsset")], 0 if _value(m, "quote_asset", "quoteAsset") == "TMN" else 1),
     )
     symbols = list(dict.fromkeys(str(m["symbol"]).upper() for m in selected))
     return symbols, {
-        "mode": "ranked-spot",
+        "mode": "all-spot" if asset_count is None else "ranked-spot",
         "requested_assets": asset_count,
         "selected_assets": bases,
-        "available_safe_assets": len(by_base),
+        "available_safe_assets": len({_value(m, "base_asset", "baseAsset") for m in safe}),
         "observed_markets": len(symbols),
         "websocket_shards": (len(symbols) + wallex.MAX_CHANNELS // 3 - 1) // (wallex.MAX_CHANNELS // 3),
         "rest_requests_per_second": REST_REQUESTS_PER_SECOND,
-        "excludes": ["not active spot", "isRisky"],
+        "excludes": ["not active spot", "unsupported quote"] + (["isRisky"] if asset_count is not None else []),
     }
 
 
@@ -108,7 +123,7 @@ class RestRate:
 
 class Collector:
     def __init__(self, db: MarketDB, seg: SegmentWriter, symbols: list[str] | None, *, demo: bool = False,
-                 lim: QualityLimits = QualityLimits(), asset_count: int = MIN_ASSETS,
+                 lim: QualityLimits = QualityLimits(), asset_count: int | None = None,
                  add_symbols: tuple[str, ...] = (), remove_symbols: tuple[str, ...] = ()):
         self.db, self.seg, self.demo, self.lim = db, seg, demo, lim
         self.explicit_symbols = symbols
@@ -117,6 +132,8 @@ class Collector:
         self.remove_symbols = frozenset(s.upper() for s in remove_symbols)
         self.insts: dict[str, InstrumentId] = {}
         self.names: dict[str, dict] = {}
+        self.catalog: dict[str, dict] = {}
+        self.catalog_received_at = None
         self.books: dict[str, dict[str, BookSide | None]] = {}
         self.depth_ref: dict[str, str] = {}
         self.tops = {}
@@ -265,6 +282,7 @@ class Collector:
                 continue
             catalog[m["symbol"].upper()] = m
         rows = list(catalog.values())
+        self.catalog, self.catalog_received_at = catalog, now
         for s, m in catalog.items():
             base, quote = _value(m, "base_asset", "baseAsset"), _value(m, "quote_asset", "quoteAsset")
             if not base or not quote:
@@ -408,10 +426,15 @@ class Collector:
                 tasks.create_task(self._demo())
             return
         async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
-            await self.load_catalog(session)
+            backoff = 2
+            while True:
+                await self.load_catalog(session)
+                if self.insts:
+                    break
+                self.quality(now_utc(), None, "SOURCE_ERROR", "catalog produced no observable markets; retrying")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
             symbols = list(self.insts)
-            if not symbols:
-                raise RuntimeError("catalog produced no observable markets")
             batch_size = wallex.MAX_CHANNELS // 3
             shards = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
             async with asyncio.TaskGroup() as tasks:

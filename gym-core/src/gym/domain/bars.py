@@ -9,7 +9,10 @@ from .model import TEHRAN, UTC, BookTop
 from .periods import Calendar, Count, DirectionalChange, Fixed, Mixed, Volume, instant
 
 # "session" is bounded by TradingWindow closures and Tehran midnight; 86400 s is only its nominal step.
-RESOLUTIONS = {"1min": 60, "15min": 900, "1h": 3600, "1day": 86400, "session": 86400}
+RESOLUTIONS = {"1min": 60, "3min": 180, "5min": 300, "15min": 900, "30min": 1800,
+               "1h": 3600, "2h": 7200, "4h": 14400, "6h": 21600, "12h": 43200,
+               "1day": 86400, "session": 86400}
+FIXED_RESOLUTIONS = tuple(name for name in RESOLUTIONS if name != "session")
 PRICE_TYPES = ("BID", "ASK", "MID", "LAST")
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 # A quote that fails these checks never becomes a bar or a fill.

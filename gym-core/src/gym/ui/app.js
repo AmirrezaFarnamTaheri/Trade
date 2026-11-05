@@ -1,6 +1,29 @@
-const { token: TOKEN, demo: DEMO } = JSON.parse(document.getElementById("gym-config").textContent);
+const { token: TOKEN, demo: DEMO, resolutions: FIXED_RESOLUTIONS = [] } = JSON.parse(document.getElementById("gym-config").textContent);
 
 const vocabulary = {
+  workspaceCapabilities: ["Workspace capabilities", "قابلیت‌های محیط کار"],
+  venueCatalogue: ["Full venue catalogue", "فهرست کامل بازارهای صرافی"],
+  catalogueNote: ["The market search also filters this list. Listing is separate from data collection, paper eligibility and execution permission.", "جست‌وجوی بازار این فهرست را هم فیلتر می‌کند. فهرست‌شدن با گردآوری داده، صلاحیت آزمایشی و مجوز اجرا متفاوت است."],
+  collectionMode: ["Collection mode", "حالت گردآوری"],
+  "all-spot": ["All listed spot assets · TMN / USDT", "همهٔ دارایی‌های نقدی فهرست‌شده · تومان / تتر"],
+  "ranked-spot": ["Ranked non-risk-flagged spot assets · TMN / USDT", "دارایی‌های نقدی رتبه‌بندی‌شده بدون پرچم ریسک · تومان / تتر"],
+  paperSides: ["Paper buy / sell", "خرید / فروش آزمایشی"],
+  paperSidesNote: ["Spot · 1× · buy, then sell owned assets; no borrowed positions", "نقدی · ۱ برابر · خرید و فروش دارایی موجود؛ بدون موقعیت قرضی"],
+  financingScope: ["Leverage / short selling", "اهرم / فروش استقراضی"],
+  financingScopeNote: ["Supplied-debt LONG / SHORT diagnostics only. Borrowing, margin execution and short settlement are not implemented.", "فقط تحلیل LONG / SHORT با بدهی ورودی. قرض‌گیری، اجرای اعتباری و تسویهٔ فروش استقراضی پیاده‌سازی نشده‌اند."],
+  decisionTimeframes: ["Paper decision timeframes", "بازه‌های تصمیم آزمایشی"],
+  candleFetchTimeframes: ["Venue candle fetch timeframes", "بازه‌های دریافت شمع صرافی"],
+  timeframeSourceNote: ["Paper bars use received observations. New timeframes do not create missing history; research requires recorded data. Live order submission is unavailable.", "شمع آزمایشی از مشاهدات دریافتی ساخته می‌شود. بازهٔ جدید تاریخچهٔ مفقود را ایجاد نمی‌کند؛ پژوهش به دادهٔ ثبت‌شده نیاز دارد. ارسال سفارش واقعی در دسترس نیست."],
+  collectionCapacity: ["Asset collection capacity", "ظرفیت گردآوری دارایی"],
+  listedPairs: ["Listed pairs", "بازارهای فهرست‌شده"],
+  collectionState: ["Collection state", "وضعیت گردآوری"],
+  riskFlag: ["Venue risk flag", "پرچم ریسک صرافی"],
+  OBSERVING: ["Observing", "در حال مشاهده"],
+  REMOVED_BY_OPERATOR: ["Removed by operator", "حذف‌شده توسط کاربر"],
+  NOT_SPOT: ["Outside spot collection", "خارج از گردآوری نقدی"],
+  UNSUPPORTED_QUOTE: ["Outside TMN / USDT collection", "خارج از گردآوری تومان / تتر"],
+  RISK_FILTER: ["Excluded by ranked-mode risk filter", "حذف‌شده با فیلتر ریسک در حالت رتبه‌بندی"],
+  NOT_SELECTED: ["Outside configured watch selection", "خارج از فهرست مشاهدهٔ تنظیم‌شده"],
   navModels: ["AI connections", "اتصال‌های هوش مصنوعی"],
   skipToContent: ["Skip to content", "رفتن به محتوا"],
   observedDepth: ["Observed book depth", "عمق مشاهده‌شدهٔ دفتر سفارش"],
@@ -416,6 +439,21 @@ function renderMarkets() {
   const data = state.markets;
   if (!data) return;
   const markets = list(data.markets), search = state.filter.trim().toLocaleLowerCase();
+  const caps = data.capabilities;
+  setHTML("market-capabilities", caps ? keyValues([
+    [t("collectionMode"), label(caps.collection?.mode) + (caps.collection?.requested_assets != null ? ` · ${num(caps.collection.requested_assets)}` : "")],
+    [t("listedPairs"), num(caps.catalog_markets)],
+    [t("collectionCapacity"), num(caps.asset_capacity)],
+    [t("paperSides"), esc(t("paperSidesNote"))],
+    [t("financingScope"), esc(t("financingScopeNote"))],
+    [t("decisionTimeframes"), list(caps.resolutions).map(code).join(" · ")],
+    [t("candleFetchTimeframes"), list(caps.venue_candle_fetch_resolutions).map(code).join(" · ")],
+  ]) + `<p class="field-help">${esc(t("timeframeSourceNote"))}</p>` : empty(t("unavailable")));
+  const catalogue = list(data.catalog).filter(row => (!state.quote || row.quote === state.quote)
+    && (!search || [row.symbol, row.base, row.quote].some(value => String(value ?? "").toLocaleLowerCase().includes(search))));
+  setHTML("market-catalogue", table([t("pair"), t("collectionState"), t("riskFlag")], catalogue.map(row => [
+    code(row.symbol), label(row.reason), esc(t(row.risk_flagged ? "yes" : "no")),
+  ]), t("nothing")));
   const shown = markets.filter(market => (!state.quote || market.quote === state.quote)
     && (!search || [market.symbol, market.base, market.quote, ...Object.values(market.names || {})].some(value => String(value ?? "").toLocaleLowerCase().includes(search))));
   setHTML("market-summary", stat(t("observedPairs"), num(markets.length), t("observedPairsNote"))
@@ -542,6 +580,8 @@ async function setupResearch(symbol = "") {
     const initial = !state.researchSetup;
     state.researchSetup = setup;
     if (initial) {
+      $("compare-resolution").innerHTML = list(setup.resolutions ?? FIXED_RESOLUTIONS).map(item => `<option>${esc(item)}</option>`).join("");
+      $("compare-resolution").value = setup.defaults.resolution;
       $("compare-symbol").innerHTML = list(setup.symbols).map(item => `<option>${esc(item)}</option>`).join("");
       $("compare-symbol").value = setup.coverage.symbol;
       $("compare-fee").value = setup.defaults.fee_rate;

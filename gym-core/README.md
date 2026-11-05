@@ -15,8 +15,8 @@ remaining terminal-only or protected-console workflows.
 ```powershell
 cd gym-core
 uv sync
-uv run gymctl run              # full catalog + top 50 non-risky spot assets -> data\live
-uv run gymctl run --assets 100 # choose 25..500 assets; both TMN/USDT markets are observed when listed
+uv run gymctl run              # full catalog + all supported spot assets -> data\live
+uv run gymctl run --assets 100 # choose 1..500 ranked non-risky assets; observe both TMN/USDT legs when listed
 uv run gymctl run --demo       # synthetic DEMO feed -> data\demo (never mixed with live)
 uv run gymctl rules list       # also: add|edit|import|export|disable|rollback|preset|check
 uv run gymctl spreads --output spreads.json  # all observed pairs, grouped by Tehran hour; creates a new file
@@ -28,11 +28,26 @@ uv run gymctl paper BTCTMN --demo   # EMA replay + baselines + gross-to-net wate
 uv run pytest -q               # behavior and architecture checks
 ```
 
-Live `run` stores every current catalog row, then ranks active non-risky spot assets by combined 24-hour quote volume
-(TMNs are normalized through USDTTMN). The default is 50 assets; `--assets 25..500` changes the target. `--add-symbols BTCUSDT,XRPTMN` and `--remove-symbols PEPETMN` overlay
-the ranked set; `--watch` replaces it with an explicit market list. Custom additions are observation-only and bypass ranking filters. Each WebSocket observes at most 21 markets (63 of Wallex's 64 channels). Public REST is globally
+Live `run` stores every current catalog row and defaults to `--assets all`: observe
+all listed spot assets with TMN/USDT quotes, including venue-risk-flagged listings.
+This does not grant paper eligibility or order authority. Automatic collection has
+a 500-asset resource ceiling; exceeding it fails explicitly instead of truncating.
+`--assets 1..500` selects a ranked non-risk-flagged subset by combined 24-hour quote
+volume (TMN volumes are normalized through USDTTMN). `--add-symbols BTCUSDT,XRPTMN`
+and `--remove-symbols PEPETMN` overlay the set; `--watch` replaces it with an explicit
+market list. Custom additions are observation-only and bypass ranking filters.
+Each WebSocket observes at most 21 markets (63 of the adapter's 64-channel ceiling). Public REST is globally
 paced at four requests/second, backs off again on HTTP 429, reseeds stale books in batches of five, and rotates ten candle
-checks per minute. The local `/api/markets` response exposes the selection and pacing policy.
+checks per minute. The local `/api/markets` response exposes the full catalogue,
+collection reasons and capabilities; `/api/capabilities` reports the same runtime
+policy. The EN/FA Markets page displays it. Its search and quote filter apply to
+both observed quotes and the catalogue; uncollected listings have no invented quotes.
+
+Buying and selling are **spot paper long/flat only, at 1×**: SELL exits owned
+assets, not a borrowed short. Supplied-debt LONG/SHORT financing diagnostics are
+available through the research workbench's accounting/market-model workflow and
+`gymctl paper-research`. They do not implement borrowing, margin orders, short
+settlement or live leverage. No live order submission is available.
 
 `trade-flow [SYMBOL]` reads the existing store without changing it. Optional
 `--from` and `--to` are zoned ISO bounds, with an exclusive upper cut. A trade
@@ -45,7 +60,14 @@ empty data is unavailable. `--demo` explicitly labels synthetic observations.
 The digest identifies the included raw rows; gaps, repeats, complete venue tape
 and executable prices are not certified. No model call, signal or order occurs.
 
-`paper` takes `--from/--to` (zoned ISO), `--res 1min|15min|1h|1day|session`, `--subscribe 1min,15min,1h,1day,session`,
+`paper` takes `--from/--to` (zoned ISO), `--res` and comma-separated `--subscribe`.
+Shared fixed timeframes are `1min`, `3min`, `5min`, `15min`, `30min`, `1h`, `2h`,
+`4h`, `6h`, `12h`, `1day`; rule-based `session` is also available in CLI replay.
+Comparison, coverage, technical reports and confirmation schemas use the same
+fixed-timeframe catalogue. These bars derive from received observations; they do
+not backfill missing history. Direct venue candle fetching remains `1min`/`1h`.
+Daily bars align to Tehran midnight; intraday bars align to UTC.
+Other paper options include
 `--fast/--slow`, `--fee`, `--latency-ms` and `--rules point-in-time|today`. Subscribed closed bars are merged by
 availability time and resolution rank; only the primary `--res` drives the current EMA strategy. The same inputs give the same `run_id` and `outputs` digest. Fills use the first qualified
 ask (buy) or bid (sell) at or after decision + latency. Rule closures, quota and minimums cause nonfills. Holdings are

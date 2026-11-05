@@ -97,6 +97,7 @@ window.gymResearch = (() => {
       $('research-workbench').before(host);
     }
     const text = (en, persian) => fa ? persian : en;
+    const resolutions = JSON.parse($('gym-config').textContent).resolutions || [];
     host.innerHTML = `<h2>${text('Research workspace', 'فضای پژوهش')}</h2>
       <p>${text('Recorded observations and paper decisions. Supplied account inputs remain unverified.', 'مشاهدات ثبت‌شده و تصمیمات آزمایشی؛ اطلاعات حساب ورودی تأییدشده نیست.')}</p>
       <details open><summary>${text('Coverage timeline', 'خط زمانی پوشش داده')}</summary>
@@ -104,7 +105,7 @@ window.gymResearch = (() => {
           <label>${text('Symbol', 'نماد')}<input id="coverage-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text('From · UTC', 'از · UTC')}<input id="coverage-from" type="datetime-local" required></label>
           <label>${text('To · UTC', 'تا · UTC')}<input id="coverage-to" type="datetime-local" required></label>
-          <label>${text('Resolution', 'بازه')}<select id="coverage-resolution"><option>1min</option><option>15min</option><option>1h</option><option>1day</option></select></label>
+          <label>${text('Resolution', 'بازه')}<select id="coverage-resolution">${resolutions.map(value => `<option>${esc(value)}</option>`).join('')}</select></label>
           <button class="button" type="submit">${text('Inspect coverage', 'بررسی پوشش')}</button></form><div id="coverage-timeline"></div></details>
       <details><summary>${text('Failed jobs and recovery', 'کارهای ناموفق و بازیابی')}</summary>
         <button id="recovery-refresh" class="button" type="button">${text('Load jobs', 'نمایش کارها')}</button>

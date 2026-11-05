@@ -18,7 +18,8 @@ from ..domain.registry import catalog
 from ..domain.sim import CostModel
 from ..services.research import coverage
 from ..domain.account_observations import project_account
-from ..domain.bars import qualified
+from ..domain.bars import FIXED_RESOLUTIONS, qualified
+from ..services.capabilities import market_catalog, workspace_capabilities
 from ..domain.model import TOMAN, InstrumentId, iso, parse_ts
 from ..domain.rules import is_closed
 from ..services.collector import Collector, now_utc
@@ -67,6 +68,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
 
     async def index(_):
         html = UI.read_text("utf-8").replace("__GYM_TOKEN__", token).replace("__GYM_DEMO__", json.dumps(col.demo))
+        html = html.replace("__GYM_RESOLUTIONS__", json.dumps(list(FIXED_RESOLUTIONS)))
         for asset in ("app.js", "models.js", "replay-chart.js", "research.js", "native-review.js", "styles.css"):
             version = sha256(UI.with_name(asset).read_bytes()).hexdigest()[:16]
             html = html.replace(f'"/{asset}"', f'"/{asset}?v={version}"')
@@ -93,7 +95,11 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                 "act": rules.act(inst, now),
             })
         return web.json_response({"now": iso(now), "demo": col.demo, "fx": fx_factor(now),
-                                  "universe": col.universe, "markets": rows})
+                                  "universe": col.universe, "markets": rows,
+                                  "catalog": market_catalog(col), "capabilities": workspace_capabilities(col)})
+
+    async def capabilities(_):
+        return web.json_response(workspace_capabilities(col), headers={"Cache-Control": "no-store"})
 
     def fx_factor(now):
         """USDT/IRT valuation factor: STALE_CLOSED during a closure (last mid kept), LIVE when quoted."""
@@ -244,7 +250,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
     async def research_setup(req):
         observed = [row[0] for row in col.db.c.execute("select distinct substr(instrument_id, 8) from book_top order by 1")]
         symbol = req.query.get("symbol") or ("BTCTMN" if "BTCTMN" in observed else observed[0] if observed else "BTCUSDT")
-        return web.json_response({"strategies": catalog(), "symbols": observed,
+        return web.json_response({"strategies": catalog(), "symbols": observed, "resolutions": list(FIXED_RESOLUTIONS),
                                   "coverage": coverage(col.db, symbol),
                                   "defaults": {"fee_rate": os.environ.get("GYM_FEE_RATE", str(CostModel().fee_rate)),
                                                "latency_ms": 500, "resolution": "15min"},
@@ -434,6 +440,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/native-review.js", browser_asset),
         web.get("/replay-chart.js", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health), web.get("/api/ready", ready),
+        web.get("/api/capabilities", capabilities),
         web.get("/api/backup-status", backup_status_api),
         web.get("/api/account-observations", account_observations),
         web.get("/api/external-order-events", external_events),

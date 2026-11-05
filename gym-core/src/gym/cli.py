@@ -12,8 +12,9 @@ from decimal import Decimal, DecimalException
 from pathlib import Path
 
 from .adapters.store import MarketDB, SegmentWriter
+from .domain.bars import FIXED_RESOLUTIONS, RESOLUTIONS
 from .domain.model import InstrumentId, iso, parse_ts
-from .services.collector import Collector, now_utc
+from .services.collector import Collector, now_utc, parse_asset_count
 from .services.rules import RuleService
 
 DEFAULT_WATCH = "USDTTMN,BTCTMN,BTCUSDT,ETHTMN,ETHUSDT"
@@ -681,8 +682,8 @@ def main(argv=None):
     r = sub.add_parser("run", help="run collector + local API + UI")
     r.add_argument("--demo", action="store_true", help="synthetic DEMO feed, stored separately")
     r.add_argument("--port", type=int, default=8765)
-    r.add_argument("--assets", type=int, choices=range(25, 501), default=50, metavar="25..500",
-                   help="ranked non-risky spot assets to observe (25..500, default 50; live auto-universe only)")
+    r.add_argument("--assets", type=parse_asset_count, default=None, metavar="all|1..500",
+                   help="all supported spot assets by default (including flagged listings), or a ranked non-risky count; live auto-universe only")
     r.add_argument("--watch", help="explicit comma-separated market override; otherwise select --assets from the full catalog")
     r.add_argument("--add-symbols", default="", help="comma-separated catalog markets to add after selection")
     r.add_argument("--remove-symbols", default="", help="comma-separated markets to remove after selection")
@@ -722,7 +723,7 @@ def main(argv=None):
         command.add_argument("--demo", action="store_true")
         command.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
         command.add_argument("--to", dest="end", help="exclusive UTC ISO cut (default: last stored quote)")
-        command.add_argument("--res", default="15min", help="decision close: 1min | 15min | 1h | 1day | session")
+        command.add_argument("--res", default="15min", choices=list(RESOLUTIONS), help="decision close from the shared bar engine")
         command.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
         command.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
         command.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
@@ -743,7 +744,7 @@ def main(argv=None):
     technicals.add_argument("symbol")
     technicals.add_argument("--from", dest="start", required=True)
     technicals.add_argument("--to", dest="end", required=True)
-    technicals.add_argument("--res", action="append", help="fixed resolution; repeat for up to four views of one snapshot (default: 15min)")
+    technicals.add_argument("--res", action="append", choices=list(FIXED_RESOLUTIONS), help="fixed resolution; repeat for up to four views of one snapshot (default: 15min)")
     technicals.add_argument("--demo", action="store_true")
     technicals.add_argument("--output", help="create a new JSON report; never overwrite")
     candles = sub.add_parser("candles", help="cross-check internal trade bars against venue candles (DATA-05)")
@@ -827,7 +828,7 @@ def main(argv=None):
     se.add_argument("symbol")
     se.add_argument("--demo", action="store_true")
     se.add_argument("--seconds", type=int, default=3600, help="duration after warmup")
-    se.add_argument("--res", default="15min")
+    se.add_argument("--res", default="15min", choices=list(RESOLUTIONS))
     se.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
     se.add_argument("--fast", type=int, default=8)
     se.add_argument("--slow", type=int, default=21)
