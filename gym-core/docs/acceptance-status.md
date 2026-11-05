@@ -4,7 +4,7 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
-Current delivery: **977 Python passed, five skipped, 39 subtests; 148 native
+Current delivery: **1005 Python passed, five skipped, 39 subtests; 148 native
 tests passed**. Native committed account receipt references now pass through the
 helper, CLI, saved journal and guarded account API to EN/FA account details.
 Exact recorded fee rates are visible too. A local receipt copy is not independent
@@ -17,8 +17,18 @@ and the bilingual Markets page share the actual selection policy, full catalogue
 and exclusion reasons. Eleven fixed timeframes now share the bar engine,
 strategy confirmation schemas, CLI, comparison selector and coverage selector.
 Replay/indicator tests verify added intervals and availability-safe closes.
-Spot paper remains 1× long/flat; supplied-debt LONG/SHORT diagnostics do not
-implement borrowing, margin execution or short settlement.
+Spot paper remains 1× long/flat. A separate Wallex margin workflow now shares
+current public rules, loan/collateral checks, venue previews and LONG/SHORT paper
+replay across GUI and CLI. It models fee currencies, extension periods, stops,
+targets, liquidation, expiry and debt without real borrowing or position writes.
+The current 52-tool public API inventory and related authenticated/commitment
+endpoints are reviewed in [margin rules](wallex-margin.md).
+Actual CLI qualification saved the 35-market catalogue and both directions'
+previews. Replay of retained real quotes left the LONG entry pending and closed
+the modeled SHORT after its declared 120-second holding period; no fill was
+invented for the unmatched LONG limit. Receipts: `.pi/margin-qualification.json`
+and `.pi/margin-replay-qualification.json`. Exit fees remain explicit paper
+assumptions; actual venue eligibility, protection and settlement are unqualified.
 The running collector uses `--assets all`; retained evidence shows 373 selected
 markets across 187 assets (18 WebSocket shards) from 469 catalogue rows. All
 373 recorded observations after restart; this is coverage evidence, not proof

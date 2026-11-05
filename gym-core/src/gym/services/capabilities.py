@@ -9,9 +9,9 @@ def workspace_capabilities(col):
     return {
         "schema": "workspace-capabilities/1", "venue": "wallex",
         "funded_authority": False, "live_order_submission": False,
-        "sides": {"BUY": "PAPER_SPOT", "SELL": "OWNED_ASSET_ONLY", "SHORT": "DIAGNOSTIC_ONLY"},
-        "products": {"SPOT": "PAPER_LONG_FLAT", "MARGIN": "DIAGNOSTIC_ONLY", "TRADE_CREDIT": "DIAGNOSTIC_ONLY"},
-        "leverage": {"spot_paper": "1", "financing": "SUPPLIED_DEBT_DIAGNOSTIC", "live": "NOT_IMPLEMENTED"},
+        "sides": {"BUY": "PAPER_SPOT", "SELL": "OWNED_ASSET_ONLY", "SHORT": "PAPER_MARGIN"},
+        "products": {"SPOT": "PAPER_LONG_FLAT", "MARGIN": "VENUE_PREVIEW_AND_PAPER_REPLAY", "TRADE_CREDIT": "DIAGNOSTIC_ONLY"},
+        "leverage": {"spot_paper": "1", "margin": "VENUE_CREDIT_RATIO_GRID", "financing": "SUPPLIED_DEBT_DIAGNOSTIC", "live": "NOT_IMPLEMENTED"},
         "resolutions": list(FIXED_RESOLUTIONS), "rule_session_bars": True,
         "venue_candle_fetch_resolutions": list(UDF_RESOLUTIONS),
         "bar_source": "RECEIVED_OBSERVATIONS", "collection": dict(col.universe),

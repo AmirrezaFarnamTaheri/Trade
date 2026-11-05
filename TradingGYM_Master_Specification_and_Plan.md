@@ -394,6 +394,16 @@ The other examples in the documentation come from a staging system and are inter
 
 #### 2.9.2 Margin, observed read-only
 
+The implemented research workflow fetches current public margin market rules,
+checks the loan calculator's collateral range and saves the venue preview with
+exact currencies and actual receipt clocks. GUI and CLI share `margin-markets`,
+`margin-preview` and `margin-replay`. LONG/SHORT paper positions use those terms
+and later recorded quotes for limit entry, warning, liquidation, protection,
+expiry, extension charges and debt accounting. Current terms never become
+knowledge before receipt. Venue mark rules, funding repricing and real settlement
+remain unqualified; see [margin rules and endpoint review](gym-core/docs/wallex-margin.md).
+This does not expand the protected executor's funded endpoint allowlist.
+
 Margin positions [proof: X24] expose warning (`call_price`) and liquidation prices, `expires_at`, opening/trading/extension fees and per-market `max_age`; examples describe up to 21 days and four-hour extension periods, but executable logic uses the current market and preview fields such as `extend_time` and returned fees. **Opening a position takes no idempotency key of ours**, so margin is not a funded TradingGYM product. Authenticated margin GETs may be allowlisted solely for `ExternalExposure`, reconciliation and warnings; all margin writes remain excluded. The price-bearing close call is not assumed immediate. Raw `state` and `close_reason` values are preserved case-sensitively with an `UNKNOWN` fallback. The public dry-run (`POST /margin-trade/v1/public/dry-run`) lets research `SCENARIO`s reproduce venue arithmetic without account access.
 
 #### 2.9.3 Instant trade, operator-initiated only

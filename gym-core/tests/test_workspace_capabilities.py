@@ -95,7 +95,7 @@ def test_catalog_capability_api_and_page_share_runtime_configuration(monkeypatch
         caps = workspace_capabilities(col)
         assert caps["collection"]["mode"] == "all-spot"
         assert caps["sides"]["SELL"] == "OWNED_ASSET_ONLY"
-        assert caps["sides"]["SHORT"] == "DIAGNOSTIC_ONLY"
+        assert caps["sides"]["SHORT"] == "PAPER_MARGIN"
         assert caps["funded_authority"] is False
         async with TestClient(TestServer(make_app(col, RuleService(db), "secret"))) as client:
             payload = await (await client.get("/api/markets")).json()

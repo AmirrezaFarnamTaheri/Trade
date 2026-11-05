@@ -91,6 +91,7 @@
         </form>
         <section class="panel" aria-labelledby="research-jobs-title"><div class="panel-heading"><h2 id="research-jobs-title" class="panel-title" data-t="researchJobs">Scheduled paper research</h2><button id="research-tick" type="button" class="button button-small" data-t="runDueResearch" disabled>Run due jobs now</button></div><p class="field-help" data-t="researchScheduleNote">Schedules are stored locally. Continuous execution requires the foreground research runner; this button runs one bounded batch.</p><div id="research-jobs" aria-live="polite"></div><div id="research-control-result" role="status" aria-live="polite"></div><h3 data-t="researchAlerts">Research alerts</h3><div id="research-alerts"></div></section>
         <div class="research"><aside class="panel run-panel"><h2 class="panel-title" data-t="paperRuns">Saved runs</h2><p class="field-help" data-t="runLimit">Latest 50 runs</p><ul id="run-list" class="run-list"></ul></aside><div id="run-detail" class="run-detail"></div></div>
+        <section id="margin-workbench" class="panel"></section>
         <section id="research-workbench" class="panel"></section>
       </section>
 
@@ -148,6 +149,7 @@
 <script id="gym-config" type="application/json">{"token":"__GYM_TOKEN__","demo":__GYM_DEMO__,"resolutions":__GYM_RESOLUTIONS__}</script>
 <script src="/models.js" defer></script>
 <script src="/research.js" defer></script>
+<script src="/margin.js" defer></script>
 <script src="/native-review.js" defer></script>
 <script src="/replay-chart.js" defer></script>
 <script src="/app.js" defer></script>

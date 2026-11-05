@@ -72,12 +72,13 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
     from gym.api import server
 
     ui = tmp_path / "index.html"
-    ui.write_text('<script src="/app.js"></script><script src="/models.js"></script><script src="/research.js"></script><script src="/replay-chart.js"></script><script src="/native-review.js"></script><link href="/styles.css">', encoding="utf-8")
+    ui.write_text('<script src="/app.js"></script><script src="/models.js"></script><script src="/research.js"></script><script src="/replay-chart.js"></script><script src="/native-review.js"></script><link href="/styles.css"><script src="/margin.js"></script>', encoding="utf-8")
     script, style = tmp_path / "app.js", tmp_path / "styles.css"
     script.write_text("// old", encoding="utf-8")
     style.write_text("body {}", encoding="utf-8")
     (tmp_path / "models.js").write_text("// model controls", encoding="utf-8")
     (tmp_path / "research.js").write_text("// research controls", encoding="utf-8")
+    (tmp_path / "margin.js").write_text("// margin controls", encoding="utf-8")
     (tmp_path / "replay-chart.js").write_text("// decision chart", encoding="utf-8")
     (tmp_path / "native-review.js").write_text("// protected review controls", encoding="utf-8")
     monkeypatch.setattr(server, "UI", ui)
@@ -93,13 +94,17 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
                 updated = await (await client.get("/")).text()
                 assert first != updated
                 urls = re.findall(r'(?:src|href)="([^"]+)"', updated)
-                assert len(urls) == 6 and all("?v=" in url for url in urls)
+                assert len(urls) == 7 and all("?v=" in url for url in urls)
                 assert (await (await client.get(urls[0])).text()) == "// new"
                 assert (await (await client.get(urls[1])).text()) == "// model controls"
                 assert (await (await client.get(urls[2])).text()) == "// research controls"
                 assert (await (await client.get(urls[3])).text()) == "// decision chart"
                 assert (await (await client.get(urls[4])).text()) == "// protected review controls"
                 assert (await (await client.get(urls[5])).text()) == "body {}"
+                assert (await (await client.get(urls[6])).text()) == "// margin controls"
+                (tmp_path / "margin.js").write_text("// updated margin controls", encoding="utf-8")
+                refreshed = await (await client.get("/")).text()
+                assert urls[0] in refreshed and urls[6] not in refreshed
         finally:
             db.c.close()
 

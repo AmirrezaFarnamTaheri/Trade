@@ -32,11 +32,11 @@ from .liquidity import audit_depth
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
-                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("experiment-list", "experiment-status", "entry-locks")]))
+                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("experiment-list", "experiment-status", "entry-locks", "margin-markets")]))
 
 
 def _market_db(root):
@@ -56,6 +56,9 @@ def research_action(root, action, value=None, *, store="live", at=None):
         raise ValueError("protocol mutations use the actual clock, without --at overrides")
     if action in OPERATOR_ACTIONS:
         return operator_action(root, action, value, store=store)
+    if action in ("margin-markets", "margin-preview", "margin-replay"):
+        from .margin import margin_action
+        return margin_action(root, action, value, store=store)
     if action == "news-fetch":
         from .news_feed import fetch_news
         return fetch_news(root, value, store=store)

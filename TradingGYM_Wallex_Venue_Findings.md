@@ -98,10 +98,20 @@ Most Abantether-specific text changes:
 
 ## 8. Margin (معامله تعهدی) in detail
 
+**Current implementation check (6 November local / 5 November UTC):** actual
+public CLI calls returned 35 margin markets with credit ratios 1..10 in 0.5 steps
+and 1814400-second lifetime. Both the loan calculator and LONG/SHORT preview
+answered without credentials, superseding the earlier Swagger-only authentication
+note below for this observation. The returned BTC/USDT ratio-2 collateral range
+was 50..850 USDT; it is request-specific. GUI/CLI public-rule, preview and
+recorded-quote paper replay now share one implementation. See
+[margin and related endpoint review](gym-core/docs/wallex-margin.md).
+No real position, loan, order or transfer was submitted.
+
 | Step | Endpoint | Inputs | What it returns or does |
 | --- | --- | --- | --- |
 | Active markets | `GET /margin-trade/v1/public/markets` (public) | none | `base`, `quote`, `min_risk_coef`, `max_risk_coef`, `risk_coef_step`, `liquidity_margin` (remaining % before liquidation), `max_age` |
-| Collateral range | `POST /margin-trade/v1/public/loan` (key required in the Swagger file despite the `public` path) | `market`, `risk_coef`, `side` (`long`/`short`) required; `collateral`, `open_price` optional | Minimum and maximum collateral; loan value and currency |
+| Collateral range | `POST /margin-trade/v1/public/loan` (anonymous live checks passed 5 November UTC; older Swagger declares a key) | `market`, `risk_coef`, `side` (`long`/`short`) required; `collateral`, `open_price` optional | Minimum and maximum collateral; loan value and currency |
 | Preview | `POST /margin-trade/v1/public/dry-run` (public) | `collateral`, `market`, `open_price`, `risk_coef`, `side` required; `stop_loss`, `take_profit` optional | `call_price` (warning level), `liquidity_price`, loan, opening fee, trading fee, extension fee per `extend_time`, `max_age` |
 | Open | `POST /margin-trade/v1/positions` | same as preview | Position: `id`, `state`, `first_order_filled`, `is_called`, `call_price`, `liquidity_price`, `expires_at`, `interest`, `profit`, `open_filled_price` |
 | Add collateral | `PATCH /margin-trade/v1/positions/{id}/collateral` | `change` | Updated position |
@@ -113,7 +123,7 @@ Most Abantether-specific text changes:
 
 1. **Opening a margin position has no client ID.** The request schema has no idempotency field. After a lost response, the only recovery is listing positions and matching market, side, collateral and time. Funded margin automation would therefore be weaker on duplicate protection than spot, supporting the normative read-only scope in Decision D18 and Section 2.9.
 2. **Read-only exposure is fully visible.** Positions expose `call_price` (the warning level), `liquidity_price`, `expires_at` and `interest`. `ExternalExposure` can show distance to warning and to liquidation, and time to expiry, automatically. This is better than Abantether, where these had to be entered by hand.
-3. **The preview needs no key** (the loan calculator does, per the Swagger file). Research `SCENARIO`s can be checked against the venue's own fee and liquidation arithmetic without any account access.
+3. **Anonymous preview and loan checks passed** on 5 November UTC. Older Swagger declares a key for the loan calculator; authentication failures must remain explicit if that contract changes. Research scenarios can use the returned fee, collateral and liquidation terms without account access or a position write.
 4. **Costs and lifetime:** prose/examples describe an opening fee, trading fee, four-hour extension periods and up to 21 days, but the adapter uses current per-market `max_age` and preview `extend_time`/fee fields rather than hard-coded example values.
 5. **Documentation slip:** the page for spot `GET /v1/account/orders` is titled "List margin orders" in the spot section; the real margin list is `/margin-trade/v1/orders`.
 6. **Still unknown:**

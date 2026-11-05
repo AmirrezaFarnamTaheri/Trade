@@ -43,11 +43,15 @@ collection reasons and capabilities; `/api/capabilities` reports the same runtim
 policy. The EN/FA Markets page displays it. Its search and quote filter apply to
 both observed quotes and the catalogue; uncollected listings have no invented quotes.
 
-Buying and selling are **spot paper long/flat only, at 1×**: SELL exits owned
-assets, not a borrowed short. Supplied-debt LONG/SHORT financing diagnostics are
-available through the research workbench's accounting/market-model workflow and
-`gymctl paper-research`. They do not implement borrowing, margin orders, short
-settlement or live leverage. No live order submission is available.
+Spot paper buying/selling remains **long/flat at 1×**: SELL exits owned assets.
+The separate **Paper research → Wallex margin** workflow now supports LONG/SHORT
+paper positions using current venue credit-ratio grids, collateral checks,
+public previews, currency-aware fees and recorded-quote replay. The GUI and
+`gymctl research margin-markets|margin-preview|margin-replay` use the same bounded
+services and immutable receipts. See [margin rules and endpoint review](docs/wallex-margin.md)
+for inputs, fee/closure assumptions, authenticated endpoints and qualification
+limits. No real borrowing, margin position, order or transfer is submitted.
+Generic supplied-debt diagnostics remain available through `gymctl paper-research`.
 
 `trade-flow [SYMBOL]` reads the existing store without changing it. Optional
 `--from` and `--to` are zoned ISO bounds, with an exclusive upper cut. A trade

@@ -10,7 +10,7 @@ const vocabulary = {
   paperSides: ["Paper buy / sell", "خرید / فروش آزمایشی"],
   paperSidesNote: ["Spot · 1× · buy, then sell owned assets; no borrowed positions", "نقدی · ۱ برابر · خرید و فروش دارایی موجود؛ بدون موقعیت قرضی"],
   financingScope: ["Leverage / short selling", "اهرم / فروش استقراضی"],
-  financingScopeNote: ["Supplied-debt LONG / SHORT diagnostics only. Borrowing, margin execution and short settlement are not implemented.", "فقط تحلیل LONG / SHORT با بدهی ورودی. قرض‌گیری، اجرای اعتباری و تسویهٔ فروش استقراضی پیاده‌سازی نشده‌اند."],
+  financingScopeNote: ["Margin LONG / SHORT: public venue rules, collateral checks, previews and local paper replay in Paper research. Trade credit: supplied-debt diagnostics. Live borrowing and order submission remain unavailable.", "تعهدی لانگ / شورت: قواعد عمومی صرافی، بررسی وثیقه، پیش‌نمایش و بازپخش محلی در پژوهش آزمایشی. اعتبار معاملاتی: تحلیل با بدهی ورودی. قرض‌گیری و ارسال سفارش واقعی در دسترس نیست."],
   decisionTimeframes: ["Paper decision timeframes", "بازه‌های تصمیم آزمایشی"],
   candleFetchTimeframes: ["Venue candle fetch timeframes", "بازه‌های دریافت شمع صرافی"],
   timeframeSourceNote: ["Paper bars use received observations. New timeframes do not create missing history; research requires recorded data. Live order submission is unavailable.", "شمع آزمایشی از مشاهدات دریافتی ساخته می‌شود. بازهٔ جدید تاریخچهٔ مفقود را ایجاد نمی‌کند؛ پژوهش به دادهٔ ثبت‌شده نیاز دارد. ارسال سفارش واقعی در دسترس نیست."],
@@ -409,7 +409,7 @@ function applyLang() {
   renderComparison();
   if (state.researchState) renderResearchJobs(state.researchState);
   if (state.view === "models") window.gymModels?.mount(api, esc);
-  if (state.view === "research") window.gymResearch?.mount(api, esc);
+  if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); }
 }
 
 const invalidQuoteFlags = new Set(["STALE", "CROSSED", "ZERO_SPREAD", "NON_FINITE", "NON_POSITIVE"]);
@@ -928,6 +928,7 @@ async function collectView(name, healthTask) {
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
   if (name === "research") {
     window.gymResearch?.mount(api, esc);
+    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO});
     const results = await Promise.allSettled([research(), researchJobs()]);
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
   }

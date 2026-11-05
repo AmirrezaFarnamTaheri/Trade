@@ -60,7 +60,7 @@ def test_ui_navigation_and_form_labels():
 
 
 def test_ui_javascript_syntax():
-    for name in ("app.js", "models.js", "research.js", "native-review.js"):
+    for name in ("app.js", "models.js", "research.js", "margin.js", "native-review.js"):
         result = subprocess.run([node(), "--check", str(UI.with_name(name))], capture_output=True, encoding="utf-8")
         assert result.returncode == 0, result.stderr
 
@@ -78,5 +78,11 @@ def test_native_review_requires_explicit_action_and_never_promotes_a_receipt():
     operate = html.split('id="v-operate"', 1)[1].split('id="v-rules"', 1)[0]
     assert 'id="native-review-form"' in operate
     result = subprocess.run([node(), "--test", str(Path(__file__).parent / "ui/native-review.test.cjs")],
+                            capture_output=True, encoding="utf-8", timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_margin_ui_uses_venue_terms_exact_inputs_and_paper_only_actions():
+    result = subprocess.run([node(), "--test", str(Path(__file__).parent / "ui/margin.test.cjs")],
                             capture_output=True, encoding="utf-8", timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
