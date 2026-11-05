@@ -1,5 +1,52 @@
 # System status — 2026-11-05
 
+## Protected account receipt capture
+
+The account service path now normalizes and durably records its own balance/fee
+responses before delivering them. Native receipts bind current credential
+generation, service runtime, correlation, request/receive times and the raw-byte
+digest. Only exact decimal strings and required fields survive. Duplicate JSON
+keys, normalized identity collisions, oversized/malformed data, clock regression,
+old generations and repeated requests are refused. Replay applies the same
+checks even to hash-valid events. A JSON-escaped key cannot bypass credential
+echo refusal. Uncertain journal commits stop the service. Existing helper,
+Python, CLI and GUI contracts remain read-only and permission-unverified.
+
+This is not complete account/exposure validation or live admission. Instrument,
+rule/unit, permission, settlement, transport and protection contracts remain
+unfinished. Native receipt freshness cannot cross a runtime/key change; latest
+successful observations do not establish that a later read succeeded. See
+[account observations](../../executor/docs/account-observations.md), including
+the tag-14 rollback compatibility requirement.
+
+Current validation: **146 native tests passed across 38 result groups; 944
+Python tests passed, five skipped, 39 subtests passed**. The selected 70
+account/security tests also passed. Strict Clippy, Windows release
+build, formatting and diff checks passed. npm audit and pip-audit reported no
+known vulnerabilities; the local editable gym-core package is not auditable on
+PyPI. The existing locked serde packages are now normal service dependencies;
+no new package version was introduced.
+
+The prepared installed qualification was launched, but Windows reported
+elevation canceled before the administrator runner started. The target receipt
+directory is `.pi/qualification/20261105T1609020758966`; it retains the old/new
+bundle hashes. No service publication or account API call occurred, and the
+previous installation remains stopped/disabled. Source-level passing tests do
+not qualify this binary set on the installed host.
+
+The public-data paper run **ca730c8a5b186393** completed ten running minutes,
+16:00–16:10 UTC, with **93 qualified observations and two modeled fills**.
+Virtual equity fell from 1,000 to 995.70570135 USDT, net **-4.29429865 USDT**.
+The recorded directional, spread and fee contributions are respectively
+-0.75296405, -1.54463220 and -1.99670240 USDT. An independent posting/equity/
+waterfall check passed with absolute rounding tolerance 1e-23; the exact-posting
+base residual is retained in the check receipt. The supplied fee assumption remains 0.1%; this is not
+actual venue execution or fee calibration. Missing bars were not fabricated.
+Receipt: `.pi/paper-qualification/prospective-20261105T155756394135.json`.
+Portable report: `.pi/reports/paper-ca730c8a5b186393.html`.
+Sustained paper qualification, future scheduled windows and second-host recovery
+remain open. Current browser rendering was not checked.
+
 ## Reviewed reservations and paper recovery
 
 Native offline admission now commits the exact prepared ticket, attempt and

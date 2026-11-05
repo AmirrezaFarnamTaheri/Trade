@@ -75,6 +75,8 @@ fn finish_observation(body: Secret, key: &Secret, elapsed: Duration) -> io::Resu
     {
         return Err(uncertain());
     }
+    exec_svc::account_observation::reject_credential_echo(&body.0, &key.0)
+        .map_err(|_| uncertain())?;
     Ok(body)
 }
 
@@ -191,7 +193,9 @@ mod tests {
     fn response_bound_deadline_and_credential_echo_fail_closed() {
         let key = Secret(b"synthetic-not-a-key".to_vec());
         for size in [1, MAX_ACCOUNT_BODY] {
-            assert!(finish_observation(Secret(vec![b'x'; size]), &key, Duration::ZERO).is_ok());
+            let mut body = vec![b' '; size];
+            body[0] = b'0';
+            assert!(finish_observation(Secret(body), &key, Duration::ZERO).is_ok());
         }
         for size in [0, MAX_ACCOUNT_BODY + 1] {
             assert!(finish_observation(Secret(vec![b'x'; size]), &key, Duration::ZERO).is_err());

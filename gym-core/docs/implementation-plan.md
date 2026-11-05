@@ -98,6 +98,24 @@ funded boundary were not expanded by these research features.
 
 ## Remaining execution and acceptance work
 
+The protected service now captures exact balance/fee receipts from its own
+fixed-origin transport, binds key generation/runtime/receive clocks and commits
+sanitized data before delivery. Replays, duplicate identities, stale keys,
+regressed clocks and malformed money are refused. Decoded JSON credential echoes
+are blocked. This implements observation capture only: it does not establish
+permissions, spendability, instruments, complete exposure or executable admission.
+The helper/CLI/GUI keep their existing read-only contracts; internal native
+receipts are not represented as authenticated portfolio holdings. See
+[protected account observations](../../executor/docs/account-observations.md).
+
+Real prospective paper run ca730c8a5b186393 completed ten running minutes with
+93 qualified observations and two modeled fills. Virtual 1,000 USDT became
+995.70570135 USDT (net -4.29429865); postings, equity and the reported cost
+waterfall reconciled separately. Assumed fees and absent depth/queue modeling
+still prevent actual-cost or sustained strategy qualification. The current
+Windows publication attempt was canceled at elevation; the previous installed
+bundle remains stopped/disabled and the new source is not host-qualified.
+
 The native offline join from prepared review to exact ticket/attempt/reservation
 is implemented and replay-checked in one journal event. It rechecks current
 review context, shared cash, cross-account quote holds and explicit units.
@@ -158,10 +176,10 @@ See
 | Installed custody/recovery | Passed on this host with synthetic credentials | Protected publication, provision/restart/corruption refusal/recovery passed with retained history. The service is stopped and disabled. Real credentials and future funded-ledger recovery are unqualified. |
 | Actual worker isolation | Passed on this host under ACER | Actual no-capability AppContainer child denied custody ciphertext/journal, STOP/T2 pipes, profile canary and SCM access; the positive MCP check returned exactly three read-only tools. Repeat after deployment/policy changes. |
 | Independent STOP and hung containment | Passed on this host | Operator commands acknowledged in 12–17 ms under the parked loop; suspended-process containment took 1,037 ms. Normal restart completed, then service stopped/disabled. No funded authority was granted. |
-| Service-owned venue permissions/exposure | Bounded page transport/parsing implemented; actual acceptance open | Install reviewed new helper/service builds and establish the actual key permission contract, balances/locked/external exposure, pagination echoes, manual-order lifecycle and freshness. A successful GET alone cannot certify read-only permissions or settlement. No actual authenticated request was made. |
+| Service-owned venue permissions/exposure | Protected balance/fee receipt capture and bounded page transport/parsing implemented; actual acceptance open | Install reviewed builds and establish the actual key permission contract, instrument/rule/unit identity, complete locked/external exposure, pagination echoes and manual-order lifecycle. Native receipts retain exact amounts and clocks but confer no spendability or settlement. No actual authenticated request was made. |
 | Trusted T1 and real submit/cancel/reconcile | Installed review/preparation/revocation and seven-target denial passed; offline atomic reservation join implemented | Integrate service-owned authenticated account/instrument/rule/cost checks with admission. Add arming, fixed-origin transport, durable first-byte outcomes and unknown-order reconciliation. Exercise offline failures before any separately approved venue probe. |
 | Protective stops, Exit Guard and capped Autopilot | Missing integration | Qualify native venue protection, disjoint quantities, restart/reopening and loss/installation caps through the real money path. Existing offline policy outputs remain advisory. |
-| Sustained prospective paper evidence | Collector restored; additional real short session recorded; sustained qualification open | Run 283fdcf2e906ce0a captured 56 qualified observations, a two-minute post-warmup window and zero fills. It ended normally with unchanged virtual 1,000 USDT. Earlier failed sessions remain recorded. Continue future supervised evidence with actual clocks, gaps and stale marks; this short operational check is not profitability or sustained acceptance. |
+| Sustained prospective paper evidence | Additional ten-minute session with two modeled fills recorded; sustained qualification open | Run ca730c8a5b186393 captured 93 qualified observations and ended normally with virtual net -4.29429865 USDT under assumed fees. Earlier short/failed sessions remain recorded. Continue prospective evidence with actual clocks, gaps and stale marks; this operational check is not profitability, cost calibration or sustained acceptance. |
 | Actual-versus-modeled costs | Open | Independently reconcile measured fills, fees, depth and latency with modeled assumptions. Real orders require a specific approved probe and loss budget; neither is supplied by this broad implementation request. |
 | Physical-machine recovery | Blocked: user confirmed no second machine is available | Restore and verify on a separate physical host, explicitly reprovision credentials, retain DISARMED state. Same-machine WSL does not satisfy this gate. |
 

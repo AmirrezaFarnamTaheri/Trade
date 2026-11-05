@@ -118,6 +118,8 @@ dependencies = [
  "exec-core",
  "exec-ipc",
  "exec-store",
+ "serde",
+ "serde_json",
  "tokio",
  "windows-service",
  "windows-sys",

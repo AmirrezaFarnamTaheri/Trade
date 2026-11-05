@@ -8,6 +8,8 @@ license.workspace = true
 exec-ipc = { path = "../exec-ipc" }
 exec-core = { path = "../exec-core" }
 exec-store = { path = "../exec-store" }
+serde = "1"
+serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 tokio = { version = "1.53", features = ["rt", "net", "io-util", "time", "sync"] }

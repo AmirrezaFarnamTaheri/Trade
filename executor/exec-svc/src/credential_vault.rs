@@ -579,6 +579,65 @@ impl Vault {
         Ok(reply)
     }
 
+    /// Only fixed-origin service bytes can enter the protected observation journal.
+    pub fn observe_account(
+        &mut self,
+        resource: &exec_ipc::provision::AccountResource,
+        request_id: [u8; 16],
+        runtime_epoch: u64,
+    ) -> io::Result<Option<Secret>> {
+        use exec_ipc::provision::AccountResource;
+        use exec_svc::account_observation::{AccountKind, AccountObservation};
+        use exec_svc::offline_recovery::RecoveryError;
+        require_service_identity()?;
+        if !self.mode.allows_account_read() {
+            return Ok(None);
+        }
+        let Some(metadata) = self.journal.credential_metadata() else {
+            return Ok(None);
+        };
+        let generation = metadata.generation;
+        let clock = || -> io::Result<u64> {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(io::Error::other)?
+                .as_millis()
+                .try_into()
+                .map_err(io::Error::other)
+        };
+        let started_at_ms = clock()?;
+        let body = match crate::service_account::read(self, resource) {
+            Ok(body) => body,
+            Err(_) => return Ok(None),
+        };
+        let received_at_ms = clock()?;
+        let kind = match resource {
+            AccountResource::Balances => AccountKind::Balances,
+            AccountResource::Fees => AccountKind::Fees,
+            // Order pages are still observations only, without native completeness/settlement proof.
+            _ => return Ok(Some(body)),
+        };
+        let observation = match AccountObservation::from_response(
+            kind,
+            &body.0,
+            generation,
+            runtime_epoch,
+            request_id,
+            started_at_ms,
+            received_at_ms,
+        ) {
+            Ok(observation) => observation,
+            Err(_) => return Ok(None),
+        };
+        match self.journal.record_account_observation(observation) {
+            Ok(()) => Ok(Some(body)),
+            Err(RecoveryError::Ledger(_)) => Err(io::Error::other(
+                "account receipt commit uncertain; service must stop",
+            )),
+            Err(_) => Ok(None),
+        }
+    }
+
     // No caller-supplied generation and no fallback to a previous/revoked key.
     pub fn load_current_secret(&self) -> io::Result<Option<Secret>> {
         require_service_identity()?;

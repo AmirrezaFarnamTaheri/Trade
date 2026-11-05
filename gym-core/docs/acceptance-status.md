@@ -4,6 +4,22 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
+Latest source work adds protected, durable balance/fee observation capture and
+decoded-JSON credential-echo refusal. **146 native tests and 944 Python tests
+passed, with five skipped and 39 subtests passed**, plus the selected 70
+account/security checks, with strict Clippy and Windows release build
+passing. These receipts do not establish spendable holdings, verified key
+permissions, complete exposure or executable admission. The new installed-host
+attempt was canceled at elevation before publication; the prior installed bundle
+remains stopped/disabled. See [account observations](../../executor/docs/account-observations.md).
+
+Prospective run ca730c8a5b186393 completed ten running minutes with 93 qualified
+observations and two modeled fills, losing virtual 4.29429865 USDT from a 1,000
+USDT start. Its postings/equity/cost waterfall reconciled. This is an observed
+paper result with assumed fees, not sustained acceptance or real execution.
+
+The following source and installed results are retained historical snapshots.
+
 Latest source regression: **944 Python passed, five skipped, 39 subtests passed;
 140 native tests passed**. The new offline journal transaction joins a prepared
 review to its exact ticket/attempt/hold atomically; supplied balance authenticity

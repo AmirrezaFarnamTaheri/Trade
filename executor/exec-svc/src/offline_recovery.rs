@@ -2,6 +2,7 @@
 //! No transport or funded authority: restarting this journal never submits an order.
 //! All records are appended to exec-store's FULL-synchronous hash-chained ledger
 //! before an Attempt projection changes. Unknown bytes or illegal replay fail closed.
+use crate::account_observation::{AccountKind, AccountObservation};
 use exec_core::orders::{
     Attempt, BalanceSnapshot, Event, FailureStage, OrderError, ReservationBook, ReservationError,
     SettlementEvidence,
@@ -24,6 +25,7 @@ const APPROVAL: u8 = 10;
 const REVOKE_APPROVAL: u8 = 11;
 const PREPARE_INTENT: u8 = 12;
 const RESERVE_REVIEW: u8 = 13;
+const ACCOUNT_OBSERVATION: u8 = 14;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OperatorApproval {
@@ -585,6 +587,23 @@ pub struct ExecutionSettlement {
     pub balance: SettlementEvidence,
 }
 
+fn check_account_observation(
+    credential: Option<&CredentialMetadata>,
+    observations: &BTreeMap<AccountKind, AccountObservation>,
+    requests: &BTreeSet<[u8; 16]>,
+    value: &AccountObservation,
+) -> Result<(), RecoveryError> {
+    if credential.is_none_or(|key| key.generation != value.generation())
+        || requests.contains(&value.request_id())
+        || observations
+            .values()
+            .any(|old| value.started_at_ms() < old.received_at_ms())
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    Ok(())
+}
+
 pub struct DurableOrderJournal {
     ledger: Ledger,
     intents: BTreeMap<String, ObservedIntent>,
@@ -599,8 +618,11 @@ pub struct DurableOrderJournal {
     ceiling_requests: BTreeSet<[u8; 16]>,
     approvals: BTreeMap<String, ApprovalView>,
     approval_requests: BTreeSet<[u8; 16]>,
+    account_observations: BTreeMap<AccountKind, AccountObservation>,
+    account_requests: BTreeSet<[u8; 16]>,
 }
 enum Record {
+    AccountObservation(AccountObservation),
     ReviewedReservation(ReviewedReservation),
     PrepareIntent(IntentPreparation),
     Approval(OperatorApproval),
@@ -897,6 +919,15 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
     let kind = r.one()?;
     let id = r.name()?;
     let rec = match kind {
+        ACCOUNT_OBSERVATION => {
+            if id != "main" {
+                return Err(RecoveryError::MalformedEvent);
+            }
+            Record::AccountObservation(
+                AccountObservation::decode(r.take(raw.len() - r.pos)?)
+                    .map_err(|_| RecoveryError::MalformedEvent)?,
+            )
+        }
         PREPARE_INTENT | RESERVE_REVIEW => {
             let value = IntentPreparation {
                 client_id: id,
@@ -1157,7 +1188,8 @@ fn apply_record(
     record: Record,
 ) -> Result<(), RecoveryError> {
     match record {
-        Record::Credential(_)
+        Record::AccountObservation(_)
+        | Record::Credential(_)
         | Record::ReviewedReservation(_)
         | Record::Ceiling(_)
         | Record::Approval(_)
@@ -1419,8 +1451,22 @@ impl DurableOrderJournal {
         let mut ceiling_requests = BTreeSet::new();
         let mut approvals = BTreeMap::new();
         let mut approval_requests = BTreeSet::new();
+        let mut account_observations = BTreeMap::new();
+        let mut account_requests = BTreeSet::new();
         for e in &records {
             let parsed = decode(&e.event_bytes)?;
+            if let Record::AccountObservation(value) = parsed {
+                check_account_observation(
+                    credential.as_ref(),
+                    &account_observations,
+                    &account_requests,
+                    &value,
+                )
+                .map_err(|_| RecoveryError::MalformedEvent)?;
+                account_requests.insert(value.request_id());
+                account_observations.insert(value.kind(), value);
+                continue;
+            }
             if let Record::ReviewedReservation(value) = parsed {
                 apply_review_reservation(
                     ceiling.as_ref(),
@@ -1525,11 +1571,51 @@ impl DurableOrderJournal {
             ceiling_requests,
             approvals,
             approval_requests,
+            account_observations,
+            account_requests,
         })
     }
 
     pub fn credential_metadata(&self) -> Option<&CredentialMetadata> {
         self.credential.as_ref()
+    }
+
+    /// Receipts are not balance/fee/permission authority. Freshness never survives a new runtime/key.
+    pub fn account_observation(
+        &self,
+        kind: AccountKind,
+        generation: [u8; 16],
+        epoch: u64,
+        now: u64,
+        max_age: u64,
+    ) -> Option<&AccountObservation> {
+        if self.credential.as_ref()?.generation != generation {
+            return None;
+        }
+        self.account_observations
+            .get(&kind)
+            .filter(|value| value.is_fresh(generation, epoch, now, max_age))
+    }
+
+    pub fn record_account_observation(
+        &mut self,
+        value: AccountObservation,
+    ) -> Result<(), RecoveryError> {
+        check_account_observation(
+            self.credential.as_ref(),
+            &self.account_observations,
+            &self.account_requests,
+            &value,
+        )?;
+        let mut raw = MAGIC.to_vec();
+        raw.push(ACCOUNT_OBSERVATION);
+        add_name(&mut raw, "main")?;
+        raw.extend_from_slice(&value.encode().map_err(|_| RecoveryError::InvalidIdentity)?);
+        self.ledger.append(&raw)?;
+        self.account_requests.insert(value.request_id());
+        self.account_observations.insert(value.kind(), value);
+        self.records += 1;
+        Ok(())
     }
 
     pub fn installation_ceiling(&self) -> Option<&(u64, CeilingChange)> {

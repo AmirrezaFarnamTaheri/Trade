@@ -174,12 +174,16 @@ pub async fn serve(
                         Request::Account(resource, correlation) => {
                             // This T2 thread may block; independent authenticated T0 never waits on it.
                             let observed = {
-                                let owner = vault
+                                let mut owner = vault
                                     .lock()
                                     .map_err(|_| io::Error::other("vault poisoned"))?;
-                                crate::service_account::read(&owner, &resource)
+                                owner.observe_account(
+                                    &resource,
+                                    correlation,
+                                    operator.gate.runtime_epoch(),
+                                )?
                             };
-                            if let Ok(body) = observed {
+                            if let Some(body) = observed {
                                 let reply = account_reply(body.0.len(), correlation)
                                     .map_err(io::Error::other)?;
                                 let _ = timeout(DEADLINE, async {
