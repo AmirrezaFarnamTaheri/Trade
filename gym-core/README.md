@@ -137,6 +137,9 @@ services → no API. There are no milestone-named production modules or tests.
 
 Storage: raw WS/REST frames go to hourly `raw/YYYYMMDD/*.jsonl.zst` with a SHA-256 manifest in `segments`. `market.db` holds
 change-only `book_top`, `trades`, `quality_events` and the immutable `regime_events` rule ledger.
+Research, operator journals, Executor state and model credential/rotation state
+also use SQLite. See [storage ownership and verification](docs/storage.md) for
+why the compressed raw audit archive remains separate from queryable SQL records.
 
 The first run preloads the preset `usdt-irt-october-2026`: USDTTMN closed 21:00-09:00 Tehran from 30 Sep, then 23:30-11:30
 from 18 Oct, plus a 2,000 USDT purchase cap per Tehran day. Status is REPORTED, from an announcement. Edit it in

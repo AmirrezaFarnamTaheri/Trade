@@ -123,4 +123,17 @@ For local tests only, `GYM_MODEL_ALLOW_LOOPBACK_HTTP=1` admits explicit HTTP URL
 
 The `node:test` suite uses actual SDK implementations against local OpenAI Completions, OpenAI Responses and Anthropic SSE servers. It covers durable unique-value round robin, 429 exhaustion, auth eviction, changed/removed pools, quota-vs-permission 403, transient retries, bounded/cancelled requests and stdin, stream errors, malformed/unknown/inline-key refusal, default-disabled behavior, sync preservation, real CLI subprocesses, SQLite rollback, SDK refresh serialization across processes, process-death unlock, missing/failed OAuth with ambient keys present, and Windows real DPAPI ciphertext roundtrip/corruption refusal. Windows junction refusal runs without symlink privilege; the file-symlink test is skipped when that privilege is unavailable.
 
-Local execution was on Windows with Node v26.1.0 and Python 3.11.9. Node 22/Linux compatibility is targeted by the package engine and parent CI, not claimed as locally executed. No live OAuth login, provider refresh, subscription entitlement, paid request or remote model endpoint was tested. `--device` selects the SDK device flow only for legacy `openai-codex`; current `openai` ChatGPT OAuth is browser/manual-callback only in SDK 1.5.0. OAuth support does not assert compliance with subscription terms. Built-in catalogs and estimated prices can be stale; custom endpoint pricing remains unknown without an explicit provider-reported cost.
+Live OpenRouter qualification on 2026-11-05 UTC used an isolated Windows profile
+and the actual gateway host, SDK and DPAPI helper. All ten supplied keys passed
+the provider's authentication check. Two `openrouter/free` completions returned
+`READY` and `CHECKED` (52 tokens total), each with provider-reported cost zero,
+`RESEARCH_ONLY` mode and no funded authority. The persisted pool cursor advanced
+between requests. Stored database/configuration bytes contained no plaintext
+key values, and completion while disabled was refused. Afterward the gateway
+was disabled, its keys cleared, the process exited successfully and the temporary
+profile was removed. The ordinary operator configuration was not changed.
+This verifies two completions and ten authentication checks, not completion
+access for every key/model. The accompanying suite passed 29 tests, with one
+Windows file-symlink test skipped because the required privilege was unavailable.
+
+Local execution was on Windows with Node v26.1.0 and Python 3.11.9. Node 22/Linux compatibility is targeted by the package engine and parent CI, not claimed as locally executed. Live OAuth login, provider refresh, subscription entitlement and paid requests remain untested. `--device` selects the SDK device flow only for legacy `openai-codex`; current `openai` ChatGPT OAuth is browser/manual-callback only in SDK 1.5.0. OAuth support does not assert compliance with subscription terms. Built-in catalogs and estimated prices can be stale; custom endpoint pricing remains unknown without an explicit provider-reported cost.
