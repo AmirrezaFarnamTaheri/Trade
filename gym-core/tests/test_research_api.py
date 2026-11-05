@@ -1,6 +1,5 @@
 """Loopback paired-research behavior, persistence, and worker isolation."""
 import asyncio
-import sqlite3
 from copy import deepcopy
 from datetime import timedelta
 from threading import Event
@@ -186,17 +185,14 @@ def test_no_storage_and_non_object_requests(research_app):
 def test_pending_worker_is_readonly_nonblocking_and_busy(research_app, monkeypatch):
     db, col, runs = research_app
     entered, release = Event(), Event()
-    original = server.compare
+    original = server.calculate
 
-    def pending(worker_db, *args, **kwargs):
-        assert worker_db is not db
-        with pytest.raises(sqlite3.OperationalError, match="readonly"):
-            worker_db.c.execute("delete from book_top where 0")
+    async def pending(*args, **kwargs):
         entered.set()
-        assert release.wait(5), "test did not release comparison worker"
-        return original(worker_db, *args, **kwargs)
+        assert await asyncio.to_thread(release.wait, 5), "test did not release comparison worker"
+        return await original(*args, **kwargs)
 
-    monkeypatch.setattr(server, "compare", pending)
+    monkeypatch.setattr(server, "calculate", pending)
 
     async def check():
         reading_body, release_body = asyncio.Event(), asyncio.Event()

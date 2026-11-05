@@ -9,6 +9,7 @@ from aiohttp import web
 
 from ..domain.market_models import fields
 from ..services.research_actions import research_action
+from ..services.research_process import calculate, HEAVY_ACTIONS, ResearchProcessFailure
 
 MAX_RESULT_BYTES = 2 * 1024 * 1024
 
@@ -52,7 +53,10 @@ def install(app, token, root, *, store):
             raise ValueError("research store is not configured")
         try:
             async with nullcontext() if inspection else lock:
-                task = asyncio.create_task(asyncio.to_thread(research_action, root, body["action"], body["value"], store=store))
+                calculation = (calculate(root, body["action"], body["value"], store=store)
+                               if body["action"] in HEAVY_ACTIONS else
+                               asyncio.to_thread(research_action, root, body["action"], body["value"], store=store))
+                task = asyncio.create_task(calculation)
                 try:
                     result = await asyncio.shield(task)
                 except asyncio.CancelledError:
@@ -61,6 +65,8 @@ def install(app, token, root, *, store):
                         await task
                     finally:
                         raise
+        except ResearchProcessFailure as error:
+            return web.json_response(error.report, status=error.status, headers={"Cache-Control": "no-store"})
         except (OSError, sqlite3.Error):
             return web.json_response({"error": "research store unavailable"}, status=503)
         chunks, size = [], 0

@@ -211,10 +211,12 @@ Object.assign(vocabulary, {
   exactPrecision: ["Exact precision", "دقت کامل"], exactPrecisionHelp: ["Monetary values retain their source decimal precision.", "مقادیر پولی با دقت اعشاری منبع نمایش داده می‌شوند."],
   safetyLead: ["Check the boundary between research and autonomous execution.", "مرز پژوهش و اجرای خودکار را بررسی کنید."], missingGates: ["Execution gates still open", "پیش‌نیازهای تکمیل‌نشدهٔ اجرا"],
   executorGate: ["The browser cannot attest to the privileged executor service.", "مرورگر نمی‌تواند سرویس مجری دارای دسترسی ویژه را تأیید کند."], stopsGate: ["No certified protective venue stops are connected.", "هیچ توقف حفاظتی تأییدشدهٔ صرافی متصل نیست."], authorityGate: ["Offline previews and paper evidence cannot arm trading.", "پیش‌نمایش آفلاین و شواهد آزمایشی نمی‌توانند معامله را فعال کنند."],
-  backupLead: ["Encrypted ledger recovery uses the existing protected-console workflow.", "بازیابی رمزگذاری‌شدهٔ دفتر از مسیر کنسول حفاظت‌شده انجام می‌شود."], backupNotConnected: ["Status not connected", "وضعیت متصل نیست"],
+  backupLead: ["Encrypted ledger recovery uses the existing protected-console workflow.", "بازیابی رمزگذاری‌شدهٔ دفتر از مسیر کنسول حفاظت‌شده انجام می‌شود."],
+  backupReceipts: ["Local recovery receipts", "رسیدهای محلی بازیابی"],
+  noBackupReceipts: ["No completed backup or restore receipt recorded in this workspace.", "رسید پشتیبان یا بازیابی تکمیل‌شده‌ای در این محیط ثبت نشده است."],
+  backupReceiptScope: ["Recorded operations only. Current archive availability and separate-machine recovery are unverified.", "فقط عملیات ثبت‌شده؛ موجود بودن فعلی بایگانی و بازیابی روی دستگاه جدا تأیید نشده است."],
   backupWorkflow: ["Create an encrypted backup", "ساخت پشتیبان رمزگذاری‌شده"], backupHelp: ["Use a pre-existing directory on an independent mounted volume. Enter the recovery passphrase only in the protected console.", "از پوشهٔ موجود روی دیسک مستقل استفاده کنید. عبارت بازیابی را فقط در کنسول حفاظت‌شده وارد کنید."],
   restoreWorkflow: ["Restore to a new ledger", "بازیابی در دفتر جدید"], restoreHelp: ["The destination must not exist. Restoration verifies the ledger and leaves execution disarmed.", "مقصد نباید وجود داشته باشد. بازیابی دفتر را بررسی می‌کند و اجرا غیرفعال می‌ماند."], recoveryTruth: ["Recovery evidence", "شواهد بازیابی"],
-  backupStatusHelp: ["The web API does not expose archive inventory or last successful recovery. No current backup or integrity claim can be made here.", "رابط وب فهرست بایگانی یا آخرین بازیابی موفق را ارائه نمی‌کند؛ اینجا نمی‌توان وضعیت پشتیبان یا سلامت آن را تأیید کرد."],
   integrityFirst: ["Integrity before use", "صحت‌سنجی پیش از استفاده"], integrityHelp: ["A successful decrypt is not trading permission. Signed manifest checks require an independently pinned public key.", "رمزگشایی موفق مجوز معامله نیست. بررسی مانیفست امضاشده به کلید عمومی مستقل و از پیش تعیین‌شده نیاز دارد."],
   privacy: ["Privacy", "حریم خصوصی"], backupPrivacy: ["Recovery passphrases and venue credentials never belong in a browser form.", "عبارت بازیابی و اطلاعات ورود صرافی را هرگز در فرم مرورگر وارد نکنید."],
   structuredForm: ["Structured form", "فرم ساختاریافته"], jsonEditor: ["JSON editor", "ویرایشگر JSON"], ticketEditor: ["Ticket editor", "ویرایشگر سفارش"],
@@ -583,7 +585,7 @@ async function submitComparison(event, validation = false) {
       from: $("compare-from").value + "Z", to: $("compare-to").value + "Z", resolution: $("compare-resolution").value,
       cash: $("compare-cash").value, fee_rate: $("compare-fee").value, latency_ms: 500, candidates };
     if (validation) payload.folds = folds;
-    const data = await api(validation ? "/api/validate" : "/api/compare", { method: "POST", body: JSON.stringify(payload) }, 120000);
+    const data = await api(validation ? "/api/validate" : "/api/compare", { method: "POST", body: JSON.stringify(payload) }, 130000);
     const expected = validation ? (folds === 1 ? "TEMPORAL_VALIDATION" : "MULTI_WINDOW_VALIDATION") : "COMPARE";
     if (data.mode !== expected || data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsafe comparison response");
     if (revision === comparisonRevision && signature === inputSignature()) { state.comparison = data; renderComparison(); }
@@ -644,7 +646,7 @@ async function controlResearch(action, id = "") {
   if (state.researchState) renderResearchJobs(state.researchState);
   try {
     const path = action === "tick" ? "/api/research/tick" : `/api/research/jobs/${encodeURIComponent(id)}/${action}`;
-    const result = await api(path, { method: "POST", body: "{}" }, 120000);
+    const result = await api(path, { method: "POST", body: "{}" }, 130000);
     if (result.authority !== "PAPER_ONLY" || result.funded_authority !== false || result.order_submitted !== false) throw new Error("unsupported research authority");
     setHTML("research-control-result", `<p>${esc(t("researchControlDone"))}</p>`);
     await researchJobs();
@@ -829,6 +831,14 @@ function updateClock() {
 }
 let pollTimer, refreshTask, refreshAgain = false;
 async function collectView(name, healthTask) {
+  if (name === "backups") {
+    try {
+      const value = await api("/api/backup-status");
+      setHTML("backup-operation-status", `<p>${code(value.state)}</p><p>${esc(t("backupReceiptScope"))}</p>` + (value.state === 'NO_RECEIPTS'
+        ? `<p>${esc(t("noBackupReceipts"))}</p>` : Object.entries(value.latest ?? {}).filter(([, row]) => row).map(([kind, row]) =>
+          `<article><h3>${esc(t(kind === 'BACKUP' ? 'backupWorkflow' : 'restoreWorkflow'))}</h3><p>${esc(when(row.recorded_at))}</p><pre class="output" dir="ltr">${esc(JSON.stringify(row, null, 2))}</pre></article>`).join('')));
+    } catch (error) { setHTML("backup-operation-status", `<p>${esc(t("requestError"))}</p>`); throw error; }
+  }
   if (name === "models") await window.gymModels?.mount(api, esc);
   if (name === "overview") {
     const results = await Promise.allSettled([

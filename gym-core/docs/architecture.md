@@ -30,16 +30,16 @@ combine these authorities.
 | Hypothesis/shadow/schedule registration | Advanced research workbench | Shared service validation; advanced JSON inputs. Existing job controls provide pause/resume/tick. Foreground continuous runner remains a terminal process. |
 | Numeric claims, run review and outcome memory | Advanced research workbench | Saved IDs and exact allowlisted references; no invented lessons or analyst prose. |
 | Future evaluation register/status/consume | Advanced research workbench | Actual clock, frozen engine/configuration, one attempt. Failures remain consumed; local ledger is not an independent custodian. |
-| Observation vintages and screening | Advanced research workbench | User-supplied source/series/unit-specific observations. No vendor connection or authenticated news feed is implied. |
+| Observation vintages and screening | Advanced research workbench | Supplied observations plus explicit fixed official Federal Reserve RSS fetches with actual receipt clocks. Other vendor connections, independently authenticated content and rights are unverified. |
 | Measurement-aligned ratios and differences | Advanced research workbench | Explicit measurement clocks, freshness/skew bounds and exact source/unit references; both inputs share a read snapshot. |
 | Accounting, portfolio, forecast scoring, spreads, flow, technical timeframes | Advanced research workbench | Native calculations/recorded data with explicit absent values. This is an advanced input/report interface, not a dedicated chart for each model. |
 | Provider/API-key/OAuth connections, preset sync/import/export, paid prompt | AI connections | Disabled by default. User initiates every key save/sign-in and paid prompt. SDK catalog support does not prove live entitlement. |
-| Account and imported orders | Account journal | Existing read-only observations. Venue-key provisioning remains protected-console work. |
+| Account and imported orders | Account journal and advanced workbench | Read-only sanitized observations and order-page imports. Actual protected service GETs, including explicit open/history pages, require the protected console and reviewed helper installation. Venue-key provisioning remains separate. |
 | Tickets, evidence and venue rules | Offline ticket, Account journal, saved runs, Venue rules, advanced workbench | Canonical preview review, offline probe staging, modeled conversion, manual account/venue-fact imports and evidence decisions share existing native owners with the CLI. No execution permission is issued. |
 | Candle crosscheck | Advanced research workbench | Bounded local reads with an exclusive receipt/fetch cutoff. Immutable candle revisions are retained from market schema 3 onward; discarded pre-migration history cannot be recovered. No provider fetch or quality-table mutation. |
 | Portable HTML summary | Saved run | Token-protected download of the existing escaped, script-free allowlisted report. |
 | Collector/session lifecycle | Terminal | The browser does not start arbitrary local processes or choose arbitrary filesystem paths. |
-| Backup, restore, release checks, executor provisioning and STOP | Backups, Safety and protected console | Explicit guidance/status limits. Passphrases, service custody and executor authority stay outside browser forms. |
+| Backup, restore, release checks, executor provisioning and STOP | Backups, Safety and protected console | Read-only sanitized backup/restore receipts now drive actual status. No current archive-presence or independent-host claim. Passphrases, service custody and executor authority stay outside browser forms. |
 
 This map records actual interfaces and gaps. It is not a claim that every CLI
 flag has a graphical equivalent or that the protected executor is qualified.
@@ -67,6 +67,21 @@ existing persistent rule ledger; `operator_actions.py` shares the existing
 journal/conversion/probe owners between terminal and authenticated workbench.
 The chart links recorded price, pre-decision equity and numeric feature panes
 by actual decision index, without reconstructing missing historical features.
+
+`research_process.py` supervises fixed heavy calculations in disposable isolated-
+import Python processes with a 120-second deadline, bounded JSON and no inherited
+credentials, PYTHONPATH or executable search path. It reaps the exact child before
+releasing locks and distinguishes uncertain delivery from rollback. These ordinary
+operator processes do not replace the separately qualified R0 AppContainer.
+CLI, scheduler and web calculations reuse the same supervisor; API inspection
+and explicit claim interruption remain available during work.
+
+`news_feed.py` fetches only one pinned official public RSS URL on explicit request.
+It records actual receipt knowledge through `ResearchProtocol`; it does not provide
+general URL fetching, earlier vintages, a paid news provider or verified sentiment.
+`backup_status.py` serializes append-only sanitized operation receipts for the
+protected-console commands and authenticated GUI reads. It never handles a
+passphrase or infers current archive availability from an old receipt.
 
 `services/research_notes.py` prepares allowlisted saved-evidence packets and
 validates role/citation/numeric-claim notes. Paid sending remains an explicit

@@ -1,5 +1,58 @@
 # System status — 2026-11-05
 
+## Current supervision, account inspection and recovery update
+
+Added hard process supervision for heavy research calculations, bounded protected
+open-order/history page contracts and shared sanitized parsers, durable pending
+cancellation evidence, an explicit real public RSS adapter and connected backup/
+restore receipt status. These reuse existing domain/journal owners, add no
+dependencies and do not enable funded execution.
+
+Full Python run: **925 passed, five skipped, 39 subtests passed** in 83.52s.
+After the final supervised validation-error delivery refinement, **78 targeted
+tests passed**. Rust workspace/all-target tests, strict Clippy, formatting and
+release binaries passed; the added cancel-under-failed-entry-gates regression
+also passed with its seven-case integration suite. Ruff and JavaScript syntax
+passed. npm offline audit found zero vulnerabilities; pip-audit found none in
+installed dependencies and could not audit unpublished editable gym-core.
+
+The final account/backup follow-up passed **49 tests**, including four added
+reader-route cases: invalid pagination never reaches either transport, privileged
+helper arguments remain fixed, query extensions are refused and page-identity
+conflicts remain uncertain. A damaged receipt database returns a bounded,
+no-store UNREADABLE response. Rust workspace/all-target tests and strict Clippy
+also passed again after the final cancellation regression. These checks did not
+contact a private account or install new protected binaries.
+
+Actual prospective paper run `e27a80643af51ff4` observed BTCUSDT from
+2026-11-05 00:38:42 to 00:42:00 UTC, including warmup and a two-minute running
+window. It retained 73 qualified observations and zero fills, with virtual equity
+unchanged at 1,000 USDT. This is a short operational receipt, not strategy or
+sustained-collection qualification. Receipt:
+`.pi/paper-qualification/prospective-session.json`.
+
+Real fixed-origin Federal Reserve RSS retrieval passed both directly and through
+the supervised browser action. A live headline first received at 01:08:34 UTC
+remains unavailable at its older publication time. The store records origin
+PUBLIC_FEED_HTTP, actual knowledge time and unverified content/rights; it does
+not infer sentiment or trading confidence. Separate-store raw-fetch receipt:
+`.pi/feed-verification/receipt.json`; GUI: `.pi/public-news-20261105.png`.
+
+The Backups page now reads authenticated native operation receipts in English
+and Persian. Its actual NO_RECEIPTS state is shown without inserting synthetic
+history or claiming current archive availability. Screenshot:
+`.pi/backup-status-20261105.png`. Successful backup/restore operations record
+sanitized metadata only, with concurrent/immutable-history tests and explicit
+receipt-write failure reporting. Passphrases remain in the protected console.
+
+The new native page/codec release builds are reviewable locally but were not
+installed over the previously qualified protected binary set. That service
+remains stopped/disabled. No real credentials, authenticated account call,
+funded order, paid model completion, push or deployment was performed. T1/real
+submit/cancel/reconcile, native venue protection, other provider-specific feeds
+and independent-host/data-custody work remain open in the plan. The following
+sections retain earlier receipts, not claims about these new builds.
+
 ## Current replay, observation and installed-host receipt
 
 Implemented verified replay checkpoints/resume, immutable decision annotations,

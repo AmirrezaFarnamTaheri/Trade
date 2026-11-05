@@ -92,6 +92,27 @@ def test_no_funded_operation_api_is_exposed():
     with pytest.raises(ValueError):
         WallexAccountReader(Session(), base_url="http://evil.example")
 
+
+@pytest.mark.parametrize("kind,path", [("OPEN", "openOrders"), ("HISTORY", "orders")])
+def test_order_pages_use_only_bounded_fixed_get_and_do_not_infer_absence(kind, path):
+    from gym.adapters.wallex_order_evidence import InvalidOrderEvidence
+    session = Session(data={"success": True, "result": {}})
+    reader = WallexAccountReader(session)
+    for page, count in ((0, 10), (1001, 10), (True, 10), (1, 101)):
+        with pytest.raises(InvalidOrderEvidence):
+            run(reader.order_page(kind=kind, page=page, per_page=count))
+    assert session.paths == []
+    result = run(reader.order_page(kind=kind, page=2, per_page=10))
+    assert session.paths[0][0] == f"https://api.wallex.ir/v1/account/{path}?page=2&per_page=10"
+    assert session.paths[0][1]["allow_redirects"] is False
+    assert not result["absence_proven"] and not result["collection_complete"]
+    for unsafe in (f"/v1/account/{path}?page=1&per_page=10&next=external",
+                   f"/v1/account/{path}?page=1001&per_page=10",
+                   f"/v1/account/{path}?page=1&per_page=101"):
+        with pytest.raises(ValueError, match="allowlist"):
+            run(reader._get(unsafe))
+    assert len(session.paths) == 1
+
 def test_fee_rates_parse_documented_per_symbol_shape_exactly():
     session = Session(data={"success": True, "result": {"BTCUSDT": {
         "makerFeeRate": "0.0015", "takerFeeRate": "0.0025", "recent_days_sum": 0},

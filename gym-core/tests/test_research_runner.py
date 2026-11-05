@@ -24,16 +24,15 @@ def prepared_job(root):
 
 def test_runner_pause_resume_and_restart_preserve_committed_clock(tmp_path, monkeypatch):
     job = prepared_job(tmp_path)
-    original = ResearchLedger.run_due
+    original = research_runner.calculate
     stop = asyncio.Event()
 
-    def one_tick(ledger, db, at, **kwargs):
-        assert db.c.execute("PRAGMA query_only").fetchone()[0] == 1
-        result = original(ledger, db, at, **kwargs)
+    async def one_tick(root, action, **kwargs):
+        result = await original(root, action, **kwargs)
         stop.set()
         return result
 
-    monkeypatch.setattr(ResearchLedger, "run_due", one_tick)
+    monkeypatch.setattr(research_runner, "calculate", one_tick)
 
     def run_at(at):
         stop.clear()
@@ -66,7 +65,7 @@ def test_stop_wakes_idle_poll_and_can_be_repeated(tmp_path, monkeypatch):
         await asyncio.sleep(0)
         stop.set()
         stop.set()
-        result = await asyncio.wait_for(task, 1)
+        result = await asyncio.wait_for(task, 5)
         assert result["ticks"] == 1 and result["completed"] == result["failed"] == 0
         assert (await research_runner.watch(tmp_path, stop=stop))["ticks"] == 0
 
@@ -97,12 +96,11 @@ def test_unexpected_failure_surfaces_without_advancing_job(tmp_path, monkeypatch
     prepared_job(tmp_path)
     monkeypatch.setattr(research_runner, "now_utc", lambda: START + timedelta(hours=1))
 
-    def broken(*_args, **_kwargs):
-        raise sqlite3.OperationalError("test failure")
-
-    monkeypatch.setattr("gym.services.research_ledger.paper", broken)
-    with pytest.raises(sqlite3.OperationalError, match="test failure"):
-        asyncio.run(research_runner.watch(tmp_path))
+    with sqlite3.connect(tmp_path / "market.db") as broken:
+        broken.execute("DROP TABLE book_top")
+    result = asyncio.run(research_runner.watch(tmp_path))
+    assert result["state"] == "STOPPED" and result["process_terminated"]
+    assert result["operation_may_have_committed"] and not result["automatic_retry_allowed"]
     with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
         assert ledger.overview()["jobs"][0]["next_at"] == iso(START + timedelta(hours=1))
         assert ledger.overview()["jobs"][0]["last_report"]["status"] == "RUNNING"

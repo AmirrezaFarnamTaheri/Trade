@@ -2,7 +2,27 @@
 
 Public data, paper simulation, merged PRs and a running Windows service do **not** prove funded safety.
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
-No funded submission, certified venue stop, hung-service containment or independent-machine recovery is claimed.
+No funded submission, certified venue stop or independent-machine recovery is claimed.
+
+## Current receipt — 2026-11-05
+
+Installed synthetic custody/recovery and actual ACER AppContainer denial probes
+passed for the previously qualified protected binary set. Its four STOP commands
+took 12–17 ms; suspended-process hard containment took 1,037 ms. The service was
+left stopped and disabled. These host results supersede the historical failed
+attempt below; they do not qualify real venue permissions or exits.
+
+The current source adds hard 120-second research calculation processes, bounded
+read-only account pages, durable cancel evidence (including restart/lost-ack and
+late-fill cases), fixed official public RSS retrieval and authenticated GUI
+backup/restore receipts. Full Python: 925 passed, five skipped, 39 subtests; final
+delivery refinement: 78 targeted passed. Native all-target tests, strict Clippy
+and release build passed. New native source/binaries were not installed or
+requalified on the protected service. See [system status](system-status.md) for
+actual news/browser and prospective paper receipts and remaining implementation.
+
+The paragraphs below are historical snapshots; their older counts and host-test
+failures are superseded by the current receipt where noted.
 
 The current refactoring slice adds a shared CLI/browser research dispatcher,
 dedicated AI/research API and UI modules, protected stored model API keys and

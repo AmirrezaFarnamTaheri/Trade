@@ -312,3 +312,63 @@ Conversion fills are explicitly modeled; imported facts remain unauthenticated;
 probe budgets and evidence decisions are records with no execution permission.
 No arbitrary filesystem path, command, provider call or account request is
 accepted. The original dedicated terminal commands reuse the same service.
+
+## Supervised calculation and recovery
+
+Heavy workbench actions, comparisons/chronological validation and scheduled
+ticks run in disposable fixed-entry Python processes. The CLI and foreground
+scheduler use the same supervisor. The deadline is 120 seconds; the exact child
+is killed and reaped before the caller releases its work lock. Browser paper
+requests allow 130 seconds for deadline/cleanup delivery. No arbitrary command,
+callable, executable path or caller environment is accepted.
+
+HTTP 504 means the calculation timed out; HTTP 413 means its result exceeded the
+2 MiB bound. Worker failures and validation errors also retain
+`operation_may_have_committed=true`, `automatic_retry_allowed=false` and actual
+termination evidence. Inspect the registry/run/job first. A committed RUNNING
+claim stays visible after a killed/crashed worker until explicit interruption;
+neither elapsed time nor a canceled client silently advances its clock. These
+ordinary operator processes are not the separately qualified R0 AppContainer.
+
+## Explicit public news retrieval
+
+`news-fetch`: `source` must be `FED_PRESS`, `max_items` must be 1..20; live store
+only. Explicitly fetches the official fixed Federal Reserve RSS URL over normal
+validated HTTPS. No proxy, redirect, cookie, API key, arbitrary URL, linked-page
+fetch or provider completion is used. Bodies are at most 512 KiB; XML declarations,
+entities, duplicate/ambiguous items, unsupported links and invalid dates fail
+closed. Future items are excluded. Stored title/link observations have origin
+PUBLIC_FEED_HTTP and actual immutable first-receipt knowledge times. Repeat
+identical items retain their first receipt. Older publication dates do not become
+earlier knowledge. This is an attributed feed receipt, not independently signed
+content, verified interpretation, historical backfill or a trading signal.
+
+## Explicit paged account observations
+
+The protected native helper accepts `open-orders PAGE PER_PAGE` and
+`order-history PAGE PER_PAGE` only for pages 1..1000 and sizes 1..100. These map
+to the fixed service GET origin, never arbitrary URLs or writes. Normal Python
+account readers share the same strict documented map-of-order-arrays parser;
+missing/changed pagination echoes are unverified or rejected. Partial fills and
+fees remain observations, and duplicate or inconsistent identities fail closed.
+`gymctl account --open-orders-page N --history-page N --per-page N` opts in to
+these separate reads. No automatic walk, complete-account snapshot, absence or
+settlement is inferred. New native builds require protected installation before
+using these new page requests; no real authenticated read was performed.
+
+`order-page-import`: `account_id`, `observed_at`, `kind` (OPEN/HISTORY), `page`,
+`per_page`, `payload`. The workbench validates and sanitizes a supplied page into
+the existing external journal. It neither invokes the protected helper nor
+authenticates imported content. Missing orders do not become canceled or absent.
+
+## Recorded backup/restore status
+
+Successful protected-console `backup-once` and `restore-backup` operations append
+sanitized receipts under the selected `--data` workspace. The authenticated
+read-only `/api/backup-status` supplies the EN/FA Backups page. An empty read
+creates no receipt database. Receipts omit paths, passphrases and credentials,
+retain concurrent operations and include exact ledger/file hashes. They report
+past operations only: current archive availability, independent origin/custody
+and separate-machine recovery remain unverified. A receipt failure after a
+successful operation reports `status_recorded=false` without implying rollback
+or recommending an automatic repeat.

@@ -66,6 +66,68 @@ fn response_bounds_reserved_and_correlations_are_exact() {
         assert!(account_reply(size, [1; 16]).is_err());
     }
 }
+
+#[test]
+fn paged_account_reads_have_fixed_paths_and_canonical_bounds() {
+    for resource in [
+        AccountResource::OpenOrders {
+            page: 1,
+            per_page: 100,
+        },
+        AccountResource::OrderHistory {
+            page: 1000,
+            per_page: 1,
+        },
+    ] {
+        let frame = resource.encode([9; 16]).unwrap();
+        assert_eq!(
+            AccountResource::decode(&frame),
+            Ok((resource.clone(), [9; 16]))
+        );
+        for index in [9, 13, 15, 32, 127] {
+            let mut altered = frame;
+            altered[index] = 255;
+            assert!(AccountResource::decode(&altered).is_err());
+        }
+    }
+    assert_eq!(
+        AccountResource::OpenOrders {
+            page: 1,
+            per_page: 100
+        }
+        .path()
+        .unwrap(),
+        "/v1/account/openOrders?page=1&per_page=100"
+    );
+    assert_eq!(
+        AccountResource::OrderHistory {
+            page: 1000,
+            per_page: 1
+        }
+        .path()
+        .unwrap(),
+        "/v1/account/orders?page=1000&per_page=1"
+    );
+    for (page, per_page) in [(0, 10), (1001, 10), (1, 0), (1, 101)] {
+        for resource in [
+            AccountResource::OpenOrders { page, per_page },
+            AccountResource::OrderHistory { page, per_page },
+        ] {
+            assert!(resource.encode([9; 16]).is_err());
+        }
+    }
+    for resource in [
+        AccountResource::Balances,
+        AccountResource::Fees,
+        AccountResource::KnownClientOrder("x".into()),
+    ] {
+        for offset in [10, 11, 12] {
+            let mut frame = resource.encode([9; 16]).unwrap();
+            frame[offset] = 1;
+            assert!(AccountResource::decode(&frame).is_err());
+        }
+    }
+}
 #[test]
 fn recovery_is_explicit_and_never_enables_reads() {
     let normal = StartupMode::from_scm_arguments(&[]).unwrap();

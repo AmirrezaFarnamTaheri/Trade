@@ -194,3 +194,22 @@ def test_service_reader_exposes_no_funded_operations():
     assert not any(hasattr(reader, name) for name in (
         "post", "delete", "cancel_order", "place_order", "transfer",
     ))
+
+
+@pytest.mark.parametrize("kind,command", [("OPEN", "open-orders"), ("HISTORY", "order-history")])
+def test_order_pages_validate_before_helper_and_bind_pagination(monkeypatch, kind, command):
+    from gym.adapters.wallex_order_evidence import InvalidOrderEvidence
+    _, calls, helper = install(monkeypatch, envelope({"success": True, "result": {},
+        "result_info": {"page": 2, "per_page": 10}}))
+    reader = service.ServiceAccountReader()
+    for page, count in ((0, 10), (1001, 10), (True, 10), (1, 101)):
+        with pytest.raises(InvalidOrderEvidence):
+            asyncio.run(reader.order_page(kind=kind, page=page, per_page=count))
+    assert calls == []
+    result = asyncio.run(reader.order_page(kind=kind, page=2, per_page=10))
+    assert calls[0][0] == (str(helper), command, "2", "10")
+    assert result["pagination_echo"] == "MATCHED" and not result["absence_proven"]
+    install(monkeypatch, envelope({"success": True, "result": {},
+        "result_info": {"page": 1, "per_page": 10}}))
+    with pytest.raises(ReadUncertain, match="identity"):
+        asyncio.run(reader.order_page(kind=kind, page=2, per_page=10))

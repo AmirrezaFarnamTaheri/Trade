@@ -71,12 +71,26 @@ pub enum AccountResource {
     Balances,
     Fees,
     KnownClientOrder(String),
+    OpenOrders { page: u16, per_page: u8 },
+    OrderHistory { page: u16, per_page: u8 },
 }
 impl AccountResource {
     pub fn path(&self) -> Result<String, &'static str> {
         match self {
             Self::Balances => Ok("/v1/account/balances".into()),
             Self::Fees => Ok("/v1/account/fee".into()),
+            Self::OpenOrders { page, per_page } | Self::OrderHistory { page, per_page }
+                if (1..=1000).contains(page) && (1..=100).contains(per_page) =>
+            {
+                let collection = if matches!(self, Self::OpenOrders { .. }) {
+                    "openOrders"
+                } else {
+                    "orders"
+                };
+                Ok(format!(
+                    "/v1/account/{collection}?page={page}&per_page={per_page}"
+                ))
+            }
             Self::KnownClientOrder(id)
                 if !id.is_empty()
                     && id.len() <= 96
@@ -109,11 +123,20 @@ impl AccountResource {
                 out[32..32 + id.len()].copy_from_slice(id.as_bytes());
                 3
             }
+            Self::OpenOrders { page, per_page } | Self::OrderHistory { page, per_page } => {
+                out[10..12].copy_from_slice(&page.to_be_bytes());
+                out[12] = *per_page;
+                if matches!(self, Self::OpenOrders { .. }) {
+                    4
+                } else {
+                    5
+                }
+            }
         };
         Ok(out)
     }
     pub fn decode(raw: &[u8]) -> Result<(Self, [u8; 16]), &'static str> {
-        if raw.len() != ACCOUNT_REQUEST_SIZE || &raw[..8] != b"TGAREAD1" || raw[10..16] != [0; 6] {
+        if raw.len() != ACCOUNT_REQUEST_SIZE || &raw[..8] != b"TGAREAD1" || raw[13..16] != [0; 3] {
             return Err("invalid account request");
         }
         let len = usize::from(raw[9]);
@@ -128,6 +151,15 @@ impl AccountResource {
                     .map_err(|_| "invalid account request")?
                     .into(),
             ),
+            (4 | 5, 0) => {
+                let page = u16::from_be_bytes(raw[10..12].try_into().unwrap());
+                let per_page = raw[12];
+                if raw[8] == 4 {
+                    Self::OpenOrders { page, per_page }
+                } else {
+                    Self::OrderHistory { page, per_page }
+                }
+            }
             _ => return Err("invalid account request"),
         };
         let id = raw[16..32].try_into().unwrap();

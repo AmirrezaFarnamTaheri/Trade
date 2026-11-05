@@ -13,11 +13,10 @@ from pathlib import Path
 
 from aiohttp import web
 
-from ..adapters.run_store import list_runs, load_run, save_run
-from ..adapters.store import MarketDB
+from ..adapters.run_store import list_runs, load_run
 from ..domain.registry import catalog
 from ..domain.sim import CostModel
-from ..services.research import compare, coverage
+from ..services.research import coverage
 from ..domain.account_observations import project_account
 from ..domain.bars import qualified
 from ..domain.model import TOMAN, InstrumentId, iso, parse_ts
@@ -32,8 +31,9 @@ from ..services.venue_facts import VenueFactsJournal
 from ..domain.assisted_ticket import prepare_preview_from_json
 from ..services.offline_review_journal import OfflineReviewJournal
 from ..services.research_ledger import ResearchLedger
+from ..services.research_process import calculate, ResearchProcessFailure
+from ..services.backup_status import status as backup_status
 from ..services.readiness import current_top, operational_readiness
-from ..services.temporal_validation import validate as temporal_validate
 from .models import install as install_models
 from .research import install as install_research
 from .offline_reviews import install as install_offline_reviews
@@ -286,35 +286,26 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             cost = CostModel(fee, timedelta(milliseconds=latency))
         except (ValueError, TypeError, KeyError, DecimalException):
             raise ValueError("invalid comparison window, cash or costs") from None
-        database_path = col.db.c.execute("pragma database_list").fetchone()[2]
-        def compute():
-            db = MarketDB(Path(database_path), readonly=True)
-            try:
-                symbol = body.get("symbol")
-                if not isinstance(symbol, str) or not db.c.execute(
-                    "select 1 from book_top where instrument_id=? limit 1", ("wallex:" + symbol,)
-                ).fetchone():
-                    raise ValueError("comparison requires an observed symbol")
-                compute_research = temporal_validate if validation else compare
-                options = {"folds": folds} if validation else {}
-                result = compute_research(db, symbol, start, end, body.get("candidates"),
-                                 resolution=body.get("resolution", "15min"), cash=cash, cost=cost,
-                                  rules_mode=body.get("rules_mode", "point-in-time"), store="demo" if col.demo else "live", **options)
-                for record in result["runs"]:
-                    save_run(record, runs)
-                if validation:
-                    save_run({"run_id": result["validation_id"], **{k: v for k, v in result.items() if k != "runs"}},
-                             runs / "validations")
-                result["runs"] = [{"run_id": record["run_id"], "inputs": record["inputs"],
-                                   "result": {key: record["result"][key] for key in ("strategy", "quote", "end", "fills", "observations", "qualified")},
-                                   "warnings": record["warnings"]} for record in result["runs"]]
-                return result
-            finally:
-                db.c.close()
+        if Path(col.db.c.execute("PRAGMA database_list").fetchone()[2]).resolve() != (runs.parent / "market.db").resolve():
+            raise ValueError("comparison market/run stores must share a root")
+        normalized = {"symbol": body.get("symbol"), "from": iso(start), "to": iso(end),
+                      "resolution": body.get("resolution", "15min"), "cash": str(cash), "fee_rate": str(cost.fee_rate),
+                      "latency_ms": latency, "rules_mode": body.get("rules_mode", "point-in-time"),
+                      "candidates": body.get("candidates"), "folds": folds}
         if comparison_lock.locked():
             return web.json_response({"error": "a comparison is already running"}, status=409)
         async with comparison_lock:
-            result = await asyncio.to_thread(compute)
+            task = asyncio.create_task(calculate(runs.parent, "validation" if validation else "comparison", normalized,
+                                                 store="demo" if col.demo else "live"))
+            try:
+                result = await asyncio.shield(task)
+            except asyncio.CancelledError:
+                try:
+                    await task
+                finally:
+                    raise
+            except ResearchProcessFailure as error:
+                return web.json_response(error.report, status=error.status, headers={"Cache-Control": "no-store"})
         return web.json_response(result, headers={"Cache-Control": "no-store"})
 
     async def run_list(_):
@@ -364,16 +355,17 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             raise ValueError("research schedules are not configured")
         if research_tick_lock.locked():
             return web.json_response({"error": "paper research is already running"}, status=409)
-        database_path = col.db.c.execute("PRAGMA database_list").fetchone()[2]
-        def compute():
-            db = MarketDB(Path(database_path), readonly=True)
-            try:
-                with ResearchLedger(path) as ledger:
-                    return ledger.run_due(db, iso(now_utc()), store="demo" if col.demo else "live", limit=10)
-            finally:
-                db.c.close()
         async with research_tick_lock:
-            value = await asyncio.to_thread(compute)
+            task = asyncio.create_task(calculate(path.parent, "tick", store="demo" if col.demo else "live", at=iso(now_utc())))
+            try:
+                value = await asyncio.shield(task)
+            except asyncio.CancelledError:
+                try:
+                    await task
+                finally:
+                    raise
+            except ResearchProcessFailure as error:
+                return web.json_response(error.report, status=error.status, headers={"Cache-Control": "no-store"})
         return web.json_response(value, headers={"Cache-Control": "no-store"})
 
     async def run_summary(req):
@@ -422,6 +414,17 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
         return web.json_response({"state": "REPORTED", **report}, headers={"Cache-Control": "no-store"})
 
+    async def backup_status_api(req):
+        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
+            return web.json_response({"error": "local operator token required"}, status=403)
+        if runs is None:
+            return web.json_response({"state": "NOT_CONFIGURED"}, headers={"Cache-Control": "no-store"})
+        try:
+            value = backup_status(runs.parent)
+        except (ValueError, OSError, RuntimeError, sqlite3.Error):
+            return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
+        return web.json_response(value, headers={"Cache-Control": "no-store"})
+
     app = web.Application(middlewares=[guard], client_max_size=1024 * 1024)
     app.add_routes([
         web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
@@ -429,6 +432,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/research.js", browser_asset),
         web.get("/replay-chart.js", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health), web.get("/api/ready", ready),
+        web.get("/api/backup-status", backup_status_api),
         web.get("/api/account-observations", account_observations),
         web.get("/api/external-order-events", external_events),
         web.get("/api/venue-facts", venue_facts_api), web.get("/api/chaos-report", chaos_report_api),

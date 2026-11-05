@@ -1,8 +1,61 @@
 //! Offline Fake Venue/transport recovery contract: never sends a real order.
 use exec_core::orders::{
-    Attempt, EconomicEffect, Event, FailureStage, Lifecycle, OrderError, Settlement, SlotError,
-    Slots,
+    Attempt, Cancellation, EconomicEffect, Event, FailureStage, Lifecycle, OrderError, Settlement,
+    SlotError, Slots,
 };
+
+#[test]
+fn cancellation_ack_and_lost_ack_never_erase_late_fills_or_release_the_slot() {
+    let mut order = Attempt::new(100).unwrap();
+    assert!(order.apply(Event::BeginCancel).is_err());
+    order.apply(Event::BeginSend).unwrap();
+    order.apply(Event::Acknowledged).unwrap();
+    order.apply(Event::CumulativeFilled(20)).unwrap();
+    order.apply(Event::BeginCancel).unwrap();
+    order
+        .apply(Event::CancelTransportFailed(FailureStage::AfterFirstByte))
+        .unwrap();
+    assert_eq!(order.cancellation(), Cancellation::Unknown);
+    assert_eq!(
+        order.apply(Event::BeginCancel),
+        Err(OrderError::RetryForbidden)
+    );
+    order.apply(Event::CumulativeFilled(30)).unwrap();
+    order.apply(Event::CancelAcknowledged).unwrap();
+    order.apply(Event::CancelAcknowledged).unwrap();
+    assert_eq!(order.lifecycle(), Lifecycle::Acknowledged);
+    assert!(order.holds_slot());
+    assert!(order.apply(Event::SettlementVerified).is_err());
+    order.apply(Event::TerminalReported).unwrap();
+    order.apply(Event::CumulativeFilled(40)).unwrap();
+    assert_eq!(order.filled_quanta(), 40);
+    order.apply(Event::SettlementVerified).unwrap();
+    assert!(!order.holds_slot());
+    assert_eq!(order.cancellation(), Cancellation::Acknowledged);
+}
+
+#[test]
+fn cancel_prebyte_retry_is_bounded_and_independent_of_entry_fill_evidence() {
+    let mut order = Attempt::new(100).unwrap();
+    order.apply(Event::BeginSend).unwrap();
+    order.apply(Event::Acknowledged).unwrap();
+    for fill in [20, 30] {
+        order.apply(Event::BeginCancel).unwrap();
+        order.apply(Event::CumulativeFilled(fill)).unwrap();
+        order
+            .apply(Event::CancelTransportFailed(FailureStage::BeforeFirstByte))
+            .unwrap();
+        assert_eq!(order.lifecycle(), Lifecycle::Acknowledged);
+        assert_eq!(order.cancellation(), Cancellation::NotSent);
+    }
+    let saved = order;
+    assert_eq!(
+        order.apply(Event::BeginCancel),
+        Err(OrderError::RetryForbidden)
+    );
+    assert_eq!(order, saved);
+    assert_eq!(order.filled_quanta(), 30);
+}
 
 #[test]
 fn before_bytes_can_attempt_one_same_identity_retry_only() {

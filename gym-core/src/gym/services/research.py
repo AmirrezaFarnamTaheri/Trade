@@ -10,6 +10,41 @@ from ..domain.strategy import digest
 from .paper import paper, ranking
 
 
+def saved_comparison(root, request, *, store, validation=False):
+    from ..adapters.run_store import save_run
+    from ..adapters.store import MarketDB
+    from ..domain.market_models import fields, decimal, rate, instant
+    from .collector import now_utc
+    from .temporal_validation import validate
+
+    fields(request, "symbol from to resolution cash fee_rate latency_ms rules_mode candidates folds")
+    start, end = instant(request["from"]), instant(request["to"])
+    latency, folds = request["latency_ms"], request["folds"]
+    if (end > now_utc() or type(latency) is not int or not 0 <= latency <= 60000
+            or type(folds) is not int or not 1 <= folds <= 5 or store not in ("live", "demo")):
+        raise ValueError("invalid comparison bounds")
+    cost = CostModel(rate(request["fee_rate"]), timedelta(milliseconds=latency))
+    db = MarketDB(root / "market.db", readonly=True)
+    try:
+        symbol = request["symbol"]
+        if type(symbol) is not str or not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + symbol,)).fetchone():
+            raise ValueError("comparison requires an observed symbol")
+        result = (validate if validation else compare)(db, symbol, start, end, request["candidates"],
+            resolution=request["resolution"], cash=decimal(request["cash"], "cash", positive=True),
+            cost=cost, rules_mode=request["rules_mode"], store=store, **({"folds": folds} if validation else {}))
+        runs = root / "runs"
+        for record in result["runs"]:
+            save_run(record, runs)
+        if validation:
+            save_run({"run_id": result["validation_id"], **{k: v for k, v in result.items() if k != "runs"}}, runs / "validations")
+        result["runs"] = [{"run_id": record["run_id"], "inputs": record["inputs"],
+                           "result": {key: record["result"][key] for key in ("strategy", "quote", "end", "fills", "observations", "qualified")},
+                           "warnings": record["warnings"]} for record in result["runs"]]
+        return result
+    finally:
+        db.c.close()
+
+
 def coverage(db, symbol):
     if not isinstance(symbol, str) or not re.fullmatch("[A-Z0-9]{2,24}", symbol):
         raise ValueError("invalid market symbol")

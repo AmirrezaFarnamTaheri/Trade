@@ -214,7 +214,9 @@ class ResearchProtocol:
                 "outcomes": [{**json.loads(body), "resolved_at": at} for body, at in rows],
                 "limitation": "Only resolved numeric outcomes known by this cutoff; no hypothetical lessons or model reasoning."}
 
-    def ingest_observations(self, request):
+    def ingest_observations(self, request, *, origin="USER_SUPPLIED_OBSERVATION"):
+        if origin not in ("USER_SUPPLIED_OBSERVATION", "PUBLIC_FEED_HTTP"):
+            raise ValueError("unsupported observation origin")
         fields(request, "observations")
         rows = request["observations"]
         if type(rows) is not list or not 1 <= len(rows) <= 100:
@@ -269,13 +271,13 @@ class ResearchProtocol:
                     if total != _number(row["value"]):
                         raise ValueError("components must reconcile exactly to the numeric value in its declared unit")
             body = {**row, "published_at": iso(published), "revision_at": iso(revised), "store": self.store,
-                    "source_authenticity_verified": False, "rights_verified": False, "origin": "USER_SUPPLIED_OBSERVATION"}
+                    "source_authenticity_verified": False, "rights_verified": False, "origin": origin}
             prepared.append((digest(body), json.dumps(body), iso(max(now, published, revised or published, confirmed or published))))
         with self._write():
             for key, body, known in prepared:
                 self.conn.execute("INSERT OR IGNORE INTO observations VALUES(?,?,?)", (key, body, known))
         return {"authority": "PAPER_ONLY", "funded_authority": False, "imported_ids": [key for key, _, _ in prepared],
-                "limitation": "Native receipt time prevents backdating knowledge. User-supplied source labels, rights and values remain unverified."}
+                "limitation": "Native receipt time prevents backdating knowledge. Source labels, content authenticity and rights remain unverified."}
 
     def observation(self, reference, as_of):
         """Latest known value for one exact source/series/subject/kind/unit reference."""

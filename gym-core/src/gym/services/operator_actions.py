@@ -10,10 +10,17 @@ from .reports import economic_report
 from .venue_facts import VenueFactsJournal, validate_venue_fact
 
 
-OPERATOR_ACTIONS = ("conversion-report", "probe-stage", "external-import", "venue-fact-import", "evidence-report", "evidence-decision")
+OPERATOR_ACTIONS = ("conversion-report", "probe-stage", "external-import", "venue-fact-import", "evidence-report", "evidence-decision", "order-page-import")
 
 
 def operator_action(root, action, value, *, store="live"):
+    if action == "order-page-import":
+        from ..adapters.wallex_order_evidence import parse_order_page
+        fields(value, "account_id observed_at kind page per_page payload")
+        page = parse_order_page(value["payload"], kind=value["kind"], page=value["page"], per_page=value["per_page"])
+        recorded = operator_action(root, "external-import", {"account_id": value["account_id"], "observed_at": value["observed_at"],
+            "orders": [{"client_id": row["client_id"], "status": row["raw_status"], "symbol": row["symbol"], "filled": row["executed_qty"]} for row in page["orders"]]}, store=store)
+        return {**page, **recorded, "origin_authenticated": False}
     if action == "conversion-report":
         fields(value, "instruction fills mark_price observed_at")
         fields(value["instruction"], "instruction_id account symbol side requested_base arrival_price fee_rate started_at deadline max_spread_bps quote_budget")

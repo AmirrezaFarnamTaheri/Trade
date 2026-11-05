@@ -3,6 +3,68 @@ use exec_core::orders::{Event, FailureStage, Lifecycle, OrderError, Settlement};
 use exec_svc::offline_recovery::{DurableOrderJournal, RecoveryError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[test]
+fn recovered_cancel_cannot_invent_prebyte_proof_or_discard_racing_fills() {
+    use exec_core::orders::Cancellation;
+    let path = db_path("cancel-restart");
+    {
+        let mut journal = DurableOrderJournal::open(&path).unwrap();
+        journal
+            .create_intent("cancel-a", "main", "BTC", 100)
+            .unwrap();
+        for event in [
+            Event::BeginSend,
+            Event::Acknowledged,
+            Event::CumulativeFilled(20),
+            Event::BeginCancel,
+        ] {
+            journal.record_event("cancel-a", event).unwrap();
+        }
+    }
+    {
+        let mut journal = DurableOrderJournal::open(&path).unwrap();
+        let count = journal.record_count();
+        assert_eq!(
+            journal.get("cancel-a").unwrap().attempt.cancellation(),
+            Cancellation::Submitting
+        );
+        assert_eq!(
+            journal.record_event(
+                "cancel-a",
+                Event::CancelTransportFailed(FailureStage::BeforeFirstByte)
+            ),
+            Err(RecoveryError::Order(OrderError::IllegalTransition))
+        );
+        assert_eq!(
+            journal.record_event("cancel-a", Event::BeginCancel),
+            Err(RecoveryError::Order(OrderError::RetryForbidden))
+        );
+        assert_eq!(journal.record_count(), count);
+        for event in [
+            Event::CancelTransportFailed(FailureStage::AfterFirstByte),
+            Event::CumulativeFilled(30),
+            Event::CancelAcknowledged,
+        ] {
+            journal.record_event("cancel-a", event).unwrap();
+        }
+        assert_eq!(journal.pending_ids(), vec!["cancel-a"]);
+    }
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    assert_eq!(
+        journal.get("cancel-a").unwrap().attempt.cancellation(),
+        Cancellation::Acknowledged
+    );
+    assert_eq!(journal.get("cancel-a").unwrap().attempt.filled_quanta(), 30);
+    for event in [
+        Event::TerminalReported,
+        Event::CumulativeFilled(40),
+        Event::SettlementVerified,
+    ] {
+        journal.record_event("cancel-a", event).unwrap();
+    }
+    assert!(journal.pending_ids().is_empty());
+}
+
 fn db_path(test: &str) -> std::path::PathBuf {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)

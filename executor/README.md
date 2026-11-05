@@ -16,6 +16,14 @@ not established by a successful read. Python can normalize those observations
 with `gymctl account --source service --record`, from a separate elevated console.
 The operator and research worker cannot read the service credential.
 
+The new reviewed source adds `gym-account-read open-orders <page> <per-page>`
+and `order-history <page> <per-page>` (pages 1..1000, sizes 1..100), using only
+the fixed GET origin and existing privileged admission. These new builds are
+not yet installed or qualified against a real account. The shared order journal
+also retains cancellation intent, uncertain delivery and acknowledgement separately
+from order lifecycle/settlement; cancelled orders retain late fills and holds.
+That durable offline contract does not add a real DELETE transport.
+
 From the repository root:
 
 ```powershell

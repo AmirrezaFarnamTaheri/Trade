@@ -2,10 +2,10 @@
 import asyncio
 import math
 from pathlib import Path
+import sqlite3
 
-from ..adapters.store import MarketDB
 from .collector import now_utc
-from .research_ledger import ResearchLedger
+from .research_process import calculate, ResearchProcessFailure
 
 
 async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 5,
@@ -17,17 +17,13 @@ async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 
             or not 1 <= poll_seconds <= 60):
         raise ValueError("research poll interval must be 1..60 seconds")
     root, stop = Path(root), stop if stop is not None else asyncio.Event()
+    if not (root / "market.db").is_file():
+        raise sqlite3.OperationalError("paper market store missing")
     ticks = completed = failed = 0
     reason = "Stop requested"
     try:
         while not stop.is_set():
-            db = MarketDB(root / "market.db", readonly=True)
-            try:
-                db.c.execute("PRAGMA query_only=ON")
-                with ResearchLedger(root / "research.sqlite3") as ledger:
-                    result = ledger.run_due(db, now_utc().isoformat(), store=store, limit=10)
-            finally:
-                db.c.close()
+            result = await calculate(root, "tick", store=store, at=now_utc().isoformat())
             ticks += 1
             completed += len(result["completed"])
             failed += len(result["failed"])
@@ -38,5 +34,8 @@ async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 
                     pass
     except asyncio.CancelledError:
         reason = "Operator interrupted"
+    except ResearchProcessFailure as error:
+        return {"state": "STOPPED", **error.report, "ticks": ticks, "completed": completed, "failed": failed,
+                "authority": "PAPER_ONLY", "order_submitted": False}
     return {"state": "STOPPED", "reason": reason, "ticks": ticks, "completed": completed, "failed": failed,
             "authority": "PAPER_ONLY", "funded_authority": False, "order_submitted": False}

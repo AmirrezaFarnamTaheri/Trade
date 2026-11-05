@@ -36,6 +36,14 @@ pub enum FailureStage {
     AfterFirstByte,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cancellation {
+    None,
+    Submitting,
+    NotSent,
+    Unknown,
+    Acknowledged,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     BeginSend,
     TransportFailed(FailureStage),
@@ -52,6 +60,9 @@ pub enum Event {
         expected_available_quanta: u64,
         observed_available_quanta: u64,
     },
+    BeginCancel,
+    CancelTransportFailed(FailureStage),
+    CancelAcknowledged,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OrderError {
@@ -70,6 +81,8 @@ pub struct Attempt {
     settlement: Settlement,
     attempts: u8,
     anomaly_reconciled: bool,
+    cancellation: Cancellation,
+    cancel_attempts: u8,
 }
 impl Attempt {
     pub fn new(requested_quanta: u64) -> Result<Self, OrderError> {
@@ -84,6 +97,8 @@ impl Attempt {
             settlement: Settlement::Unverified,
             attempts: 0,
             anomaly_reconciled: false,
+            cancellation: Cancellation::None,
+            cancel_attempts: 0,
         })
     }
     pub fn requested_quanta(&self) -> u64 {
@@ -101,6 +116,9 @@ impl Attempt {
     pub fn settlement(&self) -> Settlement {
         self.settlement
     }
+    pub fn cancellation(&self) -> Cancellation {
+        self.cancellation
+    }
     /// Safe transport-only same-client-ID retry, at most once, before a first
     /// request byte. The caller must still retain the original durable intent.
     pub fn can_retry_same_identity(&self) -> bool {
@@ -114,6 +132,40 @@ impl Attempt {
         // Copy-then-commit: invalid transitions never partially alter state.
         let mut next = *self;
         match event {
+            BeginCancel => {
+                if !matches!(
+                    next.lifecycle,
+                    Lifecycle::Acknowledged | Lifecycle::Working | Lifecycle::Unknown
+                ) || next.filled_quanta == next.requested_quanta
+                    || !matches!(
+                        (next.cancellation, next.cancel_attempts),
+                        (Cancellation::None, 0) | (Cancellation::NotSent, 1)
+                    )
+                {
+                    return Err(OrderError::RetryForbidden);
+                }
+                next.cancellation = Cancellation::Submitting;
+                next.cancel_attempts += 1;
+            }
+            CancelTransportFailed(stage) => {
+                if next.cancellation != Cancellation::Submitting {
+                    return Err(OrderError::IllegalTransition);
+                }
+                next.cancellation = match stage {
+                    FailureStage::BeforeFirstByte => Cancellation::NotSent,
+                    FailureStage::AfterFirstByte => Cancellation::Unknown,
+                };
+            }
+            CancelAcknowledged => {
+                if !matches!(
+                    next.cancellation,
+                    Cancellation::Submitting | Cancellation::Unknown | Cancellation::Acknowledged
+                ) {
+                    return Err(OrderError::IllegalTransition);
+                }
+                // A cancel acknowledgement is not terminal, fill or settlement evidence.
+                next.cancellation = Cancellation::Acknowledged;
+            }
             Denied => {
                 if next.lifecycle != Lifecycle::IntentLogged || next.attempts != 0 {
                     return Err(OrderError::IllegalTransition);

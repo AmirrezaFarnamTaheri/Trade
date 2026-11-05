@@ -161,6 +161,7 @@ pub struct DurableOrderJournal {
     /// A request already in flight when the journal was reopened cannot be
     /// certified as never sent by this newly started process.
     recovered_inflight: BTreeSet<String>,
+    recovered_cancels: BTreeSet<String>,
     credential: Option<CredentialMetadata>,
 }
 enum Record {
@@ -260,6 +261,10 @@ fn record_event(id: &str, event: Event) -> Result<Vec<u8>, RecoveryError> {
         VenueRejected => 11,
         SettlementAnomaly => 12,
         AnomalyReconciled { .. } => 13,
+        BeginCancel => 14,
+        CancelTransportFailed(FailureStage::BeforeFirstByte) => 15,
+        CancelTransportFailed(FailureStage::AfterFirstByte) => 16,
+        CancelAcknowledged => 17,
     };
     data.push(tag);
     match event {
@@ -572,6 +577,10 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                     expected_available_quanta: r.num()?,
                     observed_available_quanta: r.num()?,
                 },
+                14 => BeginCancel,
+                15 => CancelTransportFailed(FailureStage::BeforeFirstByte),
+                16 => CancelTransportFailed(FailureStage::AfterFirstByte),
+                17 => CancelAcknowledged,
                 _ => return Err(RecoveryError::MalformedEvent),
             };
             Record::Observation { id, event }
@@ -889,12 +898,20 @@ impl DurableOrderJournal {
             })
             .map(|(id, _)| id.clone())
             .collect();
+        let recovered_cancels = intents
+            .iter()
+            .filter(|(_, order)| {
+                order.attempt.cancellation() == exec_core::orders::Cancellation::Submitting
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
         Ok(Self {
             ledger,
             intents,
             reservations,
             records: records.len(),
             recovered_inflight,
+            recovered_cancels,
             credential,
         })
     }
@@ -943,8 +960,10 @@ impl DurableOrderJournal {
     }
 
     pub fn record_event(&mut self, id: &str, event: Event) -> Result<(), RecoveryError> {
-        if event == Event::TransportFailed(FailureStage::BeforeFirstByte)
-            && self.recovered_inflight.contains(id)
+        if (event == Event::TransportFailed(FailureStage::BeforeFirstByte)
+            && self.recovered_inflight.contains(id))
+            || (event == Event::CancelTransportFailed(FailureStage::BeforeFirstByte)
+                && self.recovered_cancels.contains(id))
         {
             return Err(RecoveryError::Order(OrderError::IllegalTransition));
         }

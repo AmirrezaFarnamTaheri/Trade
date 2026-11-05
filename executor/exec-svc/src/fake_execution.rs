@@ -494,7 +494,20 @@ impl FakeExecution {
         if !order.attempt.holds_slot() {
             return Err(ExecutionError::NotTerminal);
         }
-        venue.cancel(id)
+        self.journal.record_event(id, Event::BeginCancel)?;
+        match venue.cancel(id) {
+            Ok(()) => self
+                .journal
+                .record_event(id, Event::CancelAcknowledged)
+                .map_err(Into::into),
+            Err(error) => {
+                self.journal.record_event(
+                    id,
+                    Event::CancelTransportFailed(FailureStage::AfterFirstByte),
+                )?;
+                Err(error)
+            }
+        }
     }
     /// Read-only reconciliation is still permitted after HALT.
     pub fn reconcile(&mut self, venue: &mut FakeVenue, id: &str) -> Result<(), ExecutionError> {

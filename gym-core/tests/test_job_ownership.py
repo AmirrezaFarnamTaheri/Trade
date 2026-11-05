@@ -96,6 +96,12 @@ def test_api_can_inspect_and_fence_while_catchup_is_running(tmp_path, monkeypatc
         assert release.wait(10), "test did not release the paper worker"
         return original(*args, **kwargs)
     monkeypatch.setattr(research_ledger, "paper", parked)
+    from gym.api import research as research_api
+    from gym.services.research_actions import research_action
+    async def controlled_calculation(root, action, value, *, store):
+        # Exercise API fencing with the controllable native replay; process deadlines have separate real-child tests.
+        return await asyncio.to_thread(research_action, root, action, value, store=store)
+    monkeypatch.setattr(research_api, "calculate", controlled_calculation)
     col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
     async def check():
         async with TestClient(TestServer(make_app(col, RuleService(db), "tok", tmp_path / "runs"))) as client:

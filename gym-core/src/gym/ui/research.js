@@ -52,6 +52,8 @@ window.gymResearch = (() => {
   actions['depth-audit'] = ['Validate supplied depth sequence', 'بررسی توالی عمق ورودی', 'source_id, as_of, max_age_seconds, max_levels, frames: [{kind, sequence, previous_sequence, event_at, observed_at, bids: [[price, quantity]], asks: [[price, quantity]]}]'];
   actions['unit-convert'] = ['Convert explicit observation epochs', 'تبدیل دوره‌های واحد مشاهده', 'value, factor (exact observation references), from_epoch, to_epoch, target_unit, as_of, max_age_seconds, max_skew_seconds'];
   actions['market-breadth'] = ['Compare market group breadth', 'مقایسهٔ گسترهٔ گروه‌های بازار', 'groups: [{name, symbols}], quote_currency, from, to, resolution'];
+  actions['order-page-import'] = ['Import observed order page', 'ثبت صفحهٔ سفارش‌های مشاهده‌شده', 'account_id, observed_at, kind (OPEN/HISTORY), page, per_page, payload (documented map of order arrays; origin and completeness remain unverified)'];
+  actions['news-fetch'] = ['Fetch public Federal Reserve headlines', 'دریافت خبرهای عمومی فدرال رزرو', 'source: "FED_PRESS", max_items: 1..20 (explicit internet read; saves actual receipt times, no historical backfill or trading signal)'];
   const $ = id => document.getElementById(id);
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
@@ -77,7 +79,7 @@ window.gymResearch = (() => {
         const action = $('research-action').value;
         const input = $('research-action-input').value;
         const value = !actions[action][2] ? null : idActions.has(action) ? input.trim() : JSON.parse(input);
-        const result = await api('/api/research/action', { method: 'POST', body: JSON.stringify({ action, value }) }, 120000);
+        const result = await api('/api/research/action', { method: 'POST', body: JSON.stringify({ action, value }) }, 130000);
         $('research-action-result').textContent = JSON.stringify(result, null, 2);
         if (action === 'research-packet') {
           $('research-packet-prompt').value = result.prompt;
@@ -117,7 +119,7 @@ window.gymResearch = (() => {
         <label>${text('Configured AI preset ID', 'شناسه الگوی هوش مصنوعی')}<input id="research-packet-preset" maxlength="128" dir="ltr"></label>
         <button id="research-packet-send" class="button" type="button" disabled>${text('Send to AI · may incur charges', 'ارسال به هوش مصنوعی · ممکن است هزینه داشته باشد')}</button><pre id="research-packet-response" class="output" dir="auto"></pre></details>
       <p id="research-workspace-status" role="status"></p>`;
-    const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 120000);
+    const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     async function act(button, fn) {
       button.disabled = true; $('research-workspace-status').textContent = '';
       try { await fn(); }

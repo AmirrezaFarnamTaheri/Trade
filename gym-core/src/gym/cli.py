@@ -294,9 +294,22 @@ def account_cmd(args) -> int:
         balances = await reader.balances()
         fee = await reader.fee_rates()
         evidence = [await reader.manual_order_evidence(cid) for cid in args.order]
+        pages = []
+        for kind, field in (("OPEN", "open_orders_page"), ("HISTORY", "history_page")):
+            number = getattr(args, field, None)
+            if number is not None:
+                pages.append(await reader.order_page(kind=kind, page=number, per_page=getattr(args, "per_page", 100)))
+        by_id = {row["client_id"]: row for row in evidence}
+        for page in pages:
+            for row in page["orders"]:
+                prior = by_id.get(row["client_id"])
+                if prior is not None and prior != row:
+                    raise ReadUncertain("order changed across separate observations; refresh before recording")
+                by_id[row["client_id"]] = row
+        evidence = list(by_id.values())
         orders = [{"client_id": row["client_id"], "status": row["raw_status"],
                    "symbol": row["symbol"], "filled": row["executed_qty"]} for row in evidence]
-        return balances, fee, orders, evidence
+        return balances, fee, orders, evidence, pages
 
     service_source = getattr(args, "source", "user") == "service"
 
@@ -312,7 +325,7 @@ def account_cmd(args) -> int:
             return await observe(WallexAccountReader(session))
 
     try:
-        balances, fee, orders, evidence = asyncio.run(read())
+        balances, fee, orders, evidence, pages = asyncio.run(read())
     except ReadUncertain as e:
         print(f"error: {e} (state UNKNOWN, nothing recorded)", file=sys.stderr)
         return 3
@@ -325,6 +338,7 @@ def account_cmd(args) -> int:
            **{s: fee[s] for s in ("BTCUSDT", "USDTTMN", "BTCTMN") if s in fee}}
     print(json.dumps({"observed_at": observed["observed_at"], "fee": fee, "balances": nonzero,
                       "orders": observed["orders"], "order_evidence": evidence,
+                      "order_pages": pages, "collection_complete": False,
                       "transport": transport,
                       "permission_status": "UNVERIFIED",
                       "funded_authority": False}, ensure_ascii=False, indent=2))
@@ -469,6 +483,7 @@ def backup_once_cmd(args) -> int:
                              passphrase=phrase, keep=args.keep)
     finally:
         del phrase
+    _backup_receipt(args, "BACKUP", report)
     # Never output a recovery passphrase, access token, or private API key.
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
@@ -493,8 +508,20 @@ def restore_backup_cmd(args) -> int:
     import platform
     from datetime import datetime, timezone
     report |= {"restored_at": iso(datetime.now(timezone.utc)), "host": platform.node(), "mode_after": "DISARMED"}
+    _backup_receipt(args, "RESTORE", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
+
+
+def _backup_receipt(args, kind, report):
+    from .services.backup_status import record
+    try:
+        record(store_root(args), kind, report)
+        report["status_recorded"] = True
+    except (ValueError, OSError, sqlite3.Error, KeyError, AttributeError):
+        # A display receipt failure cannot undo the completed encrypted backup/restore.
+        report["status_recorded"] = False
+        report["status_error"] = "Operation completed; local display receipt unavailable. Do not repeat the operation automatically."
 
 
 def update_check_cmd(args) -> int:
@@ -607,9 +634,16 @@ def research_cmd(args):
             if not value:
                 raise ValueError("this research action requires an input JSON file")
             value = _strict_offline_json(value, max_bytes=65536)
-        result = research_action(root, args.action, value, store="demo" if args.demo else "live", at=args.at)
+        from .services.research_process import calculate, HEAVY_ACTIONS, ResearchProcessFailure
+        try:
+            result = (asyncio.run(calculate(root, args.action, value, store="demo" if args.demo else "live", at=args.at))
+                      if args.action in HEAVY_ACTIONS else
+                      research_action(root, args.action, value, store="demo" if args.demo else "live", at=args.at))
+        except ResearchProcessFailure as error:
+            print(json.dumps(error.report, ensure_ascii=False))
+            return 3
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-    return 3 if args.action == "claim-check" and not result["all_matched"] else 0
+    return 3 if "error" in result or (args.action == "claim-check" and not result["all_matched"]) else 0
 
 
 def main(argv=None):
@@ -751,6 +785,9 @@ def main(argv=None):
     ac.add_argument("--source", choices=("user", "service"), default="user",
                     help="user: stored read key; service: protected installed helper (administrator only)")
     ac.add_argument("--order", action="append", default=[], metavar="CLIENT_ID", help="order to look up (repeatable)")
+    ac.add_argument("--open-orders-page", type=int, choices=range(1, 1001), metavar="1..1000", help="read one explicit open-order page")
+    ac.add_argument("--history-page", type=int, choices=range(1, 1001), metavar="1..1000", help="read one explicit history page")
+    ac.add_argument("--per-page", type=int, choices=range(1, 101), default=100, metavar="1..100", help="bounded page size; no automatic walk or absence inference")
     ac.add_argument("--record", action="store_true", help="append the observation to the local Journal")
     ext = sub.add_parser("external-observe", help="import read-only manual account observation JSON to the local Journal")
     ext.add_argument("path", help="local sanitized observation JSON file; no API keys")

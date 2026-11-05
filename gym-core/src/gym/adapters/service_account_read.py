@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..domain.account_observations import parse_wallex_balances
 from .wallex_account_read import ReadUncertain, parse_account_json, parse_fee_rates
-from .wallex_order_evidence import InvalidOrderEvidence, parse_manual_order_evidence
+from .wallex_order_evidence import InvalidOrderEvidence, parse_manual_order_evidence, parse_order_page
 
 _BODY_LIMIT = 1_048_576
 _OUTPUT_LIMIT = _BODY_LIMIT * 2 + 256
@@ -123,3 +123,12 @@ class ServiceAccountReader:
             return parse_manual_order_evidence(await self._get("known-client-order", client_id), client_id)
         except InvalidOrderEvidence as exc:
             raise ReadUncertain(str(exc)) from None
+
+    async def order_page(self, *, kind, page, per_page=100):
+        # Validate before spawning the privileged helper, even for an empty page.
+        parse_order_page({"success": True, "result": {}}, kind=kind, page=page, per_page=per_page)
+        try:
+            payload = await self._get("open-orders" if kind == "OPEN" else "order-history", str(page), str(per_page))
+            return parse_order_page(payload, kind=kind, page=page, per_page=per_page)
+        except InvalidOrderEvidence as error:
+            raise ReadUncertain(str(error)) from None

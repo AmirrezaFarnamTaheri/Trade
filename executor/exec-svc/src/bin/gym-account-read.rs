@@ -55,6 +55,15 @@ fn run() -> Result<Vec<u8>, ()> {
         [kind] if kind == "balances" => AccountResource::Balances,
         [kind] if kind == "fees" => AccountResource::Fees,
         [kind, id] if kind == "known-client-order" => AccountResource::KnownClientOrder(id.clone()),
+        [kind, page, per_page] if kind == "open-orders" || kind == "order-history" => {
+            let page: u16 = page.parse().map_err(|_| ())?;
+            let per_page: u8 = per_page.parse().map_err(|_| ())?;
+            if kind == "open-orders" {
+                AccountResource::OpenOrders { page, per_page }
+            } else {
+                AccountResource::OrderHistory { page, per_page }
+            }
+        }
         _ => return Err(()),
     };
     resource.path().map_err(|_| ())?;

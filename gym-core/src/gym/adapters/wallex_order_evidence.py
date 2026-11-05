@@ -132,3 +132,29 @@ def parse_manual_order_evidence(payload: object, requested_id: str) -> dict:
         "fill_coverage": fill_coverage,
         "settlement": "UNKNOWN", "money_authority": False,
     }
+
+
+def parse_order_page(payload, *, kind, page, per_page):
+    """Documented map-of-order-arrays only; a page never proves collection completeness."""
+    if kind not in ("OPEN", "HISTORY") or type(page) is not int or not 1 <= page <= 1000 or type(per_page) is not int or not 1 <= per_page <= 100:
+        raise InvalidOrderEvidence("invalid bounded order page request")
+    result = payload.get("result") if type(payload) is dict and payload.get("success") is True else None
+    if type(result) is not dict or len(result) > 100 or any(type(rows) is not list for rows in result.values()):
+        raise InvalidOrderEvidence("unverified order collection contract")
+    orders, seen = [], set()
+    for group in result.values():
+        for row in group:
+            if len(orders) >= per_page or type(row) is not dict:
+                raise InvalidOrderEvidence("order page exceeds request bound or contains invalid rows")
+            evidence = parse_manual_order_evidence({"success": True, "result": row}, row.get("clientOrderId"))
+            if evidence["client_id"] in seen:
+                raise InvalidOrderEvidence("duplicate order identity in page")
+            seen.add(evidence["client_id"])
+            orders.append(evidence)
+    info = payload.get("result_info")
+    echoed = type(info) is dict and "page" in info and "per_page" in info
+    if echoed and (type(info["page"]) is not int or type(info["per_page"]) is not int or info["page"] != page or info["per_page"] != per_page):
+        raise InvalidOrderEvidence("order page identity differs from request")
+    return {"kind": kind, "requested_page": page, "requested_per_page": per_page, "orders": orders,
+            "pagination_echo": "MATCHED" if echoed else "UNVERIFIED", "collection_complete": False,
+            "snapshot_atomic": False, "absence_proven": False, "settlement": "UNKNOWN", "funded_authority": False}

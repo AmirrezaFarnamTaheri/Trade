@@ -315,7 +315,22 @@ fn zero_fill_cancel_releases_only_after_a_fresh_terminal_balance() {
     service
         .submit(&mut venue, entry, 100, Dispatch::Acknowledge)
         .unwrap();
+    let mut changed = market("BTC", 0);
+    changed.open = false;
+    changed.rules_version = "changed-entry-rules".into();
+    changed.certified_until_ms = 0;
+    venue.set_market(changed);
+    stop(&gate, StopCommand::PauseEntries);
     service.cancel(&mut venue, "unfilled").unwrap();
+    assert_eq!(
+        service
+            .journal()
+            .get("unfilled")
+            .unwrap()
+            .attempt
+            .cancellation(),
+        exec_core::orders::Cancellation::Acknowledged
+    );
     assert_eq!(service.journal().reserved("main", "USDT"), 110);
     drop(service);
     let mut service = FakeExecution::open(&path, gate).unwrap();

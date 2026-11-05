@@ -1,4 +1,4 @@
-# Workstream B1 — service security status (2026-11-04)
+# Workstream B1 — service security status (2026-11-05)
 
 **IN PROGRESS. DISARMED. NOT CERTIFIED. NOT protective or money-enabled.**
 A compiled service, successful GET or acknowledged STOP does not establish certified venue exits.
@@ -16,6 +16,21 @@ A compiled service, successful GET or acknowledged STOP does not establish certi
 - The installed-host drill and protected existence manifest cover synthetic custody/recovery, a parked main loop, actual worker/profile-canary denial probes and suspended-process containment. The worker installer targets the explicitly selected ordinary operator; profile initialization runs from that operator's unelevated logon.
 
 ## Verified versus external
+
+The previously qualified protected binary set now passes installed synthetic
+provision/restart/corruption refusal/recovery with retained custody history.
+Actual ACER AppContainer child denied all six existing private targets and
+returned exactly three R0 tools. Operator STOP acknowledgements took 12–17 ms;
+retained-handle suspended-process containment took 1,037 ms. Normal restart
+completed, then the service was stopped and disabled. Receipts are in
+`.pi/paper-qualification/custody-continuation.json`, `operator-20261105.json`
+and `containment.json`.
+
+The current source additionally implements fixed GET open/history pages and
+durable offline cancellation evidence, with all-target tests, strict Clippy and
+release build. These new binaries have not been installed or host/venue-qualified.
+They do not add real order transport or certified protection. The failure history
+below records earlier attempts and is superseded only for the qualified set.
 
 Local unit tests, offline Windows builds, helper refusal probes and PowerShell parsing have passed for the implemented slices. Their exact integrated counts live in [acceptance status](../../gym-core/docs/acceptance-status.md). Source/token checks are not a successful installed-service round trip.
 
@@ -40,11 +55,12 @@ Historical hosted Windows [run 41215249615](https://github.com/AmirrezaFarnamTah
 
 ## B1/B2 exit gates still open
 
-- [ ] Install/run the exact current protected binaries with an explicitly chosen human operator account/logon. Prove service-context DPAPI provision, restart, corruption refusal and recovery/reprovisioning without exposing a real key.
+- [x] Qualify the previous protected binary set under the selected ACER account/logon: synthetic service DPAPI provision/restart/corruption/recovery passed with retained history and no real key.
+- [ ] Install/requalify the new page/codec builds before exercising their new protected account-read operations.
 - [ ] Verify the key's actual venue permission contract. Provisioning and GET deliberately retain **UNVERIFIED**; successful reads never satisfy SEC-03 by themselves.
 - [ ] Exercise actual service-owned balances/locked exposure and known manual-order lifecycle; normalize observations without inventing absent fills or settlement. Connectivity, pagination, margin/package availability and freshness remain unverified.
-- [ ] Run the completed constrained worker installation/drill and prove the actual process cannot access STOP/T2 pipes, current custody files, operator-profile canary or SCM modification. The future funded ledger needs its own real-file probe once implemented. Ordinary account naming and source inspection are not SEC-02 acceptance.
-- [ ] Measure STOP under dead Python/UI/network/main loop (≤1 s) and retained-handle hard containment under a hung service (≤10 s), on the chosen operator host. Prove restart remains DISARMED.
+- [x] Run the actual constrained child against STOP/T2 pipes, current custody files, operator-profile canary and SCM; all were denied. The future funded ledger still needs its own real-file probe once implemented.
+- [x] Measure independent STOP under the parked main loop and retained-handle containment under a suspended service on ACER; measured deadlines and DISARMED startup passed for the qualified set.
 - [ ] Perform separate-machine restore; same-host WSL portability is not a hardware-loss test. Service-owned DPAPI credentials must be reprovisioned, never exported as plaintext.
 
 Trusted-path T1/funded order transport, live reconciliation and certified protective exits remain missing integration code. No live order creation/cancellation, withdrawal, funded arming or capability promotion is enabled or claimed.

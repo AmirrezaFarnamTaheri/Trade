@@ -91,7 +91,7 @@ class WallexAccountReader:
         if path not in ("/v1/account/balances", "/v1/account/fee") and not (
             path.startswith("/v1/account/orders/")
             and _ID.fullmatch(path[len("/v1/account/orders/"):])
-        ):
+        ) and not re.fullmatch(r"/v1/account/(?:orders|openOrders)\?page=(?:[1-9][0-9]{0,2}|1000)&per_page=(?:[1-9][0-9]?|100)", path):
             raise ValueError("not in read-only allowlist")
         try:
             async with self._session.get(
@@ -188,3 +188,13 @@ class WallexAccountReader:
             # Exception types and messages are allowlisted static strings;
             # the untrusted venue body is never included.
             raise ReadUncertain(str(exc)) from None
+
+    async def order_page(self, *, kind, page, per_page=100):
+        from .wallex_order_evidence import parse_order_page, InvalidOrderEvidence
+        parse_order_page({"success": True, "result": {}}, kind=kind, page=page, per_page=per_page)
+        collection = "openOrders" if kind == "OPEN" else "orders"
+        try:
+            payload = await self._get(f"/v1/account/{collection}?page={page}&per_page={per_page}")
+            return parse_order_page(payload, kind=kind, page=page, per_page=per_page)
+        except InvalidOrderEvidence as error:
+            raise ReadUncertain(str(error)) from None
