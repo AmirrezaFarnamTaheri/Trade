@@ -5,6 +5,8 @@ A compiled service, successful GET or acknowledged STOP does not establish certi
 
 ## Implemented locally
 
+- Separate OS-user/logon-authenticated operator review pipe and SCM-pinned `gym-review` helper record/revoke exact intent in the protected execution journal. Payloads bind units, current runtime/limit/key generation, expiry and evidence digests. The CLI and token/same-origin Operate relay have no order transport or trading capability. The new helper/ACLs and listener are not installed or host-qualified; approval consumption, arming and real limits enforcement remain open. See [operator review](../../contracts/v1/operator-review-v1.md).
+
 - Administrator-only `gym-ceiling get|set` records exact currency/unit-epoch/precision and capital in the protected `Vault/exec_ledger.db`. Stale updates, changed unit/operator bindings and operator-account increases are rejected. Actual T2 identities come from the connected Windows token. The existing credential journal is retained. This source/release build is not installed; the metadata is not enforced by a real money path and grants no trading authority. See [installation capital limit](installation-ceiling.md).
 
 - Restricted LocalService SCM host, disabled-by-default installer, protected code/data/SCM ACLs and exact-byte SHA-256/FULL-synchronous SQLite journal. All B1 draft PRs were merged earlier; this is not an unmerged PR #10 status report.

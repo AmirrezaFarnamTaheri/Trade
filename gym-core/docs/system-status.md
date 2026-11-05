@@ -1,5 +1,41 @@
 # System status — 2026-11-05
 
+## Protected operator intent
+
+The native service now has a separate OS-user/logon-authenticated operator pipe
+for exact intent recording, inspection and revocation. A fixed SCM-pinned helper,
+bounded Python/Rust frames and the existing protected execution journal retain
+payloads, principal/logon, runtime/limit/key-generation bindings and actual clocks.
+Stale limits, wrong units, duplicate identities, invalid spending envelopes and
+expiry outside the next 30 seconds are refused. STOP remains independent.
+
+The shared CLI adapter and explicit EN/FA Operate panel require no credential
+entry. The API requires the local token, exact POST origin, bounded input and a
+single active request; DEMO disables it. No research or MCP dispatch exposes this
+workflow. Lost receipts remain uncertain and never trigger automatic retry.
+No order is submitted and no trading capability is issued. Historical records
+can be expired or invalidated; their presence does not authorize execution.
+
+Validation: 934 Python tests passed, five platform skips and 39 subtests; 129
+native tests passed across 37 result groups. Strict workspace Clippy, formatting,
+Windows release build, new-module style checks and repository-wide Python
+correctness lint passed. All three changed PowerShell files parse. The npm
+offline audit and fresh installed-Python dependency audit found no known
+vulnerabilities; the editable local package is outside the advisory database.
+No dependency changed.
+
+The observatory was not listening when reload was attempted. It was started with
+its existing public-data configuration; startup output and the loopback listener
+were checked. Live browser inspection remains blocked by the browser URL policy;
+Node/UI and local test-server checks are not visual verification. The protected
+executor was read back STOPPED/DISABLED and was not started or updated.
+
+Installed-host qualification of this binary set, worker denial of the new pipe,
+atomic approval consumption, actual account/instrument/rule/cost verification,
+arming, money-limit enforcement, real transport/reconciliation and protective
+exits remain open. No real credential, capital limit or loss budget was configured.
+See [operator review contract](../../contracts/v1/operator-review-v1.md).
+
 ## Installation-limit prerequisite
 
 Commit `b867fef` contains the preceding supervision/account/cancellation/news/

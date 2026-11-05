@@ -101,6 +101,18 @@
 
       <section id="v-operate" class="view" aria-labelledby="operate-title" hidden>
         <header class="view-header"><div><p class="eyebrow" data-t="offlineEyebrow">Prepare without placing an order</p><h1 id="operate-title" data-t="operateTitle">Offline ticket</h1><p class="lead" data-t="operateWarning">Estimate costs against a bounded snapshot. No order is submitted and no capital is authorized.</p></div><span class="chip chip-warn" data-t="disarmed">Disarmed</span></header>
+        <details class="panel">
+          <summary data-t="nativeReviewTitle">Protected operator intent</summary>
+          <p data-t="nativeReviewHelp">Requires the reviewed Windows service and helper to be installed. Records or revokes exact operator intent without sending orders. Holdings, fees and method qualification remain unverified.</p>
+          <button id="native-review-context" class="button" type="button" data-t="nativeReviewContext">Read service context</button>
+          <form id="native-review-form">
+            <label for="native-review-input" data-t="nativeReviewInput">Explicit native request (JSON)</label>
+            <textarea id="native-review-input" class="json-input" rows="8" spellcheck="false" dir="ltr"></textarea>
+            <p class="field-help" data-t="nativeReviewFields">Actions: status, inspect, approve, revoke. Approvals require exact units, amounts, current epoch/limit/generation, expiry and evidence digests. No credentials belong here.</p>
+            <button id="native-review-submit" class="button" type="submit" data-t="nativeReviewSubmit">Run protected review</button>
+          </form>
+          <pre id="native-review-result" class="output" dir="ltr" aria-live="polite"></pre>
+        </details>
         <div class="operate-layout"><section class="panel ticket-panel"><div class="panel-heading"><h2 class="panel-title" data-t="offlineTicketTitle">Dry-run order ticket</h2><button type="button" id="ticket-example" class="button button-small" data-t="loadExample">Load synthetic example</button></div><div class="segmented" id="ticket-editor-mode" role="group" data-t-label="ticketEditor"><button type="button" data-editor="form" aria-pressed="true" data-t="structuredForm">Structured form</button><button type="button" data-editor="json" aria-pressed="false" data-t="jsonEditor">JSON editor</button></div><p id="ticket-help" class="field-help" data-t="offlineTicketHelp">Use exact decimal strings for amounts. This quote-fee model checks a BUY entry or SELL exit against declared limits.</p><div id="ticket-fields" class="ticket-fields"></div><div id="ticket-json-panel" hidden><label class="field-label" for="offline-ticket" data-t="ticketJson">Snapshot & order request · JSON</label><textarea id="offline-ticket" class="input code" spellcheck="false" rows="17" aria-describedby="ticket-help"></textarea></div><div class="actions"><button type="button" class="button button-primary" id="preview-ticket" data-t="previewOffline">Preview costs</button><span class="field-help" data-t="ticketPrivacy">Local preview. Keep credentials out of this field.</span></div><div id="ticket-output" role="status" aria-live="polite"></div></section><aside class="panel protection-panel"><h2 class="panel-title" data-t="protectionHeading">Protection & authority</h2><div id="protection-state" role="status"></div><p class="footnote" data-t="protectionNote">Account observations are not spendable cash. An offline preview cannot activate the executor or certify venue stops.</p></aside></div>
       </section>
 
@@ -134,6 +146,7 @@
 <script id="gym-config" type="application/json">{"token":"__GYM_TOKEN__","demo":__GYM_DEMO__}</script>
 <script src="/models.js" defer></script>
 <script src="/research.js" defer></script>
+<script src="/native-review.js" defer></script>
 <script src="/replay-chart.js" defer></script>
 <script src="/app.js" defer></script>
 </body>

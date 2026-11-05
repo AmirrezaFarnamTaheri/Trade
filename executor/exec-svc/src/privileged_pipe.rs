@@ -98,20 +98,21 @@ pub async fn serve(
     ready: std::sync::mpsc::Sender<Result<(), exec_svc::ServiceFailure>>,
     mode: StartupMode,
     phase: std::sync::Arc<std::sync::atomic::AtomicU32>,
-    operator_user: &str,
+    operator: crate::operate_pipe::Context,
 ) -> io::Result<()> {
     let opened = if mode != StartupMode::CredentialRecovery {
         Vault::open(sid)
     } else {
         Vault::open_mode(sid, mode)
     };
-    let mut vault = match opened {
+    let vault = match opened {
         Ok(vault) => vault,
         Err(error) => {
             let _ = ready.send(Err(exec_svc::ServiceFailure::Vault));
             return Err(error);
         }
     };
+    let vault = std::sync::Arc::new(std::sync::Mutex::new(vault));
     let mut listening = match create(sid, true) {
         Ok(pipe) => pipe,
         Err(error) => {
@@ -119,6 +120,12 @@ pub async fn serve(
             return Err(error);
         }
     };
+    if mode == StartupMode::Normal {
+        if let Err(error) = crate::operate_pipe::start(sid, vault.clone(), operator.clone()) {
+            let _ = ready.send(Err(exec_svc::ServiceFailure::OperateListener));
+            return Err(error);
+        }
+    }
     ready
         .send(Ok(()))
         .map_err(|_| io::Error::other("service startup cancelled"))?;
@@ -131,19 +138,26 @@ pub async fn serve(
                 if let Ok(Ok(request)) = timeout(DEADLINE, receive(&mut client, mode)).await {
                     match request {
                         Request::Ceiling(request, principal) => {
-                            if let Some(reply) = vault.ceiling(
-                                &request,
-                                principal.user,
-                                principal.logon,
-                                operator_user,
-                            )? {
+                            let reply = vault
+                                .lock()
+                                .map_err(|_| io::Error::other("vault poisoned"))?
+                                .ceiling(
+                                    &request,
+                                    principal.user,
+                                    principal.logon,
+                                    &operator.user,
+                                )?;
+                            if let Some(reply) = reply {
                                 let reply = reply.encode().map_err(io::Error::other)?;
                                 let _ = timeout(DEADLINE, client.write_all(&reply)).await;
                             }
                         }
                         Request::Provision(secret, correlation) => {
                             // A vault error is fatal, including an uncertain journal commit.
-                            let generation = vault.provision(secret, &phase)?;
+                            let generation = vault
+                                .lock()
+                                .map_err(|_| io::Error::other("vault poisoned"))?
+                                .provision(secret, &phase)?;
                             phase.store(
                                 exec_svc::ServiceFailure::PrivilegedListener as u32,
                                 std::sync::atomic::Ordering::SeqCst,
@@ -159,7 +173,13 @@ pub async fn serve(
                         }
                         Request::Account(resource, correlation) => {
                             // This T2 thread may block; independent authenticated T0 never waits on it.
-                            if let Ok(body) = crate::service_account::read(&vault, &resource) {
+                            let observed = {
+                                let owner = vault
+                                    .lock()
+                                    .map_err(|_| io::Error::other("vault poisoned"))?;
+                                crate::service_account::read(&owner, &resource)
+                            };
+                            if let Ok(body) = observed {
                                 let reply = account_reply(body.0.len(), correlation)
                                     .map_err(io::Error::other)?;
                                 let _ = timeout(DEADLINE, async {

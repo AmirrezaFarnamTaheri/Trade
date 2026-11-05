@@ -3,6 +3,8 @@
 #[cfg(windows)]
 mod credential_vault;
 #[cfg(windows)]
+mod operate_pipe;
+#[cfg(windows)]
 mod privileged_pipe;
 #[cfg(windows)]
 mod service_account;
@@ -207,6 +209,14 @@ mod windows_host {
         let failure_phase = privileged_phase.clone();
         let failed_t2 = privileged_failed.clone();
         let stop_t2 = should_stop.clone();
+        let operator_context = crate::operate_pipe::Context {
+            gate: gate.clone(),
+            user: privileged_operator,
+            logon: logon_sid.clone(),
+            stop: should_stop.clone(),
+            failed: privileged_failed.clone(),
+            phase: privileged_phase.clone(),
+        };
         thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 tokio::runtime::Builder::new_current_thread()
@@ -219,7 +229,7 @@ mod windows_host {
                             privileged_tx,
                             mode,
                             failure_phase,
-                            &privileged_operator,
+                            operator_context,
                         ))
                     })
             }));

@@ -37,6 +37,7 @@ from ..services.readiness import current_top, operational_readiness
 from .models import install as install_models
 from .research import install as install_research
 from .offline_reviews import install as install_offline_reviews
+from .operator_reviews import install as install_operator_reviews
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 LOOPBACK = {"127.0.0.1", "localhost"}
@@ -66,7 +67,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
 
     async def index(_):
         html = UI.read_text("utf-8").replace("__GYM_TOKEN__", token).replace("__GYM_DEMO__", json.dumps(col.demo))
-        for asset in ("app.js", "models.js", "replay-chart.js", "research.js", "styles.css"):
+        for asset in ("app.js", "models.js", "replay-chart.js", "research.js", "native-review.js", "styles.css"):
             version = sha256(UI.with_name(asset).read_bytes()).hexdigest()[:16]
             html = html.replace(f'"/{asset}"', f'"/{asset}?v={version}"')
         return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
@@ -430,6 +431,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
         web.get("/models.js", browser_asset),
         web.get("/research.js", browser_asset),
+        web.get("/native-review.js", browser_asset),
         web.get("/replay-chart.js", browser_asset),
         web.get("/api/markets", markets), web.get("/api/health", health), web.get("/api/ready", ready),
         web.get("/api/backup-status", backup_status_api),
@@ -452,6 +454,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/presets/{name}", preset),
     ])
     install_models(app, token)
+    install_operator_reviews(app, token, enabled=not col.demo)
     install_research(app, token, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
     review_path = (Path(offline_review_journal.conn.execute("PRAGMA database_list").fetchone()[2])
                    if offline_review_journal is not None else runs.parent / "offline_reviews.db" if runs is not None else None)

@@ -109,7 +109,7 @@ fn create_pipe(service_sid: &str, logon_sid: &str, first: bool) -> io::Result<Na
 /// access mask is unexpectedly permissive on the installed Windows host.
 /// There are deliberately NO awaits during impersonation: the stop listener
 /// runs on its own single-thread Tokio runtime. Revert failure is fatal.
-fn verified_client_logon(
+pub fn verified_client_logon(
     client: &NamedPipeServer,
     expected_logon: &str,
     expected_user: &str,

@@ -445,6 +445,117 @@ impl Vault {
             correlation: request.correlation,
         }))
     }
+    pub fn review(
+        &mut self,
+        request: &exec_ipc::review::Request,
+        user: &str,
+        logon: &str,
+        gate: &exec_svc::StopGate,
+    ) -> io::Result<exec_ipc::review::Reply> {
+        use exec_ipc::review::{Command, Reply, ReviewState};
+        use exec_svc::offline_recovery::{ApprovalRevocation, OperatorApproval, RecoveryError};
+        require_service_identity()?;
+        let generation = self
+            .journal
+            .credential_metadata()
+            .map_or([0; 16], |value| value.generation);
+        let mut reply = Reply {
+            state: ReviewState::Status,
+            mode: gate.mode(),
+            correlation: request.correlation,
+            current_epoch: gate.runtime_epoch(),
+            sequence: 0,
+            recorded_at_ms: 0,
+            ceiling_sequence: self
+                .limits
+                .as_ref()
+                .and_then(|journal| journal.installation_ceiling())
+                .map_or(0, |(seq, _)| *seq),
+            credential_generation: generation,
+            ticket: None,
+        };
+        if self.mode != exec_ipc::provision::StartupMode::Normal {
+            reply.state = ReviewState::Refused;
+            return Ok(reply);
+        }
+        let client_id = match &request.command {
+            Command::Status => return Ok(reply),
+            Command::Inspect(id) => id.clone(),
+            Command::Approve(ticket) => {
+                if ticket.runtime_epoch != gate.runtime_epoch()
+                    || ticket.credential_generation != generation
+                {
+                    reply.state = ReviewState::Refused;
+                    return Ok(reply);
+                }
+                ticket.client_id.clone()
+            }
+            Command::Revoke { client_id, .. } => client_id.clone(),
+        };
+        let Some(journal) = self.limits.as_mut() else {
+            reply.state = if matches!(request.command, Command::Inspect(_)) {
+                ReviewState::Missing
+            } else {
+                ReviewState::Refused
+            };
+            return Ok(reply);
+        };
+        let at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_millis()
+            .try_into()
+            .map_err(io::Error::other)?;
+        let result = match &request.command {
+            Command::Approve(ticket) => journal.record_approval(OperatorApproval {
+                ticket: ticket.as_ref().clone(),
+                principal: user.into(),
+                logon: logon.into(),
+                recorded_at_ms: at,
+                request_id: request.correlation,
+                mode: gate.mode(),
+            }),
+            Command::Revoke {
+                client_id,
+                expected_sequence,
+            } => journal.revoke_approval(ApprovalRevocation {
+                client_id: client_id.clone(),
+                expected_sequence: *expected_sequence,
+                principal: user.into(),
+                logon: logon.into(),
+                recorded_at_ms: at,
+                request_id: request.correlation,
+            }),
+            _ => Ok(()),
+        };
+        match result {
+            Ok(()) => {}
+            Err(RecoveryError::Ledger(_)) => {
+                return Err(io::Error::other(
+                    "operator review commit uncertain; service must stop",
+                ))
+            }
+            Err(_) => {
+                reply.state = ReviewState::Refused;
+                return Ok(reply);
+            }
+        }
+        if let Some(saved) = journal.operator_approval(&client_id) {
+            reply.state = if saved.revoked_at_ms.is_some() {
+                ReviewState::Revoked
+            } else {
+                ReviewState::Recorded
+            };
+            reply.sequence = saved.sequence;
+            reply.recorded_at_ms = saved.revoked_at_ms.unwrap_or(saved.approval.recorded_at_ms);
+            reply.ticket = Some(saved.approval.ticket.clone());
+        } else {
+            reply.state = ReviewState::Missing;
+        }
+        reply.mode = gate.mode();
+        Ok(reply)
+    }
+
     // No caller-supplied generation and no fallback to a previous/revoked key.
     pub fn load_current_secret(&self) -> io::Result<Option<Secret>> {
         require_service_identity()?;

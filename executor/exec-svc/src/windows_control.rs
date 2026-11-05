@@ -56,7 +56,13 @@ fn same_identity(expected: u32, observed: u32, running: bool) -> bool {
 }
 
 pub fn pin() -> Result<Pinned, String> {
-    let service = service(true)?;
+    pin_with_access(true)
+}
+pub fn pin_readonly() -> Result<Pinned, String> {
+    pin_with_access(false)
+}
+fn pin_with_access(change: bool) -> Result<Pinned, String> {
+    let service = service(change)?;
     let config = service.query_config().map_err(|e| e.to_string())?;
     let expected = std::env::var_os("ProgramFiles").ok_or("missing ProgramFiles")?;
     let expected = std::path::PathBuf::from(expected)
@@ -83,7 +89,9 @@ pub fn pin() -> Result<Pinned, String> {
     // Keep this exact kernel process object alive; never terminate by recycled PID.
     let process = unsafe {
         OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION | 0x00100000 | PROCESS_TERMINATE,
+            PROCESS_QUERY_LIMITED_INFORMATION
+                | 0x00100000
+                | if change { PROCESS_TERMINATE } else { 0 },
             0,
             pid,
         )

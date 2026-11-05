@@ -102,8 +102,16 @@ The next prerequisite now has native code: administrator-only installation-limit
 recording in the protected execution ledger, exact currency/unit-epoch/precision,
 OS-derived administrator identity, retained history and stale-update rejection.
 The configured operator cannot raise it. CLI and installer wiring are implemented;
-installed-host qualification, T1 approval/arming and actual money-path limit
+installed-host qualification, T1 consumption/arming and actual money-path limit
 enforcement remain open. See [installation capital limit](../../executor/docs/installation-ceiling.md).
+
+Protected operator intent recording/revocation now has a separate OS-authenticated
+pipe, protected helper, exact bounded Python/Rust wire contract and durable native
+journal. The CLI and explicit EN/FA Operate controls use the same adapter; DEMO,
+research and MCP cannot invoke this workflow. Receipts carry no funded authority.
+Payloads bind the current runtime, limit and key generation and expire within
+30 seconds. Installed-host qualification and atomic consumption by a real order
+intent remain open. See [operator review](../../contracts/v1/operator-review-v1.md).
 
 | Work | Current state | Concrete completion requirement |
 | --- | --- | --- |
@@ -111,7 +119,7 @@ enforcement remain open. See [installation capital limit](../../executor/docs/in
 | Actual worker isolation | Passed on this host under ACER | Actual no-capability AppContainer child denied custody ciphertext/journal, STOP/T2 pipes, profile canary and SCM access; the positive MCP check returned exactly three read-only tools. Repeat after deployment/policy changes. |
 | Independent STOP and hung containment | Passed on this host | Operator commands acknowledged in 12–17 ms under the parked loop; suspended-process containment took 1,037 ms. Normal restart completed, then service stopped/disabled. No funded authority was granted. |
 | Service-owned venue permissions/exposure | Bounded page transport/parsing implemented; actual acceptance open | Install reviewed new helper/service builds and establish the actual key permission contract, balances/locked/external exposure, pagination echoes, manual-order lifecycle and freshness. A successful GET alone cannot certify read-only permissions or settlement. No actual authenticated request was made. |
-| Trusted T1 and real submit/cancel/reconcile | Missing integration | Implement principal-bound, payload-bound approvals, fixed-origin transport, durable first-byte outcomes, unknown-order reconciliation and real account/instrument identity. Exercise offline failures before any separately approved venue probe. |
+| Trusted T1 and real submit/cancel/reconcile | Protected intent recording/revocation implemented locally; consumption and money path open | Install/qualify the new operator helper/pipe and worker denial. Join exact, fresh approvals atomically to order intents and authoritative account/instrument/rule/cost checks. Add arming, fixed-origin transport, durable first-byte outcomes and unknown-order reconciliation. Exercise offline failures before any separately approved venue probe. |
 | Protective stops, Exit Guard and capped Autopilot | Missing integration | Qualify native venue protection, disjoint quantities, restart/reopening and loss/installation caps through the real money path. Existing offline policy outputs remain advisory. |
 | Sustained prospective paper evidence | Additional real short session recorded; sustained qualification open | Run e27a80643af51ff4 captured 73 qualified observations, a two-minute post-warmup window and zero fills. It ended normally with unchanged virtual USDT. Continue future supervised evidence with actual clocks, gaps and stale marks; this short operational check is not profitability or sustained acceptance. |
 | Actual-versus-modeled costs | Open | Independently reconcile measured fills, fees, depth and latency with modeled assumptions. Real orders require a specific approved probe and loss budget; neither is supplied by this broad implementation request. |

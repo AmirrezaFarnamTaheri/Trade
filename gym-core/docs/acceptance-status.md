@@ -6,6 +6,18 @@ No funded submission, certified venue stop or independent-machine recovery is cl
 
 ## Current receipt — 2026-11-05
 
+Protected native operator intent recording/inspection/revocation now connects the
+OS-authenticated pipe and durable journal to the CLI and explicit EN/FA Operate
+controls. It does not consume approvals for execution, arm trading or send orders.
+Current regression: **934 Python passed, five skipped, 39 subtests passed**;
+**129 Rust tests passed across 37 result groups**. Strict Clippy, formatting,
+Windows release build, new-module style checks, whole-Python correctness lint and
+the three changed PowerShell syntax checks passed. Both dependency audits report
+no known vulnerabilities. The new service/helper build is not installed; ordinary
+operator/worker pipe permissions and browser rendering remain unverified for this
+version. The executor remains stopped/disabled. See
+[current operator intent status](system-status.md#protected-operator-intent).
+
 Installed synthetic custody/recovery and actual ACER AppContainer denial probes
 passed for the previously qualified protected binary set. Its four STOP commands
 took 12–17 ms; suspended-process hard containment took 1,037 ms. The service was

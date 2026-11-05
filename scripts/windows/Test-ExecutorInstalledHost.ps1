@@ -111,7 +111,7 @@ if ($Stage -eq 'Custody') {
     if (@(Get-ChildItem -LiteralPath $vault -Force).Count -ne 0 -or (Test-Path -LiteralPath $statePath) -or (Test-Path -LiteralPath $secretPath) -or (Test-Path -LiteralPath $savedCiphertext)) { throw 'Fresh empty vault and no prior drill required; preserve existing custody history.' }
     $BinaryDirectory = LocalPath $BinaryDirectory
     $hashes = @{}
-    foreach ($name in @('gym-executor.exe','gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe','gym-ceiling.exe','gym-research-worker.exe')) {
+    foreach ($name in @('gym-executor.exe','gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe','gym-ceiling.exe','gym-review.exe','gym-research-worker.exe')) {
         $expected = (Get-FileHash -LiteralPath (Join-Path $BinaryDirectory $name) -Algorithm SHA256).Hash
         if ((Get-FileHash -LiteralPath (Join-Path $code $name) -Algorithm SHA256).Hash -cne $expected) { throw 'Installed binary differs from chosen reviewed build.' }
         $hashes[$name] = $expected

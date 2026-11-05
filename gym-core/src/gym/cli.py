@@ -646,10 +646,25 @@ def research_cmd(args):
     return 3 if "error" in result or (args.action == "claim-check" and not result["all_matched"]) else 0
 
 
+def operator_review_cmd(args):
+    from .adapters.service_review import review
+    from .adapters.wallex_account_read import ReadUncertain
+    try:
+        result = asyncio.run(review(_strict_offline_json(args.input, max_bytes=16384)))
+    except ReadUncertain:
+        print(json.dumps({"error": "native review unacknowledged; inspect the same identity before retry",
+            "operation_may_have_committed": True, "automatic_retry_allowed": False, "funded_authority": False, "order_submitted": False}))
+        return 3
+    print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    return 3 if result["state"] in ("DEFERRED", "REFUSED", "MISSING") else 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="gymctl")
     p.add_argument("--data", default="data", help="data directory (default ./data)")
     sub = p.add_subparsers(dest="cmd", required=True)
+    native_review = sub.add_parser("operator-review", help="explicit protected Windows operator intent; never submits an order")
+    native_review.add_argument("input", help="native review JSON file (status, inspect, approve or revoke)")
     models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
     models.add_argument("model_args", nargs=argparse.REMAINDER)
     research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
@@ -828,6 +843,7 @@ def main(argv=None):
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
                 "candles": candles_cmd, "validate": replay_cmd, "technicals": technical_report_cmd}
+    commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:
         try:
             return commands[args.cmd](args)

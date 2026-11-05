@@ -20,6 +20,154 @@ const EXECUTION: u8 = 6;
 const EXECUTION_SETTLED: u8 = 7;
 const CREDENTIAL: u8 = 8;
 const CEILING: u8 = 9;
+const APPROVAL: u8 = 10;
+const REVOKE_APPROVAL: u8 = 11;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OperatorApproval {
+    pub ticket: exec_ipc::review::Ticket,
+    pub principal: String,
+    pub logon: String,
+    pub recorded_at_ms: u64,
+    pub request_id: [u8; 16],
+    pub mode: exec_ipc::StopMode,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ApprovalView {
+    pub sequence: u64,
+    pub approval: OperatorApproval,
+    pub revoked_at_ms: Option<u64>,
+}
+#[derive(Clone, Debug)]
+pub struct ApprovalRevocation {
+    pub client_id: String,
+    pub expected_sequence: u64,
+    pub principal: String,
+    pub logon: String,
+    pub recorded_at_ms: u64,
+    pub request_id: [u8; 16],
+}
+impl OperatorApproval {
+    fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
+        let ticket = self
+            .ticket
+            .encode()
+            .map_err(|_| RecoveryError::InvalidIdentity)?;
+        validate_review_actor(
+            &self.principal,
+            &self.logon,
+            self.recorded_at_ms,
+            self.request_id,
+        )?;
+        let mut raw = MAGIC.to_vec();
+        raw.push(APPROVAL);
+        add_name(&mut raw, &self.ticket.client_id)?;
+        raw.extend_from_slice(&ticket);
+        add_name(&mut raw, &self.principal)?;
+        add_name(&mut raw, &self.logon)?;
+        raw.extend_from_slice(&self.recorded_at_ms.to_be_bytes());
+        raw.extend_from_slice(&self.request_id);
+        raw.push(self.mode as u8);
+        Ok(raw)
+    }
+}
+impl ApprovalRevocation {
+    fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
+        validate_review_actor(
+            &self.principal,
+            &self.logon,
+            self.recorded_at_ms,
+            self.request_id,
+        )?;
+        if self.expected_sequence == 0 {
+            return Err(RecoveryError::InvalidIdentity);
+        }
+        let mut raw = MAGIC.to_vec();
+        raw.push(REVOKE_APPROVAL);
+        add_name(&mut raw, &self.client_id)?;
+        raw.extend_from_slice(&self.expected_sequence.to_be_bytes());
+        add_name(&mut raw, &self.principal)?;
+        add_name(&mut raw, &self.logon)?;
+        raw.extend_from_slice(&self.recorded_at_ms.to_be_bytes());
+        raw.extend_from_slice(&self.request_id);
+        Ok(raw)
+    }
+}
+fn validate_review_actor(
+    principal: &str,
+    logon: &str,
+    at: u64,
+    id: [u8; 16],
+) -> Result<(), RecoveryError> {
+    if !principal.starts_with("S-1-")
+        || !logon.starts_with("S-1-5-5-")
+        || !valid_name(principal)
+        || !valid_name(logon)
+        || !principal
+            .split('-')
+            .skip(1)
+            .chain(logon.split('-').skip(1))
+            .all(|v| !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()))
+        || at == 0
+        || id == [0; 16]
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    Ok(())
+}
+fn check_approval(
+    current: Option<&(u64, CeilingChange)>,
+    approvals: &BTreeMap<String, ApprovalView>,
+    requests: &BTreeSet<[u8; 16]>,
+    value: &OperatorApproval,
+) -> Result<(), RecoveryError> {
+    value.encode()?;
+    let (sequence, limit) = current.ok_or(RecoveryError::InvalidIdentity)?;
+    let ticket = &value.ticket;
+    if requests.contains(&value.request_id) || approvals.contains_key(&ticket.client_id) {
+        return Err(RecoveryError::DuplicateIdentity);
+    }
+    if ticket.ceiling_sequence != *sequence
+        || ticket.quote != limit.ceiling.currency
+        || ticket.quote_epoch != limit.ceiling.unit_epoch
+        || ticket.quote_decimals != limit.ceiling.decimals
+        || value.principal != limit.operator_user
+        || value.recorded_at_ms < limit.recorded_at_ms
+        || ticket.expires_at_ms <= value.recorded_at_ms
+        || ticket.expires_at_ms
+            > value
+                .recorded_at_ms
+                .checked_add(30000)
+                .ok_or(RecoveryError::InvalidIdentity)?
+        || value.mode == exec_ipc::StopMode::Halted
+        || (ticket.buy && value.mode != exec_ipc::StopMode::Disarmed)
+        || ticket.max_quote_debit > limit.ceiling.capital_quanta
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    Ok(())
+}
+fn check_revocation(
+    approvals: &BTreeMap<String, ApprovalView>,
+    requests: &BTreeSet<[u8; 16]>,
+    value: &ApprovalRevocation,
+) -> Result<(), RecoveryError> {
+    // Revocation must remain possible after wall-clock regression; journal sequence orders it.
+    value.encode()?;
+    let current = approvals
+        .get(&value.client_id)
+        .ok_or(RecoveryError::UnknownIdentity)?;
+    if requests.contains(&value.request_id) {
+        return Err(RecoveryError::DuplicateIdentity);
+    }
+    if current.sequence != value.expected_sequence
+        || current.revoked_at_ms.is_some()
+        || current.approval.principal != value.principal
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    Ok(())
+}
 
 /// Durable metadata, not a money permit. The service must authenticate the writer.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -240,8 +388,12 @@ pub struct DurableOrderJournal {
     credential: Option<CredentialMetadata>,
     ceiling: Option<(u64, CeilingChange)>,
     ceiling_requests: BTreeSet<[u8; 16]>,
+    approvals: BTreeMap<String, ApprovalView>,
+    approval_requests: BTreeSet<[u8; 16]>,
 }
 enum Record {
+    Approval(OperatorApproval),
+    RevokeApproval(ApprovalRevocation),
     Ceiling(CeilingChange),
     Credential(CredentialMetadata),
     Execution {
@@ -534,6 +686,38 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
     let kind = r.one()?;
     let id = r.name()?;
     let rec = match kind {
+        APPROVAL => {
+            let ticket = exec_ipc::review::Ticket::decode(r.take(exec_ipc::review::TICKET_SIZE)?)
+                .map_err(|_| RecoveryError::MalformedEvent)?;
+            if ticket.client_id != id {
+                return Err(RecoveryError::MalformedEvent);
+            }
+            let value = OperatorApproval {
+                ticket,
+                principal: r.name()?,
+                logon: r.name()?,
+                recorded_at_ms: r.num()?,
+                request_id: r.take(16)?.try_into().unwrap(),
+                mode: r
+                    .one()?
+                    .try_into()
+                    .map_err(|_| RecoveryError::MalformedEvent)?,
+            };
+            value.encode()?;
+            Record::Approval(value)
+        }
+        REVOKE_APPROVAL => {
+            let value = ApprovalRevocation {
+                client_id: id,
+                expected_sequence: r.num()?,
+                principal: r.name()?,
+                logon: r.name()?,
+                recorded_at_ms: r.num()?,
+                request_id: r.take(16)?.try_into().unwrap(),
+            };
+            value.encode()?;
+            Record::RevokeApproval(value)
+        }
         CEILING => {
             if id != "installation" {
                 return Err(RecoveryError::MalformedEvent);
@@ -726,7 +910,10 @@ fn apply_record(
     record: Record,
 ) -> Result<(), RecoveryError> {
     match record {
-        Record::Credential(_) | Record::Ceiling(_) => return Err(RecoveryError::MalformedEvent),
+        Record::Credential(_)
+        | Record::Ceiling(_)
+        | Record::Approval(_)
+        | Record::RevokeApproval(_) => return Err(RecoveryError::MalformedEvent),
         Record::Execution {
             id,
             account,
@@ -979,8 +1166,36 @@ impl DurableOrderJournal {
         let mut generations = BTreeSet::new();
         let mut ceiling = None;
         let mut ceiling_requests = BTreeSet::new();
+        let mut approvals = BTreeMap::new();
+        let mut approval_requests = BTreeSet::new();
         for e in &records {
             let parsed = decode(&e.event_bytes)?;
+            if let Record::Approval(value) = parsed {
+                check_approval(ceiling.as_ref(), &approvals, &approval_requests, &value)
+                    .map_err(|_| RecoveryError::MalformedEvent)?;
+                if intents.contains_key(&value.ticket.client_id) {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                approval_requests.insert(value.request_id);
+                approvals.insert(
+                    value.ticket.client_id.clone(),
+                    ApprovalView {
+                        sequence: e.sequence,
+                        approval: value,
+                        revoked_at_ms: None,
+                    },
+                );
+                continue;
+            }
+            if let Record::RevokeApproval(value) = parsed {
+                check_revocation(&approvals, &approval_requests, &value)
+                    .map_err(|_| RecoveryError::MalformedEvent)?;
+                approval_requests.insert(value.request_id);
+                let current = approvals.get_mut(&value.client_id).unwrap();
+                current.sequence = e.sequence;
+                current.revoked_at_ms = Some(value.recorded_at_ms);
+                continue;
+            }
             if let Record::Ceiling(change) = parsed {
                 check_ceiling(ceiling.as_ref(), &ceiling_requests, &change)
                     .map_err(|_| RecoveryError::MalformedEvent)?;
@@ -1023,6 +1238,8 @@ impl DurableOrderJournal {
             credential,
             ceiling,
             ceiling_requests,
+            approvals,
+            approval_requests,
         })
     }
 
@@ -1032,6 +1249,43 @@ impl DurableOrderJournal {
 
     pub fn installation_ceiling(&self) -> Option<&(u64, CeilingChange)> {
         self.ceiling.as_ref()
+    }
+
+    pub fn operator_approval(&self, client_id: &str) -> Option<&ApprovalView> {
+        self.approvals.get(client_id)
+    }
+    pub fn record_approval(&mut self, value: OperatorApproval) -> Result<(), RecoveryError> {
+        check_approval(
+            self.ceiling.as_ref(),
+            &self.approvals,
+            &self.approval_requests,
+            &value,
+        )?;
+        if self.intents.contains_key(&value.ticket.client_id) {
+            return Err(RecoveryError::DuplicateIdentity);
+        }
+        let entry = self.ledger.append(&value.encode()?)?;
+        self.approval_requests.insert(value.request_id);
+        self.approvals.insert(
+            value.ticket.client_id.clone(),
+            ApprovalView {
+                sequence: entry.sequence,
+                approval: value,
+                revoked_at_ms: None,
+            },
+        );
+        self.records += 1;
+        Ok(())
+    }
+    pub fn revoke_approval(&mut self, value: ApprovalRevocation) -> Result<(), RecoveryError> {
+        check_revocation(&self.approvals, &self.approval_requests, &value)?;
+        let entry = self.ledger.append(&value.encode()?)?;
+        self.approval_requests.insert(value.request_id);
+        let current = self.approvals.get_mut(&value.client_id).unwrap();
+        current.sequence = entry.sequence;
+        current.revoked_at_ms = Some(value.recorded_at_ms);
+        self.records += 1;
+        Ok(())
     }
 
     pub fn commit_ceiling(&mut self, change: CeilingChange) -> Result<(), RecoveryError> {

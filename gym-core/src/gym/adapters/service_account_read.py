@@ -22,7 +22,9 @@ _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\Z")
 _HEX = re.compile(r"[0-9a-f]+\Z")
 
 
-def _helper_path() -> Path:
+def _helper_path(name="gym-account-read.exe") -> Path:
+    if name not in ("gym-account-read.exe", "gym-review.exe"):
+        raise ReadUncertain("unsupported protected helper")
     if os.name != "nt":
         raise ReadUncertain("Executor account reads require Windows")
     import ctypes
@@ -44,7 +46,7 @@ def _helper_path() -> Path:
     try:
         if shell.SHGetKnownFolderPath(ctypes.byref(folder_id), 0, None, ctypes.byref(root)) != 0 or not root:
             raise ReadUncertain("protected Executor helper unavailable")
-        path = Path(ctypes.wstring_at(root)) / "TradingGYM" / "Executor" / "gym-account-read.exe"
+        path = Path(ctypes.wstring_at(root)) / "TradingGYM" / "Executor" / name
     finally:
         if root:
             ole.CoTaskMemFree(root)

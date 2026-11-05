@@ -212,6 +212,11 @@ Object.assign(vocabulary, {
   safetyLead: ["Check the boundary between research and autonomous execution.", "مرز پژوهش و اجرای خودکار را بررسی کنید."], missingGates: ["Execution gates still open", "پیش‌نیازهای تکمیل‌نشدهٔ اجرا"],
   executorGate: ["The browser cannot attest to the privileged executor service.", "مرورگر نمی‌تواند سرویس مجری دارای دسترسی ویژه را تأیید کند."], stopsGate: ["No certified protective venue stops are connected.", "هیچ توقف حفاظتی تأییدشدهٔ صرافی متصل نیست."], authorityGate: ["Offline previews and paper evidence cannot arm trading.", "پیش‌نمایش آفلاین و شواهد آزمایشی نمی‌توانند معامله را فعال کنند."],
   installationCeiling: ["Installation capital limit", "سقف سرمایهٔ نصب"],
+  nativeReviewTitle: ["Protected operator intent", "قصد اپراتور در سرویس حفاظت‌شده"],
+  nativeReviewHelp: ["Requires the reviewed Windows service and helper to be installed. Records or revokes exact operator intent without sending orders. Holdings, fees and method qualification remain unverified.", "سرویس ویندوز و ابزار بررسی‌شده باید نصب باشند. قصد دقیق اپراتور را بدون ارسال سفارش ثبت یا لغو می‌کند. موجودی، کارمزد و تأیید روش همچنان اثبات نشده‌اند."],
+  nativeReviewContext: ["Read service context", "خواندن وضعیت سرویس"], nativeReviewInput: ["Explicit native request (JSON)", "درخواست صریح سرویس (JSON)"],
+  nativeReviewFields: ["Actions: status, inspect, approve, revoke. Approvals require exact units, amounts, current epoch/limit/generation, expiry and evidence digests. No credentials belong here.", "عملیات: status، inspect، approve، revoke. ثبت قصد به واحد و مقدار دقیق، دوره و سقف و نسل فعلی، انقضا و هش شواهد نیاز دارد. اطلاعات ورود را اینجا وارد نکنید."],
+  nativeReviewSubmit: ["Run protected review", "اجرای بررسی حفاظت‌شده"],
   ceilingConsoleHelp: ["After installing the reviewed helper, inspect the recorded limit in an administrator console. Changing it requires administrator authorization; increases require a different account from the operator.", "پس از نصب ابزار بررسی‌شده، سقف ثبت‌شده را در کنسول مدیر بررسی کنید. تغییر آن به مجوز مدیر نیاز دارد؛ افزایش سقف باید از حسابی جدا از اپراتور انجام شود."],
   ceilingUnverified: ["No service limit is verified by this page. Recording a limit does not arm trading or certify protection.", "این صفحه سقف سرویس را تأیید نمی‌کند. ثبت سقف، معامله را فعال نمی‌کند و به معنای تأیید حفاظت نیست."],
   backupLead: ["Encrypted ledger recovery uses the existing protected-console workflow.", "بازیابی رمزگذاری‌شدهٔ دفتر از مسیر کنسول حفاظت‌شده انجام می‌شود."],
@@ -834,6 +839,7 @@ function updateClock() {
 }
 let pollTimer, refreshTask, refreshAgain = false;
 async function collectView(name, healthTask) {
+  if (name === "operate") window.gymNativeReview?.mount(api, DEMO);
   if (name === "backups") {
     try {
       const value = await api("/api/backup-status");

@@ -53,7 +53,7 @@ foreach ($path in @($CodeRoot, $DataRoot)) {
 
 $operatorSid = ([Security.Principal.NTAccount]::new($OperatorAccount)).Translate([Security.Principal.SecurityIdentifier]).Value
 $null = & (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1') -OperatorProcessId $OperatorProcessId -ExpectedUserSid $operatorSid
-$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe', 'gym-ceiling.exe', 'gym-research-worker.exe') | ForEach-Object {
+$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe', 'gym-ceiling.exe', 'gym-review.exe', 'gym-research-worker.exe') | ForEach-Object {
     $file = Get-Item -LiteralPath (Join-Path $inputFile.DirectoryName $_) -ErrorAction Stop
     if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Helper must be a regular staging executable.' }
     @{ File = $file; Hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash }
@@ -100,7 +100,7 @@ try {
         Copy-Item -LiteralPath $helper.File.FullName -Destination $destination -ErrorAction Stop
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $helper.Hash) { throw 'Helper hash changed during copy.' }
         Invoke-Icacls -Path $destination -Arguments @('/inheritance:r', '/grant:r', '*S-1-5-18:F', '*S-1-5-32-544:F')
-        if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-research-worker.exe')) {
+        if ($helper.File.Name -in @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-review.exe', 'gym-research-worker.exe')) {
             Invoke-Icacls -Path $destination -Arguments @('/grant:r', "*${operatorSid}:RX")
         }
         Invoke-Icacls -Path $destination -Arguments @('/setowner', '*S-1-5-32-544')

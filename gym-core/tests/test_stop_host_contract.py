@@ -204,10 +204,13 @@ def test_installer_and_auditor_keep_provisioning_helper_admin_only():
     operator_helpers = installer.split("if ($helper.File.Name -in @(", 1)[1].split("))", 1)[0]
     assert set(re.findall(r"'([^']+[.]exe)'", operator_helpers)) == {
         "gym-stopctl.exe", "gym-hardstop.exe", "gym-research-worker.exe",
+        "gym-review.exe",
     }
     operator_paths = auditor.split("$operatorPaths =", 1)[1].split("foreach", 1)[0]
     assert "$StopCtl" in operator_paths and "$HardStop" in operator_paths
+    assert "$OperatorReview" in operator_paths
     assert "$Provision" not in operator_paths
+    assert "$AccountRead" not in operator_paths and "$Ceiling" not in operator_paths
     assert "Join-Path $CodeDir 'gym-provision.exe'" in auditor
     assert "FileSystemRights]::ReadAndExecute" in auditor
 

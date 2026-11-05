@@ -26,6 +26,7 @@ pub enum ServiceFailure {
     CiphertextWrite = 1015,
     CiphertextSeal = 1016,
     CiphertextRename = 1017,
+    OperateListener = 1018,
 }
 
 #[cfg(test)]
@@ -52,12 +53,13 @@ mod startup_failure_tests {
             CiphertextWrite,
             CiphertextSeal,
             CiphertextRename,
+            OperateListener,
         ];
         assert_eq!(
             codes.map(|phase| phase as u32),
             [
                 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014,
-                1015, 1016, 1017
+                1015, 1016, 1017, 1018
             ]
         );
     }
