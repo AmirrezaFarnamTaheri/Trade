@@ -33,12 +33,19 @@ fn create(sid: &str, first: bool) -> io::Result<NamedPipeServer> {
             .create_with_security_attributes_raw(PIPE, (&mut sa as *mut SECURITY_ATTRIBUTES).cast())
     }
 }
-fn admit(pipe: &NamedPipeServer) -> io::Result<()> {
+struct Administrator {
+    user: String,
+    logon: String,
+}
+fn admit<T>(pipe: &NamedPipeServer, inspect: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
     if unsafe { ImpersonateNamedPipeClient(pipe.as_raw_handle()) } == 0 {
         return Err(io::Error::last_os_error());
     }
     // No await, no DPAPI, and no filesystem operation while impersonating.
-    let result = exec_svc::windows_identity::impersonated_elevated_administrator();
+    let result = (|| {
+        exec_svc::windows_identity::impersonated_elevated_administrator()?;
+        inspect()
+    })();
     if unsafe { RevertToSelf() } == 0 {
         std::process::abort();
     }
@@ -47,11 +54,26 @@ fn admit(pipe: &NamedPipeServer) -> io::Result<()> {
 enum Request {
     Provision(Secret, [u8; 16]),
     Account(AccountResource, [u8; 16]),
+    Ceiling(exec_ipc::ceiling::CeilingRequest, Administrator),
 }
 async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Request> {
     let mut hello = [0; ACCOUNT_REQUEST_SIZE + 1];
     let count = pipe.read(&mut hello).await?;
-    admit(pipe)?;
+    if hello[..count].starts_with(b"TGCEIL01") {
+        let principal = admit(pipe, || {
+            Ok(Administrator {
+                user: exec_svc::windows_identity::impersonated_thread_user_sid()?,
+                logon: exec_svc::windows_identity::impersonated_thread_logon_sid()?,
+            })
+        })?;
+        if mode != StartupMode::Normal {
+            return Err(io::Error::other("limits unavailable in recovery or drill"));
+        }
+        let request =
+            exec_ipc::ceiling::CeilingRequest::decode(&hello[..count]).map_err(io::Error::other)?;
+        return Ok(Request::Ceiling(request, principal));
+    }
+    admit(pipe, || Ok(()))?;
     if hello[..count].starts_with(b"TGAREAD1") {
         if !mode.allows_account_read() {
             return Err(io::Error::other("recovery accepts provisioning only"));
@@ -68,7 +90,7 @@ async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Re
         return Err(io::Error::other("invalid secret message length"));
     }
     secret.0.truncate(count);
-    admit(pipe)?;
+    admit(pipe, || Ok(()))?;
     Ok(Request::Provision(secret, correlation))
 }
 pub async fn serve(
@@ -76,6 +98,7 @@ pub async fn serve(
     ready: std::sync::mpsc::Sender<Result<(), exec_svc::ServiceFailure>>,
     mode: StartupMode,
     phase: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    operator_user: &str,
 ) -> io::Result<()> {
     let opened = if mode != StartupMode::CredentialRecovery {
         Vault::open(sid)
@@ -107,6 +130,17 @@ pub async fn serve(
             Ok(()) => {
                 if let Ok(Ok(request)) = timeout(DEADLINE, receive(&mut client, mode)).await {
                     match request {
+                        Request::Ceiling(request, principal) => {
+                            if let Some(reply) = vault.ceiling(
+                                &request,
+                                principal.user,
+                                principal.logon,
+                                operator_user,
+                            )? {
+                                let reply = reply.encode().map_err(io::Error::other)?;
+                                let _ = timeout(DEADLINE, client.write_all(&reply)).await;
+                            }
+                        }
                         Request::Provision(secret, correlation) => {
                             // A vault error is fatal, including an uncertain journal commit.
                             let generation = vault.provision(secret, &phase)?;

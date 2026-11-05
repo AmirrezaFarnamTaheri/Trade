@@ -1,5 +1,25 @@
 # System status — 2026-11-05
 
+## Installation-limit prerequisite
+
+Commit `b867fef` contains the preceding supervision/account/cancellation/news/
+backup work. The subsequent native implementation adds protected administrator
+limit recording and `gym-ceiling get|set`: exact currency, unit epoch and precision,
+retained T2 identity/history, stale-update rejection and operator-account increase
+refusal. It uses the existing protected pipe and native order journal; the
+credential journal is retained. CLI/installer and EN/FA Safety guidance are wired.
+Eight new Rust tests and the three static UI contracts pass. Live browser
+inspection was blocked by the browser URL policy and is not counted as verified.
+The npm offline audit reports zero vulnerabilities. A fresh Python dependency
+audit was attempted but its PyPI request timed out; no dependency changed.
+The final Rust workspace/all-target suite and strict Clippy also pass. The
+Windows service was read back as STOPPED with DISABLED startup; no new native
+binary was installed. The changed PowerShell files pass syntax parsing.
+Protected installation, real cap enforcement, T1 approvals/arming, venue order
+transport/reconciliation and protective exits remain open. No real capital limit,
+credential or funded order was configured. See
+[installation capital limit](../../executor/docs/installation-ceiling.md).
+
 ## Current supervision, account inspection and recovery update
 
 Added hard process supervision for heavy research calculations, bounded protected

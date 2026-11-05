@@ -19,6 +19,81 @@ const RELEASE_SETTLED: u8 = 5;
 const EXECUTION: u8 = 6;
 const EXECUTION_SETTLED: u8 = 7;
 const CREDENTIAL: u8 = 8;
+const CEILING: u8 = 9;
+
+/// Durable metadata, not a money permit. The service must authenticate the writer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CeilingChange {
+    pub ceiling: exec_ipc::ceiling::Ceiling,
+    pub principal: String,
+    pub logon: String,
+    pub operator_user: String,
+    pub recorded_at_ms: u64,
+    pub request_id: [u8; 16],
+    pub expected_sequence: u64,
+}
+impl CeilingChange {
+    fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
+        self.ceiling
+            .validate()
+            .map_err(|_| RecoveryError::InvalidIdentity)?;
+        let sid = |s: &str| {
+            s.starts_with("S-1-")
+                && s.split('-')
+                    .skip(1)
+                    .all(|v| !v.is_empty() && v.parse::<u64>().is_ok())
+        };
+        if !sid(&self.principal)
+            || !sid(&self.operator_user)
+            || !sid(&self.logon)
+            || !self.logon.starts_with("S-1-5-5-")
+            || self.recorded_at_ms == 0
+            || self.request_id == [0; 16]
+        {
+            return Err(RecoveryError::InvalidIdentity);
+        }
+        let mut raw = MAGIC.to_vec();
+        raw.push(CEILING);
+        add_name(&mut raw, "installation")?;
+        add_name(&mut raw, &self.ceiling.currency)?;
+        raw.extend_from_slice(&self.ceiling.unit_epoch.to_be_bytes());
+        raw.push(self.ceiling.decimals);
+        raw.extend_from_slice(&self.ceiling.capital_quanta.to_be_bytes());
+        add_name(&mut raw, &self.principal)?;
+        add_name(&mut raw, &self.logon)?;
+        add_name(&mut raw, &self.operator_user)?;
+        raw.extend_from_slice(&self.recorded_at_ms.to_be_bytes());
+        raw.extend_from_slice(&self.request_id);
+        raw.extend_from_slice(&self.expected_sequence.to_be_bytes());
+        Ok(raw)
+    }
+}
+
+fn check_ceiling(
+    current: Option<&(u64, CeilingChange)>,
+    ids: &BTreeSet<[u8; 16]>,
+    next: &CeilingChange,
+) -> Result<(), RecoveryError> {
+    next.encode()?;
+    if ids.contains(&next.request_id) {
+        return Err(RecoveryError::DuplicateIdentity);
+    }
+    if next.expected_sequence != current.map_or(0, |(seq, _)| *seq)
+        || current.is_some_and(|(_, old)| {
+            old.ceiling.currency != next.ceiling.currency
+                || old.ceiling.unit_epoch != next.ceiling.unit_epoch
+                || old.ceiling.decimals != next.ceiling.decimals
+                || old.operator_user != next.operator_user
+                || old.recorded_at_ms > next.recorded_at_ms
+        })
+        || (next.principal == next.operator_user
+            && next.ceiling.capital_quanta
+                > current.map_or(0, |(_, old)| old.ceiling.capital_quanta))
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
+    Ok(())
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CredentialPermission {
@@ -163,8 +238,11 @@ pub struct DurableOrderJournal {
     recovered_inflight: BTreeSet<String>,
     recovered_cancels: BTreeSet<String>,
     credential: Option<CredentialMetadata>,
+    ceiling: Option<(u64, CeilingChange)>,
+    ceiling_requests: BTreeSet<[u8; 16]>,
 }
 enum Record {
+    Ceiling(CeilingChange),
     Credential(CredentialMetadata),
     Execution {
         id: String,
@@ -456,6 +534,27 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
     let kind = r.one()?;
     let id = r.name()?;
     let rec = match kind {
+        CEILING => {
+            if id != "installation" {
+                return Err(RecoveryError::MalformedEvent);
+            }
+            let change = CeilingChange {
+                ceiling: exec_ipc::ceiling::Ceiling {
+                    currency: r.name()?,
+                    unit_epoch: u32::from_be_bytes(r.take(4)?.try_into().unwrap()),
+                    decimals: r.one()?,
+                    capital_quanta: r.num()?,
+                },
+                principal: r.name()?,
+                logon: r.name()?,
+                operator_user: r.name()?,
+                recorded_at_ms: r.num()?,
+                request_id: r.take(16)?.try_into().unwrap(),
+                expected_sequence: r.num()?,
+            };
+            change.encode()?;
+            Record::Ceiling(change)
+        }
         CREDENTIAL => {
             if id != "venue" {
                 return Err(RecoveryError::MalformedEvent);
@@ -627,7 +726,7 @@ fn apply_record(
     record: Record,
 ) -> Result<(), RecoveryError> {
     match record {
-        Record::Credential(_) => return Err(RecoveryError::MalformedEvent),
+        Record::Credential(_) | Record::Ceiling(_) => return Err(RecoveryError::MalformedEvent),
         Record::Execution {
             id,
             account,
@@ -878,8 +977,17 @@ impl DurableOrderJournal {
         let mut reservations = ReservationBook::default();
         let mut credential = None;
         let mut generations = BTreeSet::new();
+        let mut ceiling = None;
+        let mut ceiling_requests = BTreeSet::new();
         for e in &records {
             let parsed = decode(&e.event_bytes)?;
+            if let Record::Ceiling(change) = parsed {
+                check_ceiling(ceiling.as_ref(), &ceiling_requests, &change)
+                    .map_err(|_| RecoveryError::MalformedEvent)?;
+                ceiling_requests.insert(change.request_id);
+                ceiling = Some((e.sequence, change));
+                continue;
+            }
             if let Record::Credential(metadata) = parsed {
                 if !generations.insert(metadata.generation) {
                     return Err(RecoveryError::MalformedEvent);
@@ -913,11 +1021,26 @@ impl DurableOrderJournal {
             recovered_inflight,
             recovered_cancels,
             credential,
+            ceiling,
+            ceiling_requests,
         })
     }
 
     pub fn credential_metadata(&self) -> Option<&CredentialMetadata> {
         self.credential.as_ref()
+    }
+
+    pub fn installation_ceiling(&self) -> Option<&(u64, CeilingChange)> {
+        self.ceiling.as_ref()
+    }
+
+    pub fn commit_ceiling(&mut self, change: CeilingChange) -> Result<(), RecoveryError> {
+        check_ceiling(self.ceiling.as_ref(), &self.ceiling_requests, &change)?;
+        let entry = self.ledger.append(&change.encode()?)?;
+        self.ceiling_requests.insert(change.request_id);
+        self.ceiling = Some((entry.sequence, change));
+        self.records += 1;
+        Ok(())
     }
 
     /// Call only after the immutable ciphertext generation has been durably published.

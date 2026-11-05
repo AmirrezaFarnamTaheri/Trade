@@ -5,6 +5,8 @@ A compiled service, successful GET or acknowledged STOP does not establish certi
 
 ## Implemented locally
 
+- Administrator-only `gym-ceiling get|set` records exact currency/unit-epoch/precision and capital in the protected `Vault/exec_ledger.db`. Stale updates, changed unit/operator bindings and operator-account increases are rejected. Actual T2 identities come from the connected Windows token. The existing credential journal is retained. This source/release build is not installed; the metadata is not enforced by a real money path and grants no trading authority. See [installation capital limit](installation-ceiling.md).
+
 - Restricted LocalService SCM host, disabled-by-default installer, protected code/data/SCM ACLs and exact-byte SHA-256/FULL-synchronous SQLite journal. All B1 draft PRs were merged earlier; this is not an unmerged PR #10 status report.
 - Independent authenticated STOP pipe/thread, network-client exclusion, fixed bounded codec and monotone stop gates. The client pins the protected installed service process before writing, and the server binds the selected operator's real OS user/logon token rather than trusting a supplied SID.
 - Explicit `Bind-ExecutorOperator.ps1` for the selected interactive process. Binding files and helpers have protected ACLs. Normal operators may execute STOP/hard-stop helpers, not the provisioning/account-read helpers or credential/data files.

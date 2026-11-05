@@ -53,7 +53,7 @@ foreach ($path in @($CodeRoot, $DataRoot)) {
 
 $operatorSid = ([Security.Principal.NTAccount]::new($OperatorAccount)).Translate([Security.Principal.SecurityIdentifier]).Value
 $null = & (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1') -OperatorProcessId $OperatorProcessId -ExpectedUserSid $operatorSid
-$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe', 'gym-research-worker.exe') | ForEach-Object {
+$helpers = @('gym-stopctl.exe', 'gym-hardstop.exe', 'gym-provision.exe', 'gym-account-read.exe', 'gym-ceiling.exe', 'gym-research-worker.exe') | ForEach-Object {
     $file = Get-Item -LiteralPath (Join-Path $inputFile.DirectoryName $_) -ErrorAction Stop
     if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Helper must be a regular staging executable.' }
     @{ File = $file; Hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash }

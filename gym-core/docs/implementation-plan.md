@@ -98,6 +98,13 @@ funded boundary were not expanded by these research features.
 
 ## Remaining execution and acceptance work
 
+The next prerequisite now has native code: administrator-only installation-limit
+recording in the protected execution ledger, exact currency/unit-epoch/precision,
+OS-derived administrator identity, retained history and stale-update rejection.
+The configured operator cannot raise it. CLI and installer wiring are implemented;
+installed-host qualification, T1 approval/arming and actual money-path limit
+enforcement remain open. See [installation capital limit](../../executor/docs/installation-ceiling.md).
+
 | Work | Current state | Concrete completion requirement |
 | --- | --- | --- |
 | Installed custody/recovery | Passed on this host with synthetic credentials | Protected publication, provision/restart/corruption refusal/recovery passed with retained history. The service is stopped and disabled. Real credentials and future funded-ledger recovery are unqualified. |

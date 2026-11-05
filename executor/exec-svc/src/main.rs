@@ -1,4 +1,4 @@
-//! Disarmed Windows service with independent T0 STOP and privileged custody/account listeners.
+//! Disarmed service with independent T0 STOP and privileged custody/account/limit control.
 //! Custody and account GETs are implemented; funded orders and protective exits are not.
 #[cfg(windows)]
 mod credential_vault;
@@ -201,6 +201,7 @@ mod windows_host {
         };
         let (privileged_tx, privileged_rx) = mpsc::channel();
         let privileged_sid = service_sid.clone();
+        let privileged_operator = operator_user.clone();
         let privileged_failed = Arc::new(AtomicBool::new(false));
         let privileged_phase = Arc::new(AtomicU32::new(ServiceFailure::PrivilegedListener as u32));
         let failure_phase = privileged_phase.clone();
@@ -218,6 +219,7 @@ mod windows_host {
                             privileged_tx,
                             mode,
                             failure_phase,
+                            &privileged_operator,
                         ))
                     })
             }));

@@ -76,6 +76,7 @@ $StopCtl = Join-Path $CodeDir 'gym-stopctl.exe'
 $HardStop = Join-Path $CodeDir 'gym-hardstop.exe'
 $Provision = Join-Path $CodeDir 'gym-provision.exe'
 $AccountRead = Join-Path $CodeDir 'gym-account-read.exe'
+$CeilingControl = Join-Path $CodeDir 'gym-ceiling.exe'
 $ResearchWorker = Join-Path $CodeDir 'gym-research-worker.exe'
 $StopUser = Join-Path $CodeDir 'stop-user.sid'
 $StopLogon = Join-Path $CodeDir 'stop-logon.sid'
@@ -112,7 +113,7 @@ $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
     [Security.AccessControl.FileSystemRights]::TakeOwnership
 
-foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $ResearchWorker, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
+foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $CeilingControl, $ResearchWorker, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
     $item = Get-Item -LiteralPath $path -ErrorAction Stop
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Reparse point in protected path: $path"

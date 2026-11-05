@@ -1,6 +1,7 @@
 //! Exact, bounded T0 stop-only wire contract. Does not authenticate a caller;
 //! Windows pipe DACL and client-token restrictions remain mandatory.
 use std::convert::TryInto;
+pub mod ceiling;
 pub mod provision;
 
 pub const FRAME_SIZE: usize = 40;

@@ -264,6 +264,7 @@ pub struct Vault {
     sid: String,
     _directories: Vec<File>,
     journal: DurableOrderJournal,
+    limits: Option<DurableOrderJournal>,
     mode: exec_ipc::provision::StartupMode,
 }
 impl Vault {
@@ -342,11 +343,21 @@ impl Vault {
         for path in pending {
             std::fs::remove_file(path)?;
         }
+        let limits_path = root.join("exec_ledger.db");
+        let limits = if limits_path.try_exists()? {
+            Some(
+                DurableOrderJournal::open(&limits_path)
+                    .map_err(|_| io::Error::other("execution ledger open failed"))?,
+            )
+        } else {
+            None
+        };
         let vault = Self {
             root,
             sid: sid.to_owned(),
             _directories: directories,
             journal,
+            limits,
             mode,
         };
         if mode.allows_account_read() {
@@ -362,6 +373,77 @@ impl Vault {
             return Err(denied());
         }
         Ok(vault)
+    }
+
+    pub fn ceiling(
+        &mut self,
+        request: &exec_ipc::ceiling::CeilingRequest,
+        principal: String,
+        logon: String,
+        operator_user: &str,
+    ) -> io::Result<Option<exec_ipc::ceiling::CeilingReply>> {
+        use exec_ipc::ceiling::{CeilingCommand, CeilingReply};
+        use exec_svc::offline_recovery::{CeilingChange, RecoveryError};
+        require_service_identity()?;
+        if self.mode != exec_ipc::provision::StartupMode::Normal {
+            return Ok(None);
+        }
+        if let CeilingCommand::Set {
+            expected_sequence,
+            ceiling,
+        } = &request.command
+        {
+            let current = self
+                .limits
+                .as_ref()
+                .and_then(|journal| journal.installation_ceiling());
+            if *expected_sequence != current.map_or(0, |(sequence, _)| *sequence)
+                || (principal == operator_user
+                    && ceiling.capital_quanta
+                        > current.map_or(0, |(_, change)| change.ceiling.capital_quanta))
+            {
+                return Ok(None);
+            }
+            let recorded_at_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(io::Error::other)?
+                .as_millis()
+                .try_into()
+                .map_err(io::Error::other)?;
+            if self.limits.is_none() {
+                self.limits = Some(
+                    DurableOrderJournal::open(self.root.join("exec_ledger.db"))
+                        .map_err(|_| io::Error::other("execution ledger open failed"))?,
+                );
+            }
+            let change = CeilingChange {
+                ceiling: ceiling.clone(),
+                principal,
+                logon,
+                recorded_at_ms,
+                operator_user: operator_user.into(),
+                request_id: request.correlation,
+                expected_sequence: *expected_sequence,
+            };
+            match self.limits.as_mut().unwrap().commit_ceiling(change) {
+                Ok(()) => {}
+                Err(RecoveryError::Ledger(_)) => {
+                    return Err(io::Error::other(
+                        "ceiling commit uncertain; service must stop",
+                    ))
+                }
+                Err(_) => return Ok(None),
+            }
+        }
+        let current = self
+            .limits
+            .as_ref()
+            .and_then(|journal| journal.installation_ceiling());
+        Ok(Some(CeilingReply {
+            sequence: current.map_or(0, |(seq, _)| *seq),
+            ceiling: current.map(|(_, change)| change.ceiling.clone()),
+            correlation: request.correlation,
+        }))
     }
     // No caller-supplied generation and no fallback to a previous/revoked key.
     pub fn load_current_secret(&self) -> io::Result<Option<Secret>> {

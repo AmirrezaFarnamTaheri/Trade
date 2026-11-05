@@ -24,6 +24,11 @@ also retains cancellation intent, uncertain delivery and acknowledgement separat
 from order lifecycle/settlement; cancelled orders retain late fills and holds.
 That durable offline contract does not add a real DELETE transport.
 
+`gym-ceiling` adds administrator-only exact installation-limit recording, retained
+history and stale-update rejection. Increases require a different user SID from
+the configured operator. It grants no money authority; the current protected
+installation has not been updated. See [installation capital limit](docs/installation-ceiling.md).
+
 From the repository root:
 
 ```powershell
