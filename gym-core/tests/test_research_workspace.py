@@ -153,6 +153,31 @@ def test_registry_retains_every_attempt_and_incomplete_outage_with_matched_nativ
             other.read(result["id"])
 
 
+@pytest.mark.parametrize("extra,symbol,strategy,params,blocked", [
+    ("DOGEUSDT", "BTCUSDT", "ema-trend", {"fast": 2, "slow": 3}, False),
+    ("BTCUSDT", "BTCUSDT", "ema-trend", {"fast": 2, "slow": 3}, True),
+    ("ETHUSDT", "BTCUSDT", "relative-momentum", {"lookback": 3, "reference": "ETHUSDT"}, True),
+    ("USDTTMN", "BTCTMN", "ema-trend", {"fast": 2, "slow": 3}, True),
+    ("BTCUSDT", "ETHUSDT", "ema-trend", {"fast": 2, "slow": 3}, True),
+])
+def test_experiment_budget_counts_consumed_markets_reference_fx_and_baselines_only(tmp_path, artifact, extra, symbol, strategy, params, blocked):
+    db, _ = artifact
+    row = list(db.c.execute("SELECT * FROM book_top LIMIT 1").fetchone())
+    row[0] = "wallex:" + extra
+    db.c.execute("BEGIN")
+    db.c.executemany("INSERT INTO book_top VALUES(?,?,?,?,?,?,?,?,?)", (row for _ in range(100001)))
+    db.c.commit()
+    request = {**experiment(), "symbol": symbol, "strategy": strategy, "trials": [params]}
+    with ExperimentRegistry(tmp_path, store="live") as registry:
+        if blocked:
+            with pytest.raises(ValueError, match="observation budget"):
+                registry.run(db, request)
+            assert all(event["kind"] == "ATTEMPT" for event in registry.listing()["records"][0]["events"])
+        else:
+            completed = registry.run(db, request)["experiment"]
+            assert [event["state"] for event in completed["events"] if event["kind"] == "RESULT"] == ["COMPLETED", "INCOMPLETE"]
+
+
 def test_crash_after_attempt_registration_stays_visible_without_retrying_automatically(tmp_path, artifact, monkeypatch):
     db, _ = artifact
     def crash(*args, **kwargs):

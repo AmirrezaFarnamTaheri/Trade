@@ -183,3 +183,29 @@ def validate_order_evidence(value):
         seen.add(parsed["client_id"])
         clean.append(parsed)
     return clean
+
+
+def validate_order_pages(value):
+    """Recheck stored pages without inferring completeness from empty results."""
+    if not isinstance(value, list) or len(value) > 2:
+        raise InvalidOrderEvidence("invalid stored order page collection")
+    clean, seen = [], set()
+    for row in value:
+        if not isinstance(row, dict) or any(row.get(key) is not False for key in (
+            "collection_complete", "snapshot_atomic", "absence_proven", "funded_authority"
+        )) or row.get("pagination_echo") not in ("MATCHED", "UNVERIFIED"):
+            raise InvalidOrderEvidence("invalid stored order page")
+        try:
+            payload = {"success": True, "result": {}}
+            if row["pagination_echo"] == "MATCHED":
+                payload["result_info"] = {"page": row["requested_page"], "per_page": row["requested_per_page"]}
+            parsed = parse_order_page(payload, kind=row["kind"], page=row["requested_page"], per_page=row["requested_per_page"])
+            parsed["orders"] = validate_order_evidence(row["orders"])
+            identity = parsed["kind"], parsed["requested_page"], parsed["requested_per_page"]
+            if len(parsed["orders"]) > parsed["requested_per_page"] or parsed != row or identity in seen:
+                raise InvalidOrderEvidence("changed or duplicate stored order page")
+        except (KeyError, TypeError):
+            raise InvalidOrderEvidence("invalid stored order page") from None
+        seen.add(identity)
+        clean.append(parsed)
+    return clean

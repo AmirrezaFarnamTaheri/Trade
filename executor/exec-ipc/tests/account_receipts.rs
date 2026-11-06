@@ -84,12 +84,30 @@ fn receipts_are_bound_to_resource_runtime_correlation_and_exact_frame() {
         page: 1,
         per_page: 100,
     };
-    let frame = encode_reply(&page, 100, [1; 16], None).unwrap();
-    assert_eq!(decode_reply(&frame, &page, [1; 16]), Ok((100, None)));
+    assert!(encode_reply(&page, 100, [1; 16], None).is_err());
+    let mut page_receipt = receipt();
+    page_receipt.kind = ObservationKind::OpenOrders;
+    let frame = encode_reply(&page, 100, [1; 16], Some(&page_receipt)).unwrap();
+    assert_eq!(
+        decode_reply(&frame, &page, [1; 16]),
+        Ok((100, Some(page_receipt)))
+    );
     assert!(decode_reply(&frame, &order, [1; 16]).is_err());
     let mut dirty = frame;
-    dirty[32] = 1;
+    dirty[32..40].fill(0);
     assert!(decode_reply(&dirty, &page, [1; 16]).is_err());
+    let history = AccountResource::OrderHistory {
+        page: 1,
+        per_page: 100,
+    };
+    assert!(decode_reply(&frame, &history, [1; 16]).is_err());
+    let mut history_receipt = receipt();
+    history_receipt.kind = ObservationKind::OrderHistory;
+    let history_frame = encode_reply(&history, 100, [1; 16], Some(&history_receipt)).unwrap();
+    assert_eq!(
+        decode_reply(&history_frame, &history, [1; 16]),
+        Ok((100, Some(history_receipt)))
+    );
     for field in 0..8 {
         let mut bad = receipt();
         match field {

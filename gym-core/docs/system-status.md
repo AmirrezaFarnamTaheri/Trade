@@ -1,5 +1,45 @@
 # System status — 2026-11-06
 
+## Complete paper campaign and protected page delivery
+
+The [paper campaign](paper-qualification.md) retained all **1,973 historical
+attempts**: 1,945 completed and 28 incomplete for missing qualified observations.
+Coverage spans 373 markets, ten strategies and eleven fixed timeframes, with
+explicit parameters, chronological windows, costs and outages. Twelve margin
+replays reached modeled exits; four prospective watches ended after 15 running
+minutes each. One original zero-observation startup abort remains beside its
+successful BTCTMN retry. No funds or actual orders were used. Stale final marks
+(1,052 runs), no-fill runs (722), short history and assumed costs remain visible.
+Native hashes, independent posting/equity/waterfall checks and exact repeats
+for all ten strategies passed. None establishes sustained profitability.
+
+Experiment budgets now count only consumed main/baseline/reference/FX sources.
+Equal startup clocks skip empty intervals; actual backward clocks still abort.
+The shared verified-artifact reader and replay debugger accept the native live
+session format without inventing its absent matched baselines.
+
+Open-order/history pages now receive kinds 4/5 and retain service-owned request
+bounds in the protected journal. Sanitized page provenance reaches the helper,
+CLI, SQLite snapshot, guarded account API and EN/FA renderer. Completeness,
+absence, atomicity and settlement remain unverified. Unknown raw statuses do
+not become trading authority. See [receipt contract](../../contracts/account-read-v2.md).
+
+Validation: **1025 Python passed, five skipped, 39 subtests; 152 native tests**,
+strict Clippy, formatting, release build and correctness lint. Dependency scans
+found no known vulnerabilities; the local editable Python project is unaudited.
+Independent native/Python/JavaScript reviews found no medium-or-higher issues.
+The current bundle passed installed ordinary ACER review/preparation/revocation,
+seven worker denials and four STOP acknowledgements in **67/11/10/11 ms**.
+Cleanup stopped/disabled the service and ran the strict installation audit.
+Receipt: `.pi/qualification/20261106T1139159526512`; no account API, credential
+replacement or exchange order. The collector restarted gracefully with all
+markets after the prospective campaign to load current source.
+
+Funded admission/transport/reconciliation/protection code, real-account/cost
+qualification, independent final custody and second-machine recovery remain
+open. Current visual browser verification was unavailable. The following
+sections retain earlier evidence and counts.
+
 ## Known-order delivery and current-logon qualification
 
 Known-order GETs now commit sanitized service-owned observations before delivery,

@@ -32,7 +32,7 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
                 regressed_at = now
                 raise ValueError("Clock regression during paper observation")
             last_clock = now
-            for top in portal.tops(symbol, session.cursor, now):
+            for top in (portal.tops(symbol, session.cursor, now) if session.cursor < now else ()):
                 if top.ts_avail > session.cursor:
                     if session.running_at and top.ts_avail >= session.running_at + timedelta(seconds=duration) and session.state != "FINISHING":
                         session.transition("FINISHING", session.running_at + timedelta(seconds=duration))

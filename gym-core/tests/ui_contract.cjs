@@ -215,8 +215,10 @@ const click = async id => {
   const receipt = {resource:'BALANCES',sequence:'9007199254740993',runtime_epoch:'10',started_at_ms:'1000',received_at_ms:'1010',credential_generation:'33'.repeat(16),request_id:'11'.repeat(16),response_digest:'44'.repeat(32),event_hash:'55'.repeat(32)};
   assert.equal(app.serviceReceiptDetails(undefined), '');
   const orderReceipt = {...receipt,resource:'ORDER_STATUS',client_id:'manual-1'};
+  const pageReceipt = {...receipt,resource:'OPEN_ORDERS',page:'2',per_page:'10'};
+  const historyReceipt = {...receipt,resource:'ORDER_HISTORY',page:'1',per_page:'10'};
   const orderEvidence = {client_id:'manual-1',symbol:'BTCUSDT',side:'BUY',raw_status:'CANCELED',requested_qty:'1',executed_qty:'0.1',fill_coverage:'REPORTED_QUANTITY_MATCHES',settlement:'UNKNOWN',fills:[{quantity:'0.1',price:'100',fee:'0.000000000000000001',fee_asset:'BTC',timestamp:1762390000000}]};
-  replies.set('/api/account-observations', {state:'OBSERVED',account_id:'main',observed_at:'2026-11-05T16:00:00Z',balances:[],orders:[],exposure:[],service_receipts:[receipt,orderReceipt],order_evidence:[orderEvidence],fee_rates:{BTCUSDT:{maker:'0.001000000000000001',taker:'0.002'}}});
+  replies.set('/api/account-observations', {state:'OBSERVED',account_id:'main',observed_at:'2026-11-05T16:00:00Z',balances:[],orders:[],exposure:[],service_receipts:[receipt,orderReceipt,pageReceipt,historyReceipt],order_evidence:[orderEvidence],order_pages:[{kind:'OPEN',requested_page:2,requested_per_page:10,pagination_echo:'UNVERIFIED',settlement:'UNKNOWN',orders:[orderEvidence]}],fee_rates:{BTCUSDT:{maker:'0.001000000000000001',taker:'0.002'}}});
   for (const language of ['en','fa']) {
     if (sandbox.document.documentElement.lang !== language) await click('language-toggle');
     await app.accountJournal();
@@ -224,6 +226,11 @@ const click = async id => {
     assert.ok(output.includes(app.T[language].serviceReceiptsNote));
     assert.ok(output.includes(app.T[language].accountFeeNote));
     assert.ok(output.includes(app.T[language].receiptOrder));
+    assert.ok(output.includes(app.T[language].receiptOpenOrders));
+    assert.ok(output.includes(app.T[language].receiptHistory));
+    assert.ok(output.includes(app.T[language].orderPagesNote));
+    assert.ok(output.includes(app.T[language].paginationEcho));
+    assert.ok(output.includes(app.T[language].UNVERIFIED));
     assert.ok(output.includes(app.T[language].orderDetailsNote));
     assert.ok(output.includes(app.T[language].REPORTED_QUANTITY_MATCHES));
     assert.ok(output.includes('BTC') && output.includes('manual-1'));

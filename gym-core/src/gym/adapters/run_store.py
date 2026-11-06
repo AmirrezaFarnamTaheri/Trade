@@ -79,8 +79,12 @@ def load_verified_run(root, run_id, *, store):
         if len(raw) > 16 * 1024 * 1024:
             raise ValueError("run source exceeds size bound")
         out = json.loads(raw)
+        live_session = out["inputs"].get("kind") == "live-session"
+        if live_session and (out["baselines"] != {} or out["fx"] is not None or "ranking" in out):
+            raise ValueError("live session cannot contain replay comparisons")
+        outputs = out["result"] if live_session else {k: out[k] for k in ("result", "baselines", "ranking", "fx")}
         if (out["run_id"] != run_id or digest(out["inputs"])[:16] != run_id
-                or digest({k: out[k] for k in ("result", "baselines", "ranking", "fx")})[:16] != out["outputs_digest"]):
+                or digest(outputs)[:16] != out["outputs_digest"]):
             raise ValueError("run digest mismatch")
         if out["inputs"]["store"] != store:
             raise ValueError("run source store mismatch")

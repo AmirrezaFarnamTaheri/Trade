@@ -43,6 +43,202 @@ fn order(id: &str, status: &str, executed: &str) -> Vec<u8> {
 }
 
 #[test]
+fn page_receipts_keep_service_request_identity_and_sanitized_orders_across_restart() {
+    use exec_ipc::provision::AccountResource;
+    let root = root();
+    let path = root.join("orders.sqlite");
+    let mut ledger = journal(&path);
+    for (resource, id, start) in [
+        (
+            AccountResource::OpenOrders {
+                page: 1,
+                per_page: 10,
+            },
+            1,
+            1000,
+        ),
+        (
+            AccountResource::OpenOrders {
+                page: 2,
+                per_page: 10,
+            },
+            2,
+            1020,
+        ),
+        (
+            AccountResource::OrderHistory {
+                page: 1,
+                per_page: 10,
+            },
+            3,
+            1040,
+        ),
+    ] {
+        let row: serde_json::Value =
+            serde_json::from_slice(&order("manual-1", "UNKNOWN_STATUS", "0.1")).unwrap();
+        let raw = serde_json::to_vec(&serde_json::json!({"success":true,"private":"OMIT",
+            "result":{"BTCUSDT":[row["result"].clone()]},"request":{"page":999}}))
+        .unwrap();
+        let observation = AccountObservation::from_page_response(
+            &resource,
+            &raw,
+            [3; 16],
+            10,
+            [id; 16],
+            start,
+            start + 10,
+        )
+        .unwrap();
+        assert!(!observation.data().to_string().contains("OMIT"));
+        assert!(observation.data().get("result_info").is_none());
+        let receipt = ledger.record_account_observation(observation).unwrap();
+        assert_eq!(
+            receipt.response_digest,
+            exec_store::hash_event(&[0; 32], &raw)
+        );
+    }
+    drop(ledger);
+    let ledger = DurableOrderJournal::open(&path).unwrap();
+    for resource in [
+        AccountResource::OpenOrders {
+            page: 1,
+            per_page: 10,
+        },
+        AccountResource::OpenOrders {
+            page: 2,
+            per_page: 10,
+        },
+        AccountResource::OrderHistory {
+            page: 1,
+            per_page: 10,
+        },
+    ] {
+        let observed = ledger
+            .order_page_observation(&resource, [3; 16], 10, 1060, 100)
+            .unwrap();
+        assert_eq!(
+            observed.data()["result"]["orders"][0]["status"],
+            "UNKNOWN_STATUS"
+        );
+        assert!(ledger
+            .order_page_observation(&resource, [3; 16], 11, 1060, 100)
+            .is_none());
+        assert!(ledger
+            .order_page_observation(&resource, [4; 16], 10, 1060, 100)
+            .is_none());
+        assert!(ledger
+            .order_page_observation(&resource, [3; 16], 10, 1200, 100)
+            .is_none());
+    }
+    assert!(ledger
+        .order_page_observation(
+            &AccountResource::OpenOrders {
+                page: 3,
+                per_page: 10
+            },
+            [3; 16],
+            10,
+            1060,
+            100
+        )
+        .is_none());
+    assert!(ledger
+        .order_page_observation(
+            &AccountResource::OpenOrders {
+                page: 1,
+                per_page: 20
+            },
+            [3; 16],
+            10,
+            1060,
+            100
+        )
+        .is_none());
+    drop(ledger);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pages_refuse_wrong_echo_duplicate_orders_and_unbounded_or_inexact_rows() {
+    use exec_ipc::provision::AccountResource;
+    let resource = AccountResource::OpenOrders {
+        page: 2,
+        per_page: 1,
+    };
+    let parse = |raw: &[u8]| {
+        AccountObservation::from_page_response(&resource, raw, [3; 16], 10, [1; 16], 1000, 1010)
+    };
+    let row: serde_json::Value = serde_json::from_slice(&order("manual-1", "NEW", "0")).unwrap();
+    let body = serde_json::json!({"success":true,"result":{"BTCUSDT":[row["result"].clone()]},
+        "result_info":{"page":2,"per_page":1,"total":900}});
+    let observed = parse(&serde_json::to_vec(&body).unwrap()).unwrap();
+    assert_eq!(
+        observed.data()["result_info"],
+        serde_json::json!({"page":2,"per_page":1})
+    );
+    for field in ["page", "per_page"] {
+        for wrong in [
+            serde_json::json!(3),
+            serde_json::json!("2"),
+            serde_json::json!(true),
+            serde_json::Value::Null,
+        ] {
+            let mut bad = body.clone();
+            bad["result_info"][field] = wrong;
+            assert!(parse(&serde_json::to_vec(&bad).unwrap()).is_err());
+        }
+    }
+    let mut partial = body.clone();
+    partial["result_info"]
+        .as_object_mut()
+        .unwrap()
+        .remove("per_page");
+    assert!(parse(&serde_json::to_vec(&partial).unwrap())
+        .unwrap()
+        .data()
+        .get("result_info")
+        .is_none());
+    let mut duplicated = body.clone();
+    duplicated["result"]["ETHUSDT"] = serde_json::json!([row["result"].clone()]);
+    assert!(parse(&serde_json::to_vec(&duplicated).unwrap()).is_err());
+    let resource = AccountResource::OrderHistory {
+        page: 2,
+        per_page: 100,
+    };
+    duplicated.as_object_mut().unwrap().remove("result_info");
+    assert!(AccountObservation::from_page_response(
+        &resource,
+        &serde_json::to_vec(&duplicated).unwrap(),
+        [3; 16],
+        10,
+        [1; 16],
+        1000,
+        1010
+    )
+    .is_err());
+    assert!(AccountObservation::from_response(
+        AccountKind::OpenOrders,
+        &serde_json::to_vec(&body).unwrap(),
+        [3; 16],
+        10,
+        [1; 16],
+        1000,
+        1010
+    )
+    .is_err());
+    assert!(AccountObservation::from_page_response(
+        &AccountResource::Balances,
+        b"{}",
+        [3; 16],
+        10,
+        [1; 16],
+        1000,
+        1010
+    )
+    .is_err());
+}
+
+#[test]
 fn known_order_receipts_bind_identity_and_retain_each_order_across_restart() {
     let root = root();
     let path = root.join("orders.sqlite");

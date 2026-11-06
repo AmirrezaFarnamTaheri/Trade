@@ -636,8 +636,17 @@ impl Vault {
                 started_at_ms,
                 received_at_ms,
             ),
-            // Pages are not atomic account snapshots or absence/settlement evidence.
-            _ => return Ok(Some((body, None))),
+            AccountResource::OpenOrders { .. } | AccountResource::OrderHistory { .. } => {
+                AccountObservation::from_page_response(
+                    resource,
+                    &body.0,
+                    generation,
+                    runtime_epoch,
+                    request_id,
+                    started_at_ms,
+                    received_at_ms,
+                )
+            }
         };
         let observation = match observed {
             Ok(observation) => observation,

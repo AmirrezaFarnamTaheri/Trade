@@ -128,10 +128,49 @@ fn normalized(kind: AccountKind, value: &Value) -> Result<Value, &'static str> {
     if kind == AccountKind::KnownClientOrder {
         return normalized_order(result).map(|order| json!({"success":true,"result":order}));
     }
+    if matches!(kind, AccountKind::OpenOrders | AccountKind::OrderHistory) {
+        let request = value.get("request").ok_or("missing page request")?;
+        let page = request["page"].as_u64().ok_or("invalid page request")?;
+        let per_page = request["per_page"].as_u64().ok_or("invalid page request")?;
+        if !(1..=1000).contains(&page) || !(1..=100).contains(&per_page) {
+            return Err("invalid page request bounds");
+        }
+        let groups = result.as_object().ok_or("invalid order page")?;
+        if groups.len() > 100 {
+            return Err("unbounded order groups");
+        }
+        let mut orders = Vec::new();
+        let mut identities = std::collections::BTreeSet::new();
+        for rows in groups.values() {
+            for row in rows.as_array().ok_or("invalid order group")? {
+                if orders.len() >= per_page as usize {
+                    return Err("unbounded order page");
+                }
+                let order = normalized_order(row)?;
+                if !identities.insert(order["clientOrderId"].as_str().unwrap().to_owned()) {
+                    return Err("duplicate page order identity");
+                }
+                orders.push(order);
+            }
+        }
+        let mut out = json!({"success":true,"result":{"orders":orders},
+                             "request":{"page":page,"per_page":per_page}});
+        if let Some(info) = value.get("result_info") {
+            if info.get("page").is_some() && info.get("per_page").is_some() {
+                if info["page"].as_u64() != Some(page)
+                    || info["per_page"].as_u64() != Some(per_page)
+                {
+                    return Err("order page echo mismatch");
+                }
+                out["result_info"] = json!({"page":page,"per_page":per_page});
+            }
+        }
+        return Ok(out);
+    }
     let rows = match kind {
         AccountKind::Balances => result.get("balances"),
         AccountKind::Fees => Some(result),
-        AccountKind::KnownClientOrder => unreachable!(),
+        _ => unreachable!(),
     }
     .and_then(Value::as_object)
     .ok_or("invalid account collection")?;
@@ -143,7 +182,7 @@ fn normalized(kind: AccountKind, value: &Value) -> Result<Value, &'static str> {
         let fields = match kind {
             AccountKind::Balances => ["value", "locked"],
             AccountKind::Fees => ["makerFeeRate", "takerFeeRate"],
-            AccountKind::KnownClientOrder => unreachable!(),
+            _ => unreachable!(),
         };
         // Account-level fee metadata does not describe an instrument's cost.
         if kind == AccountKind::Fees && !fields.iter().any(|key| row.get(key).is_some()) {
@@ -171,7 +210,7 @@ fn normalized(kind: AccountKind, value: &Value) -> Result<Value, &'static str> {
     Ok(match kind {
         AccountKind::Balances => json!({"success":true,"result":{"balances":out}}),
         AccountKind::Fees => json!({"success":true,"result":out}),
-        AccountKind::KnownClientOrder => unreachable!(),
+        _ => unreachable!(),
     })
 }
 
@@ -284,6 +323,46 @@ fn normalized_order(row: &Value) -> Result<Value, &'static str> {
 }
 
 impl AccountObservation {
+    /// The page identity is taken from the service request, never the venue body.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_page_response(
+        resource: &exec_ipc::provision::AccountResource,
+        raw: &[u8],
+        generation: [u8; 16],
+        runtime_epoch: u64,
+        request_id: [u8; 16],
+        started_at_ms: u64,
+        received_at_ms: u64,
+    ) -> Result<Self, &'static str> {
+        use exec_ipc::provision::AccountResource;
+        resource.path()?;
+        let (kind, page, per_page) = match resource {
+            AccountResource::OpenOrders { page, per_page } => {
+                (AccountKind::OpenOrders, page, per_page)
+            }
+            AccountResource::OrderHistory { page, per_page } => {
+                (AccountKind::OrderHistory, page, per_page)
+            }
+            _ => return Err("not an order page request"),
+        };
+        let mut body = parse(raw)?;
+        if !body.is_object() {
+            return Err("invalid order page response");
+        }
+        body["request"] = json!({"page":page,"per_page":per_page});
+        let observation = Self {
+            kind,
+            generation,
+            runtime_epoch,
+            request_id,
+            started_at_ms,
+            received_at_ms,
+            response_digest: exec_store::hash_event(&[0; 32], raw),
+            data: normalized(kind, &body)?,
+        };
+        observation.validate()?;
+        Ok(observation)
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn from_order_response(
         client_id: &str,
@@ -309,6 +388,18 @@ impl AccountObservation {
         Ok(value)
     }
     pub(crate) fn key(&self) -> (AccountKind, String) {
+        if matches!(
+            self.kind,
+            AccountKind::OpenOrders | AccountKind::OrderHistory
+        ) {
+            return (
+                self.kind,
+                format!(
+                    "{}/{}",
+                    self.data["request"]["page"], self.data["request"]["per_page"]
+                ),
+            );
+        }
         (
             self.kind,
             self.data["result"]["clientOrderId"]
@@ -328,6 +419,9 @@ impl AccountObservation {
         started_at_ms: u64,
         received_at_ms: u64,
     ) -> Result<Self, &'static str> {
+        if matches!(kind, AccountKind::OpenOrders | AccountKind::OrderHistory) {
+            return Err("page requires a service-owned request");
+        }
         let observation = Self {
             kind,
             generation,
@@ -420,6 +514,8 @@ impl AccountObservation {
             1 => AccountKind::Balances,
             2 => AccountKind::Fees,
             3 => AccountKind::KnownClientOrder,
+            4 => AccountKind::OpenOrders,
+            5 => AccountKind::OrderHistory,
             _ => return Err("invalid account kind"),
         };
         let observation = Self {

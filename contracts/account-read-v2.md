@@ -21,7 +21,7 @@ Every number in the header is unsigned, big endian.
 | 0 | 8 | `TGARESP2` |
 | 8 | 16 | Exact request correlation |
 | 24 | 4 | Body length |
-| 28 | 1 | Receipt kind: 0 absent, 1 balances, 2 fees, 3 known client order |
+| 28 | 1 | Receipt kind: 1 balances, 2 fees, 3 known client order, 4 open orders, 5 order history |
 | 29 | 3 | Zero |
 | 32 | 8 | Committed custody-journal sequence |
 | 40 | 8 | Service runtime epoch |
@@ -31,9 +31,12 @@ Every number in the header is unsigned, big endian.
 | 80 | 32 | Original response digest |
 | 112 | 32 | Committed journal event hash |
 
-Balances, fees and one known client order require their matching receipt kind.
-Only open-order/history pages retain kind 0 and zero bytes from offset 32 onward;
-they do not acquire native pagination-completeness or settlement evidence. Present receipts
+All five resources require their matching receipt kind. The service commits
+bounded, sanitized page rows with the page/per-page identity from its own request.
+An absent or partial venue pagination echo remains unverified; a complete echo
+must match exactly. Duplicate orders and rows beyond the requested limit are
+refused. Pages never prove collection completeness, absence, atomicity or
+settlement. Receipts
 require positive sequence, runtime and request time, nonzero identities/hashes,
 receive time at least request time, and duration below 12,000 milliseconds.
 Truncated, unknown, miscorrelated or noncanonical headers are refused.
@@ -54,15 +57,17 @@ All its fields are strings, so JavaScript cannot round 64-bit identifiers:
 `event_hash`.
 
 Source is `EXECUTOR_SERVICE_JOURNAL`, authority is `OBSERVATION_ONLY`, resource
-is `BALANCES`, `FEES` or `ORDER_STATUS`. Only `ORDER_STATUS` additionally requires
+is `BALANCES`, `FEES`, `ORDER_STATUS`, `OPEN_ORDERS` or `ORDER_HISTORY`. `ORDER_STATUS` additionally requires
 `client_id`, bound to the requested identity and the returned order. The helper
 copies it from its validated request; the service checks the original response
-identity before committing. Correlation/generation use 32 lowercase hex characters;
+identity before committing. Page receipts additionally require `page` (1..1000)
+and `per_page` (1..100), copied as canonical decimal strings from the validated
+request and checked again by Python. Correlation/generation use 32 lowercase hex characters;
 digests use 64. Decimal integers are positive canonical u64 strings. Unknown
 fields, repeated resources, mixed keys/runtimes, nonincreasing sequences,
 regressed request clocks and repeated correlations anywhere in the collection
-are refused. Up to 102 receipts (balances, fees and 100 distinct known orders)
-accompany a collected account snapshot. Refreshing one resource/order identity
+are refused. Up to 104 receipts (balances, fees, 100 distinct known orders and
+two explicit pages) accompany a collected account snapshot. Refreshing one resource/order/page identity
 invalidates that reader's preceding receipt for that identity before the read,
 including on failure. Existing helper envelopes without receipts remain
 display-only observations; no receipt is invented for them.
@@ -78,10 +83,14 @@ fee asset and literal timestamp. The journal validates it again against the
 same order parser and its coarse account rows on write/read. Older snapshots
 omit this optional field; their missing fills are not reconstructed. The account
 page renders these details in EN/FA without converting decimal money to floats.
+Optional `order_pages` retain their request bounds, pagination-echo status and
+sanitized order details. The snapshot journal revalidates these fields and
+their links to coarse order rows and service receipts on write/read. Empty
+pages remain observations without absence proof.
 
-Updated helpers require kind 3 for known-order reads; older services returning
+Updated helpers require kinds 3/4/5 for known-order/page reads; older services returning
 kind 0 fail closed rather than silently downgrading. Older clients/readers that
-do not understand kind 3 refuse it. Publish matching binaries before use and
+do not understand kinds 3/4/5 refuse them. Publish matching binaries before use and
 retain a journal-compatible reader for rollback. V1 request framing is unchanged.
 
 The browser does not contact the exchange or read the protected journal. Its

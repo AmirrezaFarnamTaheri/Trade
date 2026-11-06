@@ -7,6 +7,8 @@ pub enum ObservationKind {
     Balances = 1,
     Fees = 2,
     KnownClientOrder = 3,
+    OpenOrders = 4,
+    OrderHistory = 5,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,7 +58,8 @@ pub fn encode_reply(
         AccountResource::Balances => Some(ObservationKind::Balances),
         AccountResource::Fees => Some(ObservationKind::Fees),
         AccountResource::KnownClientOrder(_) => Some(ObservationKind::KnownClientOrder),
-        _ => None,
+        AccountResource::OpenOrders { .. } => Some(ObservationKind::OpenOrders),
+        AccountResource::OrderHistory { .. } => Some(ObservationKind::OrderHistory),
     };
     let mut frame = [0; REPLY_SIZE];
     frame[..8].copy_from_slice(b"TGARESP2");
@@ -103,11 +106,13 @@ pub fn decode_reply(
     let length = u32::from_be_bytes(raw[24..28].try_into().unwrap()) as usize;
     let receipt = match raw[28] {
         0 => None,
-        1..=3 => Some(ObservationReceipt {
+        1..=5 => Some(ObservationReceipt {
             kind: match raw[28] {
                 1 => ObservationKind::Balances,
                 2 => ObservationKind::Fees,
-                _ => ObservationKind::KnownClientOrder,
+                3 => ObservationKind::KnownClientOrder,
+                4 => ObservationKind::OpenOrders,
+                _ => ObservationKind::OrderHistory,
             },
             sequence: u64::from_be_bytes(raw[32..40].try_into().unwrap()),
             runtime_epoch: u64::from_be_bytes(raw[40..48].try_into().unwrap()),

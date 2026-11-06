@@ -4,13 +4,41 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
-Current delivery: **1012 Python passed, five skipped, 39 subtests; 150 native
+Current delivery: **1025 Python passed, five skipped, 39 subtests; 152 native
 tests passed**. Native committed account receipt references now pass through the
 helper, CLI, saved journal and guarded account API to EN/FA account details.
 Exact recorded fee rates are visible too. A local receipt copy is not independent
 journal authentication, verified permissions or funded authority.
 
 ## Current receipt — 2026-11-06 (Asia/Tehran)
+
+All five protected GET resource families now retain matching journal receipts.
+Open-order/history pages bind the service request's page/per-page identity,
+sanitize bounded order/fill rows and preserve original-response digests. Their
+provenance reaches the helper, CLI, saved account snapshot, guarded API and EN/FA
+details. Missing echoes remain unverified; pages never prove completeness,
+absence, atomicity or settlement. Restart/freshness/substitution/tampering tests
+pass. The exact current eight-binary bundle passed ordinary ACER review and
+revocation, seven actual R0 denials and STOP acknowledgements in **67/11/10/11 ms**.
+The strict cleanup audit ran and service is stopped/disabled. Receipt:
+`.pi/qualification/20261106T1139159526512`; no account call or order occurred.
+
+The complete [paper campaign](paper-qualification.md) contains 1,973 registered
+historical attempts, 12 LONG/SHORT margin replays and five prospective attempts
+(four ended, one original startup failure retained). All ten strategy repeats
+matched; native digests and independent posting/equity/waterfall checks passed.
+The audit retains 28 no-data attempts, 722 completed no-fill runs and 1,052 stale
+ending marks. Each completed watch ran 15 minutes after warmup. These are actual
+observed-data paper results, not sustained strategy or funded qualification.
+The experiment source-budget, equal-clock startup and prospective-artifact
+verification defects found during this work are fixed and regression-tested.
+
+Current regression is 1025 Python passed/five skipped/39 subtests and 152 native
+tests; strict checks, release build, independent reviews and dependency scans
+passed with the local editable Python package outside the advisory database.
+Full funded execution/protection, authenticated account settlement, independent
+custody, browser appearance and physical second-host recovery remain open.
+The following earlier receipts retain their original chronology and counts.
 
 Known-client-order reads now receive service-owned protected journal receipts
 and survive restart under distinct order identities. Exact requested/executed

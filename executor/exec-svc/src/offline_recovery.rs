@@ -1613,6 +1613,33 @@ impl DurableOrderJournal {
             .filter(|value| value.is_fresh(generation, epoch, now, max_age))
     }
 
+    pub fn order_page_observation(
+        &self,
+        resource: &exec_ipc::provision::AccountResource,
+        generation: [u8; 16],
+        epoch: u64,
+        now: u64,
+        max_age: u64,
+    ) -> Option<&AccountObservation> {
+        use exec_ipc::provision::AccountResource;
+        resource.path().ok()?;
+        let (kind, page, per_page) = match resource {
+            AccountResource::OpenOrders { page, per_page } => {
+                (AccountKind::OpenOrders, page, per_page)
+            }
+            AccountResource::OrderHistory { page, per_page } => {
+                (AccountKind::OrderHistory, page, per_page)
+            }
+            _ => return None,
+        };
+        if self.credential.as_ref()?.generation != generation {
+            return None;
+        }
+        self.account_observations
+            .get(&(kind, format!("{page}/{per_page}")))
+            .filter(|value| value.is_fresh(generation, epoch, now, max_age))
+    }
+
     pub fn record_account_observation(
         &mut self,
         value: AccountObservation,

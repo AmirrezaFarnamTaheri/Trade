@@ -19,7 +19,7 @@ from ..adapters.wallex_account_read import (
     parse_fee_rates,
 )
 from ..contracts.account_receipt import service_receipts
-from ..adapters.wallex_order_evidence import validate_order_evidence
+from ..adapters.wallex_order_evidence import validate_order_evidence, validate_order_pages
 from ..domain.account_observations import project_account
 
 SCHEMA = """
@@ -120,9 +120,12 @@ def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -
     out = {**clean, "fee_rates": fees, "transport": transport,
            "permission_status": "UNVERIFIED", "funded_authority": False}
     orders_by_id = {row["client_id"]: row for row in clean["orders"]}
+    if "order_pages" in snapshot:
+        out["order_pages"] = validate_order_pages(snapshot["order_pages"])
     if "order_evidence" in snapshot:
         out["order_evidence"] = validate_order_evidence(snapshot["order_evidence"])
-        for row in out["order_evidence"]:
+    for collection in [out.get("order_evidence", []), *(page["orders"] for page in out.get("order_pages", []))]:
+        for row in collection:
             linked = orders_by_id.get(row["client_id"])
             if linked is None or linked["symbol"] != row["symbol"] or linked["raw_status"] != row["raw_status"] or (
                 linked["filled_observed"] is None or Decimal(linked["filled_observed"]) != Decimal(row["executed_qty"])
@@ -135,6 +138,12 @@ def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -
         if any(receipt["resource"] == "ORDER_STATUS" and receipt["client_id"] not in orders_by_id
                for receipt in out["service_receipts"]):
             raise ValueError("order receipt differs from account observation")
+        pages = {("OPEN_ORDERS" if page["kind"] == "OPEN" else "ORDER_HISTORY",
+                  str(page["requested_page"]), str(page["requested_per_page"])) for page in out.get("order_pages", [])}
+        if any(receipt["resource"] in ("OPEN_ORDERS", "ORDER_HISTORY")
+               and (receipt["resource"], receipt["page"], receipt["per_page"]) not in pages
+               for receipt in out["service_receipts"]):
+            raise ValueError("page receipt differs from account observation")
     return out
 
 

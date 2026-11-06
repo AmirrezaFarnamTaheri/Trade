@@ -14,6 +14,7 @@ from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .collector import now_utc
+from .data_portal import DataPortal
 from .paper import PaperDataUnavailable, paper
 from .research_protocol import ResearchProtocol, _engine_digest
 
@@ -191,10 +192,24 @@ class ExperimentRegistry:
             raise ValueError("experiment needs its own market snapshot")
         db.c.execute("BEGIN")
         try:
+            instrument = DataPortal(db).instrument(symbol)
+            sources = {symbol}
+            if instrument.base != "BTC":
+                sources.add("BTC" + instrument.quote)
+            references = {getattr(create_strategy(request["strategy"], params), "reference_symbol", None) for params in trials} - {None}
+            sources.update(references)
+            if instrument.quote == "TMN":
+                sources.add("USDTTMN")
             for start, end in periods:
-                count = db.c.execute("SELECT count(*) FROM book_top WHERE ts_avail>=? AND ts_avail<?", (iso(start - timedelta(days=1)), iso(end))).fetchone()[0]
-                if count > 100000:
-                    raise ValueError("experiment observation budget exceeded; narrow windows")
+                count = 0
+                for source in sorted(sources):
+                    begin = (start - timedelta(days=1) if source == "USDTTMN" and instrument.quote == "TMN"
+                             else start - timedelta(seconds=120) if source in references else start)
+                    finish = end + timedelta(microseconds=1) if source in references else end
+                    count += db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? AND ts_avail>=? AND ts_avail<? LIMIT ?)",
+                                          ("wallex:" + source, iso(begin), iso(finish), 100001 - count)).fetchone()[0]
+                    if count > 100000:
+                        raise ValueError("experiment observation budget exceeded; narrow windows")
             for attempt, params, (start, end), scenario in attempts:
                 cost, excluded = costs[scenario]
                 try:

@@ -47,6 +47,61 @@ def order_receipt(client_id, *, sequence="4", request="44" * 16, start="1040"):
     return raw
 
 
+def page_receipt(*, resource="OPEN_ORDERS", page=1, per_page=10, sequence="5", request="55" * 16, start="1060"):
+    order = json.loads(bytes.fromhex(order_receipt("manual-1")["raw_body_hex"]))["result"]
+    body = {"success": True, "result": {"BTCUSDT": [order]},
+            "result_info": {"page": page, "per_page": per_page}}
+    raw = receipt_envelope(body, resource=resource, sequence=sequence, request=request,
+                           start=start, received=str(int(start) + 10))
+    raw["service_receipt"].update(page=str(page), per_page=str(per_page))
+    return raw
+
+
+def test_page_receipts_bind_request_and_refresh_only_the_requested_page(monkeypatch):
+    reader = service.ServiceAccountReader()
+    install(monkeypatch, json.dumps(page_receipt()).encode())
+    observed = asyncio.run(reader.order_page(kind="OPEN", page=1, per_page=10))
+    assert observed["pagination_echo"] == "MATCHED" and observed["absence_proven"] is False
+    install(monkeypatch, json.dumps(page_receipt(page=2, sequence="6", request="66" * 16, start="1080")).encode())
+    asyncio.run(reader.order_page(kind="OPEN", page=2, per_page=10))
+    assert [row["page"] for row in reader.receipts] == ["1", "2"]
+    install(monkeypatch, b"FAILED", code=2)
+    with pytest.raises(ReadUncertain):
+        asyncio.run(reader.order_page(kind="OPEN", page=1, per_page=10))
+    assert [row["page"] for row in reader.receipts] == ["2"]
+    install(monkeypatch, json.dumps(page_receipt(page=1, sequence="7", request="77" * 16, start="1100")).encode())
+    with pytest.raises(ReadUncertain):
+        asyncio.run(reader.order_page(kind="OPEN", page=3, per_page=10))
+    assert [row["page"] for row in reader.receipts] == ["2"]
+
+
+@pytest.mark.parametrize("change", ["page", "echo", "private", "authority", "receipt", "order"])
+def test_saved_pages_revalidate_request_and_observations_before_append(tmp_path, change):
+    from gym.adapters.wallex_order_evidence import parse_order_page
+    raw = page_receipt()
+    page = parse_order_page(json.loads(bytes.fromhex(raw["raw_body_hex"])), kind="OPEN", page=1, per_page=10)
+    snapshot = project_account("main", "2026-11-06T00:00:00Z", orders=[{
+        "client_id": "manual-1", "symbol": "BTCUSDT", "status": "CANCELED", "filled": "0.1"}])
+    snapshot["order_pages"] = [page]
+    snapshot["service_receipts"] = [raw["service_receipt"]]
+    if change == "page":
+        page["requested_page"] = True
+    elif change == "echo":
+        page["pagination_echo"] = "COMPLETE"
+    elif change == "private":
+        page["private"] = "DO-NOT-COPY"
+    elif change == "authority":
+        page["absence_proven"] = 0
+    elif change == "receipt":
+        snapshot["service_receipts"][0]["page"] = "2"
+    else:
+        page["orders"][0]["raw_status"] = "FILLED"
+    with ExternalJournal(tmp_path / "journal.db") as journal:
+        with pytest.raises(ValueError):
+            journal.record(snapshot, transport="EXECUTOR_SERVICE_WINHTTP")
+        assert journal.latest_snapshot() is None and journal.events() == []
+
+
 def test_order_receipts_are_identity_bound_and_refresh_only_the_same_order(monkeypatch):
     reader = service.ServiceAccountReader()
     install(monkeypatch, json.dumps(order_receipt("manual-1")).encode())
@@ -212,16 +267,21 @@ def test_saved_service_receipts_reach_token_guarded_api_and_cli(monkeypatch, cap
     fees = receipt_envelope(fee_body, resource="FEES", sequence="3", request="22" * 16,
                             start="1020", received="1030")
     order = order_receipt("manual-1")
+    opened = page_receipt()
+    history = page_receipt(resource="ORDER_HISTORY", page=2, sequence="6", request="66" * 16, start="1080")
     helper = Path("C:/Program Files/TradingGYM/Executor/gym-account-read.exe")
     monkeypatch.setattr(service, "_helper_path", lambda: helper)
 
     async def spawn(*args, **_options):
-        return Process(json.dumps({"balances": balance, "fees": fees, "known-client-order": order}[args[1]]).encode())
+        return Process(json.dumps({"balances": balance, "fees": fees, "known-client-order": order,
+                                   "open-orders": opened, "order-history": history}[args[1]]).encode())
 
     monkeypatch.setattr(service.asyncio, "create_subprocess_exec", spawn)
-    assert main(["--data", str(tmp_path), "account", "--source", "service", "--order", "manual-1", "--record"]) == 0
+    assert main(["--data", str(tmp_path), "account", "--source", "service", "--order", "manual-1",
+                 "--open-orders-page", "1", "--history-page", "2", "--per-page", "10", "--record"]) == 0
     printed = json.JSONDecoder().raw_decode(capsys.readouterr().out)[0]
-    expected = [balance["service_receipt"], fees["service_receipt"], order["service_receipt"]]
+    expected = [balance["service_receipt"], fees["service_receipt"], order["service_receipt"],
+                opened["service_receipt"], history["service_receipt"]]
     assert printed["service_receipts"] == expected
     assert printed["funded_authority"] is False
 
@@ -240,6 +300,9 @@ def test_saved_service_receipts_reach_token_guarded_api_and_cli(monkeypatch, cap
                 assert saved["order_evidence"] == printed["order_evidence"]
                 assert saved["order_evidence"][0]["fills"][0]["fee_asset"] == "BTC"
                 assert saved["order_evidence"][0]["settlement"] == "UNKNOWN"
+                assert saved["order_pages"] == printed["order_pages"]
+                assert len(saved["order_pages"]) == 2
+                assert all(page["collection_complete"] is False for page in saved["order_pages"])
         db.c.close()
     asyncio.run(inspect())
 

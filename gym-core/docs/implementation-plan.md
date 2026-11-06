@@ -6,6 +6,34 @@ Nothing in this plan enables funded orders or promotes a strategy.
 
 ## Current implementation follow-up
 
+The comprehensive [recorded-data paper campaign](paper-qualification.md) is complete:
+1,973 historical attempts across 373 markets, ten strategies and eleven fixed
+timeframes; 1,945 completed and 28 explicitly incomplete for unavailable data.
+Twelve LONG/SHORT margin replays and four completed prospective 15-minute watches
+supplement the campaign. One original startup abort is retained beside its
+successful tested-fix retry. All ten strategy repeats matched; postings/equity/
+waterfalls were audited. Stale marks, no-trade/warmup cases and short observation
+periods prevent promotion or sustained qualification claims.
+
+The campaign also closes three implementation defects: unrelated markets no
+longer exhaust experiment quote budgets; equal startup clock readings no longer
+abort prospective watches; prospective artifacts work through the shared verified
+reader/decision debugger while missing baselines remain unavailable.
+
+All five protected GET resource families now commit matching native observations.
+Open-order/history pages retain service-owned page bounds, sanitized orders and
+original-body digests through restart, helper, CLI, SQLite snapshot, guarded API
+and EN/FA account page. Missing pagination echoes, completeness, absence and
+settlement stay unverified. Failed refreshes invalidate the same page identity.
+
+Current regression: **1025 Python passed, five skipped, 39 subtests; 152 native
+tests**. Independent reviews found no medium-or-higher issues. The exact current
+bundle passed installed ACER review/preparation/revocation, seven R0 denials and
+four STOP acknowledgements in 67/11/10/11 ms, then stopped/disabled. Receipt:
+`.pi/qualification/20261106T1139159526512`. No account API or order was called.
+
+The following earlier follow-up records remain historical evidence.
+
 Known-order GETs now join balances and fees in the service-owned protected
 observation journal. Requested client identity, exact partial-fill totals,
 fee currency, runtime/key generation, clocks and committed sequence/hash reach

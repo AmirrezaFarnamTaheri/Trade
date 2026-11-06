@@ -29,7 +29,7 @@ def _source(root, reference, store):
     elif metric == "starting_cash_quote":
         raw = result["start_cash"]
     elif metric == "hold_cash_net_quote":
-        raw = out["baselines"]["hold " + unit]["end"]["net"]
+        raw = out["baselines"].get("hold " + unit, {}).get("end", {}).get("net")
     elif metric in ("fills", "qualified_observations"):
         raw, unit = str(result["fills" if metric == "fills" else "qualified"]), "count"
     elif metric == "sampled_drawdown_percent":

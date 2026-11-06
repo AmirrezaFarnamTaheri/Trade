@@ -7,22 +7,26 @@ _FIELDS = frozenset(("source", "authority", "resource", "sequence", "runtime_epo
 
 
 def service_receipts(value):
-    if not isinstance(value, list) or len(value) > 102:
+    if not isinstance(value, list) or len(value) > 104:
         raise ValueError("invalid service receipt collection")
     result, seen, requests = [], set(), set()
     for receipt in value:
         if not isinstance(receipt, dict):
             raise ValueError("invalid service receipt identity")
         order = receipt.get("resource") == "ORDER_STATUS"
-        identity = (receipt.get("resource"), receipt.get("client_id", ""))
-        if receipt.keys() != (_FIELDS | {"client_id"} if order else _FIELDS) or (
+        page = receipt.get("resource") in ("OPEN_ORDERS", "ORDER_HISTORY")
+        identity = (receipt.get("resource"), receipt.get("client_id", ""), receipt.get("page", ""), receipt.get("per_page", ""))
+        if receipt.keys() != (_FIELDS | {"client_id"} if order else _FIELDS | {"page", "per_page"} if page else _FIELDS) or (
             receipt.get("source") != "EXECUTOR_SERVICE_JOURNAL"
             or receipt.get("authority") != "OBSERVATION_ONLY"
-            or receipt.get("resource") not in ("BALANCES", "FEES", "ORDER_STATUS")
+            or receipt.get("resource") not in ("BALANCES", "FEES", "ORDER_STATUS", "OPEN_ORDERS", "ORDER_HISTORY")
             or (order and (not isinstance(receipt.get("client_id"), str)
                           or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}", receipt["client_id"])))
         ):
             raise ValueError("invalid service receipt identity")
+        if page and any(not isinstance(receipt[key], str) or not re.fullmatch(r"[1-9][0-9]{0,3}", receipt[key])
+                        or int(receipt[key]) > maximum for key, maximum in (("page", 1000), ("per_page", 100))):
+            raise ValueError("invalid service receipt page")
         if identity in seen:
             raise ValueError("repeated service receipt identity")
         for key in ("sequence", "runtime_epoch", "started_at_ms", "received_at_ms"):

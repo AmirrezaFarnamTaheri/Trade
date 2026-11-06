@@ -164,8 +164,14 @@ const vocabulary = {
   accountFeeNote: ["Rates are decimal fractions: 0.001 means 0.1%. Actual charged fees remain unreconciled.", "نرخ‌ها به‌صورت اعشاری‌اند: ۰٫۰۰۱ یعنی ۰٫۱٪. کارمزد واقعی کسرشده هنوز تطبیق داده نشده است."],
   makerFeeRate: ["Maker rate", "نرخ سفارش‌گذار"], takerFeeRate: ["Taker rate", "نرخ سفارش‌بردار"],
   noAccountFees: ["No fee rates recorded.", "نرخ کارمزدی ثبت نشده است."],
-  serviceReceiptsNote: ["These saved references record when the service received balances and fees. They may be stale; this local copy does not independently verify the protected journal or grant trading permission.", "این ارجاع‌های ذخیره‌شده زمان دریافت موجودی و کارمزد توسط سرویس را ثبت می‌کنند. ممکن است قدیمی باشند؛ این نسخهٔ محلی صحت دفتر محافظت‌شده را مستقلاً تأیید نمی‌کند و مجوز معامله نمی‌دهد."],
+  serviceReceiptsNote: ["These saved references record when the service received balances, fees and orders. They may be stale; this local copy does not independently verify the protected journal or grant trading permission.", "این ارجاع‌های ذخیره‌شده زمان دریافت موجودی، کارمزد و سفارش‌ها توسط سرویس را ثبت می‌کنند. ممکن است قدیمی باشند؛ این نسخهٔ محلی صحت دفتر محافظت‌شده را مستقلاً تأیید نمی‌کند و مجوز معامله نمی‌دهد."],
   receiptBalances: ["Balances", "موجودی‌ها"], receiptFees: ["Fees", "کارمزدها"], receiptOrder: ["Order observation", "مشاهدهٔ سفارش"],
+  receiptOpenOrders: ["Open-order page", "صفحهٔ سفارش‌های باز"], receiptHistory: ["Order-history page", "صفحهٔ تاریخچهٔ سفارش‌ها"],
+  orderPages: ["Observed order pages", "صفحه‌های مشاهده‌شدهٔ سفارش"],
+  orderPagesNote: ["Each page is a separate observation. Empty pages do not prove absence; completeness, atomicity and settlement remain unverified.", "هر صفحه مشاهده‌ای جداگانه است. خالی بودن صفحه نبودن سفارش را ثابت نمی‌کند؛ کامل بودن، هم‌زمانی و تسویه تأیید نشده‌اند."],
+  pageNumber: ["Page", "صفحه"], perPage: ["Requested page size", "اندازهٔ درخواستی صفحه"],
+  paginationEcho: ["Venue page echo", "بازتاب صفحه در پاسخ صرافی"], MATCHED: ["Matches request", "مطابق درخواست"],
+  UNVERIFIED: ["Unverified", "تأیید نشده"],
   receiptEntry: ["Journal entry", "رویداد دفتر"], receiptReceived: ["Received", "دریافت"],
   receiptRequested: ["Requested", "درخواست"], receiptRuntime: ["Service run", "اجرای سرویس"],
   receiptGeneration: ["Credential version", "نسخهٔ کلید"], receiptRequest: ["Request reference", "ارجاع درخواست"],
@@ -728,7 +734,7 @@ function serviceReceiptDetails(receipts) {
     return Number.isFinite(date.getTime()) ? when(date.toISOString()) : String(value);
   };
   return `<h3>${esc(t("serviceReceipts"))}</h3><p class="field-help">${esc(t("serviceReceiptsNote"))}</p>` + list(receipts).map(row =>
-    `<details><summary>${esc(t(({BALANCES:"receiptBalances",FEES:"receiptFees",ORDER_STATUS:"receiptOrder"})[row.resource] || "UNKNOWN"))}${row.client_id ? ` · ${esc(row.client_id)}` : ""} · ${esc(stamp(row.received_at_ms))} · ${esc(t("receiptEntry"))} ${esc(row.sequence)}</summary>${keyValues([
+    `<details><summary>${esc(t(({BALANCES:"receiptBalances",FEES:"receiptFees",ORDER_STATUS:"receiptOrder",OPEN_ORDERS:"receiptOpenOrders",ORDER_HISTORY:"receiptHistory"})[row.resource] || "UNKNOWN"))}${row.client_id ? ` · ${esc(row.client_id)}` : ""}${row.page ? ` · ${esc(t("pageNumber"))} ${esc(row.page)} / ${esc(row.per_page)}` : ""} · ${esc(stamp(row.received_at_ms))} · ${esc(t("receiptEntry"))} ${esc(row.sequence)}</summary>${keyValues([
       [t("receiptRequested"), esc(stamp(row.started_at_ms))], [t("receiptReceived"), esc(stamp(row.received_at_ms))],
       [t("receiptRuntime"), code(row.runtime_epoch)], [t("receiptGeneration"), code(row.credential_generation)],
       [t("receiptRequest"), code(row.request_id)], [t("receiptResponse"), code(row.response_digest)],
@@ -745,6 +751,15 @@ function orderEvidenceDetails(evidence) {
     ])}${table([t("fillTimestamp"), t("quantity"), t("fillPrice"), t("fillFee"), t("fillFeeAsset")],
       list(row.fills).map(fill => [code(String(fill.timestamp)), amount(fill.quantity), amount(fill.price), amount(fill.fee), code(fill.fee_asset)]), t("noReportedFills"))}</details>`).join("");
 }
+function orderPageDetails(pages) {
+  if (!list(pages).length) return "";
+  return `<h3>${esc(t("orderPages"))}</h3><p class="field-help">${esc(t("orderPagesNote"))}</p>` + list(pages).map(page =>
+    `<details><summary>${esc(t(page.kind === "OPEN" ? "receiptOpenOrders" : "receiptHistory"))} · ${esc(page.requested_page)}</summary>${keyValues([
+      [t("pageNumber"), esc(page.requested_page)], [t("perPage"), esc(page.requested_per_page)],
+      [t("paginationEcho"), esc(t(page.pagination_echo))], [t("settlement"), esc(t(page.settlement))],
+    ])}${table([t("clientId"), t("pair"), t("rawStatus"), t("filledObserved")], list(page.orders).map(row =>
+      [code(row.client_id), code(row.symbol), esc(row.raw_status), amount(row.executed_qty)]), t("noAccountOrders"))}</details>`).join("");
+}
 async function accountJournal() {
   const summary = $("account-state");
   try {
@@ -760,6 +775,7 @@ async function accountJournal() {
       <h3>${esc(t("accountFeeRates"))}</h3><p class="field-help">${esc(t("accountFeeNote"))}</p>${table([t("pair"), t("makerFeeRate"), t("takerFeeRate")], Object.entries(observation.fee_rates || {}).map(([symbol, row]) => [code(symbol), amount(row.maker), amount(row.taker)]), t("noAccountFees"))}
       <h3>${esc(t("accountOrders"))}</h3>${table([t("clientId"), t("pair"), t("rawStatus"), t("filledObserved"), t("settlement")], list(observation.orders).map(row => [code(row.client_id), code(row.symbol), esc(row.raw_status), amount(row.filled_observed), chip(t(row.settlement || "UNKNOWN"))]), t("noAccountOrders"))}
       ${orderEvidenceDetails(observation.order_evidence)}
+      ${orderPageDetails(observation.order_pages)}
       <h3>${esc(t("accountExposure"))}</h3>${table([t("account"), t("product"), t("obligation"), t("status")], list(observation.exposure).map(row => [code(row.account_id), esc(row.raw_product || row.product), `${amount(row.obligation)} ${code(row.obligation_asset)}`, esc(row.status)]), t("noExposure"))}`);
   } catch (_) { summary.textContent = t("accountError"); setHTML("account-observations", ""); throw new Error(t("requestError")); }
 }

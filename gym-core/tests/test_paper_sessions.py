@@ -125,10 +125,12 @@ def test_live_clock_regression_retains_an_explicit_aborted_receipt(tmp_path, mon
         db.c.close()
 
 
-def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch):
+@pytest.mark.parametrize("repeat_start", [False, True])
+def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch, repeat_start):
     from gym.services import live_paper
     db = market_db(tmp_path, quote_history(n=30))
-    times = iter([START, START + timedelta(seconds=130), START + timedelta(seconds=190), START + timedelta(seconds=191)])
+    times = iter([START] + ([START] if repeat_start else [])
+                 + [START + timedelta(seconds=130), START + timedelta(seconds=190), START + timedelta(seconds=191)])
     monkeypatch.setattr(live_paper, "now_utc", lambda: next(times))
     async def no_wait(_):
         return None
@@ -138,6 +140,26 @@ def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch):
     assert r["session"]["state"] == "ENDED"
     assert max(d["t"] for d in r["decisions"]) <= iso(START + timedelta(seconds=125))
     assert any(e["state"] == "FINISHING" and e["t"] == iso(START + timedelta(seconds=125)) for e in r["session"]["events"])
+    from gym.adapters.run_store import load_verified_run
+    from gym.services.replay_debugger import replay_decisions
+    from gym.services.research_grounding import MetricUnavailable, resolve_run_metric
+    import json
+    assert load_verified_run(tmp_path / "runs", out["run_id"], store="live")["outputs_digest"] == out["outputs_digest"]
+    assert replay_decisions(tmp_path / "runs", {"run_id": out["run_id"], "offset": 0, "limit": 10}, store="live")["decisions"]
+    with pytest.raises(MetricUnavailable):
+        resolve_run_metric(tmp_path / "runs", {"run_id": out["run_id"], "metric": "hold_cash_net_quote"}, store="live")
+    path = run_path(tmp_path / "runs", out["run_id"])
+    saved = json.loads(path.read_text())
+    for change in ("result", "baselines", "fx", "ranking"):
+        changed = json.loads(json.dumps(saved))
+        if change == "result":
+            changed["result"]["fills"] += 1
+        else:
+            changed[change] = {"invented": True}
+        path.write_text(json.dumps(changed))
+        with pytest.raises(ValueError):
+            load_verified_run(tmp_path / "runs", out["run_id"], store="live")
+    path.write_text(json.dumps(saved))
 
 
 @pytest.mark.parametrize("name,params", [

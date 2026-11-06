@@ -1,13 +1,17 @@
 # Protected account observations
 
 The service's existing administrator-only account GET path now records successful
-balance, fee and known-client-order observations in the protected custody ledger before replying.
+balance, fee, known-client-order and explicit open-order/history page observations
+in the protected custody ledger before replying.
 The account helper, Python adapter, CLI and GUI retain their existing read-only
 contracts and now expose optional receipt references through the
 [v2 account delivery contract](../../contracts/account-read-v2.md). No caller-supplied JSON, balance, unit precision or permission flag can
 enter this service path. Order-detail identity must match the requested client
-ID. Order pages remain raw observations without native
-completeness or settlement proof.
+ID. Page identities come from the service's validated request; original response
+digests remain bound to the received bytes. Page rows are bounded/sanitized and
+persist under separate kind/page/per-page identities. Complete pagination echoes
+must match; missing/partial echoes stay unverified. Pages provide no native
+completeness, absence, atomicity or settlement proof.
 
 The field mapping follows the [Wallex reference](https://api-docs.wallex.ir/):
 `result.balances.<asset>.value/locked` and per-market
@@ -76,6 +80,10 @@ Age includes the request duration. A request taking 12 seconds or more is refuse
 freshness bounds must be explicitly supplied within 1..30,000 milliseconds.
 Known-order cache entries are keyed by client ID, so reading a second order
 does not replace the first. Each update remains in the hash-chained history.
+Page entries separately retain request page and page size through restart,
+under observation kinds 4 (open orders) and 5 (history). Changing the requested
+page size does not reuse a previous page observation. Older readers that do
+not understand these kinds refuse replay; rollback must keep a compatible reader.
 Missing IDs produce no observation and never prove absence. Cancel acknowledgments,
 later partial fills and venue status changes remain separate from settlement.
 

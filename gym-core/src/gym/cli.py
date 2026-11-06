@@ -337,6 +337,8 @@ def account_cmd(args) -> int:
     observed = project_account("main", iso(now_utc()), balances=balances, orders=orders)
     if evidence:
         observed["order_evidence"] = evidence
+    if pages:
+        observed["order_pages"] = pages
     if receipts:
         observed["service_receipts"] = receipts
     nonzero = [b for b in observed["balances"] if Decimal(b["venue_value"]) or Decimal(b["venue_locked"])]

@@ -10,7 +10,7 @@ struct AccountRead {
     body: Vec<u8>,
     receipt: Option<exec_ipc::account::ObservationReceipt>,
     correlation: [u8; 16],
-    client_id: Option<String>,
+    resource: exec_ipc::provision::AccountResource,
 }
 #[cfg(windows)]
 fn main() {
@@ -23,7 +23,7 @@ fn main() {
             body,
             receipt,
             correlation,
-            client_id,
+            resource: requested,
         })) => {
             // Hex preserves unknown/incomplete venue bytes without treating them as trusted JSON or terminal text.
             use std::io::Write;
@@ -46,6 +46,8 @@ fn main() {
                         exec_ipc::account::ObservationKind::Balances => "BALANCES",
                         exec_ipc::account::ObservationKind::Fees => "FEES",
                         exec_ipc::account::ObservationKind::KnownClientOrder => "ORDER_STATUS",
+                        exec_ipc::account::ObservationKind::OpenOrders => "OPEN_ORDERS",
+                        exec_ipc::account::ObservationKind::OrderHistory => "ORDER_HISTORY",
                     };
                     let mut receipt = serde_json::json!({
                         "source":"EXECUTOR_SERVICE_JOURNAL", "authority":"OBSERVATION_ONLY",
@@ -55,8 +57,16 @@ fn main() {
                         "credential_generation":hex(&value.credential_generation), "request_id":hex(&correlation),
                         "response_digest":hex(&value.response_digest), "event_hash":hex(&value.event_hash),
                     });
-                    if let Some(client_id) = client_id {
-                        receipt["client_id"] = client_id.into();
+                    match requested {
+                        exec_ipc::provision::AccountResource::KnownClientOrder(client_id) => {
+                            receipt["client_id"] = client_id.into();
+                        }
+                        exec_ipc::provision::AccountResource::OpenOrders { page, per_page }
+                        | exec_ipc::provision::AccountResource::OrderHistory { page, per_page } => {
+                            receipt["page"] = page.to_string().into();
+                            receipt["per_page"] = per_page.to_string().into();
+                        }
+                        _ => {}
                     }
                     write!(out, ",\"service_receipt\":{receipt}")?;
                 }
@@ -159,9 +169,6 @@ fn run() -> Result<AccountRead, ()> {
         body,
         receipt,
         correlation,
-        client_id: match resource {
-            AccountResource::KnownClientOrder(client_id) => Some(client_id),
-            _ => None,
-        },
+        resource,
     })
 }

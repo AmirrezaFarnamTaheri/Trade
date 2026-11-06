@@ -109,8 +109,11 @@ native parameter objects. `windows` is a chronological, disjoint list of
 outages expressed as `{from,to}` inside one window. Use null for no final link.
 
 Each list has 1..8 entries and the product is at most 32 attempted runs. Windows
-are historical, at most 31 days and 5,000 bars each, with at most 100,000 quotes
-in the full-market window and its one-day FX lookback. Latency is 0..60,000ms;
+are historical, at most 31 days and 5,000 bars each, with at most 100,000 source
+quotes per window. The budget includes the requested instrument, consumed BTC
+and USDT baselines, configured strategy references and their 120-second lookup,
+and the one-day USDTTMN valuation lookback for TMN runs. Unrelated collected
+markets do not consume this budget. Latency is 0..60,000ms;
 each scenario has at most eight feed outages. Fee and latency assumptions use
 the native paper order model; outage intervals remove quote receipts from the
 strategy and matched baselines without altering the source database. There is

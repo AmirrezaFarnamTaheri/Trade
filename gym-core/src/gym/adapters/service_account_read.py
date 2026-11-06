@@ -26,6 +26,8 @@ _OUTPUT_LIMIT = _BODY_LIMIT * 2 + 2048
 _TIMEOUT = 22  # The protected helper has its own 20-second deadline.
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\Z")
 _HEX = re.compile(r"[0-9a-f]+\Z")
+_RESOURCES = {"balances": "BALANCES", "fees": "FEES", "known-client-order": "ORDER_STATUS",
+              "open-orders": "OPEN_ORDERS", "order-history": "ORDER_HISTORY"}
 
 
 def _helper_path(name="gym-account-read.exe") -> Path:
@@ -64,7 +66,7 @@ def _helper_path(name="gym-account-read.exe") -> Path:
     return path
 
 
-def _payload(raw: bytes, resource: str, client_id=None) -> tuple[object, dict | None]:
+def _payload(raw: bytes, resource: str, client_id=None, page=None, per_page=None) -> tuple[object, dict | None]:
     envelope = parse_account_json(raw)
     expected = {"source", "state", "permission_status", "funded_authority", "raw_body_hex"}
     if not isinstance(envelope, dict) or envelope.keys() not in (expected, expected | {"service_receipt"}) or (
@@ -82,10 +84,12 @@ def _payload(raw: bytes, resource: str, client_id=None) -> tuple[object, dict | 
     if "service_receipt" in envelope:
         try:
             receipt = service_receipts([envelope["service_receipt"]])[0]
-            if receipt["resource"] != {"balances": "BALANCES", "fees": "FEES", "known-client-order": "ORDER_STATUS"}.get(resource):
+            if receipt["resource"] != _RESOURCES.get(resource):
                 raise ValueError("receipt resource mismatch")
             if resource == "known-client-order" and receipt.get("client_id") != client_id:
                 raise ValueError("receipt order mismatch")
+            if resource in ("open-orders", "order-history") and (receipt.get("page"), receipt.get("per_page")) != (page, per_page):
+                raise ValueError("receipt page mismatch")
             digest = hashlib.sha256(bytes(32) + len(body).to_bytes(8, "big") + body).hexdigest()
             if receipt["response_digest"] != digest:
                 raise ValueError("receipt body mismatch")
@@ -97,6 +101,11 @@ def _payload(raw: bytes, resource: str, client_id=None) -> tuple[object, dict | 
             parse_manual_order_evidence(payload, client_id)
         except InvalidOrderEvidence:
             raise ReadUncertain("invalid Executor order identity or observation") from None
+    elif resource in ("open-orders", "order-history"):
+        try:
+            parse_order_page(payload, kind="OPEN" if resource == "open-orders" else "HISTORY", page=int(page), per_page=int(per_page))
+        except (InvalidOrderEvidence, TypeError, ValueError):
+            raise ReadUncertain("invalid Executor page identity or observation") from None
     return payload, receipt
 
 
@@ -108,10 +117,12 @@ class ServiceAccountReader:
 
     async def _get(self, *arguments: str) -> object:
         process = None
-        resource = {"balances": "BALANCES", "fees": "FEES", "known-client-order": "ORDER_STATUS"}.get(arguments[0])
+        resource = _RESOURCES.get(arguments[0])
         client_id = arguments[1] if resource == "ORDER_STATUS" else None
+        page, per_page = arguments[1:3] if resource in ("OPEN_ORDERS", "ORDER_HISTORY") else (None, None)
         self.receipts = [receipt for receipt in self.receipts
-                         if (receipt["resource"], receipt.get("client_id")) != (resource, client_id)]
+                         if (receipt["resource"], receipt.get("client_id"), receipt.get("page"), receipt.get("per_page"))
+                         != (resource, client_id, page, per_page)]
         try:
             helper = _helper_path()
             async with asyncio.timeout(_TIMEOUT):
@@ -128,7 +139,7 @@ class ServiceAccountReader:
                     raw.extend(chunk)
                 if await process.wait() != 0:
                     raise ReadUncertain("Executor account observation unavailable")
-                payload, receipt = _payload(raw, arguments[0], client_id)
+                payload, receipt = _payload(raw, arguments[0], client_id, page, per_page)
                 if receipt is not None:
                     try:
                         self.receipts = service_receipts([*self.receipts, receipt])
