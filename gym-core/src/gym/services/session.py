@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.model import iso, parse_ts
+from ..domain.market_models import decimal
 from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
@@ -96,14 +97,20 @@ class PaperSession:
                 quantity = self.book.get(self.instrument.base)
                 tradable = sellable_quantity(quantity,quote.bid,self.portal.spec_at(self.symbol,bar.avail)) if quote else quantity
                 holding = quantity>0 and (not self.position_closed or tradable>0)
-                execution = {"equity":str(self.book.equity(self.instrument,quote.bid)) if quote else None,
-                    "position_qty":str(quantity),"tradable_qty":str(tradable),
-                    "position_state":"OPEN" if holding else "DUST" if quantity>0 else "FLAT","fee_rate":str(self.cost.fee_rate),
-                    "bid_qty":str(quote.bid_qty) if quote and quote.bid_qty is not None else None,
-                    "ask_qty":str(quote.ask_qty) if quote and quote.ask_qty is not None else None,
-                    "entry_price":str(self.position_entry) if self.position_entry is not None else None,
-                    "stop_price":str(self.position_stop) if self.position_stop is not None else None,
+                execution = {"equity":self.book.equity(self.instrument,quote.bid) if quote else None,
+                    "position_qty":quantity,"tradable_qty":tradable,
+                    "position_state":"OPEN" if holding else "DUST" if quantity>0 else "FLAT","fee_rate":self.cost.fee_rate,
+                    "bid_qty":quote.bid_qty if quote else None,
+                    "ask_qty":quote.ask_qty if quote else None,
+                    "entry_price":self.position_entry,
+                    "stop_price":self.position_stop,
                     "entry_time":iso(self.position_opened),"position_id":self.position_id}
+                for key,value in execution.items():
+                    if isinstance(value,Decimal):
+                        try:
+                            execution[key] = format(decimal(value,key),"f")
+                        except ValueError:
+                            execution[key] = None
             snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
                                 quote and quote.ts_avail, context, reference, execution)
             if execution is None:

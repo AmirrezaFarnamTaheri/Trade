@@ -42,6 +42,23 @@ def test_unknown_depth_cannot_be_replaced_with_unlimited_paper_capacity():
     assert book.balances == before
 
 
+@pytest.mark.parametrize("fee,existing,expected",[("0.001","0","NONFILL"),("0","0","FILLED"),("0.001","0.00099","FILLED")])
+@pytest.mark.parametrize("spec",[Spec(3,min_notional=Decimal('.5')),Spec(min_qty=Decimal('.001')),Spec(min_notional=Decimal('.999'))])
+def test_fee_net_entry_must_leave_a_sellable_holding(fee,existing,expected,spec):
+    book = CashBook({"USDT":Decimal(1),"BTC":Decimal(existing)})
+    before = dict(book.balances)
+    quote = BookTop("BTCUSDT",START+timedelta(seconds=1),Decimal('999.99'),Decimal(1000),Decimal(100),Decimal(100),frozenset())
+    result = market_order(book,InstrumentId.wallex("BTCUSDT"),"BUY",Decimal(1),START,Decimal(1000),
+        [quote],0,CostModel(Decimal(fee)),spec,[],{},"entry",
+        execution_limits={"max_spread_bps":25,"participation_bps":1000})
+    assert result["status"]==expected
+    if expected=="NONFILL":
+        assert result["reason"]=="NET_HOLDING_BELOW_EXIT_MINIMUM"
+        assert book.balances==before and book.postings==[]
+    else:
+        assert book.get("BTC")>=Decimal('.001')
+
+
 @pytest.mark.parametrize("limits",[{}, {"max_spread_bps":True,"participation_bps":1000},
     {"max_spread_bps":25,"participation_bps":0},{"max_spread_bps":25,"participation_bps":10001}])
 def test_invalid_fill_limits_are_refused(limits):
@@ -115,6 +132,67 @@ def test_entry_guard_does_not_pretend_indicator_warmup_is_complete(tmp_path):
         assert session.state == "WARMING_UP" and session.running_at is None
     finally:
         db.c.close()
+
+
+def test_native_session_becomes_ready_without_admitting_wide_spread_entries(tmp_path):
+    from gym.services.session import PaperSession
+    from gym.domain.registry import create_strategy
+    from tests.support import market_db
+    from gym.services.data_portal import DataPortal
+    db = market_db(tmp_path,[])
+    session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
+    try:
+        for minute in range(52):
+            session.feed(BookTop("BTCUSDT",START+timedelta(minutes=minute),Decimal('99.8'),Decimal('100.2'),Decimal(100),Decimal(100),frozenset()))
+        assert session.state=="RUNNING" and session.strategy.ready
+        assert session.orders==[] and session.book.get("BTC")==0
+    finally:
+        db.c.close()
+
+
+def test_native_decimal_context_remains_valid_after_zero_balance_exit_and_tiny_depth(tmp_path):
+    from gym.services.session import PaperSession
+    from gym.domain.registry import create_strategy
+    from tests.support import market_db
+    from gym.services.data_portal import DataPortal
+    db = market_db(tmp_path,[])
+    session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
+    session.book.balances["BTC"] = Decimal('0E-9')
+    try:
+        for minute in range(52):
+            session.feed(BookTop("BTCUSDT",START+timedelta(minutes=minute),Decimal(100),Decimal('100.01'),Decimal('1E-9'),Decimal('1E-9'),frozenset()))
+        assert session.decisions[-1]["action"]=="ABSTAIN_VOLATILITY"
+        context = session.decisions[-1]["execution_known"]
+        assert context["position_qty"]=="0.000000000"
+        assert context["bid_qty"]==context["ask_qty"]=="0.000000001"
+        assert all("E" not in value for value in context.values() if isinstance(value,str) and value[:1].isdigit())
+    finally:
+        db.c.close()
+
+
+@pytest.mark.parametrize("depth",[Decimal('1E-100000'),Decimal('1E100000'),Decimal('NaN'),Decimal('Infinity')])
+def test_unbounded_public_depth_cannot_expand_the_execution_context(tmp_path,depth):
+    from gym.services.session import PaperSession
+    from gym.domain.registry import create_strategy
+    from tests.support import market_db
+    from gym.services.data_portal import DataPortal
+    db = market_db(tmp_path,[])
+    session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
+    try:
+        for minute in range(2):
+            session.feed(BookTop("BTCUSDT",START+timedelta(minutes=minute),Decimal(100),Decimal('100.01'),depth,depth,frozenset()))
+        context = session.decisions[-1]["execution_known"]
+        assert context["bid_qty"] is None and context["ask_qty"] is None
+        assert session.orders==[]
+    finally:
+        db.c.close()
+
+
+@pytest.mark.parametrize("depth",[Decimal('1E-100000'),Decimal('1E100000')])
+def test_fill_cannot_treat_unbounded_depth_as_available_capacity(depth):
+    out,book,before = execute("BUY","99.99","100",depth,limits={"max_spread_bps":25,"participation_bps":1000})
+    assert out["status"]=="NONFILL" and out["reason"]=="DISPLAYED_CAPACITY_UNAVAILABLE"
+    assert book.balances==before and not book.postings
 
 
 def test_rounded_exit_retains_dust_basis_and_permits_next_entry(tmp_path):

@@ -133,7 +133,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     }
     inputs = {"engine": ENGINE_VERSION, "symbol": symbol, "from": iso(t0), "to": iso(t1), "resolution": resolution,
               "subscriptions": list(subscriptions), "params": main["params"],
-              "strategy": strategy.name, "strategy_version": 1, "config_hash": strategy.config_hash,
+              "strategy": strategy.name, "strategy_version": strategy.version, "config_hash": strategy.config_hash,
               "reference_symbol": reference_symbol,
               "cash": str(cash), "cost": cost.describe(), "rules_mode": rules_mode, "store": store,
               "data": main["data_digest"],

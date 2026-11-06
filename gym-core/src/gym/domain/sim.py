@@ -7,6 +7,7 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 
 from .bars import qualified
 from .model import BookTop, InstrumentId, iso
+from .market_models import decimal
 from .rules import Rule, evaluate, tehran_day
 
 
@@ -109,10 +110,14 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         return {**out, "fill_time": iso(t), "reason": "BELOW_MIN_NOTIONAL"}
     if execution_limits is not None:
         available = top.ask_qty if side == "BUY" else top.bid_qty
-        if available is None or not available.is_finite() or available <= 0:
+        try:
+            available = decimal(available,"displayed capacity",positive=True)
+        except ValueError:
             return {**out,"fill_time":iso(t),"reason":"DISPLAYED_CAPACITY_UNAVAILABLE"}
         if qty > available * execution_limits["participation_bps"] / 10000:
             return {**out,"fill_time":iso(t),"reason":"DISPLAYED_CAPACITY_LIMIT"}
+        if side == "BUY" and sellable_quantity(book.get(inst.base)+qty*(1-cost.fee_rate),top.bid,spec) == 0:
+            return {**out,"fill_time":iso(t),"reason":"NET_HOLDING_BELOW_EXIT_MINIMUM"}
     if side == "BUY":
         fee = qty * cost.fee_rate
         book.post(t, inst.quote, -notional, "buy", ref)

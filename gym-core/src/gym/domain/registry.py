@@ -43,10 +43,10 @@ STRATEGIES = {
 
 
 def catalog():
-    return [{"id": name, "title": title, "version": 1, "mode": "PAPER_ONLY",
+    return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
              "parameters": {"type": "object", "properties": properties, "additionalProperties": False},
              "constraints": ["fast < slow"] if "fast" in properties else []}
-            for name, (_, title, properties) in STRATEGIES.items()]
+            for name, (constructor, title, properties) in STRATEGIES.items()]
 
 
 def create_strategy(name="ema-trend", params=None):
@@ -67,5 +67,6 @@ def create_strategy(name="ema-trend", params=None):
         if not valid:
             raise ValueError(f"invalid strategy parameter: {key}")
     strategy = constructor(**values)
-    strategy.config_hash = digest({"strategy": name, "version": 1, "params": strategy.params})
+    strategy.version = getattr(constructor,"version",1)
+    strategy.config_hash = digest({"strategy": name, "version": strategy.version, "params": strategy.params})
     return strategy

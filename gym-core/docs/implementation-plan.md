@@ -1,6 +1,6 @@
 # Implementation and acceptance plan
 
-Updated 2026-11-06 (Asia/Tehran). The request to complete all archive-derived work remains open.
+Updated 2026-11-07 (Asia/Tehran). The request to complete all archive-derived work remains open.
 Implemented code, passing local tests and operational acceptance are separate.
 Nothing in this plan enables funded orders or promotes a strategy.
 
@@ -12,6 +12,15 @@ parameter controls, actual-fill risk state, execution rechecks and decision
 inspection. A separate frozen 1,492-case, all-373-market exploratory study is
 running. Its completion, profitability assessment and prospective qualification
 remain distinct from this implementation; the older campaign definition is unchanged.
+
+Compound revision 3 separates valid indicator history from entry spread
+permission, preserves regime exits during wide spreads, and rejects entries
+whose fee-net holding is already unsellable under known venue minimums.
+Native context normalization also accepts legitimate zero/tiny balances without
+scientific notation and rejects nonfinite/unbounded depth before expansion or
+capacity arithmetic. Revision/configuration hashes distinguish the rerun at
+`.pi/compound-study/20261106T205324Z`; prior studies are retained. These
+corrections keep the entry spread, depth and risk budgets unchanged.
 
 The [whole-market extension](paper-qualification.md#whole-market-extension--6-november-2026)
 now preregisters the same 401 historical cases for every one of 373 eligible

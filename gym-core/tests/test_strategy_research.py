@@ -23,6 +23,16 @@ def test_registry_normalizes_defaults_and_rejects_bad_parameters():
             create_strategy(name, params)
 
 
+def test_compound_revision_changes_identity_without_changing_legacy_configs():
+    from gym.domain.strategy import digest
+    for name in ("ema-trend","trend-pullback","adaptive-channel"):
+        strategy = create_strategy(name)
+        version = 1 if name=="ema-trend" else 3
+        assert next(row for row in catalog() if row["id"]==name)["version"]==version
+        assert strategy.version==version
+        assert strategy.config_hash==digest({"strategy":name,"version":version,"params":strategy.params})
+
+
 def test_compare_reuses_data_costs_snapshots_and_independent_cash(tmp_path):
     db = market_db(tmp_path, quote_history())
     candidates = [{"strategy": "ema-trend", "params": {"fast": 2, "slow": 3}},

@@ -13,7 +13,7 @@ from gym.services.research_ledger import ResearchLedger
 from tests.support import START, market_db
 
 
-def recovery_quotes(name):
+def recovery_quotes(name,wide_history=False,scale=Decimal(1)):
     prices = [Decimal(100)+Decimal(i)/10 for i in range(70)]
     if name=="trend-pullback":
         prices += [prices[-1]-Decimal('1.1')+Decimal(i)*Decimal('.4') for i in range(14)]
@@ -21,14 +21,17 @@ def recovery_quotes(name):
         prices += [prices[-1]-Decimal(i)/5 for i in range(1,9)]
         prices += [prices[-1]+Decimal(i)/5 for i in range(1,18)]
     prices += [prices[-1]-Decimal(i)/10 for i in range(1,15)]
-    return [BookTop("BTCUSDT",START+timedelta(minutes=index,seconds=second),price+offset-Decimal('.01'),
-            price+offset+Decimal('.01'),Decimal(100),Decimal(100),frozenset())
-            for index,price in enumerate(prices) for second,offset in ((0,Decimal(0)),(15,Decimal('.2')),(30,Decimal('-.2')),(59,Decimal(0)))]
+    return [BookTop("BTCUSDT",START+timedelta(minutes=index,seconds=second),(price+offset-spread)*scale,
+            (price+offset+spread)*scale,Decimal(100)/scale,Decimal(100)/scale,frozenset())
+            for index,price in enumerate(prices) for spread in (Decimal('.2') if wide_history and index<70 else Decimal('.01'),)
+            for second,offset in ((0,Decimal(0)),(15,Decimal('.2')),(30,Decimal('-.2')),(59,Decimal(0)))]
 
 
 @pytest.mark.parametrize("name",["trend-pullback","adaptive-channel"])
-def test_native_compound_trigger_survives_schedule_save_and_verified_debugger(tmp_path,name):
-    rows = recovery_quotes(name)
+@pytest.mark.parametrize("wide_history",[False,True])
+@pytest.mark.parametrize("scale",[Decimal(1),Decimal('1E-9')])
+def test_native_compound_trigger_survives_schedule_save_and_verified_debugger(tmp_path,name,wide_history,scale):
+    rows = recovery_quotes(name,wide_history,scale)
     db = market_db(tmp_path,rows)
     db.c.execute("INSERT INTO instrument_specs(instrument_id,valid_from,spec,source) VALUES(?,?,?,?)",
         ("wallex:BTCUSDT",iso(START),'{"stepSize":3,"minNotional":"0.5"}',"synthetic-test"))
@@ -36,7 +39,9 @@ def test_native_compound_trigger_survives_schedule_save_and_verified_debugger(tm
     end = rows[-1].ts_avail+timedelta(seconds=1)
     try:
         out = paper(db,"BTCUSDT",START,end,resolution="1min",strategy_id=name)
+        assert out["inputs"]["strategy_version"]==3
         assert out["result"]["fills"]>=2, "Exercise native entries and exits, not an always-abstaining fixture"
+        assert not any(row["action"] in ("ABSTAIN_INVALID_EXECUTION_CONTEXT","ABSTAIN_UNKNOWN_POSITION") for row in out["result"]["decisions"])
         assert out == paper(db,"BTCUSDT",START,end,resolution="1min",strategy_id=name)
         json.dumps(out,allow_nan=False)
         save_run(out,tmp_path/"runs")

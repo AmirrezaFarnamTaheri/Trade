@@ -1,4 +1,39 @@
-# System status — 2026-11-06
+# System status — 2026-11-07
+
+## Compound strategy corrections
+
+Compound revision 3 retains valid closed-bar history through wide spreads,
+keeps regime exits reachable, and refuses a fee-net entry that is already
+below a known sellable lot/minimum. Entry spread and displayed-capacity limits
+remain unchanged. Native account context uses bounded plain-decimal strings,
+including zero balances and tiny prices/quantities after exits. Malformed or
+unbounded depth becomes unknown and cannot supply simulated capacity.
+Catalog/configuration/run identities record revision 3 while
+all ten legacy strategy identities remain at revision 1. Prior compound
+hypotheses fail explicitly instead of silently upgrading.
+
+The separate 1,492-case rerun in `.pi/compound-study/20261106T205324Z` covers
+the same 373 eligible pairs, recorded window, defaults and fee/latency cases.
+Original studies remain retained and independently identifiable. Completion
+and trading performance must be assessed from the actual receipts; a completed
+replay with no fills is not evidence of profitability or readiness.
+
+Final revision-3 regression passed 1,127 tests, five skipped and 39 subtests;
+correctness lint and dependency audits passed (the local editable project is
+outside the advisory database). Native replay/scheduler/debugger tests cover
+tiny prices, zero balances, fee-net minimums and malformed depth. Actual HTTP
+catalogue/assets expose revision 3 after a graceful collector restart. Browser
+visual appearance and funded execution were not checked.
+
+The current recorded-data rerun completed a SOLUSDT BUY and SELL and then
+recorded three cooldown decisions without invalid-context abstentions. That
+round trip lost 0.01231978 USDT under the 0.1%/500 ms scenario. This demonstrates
+execution-path behavior, not a profitable strategy; the full study is still running.
+
+The retained revision-2 study at `20261106T203309Z` produced actual modeled
+entries and exits but exposed a native `0E-9` post-exit balance that the strict
+plain-decimal context validator rejected. It is superseded as current evidence
+by revision 3; its frozen source and original outcomes remain retained.
 
 ## Composite strategies
 
@@ -9,7 +44,7 @@ interfaces and EN/FA comparison forms. Actual modeled fills, rounded residuals,
 cost/capacity checks, closed-bar exits and latched drawdown state are recorded
 for replay. No profitability or funded qualification is implied.
 
-Fresh validation passed 1,099 Python tests, five skipped and 39 subtests;
+Initial composite release validation passed 1,099 Python tests, five skipped and 39 subtests;
 correctness lint targets the project's Python 3.11 runtime. Both EN/FA UI
 contracts and native scheduled-trigger persistence passed. Python and Node
 dependency audits found no known vulnerabilities in auditable packages; the

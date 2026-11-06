@@ -186,13 +186,34 @@ def test_actual_exit_starts_cooldown_and_a_failed_exit_does_not(name):
 
 
 @pytest.mark.parametrize("name",NAMES)
-def test_wide_quote_resets_visible_warmup_count(name):
+def test_wide_quote_preserves_history_but_blocks_entry(name):
     strategy = create_strategy(name)
     for index in range(60):
         strategy.decide(snap(index,str(Decimal(100)+Decimal(index)/100)),False)
-    point = snap(60)
-    strategy.decide(replace(point,bid=Decimal(90),ask=Decimal(110)),False)
-    assert strategy.feature_values["observations"] == 0 and not strategy.ready
+    point = snap(60,"100.6")
+    assert strategy.decide(replace(point,bid=Decimal('100.4'),ask=Decimal('100.8')),False)[0]=="ABSTAIN_SPREAD"
+    assert strategy.feature_values["observations"] == 61 and strategy.ready
+
+
+@pytest.mark.parametrize("name",NAMES)
+def test_wide_spread_history_can_complete_indicator_warmup(name):
+    strategy = create_strategy(name)
+    for index in range(50):
+        point = snap(index,str(Decimal(100)+Decimal(index)/100))
+        action,*_ = strategy.decide(replace(point,bid=point.bid-Decimal('.2'),ask=point.ask+Decimal('.2')),False)
+        assert action=="ABSTAIN_SPREAD"
+    assert strategy.ready and strategy.feature_values["observations"]==50
+
+
+@pytest.mark.parametrize("name",NAMES)
+def test_wide_spread_does_not_suppress_a_confirmed_downtrend_exit(name):
+    strategy = create_strategy(name,{"max_holding_bars":1000})
+    for index in range(70):
+        strategy.decide(snap(index,str(Decimal(110)-Decimal(index)/10)),False)
+    point = snap(70,"103",position_qty="1",entry_price="103",stop_price="95",
+        entry_time=(START+timedelta(minutes=70)).isoformat(),position_id="fill")
+    action,_,reasons,_ = strategy.decide(replace(point,bid=Decimal('102.8'),ask=Decimal('103.2')),True)
+    assert action=="SELL_REQUEST" and reasons==("REGIME_EXIT",)
 
 
 def test_adaptive_range_rebound_uses_native_regime_and_channel():

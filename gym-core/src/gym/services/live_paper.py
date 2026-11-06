@@ -77,7 +77,7 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
         inputs = {"engine": ENGINE_VERSION, "kind": "live-session", "symbol": symbol, "from": iso(start),
                   "to": iso(session.cursor), "resolution": resolution,
                   "subscriptions": list(session.closes.by_resolution),
-                  "strategy": strategy.name, "strategy_version": 1, "config_hash": strategy.config_hash,
+                  "strategy": strategy.name, "strategy_version": strategy.version, "config_hash": strategy.config_hash,
                   "params": strategy.params, "reference_symbol": session.reference_symbol,
                   "cash": str(cash), "cost": cost.describe(), "rules_mode": "point-in-time",
                   "store": "demo" if demo else "live", "data": result["data_digest"],
