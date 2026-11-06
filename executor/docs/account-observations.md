@@ -1,11 +1,12 @@
 # Protected account observations
 
 The service's existing administrator-only account GET path now records successful
-balance and fee observations in the protected custody ledger before replying.
+balance, fee and known-client-order observations in the protected custody ledger before replying.
 The account helper, Python adapter, CLI and GUI retain their existing read-only
 contracts and now expose optional receipt references through the
 [v2 account delivery contract](../../contracts/account-read-v2.md). No caller-supplied JSON, balance, unit precision or permission flag can
-enter this service path. Order pages remain raw observations without native
+enter this service path. Order-detail identity must match the requested client
+ID. Order pages remain raw observations without native
 completeness or settlement proof.
 
 The field mapping follows the [Wallex reference](https://api-docs.wallex.ir/):
@@ -16,7 +17,7 @@ authenticated venue response was obtained, and this is not live schema acceptanc
 
 ## Parsing and persistence
 
-Only a confirmed `success: true` object is normalized. Money must be a plain,
+Only a confirmed `success: true` object is normalized. Balance/fee money must be a plain,
 nonnegative decimal string of at most 256 characters; numeric JSON, exponents,
 signs, missing fields and malformed fractions are refused. Fee rates must be
 strictly below one. Asset/market identities use bounded ASCII alphanumerics;
@@ -28,6 +29,17 @@ Stored data contains only the required balance/fee fields. Account-level fee
 metadata and other unknown fields are omitted. An empty collection stays empty;
 it never supplies a zero fee, zero balance or proof that an account/order is
 absent. Value and locked amounts are not interpreted as spendable money.
+
+Known orders retain only bounded client ID, symbol, side, raw status, original
+and executed quantity and optional reported fills. Unknown statuses stay raw;
+they are never promoted to lifecycle or settlement truth. Order/fill amounts
+are plain decimal strings of at most 80 characters and 24 fractional digits.
+Fixed-point digit arithmetic checks execution against original quantity and
+nonempty fill totals against execution without binary rounding. A missing or
+empty fill list does not establish fee or fill coverage. Up to 256 fills retain
+exact quantity/price/fee, fee asset and a bounded epoch or ISO-text timestamp;
+the Python projection additionally validates ISO calendar values. Unknown
+fields and the top-level fee with no explicit currency are omitted.
 
 Each receipt binds the active custody credential generation, service runtime
 epoch, request correlation, service request/receive clocks and original response
@@ -48,7 +60,7 @@ Journal event tag **14** has the existing `TGOR1` prefix, name `main`, then:
 
 | Field | Bytes |
 | --- | --- |
-| Kind (1 balances, 2 fees) | 1 |
+| Kind (1 balances, 2 fees, 3 known client order) | 1 |
 | Credential generation | 16 |
 | Runtime epoch, started-at milliseconds, received-at milliseconds | 24 |
 | Request correlation | 16 |
@@ -62,6 +74,10 @@ performs HTTP. A freshness query must match the journal's current credential
 generation and supplied current runtime; the local clock cannot precede receipt.
 Age includes the request duration. A request taking 12 seconds or more is refused;
 freshness bounds must be explicitly supplied within 1..30,000 milliseconds.
+Known-order cache entries are keyed by client ID, so reading a second order
+does not replace the first. Each update remains in the hash-chained history.
+Missing IDs produce no observation and never prove absence. Cancel acknowledgments,
+later partial fills and venue status changes remain separate from settlement.
 
 These are the latest *successful* observations, not a certificate that a later
 read succeeded or that all exposure is known. No admission path consumes this
@@ -76,11 +92,12 @@ migration. Publication itself does not append account observations.
 
 The current binary bundle was installed and passed ordinary ACER operator review,
 preparation/replay refusal/revocation, seven actual worker denials and four STOP
-acknowledgements in 11–80 ms. The service was stopped/disabled afterward. No
+acknowledgements in 10–85 ms on the latest bundle. Receipt:
+`.pi/qualification/20261106T0954273200041`. The service was stopped/disabled afterward. No
 authenticated account read was made; this host test does not qualify venue
 response schemas or the new receipt header against a real account.
 
-This closes protected capture/normalization of balances and fee observations.
+This closes protected capture/normalization of balances, fees and known orders.
 It does not establish key permissions, account ownership beyond the provisioned
 key, instrument/rule/unit epochs, complete paginated external exposure, cost
 basis, settlement, admission, arming or real submit/cancel transport. It does not

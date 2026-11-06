@@ -158,3 +158,28 @@ def parse_order_page(payload, *, kind, page, per_page):
     return {"kind": kind, "requested_page": page, "requested_per_page": per_page, "orders": orders,
             "pagination_echo": "MATCHED" if echoed else "UNVERIFIED", "collection_complete": False,
             "snapshot_atomic": False, "absence_proven": False, "settlement": "UNKNOWN", "funded_authority": False}
+
+
+def validate_order_evidence(value):
+    """Validate stored sanitized evidence with the same parser used for actual GETs."""
+    if not isinstance(value, list) or len(value) > 1000:
+        raise InvalidOrderEvidence("invalid stored order evidence collection")
+    clean, seen = [], set()
+    for row in value:
+        if not isinstance(row, dict) or not isinstance(row.get("fills"), list) or len(row["fills"]) > 256 or row.get("money_authority") is not False:
+            raise InvalidOrderEvidence("invalid stored order evidence")
+        try:
+            fills = [{"quantity": fill["quantity"], "price": fill["price"], "fee": fill["fee"],
+                      "feeAsset": fill["fee_asset"], "timestamp": fill["timestamp"]} for fill in row["fills"]]
+            parsed = parse_manual_order_evidence({"success": True, "result": {
+                "clientOrderId": row["client_id"], "status": row["raw_status"], "symbol": row["symbol"],
+                "side": row["side"], "origQty": row["requested_qty"], "executedQty": row["executed_qty"],
+                "fills": fills,
+            }}, row["client_id"])
+        except (KeyError, TypeError):
+            raise InvalidOrderEvidence("invalid stored order evidence") from None
+        if parsed != row or parsed["client_id"] in seen:
+            raise InvalidOrderEvidence("changed or duplicate stored order evidence")
+        seen.add(parsed["client_id"])
+        clean.append(parsed)
+    return clean

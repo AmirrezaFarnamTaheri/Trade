@@ -1,5 +1,42 @@
 # System status — 2026-11-06
 
+## Known-order delivery and current-logon qualification
+
+Known-order GETs now commit sanitized service-owned observations before delivery,
+using receipt kind 3 and separate per-client replay/freshness entries. Exact partial
+fills and fee currencies are retained in the existing SQLite account snapshot and
+displayed in EN/FA. Source/body/request identity, whole-collection correlation
+uniqueness and stored-evidence revalidation prevent unrelated receipt/detail joins.
+Raw unknown statuses and missing fill/settlement evidence never grant authority.
+
+Full regression: **1012 Python passed, five skipped, 39 subtests; 150 native tests**.
+Strict Clippy, formatting, Windows release build, correctness lint and both dependency
+audits passed; the local editable Python project is not audit-database qualified.
+Independent native/Python/UI reviews found no medium-or-higher issues.
+
+Actual installed ordinary ACER review/preparation/revocation, seven isolated-worker
+denials and four STOP acknowledgements passed in **85/12/12/10 ms**. A prior attempt
+correctly refused the changed Windows logon; the existing administrator helper
+rebound the selected current operator before the fresh run. History was retained.
+The service is stopped/disabled. No account request, credential replacement or
+exchange order occurred. Receipt: `.pi/qualification/20261106T0954273200041`.
+
+The collector was absent and is now running current source on loopback with
+`--assets all`; actual HTTP reports 469 catalogue rows and 373 selected markets.
+The served application script matches source and unauthenticated account reads
+receive 403. The paper schedule caught up eight windows and recorded four verified
+empty-window skips, preserving a backup and earlier failures. Its next due time
+was future, 2026-11-06 14:06:46 Asia/Tehran, and the native paper scheduler is running
+with 60-second polling. This is not uninterrupted coverage or completed prospective
+qualification. Receipts: `.pi/account-delivery-check.json`,
+`.pi/paper-qualification/schedule-recovery-20261106T100252483126.json`,
+`collector-20261106T0957423795650.json` and `research-runner-20261106T1004239792840.json`
+under `.pi/paper-qualification/`.
+
+Current browser rendering, real venue response/permission/settlement qualification,
+current-build custody corruption/recovery and real execution/protection remain open.
+The following sections preserve earlier snapshots and their original counts.
+
 ## Receipt delivery, installed qualification and paper schedule recovery
 
 The protected balance/fee receipts now reach the account helper, CLI, persisted

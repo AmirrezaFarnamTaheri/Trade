@@ -7,17 +7,24 @@ _FIELDS = frozenset(("source", "authority", "resource", "sequence", "runtime_epo
 
 
 def service_receipts(value):
-    if not isinstance(value, list) or len(value) > 2:
+    if not isinstance(value, list) or len(value) > 102:
         raise ValueError("invalid service receipt collection")
-    result, seen = [], set()
+    result, seen, requests = [], set(), set()
     for receipt in value:
-        if not isinstance(receipt, dict) or receipt.keys() != _FIELDS or (
+        if not isinstance(receipt, dict):
+            raise ValueError("invalid service receipt identity")
+        order = receipt.get("resource") == "ORDER_STATUS"
+        identity = (receipt.get("resource"), receipt.get("client_id", ""))
+        if receipt.keys() != (_FIELDS | {"client_id"} if order else _FIELDS) or (
             receipt.get("source") != "EXECUTOR_SERVICE_JOURNAL"
             or receipt.get("authority") != "OBSERVATION_ONLY"
-            or receipt.get("resource") not in ("BALANCES", "FEES")
-            or receipt["resource"] in seen
+            or receipt.get("resource") not in ("BALANCES", "FEES", "ORDER_STATUS")
+            or (order and (not isinstance(receipt.get("client_id"), str)
+                          or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}", receipt["client_id"])))
         ):
             raise ValueError("invalid service receipt identity")
+        if identity in seen:
+            raise ValueError("repeated service receipt identity")
         for key in ("sequence", "runtime_epoch", "started_at_ms", "received_at_ms"):
             number = receipt[key]
             if not isinstance(number, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", number) or int(number) > 2**64 - 1:
@@ -26,6 +33,8 @@ def service_receipts(value):
                           ("response_digest", 64), ("event_hash", 64)):
             if not isinstance(receipt[key], str) or not re.fullmatch(rf"[0-9a-f]{{{size}}}", receipt[key]) or int(receipt[key], 16) == 0:
                 raise ValueError("invalid service receipt digest")
+        if receipt["request_id"] in requests:
+            raise ValueError("repeated service receipt request")
         if not 0 <= int(receipt["received_at_ms"]) - int(receipt["started_at_ms"]) < 12_000:
             raise ValueError("invalid service receipt duration")
         if result:
@@ -36,6 +45,7 @@ def service_receipts(value):
                 or receipt["request_id"] == previous["request_id"]
             ):
                 raise ValueError("inconsistent service receipt context")
-        seen.add(receipt["resource"])
+        seen.add(identity)
+        requests.add(receipt["request_id"])
         result.append(dict(receipt))
     return result

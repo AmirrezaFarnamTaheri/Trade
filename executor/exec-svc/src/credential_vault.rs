@@ -611,21 +611,35 @@ impl Vault {
             Err(_) => return Ok(None),
         };
         let received_at_ms = clock()?;
-        let kind = match resource {
-            AccountResource::Balances => AccountKind::Balances,
-            AccountResource::Fees => AccountKind::Fees,
-            // Order pages are still observations only, without native completeness/settlement proof.
+        let observed = match resource {
+            AccountResource::KnownClientOrder(client_id) => {
+                AccountObservation::from_order_response(
+                    client_id,
+                    &body.0,
+                    generation,
+                    runtime_epoch,
+                    request_id,
+                    started_at_ms,
+                    received_at_ms,
+                )
+            }
+            AccountResource::Balances | AccountResource::Fees => AccountObservation::from_response(
+                if matches!(resource, AccountResource::Balances) {
+                    AccountKind::Balances
+                } else {
+                    AccountKind::Fees
+                },
+                &body.0,
+                generation,
+                runtime_epoch,
+                request_id,
+                started_at_ms,
+                received_at_ms,
+            ),
+            // Pages are not atomic account snapshots or absence/settlement evidence.
             _ => return Ok(Some((body, None))),
         };
-        let observation = match AccountObservation::from_response(
-            kind,
-            &body.0,
-            generation,
-            runtime_epoch,
-            request_id,
-            started_at_ms,
-            received_at_ms,
-        ) {
+        let observation = match observed {
             Ok(observation) => observation,
             Err(_) => return Ok(None),
         };

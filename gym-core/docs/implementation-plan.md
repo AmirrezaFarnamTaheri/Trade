@@ -1,8 +1,48 @@
 # Implementation and acceptance plan
 
-Updated 2026-11-05. The request to complete all archive-derived work remains open.
+Updated 2026-11-06 (Asia/Tehran). The request to complete all archive-derived work remains open.
 Implemented code, passing local tests and operational acceptance are separate.
 Nothing in this plan enables funded orders or promotes a strategy.
+
+## Current implementation follow-up
+
+Known-order GETs now join balances and fees in the service-owned protected
+observation journal. Requested client identity, exact partial-fill totals,
+fee currency, runtime/key generation, clocks and committed sequence/hash reach
+the helper, CLI, saved SQLite account snapshot, guarded API and EN/FA account
+details. Restart preserves distinct order identities. Failed refreshes cannot
+reuse that order's prior receipt. Repeated correlations, wrong identities,
+inexact amounts and altered stored details are refused. Missing/empty fills,
+unknown statuses and all settlement remain explicitly unverified.
+
+Current full regression is 1012 Python passed, five skipped and 39 subtests;
+150 native tests, strict checks and Windows release build passed. The new bundle
+passed actual current-logon ACER review, seven isolated-worker denials and four
+STOP acknowledgements in 10–85 ms, then stopped/disabled. The paper backlog is
+caught up through eight replays and four verified empty-window skips; collector
+and the existing paper scheduler are running. These are bounded local results;
+see [current acceptance receipt](acceptance-status.md) for evidence and limits.
+
+This completes known-order observation delivery, not live admission. The actual
+remaining code is service-owned instrument/unit/rule/permission and complete
+exposure validation, arming and admission, real submit/cancel/reconciliation,
+and protective Exit Guard/capped Autopilot integration. Maker, trade-credit,
+relay and multi-leg execution retain their distinct unfinished contracts.
+Public margin rules/previews and LONG/SHORT paper replay are implemented;
+funded borrowing and margin execution are not. Further vendor adapters require
+specified provider contracts rather than fabricated data or credentials.
+
+Separate acceptance work remains prospective sustained data/paper evidence,
+real account and measured-cost qualification, independent final-evaluation
+custody, and physical-host recovery (the user has no second machine). No
+positive exchange loss budget has been supplied. These limits do not turn
+unfinished execution code into completed work.
+
+Operational data already uses SQLite; retain the compressed raw audit archive
+and its SQL manifests as documented in [storage ownership](storage.md).
+Actual OpenRouter authentication and two zero-reported-cost free completions
+passed through the isolated native gateway; temporary credentials were cleared.
+See the [gateway qualification](../../model-gateway/README.md#verification-and-limits).
 
 ## Current delivery scope
 
@@ -62,7 +102,7 @@ The subsequent implementation/refactoring slice adds these native capabilities:
 | Consume-once future evaluation | Frozen native engine/configuration, disjoint future periods, actual clock, one-period purge and consumption committed before data reads. Errors/crashes retain consumption. This local ledger cannot independently seal data or prevent another ledger/raw-data reader. |
 | Observation vintages and screener | Immutable user-supplied news/fundamental/macro/social/whale/funding/OI records, actual receipt-derived knowledge times, source/series/unit-specific ranking and stale/future exclusions. No vendor feed/authenticity or rights claim. |
 | Return and forecast arithmetic | Cash-flow-adjusted TWR/Modified Dietz with reconciled supplied marks; point forecast errors, empirical interval coverage and optional Brier scoring. Inputs are unverified and scoring does not establish independent predictive calibration. |
-| AI connections | Dedicated GUI/API and private gateway control process for supported SDK OAuth, DPAPI-stored API keys, connection status, preset sync/import/export and explicit advisory prompts. No real sign-in, key replacement or paid provider completion was performed. |
+| AI connections | Dedicated GUI/API and private gateway control process for supported SDK OAuth, DPAPI-stored API keys, connection status, preset sync/import/export and explicit advisory prompts. Actual isolated OpenRouter authentication/free completions, DPAPI storage and rotation passed. No real OAuth sign-in or paid provider completion was performed. |
 | Shared CLI/browser workflows | `research_actions.py` owns fixed dispatch. Separate `api/models.py`, `api/research.py`, `ui/models.js` and `ui/research.js` avoid adding these workflows to the observatory monolith. See [architecture and interface gaps](architecture.md). |
 | Measurement-aligned arithmetic | Optional numeric measurement clocks preserve old observation hashes. `research derived` resolves two known vintages in one snapshot, with explicit units/freshness/skew and unavailable results. No source authentication, sector model or forecast accuracy is inferred. |
 | Point-in-time candle checks | Native crosscheck uses an exclusive receipt/fetch cutoff. Market schema 3 retains immutable revisions from migration onward and selects the last eligible vintage. Previously discarded revisions remain unavailable. |
@@ -283,6 +323,7 @@ Current target verification and the older Rust/gateway evidence are recorded in
 is retained. The actual exported example is
 `.pi/reports/paper-385bcd9aa23442dd.html`.
 
-No real account call, model completion, paid job, credential replacement, funded
-order, push or deployment was performed. Missing implementation above is still
+No real account call, paid job, exchange credential replacement, funded order or
+push was performed. Isolated free model completions and the earlier protected
+local publications have their own dated receipts. Missing implementation above is still
 missing code; operational blockers do not convert it into completed work.

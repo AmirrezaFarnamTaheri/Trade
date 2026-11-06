@@ -36,6 +36,71 @@ def receipt_envelope(body, *, resource="BALANCES", sequence="2", request="11" * 
     return raw
 
 
+def order_receipt(client_id, *, sequence="4", request="44" * 16, start="1040"):
+    body = {"success": True, "result": {"clientOrderId": client_id, "status": "CANCELED",
+            "symbol": "BTCUSDT", "side": "BUY", "origQty": "1", "executedQty": "0.1",
+            "fills": [{"quantity": "0.1", "price": "100", "fee": "0.00001",
+                       "feeAsset": "BTC", "timestamp": 1762390000000}]}}
+    raw = receipt_envelope(body, resource="ORDER_STATUS", sequence=sequence, request=request,
+                           start=start, received=str(int(start) + 10))
+    raw["service_receipt"]["client_id"] = client_id
+    return raw
+
+
+def test_order_receipts_are_identity_bound_and_refresh_only_the_same_order(monkeypatch):
+    reader = service.ServiceAccountReader()
+    install(monkeypatch, json.dumps(order_receipt("manual-1")).encode())
+    result = asyncio.run(reader.manual_order_evidence("manual-1"))
+    assert result["settlement"] == "UNKNOWN" and result["executed_qty"] == "0.1"
+    install(monkeypatch, json.dumps(order_receipt("manual-2", sequence="5", request="55" * 16, start="1060")).encode())
+    asyncio.run(reader.manual_order_evidence("manual-2"))
+    assert [row["client_id"] for row in reader.receipts] == ["manual-1", "manual-2"]
+    install(monkeypatch, b"FAILED", code=2)
+    with pytest.raises(ReadUncertain):
+        asyncio.run(reader.manual_order_evidence("manual-1"))
+    assert [row["client_id"] for row in reader.receipts] == ["manual-2"]
+    raw = order_receipt("manual-1", sequence="6", request="66" * 16, start="1080")
+    raw["service_receipt"]["client_id"] = "manual-2"
+    install(monkeypatch, json.dumps(raw).encode())
+    with pytest.raises(ReadUncertain):
+        asyncio.run(reader.manual_order_evidence("manual-1"))
+    assert [row["client_id"] for row in reader.receipts] == ["manual-2"]
+
+
+@pytest.mark.parametrize("change", ["fee", "authority", "private", "identity", "receipt"])
+def test_saved_order_details_refuse_tampering_before_any_journal_append(tmp_path, change):
+    from gym.adapters.wallex_order_evidence import parse_manual_order_evidence
+    raw = order_receipt("manual-1")
+    details = parse_manual_order_evidence(json.loads(bytes.fromhex(raw["raw_body_hex"])), "manual-1")
+    snapshot = project_account("main", "2026-11-06T00:00:00Z", orders=[{
+        "client_id": "manual-1", "symbol": "BTCUSDT", "status": "CANCELED", "filled": "0.1"}])
+    snapshot["order_evidence"] = [details]
+    snapshot["service_receipts"] = [raw["service_receipt"]]
+    if change == "fee":
+        details["fills"][0]["fee"] = "-1"
+    elif change == "authority":
+        details["money_authority"] = 0
+    elif change == "private":
+        details["fills"][0]["private"] = "DO-NOT-COPY"
+    elif change == "identity":
+        details["raw_status"] = "FILLED"
+    else:
+        snapshot["service_receipts"][0]["client_id"] = "unrelated-order"
+    with ExternalJournal(tmp_path / "journal.db") as journal:
+        with pytest.raises(ValueError):
+            journal.record(snapshot, transport="EXECUTOR_SERVICE_WINHTTP")
+        assert journal.events() == [] and journal.latest_snapshot() is None
+
+
+def test_nonadjacent_receipt_request_reuse_is_rejected():
+    from gym.contracts.account_receipt import service_receipts
+    rows = [order_receipt("manual-1")["service_receipt"],
+            order_receipt("manual-2", sequence="5", request="55" * 16, start="1060")["service_receipt"],
+            order_receipt("manual-3", sequence="6", start="1080")["service_receipt"]]
+    with pytest.raises(ValueError, match="repeated.*request"):
+        service_receipts(rows)
+
+
 class Process:
     def __init__(self, raw, *, code=0, stall=False):
         self.raw, self.code, self.stall = raw, code, stall
@@ -146,16 +211,17 @@ def test_saved_service_receipts_reach_token_guarded_api_and_cli(monkeypatch, cap
     balance = receipt_envelope(balance_body)
     fees = receipt_envelope(fee_body, resource="FEES", sequence="3", request="22" * 16,
                             start="1020", received="1030")
+    order = order_receipt("manual-1")
     helper = Path("C:/Program Files/TradingGYM/Executor/gym-account-read.exe")
     monkeypatch.setattr(service, "_helper_path", lambda: helper)
 
     async def spawn(*args, **_options):
-        return Process(json.dumps(balance if args[1] == "balances" else fees).encode())
+        return Process(json.dumps({"balances": balance, "fees": fees, "known-client-order": order}[args[1]]).encode())
 
     monkeypatch.setattr(service.asyncio, "create_subprocess_exec", spawn)
-    assert main(["--data", str(tmp_path), "account", "--source", "service", "--record"]) == 0
+    assert main(["--data", str(tmp_path), "account", "--source", "service", "--order", "manual-1", "--record"]) == 0
     printed = json.JSONDecoder().raw_decode(capsys.readouterr().out)[0]
-    expected = [balance["service_receipt"], fees["service_receipt"]]
+    expected = [balance["service_receipt"], fees["service_receipt"], order["service_receipt"]]
     assert printed["service_receipts"] == expected
     assert printed["funded_authority"] is False
 
@@ -171,6 +237,9 @@ def test_saved_service_receipts_reach_token_guarded_api_and_cli(monkeypatch, cap
                 saved = await response.json()
                 assert saved["service_receipts"] == expected
                 assert saved["balances"][0]["spendable"] is None and saved["funded_authority"] is False
+                assert saved["order_evidence"] == printed["order_evidence"]
+                assert saved["order_evidence"][0]["fills"][0]["fee_asset"] == "BTC"
+                assert saved["order_evidence"][0]["settlement"] == "UNKNOWN"
         db.c.close()
     asyncio.run(inspect())
 

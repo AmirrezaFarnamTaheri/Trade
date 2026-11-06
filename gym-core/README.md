@@ -100,6 +100,11 @@ text and optionally `symbol`. The importer stores only sanitized,
 **unverified external observations** in `data/live/external_journal.db`. The
 Account journal (`#account`) displays this sequence read-only; its endpoint requires the
 per-run local token. Never include API keys in the import file.
+Recorded account reads also retain sanitized order/fill details: exact requested
+and executed quantity, reported fill prices, fees and fee assets. The EN/FA
+account page expands these observations alongside native known-order receipt
+references when supplied by the reviewed service helper. Missing details and
+settlement remain unknown; old snapshots are not backfilled.
 
 A missing row does not prove a trade was canceled/absent. A terminal status
 is not settlement. Imported balances are never spendable Executor cash. The

@@ -19,6 +19,7 @@ from ..adapters.wallex_account_read import (
     parse_fee_rates,
 )
 from ..contracts.account_receipt import service_receipts
+from ..adapters.wallex_order_evidence import validate_order_evidence
 from ..domain.account_observations import project_account
 
 SCHEMA = """
@@ -118,10 +119,22 @@ def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -
         raise ValueError("invalid sanitized account snapshot") from None
     out = {**clean, "fee_rates": fees, "transport": transport,
            "permission_status": "UNVERIFIED", "funded_authority": False}
+    orders_by_id = {row["client_id"]: row for row in clean["orders"]}
+    if "order_evidence" in snapshot:
+        out["order_evidence"] = validate_order_evidence(snapshot["order_evidence"])
+        for row in out["order_evidence"]:
+            linked = orders_by_id.get(row["client_id"])
+            if linked is None or linked["symbol"] != row["symbol"] or linked["raw_status"] != row["raw_status"] or (
+                linked["filled_observed"] is None or Decimal(linked["filled_observed"]) != Decimal(row["executed_qty"])
+            ):
+                raise ValueError("order evidence differs from account observation")
     if "service_receipts" in snapshot:
         if transport != "EXECUTOR_SERVICE_WINHTTP" or snapshot["account_id"] != "main":
             raise ValueError("service receipts require the main service account")
         out["service_receipts"] = service_receipts(snapshot["service_receipts"])
+        if any(receipt["resource"] == "ORDER_STATUS" and receipt["client_id"] not in orders_by_id
+               for receipt in out["service_receipts"]):
+            raise ValueError("order receipt differs from account observation")
     return out
 
 

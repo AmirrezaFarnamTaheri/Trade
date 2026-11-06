@@ -589,7 +589,7 @@ pub struct ExecutionSettlement {
 
 fn check_account_observation(
     credential: Option<&CredentialMetadata>,
-    observations: &BTreeMap<AccountKind, AccountObservation>,
+    observations: &BTreeMap<(AccountKind, String), AccountObservation>,
     requests: &BTreeSet<[u8; 16]>,
     value: &AccountObservation,
 ) -> Result<(), RecoveryError> {
@@ -618,7 +618,7 @@ pub struct DurableOrderJournal {
     ceiling_requests: BTreeSet<[u8; 16]>,
     approvals: BTreeMap<String, ApprovalView>,
     approval_requests: BTreeSet<[u8; 16]>,
-    account_observations: BTreeMap<AccountKind, AccountObservation>,
+    account_observations: BTreeMap<(AccountKind, String), AccountObservation>,
     account_requests: BTreeSet<[u8; 16]>,
 }
 enum Record {
@@ -1464,7 +1464,7 @@ impl DurableOrderJournal {
                 )
                 .map_err(|_| RecoveryError::MalformedEvent)?;
                 account_requests.insert(value.request_id());
-                account_observations.insert(value.kind(), value);
+                account_observations.insert(value.key(), value);
                 continue;
             }
             if let Record::ReviewedReservation(value) = parsed {
@@ -1593,7 +1593,23 @@ impl DurableOrderJournal {
             return None;
         }
         self.account_observations
-            .get(&kind)
+            .get(&(kind, String::new()))
+            .filter(|value| value.is_fresh(generation, epoch, now, max_age))
+    }
+
+    pub fn known_order_observation(
+        &self,
+        client_id: &str,
+        generation: [u8; 16],
+        epoch: u64,
+        now: u64,
+        max_age: u64,
+    ) -> Option<&AccountObservation> {
+        if self.credential.as_ref()?.generation != generation {
+            return None;
+        }
+        self.account_observations
+            .get(&(AccountKind::KnownClientOrder, client_id.into()))
             .filter(|value| value.is_fresh(generation, epoch, now, max_age))
     }
 
@@ -1614,7 +1630,7 @@ impl DurableOrderJournal {
         let entry = self.ledger.append(&raw)?;
         let receipt = value.receipt(entry.sequence, entry.event_hash);
         self.account_requests.insert(value.request_id());
-        self.account_observations.insert(value.kind(), value);
+        self.account_observations.insert(value.key(), value);
         self.records += 1;
         Ok(receipt)
     }

@@ -64,7 +64,7 @@ def _helper_path(name="gym-account-read.exe") -> Path:
     return path
 
 
-def _payload(raw: bytes, resource: str) -> tuple[object, dict | None]:
+def _payload(raw: bytes, resource: str, client_id=None) -> tuple[object, dict | None]:
     envelope = parse_account_json(raw)
     expected = {"source", "state", "permission_status", "funded_authority", "raw_body_hex"}
     if not isinstance(envelope, dict) or envelope.keys() not in (expected, expected | {"service_receipt"}) or (
@@ -82,14 +82,22 @@ def _payload(raw: bytes, resource: str) -> tuple[object, dict | None]:
     if "service_receipt" in envelope:
         try:
             receipt = service_receipts([envelope["service_receipt"]])[0]
-            if receipt["resource"] != {"balances": "BALANCES", "fees": "FEES"}.get(resource):
+            if receipt["resource"] != {"balances": "BALANCES", "fees": "FEES", "known-client-order": "ORDER_STATUS"}.get(resource):
                 raise ValueError("receipt resource mismatch")
+            if resource == "known-client-order" and receipt.get("client_id") != client_id:
+                raise ValueError("receipt order mismatch")
             digest = hashlib.sha256(bytes(32) + len(body).to_bytes(8, "big") + body).hexdigest()
             if receipt["response_digest"] != digest:
                 raise ValueError("receipt body mismatch")
         except (ValueError, TypeError):
             raise ReadUncertain("invalid Executor account receipt") from None
-    return parse_account_json(body), receipt
+    payload = parse_account_json(body)
+    if resource == "known-client-order":
+        try:
+            parse_manual_order_evidence(payload, client_id)
+        except InvalidOrderEvidence:
+            raise ReadUncertain("invalid Executor order identity or observation") from None
+    return payload, receipt
 
 
 class ServiceAccountReader:
@@ -100,8 +108,10 @@ class ServiceAccountReader:
 
     async def _get(self, *arguments: str) -> object:
         process = None
-        resource = {"balances": "BALANCES", "fees": "FEES"}.get(arguments[0])
-        self.receipts = [receipt for receipt in self.receipts if receipt["resource"] != resource]
+        resource = {"balances": "BALANCES", "fees": "FEES", "known-client-order": "ORDER_STATUS"}.get(arguments[0])
+        client_id = arguments[1] if resource == "ORDER_STATUS" else None
+        self.receipts = [receipt for receipt in self.receipts
+                         if (receipt["resource"], receipt.get("client_id")) != (resource, client_id)]
         try:
             helper = _helper_path()
             async with asyncio.timeout(_TIMEOUT):
@@ -118,7 +128,7 @@ class ServiceAccountReader:
                     raw.extend(chunk)
                 if await process.wait() != 0:
                     raise ReadUncertain("Executor account observation unavailable")
-                payload, receipt = _payload(raw, arguments[0])
+                payload, receipt = _payload(raw, arguments[0], client_id)
                 if receipt is not None:
                     try:
                         self.receipts = service_receipts([*self.receipts, receipt])

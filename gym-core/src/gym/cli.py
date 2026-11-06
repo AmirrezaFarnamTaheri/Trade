@@ -291,6 +291,10 @@ def account_cmd(args) -> int:
     from .domain.model import iso
     from .services.external_journal import ExternalJournal
 
+    if len(args.order) > 100 or len(set(args.order)) != len(args.order):
+        print("error: provide at most 100 distinct order identities (nothing recorded)", file=sys.stderr)
+        return 3
+
     async def observe(reader):
         balances = await reader.balances()
         fee = await reader.fee_rates()
@@ -331,6 +335,8 @@ def account_cmd(args) -> int:
         print(f"error: {e} (state UNKNOWN, nothing recorded)", file=sys.stderr)
         return 3
     observed = project_account("main", iso(now_utc()), balances=balances, orders=orders)
+    if evidence:
+        observed["order_evidence"] = evidence
     if receipts:
         observed["service_receipts"] = receipts
     nonzero = [b for b in observed["balances"] if Decimal(b["venue_value"]) or Decimal(b["venue_locked"])]

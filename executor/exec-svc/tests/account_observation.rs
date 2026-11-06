@@ -31,6 +31,111 @@ fn root() -> std::path::PathBuf {
     root
 }
 
+fn order(id: &str, status: &str, executed: &str) -> Vec<u8> {
+    serde_json::to_vec(
+        &serde_json::json!({"success":true,"private":"OMIT","result":{
+            "clientOrderId":id,"symbol":"BTCUSDT","side":"BUY","status":status,
+            "origQty":"1.000000000000000001","executedQty":executed,
+            "fills":[],"private":"OMIT"
+        }}),
+    )
+    .unwrap()
+}
+
+#[test]
+fn known_order_receipts_bind_identity_and_retain_each_order_across_restart() {
+    let root = root();
+    let path = root.join("orders.sqlite");
+    let mut ledger = journal(&path);
+    for (id, request, start) in [("manual-1", 1, 1000), ("manual-2", 2, 1020)] {
+        let observation = AccountObservation::from_order_response(
+            id,
+            &order(id, "VENUE_NEW_STATUS", "0.1"),
+            [3; 16],
+            10,
+            [request; 16],
+            start,
+            start + 10,
+        )
+        .unwrap();
+        let receipt = ledger.record_account_observation(observation).unwrap();
+        assert_eq!(receipt.kind, AccountKind::KnownClientOrder);
+    }
+    let later = AccountObservation::from_order_response(
+        "manual-1",
+        &order("manual-1", "CANCELED", "0.2"),
+        [3; 16],
+        10,
+        [3; 16],
+        1040,
+        1050,
+    )
+    .unwrap();
+    ledger.record_account_observation(later).unwrap();
+    drop(ledger);
+    let ledger = DurableOrderJournal::open(&path).unwrap();
+    let first = ledger
+        .known_order_observation("manual-1", [3; 16], 10, 1060, 100)
+        .unwrap();
+    let second = ledger
+        .known_order_observation("manual-2", [3; 16], 10, 1060, 100)
+        .unwrap();
+    assert_eq!(first.data()["result"]["status"], "CANCELED");
+    assert_eq!(first.data()["result"]["executedQty"], "0.2");
+    assert_eq!(second.data()["result"]["status"], "VENUE_NEW_STATUS");
+    assert!(!first.data().to_string().contains("OMIT"));
+    assert!(ledger
+        .known_order_observation("absent", [3; 16], 10, 1060, 100)
+        .is_none());
+    assert!(ledger
+        .known_order_observation("manual-1", [3; 16], 11, 1060, 100)
+        .is_none());
+    assert!(ledger
+        .known_order_observation("manual-1", [3; 16], 10, 1200, 100)
+        .is_none());
+    drop(ledger);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn known_orders_refuse_substitution_and_inexact_or_inconsistent_fills() {
+    let parse = |body: &[u8]| {
+        AccountObservation::from_order_response("manual-1", body, [3; 16], 10, [1; 16], 1000, 1010)
+    };
+    assert!(parse(&order("manual-2", "NEW", "0")).is_err());
+    assert!(parse(&order("manual-1", "FILLED", "1.000000000000000002")).is_err());
+    let mut body: serde_json::Value =
+        serde_json::from_slice(&order("manual-1", "FILLED", "1.000000000000000001")).unwrap();
+    body["result"]["fills"] = serde_json::json!([
+        {"quantity":"1","price":"100","fee":"0.001","feeAsset":"BTC","timestamp":1762390000000_u64},
+        {"quantity":"0.000000000000000001","price":"100","fee":"0","feeAsset":"BTC","timestamp":1762390000001_u64}
+    ]);
+    assert!(parse(&serde_json::to_vec(&body).unwrap()).is_ok());
+    let mut iso = body.clone();
+    iso["result"]["fills"][0]["timestamp"] = serde_json::json!("2026-11-06T00:00:00+03:30");
+    assert!(parse(&serde_json::to_vec(&iso).unwrap()).is_ok());
+    for (field, bad) in [
+        ("quantity", serde_json::json!("0.000000000000000002")),
+        ("price", serde_json::json!(0.1)),
+        ("fee", serde_json::json!("-1")),
+        ("feeAsset", serde_json::json!("BTC\nSECRET")),
+        ("timestamp", serde_json::json!(true)),
+    ] {
+        let mut changed = body.clone();
+        changed["result"]["fills"][1][field] = bad;
+        assert!(
+            parse(&serde_json::to_vec(&changed).unwrap()).is_err(),
+            "{field}"
+        );
+    }
+    let mut changed = body.clone();
+    changed["result"]["fills"] = serde_json::json!(vec![body["result"]["fills"][0].clone(); 257]);
+    assert!(parse(&serde_json::to_vec(&changed).unwrap()).is_err());
+    let duplicated =
+        br#"{"success":true,"result":{"clientOrderId":"manual-2","clientOrderId":"manual-1"}}"#;
+    assert!(parse(duplicated).is_err());
+}
+
 #[test]
 fn exact_sanitized_observations_survive_restart_but_not_a_new_runtime_or_key() {
     let root = root();

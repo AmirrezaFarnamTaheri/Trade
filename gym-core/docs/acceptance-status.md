@@ -4,11 +4,52 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
-Current delivery: **1005 Python passed, five skipped, 39 subtests; 148 native
+Current delivery: **1012 Python passed, five skipped, 39 subtests; 150 native
 tests passed**. Native committed account receipt references now pass through the
 helper, CLI, saved journal and guarded account API to EN/FA account details.
 Exact recorded fee rates are visible too. A local receipt copy is not independent
 journal authentication, verified permissions or funded authority.
+
+## Current receipt — 2026-11-06 (Asia/Tehran)
+
+Known-client-order reads now receive service-owned protected journal receipts
+and survive restart under distinct order identities. Exact requested/executed
+quantities, reported fills and fee currencies reach the CLI, saved SQLite
+snapshot, guarded API and EN/FA account details. Wrong identities, duplicate
+correlations, inexact/overfilled quantities and altered saved details are refused.
+Unknown status, absent fills and settlement remain unverified observations.
+See [account receipt contract](../../contracts/account-read-v2.md).
+
+The new eight-binary bundle was published with history and previous code retained.
+An initial operator test was refused because the protected binding named an older
+Windows logon. The existing administrator binding helper selected the actual
+current ACER process; a fresh test then passed review/preparation/duplicate refusal/
+inspection/revocation, all seven actual R0 denials and four STOP acknowledgements
+in **85/12/12/10 ms**. Cleanup stopped/disabled the service and the strict installation
+audit passed. Receipt: `.pi/qualification/20261106T0954273200041`; the earlier
+failed receipt is retained. No account API call, credential replacement or order.
+
+Full Python **1012 passed, five skipped, 39 subtests**; native **150 passed across
+39 result groups**. Strict Clippy, formatting, Windows release build, correctness
+lint, exact EN/FA renderer tests and dependency audits passed. The local editable
+Python package remains outside the advisory database. Independent native, Python
+and interface reviews reported no medium-or-higher findings.
+
+The absent collector was started with current source and `--assets all` on loopback.
+Actual HTTP checks confirmed the served script matches source, account reads without
+the token receive 403, and the live catalogue contains 469 rows with 373 selected
+markets. This is not a visual browser check or continuous-freshness certification.
+The active paper job caught up eight replay windows and four independently checked
+empty-window skips, retaining failure history and a prior SQLite backup. The old
+engine-6 job stays paused. The engine-8 scheduler now runs with 60-second polling;
+its next due time was future at completion: 2026-11-06 14:06:46 Asia/Tehran.
+Receipts: `.pi/account-delivery-check.json` and
+`.pi/paper-qualification/schedule-recovery-20261106T100252483126.json`.
+
+Live authenticated account delivery, current-build custody corruption/recovery,
+funded admission/transport/protective exits and independent-machine recovery remain
+open. These checks do not complete the separate execution plan or sustained paper
+qualification. The following older receipts are historical snapshots.
 
 Market coverage now defaults to all listed TMN/USDT spot assets, including risk
 flags for observation. Ranked mode accepts 1..500 assets; automatic all-mode

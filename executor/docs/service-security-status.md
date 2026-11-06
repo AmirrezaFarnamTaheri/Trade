@@ -1,17 +1,19 @@
-# Workstream B1 — service security status (2026-11-05)
+# Workstream B1 — service security status (2026-11-06)
 
 **IN PROGRESS. DISARMED. NOT CERTIFIED. NOT protective or money-enabled.**
 A compiled service, successful GET or acknowledged STOP does not establish certified venue exits.
 
 ## Implemented locally
 
-Current installed result (15:05 UTC): ordinary ACER review, consume-once
+Current installed result (13:24 Asia/Tehran): ordinary ACER review, consume-once
 preparation, duplicate refusal, inspection and revocation passed. The actual R0
 worker was denied all seven private targets and four STOP acknowledgements took
-11–84 ms. The complete bundle is installed, the strict audit passed, and the
+10–85 ms. The complete known-order receipt bundle is installed, the strict audit passed, and the
 service is stopped/disabled. Zero-budget metadata was recorded/read back without
 an account API or order call. Receipts:
-`.pi/qualification/20261105T1505191135205`. Custody recovery and venue behavior on
+`.pi/qualification/20261106T0954273200041`. An earlier attempt refused a stale
+Windows logon; the administrator helper rebound the actual current ACER process
+before the successful fresh run. Custody corruption/recovery and venue behavior on
 the new bundle remain unverified.
 
 Ordinary review holds the SCM service handle and validates the fixed image/account,
@@ -78,7 +80,7 @@ Historical hosted Windows [run 41215249615](https://github.com/AmirrezaFarnamTah
 ## B1/B2 exit gates still open
 
 - [x] Qualify the previous protected binary set under the selected ACER account/logon: synthetic service DPAPI provision/restart/corruption/recovery passed with retained history and no real key.
-- [ ] Install/requalify the new page/codec builds before exercising their new protected account-read operations.
+- [x] Install the current page/order-receipt/codec bundle and repeat ordinary-operator, seven-target isolation and STOP checks. Actual protected account GET responses and custody corruption/recovery remain unqualified.
 - [ ] Verify the key's actual venue permission contract. Provisioning and GET deliberately retain **UNVERIFIED**; successful reads never satisfy SEC-03 by themselves.
 - [ ] Exercise actual service-owned balances/locked exposure and known manual-order lifecycle; normalize observations without inventing absent fills or settlement. Connectivity, pagination, margin/package availability and freshness remain unverified.
 - [x] Run the actual constrained child against STOP/T2 pipes, current custody files, operator-profile canary and SCM; all were denied. The future funded ledger still needs its own real-file probe once implemented.

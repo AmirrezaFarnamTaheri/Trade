@@ -46,6 +46,22 @@ still requires the executor stopped and disabled.
 
 ## Qualification
 
+Latest installed result, 2026-11-06 at 13:24 Asia/Tehran: the complete known-order
+receipt bundle passed ordinary ACER review/preparation/duplicate refusal/inspection/
+revocation, seven actual AppContainer denials and four STOP acknowledgements in
+85/12/12/10 ms. The administrator retained previous code/history and left the
+service stopped/disabled; the strict installation audit passed. No account API,
+exchange order or credential replacement occurred. Receipt directory:
+`.pi/qualification/20261106T0954273200041`.
+
+The first attempt was refused because the stored logon belonged to an older
+Windows session. Existing `Bind-ExecutorOperator.ps1` rebound the selected current
+ACER process while stopped/disabled before the fresh attempt. Keep that explicit
+setup step after operator logon changes; publication does not silently rebind it.
+This checks installed security/control behavior, not actual venue schemas,
+current-build custody corruption/recovery or funded safety. Earlier receipts below
+retain their original versions and timestamps.
+
 `Update-ReadOnlyExecutor.ps1 -SelfTest` checks strict manifests, pinned source
 access, real temporary-file replacement and retained-byte rollback without
 touching the installed service. Native regressions check that a file or directory

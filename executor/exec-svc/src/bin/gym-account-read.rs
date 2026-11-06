@@ -10,6 +10,7 @@ struct AccountRead {
     body: Vec<u8>,
     receipt: Option<exec_ipc::account::ObservationReceipt>,
     correlation: [u8; 16],
+    client_id: Option<String>,
 }
 #[cfg(windows)]
 fn main() {
@@ -22,6 +23,7 @@ fn main() {
             body,
             receipt,
             correlation,
+            client_id,
         })) => {
             // Hex preserves unknown/incomplete venue bytes without treating them as trusted JSON or terminal text.
             use std::io::Write;
@@ -43,8 +45,9 @@ fn main() {
                     let resource = match value.kind {
                         exec_ipc::account::ObservationKind::Balances => "BALANCES",
                         exec_ipc::account::ObservationKind::Fees => "FEES",
+                        exec_ipc::account::ObservationKind::KnownClientOrder => "ORDER_STATUS",
                     };
-                    let receipt = serde_json::json!({
+                    let mut receipt = serde_json::json!({
                         "source":"EXECUTOR_SERVICE_JOURNAL", "authority":"OBSERVATION_ONLY",
                         "resource":resource, "sequence":value.sequence.to_string(),
                         "runtime_epoch":value.runtime_epoch.to_string(),
@@ -52,6 +55,9 @@ fn main() {
                         "credential_generation":hex(&value.credential_generation), "request_id":hex(&correlation),
                         "response_digest":hex(&value.response_digest), "event_hash":hex(&value.event_hash),
                     });
+                    if let Some(client_id) = client_id {
+                        receipt["client_id"] = client_id.into();
+                    }
                     write!(out, ",\"service_receipt\":{receipt}")?;
                 }
                 writeln!(out, "}}")?;
@@ -153,5 +159,9 @@ fn run() -> Result<AccountRead, ()> {
         body,
         receipt,
         correlation,
+        client_id: match resource {
+            AccountResource::KnownClientOrder(client_id) => Some(client_id),
+            _ => None,
+        },
     })
 }

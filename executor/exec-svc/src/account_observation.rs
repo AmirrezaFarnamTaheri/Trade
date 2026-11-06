@@ -125,9 +125,13 @@ fn normalized(kind: AccountKind, value: &Value) -> Result<Value, &'static str> {
         return Err("unconfirmed account response");
     }
     let result = value.get("result").ok_or("missing account result")?;
+    if kind == AccountKind::KnownClientOrder {
+        return normalized_order(result).map(|order| json!({"success":true,"result":order}));
+    }
     let rows = match kind {
         AccountKind::Balances => result.get("balances"),
         AccountKind::Fees => Some(result),
+        AccountKind::KnownClientOrder => unreachable!(),
     }
     .and_then(Value::as_object)
     .ok_or("invalid account collection")?;
@@ -139,6 +143,7 @@ fn normalized(kind: AccountKind, value: &Value) -> Result<Value, &'static str> {
         let fields = match kind {
             AccountKind::Balances => ["value", "locked"],
             AccountKind::Fees => ["makerFeeRate", "takerFeeRate"],
+            AccountKind::KnownClientOrder => unreachable!(),
         };
         // Account-level fee metadata does not describe an instrument's cost.
         if kind == AccountKind::Fees && !fields.iter().any(|key| row.get(key).is_some()) {
@@ -166,10 +171,152 @@ fn normalized(kind: AccountKind, value: &Value) -> Result<Value, &'static str> {
     Ok(match kind {
         AccountKind::Balances => json!({"success":true,"result":{"balances":out}}),
         AccountKind::Fees => json!({"success":true,"result":out}),
+        AccountKind::KnownClientOrder => unreachable!(),
     })
 }
 
+// Fixed-point decimal digits avoid both binary rounding and a new money dependency.
+type OrderAmount = [u8; 104];
+fn order_amount(
+    value: Option<&Value>,
+    positive: bool,
+) -> Result<(&str, OrderAmount), &'static str> {
+    let text = amount(value, false)?;
+    let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
+    if text.len() > 80 || fraction.len() > 24 {
+        return Err("unsupported order amount precision");
+    }
+    let mut digits = [0; 104];
+    let offset = 80 - whole.len();
+    for (i, digit) in whole.bytes().chain(fraction.bytes()).enumerate() {
+        digits[offset + i] = digit - b'0';
+    }
+    if positive && digits == [0; 104] {
+        return Err("zero order amount");
+    }
+    Ok((text, digits))
+}
+fn order_text<'a>(row: &'a Value, field: &str, max: usize) -> Result<&'a str, &'static str> {
+    row.get(field)
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty() && s.len() <= max && s.is_ascii())
+        .ok_or("invalid order text")
+}
+fn normalized_order(row: &Value) -> Result<Value, &'static str> {
+    let id = order_text(row, "clientOrderId", 96)?;
+    exec_ipc::provision::AccountResource::KnownClientOrder(id.into()).path()?;
+    let symbol = order_text(row, "symbol", 32)?;
+    let side = order_text(row, "side", 4)?;
+    let status = order_text(row, "status", 128)?;
+    if symbol.len() < 3
+        || !symbol
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+        || !matches!(side, "BUY" | "SELL")
+        || !status
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_ .:-".contains(&b))
+    {
+        return Err("invalid order identity or status");
+    }
+    let (quantity, requested) = order_amount(row.get("origQty"), true)?;
+    let (filled, executed) = order_amount(row.get("executedQty"), false)?;
+    if executed > requested {
+        return Err("order overfill");
+    }
+    let mut out = json!({"clientOrderId":id,"symbol":symbol,"side":side,"status":status,
+                         "origQty":quantity,"executedQty":filled});
+    if let Some(fills) = row.get("fills").filter(|value| !value.is_null()) {
+        let fills = fills
+            .as_array()
+            .filter(|items| items.len() <= 256)
+            .ok_or("invalid fill list")?;
+        let mut clean = Vec::new();
+        let mut total = [0u8; 104];
+        for fill in fills {
+            let (quantity, digits) = order_amount(fill.get("quantity"), true)?;
+            let (price, _) = order_amount(fill.get("price"), true)?;
+            let (fee, _) = order_amount(fill.get("fee"), false)?;
+            let asset = order_text(fill, "feeAsset", 20)?;
+            if !asset
+                .bytes()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+            {
+                return Err("invalid fill fee asset");
+            }
+            let timestamp = fill.get("timestamp").ok_or("missing fill timestamp")?;
+            let epoch = timestamp
+                .as_u64()
+                .is_some_and(|n| (946_684_800..=4_102_444_800_000).contains(&n));
+            // Venue timestamps stay literal observations; Python validates ISO dates before projection.
+            let iso = timestamp.as_str().is_some_and(|text| {
+                (20..=40).contains(&text.len())
+                    && text
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || b"-+:TtZ. ".contains(&b))
+                    && (text.ends_with('Z')
+                        || text
+                            .as_bytes()
+                            .get(text.len() - 6)
+                            .is_some_and(|b| b"+-".contains(b)))
+            });
+            if !epoch && !iso {
+                return Err("invalid fill timestamp");
+            }
+            let mut carry = 0;
+            for i in (0..104).rev() {
+                let sum = total[i] + digits[i] + carry;
+                total[i] = sum % 10;
+                carry = sum / 10;
+            }
+            if carry != 0 || total > requested {
+                return Err("fill quantity overflow");
+            }
+            clean.push(json!({"quantity":quantity,"price":price,"fee":fee,
+                              "feeAsset":asset,"timestamp":timestamp}));
+        }
+        if !fills.is_empty() && total != executed {
+            return Err("fill quantity mismatch");
+        }
+        out["fills"] = Value::Array(clean);
+    }
+    Ok(out)
+}
+
 impl AccountObservation {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_order_response(
+        client_id: &str,
+        raw: &[u8],
+        generation: [u8; 16],
+        runtime_epoch: u64,
+        request_id: [u8; 16],
+        started_at_ms: u64,
+        received_at_ms: u64,
+    ) -> Result<Self, &'static str> {
+        let value = Self::from_response(
+            AccountKind::KnownClientOrder,
+            raw,
+            generation,
+            runtime_epoch,
+            request_id,
+            started_at_ms,
+            received_at_ms,
+        )?;
+        if value.data["result"]["clientOrderId"].as_str() != Some(client_id) {
+            return Err("order response identity mismatch");
+        }
+        Ok(value)
+    }
+    pub(crate) fn key(&self) -> (AccountKind, String) {
+        (
+            self.kind,
+            self.data["result"]["clientOrderId"]
+                .as_str()
+                .unwrap_or("")
+                .into(),
+        )
+    }
     /// Inputs must come from the service's fixed-origin transport, not an IPC caller.
     #[allow(clippy::too_many_arguments)]
     pub fn from_response(
@@ -272,6 +419,7 @@ impl AccountObservation {
         let kind = match raw[0] {
             1 => AccountKind::Balances,
             2 => AccountKind::Fees,
+            3 => AccountKind::KnownClientOrder,
             _ => return Err("invalid account kind"),
         };
         let observation = Self {

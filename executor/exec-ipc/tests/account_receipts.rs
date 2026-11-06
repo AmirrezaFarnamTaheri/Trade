@@ -72,11 +72,24 @@ fn receipts_are_bound_to_resource_runtime_correlation_and_exact_frame() {
     assert!(encode_reply(&resource, 100, [0; 16], Some(&receipt())).is_err());
     let order = AccountResource::KnownClientOrder("manual-1".into());
     assert!(encode_reply(&order, 100, [1; 16], Some(&receipt())).is_err());
-    let frame = encode_reply(&order, 100, [1; 16], None).unwrap();
-    assert_eq!(decode_reply(&frame, &order, [1; 16]), Ok((100, None)));
+    assert!(encode_reply(&order, 100, [1; 16], None).is_err());
+    let mut order_receipt = receipt();
+    order_receipt.kind = ObservationKind::KnownClientOrder;
+    let frame = encode_reply(&order, 100, [1; 16], Some(&order_receipt)).unwrap();
+    assert_eq!(
+        decode_reply(&frame, &order, [1; 16]),
+        Ok((100, Some(order_receipt)))
+    );
+    let page = AccountResource::OpenOrders {
+        page: 1,
+        per_page: 100,
+    };
+    let frame = encode_reply(&page, 100, [1; 16], None).unwrap();
+    assert_eq!(decode_reply(&frame, &page, [1; 16]), Ok((100, None)));
+    assert!(decode_reply(&frame, &order, [1; 16]).is_err());
     let mut dirty = frame;
     dirty[32] = 1;
-    assert!(decode_reply(&dirty, &order, [1; 16]).is_err());
+    assert!(decode_reply(&dirty, &page, [1; 16]).is_err());
     for field in 0..8 {
         let mut bad = receipt();
         match field {
