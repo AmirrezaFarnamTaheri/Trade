@@ -4,6 +4,7 @@ from .bars import FIXED_RESOLUTIONS
 
 from .strategy import BollingerReversion, ConfirmedTrend, EmaTrend, RelativeMomentum, SmaCross, SmaReversion, digest
 from .technical_strategies import KeltnerBreakout, MacdCross, RsiRebound, TrixCross
+from .compound_strategies import AdaptiveChannel, TrendPullback, PARAMETERS as COMPOUND_PARAMETERS
 
 
 STRATEGIES = {
@@ -36,6 +37,8 @@ STRATEGIES = {
     "macd-cross": (MacdCross, "MACD crossover (12/26/9)", {}),
     "trix-cross": (TrixCross, "TRIX crossover (15/9)", {}),
     "keltner-breakout": (KeltnerBreakout, "Keltner breakout (20/14/2, ADX25)", {}),
+    "trend-pullback": (TrendPullback, "Cost-aware trend pullback", COMPOUND_PARAMETERS),
+    "adaptive-channel": (AdaptiveChannel, "Regime-adaptive channel", COMPOUND_PARAMETERS),
 }
 
 

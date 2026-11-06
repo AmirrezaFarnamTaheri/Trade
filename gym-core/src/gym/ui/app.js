@@ -294,6 +294,12 @@ Object.assign(vocabulary, {
   comparisonChanged: ["Inputs changed. Run a new matched comparison.", "ورودی‌ها تغییر کردند. مقایسهٔ همسان تازه‌ای اجرا کنید."],
   comparisonLimit: ["Independent paper accounts, not a multi-asset portfolio. Results cannot authorize capital.", "حساب‌های آزمایشی مستقل، نه پرتفوی چنددارایی. نتایج مجوز استفاده از سرمایه نیستند."],
   inspectRun: ["Inspect run", "بررسی اجرا"], parameterFast: ["Fast average bars", "تعداد کندل میانگین سریع"], parameterSlow: ["Slow average bars", "تعداد کندل میانگین کند"],
+  parameterRisk: ["Entry risk budget · bps", "بودجهٔ ریسک ورود · واحد پایه"], parameterAllocation: ["Cash allocation cap · bps", "سقف تخصیص وجه · واحد پایه"],
+  parameterMaxSpread: ["Maximum entry spread · bps", "حداکثر فاصلهٔ خرید و فروش ورود · واحد پایه"], parameterParticipation: ["Displayed depth participation · bps", "سهم از عمق قابل‌مشاهده · واحد پایه"],
+  parameterStopAtr: ["Stop distance · ATR multiple", "فاصلهٔ حد زیان · ضریب ATR"], parameterRewardRisk: ["Target reward / initial risk", "نسبت هدف سود به ریسک اولیه"],
+  parameterCooldown: ["Cooldown after exit · bars", "وقفه پس از خروج · کندل"], parameterMaxHolding: ["Maximum holding · bars", "حداکثر نگهداری · کندل"],
+  parameterMaxDrawdown: ["Session drawdown lock · bps", "قفل افت سرمایهٔ جلسه · واحد پایه"],
+  compoundRiskNote: ["100 bps = 1%. Requires 50 continuous usable closed bars. Stops run at bar close in paper trading; gaps, minimum order sizes and limited depth can exceed the risk budget. These are not exchange stop orders.", "۱۰۰ واحد پایه = ۱٪. به ۵۰ کندل بستهٔ پیوسته و قابل‌استفاده نیاز دارد. حد زیان در پایان کندل و در معاملهٔ آزمایشی بررسی می‌شود؛ شکاف قیمت، حداقل سفارش و عمق محدود می‌توانند زیان را از بودجه بیشتر کنند. این‌ها سفارش حد زیان صرافی نیستند."],
   parameterLookback: ["Lookback bars", "تعداد کندل گذشته"], parameterEntry: ["Entry distance · bps", "فاصلهٔ ورود · واحد پایه"], parameterConfirmation: ["Closed confirmation bar", "کندل بسته‌شدهٔ تأیید"], parameterReference: ["Reference market", "بازار مرجع"], parameterDeviations: ["Standard deviations", "تعداد انحراف معیار"],
   recentEvidenceEmpty: ["No saved run evidence yet.", "هنوز شواهد اجرای ذخیره‌شده‌ای نیست."],
   researchJobs: ["Scheduled paper research", "پژوهش آزمایشی زمان‌بندی‌شده"], researchAlerts: ["Research alerts", "اعلان‌های پژوهش"],
@@ -569,7 +575,8 @@ function renderRun(record) {
 function renderCandidate(slot) {
   const entry = list(state.researchSetup?.strategies).find(item => item.id === $("candidate-" + slot).value);
   if (!entry) return;
-  const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference", deviations: "parameterDeviations" };
+  const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference", deviations: "parameterDeviations",
+    risk_bps: "parameterRisk", allocation_bps: "parameterAllocation", max_spread_bps: "parameterMaxSpread", participation_bps: "parameterParticipation", stop_atr: "parameterStopAtr", reward_risk: "parameterRewardRisk", cooldown_bars: "parameterCooldown", max_holding_bars: "parameterMaxHolding", max_drawdown_bps: "parameterMaxDrawdown" };
   const values = state.candidateParams[slot] || {};
   setHTML("candidate-" + slot + "-params", Object.entries(entry.parameters.properties).map(([key, spec]) => {
     const id = `parameter-${slot}-${key}`, value = values[key] ?? spec.default;
@@ -577,7 +584,7 @@ function renderCandidate(slot) {
     const input = spec.enum ? `<select ${attrs}>${spec.enum.map(option => `<option${option === value ? " selected" : ""}>${esc(option)}</option>`).join("")}</select>`
       : `<input class="input" ${attrs} type="${spec.type === "integer" ? "number" : "text"}" value="${esc(value)}" ${spec.type === "integer" ? `min="${spec.minimum}" max="${spec.maximum}" step="1"` : `pattern="[A-Z0-9]{2,24}" maxlength="24"`}>`;
     return `<label for="${id}"><span>${esc(t(names[key] || key))}</span>${input}</label>`;
-  }).join(""));
+  }).join("") + (["trend-pullback", "adaptive-channel"].includes(entry.id) ? `<p class="field-help">${esc(t("compoundRiskNote"))}</p>` : ""));
 }
 function renderCoverage() {
   const data = state.researchSetup?.coverage;

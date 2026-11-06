@@ -94,6 +94,8 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
                             "Assumed example fees; no depth/queue-position model; no capital authorization."]}
         if demo:
             out["warnings"].append("DEMO: never gate evidence.")
+        if session.execution_limits is not None:
+            out["warnings"].append("Compound paper policy checks displayed top-depth capacity, not full depth or queue position. Closed-bar stops and drawdown exits may fail to fill or exceed the risk budget; no venue stop order.")
         if publication_missing:
             out["warnings"].append("Collector publication watermark was unavailable; quiet-period scans remained quote-driven.")
         path = save_run(out, root)

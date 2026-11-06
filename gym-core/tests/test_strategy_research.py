@@ -13,7 +13,7 @@ from tests.support import START, market_db, quote, quote_history
 
 
 def test_registry_normalizes_defaults_and_rejects_bad_parameters():
-    assert len(catalog()) == 10
+    assert len(catalog()) == 12
     assert create_strategy().config_hash == create_strategy("ema-trend", {"slow": 21, "fast": 8}).config_hash
     assert create_strategy("ema-trend", {"fast": 2}).config_hash != create_strategy().config_hash
     for name, params in (("unknown", {}), ("ema-trend", {"fast": True}), ("ema-trend", {"slow": 1}),
@@ -40,6 +40,18 @@ def test_compare_reuses_data_costs_snapshots_and_independent_cash(tmp_path):
     assert "0.1500%" in first["warnings"][-1]
     assert all(check["status"] == "PASS" for check in diagnostics(db, second)["checks"].values())
     assert {row["name"] for row in result["ranking"]["all"]} >= {"A: ema-trend", "B: sma-reversion", "hold USDT"}
+
+
+def test_compound_comparison_shares_market_snapshots_but_records_account_context(tmp_path):
+    db = market_db(tmp_path,quote_history(n=480))
+    try:
+        out = research.compare(db,"BTCUSDT",START,START+timedelta(minutes=79),
+            [{"strategy":"ema-trend"},{"strategy":"trend-pullback"},{"strategy":"adaptive-channel"}],resolution="1min")
+        assert len({run["inputs"]["snapshots"] for run in out["runs"]}) == 1
+        assert "execution_known" not in out["runs"][0]["result"]["decisions"][0]
+        assert all("execution_snapshot" in run["result"]["decisions"][0] for run in out["runs"][1:])
+    finally:
+        db.c.close()
 
 
 def test_comparison_freezes_database_between_candidates(tmp_path, monkeypatch):

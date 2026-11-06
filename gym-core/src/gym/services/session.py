@@ -7,7 +7,7 @@ from decimal import Decimal
 from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.model import iso, parse_ts
 from ..domain.rules import closures, is_closed, session_period, tehran_day
-from ..domain.sim import CashBook, market_order
+from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
 ENGINE_VERSION = "paper-session/8"
@@ -19,6 +19,7 @@ class PendingOrder:
     fraction: Decimal
     decision_time: datetime
     decision_price: Decimal
+    stop_distance_bps: Decimal | None = None
 
 
 class PaperSession:
@@ -31,6 +32,9 @@ class PaperSession:
         self.symbol = symbol
         self.instrument = portal.instrument(symbol)
         self.cost = cost
+        self.execution_limits = getattr(strategy,"execution_limits",None)
+        self.position_entry = self.position_stop = self.position_opened = self.position_id = None
+        self.position_closed = True
         self.bar_spec = BarSpec(resolution, "MID")
         required = getattr(strategy, "required_resolutions", ())
         if any(BarSpec(r).step <= self.bar_spec.step for r in required):
@@ -87,17 +91,34 @@ class PaperSession:
                 references = self.portal.tops(self.reference_symbol, bar.avail - timedelta(seconds=120),
                                               bar.avail + timedelta(microseconds=1))
                 reference = next((q for q in reversed(references) if qualified(q)), None)
+            execution = None
+            if self.execution_limits is not None:
+                quantity = self.book.get(self.instrument.base)
+                tradable = sellable_quantity(quantity,quote.bid,self.portal.spec_at(self.symbol,bar.avail)) if quote else quantity
+                holding = quantity>0 and (not self.position_closed or tradable>0)
+                execution = {"equity":str(self.book.equity(self.instrument,quote.bid)) if quote else None,
+                    "position_qty":str(quantity),"tradable_qty":str(tradable),
+                    "position_state":"OPEN" if holding else "DUST" if quantity>0 else "FLAT","fee_rate":str(self.cost.fee_rate),
+                    "bid_qty":str(quote.bid_qty) if quote and quote.bid_qty is not None else None,
+                    "ask_qty":str(quote.ask_qty) if quote and quote.ask_qty is not None else None,
+                    "entry_price":str(self.position_entry) if self.position_entry is not None else None,
+                    "stop_price":str(self.position_stop) if self.position_stop is not None else None,
+                    "entry_time":iso(self.position_opened),"position_id":self.position_id}
             snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
-                                quote and quote.ts_avail, context, reference)
-            holding = bool(quote) and self.book.get(self.instrument.base) * quote.bid > self.book.equity(self.instrument, quote.bid) / 100
+                                quote and quote.ts_avail, context, reference, execution)
+            if execution is None:
+                holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
-            if self.state == "WARMING_UP" and action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE"):
+            if self.state == "WARMING_UP" and getattr(self.strategy,"ready",action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE")):
                 self.running_at = bar.avail
                 self.transition("RUNNING", bar.avail)
             decision = {"t": iso(bar.avail), "snapshot": snapshot.id, "close": str(bar.close), "action": action,
                    "reasons": list(reasons), "features": feature_hash, "bid": quote and str(quote.bid), "ask": quote and str(quote.ask),
                    "quote_time": quote and iso(quote.ts_avail)}
             decision["feature_values"] = self.strategy.feature_values
+            if execution is not None:
+                decision["execution_known"] = execution
+                decision["execution_snapshot"] = digest([snapshot.id,execution])[:16]
             decision["balances_before"] = {k: str(v) for k, v in self.book.balances.items()}
             decision["bar_known"] = {"start": iso(bar.start), "end": iso(bar.end), "available_at": iso(bar.avail),
                                      "open": str(bar.open), "high": str(bar.high), "low": str(bar.low)}
@@ -120,7 +141,12 @@ class PaperSession:
                     side = action.split("_")[0]
                     order = {"ref": ref, "side": side, "decision_time": iso(bar.avail), "status": "PENDING"}
                     self.orders.append(order)
-                    self.pending = PendingOrder(order, fraction, bar.avail, quote.ask if side == "BUY" else quote.bid)
+                    stop_distance = None
+                    if execution is not None and side == "BUY":
+                        stop_distance = Decimal(self.strategy.feature_values["stop_distance_bps"])
+                        if not stop_distance.is_finite() or not 0<stop_distance<10000:
+                            raise ValueError("invalid proposed paper stop distance")
+                    self.pending = PendingOrder(order, fraction, bar.avail, quote.ask if side == "BUY" else quote.bid,stop_distance)
                     decision["order"] = ref
             self.decisions.append(decision)
             if quote:
@@ -142,13 +168,28 @@ class PaperSession:
                           and top.ts_avail >= pending.decision_time + self.cost.latency)
         timed_out = at > pending.decision_time + self.cost.max_wait
         if eligible_quote or timed_out:
+            previous_base,previous_cash = self.book.get(self.instrument.base),self.book.get(self.instrument.quote)
             result = market_order(
                 self.book, self.instrument, order["side"], pending.fraction,
                 pending.decision_time, pending.decision_price, [top] if top is not None else [], 0,
                 self.cost, self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, order["ref"],
                 self.day_open.get(tehran_day(top.ts_avail)) if top is not None else None,
+                execution_limits=self.execution_limits,
             )
             order.update(result)
+            if self.execution_limits is not None and result["status"] == "FILLED":
+                if order["side"] == "BUY":
+                    cost_basis = previous_base*(self.position_entry or Decimal(0))+previous_cash-self.book.get(self.instrument.quote)
+                    self.position_entry = cost_basis/self.book.get(self.instrument.base)
+                    self.position_stop = self.position_entry*(1-pending.stop_distance_bps/10000)
+                    self.position_opened,self.position_id = parse_ts(result["fill_time"]),order["ref"]
+                    self.position_closed = False
+                else:
+                    remaining = self.book.get(self.instrument.base)
+                    self.position_closed = sellable_quantity(remaining,top.bid,self.portal.spec_at(self.symbol,at)) == 0
+                    order["residual_base"] = str(remaining)
+                    if remaining == 0:
+                        self.position_entry = self.position_stop = self.position_opened = self.position_id = None
             self.pending = None
         elif closing:
             order.update(status="NONFILL", reason="SESSION_ENDED_BEFORE_SETTLEMENT")

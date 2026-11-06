@@ -271,9 +271,12 @@ The model includes adverse slippage and fees in the received asset on both legs.
 It neither verifies these assumptions nor supplies a stop order, venue minimums,
 portfolio allocation, account permissions or funded authority.
 
-The shared registry contains ten strategies: `ema-trend`, `sma-cross`,
+The shared registry contains twelve strategies: `ema-trend`, `sma-cross`,
 `sma-reversion`, `bollinger-reversion`, `ema-confirmed`, `relative-momentum`,
-`rsi-rebound`, `macd-cross`, `trix-cross` and `keltner-breakout`. Closed-bar `sma-cross`
+`rsi-rebound`, `macd-cross`, `trix-cross`, `keltner-breakout`, `trend-pullback` and
+`adaptive-channel`. The [composite strategies](docs/compound-strategies.md) combine
+regime/entry filters, scenario costs, displayed-depth sizing and actual-fill
+stop/target/drawdown state. They remain paper-only and unqualified. Closed-bar `sma-cross`
 requires `slow + 1` observations to compare previous/current averages. Its
 crossovers use actual holding state; an unfilled entry does not create a position.
 Replay, live paper, schedules, comparisons, validation and the UI use the same

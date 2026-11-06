@@ -61,11 +61,23 @@ def _floor(x: Decimal, decimals: int | None) -> Decimal:
     return x if decimals is None else x.quantize(Decimal(1).scaleb(-decimals), ROUND_DOWN)
 
 
+def sellable_quantity(quantity: Decimal, bid: Decimal, spec: Spec) -> Decimal:
+    """Executable lot under known venue precision/minimums; never discards the actual balance."""
+    quantity = _floor(quantity,spec.qty_decimals)
+    return quantity if quantity>0 and (spec.min_qty is None or quantity>=spec.min_qty) and (spec.min_notional is None or quantity*bid>=spec.min_notional) else Decimal(0)
+
+
 def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decimal, decision_time: datetime,
                  decision_quote: Decimal, tops: list[BookTop], start: int, cost: CostModel, spec: Spec,
-                 rules: list[Rule], quota_used: dict, ref: str, day_open: Decimal | None = None) -> dict:
+                 rules: list[Rule], quota_used: dict, ref: str, day_open: Decimal | None = None,
+                 *, execution_limits=None) -> dict:
     """Fill at the first qualified quote at or after decision + latency, or record a nonfill with its reason."""
     out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL"}
+    if execution_limits is not None:
+        if (type(execution_limits) is not dict or set(execution_limits) != {"max_spread_bps","participation_bps"}
+                or type(execution_limits["max_spread_bps"]) is not int or not 1 <= execution_limits["max_spread_bps"] <= 1000
+                or type(execution_limits["participation_bps"]) is not int or not 1 <= execution_limits["participation_bps"] <= 10000):
+            raise ValueError("invalid paper execution limits")
     earliest, deadline = decision_time + cost.latency, decision_time + cost.max_wait
     top = next((x for x in tops[start:] if x.ts_avail >= earliest and qualified(x)), None)
     if top is None or top.ts_avail > deadline:
@@ -81,6 +93,8 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         b = v.blockers[0]
         return {**out, "fill_time": iso(t), "reason": f"RULE:{b['rule_id']}", "rule": b}
     price = top.ask if side == "BUY" else top.bid
+    if execution_limits is not None and side == "BUY" and top.spread_bps > execution_limits["max_spread_bps"]:
+        return {**out,"fill_time":iso(t),"reason":"ENTRY_SPREAD_LIMIT"}
     if side == "BUY":
         with localcontext() as ctx:
             ctx.rounding = ROUND_DOWN  # 28-digit division must never round the quantity up past the cash
@@ -93,6 +107,12 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
     notional = qty * price
     if qty <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
         return {**out, "fill_time": iso(t), "reason": "BELOW_MIN_NOTIONAL"}
+    if execution_limits is not None:
+        available = top.ask_qty if side == "BUY" else top.bid_qty
+        if available is None or not available.is_finite() or available <= 0:
+            return {**out,"fill_time":iso(t),"reason":"DISPLAYED_CAPACITY_UNAVAILABLE"}
+        if qty > available * execution_limits["participation_bps"] / 10000:
+            return {**out,"fill_time":iso(t),"reason":"DISPLAYED_CAPACITY_LIMIT"}
     if side == "BUY":
         fee = qty * cost.fee_rate
         book.post(t, inst.quote, -notional, "buy", ref)

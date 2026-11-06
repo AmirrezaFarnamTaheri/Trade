@@ -7,7 +7,7 @@ combine these authorities.
 
 | Layer | Owner | Contract |
 | --- | --- | --- |
-| Domain calculations | `domain/` | Exact decimals, bounded inputs, no filesystem or provider calls. `technical_features.py` is the shared streaming indicator engine; batch diagnostics and the four new strategies use it. |
+| Domain calculations | `domain/` | Exact decimals, bounded inputs, no filesystem or provider calls. `technical_features.py` is the shared streaming indicator engine; batch diagnostics, four indicator strategies and two compound strategies use it. |
 | Durable observations and artifacts | `adapters/` | Market storage, raw segments, run identities and protected credential helpers. DEMO and observed stores remain distinct. |
 | Research workflows | `services/research_actions.py` | Fixed service actions shared by CLI and browser. No arbitrary subprocess, path, Python function or tool name is accepted. |
 | Margin paper workflow | `domain/margin.py`, `adapters/wallex_margin.py`, `services/margin.py`, `ui/margin.js` | Credential-free pinned public rules/loan/preview endpoints, immutable receipt clocks and currency-aware observed-quote paper positions. Shared supervised GUI/CLI actions; no margin write transport. |
@@ -29,7 +29,7 @@ combine these authorities.
 | --- | --- | --- |
 | Market, depth, quote/rule readiness | Markets | Existing public observations; no fabricated outage values. |
 | Wallex margin rules, previews and LONG/SHORT paper replay | Paper research → Wallex margin | Actual per-market credit grid and collateral range, explicit public calculations, saved terms and source quotes. Closures/gaps do not synthesize settlement. Funded margin remains unavailable. |
-| Strategy comparison and historical validation | Paper research | Ten registry strategies; native replay and saved artifacts. Historical selection is diagnostic. |
+| Strategy comparison and historical validation | Paper research | Twelve registry strategies, including two compound rules with explicit risk controls; native replay and saved artifacts. Historical selection is diagnostic. |
 | Hypothesis/shadow/schedule registration | Advanced research workbench | Shared service validation; advanced JSON inputs. Existing job controls provide pause/resume/tick. Foreground continuous runner remains a terminal process. |
 | Numeric claims, run review and outcome memory | Advanced research workbench | Saved IDs and exact allowlisted references; no invented lessons or analyst prose. |
 | Future evaluation register/status/consume | Advanced research workbench | Actual clock, frozen engine/configuration, one attempt. Failures remain consumed; local ledger is not an independent custodian. |

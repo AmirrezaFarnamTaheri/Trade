@@ -199,4 +199,7 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
     if main["fills"] < 30:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
     w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
+    if main["strategy"] in ("trend-pullback","adaptive-channel"):
+        w.append("Compound paper policy: entry spread and displayed top-depth participation are checked at decision and fill; no queue or full-depth fill model. Baselines retain their original unconstrained execution model.")
+        w.append("Stops and the session drawdown lock are evaluated at closed-bar decisions; gaps, minimums or insufficient displayed depth can prevent an exit or exceed the risk budget. No venue stop order or funded authority.")
     return w

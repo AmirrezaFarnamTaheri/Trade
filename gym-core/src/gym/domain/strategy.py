@@ -45,6 +45,7 @@ class Snapshot:
     quote_time: datetime | None
     context_bars: tuple[Bar, ...] = ()
     reference: BookTop | None = None
+    execution: dict | None = None
 
     @property
     def id(self) -> str:

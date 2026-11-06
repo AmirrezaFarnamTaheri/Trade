@@ -6,6 +6,13 @@ Nothing in this plan enables funded orders or promotes a strategy.
 
 ## Current implementation follow-up
 
+The [composite strategy implementation](compound-strategies.md) adds two
+paper-only strategies to the shared registry (12 total), including EN/FA
+parameter controls, actual-fill risk state, execution rechecks and decision
+inspection. A separate frozen 1,492-case, all-373-market exploratory study is
+running. Its completion, profitability assessment and prospective qualification
+remain distinct from this implementation; the older campaign definition is unchanged.
+
 The [whole-market extension](paper-qualification.md#whole-market-extension--6-november-2026)
 now preregisters the same 401 historical cases for every one of 373 eligible
 spot pairs (149,573 cases); calculation remains running. Both prospective

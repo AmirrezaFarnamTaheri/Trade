@@ -115,6 +115,17 @@ const strategies = [
   { id: "ema-confirmed", title: "Confirmed", parameters: { properties: { confirmation: { type: "string", default: "1h", enum: ["15min", "1h", "1day"] } } } },
   { id: "relative-momentum", title: "Relative", parameters: { properties: { reference: { type: "string", default: "ETHUSDT" } } } },
   { id: "bollinger-reversion", title: "Bollinger reversion", parameters: { properties: { lookback: { type: "integer", default: 20, minimum: 2, maximum: 10000 }, deviations: { type: "integer", default: 2, minimum: 1, maximum: 5 } } } },
+  ...["trend-pullback", "adaptive-channel"].map(id => ({ id, title: id, parameters: { properties: {
+    risk_bps: { type: "integer", default: 50, minimum: 1, maximum: 200 },
+    allocation_bps: { type: "integer", default: 2500, minimum: 1, maximum: 10000 },
+    max_spread_bps: { type: "integer", default: 25, minimum: 1, maximum: 1000 },
+    participation_bps: { type: "integer", default: 1000, minimum: 1, maximum: 10000 },
+    stop_atr: { type: "integer", default: 2, minimum: 1, maximum: 5 },
+    reward_risk: { type: "integer", default: 2, minimum: 1, maximum: 5 },
+    cooldown_bars: { type: "integer", default: 3, minimum: 0, maximum: 100 },
+    max_holding_bars: { type: "integer", default: 60, minimum: 1, maximum: 1000 },
+    max_drawdown_bps: { type: "integer", default: 300, minimum: 50, maximum: 2000 },
+  } } })),
 ];
 const setup = { strategies, symbols: ["BTCUSDT"], coverage: { symbol: "BTCUSDT", observations: 30, from: "2026-10-29T12:30:00+03:30", to: "2026-10-29T13:00:00+03:30", gaps_over_120s: 0 }, defaults: { fee_rate: "0.001", resolution: "15min", latency_ms: 500 }, authority: "PAPER_ONLY", funded_authority: false };
 replies.set("/api/research", setup);
@@ -499,6 +510,25 @@ const click = async id => {
   await submit();
   const stringParams = JSON.parse(requests.findLast(request => request.path === "/api/compare").options.body).candidates;
   assert.equal(stringParams[0].params.confirmation, "1h"); assert.equal(stringParams[1].params.reference, "ETHUSDT");
+
+  for (const language of ["en", "fa"]) {
+    if (sandbox.document.documentElement.lang !== language) await click("language-toggle");
+    for (const strategy of ["trend-pullback", "adaptive-channel"]) {
+      byId("candidate-first").value = strategy;
+      byId("candidate-first").listeners.change();
+      const rendered = byId("candidate-first-params").innerHTML;
+      assert.ok(rendered.includes(app.T[language].parameterRisk));
+      assert.ok(rendered.includes(app.T[language].compoundRiskNote));
+      assert.equal(byId("parameter-first-risk_bps").value, "50");
+      assert.equal(byId("parameter-first-max_drawdown_bps").getAttribute("max"), "2000");
+      await submit();
+      const candidate = JSON.parse(requests.findLast(request => request.path === "/api/compare").options.body).candidates[0];
+      assert.equal(candidate.strategy, strategy);
+      assert.equal(candidate.params.risk_bps, 50);
+      assert.equal(candidate.params.allocation_bps, 2500);
+      assert.equal(candidate.params.max_drawdown_bps, 300);
+    }
+  }
 
   for (const language of ["en", "fa"]) {
     if (sandbox.document.documentElement.lang !== language) await click("language-toggle");

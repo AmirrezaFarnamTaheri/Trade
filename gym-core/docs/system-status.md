@@ -1,5 +1,27 @@
 # System status — 2026-11-06
 
+## Composite strategies
+
+The [compound strategy guide](compound-strategies.md) documents the two new
+paper-only rules, `trend-pullback` and `adaptive-channel`. The shared registry
+now has 12 strategies. Both expose nine validated risk controls through native
+interfaces and EN/FA comparison forms. Actual modeled fills, rounded residuals,
+cost/capacity checks, closed-bar exits and latched drawdown state are recorded
+for replay. No profitability or funded qualification is implied.
+
+Fresh validation passed 1,099 Python tests, five skipped and 39 subtests;
+correctness lint targets the project's Python 3.11 runtime. Both EN/FA UI
+contracts and native scheduled-trigger persistence passed. Python and Node
+dependency audits found no known vulnerabilities in auditable packages; the
+local editable project is outside the advisory database. The collector was
+restarted gracefully and its actual HTTP catalogue exposes all 12 strategies
+with nine compound controls. Browser visual appearance was not rechecked.
+
+A separately frozen, preregistered exploratory study covers both defaults on
+all 373 eligible spot pairs under two fee/latency scenarios (1,492 cases).
+It is running in `.pi/compound-study/20261106T184523Z`; the previous campaign's
+149,573-case, ten-strategy definition and source remain frozen.
+
 ## Whole-market paper extension in progress
 
 The [expanded definition](paper-qualification.md#whole-market-extension--6-november-2026)

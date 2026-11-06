@@ -17,7 +17,7 @@ def replay_decisions(root, request, *, store):
     rows = []
     for index, decision in enumerate(result["decisions"][offset:offset + limit], offset):
         known = {key: decision.get(key) for key in ("t", "snapshot", "close", "bid", "ask", "quote_time",
-                 "action", "reasons", "skipped", "features", "feature_values", "bar_known", "rules_known", "context_known", "reference_known")}
+                 "action", "reasons", "skipped", "features", "feature_values", "bar_known", "rules_known", "context_known", "reference_known", "execution_known", "execution_snapshot")}
         if "rules_ref" in decision:
             known["rules_known"] = result["session"]["rule_snapshots"].get(decision["rules_ref"])
             if known["rules_known"] is None:
