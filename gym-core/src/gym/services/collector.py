@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import random
 import time
@@ -222,6 +223,22 @@ class Collector:
         return True
 
     def tick(self, now: datetime):
+        old_tops, old_written, old_units = self.tops.copy(), self.written.copy(), copy.deepcopy(self.units)
+        self.db.c.execute("SAVEPOINT collector_tick")
+        try:
+            previous = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
+            if previous and parse_ts(previous[0]) > now:
+                raise ValueError("collector publication clock regressed")
+            self._publish_tick(now)
+            self.db.c.execute("INSERT OR REPLACE INTO collector_publication VALUES(1,?)", (iso(now),))
+            self.db.c.execute("RELEASE collector_tick")
+        except BaseException:
+            self.db.c.execute("ROLLBACK TO collector_tick")
+            self.db.c.execute("RELEASE collector_tick")
+            self.tops, self.written, self.units = old_tops, old_written, old_units
+            raise
+
+    def _publish_tick(self, now: datetime):
         for sym, b in self.books.items():
             top = book_top(sym, b["bid"], b["ask"], now, self.lim)
             prev = self.tops.get(sym)

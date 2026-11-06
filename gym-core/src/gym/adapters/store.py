@@ -43,6 +43,9 @@ MIGRATIONS = [
     create trigger retain_candle_vintage before delete on candle_vintages begin select raise(abort,'retain candle vintage'); end;
     create trigger freeze_candle_vintage before update on candle_vintages begin select raise(abort,'immutable candle vintage'); end;
     """,
+    """
+    create table collector_publication(singleton integer primary key check(singleton=1), through text not null);
+    """,
 ]
 
 

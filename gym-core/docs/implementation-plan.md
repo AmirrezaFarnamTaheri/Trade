@@ -6,7 +6,22 @@ Nothing in this plan enables funded orders or promotes a strategy.
 
 ## Current implementation follow-up
 
-The comprehensive [recorded-data paper campaign](paper-qualification.md) is complete:
+The [whole-market extension](paper-qualification.md#whole-market-extension--6-november-2026)
+now preregisters the same 401 historical cases for every one of 373 eligible
+spot pairs (149,573 cases); calculation remains running. Both prospective
+strategies were attempted on all pairs. The repaired-publication cohort has
+670 ended sessions and 76 wall-limit aborts, with every artifact verified and
+zero post-deadline decisions. Readiness failures remain visible. All 36 public
+margin markets have both directions attempted, including rejected/unavailable
+previews and unfilled/open replay states. Original failures and registered
+continuations remain retained; none of these counts closes funded work.
+
+Collector publication is now transactional in SQLite schema 4. Prospective
+scans and completion follow committed data, including when the collector lags
+the wall clock. Historical child containment, checkpoint publication, explicit
+recovery and all-market dated coverage exports have regression coverage.
+
+The earlier [recorded-data baseline campaign](paper-qualification.md) is complete:
 1,973 historical attempts across 373 markets, ten strategies and eleven fixed
 timeframes; 1,945 completed and 28 explicitly incomplete for unavailable data.
 Twelve LONG/SHORT margin replays and four completed prospective 15-minute watches
@@ -26,8 +41,9 @@ original-body digests through restart, helper, CLI, SQLite snapshot, guarded API
 and EN/FA account page. Missing pagination echoes, completeness, absence and
 settlement stay unverified. Failed refreshes invalidate the same page identity.
 
-Current regression: **1025 Python passed, five skipped, 39 subtests; 152 native
-tests**. Independent reviews found no medium-or-higher issues. The exact current
+Current regression: **1047 Python passed, five skipped, 39 subtests**; the unchanged
+native bundle retains its earlier **152-test** receipt. Independent reviews found
+no medium-or-higher issues. The exact current
 bundle passed installed ACER review/preparation/revocation, seven R0 denials and
 four STOP acknowledgements in 67/11/10/11 ms, then stopped/disabled. Receipt:
 `.pi/qualification/20261106T1139159526512`. No account API or order was called.

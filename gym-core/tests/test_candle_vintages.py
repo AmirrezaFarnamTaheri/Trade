@@ -52,6 +52,6 @@ def test_old_database_migration_preserves_only_genuinely_retained_fetch(tmp_path
     db = MarketDB(path)
     try:
         assert db.c.execute("SELECT * FROM candle_vintages").fetchall() == [row]
-        assert db.c.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert db.c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
     finally:
         db.c.close()

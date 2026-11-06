@@ -60,13 +60,21 @@ def test_stop_wakes_idle_poll_and_can_be_repeated(tmp_path, monkeypatch):
     monkeypatch.setattr(research_runner, "now_utc", lambda: START)
 
     async def scenario():
-        stop = asyncio.Event()
+        stop, tick_finished = asyncio.Event(), asyncio.Event()
+        calculate = research_runner.calculate
+        async def first_tick(*args,**kwargs):
+            try:
+                return await calculate(*args,**kwargs)
+            finally:
+                tick_finished.set()
+        monkeypatch.setattr(research_runner,"calculate",first_tick)
         task = asyncio.create_task(research_runner.watch(tmp_path, poll_seconds=60, stop=stop))
-        await asyncio.sleep(0)
+        # Measure idle-stop latency after the actual worker tick, not interpreter startup under load.
+        await asyncio.wait_for(tick_finished.wait(),130)
         stop.set()
         stop.set()
         result = await asyncio.wait_for(task, 5)
-        assert result["ticks"] == 1 and result["completed"] == result["failed"] == 0
+        assert result["ticks"] == 1 and result["completed"] == result["failed"] == 0, result
         assert (await research_runner.watch(tmp_path, stop=stop))["ticks"] == 0
 
     asyncio.run(scenario())

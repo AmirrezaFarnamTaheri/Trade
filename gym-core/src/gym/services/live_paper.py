@@ -24,6 +24,7 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
     session = PaperSession(portal, lambda t: svc.load(t)[1], strategy, symbol, start, resolution, cash, cost,
                            subscriptions)
     reason, last_clock, regressed_at = None, start, None
+    publication_missing = False
     print("WARMING_UP: run the collector separately; duration begins at RUNNING.", flush=True)
     try:
         while True:
@@ -32,25 +33,35 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
                 regressed_at = now
                 raise ValueError("Clock regression during paper observation")
             last_clock = now
-            for top in (portal.tops(symbol, session.cursor, now) if session.cursor < now else ()):
-                if top.ts_avail > session.cursor:
-                    if session.running_at and top.ts_avail >= session.running_at + timedelta(seconds=duration) and session.state != "FINISHING":
-                        session.transition("FINISHING", session.running_at + timedelta(seconds=duration))
-                    session.feed(top)
-                    tops.append(top)
-            if session.running_at and now >= session.running_at + timedelta(seconds=duration) and session.state != "FINISHING":
-                session.transition("FINISHING", session.running_at + timedelta(seconds=duration))
-            if session.state != "FINISHING":
-                session.scan(now)
-            if session.running_at and now >= session.running_at + timedelta(seconds=duration):
+            db.c.execute("BEGIN")
+            try:
+                published = portal.publication()
+                publication_missing |= published is None
+                cutoff = min(now, published + timedelta(microseconds=1)) if published else now
+                for top in (portal.tops(symbol, session.cursor, cutoff) if session.cursor < cutoff else ()):
+                    if top.ts_avail > session.cursor:
+                        if session.running_at and top.ts_avail >= session.running_at + timedelta(seconds=duration) and session.state != "FINISHING":
+                            session.transition("FINISHING", session.running_at + timedelta(seconds=duration))
+                        session.feed(top)
+                        tops.append(top)
                 if session.state != "FINISHING":
-                    session.transition("FINISHING", now)
-                session.settle(None, now)
+                    # A wall-clock scan cannot assert that a writer has finished publishing.
+                    scan_clock = min(now, published) if published else session.cursor
+                    if session.running_at:
+                        scan_clock = min(scan_clock, session.running_at + timedelta(seconds=duration))
+                    session.scan(max(session.cursor, scan_clock))
+            finally:
+                db.c.rollback()
+            settlement_clock = min(now, published) if published else now
+            if session.running_at and settlement_clock >= session.running_at + timedelta(seconds=duration) and session.state != "FINISHING":
+                session.transition("FINISHING", session.running_at + timedelta(seconds=duration))
+            if session.running_at and settlement_clock >= session.running_at + timedelta(seconds=duration):
+                session.settle(None, settlement_clock)
                 if not session.pending:
                     break
             await asyncio.sleep(1)
-    except asyncio.CancelledError:
-        reason = "Operator interrupted (Ctrl+C)"
+    except asyncio.CancelledError as exc:
+        reason = str(exc)[:300] or "Session cancelled"
     except Exception as exc:  # noqa: BLE001 - every paper failure must retain an aborted run
         reason = f"Session error: {type(exc).__name__}: {exc}"
     finally:
@@ -71,6 +82,7 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
                   "cash": str(cash), "cost": cost.describe(), "rules_mode": "point-in-time",
                   "store": "demo" if demo else "live", "data": result["data_digest"],
                   "snapshots": digest([(d["t"], d["snapshot"]) for d in session.decisions])}
+        inputs["publication_policy"] = "COMMITTED_COLLECTOR_WATERMARK_WITH_QUOTE_ONLY_FALLBACK"
         if clock_regression:
             inputs["clock_regression"] = {"observed_finish_at": iso(observed_finish),
                                           "last_processed_at": iso(last_processed),
@@ -82,6 +94,8 @@ async def watch(db, root, symbol, duration, resolution, fast, slow, cash, demo=F
                             "Assumed example fees; no depth/queue-position model; no capital authorization."]}
         if demo:
             out["warnings"].append("DEMO: never gate evidence.")
+        if publication_missing:
+            out["warnings"].append("Collector publication watermark was unavailable; quiet-period scans remained quote-driven.")
         path = save_run(out, root)
         print(f"{session.state}: {path}", flush=True)
     return out

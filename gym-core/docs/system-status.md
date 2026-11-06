@@ -1,5 +1,28 @@
 # System status — 2026-11-06
 
+## Whole-market paper extension in progress
+
+The [expanded definition](paper-qualification.md#whole-market-extension--6-november-2026)
+applies the same historical matrix to every one of 373 eligible spot pairs:
+149,573 cases. Historical calculation continues from verified native records
+after the original worker limit proved too short. Partial attempts and explicit
+repeats remain retained. A dated searchable report and full historical CSV live
+in `.pi/market-campaign/20261106`; the source script can regenerate them.
+
+The prospective retry completed all 746 attempts: 670 ended, 76 wall-limit
+aborts. Both strategies ended on 335 pairs; 38 lacked sufficient usable data or
+warmup/time. Every saved artifact passed native integrity/case checks with zero
+post-deadline decisions. The collector's cross-market publication ordering fault
+is fixed through atomic SQLite tick/watermark commits and consistent reader
+snapshots. All 36 margin markets have both directions attempted; unavailable,
+unfilled and open results remain explicit. Current HTTP coverage is 373 selected
+pairs from 469 catalogue rows. No funds or actual orders were used.
+
+Full Python regression passed 1,047 tests with five skips and 39 subtests;
+current correctness lint/reviews and dependency audits passed. The local
+editable Python project is outside the advisory database. No native code was
+changed or installed during this extension; its earlier receipts remain below.
+
 ## Complete paper campaign and protected page delivery
 
 The [paper campaign](paper-qualification.md) retained all **1,973 historical

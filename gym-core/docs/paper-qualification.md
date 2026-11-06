@@ -1,4 +1,92 @@
-# Recorded-data paper campaign
+# Recorded-data paper campaigns
+
+## Whole-market extension — 6 November 2026
+
+The expanded historical campaign is **running**, not complete. Its immutable
+definition is `.pi/market-campaign/20261106/plan.json`. All 373 eligible spot
+pairs receive the same 401-case definition: 149,573 historical cases in total.
+The retained 469-row catalogue also exposes 96 rows that the venue does not
+mark as spot markets. Risk flags, thin liquidity, missing observations and
+unready indicators do not remove an eligible pair from the definition.
+
+For every eligible pair, ten strategies use 1min/5min/15min bars, default and
+fixed alternative parameters where supported, two chronological windows and
+four fee/delay/outage scenarios (384 cases). EMA 2/5 covers the other eight
+fixed timeframes over both windows (16 cases). One EMA 2/5 five-minute survey
+completes the 401 cases. This is a current-listing survey of recorded history;
+it does not reconstruct delisted markets or invent unavailable older quotes.
+
+The first historical controller's 1,200-second per-market limit proved too
+short for this matrix. Its workers were stopped and their original checkpoints
+preserved. Recovery inspected native immutable experiment events and verified
+available saved runs before registering `historical-continuation/plan.json`:
+144,285 cases, including 30 explicitly repeated partial groups. Original
+attempts, possible orphan artifacts and repeat links remain visible. The new
+controller uses six direct base-interpreter workers, a six-hour worker bound
+and a 5-GiB free-disk reserve. Interruption kills active children and cancels
+queued work; a timeout remains unresolved evidence rather than a success.
+
+Both prospective strategies were attempted on every pair: 746 cases per
+cohort, 900 running seconds after actual warmup, with an 1,800-second wall cap.
+The original cohort retained 735 aborts and 11 ended sessions. It exposed an
+ordering defect: a reader could advance past rows from an incompletely
+published 373-market collector tick. Schema 4 now commits the entire tick and
+its publication watermark together. Watches read a consistent snapshot,
+advance quiet scans only through that watermark, cap trading scans at the
+running deadline and await committed publication before claiming completion.
+Legacy stores without a watermark use disclosed quote-driven quiet scans.
+Collector rollback also restores cached publication state.
+
+The replacement cohort retained **670 ENDED and 76 ABORTED** artifacts across
+all 373 pairs. Both strategies ended on 335 markets; neither ended on the
+other 38. Audit of all 746 artifacts verified their digests and case identity,
+with zero decisions after the 900-second deadline and zero recorded ordering
+errors or backward clocks. Of the aborts, 56 had no qualified observations,
+two did not finish warmup and 18 warmed up too late to complete 900 seconds
+before the wall cap. Those are readiness failures, not venue exclusions.
+The frozen retry engine predates the additional quiet-scan deadline cap; its
+actual artifacts were separately checked for that edge case and had zero
+violations. Saved artifacts were not rewritten to claim the later version.
+
+The old retry engine calls any cancellation “Operator interrupted (Ctrl+C).”
+All 76 aborts occurred at the runner wall cap; the independent audit preserves
+the raw wording and explains that limitation. Current code instead propagates
+the runner's explicit “Campaign wall limit reached” cancellation reason and
+uses a neutral default for other cancellations.
+
+The public margin catalogue returned 36 markets. All 72 LONG/SHORT directions
+were attempted: 61 usable previews and 11 unavailable previews from network
+failures or HTTP 422 validation rejection. A 422 is not evidence that the
+market lacks margin eligibility; one retained investigation found an entry
+price outside the venue's permitted band. The first replay set retains all
+432 cases (three holding periods, two exit-fee assumptions per direction):
+202 CLOSED, 116 OPEN, six CLOSE_PENDING, 42 ENTRY_PENDING and 66 with no usable
+preview. A separately registered retry covers all 11 failed public previews
+with new observed prices; the original failures remain. No entry, exit,
+credential, loan, account permission or settlement is synthesized.
+
+That retry recovered four usable public previews and retained seven HTTP 422
+rejections. Its 66 replay cases retained four CLOSED, eight OPEN, 12 ENTRY_PENDING
+and 42 without a usable preview at their declared cutoff. Longer requested
+holdings do not become completed exits merely because calculation finished.
+
+`report.html`, `results.csv` and `coverage.json` expose every catalogue row,
+every historical definition including repeats, prospective outcomes and
+margin states. Reports are dated snapshots. NOT_REPORTED may include a group
+that is running or committed without a checkpoint; it never proves absence.
+Native worker digest checks do not constitute independent accounting or
+profitability qualification of this expanded campaign. Regenerate locally:
+
+```powershell
+rtk proxy gym-core/.venv/Scripts/python.exe gym-core/scripts/market_campaign.py report --output .pi/market-campaign/20261106
+```
+
+The collector was restarted after a stopped-source SQLite backup and now serves
+all 373 spot pairs. HTTP verification at 15:56 UTC found all 469 catalogue rows
+and 373 selected pairs, with 300 qualified at that instant. Selection coverage
+does not promise continuously usable data on every market.
+
+## Earlier completed baseline campaign
 
 Completed 2026-11-06 (Asia/Tehran). All orders and balances below are simulated.
 No exchange account read, order, loan or transfer was made by this campaign.

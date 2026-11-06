@@ -14,6 +14,16 @@ individual immutable JSON files for portable research reports.
 | Raw collector archive | `raw/YYYYMMDD/*.jsonl.zst` | Original public WebSocket/REST messages with sequence, receipt time and message hash |
 | Research artifacts and configuration | Individual JSON files | Immutable run receipts and portable declarative settings; not appendable JSONL journals |
 
+Market schema 4 adds a singleton committed collector-publication watermark.
+Each complete multi-market tick, its quality/unit-rule effects and the watermark
+commit in one SQLite transaction. A failed tick rolls back its normalized writes
+and restores its cached tops/unit state. Prospective readers use one read snapshot
+for the watermark, quotes, specifications and rules, and do not infer that a
+wall-clock deadline proves the collector has published through that time.
+Older read-only snapshots remain usable; missing watermarks are disclosed and
+quiet-period scans stay quote-driven. Forward migration does not rewrite older
+quote or candle history. Raw audit segments retain their existing ownership.
+
 The remaining application JSONL is a compressed audit archive, not a query
 database. Normalized SQL rows already hold the fields used by the application
 and refer back to raw messages through segment/sequence references. Closed

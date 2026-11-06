@@ -4,13 +4,23 @@ Public data, paper simulation, merged PRs and a running Windows service do **not
 B/C remain **IN PROGRESS / NOT CERTIFIED**, and the application remains **DISARMED**.
 No funded submission, certified venue stop or independent-machine recovery is claimed.
 
-Current delivery: **1025 Python passed, five skipped, 39 subtests; 152 native
-tests passed**. Native committed account receipt references now pass through the
+Current delivery: **1047 Python passed, five skipped, 39 subtests**. The unchanged
+native bundle previously passed 152 tests. Native committed account receipt references now pass through the
 helper, CLI, saved journal and guarded account API to EN/FA account details.
 Exact recorded fee rates are visible too. A local receipt copy is not independent
 journal authentication, verified permissions or funded authority.
 
 ## Current receipt — 2026-11-06 (Asia/Tehran)
+
+The new whole-market paper extension is in progress. Its historical definition
+contains 149,573 cases across all 373 eligible spot pairs. The completed retry
+watch cohort attempted both strategies on every pair: 670 ended and 76 aborted
+at the wall limit. All 746 saved artifacts passed digest/case identity checks;
+zero decisions exceeded the requested running deadline. Abort/readiness and
+the original failed cohort remain visible. All 72 margin directions across
+36 public margin markets were attempted; unavailable previews and open or
+unfilled positions are retained. These are not complete historical results or
+funded qualification. See [exact scope and evidence](paper-qualification.md).
 
 All five protected GET resource families now retain matching journal receipts.
 Open-order/history pages bind the service request's page/per-page identity,
@@ -33,8 +43,9 @@ observed-data paper results, not sustained strategy or funded qualification.
 The experiment source-budget, equal-clock startup and prospective-artifact
 verification defects found during this work are fixed and regression-tested.
 
-Current regression is 1025 Python passed/five skipped/39 subtests and 152 native
-tests; strict checks, release build, independent reviews and dependency scans
+Current regression is 1047 Python passed/five skipped/39 subtests; the unchanged
+native bundle retains its earlier 152-test, strict-check and release-build receipt.
+Current correctness reviews and dependency scans
 passed with the local editable Python package outside the advisory database.
 Full funded execution/protection, authenticated account settlement, independent
 custody, browser appearance and physical second-host recovery remain open.
