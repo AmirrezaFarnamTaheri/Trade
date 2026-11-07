@@ -58,7 +58,7 @@ def paper_summary(out):
             "performance": {k: v for k, v in evidence["performance"].items() if k != "ledger"},
             "cost_assumptions": {k: inputs["cost"][k] for k in (
                 "fee_rate", "latency_ms", "max_wait_s", "fee_assumption", "max_participation", "walk_depth",
-                "carry_remainder", "max_fraction", "vol_target", "vol_lookback", "order_type", "maker_fee_rate")
+                "carry_remainder", "max_fraction", "vol_target", "vol_lookback", "order_type", "maker_fee_rate", "limit_fill_model")
                 if k in inputs["cost"]},
             "limitations": ["Paper fills and costs are modeled. No capital is authorized.",
                             "Summary omits decisions, private notes and account data; retain the original run for replay.",

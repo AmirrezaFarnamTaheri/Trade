@@ -143,14 +143,16 @@ def test_sized_paper_runs_record_the_fraction_used(tmp_path):
     assert Decimal(buy["qty"]) * Decimal(buy["price"]) <= Decimal(300)
 
 
-def _limit_session(tmp_path, prints, maker="0.0002"):
+def _limit_session(tmp_path, prints, maker="0.0002", *, side="BUY", crossing=False, queue="2"):
     from gym.domain.model import TradeTick
     from gym.services.data_portal import DataPortal
     from gym.services.rules import RuleService
     from gym.services.session import PaperSession, PendingOrder
     from tests.support import market_db
-    tops = [BookTop("BTCUSDT", START + timedelta(seconds=s), Decimal(100), Decimal(101), Decimal(2), Decimal(2), frozenset())
+    tops = [BookTop("BTCUSDT", START + timedelta(seconds=s), Decimal(100), Decimal(101), Decimal(queue), Decimal(queue), frozenset())
             for s in (1, 5, 10, 20)]
+    if crossing:
+        tops = [tops[0], BookTop("BTCUSDT", START + timedelta(seconds=5), Decimal(99), Decimal(100), Decimal(2), Decimal("0.2"), frozenset())]
     db = market_db(tmp_path, tops)
     for seconds, price, qty, aggressor in prints:
         t = START + timedelta(seconds=seconds)
@@ -159,7 +161,9 @@ def _limit_session(tmp_path, prints, maker="0.0002"):
     from gym.domain.strategy import BuyAndHold
     cost = CostModel(order_type="limit", maker_fee_rate=Decimal(maker))
     session = PaperSession(DataPortal(db), lambda t: svc.load(t)[1], BuyAndHold(), "BTCUSDT", START, "1min", Decimal(1000), cost)
-    order = {"ref": "BTCUSDT#1", "side": "BUY", "decision_time": START.isoformat(), "status": "PENDING"}
+    order = {"ref": "BTCUSDT#1", "side": side, "decision_time": START.isoformat(), "status": "PENDING"}
+    if side == "SELL":
+        session.book.balances = {"BTC": Decimal(10), "USDT": Decimal(0)}
     session.orders.append(order)
     session.pending = PendingOrder(order, Decimal(1), START, Decimal(101))
     for top in tops:
@@ -174,6 +178,66 @@ def test_limit_order_fills_after_the_queue_ahead_trades_away_at_the_maker_fee(tm
     assert Decimal(order["fee"]) == Decimal(order["qty"]) * Decimal("0.0002")
     assert Decimal(order["costs"]["spread"]) < 0  # resting at the bid earns half the spread
     assert len(session.limit_trades) == 2  # the print before the order rested does not count
+
+
+def test_limit_print_only_fills_the_quantity_remaining_after_queue_depletion(tmp_path):
+    _, session = _limit_session(tmp_path, [(3, "100", "1.5", "SELL"), (7, "100", "1", "SELL"),
+                                              (12, "100", "0.25", "SELL")])
+    fills = [o for o in session.orders if o["status"] == "FILLED"]
+    assert [Decimal(o["qty"]) for o in fills] == [Decimal("0.5"), Decimal("0.25")]
+    assert session.pending is not None
+    assert Decimal(session.pending.record["remaining_qty"]) == Decimal("9.25")
+    assert session.book.get("USDT") == Decimal(925)
+    assert session.book.get("BTC") == Decimal("0.75") * (1 - Decimal("0.0002"))
+    session.settle(None, START + timedelta(seconds=61))
+    assert session.pending is None and session.orders[-1]["reason"] == "LIMIT_EXPIRED"
+    assert sum((Decimal(o["qty"]) for o in session.orders if o["status"] == "FILLED"), Decimal(0)) == Decimal("0.75")
+
+
+def test_trade_through_is_bounded_by_print_size(tmp_path):
+    order, session = _limit_session(tmp_path, [(7, "99", "0.1", "SELL")])
+    assert Decimal(order["qty"]) == Decimal("0.1")
+    assert session.pending is not None
+
+
+def test_full_limit_fill_has_no_working_remainder(tmp_path):
+    order, session = _limit_session(tmp_path, [(7, "100", "50", "SELL")])
+    assert Decimal(order["qty"]) == Decimal(10)
+    assert session.pending is None
+    assert session.cost.describe()["limit_fill_model"] == "queue-capacity/2"
+
+
+def test_limit_sell_partials_conserve_base_and_quote_fees(tmp_path):
+    _, session = _limit_session(tmp_path, [(3, "101", "2.25", "BUY"), (7, "101", "0.5", "BUY")], side="SELL")
+    fills = [o for o in session.orders if o["status"] == "FILLED"]
+    assert [Decimal(o["qty"]) for o in fills] == [Decimal("0.25"), Decimal("0.5")]
+    assert session.book.get("BTC") == Decimal("9.25")
+    assert session.book.get("USDT") == Decimal("0.75") * 101 * (1 - Decimal("0.0002"))
+    assert all(o["fee_ccy"] == "USDT" for o in fills)
+
+
+def test_crossing_quote_and_print_capacity_are_not_added_twice(tmp_path):
+    order, session = _limit_session(tmp_path, [(3, "99", "0.1", "SELL")], crossing=True)
+    assert Decimal(order["qty"]) == Decimal("0.2")
+    assert Decimal(session.pending.record["remaining_qty"]) == Decimal("9.8")
+
+
+def test_delayed_preplacement_print_cannot_clear_a_resting_queue(tmp_path):
+    from gym.domain.model import TradeTick
+    from gym.services.data_portal import DataPortal
+    order, session = _limit_session(tmp_path, [])
+    session.portal.db.add_trade(TradeTick("BTCUSDT", START, START + timedelta(seconds=30), Decimal(100), Decimal(50), "SELL"), "x")
+    top = DataPortal(session.portal.db).tops("BTCUSDT", START, START + timedelta(seconds=30))[-1]
+    from dataclasses import replace
+    session.settle(replace(top, ts_avail=START + timedelta(seconds=30)), START + timedelta(seconds=30))
+    assert order["status"] == "PENDING" and not session.limit_trades
+
+
+@pytest.mark.parametrize("queue", ["-2", "NaN", "Infinity"])
+def test_invalid_displayed_queue_cannot_create_fill_capacity(tmp_path, queue):
+    order, session = _limit_session(tmp_path, [(7, "100", "0.1", "SELL")], queue=queue)
+    assert order["status"] == "NONFILL" and order["reason"] == "QUEUE_UNKNOWN"
+    assert session.book.get("USDT") == 1000 and session.book.get("BTC") == 0
 
 
 def test_limit_order_with_queue_left_expires_without_a_fill(tmp_path):

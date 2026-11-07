@@ -1,5 +1,6 @@
 """Restartable native replay recipes; rebuild state from verified history instead of loading objects."""
 from copy import deepcopy
+from dataclasses import asdict
 from datetime import timedelta
 from decimal import Decimal
 
@@ -29,8 +30,8 @@ def _state(session):
     return digest({"cursor": iso(session.cursor), "state": session.state, "decisions": session.decisions,
                    "orders": session.orders, "balances": session.book.balances, "postings": session.book.postings,
                    "curve": session.curve, "bar_events": session.bar_events, "rules": session.rule_snapshots,
-                   "pending": None if pending is None else [pending.record, pending.fraction,
-                       iso(pending.decision_time), pending.decision_price]})
+                   "limit_trades": session.limit_trades,
+                   "pending": None if pending is None else asdict(pending)})
 
 
 def checkpoint_replay(registry, db, request, *, resume=False):

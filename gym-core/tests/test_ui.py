@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gym.api.server import UI
+from gym.api.server import UI, UI_ASSETS
 
 
 class Page(HTMLParser):
@@ -60,7 +60,9 @@ def test_ui_navigation_and_form_labels():
 
 
 def test_ui_javascript_syntax():
-    for name in ("app.js", "models.js", "research.js", "margin.js", "native-review.js"):
+    for name in UI_ASSETS:
+        if not name.endswith(".js"):
+            continue
         result = subprocess.run([node(), "--check", str(UI.with_name(name))], capture_output=True, encoding="utf-8")
         assert result.returncode == 0, result.stderr
 

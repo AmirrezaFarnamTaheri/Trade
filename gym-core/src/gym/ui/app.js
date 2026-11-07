@@ -527,7 +527,7 @@ function applyLang() {
   renderComparison();
   if (state.researchState) renderResearchJobs(state.researchState);
   if (state.view === "models") window.gymModels?.mount(api, esc);
-  if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); }
+  if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure}); }
 }
 
 const invalidQuoteFlags = new Set(["STALE", "CROSSED", "ZERO_SPREAD", "NON_FINITE", "NON_POSITIVE"]);
@@ -1013,7 +1013,7 @@ async function collectView(name, healthTask) {
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
   if (name === "research") {
     window.gymResearch?.mount(api, esc);
-    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO});
+    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure});
     const results = await Promise.allSettled([research(), researchJobs()]);
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
   }

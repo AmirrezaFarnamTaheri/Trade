@@ -2,7 +2,7 @@
 from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 
 from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.market_models import decimal
@@ -232,7 +232,7 @@ class PaperSession:
             self.pending = None
 
     def settle_limit(self, top, at, closing):
-        """Rest at the near touch; fill when the queue ahead trades away, or the market trades or quotes through."""
+        """Rest at the near touch; each fill is bounded by observed trades or crossing quote capacity."""
         pending, order = self.pending, self.pending.record
         buy = order["side"] == "BUY"
         if closing or at > pending.decision_time + self.cost.max_wait:
@@ -243,36 +243,82 @@ class PaperSession:
             return
         if pending.limit is None:
             shown = top.bid_qty if buy else top.ask_qty
-            if shown is None:
+            try:
+                shown = decimal(shown, "displayed queue")
+            except ValueError:
                 order.update(status="NONFILL", reason="QUEUE_UNKNOWN", fill_time=iso(top.ts_avail))
                 self.pending = None
                 return
             pending.limit, pending.queue_ahead, pending.checked = (top.bid if buy else top.ask), shown, top.ts_avail
+            spec = self.portal.spec_at(self.symbol, at)
+            with localcontext() as ctx:
+                ctx.rounding = ROUND_DOWN
+                quantity = self.book.get(self.instrument.quote) * pending.fraction / pending.limit if buy else self.book.get(self.instrument.base) * pending.fraction
+                if spec.qty_decimals is not None:
+                    quantity = quantity.quantize(Decimal(1).scaleb(-spec.qty_decimals), ROUND_DOWN)
+            pending.max_qty = quantity if pending.max_qty is None else min(quantity, pending.max_qty)
             order.update(limit_price=str(pending.limit), placed_at=iso(top.ts_avail), queue_ahead=str(shown))
+            order["remaining_qty"] = str(pending.max_qty)
+            return
+        if top.ts_avail <= pending.checked:
             return
         through = top.ask <= pending.limit if buy else top.bid >= pending.limit
-        prints = [x for x in self.portal.trades_by_event(self.symbol, pending.checked - self.cost.max_wait, top.ts_avail + timedelta(microseconds=1))
-                  if pending.checked < x.ts_avail <= top.ts_avail and x.ts_event >= pending.checked - self.cost.max_wait]
+        placed = parse_ts(order["placed_at"])
+        prints = [x for x in self.portal.trades_by_event(self.symbol, placed, top.ts_avail + timedelta(microseconds=1))
+                  if pending.checked < x.ts_avail <= top.ts_avail]
+        capacity = Decimal(0)
         for trade in prints:
             against = trade.aggressor == ("SELL" if buy else "BUY")  # takers hitting our side
             if not against:
                 continue
+            try:
+                decimal(trade.price, "trade price", positive=True)
+                decimal(trade.qty, "trade quantity", positive=True)
+            except ValueError:
+                continue
             self.limit_trades.append((iso(trade.ts_event), iso(trade.ts_avail), str(trade.price), str(trade.qty), trade.aggressor))
             if trade.price < pending.limit if buy else trade.price > pending.limit:
-                through = True
+                pending.queue_ahead = Decimal(0)
+                capacity += trade.qty
             elif trade.price == pending.limit:
-                pending.queue_ahead -= trade.qty
+                ahead = min(pending.queue_ahead, trade.qty)
+                pending.queue_ahead -= ahead
+                capacity += trade.qty - ahead
         pending.checked = top.ts_avail
-        # shortcut: the whole order fills once the queue ahead is gone; partial queue fills are not modeled.
-        if not through and pending.queue_ahead >= 0:
+        if through:
+            shown = top.ask_qty if buy else top.bid_qty
+            try:
+                shown = decimal(shown, "crossing quantity")
+            except ValueError:
+                shown = Decimal(0)
+            # The quote and its preceding prints may describe the same liquidity.
+            capacity = max(capacity, shown or Decimal(0))
+            pending.queue_ahead = Decimal(0)
+        if capacity <= 0:
             return
-        result = market_order(self.book, self.instrument, order["side"], pending.fraction, pending.decision_time,
+        result = market_order(self.book, self.instrument, order["side"], Decimal(1), pending.decision_time,
                               pending.decision_price, [top], 0, self.cost, self.portal.spec_at(self.symbol, at),
                               self.rules_for(at), self.quota, order["ref"],
-                              self.day_open.get(tehran_day(top.ts_avail)), max_qty=pending.max_qty, limit_price=pending.limit)
+                              self.day_open.get(tehran_day(top.ts_avail)), max_qty=min(pending.max_qty, capacity), limit_price=pending.limit)
+        if result["status"] != "FILLED" and result.get("reason") == "BELOW_MIN_NOTIONAL":
+            order["last_nonfill_reason"] = result["reason"]
+            return
         order.update({k: v for k, v in result.items() if k not in ("ref", "side", "decision_time")})
         order["maker"] = True
         self.pending = None
+        if result["status"] == "FILLED":
+            remaining = pending.max_qty - Decimal(result["qty"])
+            order["requested_qty"], order["remaining_qty"] = str(pending.max_qty), str(remaining)
+            if remaining > 0:
+                parent = order.get("parent", order["ref"])
+                child = {"ref": f"{parent}.{sum(o.get('parent') == parent for o in self.orders) + 1}",
+                         "parent": parent, "side": order["side"], "decision_time": order["decision_time"],
+                         "status": "PENDING", "limit_price": str(pending.limit), "placed_at": order["placed_at"],
+                         "queue_ahead": str(pending.queue_ahead), "remaining_qty": str(remaining)}
+                self.orders.append(child)
+                self.pending = PendingOrder(child, Decimal(1), pending.decision_time, pending.decision_price,
+                                            max_qty=remaining, limit=pending.limit,
+                                            queue_ahead=pending.queue_ahead, checked=pending.checked)
 
     def feed(self, top):
         if self.state in ("ENDED", "ABORTED") or top.ts_avail < self.cursor:

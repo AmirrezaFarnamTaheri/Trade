@@ -12,6 +12,7 @@ and the [unified implementation plan](implementation-plan.md).
 - [Metrics and their limitations](metrics.md)
 - [Storage ownership](storage.md)
 - [Compound strategies](compound-strategies.md)
+- [Shared-cash portfolio replay](portfolio-replay.md)
 - [Wallex margin previews and paper replay](wallex-margin.md)
 - [Paper campaign definitions](paper-qualification.md)
 - [Design decisions](decisions.md)

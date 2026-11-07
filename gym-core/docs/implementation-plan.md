@@ -58,7 +58,7 @@ results as produced by the corrected portfolio implementation.
 | O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Startup verified; fresh venue coverage blocked by connectivity |
 | O2 | Supervise collection and paper scheduling | No duplicate processes; clear failures/retries; no hidden narrowing to BTC/ETH/USDT; recovery preserves history | Limited-user task supervision verified; sustained observation still open |
 | O3 | Publish one current campaign/results view | Show defined/attempted/completed/ready/traded counts, exclusions, dated progress and process liveness separately | Queued |
-| O4 | Add shared-cash portfolio replay to GUI/API | Same validated native owner as CLI, bounded jobs, readable errors and verified saved records | Queued |
+| O4 | Add shared-cash portfolio replay to GUI/API | Same validated native owner as CLI, bounded jobs, readable errors and verified saved records | Implemented; native worker/API and EN/FA DOM regressions passed; real-browser visual check remains unverified |
 
 Prospective evidence is collected with actual clocks; elapsed downtime is a gap,
 not fabricated history. Multi-day paper sessions cannot be declared complete at launch.
@@ -91,10 +91,10 @@ not fabricated history. Multi-day paper sessions cannot be declared complete at 
 | 28 | Walk-forward parameter search | Freeze training/test chronology, purge overlaps, record every trial/failure and selection count; never tune the final window | Queued |
 | 29 | Overfitting and regime diagnostics | Declare CSCV/block/dependence assumptions; distinguish trade-path reshuffling from new market samples; no confidence from insufficient data | Queued |
 | 16 | Shared optional exit policy | Fixed, ATR trailing, profit and time exits; actual holdings/fills, partials, dust, costs and closures; defaults preserve existing run identities | Queued |
-| 17 | Parameterize RSI/MACD/TRIX/Keltner rules | Validate ranges and readiness; version/hash changed behavior; keep prior defaults reproducible | Queued |
+| 17 | Parameterize RSI/MACD/TRIX/Keltner rules | Validate ranges and readiness; version/hash changed behavior; keep prior defaults reproducible | Implemented; bounded schemas, custom readiness/gap tests and unchanged default hashes passed |
 | 19 | Optional reusable regime gate | Verify the actual detector owner first; causal inputs, explicit regime transitions, default-off identity compatibility | Queued |
 | 20 | Stop-risk sizing in replay | Reuse portfolio_sizing with exact quantities, stop distance, shared cash, reservations, venue minimums and explicit unknowns | Queued |
-| 24 | Partial resting-limit fills | Queue depletion limits filled quantity; maker fees and remaining order state reconcile; no whole-order fill from a tiny print | Queued |
+| 24 | Partial resting-limit fills | Queue depletion limits filled quantity; maker fees and remaining order state reconcile; no whole-order fill from a tiny print | Implemented; buy/sell/expiry/capacity and malformed-queue regressions passed; public queue remains modeled |
 | 26 | Calibrated execution assumptions | Reuse calibrate evidence with source/freshness/sample limits; unauthenticated or absent measurements cannot silently become trusted defaults | Queued |
 
 ## Phase 5 — Strategy and portfolio hypotheses

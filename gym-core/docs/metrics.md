@@ -24,3 +24,20 @@ All of them describe a paper replay with modeled costs. None of them is evidence
 Execution models that change these figures: `--participation`, `--walk-depth` (needs `run --depth-levels`),
 `--carry-remainder`, `--order-type limit` with `--maker-fee`, and sizing with `--max-fraction` / `--vol-target`.
 Default runs keep their earlier run IDs (see [decision D4](decisions.md)).
+
+Resting limit fills use `queue-capacity/2`: trades first deplete the displayed
+queue ahead, and only their remaining quantity can fill the order. Trades through
+the limit and crossing quotes also have observed capacity bounds. Quote and print
+capacity are not added when they may describe the same liquidity. Partial fills
+retain a working child for the exact remaining quantity until expiry or session
+end. Maker fees post on every fill. Public observations do not reveal actual queue
+position; this remains a model. Older limit runs predate this correction and are
+retained; new limit runs carry a different cost-model fingerprint.
+
+RSI rebound, MACD crossover, TRIX crossover and Keltner breakout expose bounded
+periods and thresholds through the strategy registry, CLI `--params` and browser
+parameter controls. RSI requires `period + 1` bars; MACD requires
+`slow + signal - 1`; TRIX requires `3 × period + signal - 2`. Keltner readiness
+also requires its configured ADX and channel history. Gaps reset that history.
+Original defaults retain version 1 and their original configuration hashes;
+nondefault settings use version 2 and distinct hashes.

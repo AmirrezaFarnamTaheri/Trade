@@ -13,6 +13,7 @@ from .strategy import (
     SmaReversion,
     digest,
 )
+from .technical_strategies import PARAMETERS as TECHNICAL_PARAMETERS
 from .technical_strategies import KeltnerBreakout, MacdCross, RsiRebound, TrixCross
 
 STRATEGIES = {
@@ -41,10 +42,10 @@ STRATEGIES = {
         "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 10000},
         "reference": {"type": "string", "default": "ETHUSDT", "pattern": "^[A-Z0-9]{2,24}$"},
     }),
-    "rsi-rebound": (RsiRebound, "RSI rebound (30/70)", {}),
-    "macd-cross": (MacdCross, "MACD crossover (12/26/9)", {}),
-    "trix-cross": (TrixCross, "TRIX crossover (15/9)", {}),
-    "keltner-breakout": (KeltnerBreakout, "Keltner breakout (20/14/2, ADX25)", {}),
+    **{name: (constructor, title, {key: {"type": "integer", "default": default, "minimum": lo, "maximum": hi}
+                                 for key, (default, lo, hi) in TECHNICAL_PARAMETERS[name].items()})
+       for name, constructor, title in (("rsi-rebound", RsiRebound, "RSI rebound"), ("macd-cross", MacdCross, "MACD crossover"),
+                                       ("trix-cross", TrixCross, "TRIX crossover"), ("keltner-breakout", KeltnerBreakout, "Keltner breakout"))},
     "trend-pullback": (TrendPullback, "Cost-aware trend pullback", COMPOUND_PARAMETERS),
     "adaptive-channel": (AdaptiveChannel, "Regime-adaptive channel", COMPOUND_PARAMETERS),
 }
@@ -75,6 +76,6 @@ def create_strategy(name="ema-trend", params=None):
         if not valid:
             raise ValueError(f"invalid strategy parameter: {key}")
     strategy = constructor(**values)
-    strategy.version = getattr(constructor,"version",1)
+    strategy.version = getattr(strategy,"version",1)
     strategy.config_hash = digest({"strategy": name, "version": strategy.version, "params": strategy.params})
     return strategy

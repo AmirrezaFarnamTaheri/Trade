@@ -15,6 +15,14 @@ and the local evidence folders. This page describes the current delivery.
   assets/reference snapshots/depth/limit prints/rules/specifications to its ID,
   and rejects alias markets that would double-count one holding. It uses one
   independent read snapshot. Old saved study engines and records are retained.
+- Shared-cash replay is available in the private research API and EN/FA Workbench.
+  Native quote/trade counts, worker time, saved-file size and response size are bounded.
+  Saved reads verify fingerprints and recompute aggregate performance.
+- Resting limits now cap fills to observed capacity after queue depletion, charge
+  maker fees per partial fill and retain exact working remainders until expiry.
+  New limit identities carry queue-capacity/2; old artifacts remain unchanged.
+- RSI/MACD/TRIX/Keltner periods and thresholds have validated registry schemas.
+  Nondefault configurations use version 2; default identities remain version 1.
 - Unsupported compound limit orders and working remainders now fail explicitly;
   the simulator does not silently reinterpret the requested execution model.
 - Portable JSON/HTML cards retain allowlisted optional execution/sizing assumptions.
@@ -47,7 +55,8 @@ was performed during this delivery.
 
 ## Current validation
 
-- Python: 1,161 passed, four skipped, 39 subtests passed.
+- Python: 1,199 passed, four skipped, 39 subtests passed; 54 affected-path
+  checks passed after the final saved-read and UI validation changes.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three
   shared-clock directory helpers now use atomic per-process suffixes.
 - Python lint, Rust formatting and strict Clippy passed.
@@ -73,7 +82,7 @@ Future prospective sessions depend on restoring actual source connectivity.
 
 The [unified plan](implementation-plan.md) retains all 31 cleanup/finance proposals
 and audit findings. The first correctness batch is implemented; structural cleanup,
-GUI portfolio parity, expanded measurement/strategies and remaining acceptance
+expanded measurement/strategies and remaining acceptance
 are not all complete. Active .pi evidence and original specifications remain in place.
 See [acceptance gates](acceptance-status.md) for protected account/execution,
 independent evaluation, cost calibration and physical-machine recovery requirements.

@@ -107,14 +107,21 @@ def load_verified_run(root, run_id, *, store):
             raise ValueError("run source exceeds size bound")
         out = json.loads(raw)
         live_session = out["inputs"].get("kind") == "live-session"
+        portfolio = out["inputs"].get("kind") == "portfolio"
+        if portfolio and (out.get("mode") != "PORTFOLIO" or any(k in out for k in ("baselines", "ranking", "fx"))):
+            raise ValueError("portfolio cannot contain independent replay comparisons")
         if live_session and (out["baselines"] != {} or out["fx"] is not None or "ranking" in out):
             raise ValueError("live session cannot contain replay comparisons")
-        outputs = out["result"] if live_session else {k: out[k] for k in ("result", "baselines", "ranking", "fx")}
+        outputs = out["result"] if live_session or portfolio else {k: out[k] for k in ("result", "baselines", "ranking", "fx")}
         if (out["run_id"] != run_id or digest(out["inputs"])[:16] != run_id
                 or digest(outputs)[:16] != out["outputs_digest"]):
             raise ValueError("run digest mismatch")
         if out["inputs"]["store"] != store:
             raise ValueError("run source store mismatch")
+        if portfolio:
+            from ..domain.performance import performance
+            from ..services.reports import sampled_drawdown
+            out["performance"] = {k: v for k, v in performance(out, sampled_drawdown(out)).items() if k not in ("ledger", "trades")}
         return out
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, KeyError, TypeError, AttributeError):
         raise ValueError("invalid run artifact structure") from None

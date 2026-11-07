@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Portfolio workflows and execution realism
+- Shared-cash portfolio replay now reaches the private research API and EN/FA browser
+  workbench through the existing bounded worker. Saved portfolios are listed and verified;
+  derived performance is recomputed from verified records.
+- Resting limit orders fill only observed capacity after queue depletion, retain exact
+  working remainders and charge maker fees per fill. Invalid queue sizes cannot invent
+  capacity. New limit records carry the queue-capacity/2 cost fingerprint.
+- RSI, MACD, TRIX and Keltner rules accept bounded periods and thresholds, reset custom
+  history across gaps and publish their actual readiness. Default configurations keep
+  their existing identities; changed configurations use strategy version 2.
+
 ### Correctness and operations
 - Portfolio revision 2 closes all market clocks before revealing later quotes; shared-cash
   marks and allocation no longer consume future prices. Its IDs bind resolved assets,

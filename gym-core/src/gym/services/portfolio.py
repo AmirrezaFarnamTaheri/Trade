@@ -20,6 +20,8 @@ from .data_portal import DataPortal
 from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
+MAX_OBSERVATIONS = 200_000
+
 
 def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, resolution: str = "15min",
               cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), strategy_id: str = "ema-trend",
@@ -39,6 +41,16 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         raise ValueError("a portfolio needs 2..8 distinct markets")
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
+    placeholders = ",".join("?" for _ in symbols)
+    tables = [("book_top", "ts_avail")]
+    if cost.order_type == "limit":
+        tables.append(("trades", "ts_event"))
+    for table, clock in tables:
+        count = db.c.execute(f"SELECT count(*) FROM (SELECT 1 FROM {table} WHERE instrument_id IN ({placeholders}) "
+                             f"AND {clock}>=? AND {clock}<? LIMIT ?)",
+                             (*("wallex:" + s for s in symbols), iso(t0), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+        if count > MAX_OBSERVATIONS:
+            raise ValueError("portfolio observation budget exceeded; narrow the window")
     portal, svc = DataPortal(db), RuleService(db)
     today = svc.load()[1]
     rule_evidence = {}

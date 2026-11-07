@@ -69,6 +69,7 @@ class CostModel:
         if self.order_type != "market":
             out["order_type"] = self.order_type
             out["maker_fee_rate"] = str(self.maker_fee)
+            out["limit_fill_model"] = "queue-capacity/2"
         return out
 
     @property
@@ -90,6 +91,8 @@ class CostModel:
 
     @classmethod
     def from_description(cls, d: dict) -> CostModel:
+        if d.get("limit_fill_model", "queue-capacity/2") != "queue-capacity/2":
+            raise ValueError("unsupported limit fill model")
         return cls(Decimal(d["fee_rate"]), timedelta(milliseconds=d["latency_ms"]), timedelta(seconds=d["max_wait_s"]),
                    max_participation=Decimal(d["max_participation"]) if "max_participation" in d else None,
                    walk_depth=d.get("walk_depth", False), carry_remainder=d.get("carry_remainder", False),
