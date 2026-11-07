@@ -1,6 +1,6 @@
 """Later outcomes cannot choose the strategy evaluated on those outcomes."""
-from datetime import timedelta
 import json
+from datetime import timedelta
 
 import pytest
 

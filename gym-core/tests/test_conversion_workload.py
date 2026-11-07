@@ -1,7 +1,7 @@
 """C2 conversion workload and implementation shortfall with deterministic fake fills."""
 import pytest
 
-from gym.domain.conversion import ConversionWorkload, ConversionUnsafe
+from gym.domain.conversion import ConversionUnsafe, ConversionWorkload
 
 
 def conversion(**kwargs):
@@ -79,8 +79,8 @@ def test_conversion_cannot_execute_when_stale_closed_over_spread_or_budget():
 
 def test_fake_fill_idempotency_is_exact_and_never_overfills():
     work = conversion()
-    kw = dict(quantity="1", price="99", quote_fee="0.1",
-              observed_at="2026-11-01T08:15:00Z")
+    kw = {"quantity": "1", "price": "99", "quote_fee": "0.1",
+              "observed_at": "2026-11-01T08:15:00Z"}
     assert work.observe_fake_fill("fill-1", **kw) == 1
     assert work.observe_fake_fill("fill-1", **kw) == 1
     with pytest.raises(ConversionUnsafe, match="conflict"):

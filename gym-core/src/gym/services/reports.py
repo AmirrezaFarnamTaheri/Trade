@@ -5,6 +5,7 @@ from decimal import Decimal
 from statistics import mean, stdev
 
 from ..domain.model import QualityLimits, iso, parse_ts
+from ..domain.performance import performance
 from ..domain.strategy import digest
 
 
@@ -45,14 +46,16 @@ def paper_summary(out):
     """Portable allowlisted run card; private notes and arbitrary evidence stay local."""
     inputs, result = out["inputs"], out["result"]
     evidence = economic_report(out)
-    card = {"schema": "paper-summary/1", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
-            "authority": "PAPER_ONLY", "funded_authority": False, "order_submitted": False,
+    # v2: adds risk/return performance; drops the constant funded_authority/order_submitted flags.
+    card = {"schema": "paper-summary/2", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
+            "authority": "PAPER_ONLY",
             "inputs": {k: inputs[k] for k in ("engine", "symbol", "from", "to", "resolution", "strategy",
                                               "strategy_version", "config_hash", "rules_mode", "store", "data", "snapshots")},
             "currency": result["quote"], "starting_cash": result["start_cash"],
             "end": {k: result["end"][k] for k in ("mark_time", "equity", "net")} if result.get("end") else None,
             "counts": {k: result[k] for k in ("observations", "qualified", "bars", "fills")},
-            "valuation": evidence["valuation"], "sampled_drawdown": sampled_drawdown(out),
+            "valuation": evidence["valuation"], "sampled_drawdown": evidence["sampled_drawdown"],
+            "performance": {k: v for k, v in evidence["performance"].items() if k != "ledger"},
             "cost_assumptions": {k: inputs["cost"][k] for k in ("fee_rate", "latency_ms", "max_wait_s", "fee_assumption")},
             "limitations": ["Paper fills and costs are modeled. No capital is authorized.",
                             "Summary omits decisions, private notes and account data; retain the original run for replay.",
@@ -67,18 +70,10 @@ def paper_summary(out):
 def economic_report(out, diag=None):
     result = out["result"]
     inputs = out["inputs"]
-    # One observation per completed round trip, not per tick or fill; still serially dependent.
-    returns = []
-    entry_value = None
-    for order in result["orders"]:
-        if order["status"] != "FILLED":
-            continue
-        if order["side"] == "BUY":
-            entry_value = Decimal(order["qty"]) * Decimal(order["price"])
-        elif entry_value:
-            proceeds = Decimal(order["qty"]) * Decimal(order["price"]) - Decimal(order["fee"])
-            returns.append(float((proceeds - entry_value) / entry_value))
-            entry_value = None
+    # One observation per closed trade (FIFO lots), not per tick or fill; still serially dependent.
+    drawdown = sampled_drawdown(out)
+    perf = performance(out, drawdown)
+    returns = [float(trade["return"]) for trade in perf["ledger"] if trade["return"] is not None]
 
     mean_return = mean(returns) if returns else None
     sample_sigma = stdev(returns) if len(returns) >= 2 else None
@@ -112,7 +107,8 @@ def economic_report(out, diag=None):
         "iid_sample_estimate": sample_estimate,
         "strongest_baseline": {"name": strongest[0], "net": str(strongest[1])} if strongest else None,
         "valuation": valuation,
-        "sampled_drawdown": sampled_drawdown(out),
+        "sampled_drawdown": drawdown,
+        "performance": perf,
         "claim_ceiling": "NONE" if is_demo else "EXPERIMENTAL",
         "gate_eligible": False,
         "primary_limitation": limitation,
@@ -136,12 +132,12 @@ def text_report(out: dict) -> str:
         return f"{Decimal(value):>16,.2f}"
 
     lines = [
-        f"PAPER run {out['run_id']}  {result['strategy']} {result['params']} "
-        f"on {result['symbol']} {out['inputs']['resolution']}",
-        f"window {out['inputs']['from']} .. {out['inputs']['to']}   rules: {out['inputs']['rules_mode']}   "
-        f"outputs {out['outputs_digest']}",
-        f"bars {result['bars']}  fills {result['fills']}  nonfills {result['nonfills'] or 0}  "
-        f"observations {result['observations']} (qualified {result['qualified']})", "",
+        (f"PAPER run {out['run_id']}  {result['strategy']} {result['params']} "
+        f"on {result['symbol']} {out['inputs']['resolution']}"),
+        (f"window {out['inputs']['from']} .. {out['inputs']['to']}   rules: {out['inputs']['rules_mode']}   "
+        f"outputs {out['outputs_digest']}"),
+        (f"bars {result['bars']}  fills {result['fills']}  nonfills {result['nonfills'] or 0}  "
+        f"observations {result['observations']} (qualified {result['qualified']})"), "",
     ]
     if end:
         valuation = economic_report(out)["valuation"]
@@ -151,6 +147,16 @@ def text_report(out: dict) -> str:
             lines.append(f"  {name:<16}{money(value)}")
         lines.append(f"  {'equity':<16}{money(end['equity'])}   net liquidation estimate (modeled) "
                      f"{money(end['net_liquidation_estimate']).strip()}")
+        perf = economic_report(out)["performance"]
+        if perf.get("status") == "AVAILABLE":
+            trades, ret = perf["trades"], perf.get("returns") or {}
+            def ratio(v):
+                return "n/a" if v is None else f"{v:.2f}"
+            lines += ["", (f"Performance: return {perf.get('total_return_pct', 'n/a')}%   max drawdown {perf.get('max_drawdown_pct', 'n/a')}%   "
+                           f"Sharpe/period {ratio(ret.get('sharpe_per_period'))}   annualized {ratio(ret.get('sharpe_annualized'))}   "
+                           f"P(Sharpe>0) {ratio(ret.get('probabilistic_sharpe'))}"),
+                      (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
+                       f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
     active = out["ranking"]["active"]
     lines += ["", "active ranking (USDT-equivalent; abstainers excluded):"]
     if active:

@@ -1,6 +1,6 @@
 """The GUI journal uses canonical previews and the server's actual review clock."""
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -14,7 +14,7 @@ from tests.test_offline_review_journal import preview
 
 
 def test_journal_api_preserves_native_validation_and_cannot_backdate_acknowledgments(tmp_path, monkeypatch):
-    monkeypatch.setattr(offline_reviews, "now_utc", lambda: datetime(2026, 11, 1, 8, 0, 10, tzinfo=timezone.utc))
+    monkeypatch.setattr(offline_reviews, "now_utc", lambda: datetime(2026, 11, 1, 8, 0, 10, tzinfo=UTC))
     db = market_db(tmp_path, quote_history(n=10))
     col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
 

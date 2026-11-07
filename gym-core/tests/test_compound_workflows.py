@@ -1,7 +1,7 @@
 """Native indicator triggers, persistence, scheduling and decision inspection together."""
+import json
 from datetime import timedelta
 from decimal import Decimal
-import json
 
 import pytest
 

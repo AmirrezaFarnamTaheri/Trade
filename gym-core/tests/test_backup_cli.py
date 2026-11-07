@@ -1,7 +1,9 @@
 """Manual B3 single-pass command keeps backup phrases out of arguments/logs."""
 from argparse import Namespace
-import gym.cli as cli
+
 import pytest
+
+from gym import cli
 
 
 def test_backup_cli_refuses_unattended_stdin(monkeypatch, tmp_path):

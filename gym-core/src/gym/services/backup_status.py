@@ -1,8 +1,8 @@
 """Sanitized local receipts of completed operations; never a live archive inventory."""
 import json
-from pathlib import Path
 import re
 import sqlite3
+from pathlib import Path
 
 from ..adapters.wallex_account_read import parse_account_json
 from ..domain.market_models import fields, instant

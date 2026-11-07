@@ -1,4 +1,14 @@
-const { token: TOKEN, demo: DEMO, resolutions: FIXED_RESOLUTIONS = [] } = JSON.parse(document.getElementById("gym-config").textContent);
+const { demo: DEMO, resolutions: FIXED_RESOLUTIONS = [] } = JSON.parse(document.getElementById("gym-config").textContent);
+// The per-run key arrives once in the URL fragment, which browsers never send to the server, and stays in this tab.
+let TOKEN = (() => {
+  const match = /^#t=([A-Za-z0-9_-]{16,128})$/.exec(location.hash);
+  try {
+    if (match) { sessionStorage.setItem("gym-token", match[1]); history.replaceState(null, "", location.pathname + location.search); }
+    return match?.[1] || sessionStorage.getItem("gym-token") || "";
+  } catch (_) { return match?.[1] || ""; }
+})();
+// A private link pasted into an already-open tab only changes the fragment; reload so the key is read.
+addEventListener("hashchange", () => { if (/^#t=[A-Za-z0-9_-]{16,128}$/.test(location.hash)) location.reload(); });
 
 const vocabulary = {
   workspaceCapabilities: ["Workspace capabilities", "قابلیت‌های محیط کار"],
@@ -56,6 +66,7 @@ const vocabulary = {
   localWorkspace: ["Local workspace", "محیط محلی"], workspace: ["Agent workspace", "محیط عامل"],
   demoLabel: ["Demo workspace", "محیط نمایشی"],
   demoBanner: ["Synthetic market data. Research results cannot justify real capital.", "داده‌های ساختگی بازار. نتایج پژوهش مجوز استفاده از سرمایهٔ واقعی نیست."],
+  sessionKeyMissing: ["This tab has no session key. Open the link printed by gymctl run.", "این زبانه کلید نشست ندارد. پیوندی را که gymctl run چاپ می‌کند باز کنید."],
   connectionError: ["Data could not be refreshed. Previously loaded values may be out of date.", "به‌روزرسانی داده‌ها ممکن نشد. مقادیر قبلی ممکن است قدیمی باشند."],
   retry: ["Retry", "تلاش دوباره"], observatory: ["Agent observatory", "رصدخانهٔ عامل"],
   marketsTitle: ["The market, in view.", "بازار، پیش روی شما."],
@@ -72,7 +83,7 @@ const vocabulary = {
   researchEyebrow: ["Evaluate the agent", "ارزیابی عامل"], researchTitle: ["Paper research", "پژوهش آزمایشی"],
   researchLead: ["Evaluate saved agent runs, compare costs, and trace every decision.", "اجراهای ذخیره‌شدهٔ عامل را ارزیابی کنید، هزینه‌ها را بسنجید و هر تصمیم را دنبال کنید."],
   paperOnly: ["Paper results only", "فقط نتایج آزمایشی"], paperRuns: ["Saved runs", "اجراهای ذخیره‌شده"],
-  runLimit: ["Latest 50 runs", "۵۰ اجرای آخر"], accountEyebrow: ["Your observation journal", "دفتر مشاهدات شما"],
+  runFilter: ["Filter by symbol", "صافی بر اساس نماد"], loadMoreRuns: ["Load more runs", "نمایش اجراهای بیشتر"], accountEyebrow: ["Your observation journal", "دفتر مشاهدات شما"],
   accountTitle: ["Account journal", "دفتر حساب"],
   accountLead: ["Recorded balances and external orders, with their source and limitations.", "موجودی‌های ثبت‌شده و سفارش‌های خارجی، همراه با منبع و محدودیت‌ها."],
   readOnly: ["Read-only", "فقط خواندنی"], accountRead: ["Venue account (read-only)", "حساب صرافی (فقط خواندنی)"],
@@ -151,7 +162,7 @@ const vocabulary = {
   noEvidence: ["No evidence report is attached. This run cannot authorize trading.", "گزارش شواهدی پیوست نشده است. این اجرا نمی‌تواند مجوز معامله بدهد."],
   reportDetails: ["Report details & recorded operator decisions", "جزئیات گزارش و تصمیم‌های ثبت‌شدهٔ کاربر"],
   runInputs: ["Run inputs & session", "ورودی‌ها و نشست اجرا"],
-  lastDecisions: ["Last 100 decisions", "۱۰۰ تصمیم آخر"], decisionHelp: ["Expand a decision for its snapshot, marks, and matching paper order.", "برای دیدن تصویر بازار، نتایج و سفارش آزمایشی مرتبط، تصمیم را باز کنید."],
+  lastDecisions: ["Last 100 decisions", "۱۰۰ تصمیم آخر"], decisionHelp: ["Newest first. The decision log holds each snapshot, mark and matching paper order.", "جدیدترین در بالا. گزارش تصمیمات شامل هر تصویر لحظه‌ای، نشانه‌گذاری و سفارش آزمایشی مرتبط است."],
   noDecisions: ["No strategy decisions were recorded.", "تصمیمی از راهبرد ثبت نشده است."],
   fullRecord: ["Full record", "رکورد کامل"], accountNotConfigured: ["No account observation configured", "مشاهدهٔ حساب پیکربندی نشده است"],
   accountSetupHelp: ["Private account observations are not configured on this server. Market observation and paper research work without an account; never paste credentials here.", "مشاهدات خصوصی حساب در این سرور پیکربندی نشده است. مشاهدهٔ بازار و پژوهش آزمایشی به حساب نیاز ندارند؛ اطلاعات ورود را اینجا وارد نکنید."],
@@ -279,7 +290,7 @@ Object.assign(vocabulary, {
   observed_at: ["Observed at · zoned ISO", "زمان مشاهده · ISO با منطقه"], expires_at: ["Expires at · zoned ISO", "زمان انقضا · ISO با منطقه"], snapshot_seq: ["Snapshot sequence", "شمارهٔ تصویر"], quote_age_ms: ["Quote age · ms (0–2000)", "سن مظنه · میلی‌ثانیه (۰ تا ۲۰۰۰)"],
   previewChanged: ["Ticket changed. Preview again to calculate costs for these inputs.", "سفارش تغییر کرد. برای محاسبهٔ هزینهٔ این ورودی‌ها دوباره پیش‌نمایش بگیرید."],
   BUY: ["Buy", "خرید"], SELL: ["Sell", "فروش"], ENTRY: ["Entry", "ورود"], EXIT: ["Exit", "خروج"],
-  savedRunCount: ["Saved paper runs", "اجراهای آزمایشی ذخیره‌شده"], runCountNote: ["Latest 50 records", "۵۰ رکورد آخر"], executionStatus: ["Autonomous execution", "اجرای خودکار"],
+  savedRunCount: ["Saved paper runs", "اجراهای آزمایشی ذخیره‌شده"], runCountNote: ["Latest 50 records", "۵۰ رکورد آخر"],
   compareTitle: ["Compare paper strategies", "مقایسهٔ راهبردهای آزمایشی"],
   compareHelp: ["Both accounts use the same stored window, quotes, close snapshots, cash and costs. No execution proposals or orders.", "هر دو حساب از بازه، مظنه‌ها، تصاویر بسته‌شدن، سرمایه و هزینه‌های یکسان استفاده می‌کنند. بدون پیشنهاد اجرایی یا سفارش."],
   compareAction: ["Run matched comparison", "اجرای مقایسهٔ همسان"], comparing: ["Comparing…", "در حال مقایسه…"],
@@ -331,6 +342,74 @@ Object.assign(vocabulary, {
   selectedCandidate: ["Selected candidate", "گزینهٔ انتخاب‌شده"], ABSTAIN: ["No eligible candidate", "گزینهٔ واجد شرایط وجود ندارد"],
   EVALUATED: ["Evaluated", "ارزیابی‌شده"], STALE_HOLDOUT: ["Later valuation is stale", "ارزش‌گذاری بازهٔ بعدی کهنه است"],
 });
+Object.assign(vocabulary, {
+  sessionKeyTitle: ["Session key", "کلید نشست"], rotateKey: ["Rotate session key", "تعویض کلید نشست"],
+  sessionKeyHelp: ["Rotate the key if the private link was shared or saved somewhere. Other tabs and the link printed in the terminal stop working; this tab keeps access.", "اگر پیوند خصوصی جایی هم‌رسانی یا ذخیره شده است، کلید را تعویض کنید. سایر زبانه‌ها و پیوند چاپ‌شده در پایانه از کار می‌افتند و این زبانه دسترسی خود را حفظ می‌کند."],
+  rotatedKey: ["New private link for other tabs:", "پیوند خصوصی تازه برای زبانه‌های دیگر:"],
+  researchTabs: ["Research sections", "بخش‌های پژوهش"], glossaryTitle: ["What these figures mean", "معنای این ارقام"],
+  glossSharpe: ["Sharpe per period · Average return per equity mark divided by its standard deviation. Not annualized for short windows.", "میانگین بازده هر نشانه‌گذاری تقسیم بر انحراف معیار آن. برای بازه‌های کوتاه سالانه نمی‌شود."],
+  glossPsr: ["P(true Sharpe > 0) · Probability that the real Sharpe is above zero given this many marks, their skew and fat tails (probabilistic Sharpe ratio).", "احتمال مثبت بودن شارپ واقعی با توجه به تعداد نشانه‌ها، چولگی و دنباله‌های پهن (نسبت شارپ احتمالاتی)."],
+  glossDeflated: ["Deflated Sharpe · The same probability, but against the Sharpe the best of all tried configurations would reach by luck.", "همان احتمال، اما در برابر شارپی که بهترینِ همهٔ پیکربندی‌های آزموده‌شده به‌طور شانسی به آن می‌رسد."],
+  glossRange: ["90% range · Block bootstrap of the equity returns: nine in ten resampled histories fall inside it. Wide ranges mean little evidence.", "بوت‌استرپ بلوکی بازده‌ها: نه از ده تاریخچهٔ بازنمونه‌گیری در این بازه است. بازهٔ پهن یعنی شواهد کم."],
+  glossSortino: ["Sortino · Like Sharpe, but only losses count as risk.", "مانند شارپ، اما فقط زیان‌ها ریسک شمرده می‌شوند."],
+  glossCalmar: ["Calmar · Annualized return divided by the maximum drawdown.", "بازده سالانه تقسیم بر بیشترین افت."],
+  glossProfitFactor: ["Profit factor · Gross profit of winning trades divided by gross loss of losing trades. Above 1 is profitable before open positions.", "سود ناخالص معاملات برنده تقسیم بر زیان ناخالص معاملات بازنده. بالاتر از ۱ یعنی سودآور، بدون موقعیت باز."],
+  glossExposure: ["Time in market · Share of the window with a position open.", "سهم زمانی از بازه که موقعیتی باز بوده است."],
+  glossTurnover: ["Turnover · Value of all fills divided by starting cash. Costs grow with it.", "ارزش همهٔ معاملات تقسیم بر سرمایهٔ اولیه. هزینه‌ها با آن بزرگ می‌شوند."],
+  glossKelly: ["Kelly fraction · Share of cash the win rate and payoff would justify, if they held. Real use is a fraction of it; shown after 20 trades.", "سهمی از نقد که نرخ برد و نسبت سود به زیان توجیه می‌کند، اگر پایدار بمانند. در عمل کسری از آن؛ پس از ۲۰ معامله."],
+  glossBeta: ["Beta, alpha, information ratio · Against simply holding the base asset over the same marks: beta is sensitivity, alpha the return left over, information ratio that excess per unit of tracking error.", "در برابر نگهداری دارایی پایه در همان نشانه‌ها: بتا حساسیت، آلفا بازده باقی‌مانده و نسبت اطلاعات آن مازاد به‌ازای خطای ردیابی است."],
+  glossAvgCost: ["Average cost · Realized profit if each sale used the average purchase price instead of the oldest lots first.", "سود تحقق‌یافته اگر هر فروش به‌جای قدیمی‌ترین خریدها، میانگین قیمت خرید را مبنا بگیرد."],
+  chartKeys: ["Arrow keys step through the marks", "کلیدهای جهت‌نما نشانه‌ها را مرور می‌کنند"], underwater: ["Below the running peak", "زیر بالاترین سطح تا آن لحظه"],
+  overlayTitle: ["Equity paths · return from start", "مسیر ارزش حساب · بازده از آغاز"], pickRun: ["Select for comparison", "انتخاب برای مقایسه"],
+  comparePicked: ["Compare selected", "مقایسهٔ انتخاب‌شده‌ها"], savedComparisonTitle: ["Saved runs side by side", "اجراهای ذخیره‌شده کنار هم"],
+  savedComparisonNote: ["Runs can differ in window, market, cash and costs; this view does not make them a matched comparison.", "اجراها ممکن است در بازه، بازار، سرمایه و هزینه متفاوت باشند؛ این نما آن‌ها را مقایسهٔ هم‌شرایط نمی‌کند."],
+  downloadCsv: ["Download CSV", "دریافت CSV"], window: ["Window", "بازه"],
+  alertsOn: ["Desktop alerts: on", "هشدار دسکتاپ: روشن"], alertsOff: ["Desktop alerts: off", "هشدار دسکتاپ: خاموش"],
+  alertDisk: ["Less than a day of disk left before collection stops.", "کمتر از یک روز تا توقف گردآوری به‌دلیل کمبود فضا باقی است."],
+  alertStall: ["No market data for over two minutes.", "بیش از دو دقیقه دادهٔ بازار دریافت نشده است."],
+  alertClock: ["The system clock went backward; publication is paused.", "ساعت سیستم به عقب برگشته است؛ انتشار متوقف است."],
+  alertIntegrity: ["A raw archive file no longer matches its recorded hash.", "یک فایل بایگانی خام با درهم‌سازی ثبت‌شده مطابقت ندارد."],
+  poorData: ["Poor data", "دادهٔ ضعیف"], storageTitle: ["Storage and feed", "ذخیره‌سازی و خوراک داده"], freeSpace: ["Free space", "فضای آزاد"],
+  stopFloor: ["Collection stops below", "توقف گردآوری زیر"], growthPerHour: ["Raw archive growth per hour", "رشد بایگانی خام در ساعت"],
+  hoursToFloor: ["Hours until the floor", "ساعت تا رسیدن به کف"], lastArchive: ["Last automatic archive · days moved", "آخرین بایگانی خودکار · روزهای منتقل‌شده"],
+  integritySweep: ["Last integrity sweep", "آخرین بررسی یکپارچگی"], shard: ["Connection", "اتصال"], markets: ["Markets", "بازارها"],
+  noShards: ["No live connections yet.", "هنوز اتصال زنده‌ای وجود ندارد."],
+  executionModel: ["Execution and sizing · optional", "اجرا و اندازهٔ موقعیت · اختیاری"], orderType: ["Order type", "نوع سفارش"],
+  orderMarket: ["Market · cross the spread", "بازار · عبور از اختلاف قیمت"], orderLimit: ["Limit · rest at the near touch", "محدود · انتظار در بهترین قیمت"],
+  makerFee: ["Maker fee · limit fills", "کارمزد سفارش‌گذار · سفارش محدود"], maxFraction: ["Max share of cash per entry", "سقف سهم نقد در هر ورود"],
+  volTarget: ["Target volatility per bar", "نوسان هدف در هر میله"], walkDepth: ["Fill across stored book levels", "اجرا در چند سطح دفتر سفارش"],
+  carryRemainder: ["Keep working a resized order", "ادامهٔ اجرای باقی‌ماندهٔ سفارش"],
+  executionHelp: ["Limit orders fill only when later trades clear the queue ahead or the market trades through. Book levels need a collector started with --depth-levels. Volatility targeting buys nothing until 20 decision bars exist.", "سفارش محدود فقط وقتی اجرا می‌شود که معاملات بعدی صف جلویی را تمام کنند یا قیمت از آن عبور کند. سطوح دفتر سفارش به گردآوری با --depth-levels نیاز دارد. هدف‌گذاری نوسان تا ۲۰ میلهٔ تصمیم چیزی نمی‌خرد."],
+  sharpeRange: ["Sharpe per period · 90% range", "شارپ هر دوره · بازهٔ ۹۰٪"], returnRange: ["Total return · 90% range", "بازده کل · بازهٔ ۹۰٪"],
+  beta: ["Beta against", "بتا نسبت به"], alphaPeriod: ["Alpha per period", "آلفای هر دوره"], infoRatio: ["Information ratio per period", "نسبت اطلاعات هر دوره"],
+  correlation: ["Correlation", "همبستگی"], avgCostPnl: ["Realized P/L · average cost", "سود/زیان تحقق‌یافته · میانگین بها"], tabRuns: ["Saved runs", "اجراهای ذخیره‌شده"], tabCompare: ["Compare", "مقایسه"],
+  tabSchedules: ["Schedules", "زمان‌بندی‌ها"], tabMargin: ["Margin", "تعهدی"], tabWorkbench: ["Workbench", "کارگاه"],
+  startCompare: ["Compare two strategies", "مقایسهٔ دو راهبرد"],
+  perfTitle: ["Risk and return", "ریسک و بازده"], totalReturn: ["Total return", "بازده کل"], maxDrawdown: ["Max drawdown", "بیشترین افت"],
+  sharpePeriod: ["Sharpe · per period", "شارپ · هر دوره"], psr: ["P(true Sharpe > 0)", "احتمال شارپ واقعی بیش از صفر"],
+  winRate: ["Win rate", "نرخ برد"], closedTrades: ["closed trades", "معاملهٔ بسته‌شده"],
+  annualReturn: ["Annualized return", "بازده سالانه"], needs30: ["Needs a 30-day window", "نیازمند بازهٔ ۳۰ روزه"],
+  volatility: ["Volatility per period", "نوسان هر دوره"], sortino: ["Sortino · annualized", "سورتینو · سالانه"], calmar: ["Calmar ratio", "نسبت کالمار"],
+  profitFactor: ["Profit factor", "ضریب سود"], expectancy: ["Expectancy per trade", "میانگین سود هر معامله"],
+  avgWin: ["Average win", "میانگین برد"], avgLoss: ["Average loss", "میانگین باخت"], avgHolding: ["Average holding · hours", "میانگین نگهداری · ساعت"],
+  losingStreak: ["Longest losing streak", "طولانی‌ترین زنجیرهٔ زیان"], turnover: ["Turnover · × starting cash", "گردش · برابر سرمایهٔ اولیه"],
+  exposure: ["Time in market", "زمان حضور در بازار"], kelly: ["Kelly fraction · full, not advice", "کسر کلی · کامل، توصیه نیست"],
+  openPosition: ["Open position · base", "موقعیت باز · دارایی پایه"],
+  perfNote: ["Per-period figures use the equity marks. Annualized figures appear only for windows of 30 days or more. P(true Sharpe > 0) is the probabilistic Sharpe ratio, which allows for skew and fat tails.", "ارقام هر دوره از نشانه‌گذاری ارزش حساب محاسبه می‌شوند. ارقام سالانه فقط برای بازه‌های ۳۰ روزه یا بیشتر نمایش داده می‌شوند. احتمال شارپ واقعی بیش از صفر، نسبت شارپ احتمالاتی است و چولگی و دنباله‌های پهن را در نظر می‌گیرد."],
+  tradesTitle: ["Closed trades · first in, first out", "معاملات بسته‌شده · اولین ورود، اولین خروج"],
+  opened: ["Opened", "باز شدن"], closed: ["Closed", "بسته شدن"], holding: ["Hours", "ساعت"], cost: ["Cost", "بهای تمام‌شده"],
+  proceeds: ["Proceeds", "عایدی"], pnl: ["Profit / loss", "سود / زیان"], tradeReturn: ["Return", "بازده"],
+  noTrades: ["No closed trades in this run.", "در این اجرا معاملهٔ بسته‌شده‌ای وجود ندارد."],
+  showMore: ["Show more", "نمایش بیشتر"], decisionLog: ["Decision log · JSON", "گزارش تصمیمات · JSON"], decisionAction: ["Action", "اقدام"], reasons: ["Reasons", "دلایل"],
+  selectionTitle: ["Selection check · deflated Sharpe", "آزمون انتخاب · شارپ تعدیل‌شده"],
+  selectionNote: ["Choosing the best of several candidates on the same data inflates its Sharpe. The deflated Sharpe is the probability that the winner's true Sharpe beats what luck alone gives the best of this many trials.", "انتخاب بهترین گزینه از میان چند گزینه روی یک داده، شارپ آن را بزرگ‌تر نشان می‌دهد. شارپ تعدیل‌شده احتمال این است که شارپ واقعی برنده از آنچه شانس به بهترینِ این تعداد آزمون می‌دهد بیشتر باشد."],
+  trials: ["Trials", "تعداد آزمون"], bestCandidate: ["Best candidate", "بهترین گزینه"], luckThreshold: ["Luck threshold · Sharpe per period", "آستانهٔ شانس · شارپ هر دوره"],
+  deflatedSharpe: ["Deflated Sharpe", "شارپ تعدیل‌شده"],
+  participation: ["Max share of displayed size · optional", "سقف سهم از حجم نمایش‌داده‌شده · اختیاری"],
+  participationHelp: ["Fraction of the best-level quantity one fill may take, for example 0.25. Leave empty for no cap.", "سهمی از حجم بهترین سطح که یک معامله می‌تواند بردارد، برای مثال 0.25. برای بدون سقف خالی بگذارید."],
+  latestNet: ["Latest paper result", "آخرین نتیجهٔ آزمایشی"], latestNetNote: ["Net of fees and spread", "پس از کارمزد و اختلاف قیمت"],
+  exactValues: ["Exact values", "مقادیر دقیق"],
+});
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,
   Object.fromEntries(Object.entries(vocabulary).map(([key, values]) => [key, values[i]]))]));
 const $ = id => document.getElementById(id);
@@ -341,7 +420,7 @@ function saved(key, fallback, allowed) {
 function remember(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Storage is optional. */ } }
 let lang = saved("lang", "en", ["en", "fa"]);
 let theme = saved("theme", "light", ["light", "dark"]);
-const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [],
+const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [], runCount: 50, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
   researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };
 let comparisonRevision = 0;
@@ -364,9 +443,24 @@ function when(value, dateOnly = false) {
     ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
   }).format(stamp);
 }
+// Round a decimal string half-up for display only; the exact value stays in the tooltip.
+function rounded(value, places = 2) {
+  const match = String(value ?? "").match(/^(-?)(\d+)(?:\.(\d+))?$/);
+  if (!match || (match[3] || "").length <= places) return value;
+  const [, sign, whole, fraction] = match;
+  let scaled = whole + fraction.slice(0, places);
+  if (fraction[places] >= "5") scaled = (BigInt(scaled) + 1n).toString().padStart(scaled.length, "0");
+  const text = places ? `${scaled.slice(0, -places) || "0"}.${scaled.slice(-places)}` : scaled;
+  return /^[0.]*$/.test(text) ? text : sign + text;
+}
+// U+2066/U+2069 isolate a signed figure left-to-right in Persian text, and survive HTML escaping.
+const ratio = (value, places = 2) => value == null || !Number.isFinite(Number(value)) ? t("none") : `\u2066${digits(Number(value).toFixed(places))}\u2069`;
+const percent = (value, places = 1) => value == null || !Number.isFinite(Number(value)) ? t("none") : `\u2066${digits((Number(value) * 100).toFixed(places))} %\u2069`;
+const signed = value => String(value ?? "").startsWith("-") ? "neg" : Number(value) > 0 ? "pos" : "";
 const list = value => Array.isArray(value) ? value : [];
 const code = value => `<bdi dir="ltr">${esc(value ?? t("none"))}</bdi>`;
 const amount = value => `<bdi dir="ltr">${num(value)}</bdi>`;
+const money = (value, places = 2) => value == null || value === "" ? esc(t("none")) : `<bdi dir="ltr" title="${esc(num(value))}">${num(rounded(value, places))}</bdi>`;
 const label = value => esc(t(String(value ?? "unknown")));
 const chip = (text, kind = "warn") => `<span class="chip chip-${kind}">${esc(text)}</span>`;
 const empty = (title, help = "") => `<div class="empty-state"><p class="empty-title">${esc(title)}</p>${help ? `<p class="field-help">${esc(help)}</p>` : ""}</div>`;
@@ -374,9 +468,11 @@ const json = value => `<pre class="output mono" dir="ltr">${esc(JSON.stringify(v
 const disclosure = (title, value, key) => `<details class="disclosure" data-key="${esc(key)}"><summary>${esc(title)}</summary>${json(value)}</details>`;
 const stat = (name, value, note = "") => `<div class="stat"><span class="stat-label">${esc(name)}</span><strong class="stat-value">${value}</strong>${note ? `<span class="stat-note">${esc(note)}</span>` : ""}</div>`;
 const keyValues = rows => `<dl class="key-values">${rows.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${value}</dd></div>`).join("")}</dl>`;
-function table(headings, rows, fallback) {
+// `numeric` lists column indexes that hold numbers: right-aligned, tabular figures.
+function table(headings, rows, fallback, numeric = []) {
   if (!rows.length) return empty(fallback || t("nothing"));
-  return `<div class="table-wrap" tabindex="0"><table class="data"><thead><tr>${headings.map(h => `<th scope="col">${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const cls = i => numeric.includes(i) ? ' class="num"' : "";
+  return `<div class="table-wrap" tabindex="0"><table class="data"><thead><tr>${headings.map((h, i) => `<th scope="col"${cls(i)}>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map((cell, i) => `<td${cls(i)} data-label="${esc(headings[i] ?? "")}">${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 const rendered = new Map();
@@ -398,11 +494,15 @@ async function api(path, options = {}, timeoutMs = 10000, asText = false) {
   try {
     const response = await fetch(path, { ...options, cache: "no-store", credentials: "same-origin", signal: controller.signal,
       headers: { "Content-Type": "application/json", "X-Gym-Token": TOKEN, ...options.headers } });
-    if (!response.ok) throw new Error(t("requestError"));
+    if (!response.ok) {
+      // Kept off the page by default: some server errors quote submitted material. Callers with non-secret forms opt in.
+      const error = new Error(t("requestError"));
+      if (response.status < 500) error.detail = await response.json().then(body => typeof body?.error === "string" ? body.error.slice(0, 240) : "", () => "");
+      throw error;
+    }
     return asText ? await response.text() : await response.json();
-  } catch (_) {
-    // Server errors may contain submitted material; show only a fixed local message.
-    throw new Error(t("requestError"));
+  } catch (error) {
+    throw Object.assign(new Error(t("requestError")), { detail: error.detail || "" });
   } finally { clearTimeout(timeout); }
 }
 
@@ -497,7 +597,7 @@ function renderMarkets() {
       <td class="num">${amount(market.bid)}</td><td class="num">${amount(market.ask)}</td><td class="num">${amount(market.spread_bps)}</td>
       <td class="num">${trade ? `${amount(trade.price)}<span class="sub">${amount(trade.qty)} ${code(market.base)} · ${esc(when(trade.ts))}</span>` : t("none")}</td>
       <td>${quality}${market.book_age_s != null ? `<span class="sub">${num(market.book_age_s)} ${esc(t("seconds"))}</span>` : ""}</td>
-      <td>${eligibility(market.act?.entry)}</td><td>${eligibility(market.act?.exit)}</td></tr>
+      <td>${eligibility(market.act?.entry)}${market.data_quality?.grade === "POOR" ? ` ${chip(t("poorData"), "warn")}` : ""}</td><td>${eligibility(market.act?.exit)}</td></tr>
       ${expanded ? `<tr class="market-detail-row"><td colspan="8"><section class="market-detail" id="${esc(id)}" aria-label="${esc(t("pairDetails") + " " + market.symbol)}">
         ${keyValues([[t("bestBidQuantity"), `${amount(market.bid_qty)} ${code(market.base)}`], [t("bestAskQuantity"), `${amount(market.ask_qty)} ${code(market.base)}`],
           [t("absoluteSpread"), `${amount(market.spread)} ${code(market.quote)}`], ...(market.unit ? [[t("unitEpoch"), `${code(market.unit.code)} · ${num(market.unit.epoch)}`]] : [])])}
@@ -507,70 +607,9 @@ function renderMarkets() {
 }
 
 function renderRunList() {
-  setHTML("run-list", state.runs.map(run => `<li><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(when(run.inputs?.from, true))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
-}
-function curveFigure(result) {
-  const points = list(result.curve).filter(point => Array.isArray(point) && point.length > 1 && Number.isFinite(Number(point[1])));
-  if (!points.length) return empty(t("noCurve"));
-  const values = points.map(point => Number(point[1])), lo = Math.min(...values), hi = Math.max(...values);
-  const first = Date.parse(points[0][0]), last = Date.parse(points[points.length - 1][0]);
-  const coordinates = points.map((point, i) => {
-    const timestamp = Date.parse(point[0]);
-    const x = 100 + 640 * (last > first && Number.isFinite(timestamp) ? (timestamp - first) / (last - first) : i / Math.max(1, points.length - 1));
-    const y = hi === lo ? 116 : 28 + (hi - values[i]) * 176 / (hi - lo);
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(" ");
-  const title = `${t("equityCurve")} · ${result.quote || ""}`;
-  const tick = value => new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en-GB", { maximumFractionDigits: 2 }).format(value);
-  return `<figure class="equity-figure"><svg class="chart" viewBox="0 0 780 258" role="img" aria-label="${esc(title)}" dir="ltr"><title>${esc(title)}</title>
-    <line class="chart-base" x1="100" y1="28" x2="740" y2="28"/><line class="chart-base" x1="100" y1="204" x2="740" y2="204"/>
-    <text x="91" y="33" text-anchor="end">${esc(tick(hi))}</text><text x="91" y="209" text-anchor="end">${esc(tick(lo))}</text>
-    <text x="100" y="244">${esc(when(points[0][0], true))}</text><text x="740" y="244" text-anchor="end">${esc(when(points[points.length - 1][0], true))}</text>
-    <polygon class="chart-area" points="100,204 ${coordinates} 740,204"/><polyline class="chart-line" points="${coordinates}" fill="none"/><text x="100" y="14">${esc(result.quote || "")}</text></svg><figcaption class="field-help">${esc(t("curveNote"))}</figcaption></figure>`;
-}
-function waterfallFigure(entries, quote) {
-  if (!entries.length || entries.some(([, value]) => !Number.isFinite(Number(value)))) return "";
-  let accumulated = 0;
-  const steps = entries.map(([key, value]) => {
-    const start = key === "net" ? 0 : accumulated;
-    const end = start + Number(value);
-    if (key !== "net") accumulated = end;
-    return { key, start, end, value: Number(value) };
-  });
-  const low = Math.min(0, ...steps.flatMap(step => [step.start, step.end]));
-  const high = Math.max(0, ...steps.flatMap(step => [step.start, step.end]));
-  const y = value => 35 + (high - value) * 145 / (high - low || 1);
-  const width = 600 / steps.length;
-  const tick = value => new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en-GB", { maximumFractionDigits: 2 }).format(value);
-  return `<figure class="equity-figure"><svg class="chart waterfall-chart" viewBox="0 0 780 250" role="img" aria-label="${esc(t("costWaterfall") + " · " + quote)}" dir="ltr"><title>${esc(t("costWaterfall"))}</title><line class="chart-base" x1="80" y1="${y(0)}" x2="750" y2="${y(0)}"/>${steps.map((step, i) => {
-    const x = 95 + i * width, top = Math.min(y(step.start), y(step.end)), height = Math.max(1, Math.abs(y(step.start) - y(step.end)));
-    return `<rect x="${x}" y="${top}" width="${width * .55}" height="${height}" class="waterfall-bar ${step.value < 0 ? "neg" : "pos"}"/><text x="${x + width * .275}" y="${top - 9}" text-anchor="middle">${esc(tick(step.value))}</text><text x="${x + width * .275}" y="218" text-anchor="middle">${label(step.key)}</text>`;
-  }).join("")}<text x="80" y="20">${esc(quote)}</text></svg></figure>`;
-}
-function renderRun(record) {
-  if (!record) return;
-  const result = record.result || {}, inputs = record.inputs || {}, end = result.end || {}, quote = result.quote || "";
-  const waterfall = end.waterfall || {}, entries = Object.entries(waterfall);
-  const scale = Math.max(...entries.map(([, value]) => Math.abs(Number(value))).filter(Number.isFinite), 1);
-  const costs = entries.length ? `<div class="bars">${entries.map(([key, value]) => `<div class="cost-row"><span>${label(key)}</span><div class="bar-track" aria-hidden="true"><span class="bar ${String(value).startsWith("-") ? "neg" : "pos"}" style="width:${Math.min(100, Math.max(0, Math.abs(Number(value)) / scale * 100))}%"></span></div><strong class="num">${amount(value)}</strong></div>`).join("")}</div>` : empty(t("noCost"));
-  const baselines = Object.entries({ strategy: result, ...(record.baselines || {}) }).map(([name, baseline]) => [esc(name),
-    baseline.end ? `${amount(baseline.end.net)} ${code(quote)}` : `${esc(t("unavailable"))}<span class="sub">${esc(baseline.unavailable || "")}</span>`, amount(baseline.end?.net_usdt_eq), num(baseline.fills)]);
-  const ranking = record.ranking || {};
-  const evidence = record.evidence;
-  const decisions = list(result.decisions).slice(-100).reverse();
-  setHTML("run-detail", `<header class="run-heading"><div><span class="eyebrow">${esc(inputs.store === "demo" ? t("synthetic") : t("paperOnly"))}</span><h2>${code(result.symbol || inputs.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h2><p class="field-help">${esc(when(inputs.from))} → ${esc(when(inputs.to))} · ${code(inputs.resolution)} · ${code(result.session?.state || record.mode || "PAPER")}</p></div>${chip(t("noCapital"))}</header>
-    <div class="stats">${stat(t("equity"), `${amount(end.equity)} <small>${esc(quote)}</small>`)}${stat(t("net"), `${amount(end.net)} <small>${esc(quote)}</small>`)}${stat(t("fills"), num(result.fills))}${stat(t("observations"), `${num(result.qualified)} <small>/ ${num(result.observations)}</small>`)}</div>
-    <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
-    <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${waterfallFigure(entries, quote)}${costs}<p class="field-help">${esc(t("updated"))} ${esc(when(end.mark_time))}</p></section>
-    <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3><p class="field-help">${esc(t("baselineNote"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines)}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</section>
-    <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), amount(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"))}
-      ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), amount(row.net_quote), amount(row.net_usdt_eq)]))}` : ""}</section>
-    <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("evidenceTitle"))}</h3>${chip(t("noCapital"))}</div>${evidence ? `<p>${esc(evidence.primary_limitation)}</p>${keyValues([[t("roundTrips"), num(evidence.completed_round_trips)], [t("claimCeiling"), code(evidence.claim_ceiling)], [t("evidenceGate"), esc(t(evidence.gate_eligible === true ? "yes" : "no"))]])}` : `<p>${esc(t("noEvidence"))}</p>`}
-      ${list(record.warnings || evidence?.warnings).length ? `<ul class="evidence-warnings">${list(record.warnings || evidence?.warnings).map(warning => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-      <button type="button" class="button" data-export-run="${esc(record.run_id)}">${esc(t("exportSummary"))}</button>
-      <button type="button" class="button" data-export-run="${esc(record.run_id)}" data-format="html">${esc(t("exportHtml"))}</button><p class="field-help">${esc(t("summaryNote"))}</p>
-      ${disclosure(t("reportDetails"), { report: evidence || null, capital_decisions: record.capital_decisions || [] }, "economic-evidence")}${disclosure(t("runInputs"), { inputs, session: result.session, fx: record.fx, outputs_digest: record.outputs_digest }, "run-inputs")}</section>
-    <section class="panel"><h3 class="panel-title">${esc(t("lastDecisions"))}</h3><p class="field-help">${esc(t("decisionHelp"))}</p>${decisions.length ? decisions.map((decision, i) => `<details class="decision disclosure" data-key="decision-${esc(decision.t)}-${esc(decision.order || i)}"><summary><span>${esc(when(decision.t))}</span> <strong>${esc(decision.action)}</strong> <span class="muted">${list(decision.reasons).map(esc).join("; ")}</span></summary>${json({ ...decision, order: list(result.orders).find(order => order.ref === decision.order) || null })}</details>`).join("") : empty(t("noDecisions"))}</section>`);
+  $("compare-picked").hidden = state.pickedRuns.size < 2;
+  $("compare-picked").textContent = `${t("comparePicked")} · ${digits(state.pickedRuns.size)}`;
+  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(when(run.inputs?.from, true))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
 }
 function renderCandidate(slot) {
   const entry = list(state.researchSetup?.strategies).find(item => item.id === $("candidate-" + slot).value);
@@ -611,7 +650,10 @@ async function setupResearch(symbol = "") {
       }
     }
     $("compare-cash").value = setup.coverage.symbol.endsWith("TMN") ? "300000000" : "1000";
-    for (const [field, value] of [["from", setup.coverage.from], ["to", setup.coverage.to]]) {
+    // Start after the first USDTTMN quote so TMN results get a USDT-equivalent valuation and can be ranked.
+    const start = [setup.coverage.from, setup.coverage.valuation_from && new Date(Date.parse(setup.coverage.valuation_from) + 1000).toISOString()]
+      .filter(Boolean).sort().pop();
+    for (const [field, value] of [["from", start], ["to", setup.coverage.to]]) {
       $("compare-" + field).value = value ? new Date(value).toISOString().slice(0, 19) : "";
     }
     $("comparison-fields").disabled = !setup.coverage.observations;
@@ -627,26 +669,11 @@ function invalidateComparison() {
   state.comparison = null;
   if (hadResult) setHTML("compare-result", empty(t("comparisonChanged")));
 }
-function renderComparison() {
-  $("compare-submit").textContent = t(state.comparing ? "comparing" : "compareAction");
-  const data = state.comparison;
-  if (!data) return;
-  if (["TEMPORAL_VALIDATION", "MULTI_WINDOW_VALIDATION"].includes(data.mode)) {
-    const windowText = window => `${esc(when(window.from))} → ${esc(when(window.to))}`;
-    const windows = data.mode === "MULTI_WINDOW_VALIDATION" ? list(data.folds) : [data];
-    setHTML("compare-result", `<section class="ticket-result"><h3>${esc(t("validationTitle"))} · ${code(data.validation_id)}</h3>${keyValues([
-      [t("status"), label(data.status)], [t("validationWindows"), num(windows.length)],
-    ])}<p class="field-help">${esc(t("validationNote"))}</p>${table([t("validationWindow"), t("status"), t("selectionWindow"), t("holdoutWindow"), t("selectedCandidate")], windows.map((fold, index) => [num(index + 1), label(fold.status), windowText(fold.windows.selection), windowText(fold.windows.holdout), code(fold.selected?.strategy)]))}${table([t("strategy"), t("time"), t("net"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), esc(when(record.inputs.to)), amount(record.result.end?.net), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}${disclosure(t("runInputs"), { folds: windows, trial_count: data.trial_count, limitation: data.limitation }, "validation-inputs")}</section>`);
-    return;
-  }
-  const quote = data.runs[0]?.result?.quote || "";
-  setHTML("compare-result", `<section class="ticket-result"><h3>${esc(t("compareTitle"))} · ${code(data.comparison_id)}</h3><p>${esc(t("comparisonLimit"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), amount(record.result.end?.net), amount(record.result.end?.net_usdt_eq), num(record.result.fills), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}<h4>${esc(t("rankingTitle"))}</h4>${table([t("rank"), t("strategy"), t("usdtEquivalent")], list(data.ranking?.active).map(row => [num(row.rank), esc(row.name), amount(row.net_usdt_eq)]), t("noActiveRank"))}${disclosure(t("runInputs"), { shared: data.shared_inputs, candidates: data.runs.map(record => ({ run_id: record.run_id, config_hash: record.inputs.config_hash, params: record.inputs.params })) }, "comparison-inputs")}</section>`);
-}
 async function submitComparison(event, validation = false) {
   event.preventDefault();
   if (state.comparing || !state.researchSetup || $("comparison-fields").disabled || $("compare-form").reportValidity?.() === false) return;
   const revision = comparisonRevision;
-  const inputSignature = () => JSON.stringify([[...$("compare-form").querySelectorAll("input, select")].map(input => input.value), state.candidateParams]);
+  const inputSignature = () => JSON.stringify([[...$("compare-form").querySelectorAll("input, select")].map(input => input.type === "checkbox" ? input.checked : input.value), state.candidateParams]);
   const signature = inputSignature();
   const candidates = ["first", "second"].map(slot => {
     const strategy = $("candidate-" + slot).value;
@@ -664,27 +691,38 @@ async function submitComparison(event, validation = false) {
     const payload = { symbol: $("compare-symbol").value,
       from: $("compare-from").value + "Z", to: $("compare-to").value + "Z", resolution: $("compare-resolution").value,
       cash: $("compare-cash").value, fee_rate: $("compare-fee").value, latency_ms: 500, candidates };
+    if ($("compare-participation").value.trim()) payload.participation = $("compare-participation").value.trim();
+    for (const [id, key] of [["compare-max-fraction", "max_fraction"], ["compare-vol-target", "vol_target"], ["compare-maker-fee", "maker_fee_rate"]])
+      if ($(id).value.trim()) payload[key] = $(id).value.trim();
+    if ($("compare-order-type").value === "limit") payload.order_type = "limit";
+    if ($("compare-walk-depth").checked) payload.walk_depth = true;
+    if ($("compare-carry").checked) payload.carry_remainder = true;
     if (validation) payload.folds = folds;
     const data = await api(validation ? "/api/validate" : "/api/compare", { method: "POST", body: JSON.stringify(payload) }, 130000);
     const expected = validation ? (folds === 1 ? "TEMPORAL_VALIDATION" : "MULTI_WINDOW_VALIDATION") : "COMPARE";
-    if (data.mode !== expected || data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsafe comparison response");
+    if (data.mode !== expected) throw new Error("unexpected comparison response");
     if (revision === comparisonRevision && signature === inputSignature()) { state.comparison = data; renderComparison(); }
     else if (revision === comparisonRevision) invalidateComparison();
     await research();
-  } catch (_) {
+  } catch (error) {
     if (revision === comparisonRevision && signature !== inputSignature()) invalidateComparison();
-    else if (revision === comparisonRevision) setHTML("compare-result", empty(t("compareError")));
+    else if (revision === comparisonRevision) setHTML("compare-result", empty(t("compareError"), error.detail || ""));
   }
   finally { state.comparing = false; $("compare-submit").disabled = false; $("validate-submit").disabled = false; $("compare-submit").removeAttribute("aria-busy"); renderComparison(); }
 }
 
 async function research() {
   if (!state.researchSetup) await setupResearch();
-  state.runs = list(await api("/api/runs")).slice(0, 50);
-  if (!state.runs.some(run => run.run_id === state.selectedRun)) { state.selectedRun = state.runs[0]?.run_id || ""; state.record = null; }
+  // shortcut: the list grows to 200 runs; older runs are reached with the symbol filter.
+  const query = new URLSearchParams({ limit: String(state.runCount) });
+  if (state.runFilter) query.set("symbol", state.runFilter);
+  state.runs = list(await api("/api/runs?" + query));
+  $("run-more").hidden = state.runs.length < state.runCount || state.runCount >= 200;
+  if (!state.savedComparison && !state.runs.some(run => run.run_id === state.selectedRun) && state.selectedRun !== state.pinnedRun) { state.selectedRun = state.runs[0]?.run_id || ""; state.record = null; }
   renderRunList();
+  if (state.savedComparison) return;
   if (!state.selectedRun) {
-    setHTML("run-detail", `<section class="panel">${empty(t("noRuns"), t("noRunsHelp"))}<p class="field-help">${esc(t("demoRunHelp"))}</p><pre class="output mono" dir="ltr">uv run gymctl demo-seed\nuv run gymctl paper BTCTMN --demo</pre></section>`);
+    setHTML("run-detail", `<section class="panel">${empty(t("noRuns"), t("noRunsHelp"))}<div class="actions"><button type="button" class="button button-primary" data-goto-tab="compare">${esc(t("startCompare"))}</button></div><p class="field-help">${esc(t("demoRunHelp"))}</p><pre class="output mono" dir="ltr">uv run gymctl demo-seed\nuv run gymctl paper BTCTMN --demo</pre></section>`);
     return;
   }
   if (state.record?.run_id === state.selectedRun) { renderRun(state.record); return; }
@@ -711,7 +749,6 @@ function renderResearchJobs(data) {
 async function researchJobs() {
   try {
     const data = await api("/api/research-state");
-    if (data.authority !== "PAPER_ONLY" || data.funded_authority !== false || data.order_submitted !== false) throw new Error("unsupported research authority");
     state.researchState = data; renderResearchJobs(data);
   } catch (_) {
     state.researchState = null;
@@ -727,7 +764,6 @@ async function controlResearch(action, id = "") {
   try {
     const path = action === "tick" ? "/api/research/tick" : `/api/research/jobs/${encodeURIComponent(id)}/${action}`;
     const result = await api(path, { method: "POST", body: "{}" }, 130000);
-    if (result.authority !== "PAPER_ONLY" || result.funded_authority !== false || result.order_submitted !== false) throw new Error("unsupported research authority");
     setHTML("research-control-result", `<p>${esc(t("researchControlDone"))}</p>`);
     await researchJobs();
   } catch (_) { setHTML("research-control-result", empty(t("researchControlError"))); }
@@ -814,15 +850,15 @@ async function operate() {
 }
 
 function renderOverview() {
-  const markets = list(state.markets?.markets);
+  const markets = list(state.markets?.markets), latest = state.runs[0];
   setHTML("overview-summary", stat(t("observedPairs"), state.markets ? num(markets.length) : t("none"), t("observedPairsNote"))
     + stat(t("healthyQuotes"), state.markets ? num(markets.filter(healthyQuote).length) : t("none"), t("healthyQuotesNote"))
     + stat(t("savedRunCount"), state.runsLoaded ? num(state.runs.length) : t("none"), t("runCountNote"))
-    + stat(t("executionStatus"), esc(t("disarmed")), t("stageExecuteHelp")));
-  setHTML("overview-markets", state.markets ? table([t("pair"), t("bid"), t("ask"), t("spreadBps"), t("entry")], markets.slice(0, 5).map(m => [code(m.symbol), amount(m.bid), amount(m.ask), amount(m.spread_bps), eligibility(m.act?.entry)]), t("noMarkets")) : empty(t("loading")));
+    + stat(t("latestNet"), latest?.end ? `<span class="${signed(latest.end.net)}">${money(latest.end.net)}</span> <small>${esc(/(TMN|USDT)$/.exec(latest.inputs?.symbol || "")?.[1] || "")}</small>` : esc(t("none")), t("latestNetNote")));
+  setHTML("overview-markets", state.markets ? table([t("pair"), t("bid"), t("ask"), t("spreadBps"), t("entry")], markets.slice(0, 5).map(m => [code(m.symbol), amount(m.bid), amount(m.ask), amount(m.spread_bps), eligibility(m.act?.entry)]), t("noMarkets"), [1, 2, 3]) : empty(t("loading")));
   const record = state.record, result = record?.result;
-  setHTML("overview-research", result ? `<div class="run-heading"><h3>${code(result.symbol)}</h3>${chip(t(record.inputs?.store === "demo" ? "synthetic" : "paperOnly"))}</div>${curveFigure(result)}${keyValues([[t("net"), `${amount(result.end?.net)} ${code(result.quote)}`], [t("fills"), num(result.fills)]])}<p class="field-help">${esc(record.evidence?.primary_limitation || t("noCapital"))}</p>` : empty(t(state.runsLoaded ? "noRuns" : "loading"), t("noRunsHelp")));
-  setHTML("overview-activity", state.runs.length ? table([t("pair"), t("time"), t("net")], state.runs.slice(0, 4).map(run => [code(run.inputs?.symbol), esc(when(run.inputs?.to)), amount(run.end?.net)])) : empty(t(state.runsLoaded ? "recentEvidenceEmpty" : "loading")));
+  setHTML("overview-research", result ? `<div class="run-heading"><h3>${code(result.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h3>${chip(t(record.inputs?.store === "demo" ? "synthetic" : "paperOnly"))}</div>${curveFigure(result)}${keyValues([[t("net"), `${money(result.end?.net)} ${code(result.quote)}`], [t("totalReturn"), pct(record.evidence?.performance?.total_return_pct)], [t("fills"), num(result.fills)]])}<p class="field-help">${esc(record.evidence?.primary_limitation || t("noCapital"))}</p>` : empty(t(state.runsLoaded ? "noRuns" : "loading"), t("noRunsHelp")));
+  setHTML("overview-activity", state.runs.length ? table([t("pair"), t("time"), t("net")], state.runs.slice(0, 4).map(run => [code(run.inputs?.symbol), esc(when(run.inputs?.to)), money(run.end?.net)]), "", [2]) : empty(t(state.runsLoaded ? "recentEvidenceEmpty" : "loading")));
 }
 
 const ticketFields = ["symbol", "side", "intent", "quantity", "bid", "ask", "worst_price", "fee_rate", "operator_quote_cap", "available_quote", "available_base", "minimum_quote", "observed_at", "expires_at", "snapshot_seq", "quote_age_ms"];
@@ -872,7 +908,7 @@ async function previewTicket() {
     // Preserve duplicate fields so the backend's strict parser can reject ambiguity.
     const preview = await api("/api/dry-run/ticket", { method: "POST", body: raw });
     if (ticketRevision !== revision || input.value !== raw) return;
-    if (preview.mode !== "DRY_RUN" || preview.funded_authority !== false || preview.order_submitted !== false) throw new Error("unsupported preview authority");
+    if (preview.mode !== "DRY_RUN") throw new Error("unexpected preview response");
     currentPreview = preview;
     setHTML("ticket-output", `<div class="ticket-result"><h3>${esc(t("offlineTicketResult"))}</h3><p class="field-help">${esc(t("quoteFeeOnly"))}</p>${keyValues([
       [t("pair"), code(preview.symbol)], [t("quantity"), amount(preview.quantity)],
@@ -914,6 +950,15 @@ function renderHealth(data) {
   const events = [...(data.fatal ? [data.fatal] : []), ...list(data.errors)];
   setHTML("health-errors", events.length ? `<ul class="event-list">${events.map(event => `<li>${typeof event === "string" ? esc(event) : json(event)}</li>`).join("")}</ul>` : empty(t("noCollectorEvents")));
   setHTML("health-quality", table([t("time"), t("instrument"), t("flag"), t("detail")], list(data.quality).map(row => [esc(when(row.ts)), code(row.instrument), label(row.flag), esc(row.detail)]), t("noQualityEvents")));
+  const storage = data.storage, gib = bytes => bytes == null ? t("none") : digits((bytes / 2 ** 30).toFixed(1)) + " GiB";
+  setHTML("health-storage", storage ? keyValues([[t("freeSpace"), esc(gib(storage.free_bytes))], [t("stopFloor"), esc(gib(storage.floor_bytes))],
+    [t("growthPerHour"), esc(storage.growth_bytes_per_hour == null ? t("none") : digits((storage.growth_bytes_per_hour / 2 ** 20).toFixed(0)) + " MiB")],
+    [t("hoursToFloor"), storage.hours_to_floor == null ? esc(t("none")) : `<span class="${storage.hours_to_floor < 48 ? "neg" : ""}">${num(storage.hours_to_floor)}</span>`],
+    [t("lastArchive"), data.archived ? `${esc(when(data.archived.at))} · ${num(data.archived.days.length)}` : esc(t("none"))],
+    [t("integritySweep"), data.integrity ? `${esc(when(data.integrity.at))} · ${num(data.integrity.checked)} ✓ · ${num(data.integrity.missing)} / ${num(data.integrity.mismatched)} ✗` : esc(t("none"))]])
+    + table([t("shard"), t("markets"), t("status"), t("reconnects"), t("frameAge")], list(data.shards).map(row => [num(row.shard), num(row.markets),
+      chip(t(row.connected ? "connectedValue" : "disconnectedValue"), row.connected ? "ok" : "bad"), num(row.reconnects), num(row.last_frame_age_s)]), t("noShards"), [0, 1, 3, 4])
+    : empty(t("unavailable")));
   const readiness = data.readiness;
   setHTML("health-readiness", `<h2 class="panel-title">${esc(t("publicReadiness"))}</h2><p class="field-help">${esc(t("publicReadinessNote"))}</p><p>${label(readiness?.status)}</p>${table([t("pair"), t("status"), t("bidAge"), t("askAge")], list(readiness?.markets).map(row => [code(row.symbol), label(row.state), num(row.bid_age_seconds), num(row.ask_age_seconds)]), t("unavailable"))}`);
 }
@@ -983,6 +1028,33 @@ async function collectView(name, healthTask) {
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
   }
 }
+// Desktop notifications for conditions that need the operator, once per condition until it clears.
+let alertsOn = saved("alerts", "off", ["on", "off"]) === "on";
+const alerted = new Set();
+function checkAlerts(health) {
+  if (!alertsOn || typeof Notification === "undefined" || Notification.permission !== "granted" || !health) return;
+  const active = [
+    ...(health.storage?.hours_to_floor != null && health.storage.hours_to_floor < 24 ? [["disk", t("alertDisk")]] : []),
+    ...(health.connected && health.last_frame_age_s > 120 ? [["stall", t("alertStall")]] : []),
+    ...(health.clock_paused ? [["clock", t("alertClock")]] : []),
+    ...(health.integrity?.mismatched ? [["integrity", t("alertIntegrity")]] : []),
+    ...(health.fatal ? [["fatal", String(health.fatal)]] : []),
+  ];
+  for (const [key, body] of active) if (!alerted.has(key)) { alerted.add(key); new Notification("TradingGYM", { body, tag: key }); }
+  for (const key of [...alerted]) if (!active.some(([name]) => name === key)) alerted.delete(key);
+}
+function renderAlertToggle() {
+  $("alerts-toggle").textContent = t(alertsOn ? "alertsOn" : "alertsOff");
+  $("alerts-toggle").setAttribute("aria-pressed", String(alertsOn));
+}
+$("alerts-toggle").addEventListener("click", async () => {
+  if (!alertsOn && typeof Notification !== "undefined" && Notification.permission !== "granted") await Notification.requestPermission();
+  alertsOn = !alertsOn && typeof Notification !== "undefined" && Notification.permission === "granted";
+  remember("alerts", alertsOn ? "on" : "off"); renderAlertToggle();
+});
+renderAlertToggle();
+// The page stops refreshing while hidden; alerts still need a slow health check.
+setInterval(() => { if (document.hidden && alertsOn) api("/api/health").then(checkAlerts, () => {}); }, 60000);
 async function refresh() {
   clearTimeout(pollTimer);
   if (document.hidden) return;
@@ -990,7 +1062,7 @@ async function refresh() {
   const name = state.view;
   updateClock();
   refreshTask = (async () => {
-    const healthTask = api("/api/health").then(data => { state.health = data; return data; });
+    const healthTask = api("/api/health").then(data => { state.health = data; checkAlerts(data); return data; });
     const results = await Promise.allSettled([healthTask, collectView(name, healthTask)]);
     if (state.view === name) state.apiError = results.some(result => result.status === "rejected");
     renderFeed();
@@ -1026,14 +1098,59 @@ $("market-rows").addEventListener("click", event => {
   state.expanded = state.expanded === button.dataset.market ? "" : button.dataset.market;
   renderMarkets();
 });
+const researchTabs = ["runs", "compare", "schedules", "margin", "workbench"];
+let researchTab = saved("researchTab", "runs", researchTabs);
+function showResearchTab(name, focus = false, link = true) {
+  if (name !== researchTab) window.scrollTo?.({ top: 0 });
+  researchTab = name; remember("researchTab", name);
+  document.querySelectorAll("#research-tabs [role=tab]").forEach(tab => {
+    const on = tab.dataset.tab === name;
+    tab.setAttribute("aria-selected", String(on)); tab.tabIndex = on ? 0 : -1;
+    if (on && focus) tab.focus();
+  });
+  for (const tab of researchTabs) $("panel-" + tab).hidden = tab !== name;
+  if (link) linkResearch();
+}
+$("research-tabs").addEventListener("click", event => {
+  const tab = event.target.closest?.("[data-tab]") || event.target;
+  if (tab.dataset.tab) showResearchTab(tab.dataset.tab);
+});
+$("research-tabs").addEventListener("keydown", event => {
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key] * (document.documentElement.dir === "rtl" ? -1 : 1);
+  const index = event.key === "Home" ? 0 : event.key === "End" ? researchTabs.length - 1
+    : step ? (researchTabs.indexOf(researchTab) + step + researchTabs.length) % researchTabs.length : -1;
+  if (index < 0) return;
+  event.preventDefault(); showResearchTab(researchTabs[index], true);
+});
+showResearchTab(researchTab);
 function selectSavedRun(event) {
   const button = event.target.closest?.("[data-run]") || event.target;
   if (!button.dataset.run) return;
-  state.selectedRun = button.dataset.run; state.record = null;
-  renderRunList(); refresh();
+  state.selectedRun = button.dataset.run; state.record = null; state.savedComparison = false;
+  showResearchTab("runs"); renderRunList(); refresh();
 }
 $("run-list").addEventListener("click", selectSavedRun);
+$("run-list").addEventListener("change", event => {
+  const id = event.target.dataset?.pick;
+  if (!id) return;
+  if (event.target.checked && state.pickedRuns.size < 4) state.pickedRuns.add(id); else { state.pickedRuns.delete(id); event.target.checked = false; }
+  renderRunList();
+});
+$("compare-picked").addEventListener("click", async () => {
+  setHTML("run-detail", empty(t("loading")));
+  try {
+    const records = await Promise.all([...state.pickedRuns].map(id => api("/api/runs/" + encodeURIComponent(id))));
+    state.selectedRun = ""; state.record = null; renderRunList();
+    renderSavedComparison(records);
+  } catch (_) { setHTML("run-detail", empty(t("runReadError"))); }
+});
+$("run-filter").addEventListener("change", () => { state.runFilter = $("run-filter").value.trim().toUpperCase(); state.runCount = 50; refresh(); });
+$("run-more").addEventListener("click", () => { state.runCount = Math.min(200, state.runCount + 50); refresh(); });
 $("run-detail").addEventListener("click", async event => {
+  const csvButton = event.target.closest?.("[data-csv]");
+  if (csvButton && state.record) { exportCsv(csvButton.dataset.csv, state.record); return; }
+  const goto = event.target.closest?.("[data-goto-tab]");
+  if (goto) { showResearchTab(goto.dataset.gotoTab, true); return; }
   const button = event.target.closest?.("[data-export-run]") || event.target;
   if (!button.dataset.exportRun) return;
   button.disabled = true;
@@ -1066,7 +1183,7 @@ for (const slot of ["first", "second"]) $("candidate-" + slot).addEventListener(
   state.candidateParams[slot] = {}; invalidateComparison(); renderCandidate(slot);
 });
 $("compare-symbol").addEventListener("change", () => { invalidateComparison(); setupResearch($("compare-symbol").value); });
-$("language-toggle").onclick = () => { lang = lang === "en" ? "fa" : "en"; remember("lang", lang); applyLang(); refresh(); };
+$("language-toggle").onclick = () => { lang = lang === "en" ? "fa" : "en"; remember("lang", lang); applyLang(); renderAlertToggle(); refresh(); };
 $("theme-toggle").onclick = () => { theme = theme === "light" ? "dark" : "light"; remember("theme", theme); applyLang(); };
 $("refresh-data").onclick = () => refresh();
 $("retry").onclick = () => refresh();
@@ -1129,11 +1246,33 @@ $("rule-import-submit").onclick = async () => {
   } catch (_) { input.setAttribute("aria-invalid", "true"); $("rule-import-result").textContent = t("importError"); }
   finally { button.disabled = false; button.removeAttribute("aria-busy"); }
 };
+// Deep links: #research/<tab>[/<run id>] opens a research tab and, for runs, a saved run.
+function route(hash) {
+  const [name, tab, id] = hash.slice(1).split("/");
+  if (name === "research" && researchTabs.includes(tab)) {
+    showResearchTab(tab, false, false);
+    if (tab === "runs" && /^[0-9a-f]{16}$/.test(id || "")) { state.selectedRun = state.pinnedRun = id; state.record = null; }
+  }
+  return name;
+}
+function linkResearch() {
+  if (state.view !== "research") return;
+  const id = researchTab === "runs" && state.selectedRun ? "/" + state.selectedRun : "";
+  history.replaceState(null, "", `${location.pathname}${location.search}#research/${researchTab}${id}`);
+}
 window.addEventListener?.("hashchange", () => {
-  const name = location.hash.slice(1);
+  const name = route(location.hash);
   if (!name || Object.hasOwn(viewKeys, name)) showView(name, true);
 });
 document.addEventListener("visibilitychange", () => { clearTimeout(pollTimer); if (!document.hidden) refresh(); });
 $("demo-banner").hidden = !DEMO;
+$("session-key-missing").hidden = Boolean(TOKEN);
+$("rotate-key").addEventListener("click", async () => {
+  try {
+    TOKEN = (await api("/api/session/rotate", { method: "POST", body: "{}" })).token;
+    try { sessionStorage.setItem("gym-token", TOKEN); } catch (_) {}
+    setHTML("rotate-key-result", `${esc(t("rotatedKey"))} <code dir="ltr">${esc(location.origin + "/#t=" + TOKEN)}</code>`);
+  } catch (_) { setHTML("rotate-key-result", esc(t("requestError"))); }
+});
 applyLang();
-showView(location.hash.slice(1));
+showView(route(location.hash));

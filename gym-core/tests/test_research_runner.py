@@ -1,7 +1,7 @@
 """Supervised paper jobs pause, resume and restart at their committed clock."""
 import asyncio
-from datetime import timedelta
 import sqlite3
+from datetime import timedelta
 
 import pytest
 
@@ -41,7 +41,6 @@ def test_runner_pause_resume_and_restart_preserve_committed_clock(tmp_path, monk
 
     first = run_at(START + timedelta(hours=1))
     assert first["state"] == "STOPPED" and first["ticks"] == first["completed"] == 1
-    assert not first["funded_authority"] and not first["order_submitted"]
     with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
         assert ledger.pause(job)["enabled"] is False
     assert run_at(START + timedelta(hours=2))["completed"] == 0

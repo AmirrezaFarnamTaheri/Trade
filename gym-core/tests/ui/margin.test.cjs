@@ -82,8 +82,8 @@ test('duplicate pending requests are fenced and failed reads never enable previe
   assert.equal(p.node('margin-preview-fields').disabled,true);
   assert.doesNotMatch(p.node('margin-status').textContent,/<script>|private/);
 });
-test('an unexpected funded or malformed receipt cannot enable the paper workflow', async () => {
-  for (const response of [{...catalogue,funded_authority:true},{...catalogue,schema:'unknown'},{}]) {
+test('a malformed receipt cannot enable the paper workflow', async () => {
+  for (const response of [{...catalogue,schema:'unknown'},{}]) {
     const p=page(async()=>response);
     await p.node('margin-load').onclick();
     assert.equal(p.node('margin-preview-fields').disabled,true);

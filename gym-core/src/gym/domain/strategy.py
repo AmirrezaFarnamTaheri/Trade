@@ -7,6 +7,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import ClassVar
 
 from .bars import Bar
 from .model import BookTop
@@ -229,8 +230,8 @@ class RelativeMomentum:
 class BuyAndHold:
     """Baseline: buy once at the first qualified decision, then hold. Same simulator, same costs."""
     name = "buy-and-hold"
-    params: dict = {}
-    feature_values: dict = {}
+    params: ClassVar[dict] = {}
+    feature_values: ClassVar[dict] = {}
 
     def decide(self, snap: Snapshot, holding: bool):
         if holding:

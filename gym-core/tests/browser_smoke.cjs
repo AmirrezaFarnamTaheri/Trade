@@ -1,5 +1,6 @@
 'use strict';
-// Windows Edge smoke test. Uses only Node built-ins and an isolated synthetic store.
+// Real-browser smoke test (Edge on Windows, Chrome/Chromium elsewhere). Node 22 built-ins and an isolated synthetic store.
+// GYM_PYTHON and GYM_BROWSER override the interpreter and browser executables.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -8,8 +9,12 @@ const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 
 const core = path.resolve(__dirname, '..');
-const python = path.join(core, '.venv', 'Scripts', 'python.exe');
-const edge = path.join(process.env['PROGRAMFILES(X86)'] || 'C:/Program Files (x86)', 'Microsoft', 'Edge', 'Application', 'msedge.exe');
+const windows = process.platform === 'win32';
+const python = process.env.GYM_PYTHON || path.join(core, '.venv', windows ? 'Scripts' : 'bin', windows ? 'python.exe' : 'python');
+const browserPath = [process.env.GYM_BROWSER,
+  path.join(process.env['PROGRAMFILES(X86)'] || 'C:/Program Files (x86)', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+  '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+].find(candidate => candidate && fs.existsSync(candidate));
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tradinggym-ui-'));
 const artifacts = path.resolve(core, '..', '.pi', 'ui-verification');
 const errors = [];
@@ -27,20 +32,22 @@ async function until(check, label, timeout = 30000) {
 }
 
 function launch(executable, args) {
-  const child = spawn(executable, args, { cwd: core, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+  // Own process group off Windows, so stop() also ends the browser's helper processes.
+  const child = spawn(executable, args, { cwd: core, windowsHide: true, detached: !windows, stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdout.on('data', data => { child.output = (child.output || '').slice(-4000) + data; });
   child.on('error', error => errors.push(error.message));
   child.stderr.on('data', data => { child.lastError = (child.lastError || '').slice(-1000) + data.toString().slice(-1000); });
   return child;
 }
 
 function stop(child) {
-  if (child?.pid && child.exitCode === null) {
-    spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore', timeout: 10000 });
-  }
+  if (!child?.pid || child.exitCode !== null) return;
+  if (windows) spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore', timeout: 10000 });
+  else try { process.kill(-child.pid, 'SIGKILL'); } catch {}
 }
 
 (async () => {
-  assert(fs.existsSync(edge), 'Windows Edge is required');
+  assert(browserPath, 'Edge, Chrome or Chromium is required (or set GYM_BROWSER)');
   assert(fs.existsSync(python), 'gym-core .venv is required');
   fs.mkdirSync(artifacts, { recursive: true });
   const seeded = spawnSync(python, ['-m', 'gym.cli', '--data', temporary, 'demo-seed', '--hours', '4'], { cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true });
@@ -50,12 +57,15 @@ function stop(child) {
   const port = listener.address().port;
   await new Promise(resolve => listener.close(resolve));
   const origin = `http://127.0.0.1:${port}`;
-  server = launch(python, ['-m', 'gym.cli', '--data', temporary, 'run', '--demo', '--port', String(port)]);
+  server = launch(python, ['-m', 'gym.cli', '--data', temporary, 'run', '--demo', '--port', String(port), '--no-browser']);
+  // The session key lives only in the printed link's fragment; without it every write is refused.
+  const link = await until(() => new RegExp(`${origin}/#t=[\\w-]+`).exec(server.output || '')?.[0], 'demo server link');
   await until(async () => (await fetch(origin)).ok, 'demo server');
   const profile = path.join(temporary, 'edge-profile');
-  browser = launch(edge, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank']);
-  const debugging = await until(() => fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0], 'Edge CDP');
-  const page = await (await fetch(`http://127.0.0.1:${debugging}/json/new?${encodeURIComponent(origin)}`, { method: 'PUT' })).json();
+  // Containers and Ubuntu 24.04 runners block Chrome's user-namespace sandbox; this test page is local and trusted.
+  browser = launch(browserPath, [...(windows ? [] : ['--no-sandbox']), '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank']);
+  const debugging = await until(() => fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0], 'browser CDP');
+  const page = await (await fetch(`http://127.0.0.1:${debugging}/json/new?about:blank`, { method: 'PUT' })).json();
   socket = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
   let sequence = 0;
@@ -90,14 +100,29 @@ function stop(child) {
   await send('Runtime.enable');
   await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-  await send('Page.navigate', { url: origin });
+  await send('Page.navigate', { url: link });
   await until(() => evaluate('document.querySelectorAll("#market-rows tr[data-symbol]").length > 0 || document.querySelector("#market-rows")?.textContent.includes("BTC")'), 'real market rows');
   const routes = await evaluate('[...document.querySelectorAll("nav [data-view]")].map(node => node.dataset.view)');
-  assert.equal(routes.length, 9);
+  assert.equal(routes.length, 10);
+  // Accessibility: with axe-core available (CI installs it; AXE_PATH or a resolvable package), every view
+  // is checked against WCAG 2 A/AA. Critical violations fail; serious ones are reported.
+  let axeSource = null;
+  try { axeSource = fs.readFileSync(process.env.AXE_PATH || require.resolve('axe-core/axe.min.js'), 'utf8'); } catch {}
+  const accessibility = {};
   for (const route of routes) {
     await evaluate(`document.querySelector('nav [data-view="${route}"]').click()`);
     await until(() => evaluate(`document.querySelector('#v-${route}')?.hidden === false`), `navigation ${route}`);
+    if (axeSource) {
+      await pause(800);
+      if (!await evaluate('typeof axe === "object"')) await evaluate(axeSource + '; true');
+      accessibility[route] = await evaluate(`axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] }).then(result =>
+        result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, help: v.help })))`);
+    }
   }
+  const critical = Object.entries(accessibility).flatMap(([route, found]) => found.filter(v => v.impact === 'critical').map(v => `${route}: ${v.id} (${v.nodes}) ${v.help}`));
+  for (const [route, found] of Object.entries(accessibility))
+    for (const v of found.filter(v => v.impact === 'serious')) console.log(`a11y serious · ${route}: ${v.id} (${v.nodes}) ${v.help}`);
+  assert.deepEqual(critical, [], 'critical accessibility violations');
   await evaluate('document.querySelector("nav [data-view=markets]").click()');
   await evaluate('document.fonts.ready.then(() => true)');
   assert(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'desktop horizontal overflow');
@@ -107,6 +132,7 @@ function stop(child) {
   }
   await screenshot('markets-desktop.png');
   await evaluate('document.querySelector("nav [data-view=research]").click()');
+  await evaluate('document.querySelector("#tab-compare").click()');
   await until(() => evaluate('!document.querySelector("#comparison-fields").disabled'), 'research catalog');
   await evaluate(`(() => {
     document.querySelector('#compare-symbol').value = 'BTCUSDT';
@@ -130,8 +156,6 @@ function stop(child) {
   const comparison = await until(() => evaluate('window.__comparison || null'), 'real paired comparison', 60000);
   assert.equal(await evaluate('window.__comparisonStatus'), 200, JSON.stringify(comparison));
   assert.equal(comparison.mode, 'COMPARE');
-  assert.equal(comparison.funded_authority, false);
-  assert.equal(comparison.order_submitted, false);
   assert.equal(comparison.runs.length, 2);
   assert.equal(comparison.runs[0].inputs.data, comparison.runs[1].inputs.data);
   assert.equal(comparison.runs[0].inputs.snapshots, comparison.runs[1].inputs.snapshots);
@@ -156,10 +180,10 @@ function stop(child) {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   assert(await evaluate('getComputedStyle(document.activeElement).outlineStyle !== "none"'), 'keyboard focus outline');
   assert.deepEqual(errors, [], 'browser exceptions');
-  const report = { mode: 'DEMO', authority: 'PAPER_ONLY', funded_authority: false, routes, comparison_id: comparison.comparison_id,
-    checks: ['nine real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'no JavaScript exceptions'] };
+  const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
+    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
-  console.log(`PASS: real Edge UI; screenshots/report: ${artifacts}`);
+  console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {
   fs.mkdirSync(artifacts, { recursive: true });
   try { fs.writeFileSync(path.join(artifacts, 'browser-failure.json'), JSON.stringify(await diagnostic(), null, 2)); } catch {}

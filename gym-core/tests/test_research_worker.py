@@ -1,11 +1,11 @@
 """Run: PYTHONPATH=gym-core/src python -m unittest discover -s gym-core/tests -p test_research_worker.py"""
 import ctypes
-from contextlib import redirect_stdout
 import io
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from gym.services import research_worker as worker

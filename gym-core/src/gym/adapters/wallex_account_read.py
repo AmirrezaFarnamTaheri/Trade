@@ -6,7 +6,6 @@ or supports venue writes. Every outcome is observational, not money authority.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import math
 import re
@@ -106,7 +105,7 @@ class WallexAccountReader:
                         raise ReadUncertain("venue read exceeded response size limit")
                     data.extend(chunk)
                 return parse_account_json(data)
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (TimeoutError, aiohttp.ClientError):
             raise ReadUncertain("venue read failed or returned unreadable data") from None
 
     async def balances(self) -> dict[str, dict[str, str]]:
@@ -190,7 +189,7 @@ class WallexAccountReader:
             raise ReadUncertain(str(exc)) from None
 
     async def order_page(self, *, kind, page, per_page=100):
-        from .wallex_order_evidence import parse_order_page, InvalidOrderEvidence
+        from .wallex_order_evidence import InvalidOrderEvidence, parse_order_page
         parse_order_page({"success": True, "result": {}}, kind=kind, page=page, per_page=per_page)
         collection = "openOrders" if kind == "OPEN" else "orders"
         try:

@@ -1,14 +1,14 @@
 """Preregistration cannot be retuned/retried and outcome memory cannot travel backwards."""
-from datetime import timedelta
 import json
+from datetime import timedelta
 
 import pytest
 
 from gym.adapters.run_store import save_run
+from gym.cli import main
 from gym.services.paper import paper
 from gym.services.research_protocol import ResearchProtocol
 from gym.services.research_review import review_runs
-from gym.cli import main
 from tests.support import START, market_db, quote_history
 
 
@@ -81,8 +81,9 @@ def test_bad_registration_cannot_read_or_consume_data(tmp_path, change):
 
 
 def test_engine_change_blocks_consumption_and_database_retuning_is_refused(tmp_path, monkeypatch):
-    import gym.services.research_protocol as protocol
     import sqlite3
+
+    import gym.services.research_protocol as protocol
     clock = {"at": START - timedelta(minutes=5)}
     db = market_db(tmp_path, [])
     try:

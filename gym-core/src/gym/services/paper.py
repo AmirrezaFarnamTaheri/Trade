@@ -5,10 +5,10 @@ from decimal import Decimal
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
 from ..domain.model import InstrumentId, QualityLimits, dec, iso
+from ..domain.registry import create_strategy
 from ..domain.rules import is_closed
 from ..domain.sim import CostModel, Spec
 from ..domain.strategy import BuyAndHold, digest
-from ..domain.registry import create_strategy
 from .data_portal import DataPortal, rate_at
 from .rules import RuleService
 from .session import ENGINE_VERSION
@@ -60,7 +60,9 @@ def session_result(session, tops, cash):
             nonfills[o["reason"]] = nonfills.get(o["reason"], 0) + 1
     return {"strategy": strategy.name, "params": strategy.params, "symbol": symbol, "quote": inst.quote, "base": inst.base,
             "start_cash": str(cash), "observations": len(tops), "qualified": sum(map(qualified, tops)),
-            "data_digest": digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags)) for x in tops]),
+            "data_digest": digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
+                                    *((x.depth,) if cost.walk_depth else ())) for x in tops]
+                                  + ([("limit_trades", session.limit_trades)] if cost.order_type == "limit" else [])),
             "bars": len(decisions), "fills": len(fills), "nonfills": nonfills, "end": end,
             "balances": {k: str(v) for k, v in book.balances.items()}, "curve": curve,
             "decisions": decisions, "orders": orders, "postings": book.postings,
@@ -196,6 +198,10 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
             w.append("Historical public metadata leaves " + ", ".join(missing) + " UNKNOWN; current values were not backfilled.")
     if portal.spec_at(symbol, t0) == Spec():
         w.append("Precision and minimums unknown at the start of the window; not enforced.")
+    compacted = portal.db.c.execute("SELECT detail FROM quality_events WHERE flag='COMPACTED' AND instrument_id IS NULL "
+                                    "AND substr(detail, 8, 27) > ? ORDER BY rowid DESC LIMIT 1", (iso(t0),)).fetchone()
+    if compacted:
+        w.append(f"Quotes in this window were compacted ({compacted[0]}); intra-bucket quote changes are gone. Raw archive keeps them.")
     if main["fills"] < 30:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
     w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")

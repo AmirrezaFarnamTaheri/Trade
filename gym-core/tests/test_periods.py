@@ -2,13 +2,19 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal as D
-from itertools import permutations
+from itertools import pairwise, permutations
 from random import Random
 
 import pytest
 
-from gym.domain.bars import (BarSpec, ClockEvent, CloseSubscriptions, Consolidator, EventClock,
-                             quote_bars)
+from gym.domain.bars import (
+    BarSpec,
+    ClockEvent,
+    CloseSubscriptions,
+    Consolidator,
+    EventClock,
+    quote_bars,
+)
 from gym.domain.model import TEHRAN, TradeTick, parse_ts
 from gym.domain.periods import Calendar, Count, DirectionalChange, Fixed, Mixed, Volume
 from tests.support import START, quote
@@ -93,7 +99,7 @@ def test_calendar_consumes_exact_supplied_jalali_month_boundaries():
     edges = [parse_ts(s) for s in ("2024-03-20T00:00:00+03:30", "2024-04-20T00:00:00+03:30",
                                    "2024-05-21T00:00:00+03:30")]
     def boundaries(t):
-        return next((a, b) for a, b in zip(edges, edges[1:]) if a <= t < b)
+        return next((a, b) for a, b in pairwise(edges) if a <= t < b)
     c = Consolidator("X", BarSpec("1day"), Calendar(boundaries))
     c.update(edges[0], D(10))
     bar, = c.update(edges[1], D(20))

@@ -1,13 +1,13 @@
 """B3 offline encrypted backup rotation: negative cases are the safety contract."""
-from pathlib import Path
 import hashlib
-import sqlite3
 import os
+import sqlite3
+from pathlib import Path
 
 import pytest
 
-from gym.services.encrypted_backup import BackupUnsafe, BackupAuthenticationError
 from gym.services import backup_rotation
+from gym.services.encrypted_backup import BackupAuthenticationError, BackupUnsafe
 
 
 def ledger(path: Path):
@@ -84,3 +84,21 @@ def test_symlinked_backup_root_is_rejected(tmp_path, monkeypatch):
         backup_rotation.backup_once(source, alias,
             passphrase="correct horse battery staple")
     assert list(real.iterdir()) == []
+
+
+def test_restore_drill_verifies_the_newest_bundle_and_leaves_no_copy(tmp_path, monkeypatch, capsys):
+    import json
+
+    from gym.adapters import secret_store
+    from gym.cli import main
+    source, destination = tmp_path / "source.db", tmp_path / "external"
+    ledger(source)
+    destination.mkdir()
+    monkeypatch.setattr(backup_rotation, "_independent_volume", lambda source, folder: True)
+    backup_rotation.backup_once(source, destination, passphrase="correct horse battery staple")
+    monkeypatch.setattr(secret_store, "load_backup_passphrase", lambda root=None: "correct horse battery staple")
+    assert main(["--data", str(tmp_path / "data"), "restore-drill", str(destination), "--stored-passphrase"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["drill"] is True and report["restored_copy"] == "deleted" and report["bundle"].endswith(".tgbak")
+    monkeypatch.setattr(secret_store, "load_backup_passphrase", lambda root=None: "wrong passphrase entirely")
+    assert main(["--data", str(tmp_path / "data"), "restore-drill", str(destination), "--stored-passphrase"]) != 0

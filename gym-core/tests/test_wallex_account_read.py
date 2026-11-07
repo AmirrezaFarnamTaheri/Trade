@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from gym.adapters.wallex_account_read import WallexAccountReader, ReadUncertain
+from gym.adapters.wallex_account_read import ReadUncertain, WallexAccountReader
 
 
 class Stream:

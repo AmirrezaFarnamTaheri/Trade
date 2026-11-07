@@ -1,10 +1,10 @@
 """Fixed R0 stdio MCP tools. No credentials, proposals, writes or dynamic tools."""
-from contextlib import closing
-from hashlib import sha256
 import json
-from pathlib import Path
 import sqlite3
 import sys
+from contextlib import closing
+from hashlib import sha256
+from pathlib import Path
 from types import SimpleNamespace
 
 from ..domain.registry import catalog
@@ -52,7 +52,7 @@ def handle(request, root):
             name, args = params["name"], params["arguments"]
             root = Path(root)
             if name == "strategy_catalog" and not args:
-                value = {"strategies": catalog(), "authority": "PAPER_ONLY", "funded_authority": False,
+                value = {"strategies": catalog(), "authority": "PAPER_ONLY",
                          "capabilities": {"tools": [tool["name"] for tool in _TOOLS],
                                           "scope": "THIS_TOOL_SERVER", "read_only": True,
                                           "external_requests": False, "credential_operations": False,
@@ -68,7 +68,7 @@ def handle(request, root):
                 with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
                     conn.execute("PRAGMA query_only=ON")
                     value = coverage(SimpleNamespace(c=conn), args["symbol"])
-                value = {**value, "authority": "PUBLIC_OBSERVATIONS", "funded_authority": False}
+                value = {**value, "authority": "PUBLIC_OBSERVATIONS"}
             else:
                 raise ValueError("unknown or non-read-only research tool")
             payload = json.dumps(value, allow_nan=False)

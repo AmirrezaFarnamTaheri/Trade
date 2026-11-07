@@ -5,8 +5,8 @@ from datetime import timedelta
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.store import SegmentWriter
-from gym.api.server import make_app
 from gym.api import server
+from gym.api.server import make_app
 from gym.domain.model import iso
 from gym.services.collector import Collector
 from gym.services.research_ledger import ResearchLedger
@@ -36,7 +36,7 @@ def test_research_controls_are_authenticated_durable_and_paper_only(tmp_path, mo
             assert response.status == 200
             assert response.headers["Cache-Control"] == "no-store"
             state = await response.json()
-            assert state["authority"] == "PAPER_ONLY" and state["funded_authority"] is False
+            assert state["authority"] == "PAPER_ONLY"
             assert state["jobs"][0]["enabled"] is True
             assert state["jobs"][0]["last_report"] is None
             due = state["jobs"][0]["next_at"]
@@ -53,7 +53,6 @@ def test_research_controls_are_authenticated_durable_and_paper_only(tmp_path, mo
             tick = await client.post("/api/research/tick", json={}, headers=headers)
             assert tick.status == 200
             result = await tick.json()
-            assert result["order_submitted"] is False
             assert len(result["completed"]) == 1
             state = await (await client.get("/api/research-state", headers=headers)).json()
             assert state["jobs"][0]["last_report"]["status"] == "COMPLETED"

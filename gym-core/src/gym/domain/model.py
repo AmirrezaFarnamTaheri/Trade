@@ -4,11 +4,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-UTC = timezone.utc
 TEHRAN = ZoneInfo("Asia/Tehran")
 QUOTES = ("TMN", "USDT")
 
@@ -16,6 +15,25 @@ QUOTES = ("TMN", "USDT")
 def loads(text: str):
     """JSON with every number parsed exactly from its raw text, never through float."""
     return json.loads(text, parse_float=Decimal, parse_int=Decimal)
+
+
+def strict_loads(raw, what: str = "JSON"):
+    """Operator/API JSON: duplicate keys and non-finite numbers are errors, never silently resolved."""
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate {what} field")
+            result[key] = value
+        return result
+
+    def reject(_):
+        raise ValueError(f"{what} numbers must be finite")
+
+    try:
+        return json.loads(raw, object_pairs_hook=unique, parse_constant=reject)
+    except (UnicodeDecodeError, RecursionError, json.JSONDecodeError):
+        raise ValueError(f"invalid {what}") from None
 
 
 def dec(x) -> Decimal:
@@ -30,7 +48,7 @@ def parse_ts(s: str) -> datetime:
         r"(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-][0-9]{2}:[0-9]{2})?", s
     ):
         raise ValueError(f"timestamp must use a padded ISO calendar date and time: {s!r}")
-    t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    t = datetime.fromisoformat(s)
     if t.tzinfo is None:
         raise ValueError(f"ambiguous timestamp without zone: {s!r}")
     return t.astimezone(UTC)
@@ -108,6 +126,8 @@ class BookTop:
     bid_qty: Decimal | None
     ask_qty: Decimal | None
     flags: frozenset[str]
+    # Observed levels when the collector stored them: (bids best-first, asks best-first) of (price, qty).
+    depth: tuple | None = None
 
     @property
     def spread(self) -> Decimal | None:

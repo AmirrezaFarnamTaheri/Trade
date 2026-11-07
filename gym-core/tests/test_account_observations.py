@@ -1,6 +1,11 @@
 """B1 manual account observations never become funded balances or fills."""
 import pytest
-from gym.domain.account_observations import project_account, journal_changes, parse_wallex_balances
+
+from gym.domain.account_observations import (
+    journal_changes,
+    parse_wallex_balances,
+    project_account,
+)
 
 
 @pytest.mark.parametrize("balances", [

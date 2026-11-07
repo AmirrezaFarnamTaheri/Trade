@@ -1,13 +1,11 @@
-"""C1 -> C2 -> C3 synthetic integration; no route creates a venue order."""
+"""C1 -> C2 synthetic integration; no route creates a venue order."""
 import hashlib
 
-from gym.services.venue_facts import VenueFactsJournal
-from gym.services.probe_budget import ProbeBudgetBook
 from gym.domain.assisted_ticket import prepare_preview
-from gym.services.offline_review_journal import OfflineReviewJournal
 from gym.domain.conversion import ConversionWorkload
-from gym.domain.shadow_autopilot import ShadowAutopilot
-from gym.domain.reopening import ReopeningWindow
+from gym.services.offline_review_journal import OfflineReviewJournal
+from gym.services.probe_budget import ProbeBudgetBook
+from gym.services.venue_facts import VenueFactsJournal
 
 
 def test_offline_c_series_end_to_end_never_elevates_to_funded(tmp_path):
@@ -60,29 +58,3 @@ def test_offline_c_series_end_to_end_never_elevates_to_funded(tmp_path):
     assert report["execution_source"] == "FAKE_VENUE_ONLY"
     assert report["settlement_verified"] is False
 
-    shadow = ShadowAutopilot(
-        workload_id="single", account="main", runtime_epoch=2,
-        total_cap_quanta=200, per_order_cap_quanta=100,
-    )
-    shadow.arm_shadow(2)
-    entry = shadow.stage_entry(
-        intent="synthetic-intent", instrument="BTCUSDT", budget_quanta=100,
-        verified_available_quanta=200, runtime_epoch=2,
-        qualified_quote=True, venue_open=True,
-    )
-    assert entry["client_id"] is None and entry["funded_authority"] is False
-    crash = shadow.restart(new_runtime_epoch=3)
-    assert crash.mode == "DISARMED"
-    assert crash.pending_intents() == ["synthetic-intent"]
-    assert crash.protection_state == "UNAVAILABLE"
-
-    reopen = ReopeningWindow(
-        instrument="BTCUSDT", policy="SELL_AT_REOPEN",
-        quote_count=1, runtime_epoch=3,
-    )
-    out = reopen.observe(
-        sequence=1, quote_age_ms=5, venue_open=True,
-        unit_epoch_verified=True, no_unknown_orders=False, runtime_epoch=3,
-    )
-    assert out["reopening_advisory"] == "BLOCKED"
-    assert out["funded_authority"] is False

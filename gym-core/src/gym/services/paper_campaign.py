@@ -1,5 +1,6 @@
 """Catalogue-wide paper definitions; venue eligibility and data readiness stay distinct."""
 import re
+
 from ..domain.bars import FIXED_RESOLUTIONS
 from ..domain.registry import STRATEGIES, create_strategy
 from .collector import select_universe

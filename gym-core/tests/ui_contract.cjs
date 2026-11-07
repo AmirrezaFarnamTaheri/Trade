@@ -92,7 +92,7 @@ const byId = id => {
   return element;
 };
 const resolutions = ["1min", "3min", "5min", "15min", "30min", "1h", "2h", "4h", "6h", "12h", "1day"];
-byId("gym-config").textContent = JSON.stringify({ token: "test-local-token", demo: true, resolutions });
+byId("gym-config").textContent = JSON.stringify({ demo: true, resolutions });
 const requests = [];
 const replies = new Map([
   ["/api/markets", { now: "2026-11-02T08:00:00Z", demo: true, markets: [], universe: { observed_assets: [], observed_markets: 0 } }],
@@ -144,7 +144,8 @@ const sandbox = {
     addEventListener() {},
   },
   localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
-  location: { hash: "" }, history: { replaceState() {} },
+  location: { hash: "#t=test-local-token", pathname: "/", search: "" }, history: { replaceState() { sandbox.location.hash = ""; } },
+  sessionStorage: { getItem: key => storage.get("session:" + key) ?? null, setItem: (key, value) => storage.set("session:" + key, value) },
   addEventListener(name, callback) { windowEvents.set(name, callback); }, removeEventListener() {},
   matchMedia: () => ({ matches: false }),
   setInterval() {}, clearInterval() {},
@@ -154,6 +155,7 @@ const sandbox = {
   confirm: () => false,
   fetch: async (path, options = {}) => {
     requests.push({ path, options });
+    if (path.startsWith("/api/runs?")) path = "/api/runs";  // paging and filter parameters are covered by Python tests
     assert.ok(replies.has(path), `Unexpected API request: ${path}`);
     if ((path === "/api/research" || path.startsWith("/api/research?")) && delayedSetup) return delayedSetup;
     if (path === "/api/compare" && delayedCompare) return delayedCompare;
@@ -164,6 +166,8 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 const context = vm.createContext(sandbox);
+for (const name of ["charts.js", "runs.js"])  // classic scripts loaded before app.js share its global scope
+  vm.runInContext(fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), name), "utf8"), context, { timeout: 5000 });
 vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context, { timeout: 5000 });
 const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch, renderResearchJobs, controlResearch, accountJournal, serviceReceiptDetails })", context);
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(setImmediate); };
@@ -452,7 +456,7 @@ const click = async id => {
     assert.equal(byId("preview-ticket").disabled, false);
   }
   byId("offline-ticket").value = JSON.stringify(ticket);
-  for (const forged of [{ funded_authority: true }, { order_submitted: true }, { mode: "LIVE" }]) {
+  for (const forged of [{ mode: "LIVE" }]) {
     replies.set("/api/dry-run/ticket", { ...safePreview, ...forged, symbol: "FORGED-AUTHORITY" });
     await preview();
     assert.ok(!ticketText().includes("FORGED-AUTHORITY"), "Unexpected trading authority must never appear as a valid preview");
@@ -483,7 +487,8 @@ const click = async id => {
   assert.equal(sent.resolution, "1min"); assert.equal(sent.latency_ms, 500);
   assert.deepEqual(sent.candidates, [{ strategy: "ema-trend", params: { fast: 3, slow: 21 } }, { strategy: "sma-reversion", params: { lookback: 20, entry_bps: 50 } }]);
   assert.ok(comparisonText().includes("paired-test"));
-  assert.ok(comparisonText().includes("1.123456789012345678"));
+  assert.ok(comparisonText().includes("1.12"), "Comparison shows a rounded net");
+  assert.ok(byId("compare-result").innerHTML.includes('title="1.123456789012345678"'), "The exact net stays available");
   assert.ok(byId("compare-result").innerHTML.includes('data-run="bbbbbbbbbbbbbbbb"'));
   assert.ok(comparisonText().includes(app.T.en.comparisonLimit));
   edit(byId("compare-cash"));
@@ -539,7 +544,7 @@ const click = async id => {
     await submit();
     assert.ok(comparisonText().includes(app.T[language].compareError));
     responseStatus = 200;
-    for (const forged of [{ funded_authority: true }, { order_submitted: true }, { mode: "LIVE" }, { authority: "FUNDED" }, { funded_authority: "false" }]) {
+    for (const forged of [{ mode: "LIVE" }]) {
       replies.set("/api/compare", { ...comparison, ...forged, comparison_id: "FORGED-COMPARISON" });
       await submit();
       assert.equal(app.state.comparison, null);

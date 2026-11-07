@@ -68,7 +68,7 @@ def test_stale_future_catalogues_and_unavailable_collateral_do_not_call_preview(
     assert rejected["collateral_limits"] == {"min": "150", "max": "850", "currency": "USDT"}
     assert len(calls) == 2
     for clock in (START - timedelta(seconds=1), START + timedelta(minutes=6)):
-        monkeypatch.setattr(margin, "now_utc", lambda: clock)
+        monkeypatch.setattr(margin, "now_utc", lambda clock=clock: clock)
         with pytest.raises(ValueError, match="not current"):
             margin.margin_action(tmp_path, "margin-preview", value, store="live")
     assert len(calls) == 2

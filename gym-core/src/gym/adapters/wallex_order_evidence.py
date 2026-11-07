@@ -55,7 +55,7 @@ def _timestamp(value: object) -> str | int:
         value.endswith("Z") or re.search(r"[+-][0-9]{2}:[0-9]{2}\Z", value)
     ):
         try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value)
         except ValueError:
             raise InvalidOrderEvidence("invalid fill timestamp") from None
         if parsed.utcoffset() is not None:

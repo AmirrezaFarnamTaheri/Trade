@@ -1,9 +1,9 @@
 """Decision-time state, conditional cash, durable failed trials and bounded AI evidence."""
-from datetime import timedelta
 import asyncio
-from decimal import Decimal
 import json
 import sqlite3
+from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
@@ -14,15 +14,14 @@ from gym.api.server import make_app
 from gym.cli import main
 from gym.domain.model import iso
 from gym.domain.portfolio import rebalance_preview
+from gym.services.collector import Collector, now_utc
 from gym.services.experiment_registry import ExperimentRegistry
-from gym.services.collector import Collector
-from gym.services.rules import RuleService
 from gym.services.paper import paper
 from gym.services.replay_debugger import execution_quality, replay_decisions
 from gym.services.research_actions import research_action
 from gym.services.research_notes import prepare_packet, save_notes
 from gym.services.research_protocol import ResearchProtocol
-from gym.services.collector import now_utc
+from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
 
 
@@ -165,7 +164,7 @@ def test_experiment_budget_counts_consumed_markets_reference_fx_and_baselines_on
     row = list(db.c.execute("SELECT * FROM book_top LIMIT 1").fetchone())
     row[0] = "wallex:" + extra
     db.c.execute("BEGIN")
-    db.c.executemany("INSERT INTO book_top VALUES(?,?,?,?,?,?,?,?,?)", (row for _ in range(100001)))
+    db.c.executemany(f"INSERT INTO book_top VALUES({','.join('?' * len(row))})", (row for _ in range(100001)))
     db.c.commit()
     request = {**experiment(), "symbol": symbol, "strategy": strategy, "trials": [params]}
     with ExperimentRegistry(tmp_path, store="live") as registry:

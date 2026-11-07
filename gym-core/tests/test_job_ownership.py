@@ -1,20 +1,19 @@
 """Real SQLite connections fence publication without keeping a write lock during replay."""
-from datetime import timedelta
-import json
 import asyncio
+import json
+from datetime import timedelta
 from threading import Event
 
 import pytest
-
-from gym.adapters.store import MarketDB
-from gym.adapters.store import SegmentWriter
-from gym.api.server import make_app
-from gym.services.collector import Collector
-from gym.services.rules import RuleService
 from aiohttp.test_utils import TestClient, TestServer
+
+from gym.adapters.store import MarketDB, SegmentWriter
+from gym.api.server import make_app
 from gym.domain.model import iso
 from gym.services import research_ledger
+from gym.services.collector import Collector
 from gym.services.research_ledger import ResearchLedger
+from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
 from tests.test_research_ledger import schedule
 

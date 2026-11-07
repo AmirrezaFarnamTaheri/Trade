@@ -1,7 +1,7 @@
 """Restartable native replay recipes; rebuild state from verified history instead of loading objects."""
+from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal
-from copy import deepcopy
 
 from ..adapters.run_store import load_verified_run
 from ..domain.bars import BarSpec
@@ -54,7 +54,7 @@ def checkpoint_replay(registry, db, request, *, resume=False):
     cost = inputs["cost"]
     if cost["fee_assumption"] != "fee-in-received-asset":
         raise ValueError("unsupported saved fee assumption")
-    model = CostModel(Decimal(cost["fee_rate"]), timedelta(milliseconds=cost["latency_ms"]), timedelta(seconds=cost["max_wait_s"]))
+    model = CostModel.from_description(cost)
     portal = DataPortal(db, excluded=[(instant(a), instant(b)) for a, b in inputs.get("modeled_feed_outages", [])])
     rules = RuleService(db)
     def rules_for(at):

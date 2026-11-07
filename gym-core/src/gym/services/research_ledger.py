@@ -39,8 +39,7 @@ def _id(value):
 
 
 def _result(**values):
-    return {**values, "authority": "PAPER_ONLY", "funded_authority": False,
-            "order_submitted": False, "venue_settled": False}
+    return {**values, "authority": "PAPER_ONLY"}
 
 
 class HypothesisUnavailable(ValueError):

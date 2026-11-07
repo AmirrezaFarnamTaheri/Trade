@@ -20,7 +20,7 @@ def request():
 
 def test_joint_risk_budget_prevents_individually_feasible_overspending():
     out = evaluate_artifact(request())["result"]
-    assert [r["gross_base_quantity"] for r in out["allocations"]] == [Decimal("2"), Decimal("1")]
+    assert [r["gross_base_quantity"] for r in out["allocations"]] == [Decimal(2), Decimal(1)]
     assert out["entry_cash_quote"] == 300 and out["modeled_loss_quote"] == 30
     assert out["remaining_cash_quote"] == 200
     assert out["cash_reserve_quote"] == 100 and not out["existing_exposure_verified"]
@@ -31,7 +31,7 @@ def test_shared_cash_reserve_and_rank_order_are_preserved():
     artifact["parameters"]["total_risk_fraction"] = "0.9"
     artifact["parameters"]["cash"] = "350"
     out = evaluate_artifact(artifact)["result"]
-    assert [r["gross_base_quantity"] for r in out["allocations"]] == [Decimal("2"), Decimal("0.5")]
+    assert [r["gross_base_quantity"] for r in out["allocations"]] == [Decimal(2), Decimal("0.5")]
     assert out["remaining_cash_quote"] == 100
     artifact["parameters"]["candidates"].reverse()
     assert evaluate_artifact(artifact)["result"]["allocations"][0]["symbol"] == "ETHUSDT"

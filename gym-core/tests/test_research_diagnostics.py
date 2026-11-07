@@ -24,9 +24,9 @@ from tests.support import START, market_db, quote_history
 
 def sides():
     return {"bid": BookSide([(Decimal("99.9"), Decimal("2.123456789")),
-                             (Decimal("99.75"), Decimal("3")), (Decimal("99.5"), Decimal("4"))], START),
-            "ask": BookSide([(Decimal("100.1"), Decimal("1")), (Decimal("100.25"), Decimal("2")),
-                             (Decimal("100.5"), Decimal("3"))], START)}
+                             (Decimal("99.75"), Decimal(3)), (Decimal("99.5"), Decimal(4))], START),
+            "ask": BookSide([(Decimal("100.1"), Decimal(1)), (Decimal("100.25"), Decimal(2)),
+                             (Decimal("100.5"), Decimal(3))], START)}
 
 
 def test_observed_depth_is_exact_and_includes_boundary_levels():
@@ -36,7 +36,7 @@ def test_observed_depth_is_exact_and_includes_boundary_levels():
     assert [r["bid_base"] for r in report["bands"]] == ["2.123456789", "5.123456789", "9.123456789"]
     assert report["bands"][0]["bid_quote"] == "212.1333332211"
     assert report["bands"][0]["ask_base"] == "1"
-    assert report["scope"] == "OBSERVED_LEVELS_ONLY" and report["funded_authority"] is False
+    assert report["scope"] == "OBSERVED_LEVELS_ONLY"
 
 
 @pytest.mark.parametrize("fault", ["missing", "stale", "future", "crossed", "nonfinite", "duplicate", "nonpositive"])
@@ -105,7 +105,7 @@ def test_summary_is_allowlisted_authenticated_and_references_the_original_run(tm
                 assert response.headers["Cache-Control"] == "no-store"
                 assert "attachment" in response.headers["Content-Disposition"]
                 saved = await response.json()
-                assert saved["funded_authority"] is False and saved["summary_digest"] == checksum
+                assert saved["schema"] == "paper-summary/2" and "funded_authority" not in saved and saved["summary_digest"] == checksum
                 assert "private-canary" not in json.dumps(saved)
                 assert (await client.get("/api/runs/not-a-run/summary", headers={"X-Gym-Token": "tok"})).status == 400
                 assert (await client.get("/api/runs/" + "0"*16 + "/summary", headers={"X-Gym-Token": "tok"})).status == 404

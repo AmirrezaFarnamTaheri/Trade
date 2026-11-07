@@ -12,8 +12,9 @@ from gym.services.collector import Collector, now_utc
 from gym.services.paper import paper
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
+from tests.test_depth_sequence import request as depth_request
+from tests.test_depth_sequence import snapshot
 from tests.test_venue_facts import sample
-from tests.test_depth_sequence import request as depth_request, snapshot
 
 
 def test_all_native_extension_workflows_share_real_services_and_token_boundary(tmp_path):

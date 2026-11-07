@@ -1,8 +1,8 @@
 """Period definitions for the canonical streaming consolidator."""
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Callable
 
 from .model import UTC
 

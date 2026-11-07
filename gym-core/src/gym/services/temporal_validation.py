@@ -3,6 +3,7 @@
 Uses native paper accounts and one read snapshot. Repeated historical evaluation
 is not independent final evidence, and this service never grants capital authority.
 """
+import itertools
 from datetime import timedelta
 from decimal import Decimal
 
@@ -32,7 +33,7 @@ def validate(db, symbol, start, end, candidates, *, resolution="15min", cash=Dec
     try:
         reports = [_validate_in_snapshot(db, symbol, first, last, candidates, resolution=resolution,
                    cash=cash, cost=cost, rules_mode=rules_mode, store=store, subscriptions=subscriptions)
-                   for first, last in zip(cuts, cuts[1:])]
+                   for first, last in itertools.pairwise(cuts)]
         if folds == 1:
             return reports[0]
         evaluated = sum(report["status"] == "EVALUATED" for report in reports)

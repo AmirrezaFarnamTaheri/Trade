@@ -40,5 +40,4 @@ def operational_readiness(collector, now):
             "status": "BLOCKED" if not ready else "READY" if fresh == len(markets) else "DEGRADED",
             "scope": "PUBLIC_OBSERVATIONS", "demo": collector.demo,
             "markets": markets, "reasons": reasons,
-            "fresh_markets": fresh, "watched_markets": len(markets),
-            "funded_authority": False, "executor_state_verified": False}
+            "fresh_markets": fresh, "watched_markets": len(markets)}

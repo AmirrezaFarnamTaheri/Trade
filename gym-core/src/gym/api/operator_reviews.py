@@ -1,28 +1,23 @@
 """Explicit same-origin operator relay; never exposed through paper/MCP dispatch."""
 
 import asyncio
-import hmac
 
 from aiohttp import web
 
 from ..adapters.service_review import review
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..contracts.review_wire import encode_request
+from . import finish
 
 
-def install(app, token, *, enabled):
+def install(app, *, enabled):
     lock = asyncio.Lock()
 
     async def handle(request):
-        if not hmac.compare_digest(request.headers.get("X-Gym-Token", ""), token):
-            return web.json_response(
-                {"error": "local operator token required"}, status=403
-            )
         if not enabled:
             return web.json_response(
                 {
                     "error": "native operator reviews disabled in DEMO",
-                    "funded_authority": False,
                 },
                 status=403,
             )
@@ -57,27 +52,17 @@ def install(app, token, *, enabled):
             )
         try:
             async with lock:
-                task = asyncio.create_task(review(value))
-                try:
-                    result = await asyncio.shield(task)
-                except asyncio.CancelledError:
-                    try:
-                        await task
-                    finally:
-                        raise
+                result = await finish(review(value))
         except (ReadUncertain, ValueError, OSError):
             return web.json_response(
                 {
                     "error": "native review unacknowledged; inspect the same identity before retry",
                     "operation_may_have_committed": True,
                     "automatic_retry_allowed": False,
-                    "funded_authority": False,
-                    "order_submitted": False,
                 },
                 status=503,
-                headers={"Cache-Control": "no-store"},
             )
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        return web.json_response(result)
 
     app.router.add_get("/api/operator-reviews", handle)
     app.router.add_post("/api/operator-reviews", handle)

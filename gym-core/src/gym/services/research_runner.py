@@ -1,11 +1,11 @@
 """Foreground paper scheduler; stop after the current tick, restart at committed clocks."""
 import asyncio
 import math
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 from .collector import now_utc
-from .research_process import calculate, ResearchProcessFailure
+from .research_process import ResearchProcessFailure, calculate
 
 
 async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 5,
@@ -35,7 +35,5 @@ async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 
     except asyncio.CancelledError:
         reason = "Operator interrupted"
     except ResearchProcessFailure as error:
-        return {"state": "STOPPED", **error.report, "ticks": ticks, "completed": completed, "failed": failed,
-                "authority": "PAPER_ONLY", "order_submitted": False}
-    return {"state": "STOPPED", "reason": reason, "ticks": ticks, "completed": completed, "failed": failed,
-            "authority": "PAPER_ONLY", "funded_authority": False, "order_submitted": False}
+        return {"state": "STOPPED", **error.report, "ticks": ticks, "completed": completed, "failed": failed}
+    return {"state": "STOPPED", "reason": reason, "ticks": ticks, "completed": completed, "failed": failed}

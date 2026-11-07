@@ -1,6 +1,6 @@
 """Read-only indicator diagnostics over observed, closed MID quote bars."""
-from datetime import timedelta
 import re
+from datetime import timedelta
 
 from ..domain.bars import BarSpec, Consolidator, qualified
 from ..domain.indicators import bar_indicator_values

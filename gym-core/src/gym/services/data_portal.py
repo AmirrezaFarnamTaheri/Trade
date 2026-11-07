@@ -17,16 +17,25 @@ class DataPortal:
     def __init__(self, db: MarketDB, *, excluded=()):
         self.db = db
         self.excluded = tuple(excluded)
+        # Read-only snapshots of older stores predate the depth column.
+        self.has_depth = any(row[1] == "depth" for row in db.c.execute("pragma table_info(book_top)"))
 
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
         if not t0 < t1:
             raise ValueError(f"inverted or empty range {iso(t0)} .. {iso(t1)}")
-        rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags from book_top where instrument_id=? "
-                                 "and ts_avail>=? and ts_avail<? order by ts_avail, rowid", (f"wallex:{symbol}", iso(t0), iso(t1)))
+        rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, " + ("depth" if self.has_depth else "null") +
+                                 " from book_top where instrument_id=? and ts_avail>=? and ts_avail<? order by ts_avail, rowid",
+                                 (f"wallex:{symbol}", iso(t0), iso(t1)))
         def optional_decimal(value):
             return None if value is None else dec(value)
 
-        return [BookTop(symbol, parse_ts(r[0]), optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]), optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))))
+        def depth(text):
+            if text is None:
+                return None
+            return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
+
+        return [BookTop(symbol, parse_ts(r[0]), optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
+                        optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), depth(r[6]))
                 for r in rows if not any(start <= parse_ts(r[0]) < end for start, end in self.excluded)]
 
     def publication(self):
@@ -82,6 +91,33 @@ class DataPortal:
 
         return Spec(None if s.get("stepSize") is None else int(s["stepSize"]),
                     optional_constraint("minQty"), optional_constraint("minNotional"))
+
+
+POOR_DATA_SHARE = 0.2  # more flagged rows than this and paper entries on the market are not trusted
+
+
+def quality_report(db: MarketDB, since: datetime) -> dict[str, dict]:
+    """Per market since `since`: stored quote rows, share carrying a disqualifying flag, and the longest silence."""
+    out = {}
+    for instrument, rows, flagged, longest in db.c.execute("""
+            SELECT instrument_id, count(*), sum(flags != ''), coalesce(max(gap), 0) FROM (
+                SELECT instrument_id, flags,
+                       (julianday(ts_avail) - julianday(lag(ts_avail) OVER (PARTITION BY instrument_id ORDER BY ts_avail))) * 86400 AS gap
+                FROM book_top WHERE ts_avail >= ?) GROUP BY instrument_id""", (iso(since),)):
+        share = flagged / rows if rows else 1.0
+        out[instrument.split(":", 1)[1]] = {"rows": rows, "flagged_share": round(share, 4), "longest_gap_s": round(longest, 1),
+                                            "grade": "POOR" if share > POOR_DATA_SHARE or longest > 3600 else "OK"}
+    return out
+
+
+def quote_gaps(db: MarketDB, symbol: str, t0: datetime, t1: datetime, min_seconds: float = 120) -> list[tuple[datetime, datetime]]:
+    """Stretches with no stored quote longer than `min_seconds`, inside [t0, t1)."""
+    rows = db.c.execute("""SELECT prev, ts_avail FROM (
+        SELECT ts_avail, lag(ts_avail) OVER (ORDER BY ts_avail) AS prev FROM book_top
+        WHERE instrument_id=? AND ts_avail>=? AND ts_avail<?)
+        WHERE prev IS NOT NULL AND (julianday(ts_avail) - julianday(prev)) * 86400 > ?""",
+                        (f"wallex:{symbol}", iso(t0), iso(t1), min_seconds)).fetchall()
+    return [(parse_ts(a), parse_ts(b)) for a, b in rows]
 
 
 def rate_at(tops: list[BookTop], t: datetime) -> tuple[Decimal, datetime] | None:

@@ -1,8 +1,8 @@
 """Fixed installed entrypoint; never receives code, module names or executable paths from MCP."""
 import json
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .research_mcp import serve_stdio
 

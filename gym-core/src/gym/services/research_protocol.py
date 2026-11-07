@@ -1,12 +1,12 @@
 """Durable outcome availability and consume-once preregistered paper evaluations."""
+import hashlib
+import json
+import re
+import sqlite3
 from contextlib import contextmanager
 from datetime import timedelta
 from decimal import localcontext
-import hashlib
-import json
 from pathlib import Path
-import re
-import sqlite3
 
 from ..adapters.run_store import save_run
 from ..domain.bars import BarSpec

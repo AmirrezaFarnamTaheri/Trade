@@ -23,11 +23,11 @@ def test_risk_sizing_rounds_down_and_includes_both_fees_and_slippage():
     report = evaluate()
     out = report["result"]
     quantity = out["gross_base_quantity"]
-    loss_per_unit = Decimal("100") * Decimal("1.005") - Decimal("90") * Decimal("0.995") * Decimal("0.999")**2
+    loss_per_unit = Decimal(100) * Decimal("1.005") - Decimal(90) * Decimal("0.995") * Decimal("0.999")**2
     assert quantity == Decimal("1.79")
     assert out["modeled_loss_quote"] <= 20 < (quantity + Decimal("0.01")) * loss_per_unit
     assert out["net_base_quantity"] == quantity * Decimal("0.999")
-    assert out["entry_price"] == Decimal("100") and out["stop_price"] == Decimal("90")
+    assert out["entry_price"] == Decimal(100) and out["stop_price"] == Decimal(90)
     assert out["limiting_constraints"] == ["risk"]
     assert report["funded_authority"] is False and report["order_submitted"] is False
     assert out["stop_execution_verified"] is False and out["venue_minimums_verified"] is False

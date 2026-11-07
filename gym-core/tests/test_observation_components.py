@@ -1,11 +1,12 @@
 """Confirmation and component metadata never invent availability or silently change old vintages."""
 from datetime import timedelta
+
 import pytest
 
 from gym.services.research_protocol import ResearchProtocol
-from gym.services.research_series import derived_series, convert_series
+from gym.services.research_series import convert_series, derived_series
 from tests.support import START
-from tests.test_research_series import row, request
+from tests.test_research_series import request, row
 
 
 def test_confirmation_defers_knowledge_and_component_sum_is_exact(tmp_path):

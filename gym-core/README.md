@@ -26,7 +26,29 @@ uv run gymctl paper USDTTMN --res session --subscribe 1h  # primary session deci
 uv run gymctl demo-seed         # 72 h synthetic DEMO history (USDTTMN goes silent in its closures)
 uv run gymctl paper BTCTMN --demo   # EMA replay + baselines + gross-to-net waterfall -> data\demo\runs\<id>.json
 uv run pytest -q               # behavior and architecture checks
+uv run python scripts/check.py # lint + tests + real-browser smoke (also: lint|test|ui|smoke)
 ```
+
+`run` and `serve` print a private link (`http://127.0.0.1:<port>/#t=<session key>`) and open it in the
+default browser; pass `--no-browser` to only print it. The key stays in the link's fragment and the tab's
+session storage, never in the served page. Market and saved-run reads work without it; every write and
+private read needs it, so open the printed link rather than typing the address.
+
+Collection stops with a clear error when the raw-archive volume has less than 5 GiB free. Move older hourly
+day folders to another drive with `uv run gymctl raw-move --before 20261101 --to E:\archive` (see
+[storage](docs/storage.md)); the manifest is updated so replays still find them.
+
+Long-running collection: `run --archive-to E:\cold --keep-days 7` moves finished day folders once a day,
+and every day the collector re-hashes recent raw segments against the manifest. System health shows free
+space, growth per hour and hours until the floor, each live connection's reconnects and last frame, the last
+archive and integrity sweep, and can raise desktop alerts. `gymctl verify-segments`, `gymctl compact
+--before <time> --bucket 1s` (keeps one quote per market and second; the raw archive keeps everything) and
+`gymctl candles SYMBOL --fill-gaps` (venue 1-minute candles for quote gaps over 120 s, logged as
+GAP_BACKFILLED) are the manual tools. Events are written as JSON lines to `<store>/events.jsonl`, rotated at
+50 MB. `scripts/windows/Install-Collector.ps1` starts the collector at logon and restarts it after a
+failure; it writes the private link to `%LOCALAPPDATA%\TradingGYM\workspace-link.txt`.
+`scripts/windows/Install-BackupSchedule.ps1` runs a daily encrypted ledger backup and a restore drill
+(`gymctl restore-drill`) with a passphrase sealed once by `gymctl key set-backup`.
 
 Live `run` stores every current catalog row and defaults to `--assets all`: observe
 all listed spot assets with TMN/USDT quotes, including venue-risk-flagged listings.
@@ -166,7 +188,7 @@ last-recovery status, so the screen explicitly reports **Status not connected**.
 passphrases out of browser fields. System health displays only existing collector, venue-evidence and saved
 simulation records; missing evidence is not a successful check.
 
-The UI remains native HTML/CSS/JavaScript. [Design system](../DESIGN.md) and
+The UI remains native HTML/CSS/JavaScript. [Decision records](docs/decisions.md) explain the session key, display rounding and run-identity rules. [Design system](../DESIGN.md) and
 [surface contract](../.impeccable/surfaces/operator-workspace.md) describe its shared visual and capability boundaries.
 
 ## Paper sessions, Journal and economic evidence
@@ -184,13 +206,31 @@ uv run gymctl paper BTCTMN --demo
 uv run gymctl evidence <run-id> --demo --diagnostics --decide NONE --cap 0 --note "Synthetic data: no capital"
 ```
 
+Shadow mode is a live `session` on the live store: decisions and paper fills against real quotes, no orders.
+`gymctl calibrate` then reports feed latency (venue trade time to local receipt, a lower bound for order
+round-trips, with a suggested `--latency-ms`) and, across saved runs, decision-to-fill delay, latency drift and
+spread cost in basis points plus nonfill reasons.
+
 Sessions record CONFIGURED → WARMING_UP → RUNNING → FINISHING → ENDED; Ctrl+C preserves ABORTED,
 reason and replay cursor. There is no warmup timeout: stop an idle session with Ctrl+C. Pending requests settle
 only on later qualified observations; ending never sells a holding. Live duration stops new decisions at the
 post-warmup deadline and drains pending orders until their fill or timeout. Replay ends at its explicit data cut,
 recording any unsettled request as a nonfill. Missing intervals are recorded, not filled with invented HOLDs.
 
-Open **Paper research** (`#research`) in the local UI for saved runs, equity, gross-to-net costs, the active-trading
+Open **Paper research** (`#research`) in the local UI. Its tabs hold saved runs, the matched comparison form,
+schedules, Wallex margin and the advanced workbench. Each run shows risk and return (total and, for windows of
+30+ days, annualized return; per-period Sharpe with the probabilistic Sharpe ratio; Sortino, Calmar, drawdown;
+win rate, profit factor, expectancy, exposure and turnover) and a first-in-first-out closed-trade ledger. Comparisons
+add a selection check: the deflated Sharpe ratio of the best candidate given how many were tried. `paper`,
+`compare` and `validate` accept `--participation 0.25` (also on the compare form) to cap each fill at that share
+of the displayed best-level size; larger orders are resized down, and runs without the cap keep their old IDs.
+Charts show exact values on hover or with the arrow keys, buy and sell markers, and an underwater
+(drawdown) strip; comparisons overlay the equity paths. Tick up to four saved runs to view them side by side,
+download trades or decisions as CSV, and link straight to a run with `#research/runs/<run id>`. All figures are
+explained in [metrics](docs/metrics.md). `gymctl assistant SYMBOL --preset <model preset> --budget 3` lets a
+connected model propose configurations, which are validated, tested on paper and saved (so they count as trials);
+AI connections shows tokens and cost per model.
+The page also lists equity, gross-to-net costs, the active-trading
 USDT-equivalent ranking, matched replay baselines, reports and expandable decisions (snapshot, feature hash, request,
 order/veto, +15m/+1h/+4h outcome marks). Zero-trade results remain visible as abstainers and are excluded from the
 active rank. Public Wallex instrument metadata is stored as complete, point-in-time vintages with source, availability

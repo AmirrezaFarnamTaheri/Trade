@@ -17,3 +17,14 @@ module-name = "gym"
 [build-system]
 requires = ["uv_build>=0.11.23,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.ruff.lint]
+# TRY004: the API maps ValueError to HTTP 400; a TypeError for bad input would surface as a 500.
+# PLW1510: tests assert on the exit code of each subprocess they start.
+ignore = ["TRY004", "PLW1510"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["RUF012", "SIM117"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["gym.domain.model.QualityLimits", "gym.domain.sim.CostModel"]

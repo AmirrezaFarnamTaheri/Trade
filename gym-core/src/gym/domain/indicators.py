@@ -1,4 +1,5 @@
 """Descriptive closed-price indicators with explicit native seed and warmup rules."""
+import itertools
 from decimal import Decimal, localcontext
 
 from .market_models import decimal
@@ -22,7 +23,7 @@ def indicator_values(closes):
                 "value": str(100 * (closes[-1] / average - 1)) if ready else None, "unit": "percent", "basis": "CLOSE_OVER_SMA_MINUS_ONE"}
         rsi = None
         if len(closes) >= 15:
-            changes = [last - first for first, last in zip(closes, closes[1:])]
+            changes = [last - first for first, last in itertools.pairwise(closes)]
             gain = sum(max(Decimal(0), move) for move in changes[:14]) / 14
             loss = sum(max(Decimal(0), -move) for move in changes[:14]) / 14
             for move in changes[14:]:

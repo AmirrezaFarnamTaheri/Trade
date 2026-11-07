@@ -4,15 +4,14 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from gym.adapters.store import SegmentWriter
+
+from gym.adapters.store import MarketDB, SegmentWriter, read_segment
 from gym.domain.bars import BarSpec, Consolidator, quote_bars
-from gym.domain.model import TEHRAN, UTC, BookSide, book_top, levels, loads, dec
+from gym.domain.model import TEHRAN, UTC, BookSide, book_top, dec, levels, loads
 from gym.services.collector import Collector
 from gym.services.data_portal import DataPortal
 from gym.services.paper import paper
 from tests.support import START, market_db, quote, quote_history
-from gym.adapters.store import MarketDB, read_segment
-
 
 # Real frames captured from wss://api.wallex.ir/connection/websocket on 2026-10-30.
 WS_DEPTH = ('{"push":{"channel":"orderbook:BTCTMN@buyDepth","pub":{"data":{"message":[{"price":21038000010,'
@@ -27,7 +26,7 @@ WS_TRADE = ('{"push":{"channel":"public:BTCTMN@trade","pub":{"data":{"isBuyOrder
 
 def test_exact_decimals_never_float():
     lv = levels(loads(WS_DEPTH)["push"]["pub"]["data"]["message"])
-    assert lv[0] == (Decimal("21038000010"), Decimal("0.05229445"))
+    assert lv[0] == (Decimal(21038000010), Decimal("0.05229445"))
     assert str(loads('{"x":1100170639.6229446}')["x"]) == "1100170639.6229446"
     with pytest.raises(TypeError):
         dec(0.1)
@@ -35,7 +34,7 @@ def test_exact_decimals_never_float():
 
 def test_book_quality_flags():
     now = datetime(2026, 10, 30, 12, tzinfo=UTC)
-    side = lambda p: BookSide([(Decimal(p), Decimal(1))] * 3, now)  # noqa: E731
+    side = lambda p: BookSide([(Decimal(p), Decimal(1))] * 3, now)
     assert book_top("X", side("101"), side("100"), now).flags == {"CROSSED"}
     assert book_top("X", side("100"), side("100"), now).flags == {"ZERO_SPREAD"}
     assert "WIDE_SPREAD" in book_top("X", side("100"), side("110"), now).flags
@@ -60,7 +59,7 @@ def test_collector_segments_and_change_only_tops(tmp_path):
     assert db.c.execute("select price, aggressor from trades").fetchall() == [("21038000010", "SELL")]
     assert db.c.execute("select count(*) from quality_events where flag='SOURCE_ERROR'").fetchone()[0] == 1
     seg.close()
-    sid, path, a, b, sha, n = db.c.execute("select seg_id, path, seq_from, seq_to, sha256, bytes from segments").fetchone()
+    _sid, path, a, b, sha, _n = db.c.execute("select seg_id, path, seq_from, seq_to, sha256, bytes from segments").fetchone()
     lines = read_segment(Path(path))
     assert (a, b) == (1, 4) and [x["raw"] for x in lines] == [WS_DEPTH, WS_ASK, WS_TRADE, "not json"]
     import hashlib

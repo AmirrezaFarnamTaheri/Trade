@@ -41,7 +41,7 @@ def _time(value: str) -> str:
     ):
         raise ValueError("observation time must be zoned ISO")
     try:
-        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        stamp = datetime.fromisoformat(value)
     except ValueError as exc:
         raise ValueError("invalid observation timestamp") from exc
     if stamp.utcoffset() is None:

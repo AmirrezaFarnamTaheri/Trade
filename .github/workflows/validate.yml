@@ -3,6 +3,8 @@ on:
   push:
     branches: [master, "feat/**"]
   pull_request:
+  schedule:
+    - cron: "17 2 * * 1"  # weekly: drills, chaos report, coverage and mutation checks catch drift without a push
 
 concurrency:
   group: validate-${{ github.ref }}
@@ -31,6 +33,14 @@ jobs:
         run: cargo test --locked --workspace --all-targets
       - name: Check Rust warnings
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Fake Venue chaos report (fails on any violated invariant)
+        if: runner.os == 'Linux'
+        run: cargo run --locked --release -p exec-svc --bin gym-chaos -- target/chaos/report.json
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: chaos-report
+          path: target/chaos/report.json
       - name: Check Windows bootstrap script syntax (no install)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -64,8 +74,93 @@ jobs:
       - run: uv lock --check
       - run: uv sync --locked --group dev
       - name: Check Python lint
-        run: uvx ruff==0.12.4 check src tests
-      - run: uv run pytest -q
+        run: uvx ruff==0.16.9 check src tests
+      - name: Tests with line coverage
+        run: uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q
+      - name: Coverage report
+        run: |
+          uv run --with coverage==7.6.10 coverage report --skip-covered --sort=cover | tail -40
+          uv run --with coverage==7.6.10 coverage html -d "$RUNNER_TEMP/coverage"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: ${{ runner.temp }}/coverage
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install axe-core for the accessibility pass
+        run: npm install --no-save --prefix "$RUNNER_TEMP/axe" axe-core@4.10.2
+      - name: Real-browser UI smoke (Chrome, synthetic data, axe)
+        run: node tests/browser_smoke.cjs
+        env:
+          GYM_BROWSER: /usr/bin/google-chrome
+          AXE_PATH: ${{ runner.temp }}/axe/node_modules/axe-core/axe.min.js
+
+  browser-smoke-windows:
+    name: Real-browser UI smoke (Edge, Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node tests/browser_smoke.cjs
+
+  supply-chain:
+    name: Secrets and dependency audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Scan history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@v6
+      - name: Python dependencies (pip-audit)
+        working-directory: gym-core
+        run: |
+          uv export --locked --no-hashes --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit --strict -r "$RUNNER_TEMP/requirements.txt"
+      - uses: taiki-e/install-action@cargo-audit
+      - name: Rust dependencies (cargo audit)
+        run: cargo audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Node dependencies (npm audit)
+        working-directory: model-gateway
+        run: npm audit --omit=dev --audit-level=high
+
+  mutation:
+    name: Mutation check of money and statistics code (weekly, advisory)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --group dev
+      # Surviving mutants in these files are untested behavior in money, fills and statistics.
+      - run: uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate src/gym/domain/performance.py,src/gym/domain/sim.py --tests-dir tests --runner "python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py"
+      - if: always()
+        run: uv run --with mutmut==2.5.1 mutmut results
 
   model-gateway:
     name: Advisory model gateway (${{ matrix.os }})
@@ -93,7 +188,7 @@ jobs:
   windows-vm-smoke:
     name: Disposable Windows SCM + access-control integration
     # Never install services while processing untrusted pull_request code.
-    if: github.event_name == 'push' && github.repository == 'AmirrezaFarnamTaheri/Trade'
+    if: (github.event_name == 'push' || github.event_name == 'schedule') && github.repository == 'AmirrezaFarnamTaheri/Trade'
     runs-on: windows-latest
     timeout-minutes: 15
     permissions:

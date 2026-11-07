@@ -1,7 +1,8 @@
 """Synthetic encrypted B3 backup works from a CLI, including no-overwrite."""
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
+
 from gym.services.restore_gate import inspect_ledger
 
 ROOT = Path(__file__).resolve().parents[2]

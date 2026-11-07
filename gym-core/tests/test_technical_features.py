@@ -5,10 +5,10 @@ from decimal import Decimal, localcontext
 import pytest
 
 from gym.domain.bars import Bar, BarSpec
-from gym.domain.technical_features import TechnicalFeatures
 from gym.domain.indicators import bar_indicator_values, indicator_values
 from gym.domain.registry import create_strategy
 from gym.domain.strategy import Snapshot
+from gym.domain.technical_features import TechnicalFeatures
 from tests.support import START
 
 
@@ -171,8 +171,8 @@ def test_rsi_entry_is_a_fresh_rebound_and_future_bar_cannot_change_state():
 
 @pytest.mark.parametrize("name", ["rsi-rebound", "macd-cross", "trix-cross", "keltner-breakout"])
 def test_indicator_rules_replay_through_native_cost_and_availability_engine(tmp_path, name):
-    from gym.services.paper import paper
     from gym.services.diagnostics import diagnostics
+    from gym.services.paper import paper
     from tests.support import market_db, quote_history
     db = market_db(tmp_path, quote_history(n=1500))
     try:

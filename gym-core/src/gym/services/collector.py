@@ -9,14 +9,27 @@ import time
 from collections import deque
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import aiohttp
 
 from ..adapters import wallex
-from ..adapters.store import MarketDB, SegmentWriter
+from ..adapters.store import MarketDB, SegmentWriter, move_raw_days
 from ..domain.bars import qualified
-from ..domain.model import UTC, BookSide, InstrumentId, QualityLimits, TradeTick, book_top, iso, levels, loads, parse_ts
+from ..domain.model import (
+    UTC,
+    BookSide,
+    InstrumentId,
+    QualityLimits,
+    TradeTick,
+    book_top,
+    iso,
+    levels,
+    loads,
+    parse_ts,
+)
 from ..domain.units import UnitWatch, unit_freeze_rule
+from .event_log import event
 from .rules import RuleService
 
 HEARTBEAT_S = 60
@@ -125,8 +138,17 @@ class RestRate:
 class Collector:
     def __init__(self, db: MarketDB, seg: SegmentWriter, symbols: list[str] | None, *, demo: bool = False,
                  lim: QualityLimits = QualityLimits(), asset_count: int | None = None,
-                 add_symbols: tuple[str, ...] = (), remove_symbols: tuple[str, ...] = ()):
+                 add_symbols: tuple[str, ...] = (), remove_symbols: tuple[str, ...] = (), depth_levels: int = 0,
+                 archive: tuple[Path, int] | None = None):
+        if type(depth_levels) is not int or not 0 <= depth_levels <= 20:
+            raise ValueError("depth levels must be 0..20")
         self.db, self.seg, self.demo, self.lim = db, seg, demo, lim
+        # Maintenance threads open their own read-only connection; this one belongs to the loop thread.
+        self.db_path = Path(db.c.execute("PRAGMA database_list").fetchone()[2])
+        # Levels per side stored with each quote row for depth-walking replays; 0 keeps rows compact.
+        self.depth_levels = depth_levels
+        # (folder, days kept locally): finished raw day folders older than that move there once a day.
+        self.archive = archive
         self.explicit_symbols = symbols
         self.asset_count = asset_count
         self.add_symbols = tuple(s.upper() for s in add_symbols)
@@ -147,7 +169,8 @@ class Collector:
         self.connected_shards: set[int] = set()
         self.units = UnitWatch()
         self.status = {"connected": False, "shards": 0, "last_frame": None, "reconnects": 0, "fatal": None,
-                       "errors": deque(maxlen=20)}
+                       "errors": deque(maxlen=20), "shard_stats": {}, "archived": None, "integrity": None}
+        self.data_quality: dict[str, dict] = {}  # refreshed every 10 minutes from the last day of stored quotes
         if symbols is not None:
             self.configure(symbols)
 
@@ -178,6 +201,7 @@ class Collector:
 
     # --- ingestion (shared by live, REST seeding and demo) ---
     def quality(self, now, symbol, flag, detail=""):
+        event("quality", at=iso(now), symbol=symbol, flag=flag, detail=detail[:500])
         self.db.add_quality(now, symbol, flag, detail)
         if flag == "SOURCE_ERROR":
             self.status["errors"].appendleft(f"{iso(now)} {symbol or ''} {detail}"[:300])
@@ -223,12 +247,18 @@ class Collector:
         return True
 
     def tick(self, now: datetime):
+        previous = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
+        if previous and parse_ts(previous[0]) > now:
+            # The wall clock stepped back. Publishing now would rewrite already-published history,
+            # so pause publication (keep collecting raw frames) until the clock passes the watermark.
+            if not self.status.get("clock_paused"):
+                self.status["clock_paused"] = True
+                self.quality(now, None, "CLOCK_REGRESSION", f"publication paused until {previous[0]}")
+            return
+        self.status["clock_paused"] = False
         old_tops, old_written, old_units = self.tops.copy(), self.written.copy(), copy.deepcopy(self.units)
         self.db.c.execute("SAVEPOINT collector_tick")
         try:
-            previous = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
-            if previous and parse_ts(previous[0]) > now:
-                raise ValueError("collector publication clock regressed")
             self._publish_tick(now)
             self.db.c.execute("INSERT OR REPLACE INTO collector_publication VALUES(1,?)", (iso(now),))
             self.db.c.execute("RELEASE collector_tick")
@@ -247,9 +277,16 @@ class Collector:
             self.tops[sym] = top
             last = self.written.get(sym)
             if not last or last[0] != top.key() or (now - last[1]).total_seconds() >= HEARTBEAT_S:
-                self.db.add_book_top(top, self.depth_ref.get(sym))
+                self.db.add_book_top(top, self.depth_ref.get(sym), self.depth_text(b))
                 self.written[sym] = (top.key(), now)
         self.watch_units(now)
+
+    def depth_text(self, sides) -> str | None:
+        if not self.depth_levels or not sides["bid"] or not sides["ask"]:
+            return None
+        bids = sorted(sides["bid"].levels, key=lambda level: -level[0])[:self.depth_levels]
+        asks = sorted(sides["ask"].levels, key=lambda level: level[0])[:self.depth_levels]
+        return json.dumps([[[str(p), str(q)] for p, q in bids], [[str(p), str(q)] for p, q in asks]], separators=(",", ":"))
 
     def watch_units(self, now: datetime):
         """DATA-04: a ×10^k jump in every IRT price at once freezes new IRT entries. Stored rows stay as observed."""
@@ -289,7 +326,7 @@ class Collector:
             rows = loads(raw)["result"]["markets"]
             if not isinstance(rows, list):
                 raise ValueError("catalog markets is not a list")
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, KeyError, TypeError) as e:
+        except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError) as e:
             self.quality(now, None, "SOURCE_ERROR", f"catalog: {type(e).__name__}: {e}")
             return
         catalog = {}
@@ -350,7 +387,7 @@ class Collector:
                         self.quality(now, s, "GAP", f"trades between {iso(prev)} and {iso(min(t.ts_event for t in ticks))} lost")
                     for d in reversed(rows):
                         self.on_trade(s, d, now, ref, only_after=prev)
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, KeyError, TypeError, ArithmeticError) as e:
+            except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, ArithmeticError) as e:
                 self.quality(now, s, "SOURCE_ERROR", f"REST seed: {type(e).__name__}: {e}")
             finally:
                 self.seeding.discard(s)
@@ -360,6 +397,8 @@ class Collector:
             for cmd in wallex.connect_cmds(wallex.channels(symbols)):
                 await ws.send_str(cmd)
             self.connected_shards.add(shard)
+            stats = self.status["shard_stats"].setdefault(shard, {"markets": len(symbols), "reconnects": 0, "last_frame": None})
+            stats["connected_at"] = now_utc()
             self.status["connected"] = True
             self.status["shards"] = len(self.connected_shards)
             seed = asyncio.create_task(self.seed(session, symbols))
@@ -368,7 +407,8 @@ class Collector:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         if "{}" in msg.data.split("\n"):
                             await ws.send_str("{}")  # pong within 8 s or the server closes with 3012
-                        self.handle_frame(msg.data, now_utc())
+                        stats["last_frame"] = now_utc()
+                        self.handle_frame(msg.data, stats["last_frame"])
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         break
                 return ws.close_code
@@ -386,7 +426,7 @@ class Collector:
             started, code = time.monotonic(), None
             try:
                 code = await self._ws_once(session, symbols, shard)
-            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+            except (TimeoutError, aiohttp.ClientError, OSError) as e:
                 self.status["errors"].appendleft(f"{iso(now_utc())} ws[{shard}] {type(e).__name__}: {e}"[:300])
             if code is not None and code >= 3500:
                 self.status["fatal"] = f"shard {shard} close code {code}: client-side fault, not retrying"
@@ -394,6 +434,8 @@ class Collector:
                 return
             backoff = 1 if time.monotonic() - started > 60 else min(backoff * 2, 60)
             self.status["reconnects"] += 1
+            event("reconnect", shard=shard, close_code=code, backoff_s=backoff)
+            self.status["shard_stats"].setdefault(shard, {"markets": len(symbols), "reconnects": 0, "last_frame": None})["reconnects"] += 1
             await asyncio.sleep(backoff)
 
     async def fetch_candles(self, session, symbol: str, resolution: str, start: datetime, end: datetime) -> int:
@@ -404,16 +446,80 @@ class Collector:
                                       **{"from": int(start.timestamp()), "to": int(end.timestamp())})
             self.seg.write("rest:/v1/udf/history", raw, now)
             candles = wallex.parse_udf(raw)
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+        except (TimeoutError, aiohttp.ClientError, ValueError) as e:
             self.quality(now, symbol, "SOURCE_ERROR", f"udf history: {type(e).__name__}: {e}")
             return 0
         self.db.upsert_candles(symbol, resolution, candles, now)
         return len(candles)
 
     async def _housekeeping(self):
+        last_daily, last_quality, background = None, 0.0, set()
+
+        def later(job, *args):
+            # Slow file and SQL work runs beside the 2 s publication tick, never in front of it.
+            task = asyncio.create_task(self._maintain(job, *args))
+            background.add(task)
+            task.add_done_callback(background.discard)
+
         while True:
             await asyncio.sleep(2)
-            self.tick(now_utc())
+            now = now_utc()
+            self.tick(now)
+            if background:
+                continue
+            if time.monotonic() - last_quality > 600:
+                last_quality = time.monotonic()
+                later(self.refresh_quality, now)
+            elif last_daily != now.date():
+                last_daily = now.date()
+                if self.archive:
+                    later(self.archive_raw, now)
+                later(self.verify_raw, now)
+
+    async def _maintain(self, job, *args):
+        try:
+            # Jobs run on a worker thread and return quality events; only this loop thread writes them.
+            for flag, detail in await asyncio.to_thread(job, *args) or ():
+                self.quality(now_utc(), None, flag, detail)
+        except Exception as e:  # noqa: BLE001 - maintenance must never stop collection; it is reported instead
+            self.quality(now_utc(), None, "MAINTENANCE_FAILED", f"{job.__name__}: {type(e).__name__}: {e}")
+
+    def refresh_quality(self, now: datetime):
+        self.data_quality = self.measure_quality(now)
+
+    def measure_quality(self, now: datetime) -> dict:
+        from ..adapters.store import MarketDB
+        from .data_portal import quality_report
+        db = MarketDB(self.db_path, readonly=True)
+        try:
+            return quality_report(db, now - timedelta(hours=24))
+        finally:
+            db.c.close()
+
+    def verify_raw(self, now: datetime):
+        """Daily integrity sweep of yesterday's and today's closed segments (older days were checked before)."""
+        from ..adapters.store import MarketDB, verify_segments
+        roots = [self.seg.root] + ([self.archive[0]] if self.archive else [])
+        db = MarketDB(self.db_path, readonly=True)  # this runs on a worker thread
+        try:
+            report = verify_segments(db, roots, (now - timedelta(days=1)).strftime("%Y%m%d"))
+        finally:
+            db.c.close()
+        self.status["integrity"] = {"at": iso(now), **{k: v if k == "checked" else len(v) for k, v in report.items()}}
+        event("integrity", **self.status["integrity"])
+        return [("SEGMENT_CORRUPT", f"{seg_id} no longer matches its manifest hash") for seg_id in report["mismatched"]]
+
+    def archive_raw(self, now: datetime):
+        """Move finished raw day folders older than the kept days; a failure is reported, never fatal."""
+        folder, keep = self.archive
+        before = (now - timedelta(days=keep)).strftime("%Y%m%d")
+        try:
+            moved = move_raw_days(self.seg.root, folder, before)
+            self.status["archived"] = {"at": iso(now), "days": moved, "to": str(folder)}
+            event("archive", days=moved, to=str(folder))
+        except (OSError, ValueError) as e:
+            return [("ARCHIVE_FAILED", f"raw archive move: {type(e).__name__}: {e}")]
+        return []
 
     async def _refresh_rest(self, session):
         # Network refresh cannot delay freshness checks or observation heartbeats.
@@ -463,7 +569,7 @@ class Collector:
     # --- demo: synthetic Wallex-shaped frames through the same ingestion path ---
     def demo_frames(self, rng: random.Random, st: dict, now: datetime):
         """USDT legs random-walk with slowly changing drift; TMN legs follow USDT price x USDTTMN with a small premium."""
-        px = st.setdefault("px", {"USDTTMN": Decimal(273500), "BTCUSDT": Decimal("76950"), "ETHUSDT": Decimal("2240")})
+        px = st.setdefault("px", {"USDTTMN": Decimal(273500), "BTCUSDT": Decimal(76950), "ETHUSDT": Decimal(2240)})
         st["n"] = st.get("n", 0) + 1
         if st["n"] % 720 == 1:
             st["mu"] = {s: rng.gauss(0, 0.00001) for s in px}

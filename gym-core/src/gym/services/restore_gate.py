@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
-from pathlib import Path
 from contextlib import closing
+from pathlib import Path
 from urllib.parse import quote
 
 

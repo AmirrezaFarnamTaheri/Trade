@@ -1,4 +1,5 @@
 """Wallex credit-ratio rules and observed-quote paper positions; no order authority."""
+import itertools
 import re
 from collections import Counter
 from datetime import timedelta
@@ -8,7 +9,7 @@ from .bars import qualified
 from .market_models import decimal, rate
 from .model import iso
 
-RULE_FIELDS = "symbol base quote min_risk_coef max_risk_coef risk_coef_step liquidity_margin max_age".split()
+RULE_FIELDS = ["symbol", "base", "quote", "min_risk_coef", "max_risk_coef", "risk_coef_step", "liquidity_margin", "max_age"]
 REQUEST_FIELDS = {"market", "side", "collateral", "risk_coef", "open_price"}
 OPTIONAL_FIELDS = {"stop_loss", "take_profit"}
 
@@ -103,7 +104,7 @@ def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds):
         seconds(holding_seconds, "holding_seconds")
         if holding_seconds > terms["max_age"]:
             raise ValueError("holding time exceeds preview lifetime")
-    if len(points) > 10000 or any(b[0].ts_avail < a[0].ts_avail for a, b in zip(points, points[1:])):
+    if len(points) > 10000 or any(b[0].ts_avail < a[0].ts_avail for a, b in itertools.pairwise(points)):
         raise ValueError("margin quotes must be bounded and availability-ordered")
     if any(top.ts_avail >= end or top.symbol != rule["symbol"] or type(closed) is not bool for top, closed in points):
         raise ValueError("invalid margin quote identity, cutoff or market state")
@@ -168,7 +169,7 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds):
             events.append({"at": iso(top.ts_avail), "action": "PAPER_OPEN", "price": str(price)})
             state = "OPEN"
         mark = top.bid if long else top.ask
-        def crossed(level, below):
+        def crossed(level, below, mark=mark):
             return mark <= decimal(level) if below else mark >= decimal(level)
         liquidation = crossed(terms["liquidity_price"], long)
         warning = crossed(terms["call_price"], long)

@@ -1,18 +1,26 @@
 """Run: .venv/Scripts/python.exe -m unittest tests.test_market_models"""
 import copy
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal as D
 import json
-from pathlib import Path
 import random
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal as D
+from pathlib import Path
 
-from gym.domain.market_models import LocalLiquidity, decimal, evaluate_artifact, financing, implied_fx, liquidity, roundtrip_spacing
+from gym.domain.market_models import (
+    LocalLiquidity,
+    decimal,
+    evaluate_artifact,
+    financing,
+    implied_fx,
+    liquidity,
+    roundtrip_spacing,
+)
 
-T = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def q(second=0, bid="100", ask="101", status="OPEN"):
@@ -21,21 +29,21 @@ def q(second=0, bid="100", ask="101", status="OPEN"):
 
 
 def liquidity_args(samples):
-    return dict(samples=samples, delta_up="0.01", delta_down="0.01", overshoot_step="0.01", alpha="0.08",
-                overshoot_probability="0.08", dc_surprise="0.0834", overshoot_surprise="2.5257",
-                sigma_per_sqrt_second="0.01")
+    return {"samples": samples, "delta_up": "0.01", "delta_down": "0.01", "overshoot_step": "0.01", "alpha": "0.08",
+                "overshoot_probability": "0.08", "dc_surprise": "0.0834", "overshoot_surprise": "2.5257",
+                "sigma_per_sqrt_second": "0.01"}
 
 
 def spacing_args():
-    return dict(spacing="0.02", fee_buy="0.001", fee_sell="0.002", spread="0.003",
-                slippage_buy="0.001", slippage_sell="0.001", quote_currency="USDT")
+    return {"spacing": "0.02", "fee_buy": "0.001", "fee_sell": "0.002", "spread": "0.003",
+                "slippage_buy": "0.001", "slippage_sell": "0.001", "quote_currency": "USDT"}
 
 
 def finance_args():
-    return dict(product="MARGIN", side="LONG", quote_currency="USDT", collateral="50", quantity="1", borrowed="50",
-                interest_rate="0.01", interest_period_seconds="86400", entry_fee="0", exit_fee="0",
-                maintenance_ratio="0.1", closure_liquidation="PAUSE",
-                samples=[q(0, "99", "100"), q(86400, "40", "41", "CLOSED"), q(172800, "39", "40")])
+    return {"product": "MARGIN", "side": "LONG", "quote_currency": "USDT", "collateral": "50", "quantity": "1", "borrowed": "50",
+                "interest_rate": "0.01", "interest_period_seconds": "86400", "entry_fee": "0", "exit_fee": "0",
+                "maintenance_ratio": "0.1", "closure_liquidation": "PAUSE",
+                "samples": [q(0, "99", "100"), q(86400, "40", "41", "CLOSED"), q(172800, "39", "40")]}
 
 
 class MarketModelsTests(unittest.TestCase):
@@ -106,7 +114,7 @@ class MarketModelsTests(unittest.TestCase):
     def test_fx_dispersion_and_closed_reference(self):
         pairs = [{"base": "BTC", "tmn": q(0, "600", "606"), "usdt": q(0, "2", "3")},
                  {"base": "ETH", "tmn": q(0, "660", "666"), "usdt": q(0, "2", "3")}]
-        args = dict(pairs=pairs, reference=None, as_of=q()["at"], max_age_seconds="5", max_skew_seconds="1")
+        args = {"pairs": pairs, "reference": None, "as_of": q()["at"], "max_age_seconds": "5", "max_skew_seconds": "1"}
         result = implied_fx(**args)
         self.assertEqual(result["median_tmn_per_usdt"], D(210))
         self.assertEqual(result["range_dispersion"], D(20))
@@ -143,8 +151,8 @@ class MarketModelsTests(unittest.TestCase):
         self.assertGreater(later["history"][-1]["debt_units"], D(12))
 
     def test_short_mark_at_ask_and_partial_cover(self):
-        args = finance_args() | dict(side="SHORT", product="TRADE_CREDIT", borrowed="1", collateral="20",
-                                    samples=[q(0, "100", "101"), q(86400, "149", "150")])
+        args = finance_args() | {"side": "SHORT", "product": "TRADE_CREDIT", "borrowed": "1", "collateral": "20",
+                                    "samples": [q(0, "100", "101"), q(86400, "149", "150")]}
         report = financing(**args)
         self.assertEqual(report["history"][0]["equity_quote"], D(19))
         end = report["history"][-1]
@@ -201,8 +209,8 @@ class MarketModelsTests(unittest.TestCase):
             cases = {
                 "liquidity": liquidity_args([q(), q(1, "105", "106")]),
                 "financing": finance_args(),
-                "fx": dict(pairs=[{"base": "BTC", "tmn": q(0, "600", "606"), "usdt": q(0, "2", "3")}],
-                           reference=None, as_of=q()["at"], max_age_seconds="1", max_skew_seconds="0"),
+                "fx": {"pairs": [{"base": "BTC", "tmn": q(0, "600", "606"), "usdt": q(0, "2", "3")}],
+                           "reference": None, "as_of": q()["at"], "max_age_seconds": "1", "max_skew_seconds": "0"},
             }
             for name, parameters in cases.items():
                 source.write_text(json.dumps({"model": name, "parameters": parameters}), encoding="utf-8")

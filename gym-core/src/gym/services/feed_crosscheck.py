@@ -57,7 +57,7 @@ def candle_crosscheck(portal: DataPortal, symbol: str, start: datetime, end: dat
     return {"symbol": symbol, "resolution": resolution, "from": iso(start), "to_exclusive": iso(end),
             "knowledge_mode": "POINT_IN_TIME" if as_of is not None else "RETROSPECTIVE", "as_of_exclusive": iso(as_of),
             "tolerance_bps": str(tolerance_bps), "counts": counts, "periods": rows,
-            "limitations": ["Internal bars use venue event time. Wallex public trades have no stable trade id; identical "
-                            "prints are preserved, so source retransmissions cannot be distinguished from real fills.",
+            "limitations": [("Internal bars use venue event time. Wallex public trades have no stable trade id; identical "
+                            "prints are preserved, so source retransmissions cannot be distinguished from real fills."),
                             "MISSING_VENUE can be a venue candle not yet fetched, not only a venue omission.",
                             "Point-in-time mode selects the latest retained fetch strictly before the cutoff. Vintages erased before schema migration cannot be reconstructed."]}

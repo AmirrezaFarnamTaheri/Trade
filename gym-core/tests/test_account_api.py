@@ -4,7 +4,9 @@ Live credential provisioning is deliberately NOT part of this view. The API
 does not accept secrets or give funded order authority to the browser.
 """
 import asyncio
+
 from aiohttp.test_utils import TestClient, TestServer
+
 from gym.adapters.store import MarketDB, SegmentWriter
 from gym.api.server import make_app
 from gym.services.collector import Collector

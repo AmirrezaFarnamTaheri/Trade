@@ -24,7 +24,7 @@ def main(argv=None) -> int:
         sys.stdout.buffer.write(result)
         sys.stdout.buffer.flush()
         return 0
-    except Exception:
+    except Exception:  # noqa: BLE001 - last-resort handler; credential errors must never reach the parent
         print("error: model credential operation failed", file=sys.stderr)
         return 2
 

@@ -4,7 +4,9 @@ import copy
 import pytest
 
 from gym.domain.assisted_ticket import (
-    TicketUnsafe, OfflineTicketQueue, prepare_preview,
+    OfflineTicketQueue,
+    TicketUnsafe,
+    prepare_preview,
 )
 
 

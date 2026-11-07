@@ -1,10 +1,10 @@
 """Actual authenticated backup/restore receipts are bounded, private and observational."""
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 
-from aiohttp.test_utils import TestClient, TestServer
 import pytest
+from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
@@ -12,8 +12,8 @@ from gym.services.backup_status import record, status
 from gym.services.collector import Collector
 from gym.services.encrypted_backup import create_backup, restore_backup
 from gym.services.rules import RuleService
-from tests.test_encrypted_backup import make_ledger
 from tests.support import market_db, quote_history
+from tests.test_encrypted_backup import make_ledger
 
 
 def test_real_roundtrip_receipts_preserve_concurrent_history_and_omit_private_fields(tmp_path):

@@ -3,7 +3,12 @@ from collections import Counter
 
 import pytest
 
-from gym.services.paper_campaign import historical_groups, market_universe, prospective_cases, strategy_trials
+from gym.services.paper_campaign import (
+    historical_groups,
+    market_universe,
+    prospective_cases,
+    strategy_trials,
+)
 
 
 def listing(symbol, base, quote, **extra):

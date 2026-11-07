@@ -1,11 +1,11 @@
 """Observed spreads and trade flow, grouped by pair and venue-local hour."""
 import hashlib
 import json
+import re
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal, localcontext
 from math import ceil
-import re
 from statistics import median
 
 from ..adapters.store import MarketDB

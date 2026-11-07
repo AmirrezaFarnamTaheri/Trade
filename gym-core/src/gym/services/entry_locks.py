@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 from ..adapters.run_store import load_verified_run
-from ..domain.market_models import fields, decimal, instant
+from ..domain.market_models import decimal, fields, instant
 from ..domain.model import iso
 from ..domain.strategy import digest
 from .collector import now_utc

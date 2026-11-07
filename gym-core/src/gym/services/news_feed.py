@@ -1,10 +1,10 @@
 """Explicit fetch of one fixed public official RSS feed, with actual receipt clocks."""
-from email.utils import parsedate_to_datetime
-from hashlib import sha256
 import re
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
+from hashlib import sha256
 
 from ..domain.market_models import fields
 from ..domain.model import iso

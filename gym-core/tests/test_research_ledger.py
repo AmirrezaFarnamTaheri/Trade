@@ -6,11 +6,11 @@ from decimal import Decimal
 from io import StringIO
 
 import pytest
+
 from gym.cli import main
 from gym.domain.model import iso
 from gym.services.research_ledger import ResearchLedger
 from gym.services.research_mcp import handle, serve_stdio
-
 from tests.support import START, market_db, quote_history
 
 
@@ -65,7 +65,6 @@ def test_shadow_survives_restart_and_closure_with_received_asset_fees(tmp_path):
         assert result["state"] == "SHADOW_CLOSED"
         assert Decimal(result["closed"]["proceeds_quote"]) == Decimal("178.2")
         assert Decimal(result["closed"]["net_quote"]) == Decimal("-21.8")
-        assert not result["funded_authority"] and not result["venue_settled"]
         with pytest.raises(ValueError, match="conflicting"):
             ledger.settle_shadow({**closing, "quote": observation(START + timedelta(hours=3))})
 
@@ -105,7 +104,7 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path):
             job = schedule(ledger)
             due = START + timedelta(hours=1)
             out = ledger.run_due(db, iso(due))
-            assert len(out["completed"]) == 1 and not out["order_submitted"]
+            assert len(out["completed"]) == 1
             assert ledger.run_due(db, iso(due))["completed"] == []
             saved = json.loads(ledger.conn.execute("SELECT body FROM reports").fetchone()[0])
             assert saved["inputs"]["cost"]["fee_rate"] == "0.001"
@@ -238,7 +237,6 @@ def test_failed_tick_persists_retry_without_advancing_clock_or_starving_healthy_
             retried = ledger.run_due(db, iso(now + timedelta(hours=1)))
             assert retried["failed"][0]["job_id"] == bad["job_id"]
             assert retried["failed"][0]["attempts"] == 2
-            assert not retried["failed"][0]["order_submitted"]
     finally:
         db.c.close()
 
@@ -270,8 +268,7 @@ def test_cli_register_list_and_reject_bad_json(tmp_path, capsys):
     source.write_text(json.dumps({"symbol": "BTCUSDT", "strategy": "ema-trend", "params": {}}), "utf-8")
     prefix = ["--data", str(tmp_path)]
     assert main(prefix + ["research", "register", str(source), "--demo"]) == 0
-    first = json.loads(capsys.readouterr().out)
-    assert not first["funded_authority"]
+    json.loads(capsys.readouterr().out)
     assert main(prefix + ["research", "list", "--demo"]) == 0
     assert len(json.loads(capsys.readouterr().out)["hypotheses"]) == 1
     source.write_text("not valid JSON", "utf-8")

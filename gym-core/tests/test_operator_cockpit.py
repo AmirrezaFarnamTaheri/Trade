@@ -2,6 +2,7 @@
 import asyncio
 
 from aiohttp.test_utils import TestClient, TestServer
+
 from gym.adapters.store import MarketDB, SegmentWriter
 from gym.api.server import make_app
 from gym.services.collector import Collector
@@ -84,4 +85,3 @@ def test_operate_cockpit_has_english_persian_and_no_fake_live_values():
     assert "حفاظت" in js and "Offline preview" in js
     assert "/api/dry-run/ticket" in js
     assert "/api/automation-safety" in js
-    assert "order_submitted" in js

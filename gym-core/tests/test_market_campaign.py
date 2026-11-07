@@ -2,9 +2,9 @@
 import asyncio
 import importlib.util
 import json
-from pathlib import Path
 import subprocess
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest

@@ -1,11 +1,11 @@
 """Actual stored revisions remain point-in-time and latest projection never regresses."""
+import sqlite3
 from datetime import timedelta
 from decimal import Decimal
-import sqlite3
 
 import pytest
 
-from gym.adapters.store import MarketDB, MIGRATIONS
+from gym.adapters.store import MIGRATIONS, MarketDB
 from gym.domain.model import iso
 from gym.services.data_portal import DataPortal
 from tests.support import START

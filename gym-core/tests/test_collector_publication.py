@@ -7,9 +7,9 @@ import pytest
 
 from gym.adapters.store import MarketDB, SegmentWriter
 from gym.domain.model import iso
+from gym.services import live_paper
 from gym.services.collector import Collector
 from gym.services.data_portal import DataPortal
-from gym.services import live_paper
 from tests.support import START, market_db, quote, quote_history
 
 
@@ -19,8 +19,8 @@ def test_tick_publishes_all_markets_and_watermark_in_one_transaction(tmp_path, m
     collector = Collector(db, SegmentWriter(tmp_path/"raw",db), ["BTCUSDT","ETHUSDT"])
     insert = db.add_book_top
     visible = []
-    def append(top, ref):
-        insert(top, ref)
+    def append(top, ref, depth=None):
+        insert(top, ref, depth)
         visible.append((observer.c.execute("SELECT count(*) FROM book_top").fetchone()[0],DataPortal(observer).publication()))
     monkeypatch.setattr(db,"add_book_top",append)
     try:
@@ -29,9 +29,13 @@ def test_tick_publishes_all_markets_and_watermark_in_one_transaction(tmp_path, m
         assert observer.c.execute("SELECT count(*) FROM book_top").fetchone()[0] == 2
         assert DataPortal(observer).publication() == START
         assert not db.c.in_transaction
-        with pytest.raises(ValueError,match="regressed"):
-            collector.tick(START-timedelta(seconds=1))
+        collector.tick(START-timedelta(seconds=1))  # clock stepped back: publication pauses, app keeps running
         assert DataPortal(observer).publication() == START
+        assert observer.c.execute("SELECT count(*) FROM book_top").fetchone()[0] == 2
+        assert collector.status["clock_paused"] is True
+        assert [r[2] for r in db.quality(5)].count("CLOCK_REGRESSION") == 1
+        collector.tick(START+timedelta(seconds=2))
+        assert DataPortal(observer).publication() == START+timedelta(seconds=2) and not collector.status["clock_paused"]
     finally:
         observer.c.close()
         db.c.close()
@@ -41,8 +45,8 @@ def test_failed_tick_does_not_publish_partial_rows_or_advance_cached_state(tmp_p
     db = market_db(tmp_path, [])
     collector = Collector(db, SegmentWriter(tmp_path/"raw",db), ["BTCUSDT","ETHUSDT"])
     insert = db.add_book_top
-    def fail(top,ref):
-        insert(top,ref)
+    def fail(top,ref,depth=None):
+        insert(top,ref,depth)
         if top.symbol == "ETHUSDT":
             raise OSError("write failed")
     monkeypatch.setattr(db,"add_book_top",fail)

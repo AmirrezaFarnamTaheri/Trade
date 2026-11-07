@@ -1,13 +1,13 @@
 """Point-in-time series arithmetic never aligns by row position or backfilled release dates."""
+import json
 from datetime import timedelta
 from decimal import Decimal
-import json
 
 import pytest
 
+from gym.cli import main
 from gym.services.research_protocol import ResearchProtocol
 from gym.services.research_series import derived_series
-from gym.cli import main
 from tests.support import START
 
 

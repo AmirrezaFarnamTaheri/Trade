@@ -1,7 +1,7 @@
 """B3 portable passphrase-encrypted backups and non-destructive restore."""
-from pathlib import Path
 import hashlib
 import sqlite3
+from pathlib import Path
 
 import pytest
 

@@ -1,34 +1,38 @@
 """Shared bounded research actions for the CLI and local web workbench."""
-from pathlib import Path
-from datetime import timedelta
 import re
+from datetime import timedelta
+from pathlib import Path
 
 from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, evaluate_artifact, fields
 from ..domain.model import iso, parse_ts
-from .collector import now_utc
-from .research_grounding import check_claims
-from .research_ledger import ResearchLedger
-from .research_protocol import ResearchProtocol
-from .research_review import review_runs
-from .market_statistics import spread_report, trade_flow_report
-from .technical_analysis import technical_reports
-from .research_series import derived_series, convert_series
-from .data_portal import DataPortal
-from .feed_crosscheck import candle_crosscheck
-from .research_market import coverage_timeline, screen_markets, return_correlations, market_breadth
-from .replay_debugger import replay_decisions, execution_quality
 from ..domain.portfolio import rebalance_preview
+from .collector import now_utc
+from .data_portal import DataPortal
+from .entry_locks import add_entry_lock
 from .experiment_registry import ExperimentRegistry
-from .research_notes import prepare_packet, save_notes
-from .strategy_audit import audit_strategy
-from .return_bootstrap import return_bootstrap
+from .feed_crosscheck import candle_crosscheck
+from .liquidity import audit_depth
+from .market_statistics import spread_report, trade_flow_report
+from .operator_actions import OPERATOR_ACTIONS, operator_action
 from .replay_annotations import annotations
 from .replay_checkpoint import checkpoint_replay
-from .entry_locks import add_entry_lock
-from .operator_actions import OPERATOR_ACTIONS, operator_action
-from .liquidity import audit_depth
-
+from .replay_debugger import execution_quality, replay_decisions
+from .research_grounding import check_claims
+from .research_ledger import ResearchLedger
+from .research_market import (
+    coverage_timeline,
+    market_breadth,
+    return_correlations,
+    screen_markets,
+)
+from .research_notes import prepare_packet, save_notes
+from .research_protocol import ResearchProtocol
+from .research_review import review_runs
+from .research_series import convert_series, derived_series
+from .return_bootstrap import return_bootstrap
+from .strategy_audit import audit_strategy
+from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))

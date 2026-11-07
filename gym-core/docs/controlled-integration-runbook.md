@@ -96,21 +96,12 @@ operator-controlled deployment evidence.
   never becomes verified live settlement. Quote fee is the supported fee
   assumption, **not** an assertion of the actual account fee asset.
 
-## C3 — shadow Autopilot and exit/reopening safety
+## C3 — exit/reopening safety
 
-- `ShadowAutopilot` supports one simulated workload, one account, total and
-  per-order caps, one unresolved entry, runtime epoch fencing and monotonic
-  stop states. `restart()` is disarmed and retains unresolved reservations.
-  All entries remain `SIMULATED_PENDING` with `client_id=null`.
-- `propose_protective_exit` may recommend an independent reduction despite
-  an entry-only cooldown or another instrument's pending entry, but it does
-  not bypass verified base quantity, same-instrument uncertainty, venue
-  closure or HALTED state. No real stop order is constructed.
-- `ReopeningWindow` implements `SELL_AT_REOPEN` and
-  `REEVALUATE_AFTER_N_QUOTES` as model-only advisory decisions. Only
-  distinct increasing quote sequences with qualified freshness, verified
-  units, no unknown orders and the active runtime epoch count. A closure
-  shows protection **UNAVAILABLE**; a restart loses pre-crash quote credit.
+The earlier Python shadow-Autopilot, exit-guard and reopening advisory models were
+removed: nothing in the application called them. Rebuild these policies inside the
+Executor when a funded path exists, so there is one implementation.
+
 - Rust `exec_core::execution_admission` has independent entry/exit pure vetoes.
   Even when every caller-supplied fact is true, it refuses funded authority
   without the missing trusted service, T1/T2 principal and durable request.

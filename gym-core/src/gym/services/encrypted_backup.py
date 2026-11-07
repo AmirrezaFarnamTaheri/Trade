@@ -15,7 +15,7 @@ import secrets
 import sqlite3
 import struct
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -133,7 +133,7 @@ def create_backup(
                 "head_hash": evidence["head_hash"],
                 "file_sha256": evidence["file_sha256"],
                 "file_size": size,
-                "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "contains_secrets_dat": False,
             }
             header = _header_bytes(manifest)

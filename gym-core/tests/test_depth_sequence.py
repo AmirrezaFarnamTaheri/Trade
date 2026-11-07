@@ -1,5 +1,6 @@
 """Sequence holes, stale books and level overflows require resynchronization."""
 from copy import deepcopy
+
 import pytest
 
 from gym.services.liquidity import audit_depth

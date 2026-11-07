@@ -8,12 +8,13 @@ import os
 import secrets
 import sqlite3
 import sys
+from datetime import UTC
 from decimal import Decimal, DecimalException
 from pathlib import Path
 
 from .adapters.store import MarketDB, SegmentWriter
 from .domain.bars import FIXED_RESOLUTIONS, RESOLUTIONS
-from .domain.model import InstrumentId, iso, parse_ts
+from .domain.model import InstrumentId, iso, parse_ts, strict_loads
 from .services.collector import Collector, now_utc, parse_asset_count
 from .services.rules import RuleService
 
@@ -52,31 +53,53 @@ def demo_seed(args) -> int:
     def closed(symbol, at):
         return not evaluate(rules, InstrumentId.wallex(symbol), "SELL", "EXIT", at, live=False).allowed
     seg = SegmentWriter(store_root(args) / "raw", db)
-    Collector(db, seg, DEFAULT_WATCH.split(","), demo=True).demo_history(start, end, closed)
+    Collector(db, seg, DEFAULT_WATCH.split(","), demo=True, depth_levels=5).demo_history(start, end, closed)
     seg.close()
     print(f"DEMO history {start:%Y-%m-%d %H:%M} .. {end:%Y-%m-%d %H:%M} UTC written to {store_root(args)}")
     return 0
 
 
 def replay_cmd(args) -> int:
-    from .domain.sim import CostModel
     from .adapters.run_store import save_run
+    from .domain.sim import CostModel
     from .services.paper import paper
-    from .services.research import compare
     from .services.reports import text_report
+    from .services.research import compare
 
     if not (store_root(args) / "market.db").exists():
         raise ValueError(f"no data in {store_root(args)}")
     db, symbol = open_db(args), args.symbol.upper()
+    symbols = [s.strip() for s in symbol.split(",") if s.strip()]
+    symbol = symbols[0]
     try:
         span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
         if not span[0]:
             raise ValueError(f"no {symbol} quotes stored")
         start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
         cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
-        options = {"resolution": args.res, "cash": cash, "cost": CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms)),
+        participation = Decimal(args.participation) if args.participation else None
+        options = {"resolution": args.res, "cash": cash, "cost": CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms),
+                                                                           max_participation=participation,
+                                                                           walk_depth=args.walk_depth, carry_remainder=args.carry_remainder,
+                                                                           max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
+                                                                           vol_target=Decimal(args.vol_target) if args.vol_target else None,
+                                                                           order_type=args.order_type,
+                                                                           maker_fee_rate=Decimal(args.maker_fee) if args.maker_fee else None),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
+        if args.cmd == "portfolio":
+            from .services.portfolio import portfolio
+            options.pop("subscriptions")
+            out = portfolio(db, symbols, start, end, strategy_id=args.strategy,
+                            params=json.loads(args.params) if args.params else None, **options)
+            perf = out["performance"]
+            print(f"PORTFOLIO {out['run_id']} · {', '.join(symbols)} · shared {out['result']['quote']} cash · PAPER ONLY")
+            print(f"end equity {out['result']['end']['equity']}  net {out['result']['end']['net']}  "
+                  f"return {perf.get('total_return_pct')}%  max drawdown {perf.get('max_drawdown_pct', 'n/a')}")
+            for market, row in out["result"]["markets"].items():
+                print(f"  {market:<10} fills {row['fills']:<4} closed trades {row['closed_trades']:<4} realized {row['realized_pnl']}")
+            print("portfolio record:", save_run(out, store_root(args) / "runs" / "portfolios"))
+            return 0
         if args.cmd in ("compare", "validate"):
             from .services.temporal_validation import validate
             if args.cmd == "validate":
@@ -185,15 +208,26 @@ def candles_cmd(args) -> int:
     try:
         end = parse_ts(args.end) if args.end else now_utc()
         start = parse_ts(args.start) if args.start else end - timedelta(hours=2)
-        if args.fetch:
+        if args.fetch or args.fill_gaps:
+            from .services.data_portal import quote_gaps
+            # shortcut: at most 50 gaps per call; rerun for more. Candles carry their fetch time as provenance.
+            windows = quote_gaps(db, symbol, start, end)[:50] if args.fill_gaps else [(start, end)]
+
             async def fetch():
                 seg = SegmentWriter(store_root(args) / "raw", db)
                 try:
                     async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
-                        return await Collector(db, seg, [symbol]).fetch_candles(session, symbol, "1min", start, end)
+                        collector, total = Collector(db, seg, [symbol]), 0
+                        for gap_start, gap_end in windows:
+                            got = await collector.fetch_candles(session, symbol, "1min", gap_start, gap_end)
+                            total += got
+                            if args.fill_gaps:
+                                db.add_quality(now_utc(), symbol, "GAP_BACKFILLED",
+                                               f"{iso(gap_start)}..{iso(gap_end)} venue 1min candles={got}; quotes stay missing")
+                        return total
                 finally:
                     seg.close()
-            print(f"fetched {asyncio.run(fetch())} venue candles", file=sys.stderr)
+            print(f"fetched {asyncio.run(fetch())} venue candles over {len(windows)} window(s)", file=sys.stderr)
         report = candle_crosscheck(DataPortal(db), symbol, start, end, tolerance_bps=Decimal(args.tolerance_bps),
                                   as_of=parse_ts(args.as_of) if args.as_of else None)
         if args.record:
@@ -206,6 +240,90 @@ def candles_cmd(args) -> int:
     finally:
         db.c.close()
     return 0
+
+def raw_move_cmd(args) -> int:
+    """Move whole, finished raw/YYYYMMDD day folders to another volume; never today's or a partial move."""
+    from .adapters.store import move_raw_days
+
+    days = move_raw_days(store_root(args) / "raw", Path(args.to), args.before)
+    print(f"moved {len(days)} day folder(s) to {args.to}")
+    return 0
+
+
+def calibrate_cmd(args) -> int:
+    from datetime import timedelta
+
+    from .services.execution_calibration import feed_latency, fill_quality
+
+    db = open_db(args)
+    try:
+        report = {"feed": feed_latency(db, now_utc() - timedelta(hours=args.hours)),
+                  "paper_fills": fill_quality(store_root(args) / "runs")}
+    finally:
+        db.c.close()
+    print(json.dumps(report, indent=2))
+    return 0
+
+
+def assistant_cmd(args) -> int:
+    """A model proposes configurations; this machine tests them on paper within the trial budget."""
+    from .services.model_gateway import ModelGateway
+    from .services.model_usage import ModelUsage
+    from .services.research_assistant import assist
+
+    db, symbol = open_db(args), args.symbol.upper()
+    gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
+
+    async def complete(action, value):
+        result = await gateway.request(action, value)
+        usage.record(result)
+        return result
+
+    async def go():
+        try:
+            span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
+            if not span[0]:
+                raise ValueError(f"no {symbol} quotes stored")
+            start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
+            cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
+            return await assist(complete, db, store_root(args) / "runs", symbol, start, end, preset=args.preset, budget=args.budget,
+                                resolution=args.res, cash=cash, store="demo" if args.demo else "live")
+        finally:
+            await gateway.close()
+    try:
+        print(json.dumps(asyncio.run(go()), indent=2, ensure_ascii=False, default=str))
+    finally:
+        usage.close()
+        db.c.close()
+    return 0
+
+
+def verify_segments_cmd(args) -> int:
+    from .adapters.store import verify_segments
+
+    db = open_db(args)
+    try:
+        report = verify_segments(db, [store_root(args) / "raw", *(Path(p) for p in args.archive)])
+    finally:
+        db.c.close()
+    print(json.dumps(report, indent=2))
+    return 1 if report["mismatched"] else 0
+
+
+def compact_cmd(args) -> int:
+    from .adapters.store import compact_quotes
+
+    db = open_db(args)
+    try:
+        before = parse_ts(args.before)
+        removed = compact_quotes(db, before, args.bucket, now_utc())
+        if args.vacuum:
+            db.c.execute("VACUUM")
+    finally:
+        db.c.close()
+    print(f"removed {removed} quote rows before {args.before} (kept the last per market and {args.bucket})")
+    return 0
+
 
 def summary_cmd(args):
     from .adapters.run_store import load_run
@@ -269,8 +387,15 @@ def key_cmd(args) -> int:
     """Store a Wallex key DPAPI-encrypted for this Windows user; never echoes it."""
     import getpass
     import os
+
     from .adapters import secret_store
 
+    if args.op == "set-backup":
+        phrase = getpass.getpass("Offline backup passphrase (sealed to this Windows user): ")
+        if phrase != getpass.getpass("Repeat: "):
+            raise ValueError("passphrases differ; nothing stored")
+        print(f"backup passphrase stored at {secret_store.save_backup_passphrase(phrase)}")
+        return 0
     if args.op == "show":
         for role in secret_store.ROLES:
             try:
@@ -323,6 +448,7 @@ def account_cmd(args) -> int:
             from .adapters.service_account_read import ServiceAccountReader
             return await observe(ServiceAccountReader())
         import aiohttp
+
         from .adapters import secret_store
         from .adapters.wallex_account_read import WallexAccountReader
         headers = {"x-api-key": secret_store.load("read")}
@@ -375,17 +501,7 @@ def _strict_offline_json(path: str, *, max_bytes: int) -> dict:
     source = Path(path)
     if source.is_symlink() or not source.is_file() or not 1 <= source.stat().st_size <= max_bytes:
         raise ValueError("offline input must be a bounded unsymlinked regular JSON file")
-    def unique_pairs(items):
-        obj = {}
-        for key, value in items:
-            if key in obj:
-                raise ValueError("duplicate JSON input field")
-            obj[key] = value
-        return obj
-    try:
-        result = json.loads(source.read_text("utf-8"), object_pairs_hook=unique_pairs)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        raise ValueError("invalid offline JSON input") from None
+    result = strict_loads(source.read_text("utf-8"), "offline JSON input")
     if type(result) is not dict:
         raise ValueError("offline input must be a JSON object")
     return result
@@ -485,11 +601,16 @@ def backup_once_cmd(args) -> int:
     and cannot establish that another machine holds an archive.
     """
     import getpass
+
     from .services.backup_rotation import backup_once
 
-    if not sys.stdin.isatty():
-        raise ValueError("backup-once requires an interactive protected console")
-    phrase = getpass.getpass("Offline ledger recovery passphrase (not a venue API key): ")
+    if getattr(args, "stored_passphrase", False):
+        from .adapters.secret_store import load_backup_passphrase
+        phrase = load_backup_passphrase()
+    elif not sys.stdin.isatty():
+        raise ValueError("backup-once requires an interactive protected console or --stored-passphrase")
+    else:
+        phrase = getpass.getpass("Offline ledger recovery passphrase (not a venue API key): ")
     try:
         report = backup_once(args.ledger, args.destination,
                              passphrase=phrase, keep=args.keep)
@@ -508,6 +629,7 @@ def restore_backup_cmd(args) -> int:
     is DISARMED evidence until the Executor reconciles it.
     """
     import getpass
+
     from .services.encrypted_backup import restore_backup
 
     if not sys.stdin.isatty():
@@ -518,10 +640,38 @@ def restore_backup_cmd(args) -> int:
     finally:
         del phrase
     import platform
-    from datetime import datetime, timezone
-    report |= {"restored_at": iso(datetime.now(timezone.utc)), "host": platform.node(), "mode_after": "DISARMED"}
+    from datetime import datetime
+    report |= {"restored_at": iso(datetime.now(UTC)), "host": platform.node(), "mode_after": "DISARMED"}
     _backup_receipt(args, "RESTORE", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def restore_drill_cmd(args) -> int:
+    """Prove the newest bundle restores: decrypt and verify into a temporary ledger, then remove it."""
+    import getpass
+    import tempfile
+
+    from .services.encrypted_backup import restore_backup
+
+    bundles = sorted(Path(args.folder).glob("*.tgbak"), key=lambda p: p.stat().st_mtime)
+    if not bundles:
+        raise ValueError(f"no .tgbak bundles in {args.folder}")
+    if args.stored_passphrase:
+        from .adapters.secret_store import load_backup_passphrase
+        phrase = load_backup_passphrase()
+    elif not sys.stdin.isatty():
+        raise ValueError("restore-drill requires an interactive console or --stored-passphrase")
+    else:
+        phrase = getpass.getpass("Offline ledger recovery passphrase: ")
+    with tempfile.TemporaryDirectory(prefix="gym-restore-drill-") as scratch:
+        try:
+            report = restore_backup(bundles[-1], Path(scratch) / "ledger.db", passphrase=phrase)
+        finally:
+            del phrase
+    report |= {"bundle": str(bundles[-1]), "drill": True, "restored_copy": "deleted"}
+    _backup_receipt(args, "RESTORE", report)  # a drill is a verified restore; the copy is gone
+    print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
     return 0
 
 
@@ -605,20 +755,36 @@ async def serve(args):
     db = open_db(args)
     seg = SegmentWriter(Path(args.data) / ("demo" if args.demo else "live") / "raw", db)
     col = Collector(db, seg, symbols, demo=args.demo, asset_count=args.assets,
-                    add_symbols=added, remove_symbols=removed)
+                    add_symbols=added, remove_symbols=removed, depth_levels=args.depth_levels,
+                    archive=(Path(args.archive_to), args.keep_days) if args.archive_to else None)
     from .services.external_journal import ExternalJournal
-    from .services.venue_facts import VenueFactsJournal
     from .services.offline_review_journal import OfflineReviewJournal
+    from .services.venue_facts import VenueFactsJournal
     external_journal = ExternalJournal(store_root(args) / "external_journal.db")
     venue_facts = VenueFactsJournal(store_root(args) / "venue_facts.db")
     offline_reviews = OfflineReviewJournal(store_root(args) / "offline_reviews.db")
-    runner = web.AppRunner(make_app(col, RuleService(db), secrets.token_urlsafe(24),
+    from .services.event_log import configure, event
+    events = configure(store_root(args))
+    event("collector_started", store="demo" if args.demo else "live", port=args.port, events=str(events))
+    token = secrets.token_urlsafe(24)
+    runner = web.AppRunner(make_app(col, RuleService(db), token,
                                     store_root(args) / "runs", external_journal=external_journal,
                                     venue_facts=venue_facts, offline_review_journal=offline_reviews,
                                     chaos_report=Path(args.data) / "chaos" / "report.json"))
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", args.port).start()
-    print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory on http://127.0.0.1:{args.port}/  (Ctrl+C to stop)", flush=True)
+    # The fragment carries the session key; browsers never send it to the server or other local processes.
+    url = f"http://127.0.0.1:{args.port}/#t={token}"
+    print(f"TradingGYM {'DEMO ' if args.demo else ''}Observatory: {url}  (private link; Ctrl+C to stop)", flush=True)
+    if args.link_file:
+        # For background starts with no console. Owner-only on POSIX; on Windows the profile folder's ACL applies.
+        link = Path(args.link_file)
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.write_text(url + "\n", "utf-8")
+        link.chmod(0o600)
+    if not args.no_browser:
+        import webbrowser
+        webbrowser.open(url)
     try:
         await col.run()
     finally:
@@ -646,7 +812,11 @@ def research_cmd(args):
             if not value:
                 raise ValueError("this research action requires an input JSON file")
             value = _strict_offline_json(value, max_bytes=65536)
-        from .services.research_process import calculate, HEAVY_ACTIONS, ResearchProcessFailure
+        from .services.research_process import (
+            HEAVY_ACTIONS,
+            ResearchProcessFailure,
+            calculate,
+        )
         try:
             result = (asyncio.run(calculate(root, args.action, value, store="demo" if args.demo else "live", at=args.at))
                       if args.action in HEAVY_ACTIONS else
@@ -690,6 +860,13 @@ def main(argv=None):
     r = sub.add_parser("run", help="run collector + local API + UI")
     r.add_argument("--demo", action="store_true", help="synthetic DEMO feed, stored separately")
     r.add_argument("--port", type=int, default=8765)
+    r.add_argument("--no-browser", action="store_true", help="print the private workspace link without opening a browser")
+    r.add_argument("--link-file", help="also write the private link to this file (for starts without a console); keep it in your profile")
+    r.add_argument("--archive-to", metavar="FOLDER",
+                   help="once a day, move finished raw day folders older than --keep-days to this folder (another drive)")
+    r.add_argument("--keep-days", type=int, default=7, choices=range(1, 366), metavar="1..365")
+    r.add_argument("--depth-levels", type=int, default=0, metavar="0..20",
+                   help="store this many order-book levels per side with each quote for --walk-depth replays (more disk)")
     r.add_argument("--assets", type=parse_asset_count, default=None, metavar="all|1..500",
                    help="all supported spot assets by default (including flagged listings), or a ranked non-risky count; live auto-universe only")
     r.add_argument("--watch", help="explicit comma-separated market override; otherwise select --assets from the full catalog")
@@ -726,8 +903,11 @@ def main(argv=None):
     validation.add_argument("--candidate", action="append", required=True, help="registered candidate JSON; repeat 2..4 times")
     validation.add_argument("--folds", type=int, choices=range(1, 6), default=1,
                             help="1..5 successive independent 70/30 windows; default 1, not an expanding training run")
-    for command in (replay, comparison, validation):
-        command.add_argument("symbol")
+    shared = sub.add_parser("portfolio", help="one strategy over 2..8 markets sharing one cash balance (PAPER ONLY)")
+    shared.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
+    shared.add_argument("--params", help="strategy parameter JSON; omitted values use registry defaults")
+    for command in (replay, comparison, validation, shared):
+        command.add_argument("symbol", help="market, or comma-separated markets for portfolio")
         command.add_argument("--demo", action="store_true")
         command.add_argument("--from", dest="start", help="UTC ISO time with zone (default: first stored quote)")
         command.add_argument("--to", dest="end", help="exclusive UTC ISO cut (default: last stored quote)")
@@ -736,6 +916,16 @@ def main(argv=None):
         command.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
         command.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
         command.add_argument("--latency-ms", type=int, default=500)
+        command.add_argument("--participation", help="max share (0..1] of the displayed best-level size per fill; larger orders are resized")
+        command.add_argument("--walk-depth", action="store_true",
+                             help="fill across stored order-book levels at their volume-weighted price (needs run --depth-levels)")
+        command.add_argument("--order-type", choices=["market", "limit"], default="market",
+                             help="limit: rest at the near touch and fill from later trade prints (queue-aware) or expire")
+        command.add_argument("--maker-fee", help="fee fraction for limit fills (default: --fee)")
+        command.add_argument("--max-fraction", help="cap every entry at this share (0..1] of cash, e.g. a fractional-Kelly figure")
+        command.add_argument("--vol-target", help="scale entries so the position's per-bar volatility is about this (0..1], e.g. 0.002")
+        command.add_argument("--carry-remainder", action="store_true",
+                             help="keep working a resized order on later quotes until it fills or max wait passes")
         command.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
     research = sub.add_parser("paper-research", help="offline market, portfolio, cash-flow return and forecast scoring diagnostics")
     research.add_argument("path", help='JSON object with "model" and exact "parameters"; decimals are strings')
@@ -763,12 +953,17 @@ def main(argv=None):
     candles.add_argument("--tolerance-bps", default="10")
     candles.add_argument("--as-of", help="exclude receipts/fetches at or after this zoned knowledge cutoff")
     candles.add_argument("--fetch", action="store_true", help="fetch venue candles for the range first")
+    candles.add_argument("--fill-gaps", action="store_true", help="fetch venue 1min candles only for quote gaps over 120 s and log each backfill")
     candles.add_argument("--record", action="store_true", help="write CROSS_FEED_DIVERGENCE quality events")
     candles.add_argument("--json", action="store_true")
     bk = sub.add_parser("backup-once", help="manual offline encrypted ledger backup on a separate mounted volume")
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
     bk.add_argument("destination", help="pre-existing independent-volume backup directory")
     bk.add_argument("--keep", type=int, default=7, help="retain 2..365 verified bundles, default 7")
+    bk.add_argument("--stored-passphrase", action="store_true", help="use the passphrase sealed by `key set-backup` (scheduled runs)")
+    rd = sub.add_parser("restore-drill", help="restore the newest backup into a temporary file, verify it, then delete it")
+    rd.add_argument("folder", help="backup folder holding .tgbak bundles")
+    rd.add_argument("--stored-passphrase", action="store_true", help="use the passphrase sealed by `key set-backup`")
     rb = sub.add_parser("restore-backup", help="decrypt and verify an offline backup into a NEW ledger file (no overwrite)")
     rb.add_argument("bundle", help="encrypted .tgbak bundle")
     rb.add_argument("destination", help="new ledger path; must not exist")
@@ -808,6 +1003,7 @@ def main(argv=None):
     kys = ky.add_subparsers(dest="op", required=True)
     kys.add_parser("set").add_argument("role", choices=["read", "trade"])
     kys.add_parser("show", help="masked key IDs only")
+    kys.add_parser("set-backup", help="seal the offline-backup passphrase to this Windows user for scheduled backups")
     ac = sub.add_parser("account", help="read-only Wallex balances, fee and order status with the stored read key")
     ac.add_argument("--source", choices=("user", "service"), default="user",
                     help="user: stored read key; service: protected installed helper (administrator only)")
@@ -846,15 +1042,40 @@ def main(argv=None):
     se.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
     se.add_argument("--latency-ms", type=int, default=500)
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
+    cal = sub.add_parser("calibrate", help="feed latency and paper fill quality, to set --latency-ms and judge costs")
+    cal.add_argument("--hours", type=int, default=24, choices=range(1, 24 * 31 + 1), metavar="1..744")
+    cal.add_argument("--demo", action="store_true")
+    asst = sub.add_parser("assistant", help="a model proposes 2..4 strategy configurations; they are tested on paper and saved")
+    asst.add_argument("symbol")
+    asst.add_argument("--preset", required=True, help="model preset from the AI connections page")
+    asst.add_argument("--budget", type=int, default=3, choices=range(2, 5), help="configurations to test (2..4)")
+    asst.add_argument("--res", default="15min", choices=list(RESOLUTIONS))
+    asst.add_argument("--from", dest="start")
+    asst.add_argument("--to", dest="end")
+    asst.add_argument("--cash")
+    asst.add_argument("--demo", action="store_true")
+    vs = sub.add_parser("verify-segments", help="re-hash every closed raw segment against the manifest")
+    vs.add_argument("--archive", action="append", default=[], help="also look in this archive folder (repeatable)")
+    vs.add_argument("--demo", action="store_true")
+    cq = sub.add_parser("compact", help="keep one quote row per market and second/minute before a cut (raw archive keeps all)")
+    cq.add_argument("--before", required=True, help="zoned ISO time; only older rows are compacted")
+    cq.add_argument("--bucket", choices=["1s", "1min"], default="1s")
+    cq.add_argument("--vacuum", action="store_true", help="return the freed space to the disk (slow; stop the collector first)")
+    cq.add_argument("--demo", action="store_true")
+    rm = sub.add_parser("raw-move", help="move finished raw archive day folders to another volume")
+    rm.add_argument("--before", required=True, help="move days strictly before YYYYMMDD (UTC)")
+    rm.add_argument("--to", required=True, help="destination directory, ideally on another drive")
+    rm.add_argument("--demo", action="store_true")
     args = p.parse_args(argv)
 
     if args.cmd == "models":
         from .services.model_gateway import run
         return run(args.model_args)
 
-    commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd,
+    commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "validate": replay_cmd, "technicals": technical_report_cmd}
+                "candles": candles_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd,
+                "assistant": assistant_cmd, "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:
         try:
@@ -863,10 +1084,17 @@ def main(argv=None):
             print(f"error: {e}", file=sys.stderr)
             return 2
     if args.cmd == "run":
+        from .adapters.store import DiskLow
         try:
             asyncio.run(serve(args))
         except KeyboardInterrupt:
             pass
+        except BaseExceptionGroup as group:  # the collector TaskGroup wraps a low-disk stop
+            low = group.subgroup(DiskLow)
+            if low is None:
+                raise
+            print(f"error: {low.exceptions[0]}", file=sys.stderr)
+            return 2
         return 0
 
     svc, now = RuleService(open_db(args)), now_utc()

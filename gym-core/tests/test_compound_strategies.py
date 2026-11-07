@@ -6,10 +6,9 @@ from decimal import Decimal
 import pytest
 
 from gym.domain.bars import Bar, BarSpec
-from gym.domain.registry import create_strategy, catalog
+from gym.domain.registry import catalog, create_strategy
 from gym.domain.strategy import Snapshot
 from tests.support import START
-
 
 NAMES = ("trend-pullback","adaptive-channel")
 
@@ -217,7 +216,7 @@ def test_wide_spread_does_not_suppress_a_confirmed_downtrend_exit(name):
 
 
 def test_adaptive_range_rebound_uses_native_regime_and_channel():
-    from math import sin,pi
+    from math import pi, sin
     strategy = create_strategy("adaptive-channel")
     entries = []
     for index in range(150):

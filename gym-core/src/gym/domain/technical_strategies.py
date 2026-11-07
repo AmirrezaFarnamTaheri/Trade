@@ -1,12 +1,13 @@
 """Closed-bar long/flat research rules; proposals remain below execution authority."""
 from decimal import Decimal
+from typing import ClassVar
 
 from .strategy import long_flat
 from .technical_features import TechnicalFeatures
 
 
 class IndicatorCross:
-    params = {}
+    params: ClassVar[dict] = {}
 
     def __init__(self):
         self.features = TechnicalFeatures()

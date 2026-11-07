@@ -2,13 +2,14 @@
 
 OS/CI source guards supplement, but never replace, hosted Windows execution.
 """
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import pytest
+
 import gym.services.external_journal as journal_mod
-from gym.services.external_journal import ExternalJournal
 from gym.domain.account_observations import project_account
+from gym.services.external_journal import ExternalJournal
 
 ROOT = Path(__file__).resolve().parents[2]
 

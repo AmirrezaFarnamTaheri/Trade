@@ -32,8 +32,12 @@ would duplicate that projection and require migrating raw references, backup
 manifests and recovery readers. No such migration is justified by the current
 workload. Keep the archive and its SQL index together when backing up or restoring.
 
-The independent `.statamcp/debug/traces.jsonl` belongs to development tooling;
-it is not an application data store.
+Collecting every market writes roughly 200 MB of raw archive per hour. The collector
+stops with a clear error when its volume has less than 5 GiB free, instead of filling
+the disk. Move finished days elsewhere with
+`gymctl raw-move --before YYYYMMDD --to <other-drive-folder>`; it never moves the
+current UTC day and refuses if a destination day already exists. Segment files are
+created exclusively, so two writers in the same hour can never share one file.
 
 Read-only qualification on 2026-11-05 UTC inspected all eight existing public and
 operator databases listed above: each returned `ok` from `PRAGMA quick_check(1)`.

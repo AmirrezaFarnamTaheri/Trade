@@ -1,19 +1,17 @@
 """Loopback protection and run/journal/evidence command integration."""
 import asyncio
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal
-import re
 
-from gym.adapters.store import MarketDB, SegmentWriter
 from gym.adapters.run_store import save_run
+from gym.adapters.store import MarketDB, SegmentWriter
 from gym.api.server import make_app
 from gym.domain.model import UTC
 from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
-
-
 
 
 def test_api_loopback_and_token(tmp_path):
@@ -46,8 +44,8 @@ def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
         col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT", "ETHUSDT", "LTCUSDT"])
         now = datetime.now(UTC)
         for symbol, bid, ask in (("BTCUSDT", "1E-8", "2E-8"), ("ETHUSDT", "2E-8", "1E-8")):
-            col.on_depth(symbol, "bid", [(Decimal(bid), Decimal("1"))], now, "fixture")
-            col.on_depth(symbol, "ask", [(Decimal(ask), Decimal("2"))], now, "fixture")
+            col.on_depth(symbol, "bid", [(Decimal(bid), Decimal(1))], now, "fixture")
+            col.on_depth(symbol, "ask", [(Decimal(ask), Decimal(2))], now, "fixture")
         col.tick(now)
         try:
             async with TestClient(TestServer(make_app(col, RuleService(db), "tok"), host="127.0.0.1")) as client:
@@ -69,6 +67,7 @@ def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
 
 def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch):
     from aiohttp.test_utils import TestClient, TestServer
+
     from gym.api import server
 
     ui = tmp_path / "index.html"
@@ -81,6 +80,8 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
     (tmp_path / "margin.js").write_text("// margin controls", encoding="utf-8")
     (tmp_path / "replay-chart.js").write_text("// decision chart", encoding="utf-8")
     (tmp_path / "native-review.js").write_text("// protected review controls", encoding="utf-8")
+    for extra in ("charts.js", "runs.js"):
+        (tmp_path / extra).write_text("// " + extra, encoding="utf-8")
     monkeypatch.setattr(server, "UI", ui)
 
     async def check():
@@ -113,6 +114,7 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
 
 def test_journal_api_and_cli(tmp_path, capsys):
     from aiohttp.test_utils import TestClient, TestServer
+
     from gym.cli import main
     root = tmp_path / "live"
     root.mkdir()

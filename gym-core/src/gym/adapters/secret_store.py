@@ -64,5 +64,24 @@ def load(role: str, root: Path | None = None) -> str:
     return _crypt(path.read_bytes(), False).decode()
 
 
+def save_backup_passphrase(phrase: str, root: Path | None = None) -> Path:
+    """Offline-backup passphrase for unattended backups, sealed to this Windows user (DPAPI)."""
+    if len(phrase) < 12:
+        raise ValueError("backup passphrase must be at least 12 characters")
+    path = (root or default_dir()) / "backup-passphrase.dpapi"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_bytes(_crypt(phrase.encode(), True))
+    os.replace(tmp, path)
+    return path
+
+
+def load_backup_passphrase(root: Path | None = None) -> str:
+    path = (root or default_dir()) / "backup-passphrase.dpapi"
+    if not path.is_file():
+        raise ValueError("no stored backup passphrase; run: gymctl key set-backup")
+    return _crypt(path.read_bytes(), False).decode()
+
+
 def masked(key: str) -> str:
     return key.split("|", 1)[0] + "|…" + key[-4:]

@@ -312,7 +312,7 @@ All eight immutable decisions are **NONE, full-loss ceiling 0 USDT**, never exec
 | --- | --- | --- | --- |
 | C1 | #14 | Bounded VenueFacts and external-observation journals; interactive-user reader; service-owned WinHTTP GET/provisioning; normalized persistent service-source account snapshots/API | Installed service reads and permission verification; real pagination/status/exposure probes and validated operator budget/provenance |
 | C2 | #15 | Exact-decimal offline tickets; durable fake approvals/reservations/first-byte rules/received-asset fee reconciliation and restart tests | Real trusted-path T1 approvals, funded identity and venue submission/cancel/reconcile transport; assisted conversion and actual-versus-modeled costs |
-| C3 | #16 | Offline, non-executable Exit Guard and reopening veto policy; epoch and unknown-order checks | Certified protective venue stops, real Exit Guard and independently verified funded Autopilot with capped/session-reconciled operations |
+| C3 | #16 | Offline Exit Guard and reopening models (removed later: no caller; rebuild inside the Executor) | Certified protective venue stops, real Exit Guard and independently verified funded Autopilot with capped/session-reconciled operations |
 
 **Security:** none of the C drafts authorize a new money path. All C outputs
 are advisory, with `funded_authority=false`, until the real installed B1/B2

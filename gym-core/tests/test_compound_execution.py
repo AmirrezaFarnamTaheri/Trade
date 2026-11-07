@@ -1,6 +1,7 @@
 """Compound paper orders must respect observed spread and displayed capacity at fill time."""
 from datetime import timedelta
 from decimal import Decimal
+
 import pytest
 
 from gym.domain.model import BookTop, InstrumentId
@@ -78,9 +79,9 @@ class EntryProbe:
 
 
 def test_actual_fill_sets_cost_basis_stop_and_small_position_context(tmp_path):
+    from gym.services.data_portal import DataPortal
     from gym.services.session import PaperSession
     from tests.support import market_db
-    from gym.services.data_portal import DataPortal
     db = market_db(tmp_path,[])
     session = PaperSession(DataPortal(db),lambda _:[],EntryProbe(),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
     def feed(second):
@@ -104,9 +105,9 @@ def test_actual_fill_sets_cost_basis_stop_and_small_position_context(tmp_path):
 
 
 def test_spread_rejection_does_not_create_position_or_stop_state(tmp_path):
+    from gym.services.data_portal import DataPortal
     from gym.services.session import PaperSession
     from tests.support import market_db
-    from gym.services.data_portal import DataPortal
     db = market_db(tmp_path,[])
     session = PaperSession(DataPortal(db),lambda _:[],EntryProbe(),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
     try:
@@ -120,10 +121,10 @@ def test_spread_rejection_does_not_create_position_or_stop_state(tmp_path):
 
 
 def test_entry_guard_does_not_pretend_indicator_warmup_is_complete(tmp_path):
-    from gym.services.session import PaperSession
     from gym.domain.registry import create_strategy
-    from tests.support import market_db
     from gym.services.data_portal import DataPortal
+    from gym.services.session import PaperSession
+    from tests.support import market_db
     db = market_db(tmp_path,[])
     session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
     try:
@@ -135,10 +136,10 @@ def test_entry_guard_does_not_pretend_indicator_warmup_is_complete(tmp_path):
 
 
 def test_native_session_becomes_ready_without_admitting_wide_spread_entries(tmp_path):
-    from gym.services.session import PaperSession
     from gym.domain.registry import create_strategy
-    from tests.support import market_db
     from gym.services.data_portal import DataPortal
+    from gym.services.session import PaperSession
+    from tests.support import market_db
     db = market_db(tmp_path,[])
     session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
     try:
@@ -151,10 +152,10 @@ def test_native_session_becomes_ready_without_admitting_wide_spread_entries(tmp_
 
 
 def test_native_decimal_context_remains_valid_after_zero_balance_exit_and_tiny_depth(tmp_path):
-    from gym.services.session import PaperSession
     from gym.domain.registry import create_strategy
-    from tests.support import market_db
     from gym.services.data_portal import DataPortal
+    from gym.services.session import PaperSession
+    from tests.support import market_db
     db = market_db(tmp_path,[])
     session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
     session.book.balances["BTC"] = Decimal('0E-9')
@@ -172,10 +173,10 @@ def test_native_decimal_context_remains_valid_after_zero_balance_exit_and_tiny_d
 
 @pytest.mark.parametrize("depth",[Decimal('1E-100000'),Decimal('1E100000'),Decimal('NaN'),Decimal('Infinity')])
 def test_unbounded_public_depth_cannot_expand_the_execution_context(tmp_path,depth):
-    from gym.services.session import PaperSession
     from gym.domain.registry import create_strategy
-    from tests.support import market_db
     from gym.services.data_portal import DataPortal
+    from gym.services.session import PaperSession
+    from tests.support import market_db
     db = market_db(tmp_path,[])
     session = PaperSession(DataPortal(db),lambda _:[],create_strategy("trend-pullback"),"BTCUSDT",START,"1min",Decimal(1000),CostModel())
     try:
@@ -196,8 +197,8 @@ def test_fill_cannot_treat_unbounded_depth_as_available_capacity(depth):
 
 
 def test_rounded_exit_retains_dust_basis_and_permits_next_entry(tmp_path):
-    from gym.services.session import PaperSession
     from gym.services.data_portal import DataPortal
+    from gym.services.session import PaperSession
     from tests.support import market_db
     class RoundTrip(EntryProbe):
         def decide(self,snapshot,holding):

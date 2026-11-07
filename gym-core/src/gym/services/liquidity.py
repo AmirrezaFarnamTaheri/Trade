@@ -2,14 +2,14 @@
 from decimal import Decimal
 
 from ..domain.bars import qualified
+from ..domain.market_models import decimal, fields, instant
 from ..domain.model import book_top, iso
-from ..domain.market_models import fields, decimal, instant
 from ..domain.strategy import digest
 
 
 def liquidity_snapshot(sides, now, limits):
     top = book_top("", sides["bid"], sides["ask"], now, limits)
-    report = {"status": "UNAVAILABLE", "bands": [], "funded_authority": False,
+    report = {"status": "UNAVAILABLE", "bands": [],
               "scope": "OBSERVED_LEVELS_ONLY", "flags": sorted(top.flags),
               "side_times": {name: iso(side.ts) if side else None for name, side in sides.items()},
               "level_counts": {name: len(side.levels) if side else 0 for name, side in sides.items()}}

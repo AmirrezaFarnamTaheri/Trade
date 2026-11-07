@@ -4,8 +4,8 @@ These checks cannot substitute for real Win32 ACL / token tests.  They ensure
 that the target-side negative test and explicit SCM descriptor stay in the
 version-controlled release gates.
 """
-from pathlib import Path
 import re
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INSTALL = ROOT / "scripts/windows/Install-ReadOnlyExecutor.ps1"

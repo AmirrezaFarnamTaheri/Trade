@@ -12,7 +12,8 @@ window.gymModels = (() => {
       advanced: 'Portable configuration', import: 'Merge configuration', export: 'Export configuration', config: 'Configuration JSON (no secrets)',
       pending: 'Sign-in pending', cancel: 'Cancel sign-in', reply: 'Continue sign-in', code: 'Authorization code or callback URL', link: 'Open provider sign-in',
       connected: 'OAuth credential stored', disconnected: 'Not signed in', configured: 'configured keys', choose: 'Choose a sign-in method', result: 'Result',
-      plaintext: 'This platform stores credentials in private files without encryption.' },
+      plaintext: 'This platform stores credentials in private files without encryption.',
+      usage: 'Usage and cost', calls: 'Calls', tokensIn: 'Input tokens', tokensOut: 'Output tokens', cost: 'Cost', unknownCost: 'without cost data', noUsage: 'No completions recorded yet.' },
     fa: { title: 'اتصال‌های هوش مصنوعی', help: 'ارائه‌دهنده را برای مشاوره متصل کنید. دسترسی مدل مجوز معامله نیست. اشتراک و هزینهٔ API ممکن است متفاوت باشند.',
       refresh: 'بازخوانی اتصال‌ها', add: 'افزودن اتصال', id: 'نام اتصال', provider: 'ارائه‌دهنده', auth: 'روش ورود', key: 'کلید API', oauth: 'ورود در مرورگر',
       saved: 'به‌صورت محلی ذخیره شد.', failed: 'درخواست ناموفق بود. اتصال را بررسی و دوباره تلاش کنید.', unavailable: 'درگاه در دسترس نیست. وابستگی‌های model-gateway را نصب و برنامه را بازراه‌اندازی کنید.',
@@ -22,7 +23,8 @@ window.gymModels = (() => {
       advanced: 'پیکربندی قابل انتقال', import: 'ادغام پیکربندی', export: 'دریافت پیکربندی', config: 'پیکربندی JSON بدون اطلاعات محرمانه',
       pending: 'در انتظار ورود', cancel: 'لغو ورود', reply: 'ادامهٔ ورود', code: 'کد مجوز یا نشانی بازگشت', link: 'باز کردن صفحهٔ ورود ارائه‌دهنده',
       connected: 'اعتبارنامهٔ ورود ذخیره شده', disconnected: 'وارد نشده', configured: 'کلید تنظیم‌شده', choose: 'روش ورود را انتخاب کنید', result: 'نتیجه',
-      plaintext: 'در این سیستم اعتبارنامه‌ها در فایل خصوصی و بدون رمزنگاری ذخیره می‌شوند.' },
+      plaintext: 'در این سیستم اعتبارنامه‌ها در فایل خصوصی و بدون رمزنگاری ذخیره می‌شوند.',
+      usage: 'مصرف و هزینه', calls: 'تعداد درخواست', tokensIn: 'توکن ورودی', tokensOut: 'توکن خروجی', cost: 'هزینه', unknownCost: 'بدون دادهٔ هزینه', noUsage: 'هنوز درخواستی ثبت نشده است.' },
   };
   const w = key => words[language][key];
   const esc = value => context.esc(String(value));
@@ -42,7 +44,11 @@ window.gymModels = (() => {
     if (status.presets.some(p => p.id === selected)) $('models-preset').value = selected;
     $('models-send').disabled = !status.enabled || !status.presets.length;
   }
-  async function reload() { status = await request('status'); renderStatus(); }
+  async function reload() { status = await request('status'); renderStatus(); renderUsage(await request('usage').catch(() => null)); }
+  function renderUsage(data) {
+    const rows = data?.by_model || [];
+    $('models-usage').innerHTML = rows.length ? `<div class="table-wrap" tabindex="0"><table class="data"><thead><tr>${['provider', 'preset', 'calls', 'tokensIn', 'tokensOut', 'cost'].map(k => `<th scope="col">${esc(w(k))}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.provider)}</td><td dir="ltr">${esc(r.model)}</td><td class="num">${esc(r.calls)}</td><td class="num">${esc(r.input_tokens ?? '—')}</td><td class="num">${esc(r.output_tokens ?? '—')}</td><td class="num" dir="ltr">${esc(r.cost)}${r.calls_without_cost ? ` <small>(${esc(r.calls_without_cost)} ${esc(w('unknownCost'))})</small>` : ''}</td></tr>`).join('')}</tbody></table></div><p class="field-help">${esc(data.note)}</p>` : `<p>${esc(w('noUsage'))}</p>`;
+  }
   async function pollLogin() {
     clearTimeout(poll);
     if (!login) return;
@@ -63,7 +69,7 @@ window.gymModels = (() => {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (language === next) return;
     language = next;
-    $('models-content').innerHTML = `<p class="lead">${esc(w('help'))}</p><div class="actions"><button id="models-refresh" class="button" type="button">${esc(w('refresh'))}</button><label><input id="models-enabled" type="checkbox"> ${esc(w('enabled'))}</label></div><p id="models-storage" class="field-help"></p><p id="models-message" role="status"></p><section class="panel"><h2>${esc(w('add'))}</h2><form id="models-add"><div class="ticket-fields"><label>${esc(w('id'))}<input id="models-id" pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}" maxlength="100" required dir="ltr"></label><label>${esc(w('provider'))}<select id="models-provider"></select></label><label>${esc(w('auth'))}<select id="models-auth"></select></label></div><button class="button" type="submit">${esc(w('add'))}</button></form></section><h2>${esc(w('connections'))}</h2><div id="models-connections"></div><section id="models-login" class="panel" role="status" aria-live="polite"></section><section class="panel"><h2>${esc(w('prompt'))}</h2><form id="models-complete"><label>${esc(w('preset'))}<select id="models-preset"></select></label><label>${esc(w('prompt'))}<textarea id="models-prompt" maxlength="32000" required></textarea></label><button id="models-send" class="button" type="submit" disabled>${esc(w('send'))}</button></form><h3>${esc(w('result'))}</h3><pre id="models-result" class="output" dir="auto"></pre></section><details class="panel"><summary>${esc(w('advanced'))}</summary><label>${esc(w('config'))}<textarea id="models-config" rows="8" spellcheck="false" dir="ltr"></textarea></label><div class="actions"><button id="models-import" type="button" class="button">${esc(w('import'))}</button><button id="models-export" type="button" class="button">${esc(w('export'))}</button></div></details>`;
+    $('models-content').innerHTML = `<p class="lead">${esc(w('help'))}</p><div class="actions"><button id="models-refresh" class="button" type="button">${esc(w('refresh'))}</button><label><input id="models-enabled" type="checkbox"> ${esc(w('enabled'))}</label></div><p id="models-storage" class="field-help"></p><p id="models-message" role="status"></p><section class="panel"><h2>${esc(w('add'))}</h2><form id="models-add"><div class="ticket-fields"><label>${esc(w('id'))}<input id="models-id" pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}" maxlength="100" required dir="ltr"></label><label>${esc(w('provider'))}<select id="models-provider"></select></label><label>${esc(w('auth'))}<select id="models-auth"></select></label></div><button class="button" type="submit">${esc(w('add'))}</button></form></section><h2>${esc(w('connections'))}</h2><div id="models-connections"></div><section id="models-login" class="panel" role="status" aria-live="polite"></section><section class="panel"><h2>${esc(w('prompt'))}</h2><form id="models-complete"><label>${esc(w('preset'))}<select id="models-preset"></select></label><label>${esc(w('prompt'))}<textarea id="models-prompt" maxlength="32000" required></textarea></label><button id="models-send" class="button" type="submit" disabled>${esc(w('send'))}</button></form><h3>${esc(w('result'))}</h3><pre id="models-result" class="output" dir="auto"></pre></section><section class="panel"><h2>${esc(w('usage'))}</h2><div id="models-usage"></div></section><details class="panel"><summary>${esc(w('advanced'))}</summary><label>${esc(w('config'))}<textarea id="models-config" rows="8" spellcheck="false" dir="ltr"></textarea></label><div class="actions"><button id="models-import" type="button" class="button">${esc(w('import'))}</button><button id="models-export" type="button" class="button">${esc(w('export'))}</button></div></details>`;
     $('models-refresh').onclick = () => act(reload);
     $('models-enabled').onchange = () => act(async () => { await request('enabled', $('models-enabled').checked); await reload(); });
     $('models-add').onsubmit = event => { event.preventDefault(); act(async () => {
@@ -94,7 +100,7 @@ window.gymModels = (() => {
     $('models-complete').onsubmit = event => { event.preventDefault(); act(async () => {
       $('models-send').disabled = true;
       try { $('models-result').textContent = JSON.stringify(await request('complete', { preset: $('models-preset').value, prompt: $('models-prompt').value }), null, 2); }
-      finally { renderStatus(); }
+      finally { renderStatus(); renderUsage(await request('usage').catch(() => null)); }
     }); };
     $('models-import').onclick = () => act(async () => { await request('import', JSON.parse($('models-config').value)); await reload(); });
     $('models-export').onclick = () => {

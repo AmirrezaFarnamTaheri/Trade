@@ -10,30 +10,30 @@ window.gymMargin = (() => {
     const saved = language ? Object.fromEntries(inputIds.map(id => [id, $(id).value])) : {};
     language = next;
     const fa = language === 'fa', text = (en, persian) => fa ? persian : en;
-    const field = (id, title, attributes = '') => `<label for="${id}">${title}</label><input id="${id}" dir="ltr" ${attributes}>`;
+    const field = (id, title, attributes = '') => `<label for="${id}"><span>${title}</span><input id="${id}" class="input" dir="ltr" ${attributes}></label>`;
     $('margin-workbench').innerHTML = `<h2>${text('Wallex margin · LONG / SHORT paper positions', 'معاملهٔ تعهدی والکس · موقعیت آزمایشی لانگ / شورت')}</h2>
       <p class="field-help">${text('Load current market credit limits, obtain the public loan calculator and preview, then replay recorded quotes. No real loan or position is opened. Credit ratio is Wallex risk_coef; do not treat it as a futures leverage switch.', 'محدودیت اعتبار بازار را دریافت کنید، محاسبهٔ وام و پیش‌نمایش عمومی بگیرید و مشاهدات ثبت‌شده را بازپخش کنید. وام یا موقعیت واقعی باز نمی‌شود. نسبت اعتبار همان risk_coef والکس است.')}</p>
       <button id="margin-load" type="button" class="button">${text('Load current margin rules', 'دریافت قواعد فعلی تعهدی')}</button><div id="margin-rules"></div>
       <form id="margin-preview-form"><fieldset id="margin-preview-fields" disabled><legend>${text('Venue preview · no order', 'پیش‌نمایش صرافی · بدون سفارش')}</legend><div class="ticket-fields">
-      <label for="margin-market">${text('Margin market', 'بازار تعهدی')}</label><select id="margin-market" dir="ltr"></select>
-      <label for="margin-side">${text('Direction', 'جهت')}</label><select id="margin-side" dir="ltr"><option value="long">LONG</option><option value="short">SHORT</option></select>
+      <label for="margin-market"><span>${text('Margin market', 'بازار تعهدی')}</span><select id="margin-market" dir="ltr"></select></label>
+      <label for="margin-side"><span>${text('Direction', 'جهت')}</span><select id="margin-side" dir="ltr"><option value="long">LONG</option><option value="short">SHORT</option></select></label>
       ${field('margin-collateral', text('Collateral · quote currency', 'وثیقه · ارز مظنه'), 'required type="text" inputmode="decimal"')}
       ${field('margin-risk', text('Credit ratio · venue grid', 'نسبت اعتبار · گام صرافی'), 'required type="number"')}
       ${field('margin-price', text('Entry limit price', 'قیمت محدود ورود'), 'required type="text" inputmode="decimal"')}
       ${field('margin-stop', text('Stop loss · optional', 'حد ضرر · اختیاری'), 'type="text" inputmode="decimal"')}
       ${field('margin-target', text('Take profit · optional', 'حد سود · اختیاری'), 'type="text" inputmode="decimal"')}
-      </div><button id="margin-observed-price" type="button" class="button">${text('Use observed bid / ask', 'استفاده از قیمت خرید / فروش مشاهده‌شده')}</button>
-      <button type="submit" class="button">${text('Check collateral and preview', 'بررسی وثیقه و پیش‌نمایش')}</button></fieldset></form><div id="margin-preview"></div>
+      </div><div class="actions"><button id="margin-observed-price" type="button" class="button">${text('Use observed bid / ask', 'استفاده از قیمت خرید / فروش مشاهده‌شده')}</button>
+      <button type="submit" class="button button-primary">${text('Check collateral and preview', 'بررسی وثیقه و پیش‌نمایش')}</button></div></fieldset></form><div id="margin-preview"></div>
       <form id="margin-replay-form"><fieldset id="margin-replay-fields" disabled><legend>${text('Replay observed quotes · paper only', 'بازپخش مشاهدات · فقط آزمایشی')}</legend><div class="ticket-fields">
       ${field('margin-from', text('From · UTC · after preview receipt', 'از · UTC · پس از دریافت پیش‌نمایش'), 'required type="datetime-local" step="1"')}
       ${field('margin-to', text('To · UTC · exclusive', 'تا · UTC · انتهای باز'), 'required type="datetime-local" step="1"')}
       ${field('margin-exit-fee', text('Assumed exit fee · quote currency · decimal fraction', 'کارمزد فرضی خروج · ارز مظنه · کسر اعشاری'), 'required type="text" inputmode="decimal"')}
       ${field('margin-holding', text('Close after seconds · optional', 'بستن پس از چند ثانیه · اختیاری'), 'type="number" min="1" step="1"')}
-      </div><button id="margin-cutoff" type="button" class="button">${text('Use current cutoff', 'استفاده از زمان فعلی برای انتها')}</button><button type="submit" class="button">${text('Replay paper position', 'بازپخش موقعیت آزمایشی')}</button></fieldset></form>
+      </div><div class="actions"><button id="margin-cutoff" type="button" class="button">${text('Use current cutoff', 'استفاده از زمان فعلی برای انتها')}</button><button type="submit" class="button button-primary">${text('Replay paper position', 'بازپخش موقعیت آزمایشی')}</button></div></fieldset></form>
       <p id="margin-status" role="status"></p><div id="margin-result" aria-live="polite"></div>`;
     const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     function receipt(value, kind) {
-      if (value?.schema !== 'wallex-margin/1' || value.kind !== kind || !/^[0-9a-f]{16}$/.test(value.run_id || '') || value.funded_authority !== false || value.order_submitted !== false) throw new Error('invalid paper receipt');
+      if (value?.schema !== 'wallex-margin/1' || value.kind !== kind || !/^[0-9a-f]{16}$/.test(value.run_id || '')) throw new Error('invalid paper receipt');
       if (kind === 'MARKETS' && !Array.isArray(value.markets)) throw new Error('missing rules');
       if (kind === 'PREVIEW' && (!value.collateral_limits || !value.terms || !['collateral', 'loan', 'trade_fee', 'open_fee', 'extend_fee'].every(key => value.terms[key]?.currency && typeof value.terms[key]?.value === 'string'))) throw new Error('missing terms');
       return value;

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
 import aiohttp
@@ -45,7 +45,7 @@ def parse_udf(text: str) -> list[dict]:
     if len({len(c) for c in cols}) != 1:
         raise ValueError("udf history columns differ in length")
     try:
-        return [{"t": datetime.fromtimestamp(int(t), timezone.utc), **{k: Decimal(str(x)) for k, x in zip("ohlcv", row)}}
+        return [{"t": datetime.fromtimestamp(int(t), UTC), **{k: Decimal(str(x)) for k, x in zip("ohlcv", row)}}
                 for t, *row in zip(*cols)]
     except (InvalidOperation, TypeError, OverflowError) as e:
         raise ValueError(f"udf history value: {e}") from e

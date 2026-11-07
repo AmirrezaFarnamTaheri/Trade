@@ -8,7 +8,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from gym.services.backup_manifest import (
-    BackupManifestUnsafe, prepare_backup_manifest, verify_signed_backup,
+    BackupManifestUnsafe,
+    prepare_backup_manifest,
+    verify_signed_backup,
 )
 from gym.services.encrypted_backup import create_backup, restore_backup
 

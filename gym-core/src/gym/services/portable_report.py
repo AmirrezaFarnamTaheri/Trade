@@ -1,11 +1,10 @@
 """A self-contained, script-free view of the existing allowlisted paper summary."""
 import base64
+import json
 from hashlib import sha256
 from html import escape
-import json
 
 from .reports import paper_summary
-
 
 _STYLE = """body{font:16px/1.6 system-ui,sans-serif;max-width:64rem;margin:auto;padding:1.5rem;color:#27231e;background:#faf9f6}h1{line-height:1.2}dl{display:grid;grid-template-columns:minmax(8rem,1fr) 2fr;gap:.6rem}dd{margin:0;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eeece6;padding:1rem}li{margin:.5rem 0}.notice{border-left:4px solid #965322;padding:1rem;background:#f0e8dc}@media(max-width:480px){body{padding:1rem}dl{display:block}dt{font-weight:bold}dd{margin-bottom:.8rem}}"""
 

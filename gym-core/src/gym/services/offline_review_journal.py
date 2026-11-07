@@ -12,7 +12,9 @@ import sqlite3
 from pathlib import Path
 
 from ..domain.assisted_ticket import (
-    PREVIEW_FIELDS, _zoned, prepare_preview_from_json,
+    PREVIEW_FIELDS,
+    _zoned,
+    prepare_preview_from_json,
 )
 
 _GENESIS = bytes(32)

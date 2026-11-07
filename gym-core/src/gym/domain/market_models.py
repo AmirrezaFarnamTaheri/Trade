@@ -1,9 +1,10 @@
 """Offline Part D diagnostics. No prices here authorize or construct orders."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import ROUND_FLOOR, Decimal, localcontext
+import itertools
 import re
+from datetime import UTC, datetime
+from decimal import ROUND_FLOOR, Decimal, localcontext
 from statistics import median
 
 D = Decimal
@@ -33,12 +34,12 @@ def instant(value):
     if not isinstance(value, str) or len(value) > 40 or "T" not in value:
         raise ValueError("time must be a zoned ISO timestamp")
     try:
-        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        result = datetime.fromisoformat(value)
     except ValueError:
         raise ValueError("invalid ISO time") from None
     if result.tzinfo is None or result.utcoffset() is None:
         raise ValueError("time must have a zone")
-    return result.astimezone(timezone.utc)
+    return result.astimezone(UTC)
 
 
 def fields(obj, names):
@@ -229,7 +230,7 @@ def financing(product, side, quote_currency, collateral, quantity, borrowed, int
     points = [quote(row) for row in rows(samples)]
     if points[0][3] != "OPEN":
         raise ValueError("paper entry requires an OPEN market")
-    if any(b[0] <= a[0] for a, b in zip(points, points[1:])):
+    if any(b[0] <= a[0] for a, b in itertools.pairwise(points)):
         raise ValueError("financing samples must be strictly chronological")
     at, bid, ask, _ = points[0]
     if side == "LONG":
@@ -363,8 +364,8 @@ def trade_economics(quote_currency, entry_price, stop_price, target_price, gross
 
 
 def evaluate_artifact(artifact):
-    from .portfolio import cashflow_returns, portfolio_sizing
     from .forecast_evaluation import forecast_calibration
+    from .portfolio import cashflow_returns, portfolio_sizing
 
     fields(artifact, "model parameters")
     models = {"liquidity": liquidity, "spacing": roundtrip_spacing, "fx": implied_fx, "financing": financing,

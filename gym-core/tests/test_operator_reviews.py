@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
+
 from gym.adapters import service_review
 from gym.adapters.wallex_account_read import ReadUncertain
-from gym.api import operator_reviews
+from gym.api import guard, operator_reviews
 from gym.contracts.review_wire import (
     REPLY_SIZE,
     decode_reply,
@@ -235,8 +236,8 @@ def test_api_rejects_concurrent_and_oversize_work_before_helper(monkeypatch):
             }
 
         monkeypatch.setattr(operator_reviews, "review", native)
-        app = web.Application()
-        operator_reviews.install(app, "tok", enabled=True)
+        app = web.Application(middlewares=[guard("tok")])
+        operator_reviews.install(app, enabled=True)
         async with TestClient(TestServer(app)) as client:
             headers = {
                 "X-Gym-Token": "tok",
@@ -280,8 +281,8 @@ def test_api_requires_session_and_origin_preserves_uncertainty_and_never_auto_re
     monkeypatch.setattr(operator_reviews, "review", native)
 
     async def check():
-        app = web.Application()
-        operator_reviews.install(app, "tok", enabled=True)
+        app = web.Application(middlewares=[guard("tok")])
+        operator_reviews.install(app, enabled=True)
         async with TestClient(TestServer(app)) as client:
             headers = {
                 "X-Gym-Token": "tok",
@@ -330,8 +331,8 @@ def test_api_requires_session_and_origin_preserves_uncertainty_and_never_auto_re
                 )
             ).status == 400
             assert len(calls) == 2
-        demo = web.Application()
-        operator_reviews.install(demo, "tok", enabled=False)
+        demo = web.Application(middlewares=[guard("tok")])
+        operator_reviews.install(demo, enabled=False)
         async with TestClient(TestServer(demo)) as client:
             assert (
                 await client.get(

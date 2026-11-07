@@ -70,7 +70,7 @@ class ConversionWorkload:
         self.fee_rate = _d(fee_rate, "fee_rate", positive=False)
         self.max_spread_bps = _d(max_spread_bps, "max_spread_bps")
         self.quote_budget = _d(quote_budget, "quote_budget")
-        if self.fee_rate >= Decimal("0.1") or self.max_spread_bps > Decimal("10000"):
+        if self.fee_rate >= Decimal("0.1") or self.max_spread_bps > Decimal(10000):
             raise ConversionUnsafe("unsupported fee or spread envelope")
         with localcontext() as ctx:
             ctx.prec = 128

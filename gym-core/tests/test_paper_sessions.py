@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+
 from gym.adapters.run_store import run_path
 from gym.domain.model import iso
 from gym.domain.registry import create_strategy
@@ -12,7 +13,6 @@ from gym.domain.strategy import EmaTrend
 from gym.services.data_portal import DataPortal
 from gym.services.paper import paper
 from gym.services.session import PaperSession
-
 from tests.support import START, market_db, quote, quote_history
 
 
@@ -140,10 +140,11 @@ def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch, repeat_s
     assert r["session"]["state"] == "ENDED"
     assert max(d["t"] for d in r["decisions"]) <= iso(START + timedelta(seconds=125))
     assert any(e["state"] == "FINISHING" and e["t"] == iso(START + timedelta(seconds=125)) for e in r["session"]["events"])
+    import json
+
     from gym.adapters.run_store import load_verified_run
     from gym.services.replay_debugger import replay_decisions
     from gym.services.research_grounding import MetricUnavailable, resolve_run_metric
-    import json
     assert load_verified_run(tmp_path / "runs", out["run_id"], store="live")["outputs_digest"] == out["outputs_digest"]
     assert replay_decisions(tmp_path / "runs", {"run_id": out["run_id"], "offset": 0, "limit": 10}, store="live")["decisions"]
     with pytest.raises(MetricUnavailable):

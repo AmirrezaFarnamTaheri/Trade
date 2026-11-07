@@ -1,6 +1,6 @@
 """Exact, measurement-aligned arithmetic over the native observation vintage store."""
-from decimal import ROUND_HALF_EVEN, localcontext
 import re
+from decimal import ROUND_HALF_EVEN, localcontext
 
 from ..domain.market_models import fields
 from ..domain.model import iso, parse_ts

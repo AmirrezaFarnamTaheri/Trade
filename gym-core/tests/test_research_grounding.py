@@ -1,7 +1,7 @@
 """Numeric research claims must resolve to immutable native run fields."""
-from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_EVEN
 import json
+from datetime import timedelta
+from decimal import ROUND_HALF_EVEN, Decimal
 
 import pytest
 

@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+
 import pytest
 
 from gym.domain.model import iso

@@ -2,11 +2,12 @@
 import asyncio
 from copy import deepcopy
 
-from aiohttp.test_utils import TestClient, TestServer
-from aiohttp import web
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
 
-from gym.adapters.wallex_order_evidence import parse_order_page, InvalidOrderEvidence
+from gym.adapters.wallex_order_evidence import InvalidOrderEvidence, parse_order_page
+from gym.api import guard
 from gym.api.research import install
 from gym.services.external_journal import ExternalJournal
 
@@ -45,8 +46,8 @@ def test_page_identity_quantity_bounds_and_unverified_coverage():
 
 def test_page_import_is_authenticated_sanitized_and_not_complete_account_state(tmp_path):
     async def check():
-        app = web.Application()
-        install(app, "tok", tmp_path, store="live")
+        app = web.Application(middlewares=[guard("tok")])
+        install(app, tmp_path, store="live")
         value = {"account_id": "main", "observed_at": "2026-10-29T10:00:00Z", "kind": "OPEN", "page": 2, "per_page": 10, "payload": payload()}
         async with TestClient(TestServer(app)) as client:
             assert (await client.post("/api/research/action", json={"action": "order-page-import", "value": value})).status == 403

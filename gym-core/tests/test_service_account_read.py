@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
 from gym.adapters import service_account_read as service
 from gym.adapters.wallex_account_read import ReadUncertain
 from gym.domain.account_observations import project_account
@@ -255,6 +256,7 @@ def test_service_receipt_rejects_malformed_context_without_exposing_input(monkey
 
 def test_saved_service_receipts_reach_token_guarded_api_and_cli(monkeypatch, capsys, tmp_path):
     from aiohttp.test_utils import TestClient, TestServer
+
     from gym.adapters.store import MarketDB, SegmentWriter
     from gym.api.server import make_app
     from gym.cli import main

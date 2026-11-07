@@ -3,15 +3,14 @@ import json
 from datetime import timedelta
 
 import pytest
+
 from gym.adapters.run_store import record_decision, run_path
 from gym.domain.model import iso
 from gym.services.diagnostics import diagnostics, first_divergence
-from gym.services.reports import economic_report
 from gym.services.paper import paper
+from gym.services.reports import economic_report
 from gym.services.session import outcome_marks
 from tests.support import START, market_db, quote, quote_history
-
-
 
 
 def test_marks_do_not_mature_early():

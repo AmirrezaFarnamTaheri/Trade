@@ -1,9 +1,9 @@
 """Page structure and runtime contracts for the bundled browser application."""
-from html.parser import HTMLParser
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from html.parser import HTMLParser
+from pathlib import Path
 
 import pytest
 
@@ -73,16 +73,15 @@ def test_ui_runtime_contracts():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_native_review_requires_explicit_action_and_never_promotes_a_receipt():
+def test_native_review_lives_on_the_operate_view():
     html = UI.read_text("utf-8")
     operate = html.split('id="v-operate"', 1)[1].split('id="v-rules"', 1)[0]
     assert 'id="native-review-form"' in operate
-    result = subprocess.run([node(), "--test", str(Path(__file__).parent / "ui/native-review.test.cjs")],
-                            capture_output=True, encoding="utf-8", timeout=30)
-    assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_margin_ui_uses_venue_terms_exact_inputs_and_paper_only_actions():
-    result = subprocess.run([node(), "--test", str(Path(__file__).parent / "ui/margin.test.cjs")],
-                            capture_output=True, encoding="utf-8", timeout=30)
+def test_every_ui_node_suite_runs():
+    root = Path(__file__).parent
+    suites = sorted(str(path) for path in (root / "ui").glob("*.test.cjs"))
+    assert len(suites) >= 3
+    result = subprocess.run([node(), "--test", *suites], cwd=root.parent, capture_output=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr

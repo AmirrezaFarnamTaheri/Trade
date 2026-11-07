@@ -2,51 +2,54 @@
 from __future__ import annotations
 
 import asyncio
-from hashlib import sha256
-import hmac
 import json
 import os
 import re
 import sqlite3
 from decimal import Decimal, DecimalException
+from hashlib import sha256
 from pathlib import Path
 
 from aiohttp import web
 
 from ..adapters.run_store import list_runs, load_run
-from ..domain.registry import catalog
-from ..domain.sim import CostModel
-from ..services.research import coverage
+from ..adapters.store import MarketDB, storage_forecast
 from ..domain.account_observations import project_account
-from ..domain.bars import FIXED_RESOLUTIONS, qualified
-from ..services.capabilities import market_catalog, workspace_capabilities
-from ..domain.model import TOMAN, InstrumentId, iso, parse_ts
-from ..domain.rules import is_closed
-from ..services.collector import Collector, now_utc
-from ..services.rules import RuleService
-from ..services.reports import economic_report, paper_summary
-from ..services.portable_report import render_html
-from ..services.liquidity import liquidity_snapshot
-from ..services.external_journal import ExternalJournal
-from ..services.venue_facts import VenueFactsJournal
 from ..domain.assisted_ticket import prepare_preview_from_json
-from ..services.offline_review_journal import OfflineReviewJournal
-from ..services.research_ledger import ResearchLedger
-from ..services.research_process import calculate, ResearchProcessFailure
+from ..domain.bars import FIXED_RESOLUTIONS, qualified
+from ..domain.model import TOMAN, InstrumentId, iso, parse_ts, strict_loads
+from ..domain.registry import catalog
+from ..domain.rules import is_closed
+from ..domain.sim import CostModel
 from ..services.backup_status import status as backup_status
+from ..services.capabilities import market_catalog, workspace_capabilities
+from ..services.collector import Collector, now_utc
+from ..services.external_journal import ExternalJournal
+from ..services.liquidity import liquidity_snapshot
+from ..services.offline_review_journal import OfflineReviewJournal
+from ..services.portable_report import render_html
 from ..services.readiness import current_top, operational_readiness
+from ..services.reports import economic_report, paper_summary
+from ..services.research import coverage
+from ..services.research_ledger import ResearchLedger
+from ..services.research_process import ResearchProcessFailure, calculate
+from ..services.rules import RuleService
+from ..services.venue_facts import VenueFactsJournal
+from . import finish, guard
 from .models import install as install_models
-from .research import install as install_research
 from .offline_reviews import install as install_offline_reviews
 from .operator_reviews import install as install_operator_reviews
+from .research import install as install_research
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
-LOOPBACK = {"127.0.0.1", "localhost"}
 
 
 def s(x):
     return None if x is None else str(x)
 
+
+# Served next to index.html, each with a content-hash query so a browser never runs a stale copy.
+UI_ASSETS = ("app.js", "charts.js", "runs.js", "models.js", "replay-chart.js", "research.js", "margin.js", "native-review.js", "styles.css")
 
 def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None,
              account_observation: dict | None = None,
@@ -54,25 +57,14 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
              venue_facts: VenueFactsJournal | None = None,
              offline_review_journal: OfflineReviewJournal | None = None,
              chaos_report: Path | None = None) -> web.Application:
-    @web.middleware
-    async def guard(req: web.Request, handler):
-        # DNS-rebinding and CSRF defence: loopback Host only, and a per-run token on every write.
-        if (req.host or "").rsplit(":", 1)[0] not in LOOPBACK:
-            return web.json_response({"error": "loopback only"}, status=403)
-        if req.method != "GET" and not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "missing or bad X-Gym-Token"}, status=403)
-        try:
-            return await handler(req)
-        except (ValueError, KeyError) as e:
-            return web.json_response({"error": str(e)}, status=400)
-
     async def index(_):
-        html = UI.read_text("utf-8").replace("__GYM_TOKEN__", token).replace("__GYM_DEMO__", json.dumps(col.demo))
+        # Never embed the token: any local process can fetch "/". The browser receives it in the URL fragment.
+        html = UI.read_text("utf-8").replace("__GYM_DEMO__", json.dumps(col.demo))
         html = html.replace("__GYM_RESOLUTIONS__", json.dumps(list(FIXED_RESOLUTIONS)))
-        for asset in ("app.js", "models.js", "replay-chart.js", "research.js", "margin.js", "native-review.js", "styles.css"):
+        for asset in UI_ASSETS:
             version = sha256(UI.with_name(asset).read_bytes()).hexdigest()[:16]
             html = html.replace(f'"/{asset}"', f'"/{asset}?v={version}"')
-        return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
+        return web.Response(text=html, content_type="text/html")
 
     async def browser_asset(req):
         return web.FileResponse(UI.with_name(req.path[1:]))
@@ -93,13 +85,14 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                 "last_trade": last and {"price": s(last.price), "qty": s(last.qty), "aggressor": last.aggressor, "ts": iso(last.ts_event)},
                 "unit": {"code": TOMAN.code, "epoch": TOMAN.unit_epoch} if inst.quote == "TMN" else None,
                 "act": rules.act(inst, now),
+                "data_quality": col.data_quality.get(sym),
             })
         return web.json_response({"now": iso(now), "demo": col.demo, "fx": fx_factor(now),
                                   "universe": col.universe, "markets": rows,
                                   "catalog": market_catalog(col), "capabilities": workspace_capabilities(col)})
 
     async def capabilities(_):
-        return web.json_response(workspace_capabilities(col), headers={"Cache-Control": "no-store"})
+        return web.json_response(workspace_capabilities(col))
 
     def fx_factor(now):
         """USDT/IRT valuation factor: STALE_CLOSED during a closure (last mid kept), LIVE when quoted."""
@@ -141,6 +134,13 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         at = parse_ts(q["at"]) if q.get("at") else now_utc()
         return web.json_response(rules.check(inst, q.get("side", "BUY"), q.get("intent", "ENTRY"), at))
 
+    def storage_report():
+        db = MarketDB(market_path, readonly=True)  # this runs off the loop thread; the collector's connection stays there
+        try:
+            return storage_forecast(db, col.seg.root, now_utc())
+        finally:
+            db.c.close()
+
     async def health(_):
         st = col.status
         lf = st["last_frame"]
@@ -149,28 +149,28 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             "last_frame_age_s": None if lf is None else round((now_utc() - lf).total_seconds(), 1),
             "errors": list(st["errors"]),
             "readiness": operational_readiness(col, now_utc()),
-            "venue_validation": {"state": "EVIDENCE_ONLY" if venue_facts and venue_facts.facts(limit=1) else "NOT_CONFIGURED",
-                                 "funded_authority": False, "trusted_origin": False},
+            "venue_validation": {"state": "EVIDENCE_ONLY" if venue_facts and venue_facts.facts(limit=1) else "NOT_CONFIGURED"},
             "quality": [dict(zip(("ts", "instrument", "flag", "detail"), r)) for r in col.db.quality(30)],
+            "storage": await asyncio.to_thread(storage_report),
+            "shards": [{"shard": shard, "markets": s["markets"], "connected": shard in col.connected_shards,
+                        "reconnects": s["reconnects"],
+                        "last_frame_age_s": None if s["last_frame"] is None else round((now_utc() - s["last_frame"]).total_seconds(), 1)}
+                       for shard, s in sorted(st["shard_stats"].items())],
+            "archived": st["archived"], "integrity": st["integrity"], "clock_paused": bool(st.get("clock_paused")),
         })
 
     async def ready(_):
         report = operational_readiness(col, now_utc())
-        return web.json_response(report, status=200 if report["ready"] else 503,
-                                 headers={"Cache-Control": "no-store"})
+        return web.json_response(report, status=200 if report["ready"] else 503)
 
     async def account_observations(req):
-        # Private local portfolio read, not a public market endpoint. The
-        # browser already carries the per-run token on GET requests.
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "read-only account token required"}, status=403)
         if account_observation is None:
             try:
                 safe = external_journal.latest_snapshot() if external_journal else None
             except (ValueError, TypeError):
                 return web.json_response(
                     {"state": "ERROR", "authority": "READ_ONLY", "error": "invalid account observation"},
-                    status=503, headers={"Cache-Control": "no-store"})
+                    status=503)
             if safe is None:
                 safe = {"state": "NOT_CONFIGURED", "source": "VENUE_EXTERNAL",
                         "authority": "READ_ONLY", "account_id": None, "observed_at": None,
@@ -187,30 +187,25 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             except (KeyError, ValueError, TypeError):
                 return web.json_response(
                     {"state": "ERROR", "authority": "READ_ONLY", "error": "invalid account observation"},
-                    status=503, headers={"Cache-Control": "no-store"})
-        return web.json_response(safe, headers={"Cache-Control": "no-store"})
+                    status=503)
+        return web.json_response(safe)
 
     async def external_events(req):
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "external Journal token required"}, status=403)
         if external_journal is None:
             result = {"state": "NOT_CONFIGURED", "authority": "READ_ONLY", "events": []}
         else:
             result = {"state": "OBSERVED", "authority": "READ_ONLY",
                       "events": external_journal.events()}
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        return web.json_response(result)
 
     async def venue_facts_api(req):
         # C1 is a private operator history. Never return raw venue payloads,
         # account credentials or a claim that a write method is certified.
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "VenueFacts token required"}, status=403)
         facts = [] if venue_facts is None else venue_facts.facts()
         return web.json_response({
             "state": "EVIDENCE_ONLY" if facts else "NOT_CONFIGURED",
-            "authority": "READ_ONLY", "funded_authority": False, "trusted_origin": False,
-            "facts": facts, "capabilities": {} if venue_facts is None else venue_facts.capabilities(),
-        }, headers={"Cache-Control": "no-store"})
+            "authority": "READ_ONLY", "facts": facts, "capabilities": {} if venue_facts is None else venue_facts.capabilities(),
+        })
 
     async def dry_run_ticket(req):
         # The browser has no money path. Strictly bound this small JSON input
@@ -218,53 +213,57 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         raw = await req.read()
         if not raw or len(raw) > 8192:
             raise ValueError("offline ticket JSON exceeds size limit")
-        def unique_pairs(pairs):
-            fields = {}
-            for name, value in pairs:
-                if name in fields:
-                    raise ValueError("ambiguous duplicate JSON field")
-                fields[name] = value
-            return fields
-        try:
-            payload = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise ValueError("invalid offline ticket JSON") from None
+        payload = strict_loads(raw, "offline ticket JSON")
         preview = prepare_preview_from_json(payload)
-        return web.json_response(preview, headers={"Cache-Control": "no-store"})
+        return web.json_response(preview)
 
     async def automation_safety(req):
         # This is a conservative description of THIS unprivileged process.
         # Never infer T2 service state from a browser-supplied claim.
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "local operator token required"}, status=403)
         return web.json_response({
             "mode": "DISARMED", "protection": "UNAVAILABLE",
             "venue_stops": "NOT_CERTIFIED",
             "entries_enabled": False, "autopilot_enabled": False,
             "funded_authority": False, "source": "LOCAL_UNPRIVILEGED_PROCESS",
             "executor_state_verified": False,
-        }, headers={"Cache-Control": "no-store"})
+        })
 
     comparison_lock = asyncio.Lock()
 
+    def observed_symbols(db):
+        # Index skip-scan: one seek per distinct market instead of reading every stored quote.
+        return [row[0][7:] for row in db.c.execute("""WITH RECURSIVE m(id) AS (
+            SELECT min(instrument_id) FROM book_top
+            UNION ALL SELECT (SELECT min(instrument_id) FROM book_top WHERE instrument_id > m.id) FROM m WHERE m.id IS NOT NULL)
+            SELECT id FROM m WHERE id IS NOT NULL""")]
+
+    market_path = Path(col.db.c.execute("PRAGMA database_list").fetchone()[2])
+
+    def setup_snapshot(symbol):
+        # Own read-only connection: the collector's connection belongs to the event-loop thread.
+        reader = MarketDB(market_path, readonly=True)
+        try:
+            observed = observed_symbols(reader)
+            symbol = symbol or ("BTCTMN" if "BTCTMN" in observed else observed[0] if observed else "BTCUSDT")
+            return observed, coverage(reader, symbol)
+        finally:
+            reader.c.close()
+
     async def research_setup(req):
-        observed = [row[0] for row in col.db.c.execute("select distinct substr(instrument_id, 8) from book_top order by 1")]
-        symbol = req.query.get("symbol") or ("BTCTMN" if "BTCTMN" in observed else observed[0] if observed else "BTCUSDT")
+        observed, covered = await asyncio.to_thread(setup_snapshot, req.query.get("symbol"))
         return web.json_response({"strategies": catalog(), "symbols": observed, "resolutions": list(FIXED_RESOLUTIONS),
-                                  "coverage": coverage(col.db, symbol),
+                                  "coverage": covered,
                                   "defaults": {"fee_rate": os.environ.get("GYM_FEE_RATE", str(CostModel().fee_rate)),
                                                "latency_ms": 500, "resolution": "15min"},
-                                  "authority": "PAPER_ONLY", "funded_authority": False},
-                                 headers={"Cache-Control": "no-store"})
+                                  "authority": "PAPER_ONLY"})
 
     async def compare_runs(req):
         validation = req.path == "/api/validate"
         if runs is None:
             raise ValueError("paper run storage is not configured")
-        if comparison_lock.locked():
-            return web.json_response({"error": "a comparison is already running"}, status=409)
         body = await req.json()
-        allowed = {"symbol", "from", "to", "resolution", "cash", "fee_rate", "latency_ms", "rules_mode", "candidates"}
+        allowed = {"symbol", "from", "to", "resolution", "cash", "fee_rate", "latency_ms", "rules_mode", "candidates", "participation",
+                   "walk_depth", "carry_remainder", "max_fraction", "vol_target", "order_type", "maker_fee_rate"}
         if validation:
             allowed.add("folds")
         if not isinstance(body, dict) or body.keys() - allowed:
@@ -290,33 +289,63 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
             if not cash.is_finite() or cash <= 0:
                 raise ValueError("cash must be positive and finite")
             from datetime import timedelta
-            cost = CostModel(fee, timedelta(milliseconds=latency))
+            participation = body.get("participation")
+            if participation is not None and (not isinstance(participation, str) or not re.fullmatch(r"0?\.[0-9]{1,6}|1(?:\.0+)?", participation)):
+                raise ValueError("participation must be a decimal string in (0, 1]")
+            flags = {key: body.get(key, False) for key in ("walk_depth", "carry_remainder")}
+            if any(type(value) is not bool for value in flags.values()):
+                raise ValueError("walk_depth and carry_remainder must be booleans")
+            sizing = {key: body.get(key) for key in ("max_fraction", "vol_target")}
+            if any(value is not None and (not isinstance(value, str) or not re.fullmatch(r"0?\.[0-9]{1,6}|1(?:\.0+)?", value))
+                   for value in sizing.values()):
+                raise ValueError("max_fraction and vol_target must be decimal strings in (0, 1]")
+            order_type, maker = body.get("order_type", "market"), body.get("maker_fee_rate")
+            if order_type not in ("market", "limit") or maker is not None and (
+                    not isinstance(maker, str) or not re.fullmatch(r"0?\.[0-9]{1,6}", maker)):
+                raise ValueError("order_type must be market or limit; maker_fee_rate a decimal string below 1")
+            cost = CostModel(fee, timedelta(milliseconds=latency), order_type=order_type,
+                             maker_fee_rate=Decimal(maker) if maker is not None else None,
+                             max_participation=Decimal(participation) if participation is not None else None, **flags,
+                             **{key: Decimal(value) for key, value in sizing.items() if value is not None})
         except (ValueError, TypeError, KeyError, DecimalException):
             raise ValueError("invalid comparison window, cash or costs") from None
-        if Path(col.db.c.execute("PRAGMA database_list").fetchone()[2]).resolve() != (runs.parent / "market.db").resolve():
+        if market_path.resolve() != (runs.parent / "market.db").resolve():
             raise ValueError("comparison market/run stores must share a root")
         normalized = {"symbol": body.get("symbol"), "from": iso(start), "to": iso(end),
                       "resolution": body.get("resolution", "15min"), "cash": str(cash), "fee_rate": str(cost.fee_rate),
                       "latency_ms": latency, "rules_mode": body.get("rules_mode", "point-in-time"),
-                      "candidates": body.get("candidates"), "folds": folds}
+                      "candidates": body.get("candidates"), "folds": folds,
+                      "participation": None if cost.max_participation is None else str(cost.max_participation),
+                      "walk_depth": cost.walk_depth, "carry_remainder": cost.carry_remainder,
+                      "max_fraction": None if cost.max_fraction is None else str(cost.max_fraction),
+                      "vol_target": None if cost.vol_target is None else str(cost.vol_target),
+                      "order_type": cost.order_type,
+                      "maker_fee_rate": None if cost.maker_fee_rate is None else str(cost.maker_fee_rate)}
         if comparison_lock.locked():
             return web.json_response({"error": "a comparison is already running"}, status=409)
+        from ..services.event_log import event
+        event("comparison_started", mode="validation" if validation else "comparison", symbol=normalized["symbol"],
+              window=[normalized["from"], normalized["to"]], candidates=len(normalized["candidates"] or []))
         async with comparison_lock:
-            task = asyncio.create_task(calculate(runs.parent, "validation" if validation else "comparison", normalized,
-                                                 store="demo" if col.demo else "live"))
             try:
-                result = await asyncio.shield(task)
-            except asyncio.CancelledError:
-                try:
-                    await task
-                finally:
-                    raise
+                result = await finish(calculate(runs.parent, "validation" if validation else "comparison", normalized,
+                                                 store="demo" if col.demo else "live"))
             except ResearchProcessFailure as error:
-                return web.json_response(error.report, status=error.status, headers={"Cache-Control": "no-store"})
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+                event("comparison_failed", status=error.status)
+                return web.json_response(error.report, status=error.status)
+        event("comparison_finished", id=result.get("comparison_id") or result.get("validation_id"),
+              runs=[record["run_id"] for record in result.get("runs", [])])
+        return web.json_response(result)
 
-    async def run_list(_):
-        return web.json_response([] if runs is None else list_runs(runs))
+    async def run_list(request):
+        query = request.query
+        if set(query) - {"limit", "offset", "symbol", "strategy"}:
+            raise ValueError("unknown run list parameter")
+        limit, offset = int(query.get("limit", "50")), int(query.get("offset", "0"))
+        if not 1 <= limit <= 200 or not 0 <= offset <= 1_000_000:
+            raise ValueError("limit must be 1..200 and offset 0..1000000")
+        return web.json_response([] if runs is None else await asyncio.to_thread(
+            list_runs, runs, limit, offset, query.get("symbol") or None, query.get("strategy") or None))
 
     research_tick_lock = asyncio.Lock()
 
@@ -326,20 +355,18 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         return runs.parent / "research.sqlite3"
 
     async def research_state(req):
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "local operator token required"}, status=403)
         path = research_path()
         if path is None:
             value = {"state": "NOT_CONFIGURED", "jobs": [], "alerts": [], "hypotheses": [], "shadows": [],
-                     "authority": "PAPER_ONLY", "funded_authority": False, "order_submitted": False}
+                     "authority": "PAPER_ONLY"}
         else:
             try:
                 with ResearchLedger(path, readonly=True) as ledger:
                     value = {"state": "CONFIGURED", **ledger.overview()}
             except (ValueError, OSError, sqlite3.Error):
                 return web.json_response({"error": "research ledger unavailable"}, status=503,
-                                         headers={"Cache-Control": "no-store"})
-        return web.json_response(value, headers={"Cache-Control": "no-store"})
+                                         )
+        return web.json_response(value)
 
     async def research_control(req):
         if await req.json() != {}:
@@ -352,7 +379,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
                 value = getattr(ledger, req.match_info["action"])(req.match_info["id"])
         except (OSError, sqlite3.Error):
             return web.json_response({"error": "research ledger unavailable"}, status=503)
-        return web.json_response(value, headers={"Cache-Control": "no-store"})
+        return web.json_response(value)
 
     async def research_tick(req):
         if await req.json() != {}:
@@ -363,21 +390,13 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         if research_tick_lock.locked():
             return web.json_response({"error": "paper research is already running"}, status=409)
         async with research_tick_lock:
-            task = asyncio.create_task(calculate(path.parent, "tick", store="demo" if col.demo else "live", at=iso(now_utc())))
             try:
-                value = await asyncio.shield(task)
-            except asyncio.CancelledError:
-                try:
-                    await task
-                finally:
-                    raise
+                value = await finish(calculate(path.parent, "tick", store="demo" if col.demo else "live", at=iso(now_utc())))
             except ResearchProcessFailure as error:
-                return web.json_response(error.report, status=error.status, headers={"Cache-Control": "no-store"})
-        return web.json_response(value, headers={"Cache-Control": "no-store"})
+                return web.json_response(error.report, status=error.status)
+        return web.json_response(value)
 
     async def run_summary(req):
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "missing or bad X-Gym-Token"}, status=403)
         if runs is None:
             raise web.HTTPNotFound()
         try:
@@ -412,34 +431,27 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         except FileNotFoundError:
             raw = None
         if raw is None:
-            return web.json_response({"state": "NOT_RUN"}, headers={"Cache-Control": "no-store"})
+            return web.json_response({"state": "NOT_RUN"})
         if len(raw) > 4 * 1024 * 1024:
-            return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
+            return web.json_response({"state": "UNREADABLE"}, status=503)
         try:
             report = json.loads(raw)
         except ValueError:
-            return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
-        return web.json_response({"state": "REPORTED", **report}, headers={"Cache-Control": "no-store"})
+            return web.json_response({"state": "UNREADABLE"}, status=503)
+        return web.json_response({"state": "REPORTED", **report})
 
     async def backup_status_api(req):
-        if not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), token):
-            return web.json_response({"error": "local operator token required"}, status=403)
         if runs is None:
-            return web.json_response({"state": "NOT_CONFIGURED"}, headers={"Cache-Control": "no-store"})
+            return web.json_response({"state": "NOT_CONFIGURED"})
         try:
             value = backup_status(runs.parent)
         except (ValueError, OSError, RuntimeError, sqlite3.Error):
-            return web.json_response({"state": "UNREADABLE"}, status=503, headers={"Cache-Control": "no-store"})
-        return web.json_response(value, headers={"Cache-Control": "no-store"})
+            return web.json_response({"state": "UNREADABLE"}, status=503)
+        return web.json_response(value)
 
-    app = web.Application(middlewares=[guard], client_max_size=1024 * 1024)
+    app = web.Application(middlewares=[guard(token)], client_max_size=1024 * 1024)
     app.add_routes([
-        web.get("/", index), web.get("/app.js", browser_asset), web.get("/styles.css", browser_asset),
-        web.get("/models.js", browser_asset),
-        web.get("/research.js", browser_asset),
-        web.get("/native-review.js", browser_asset),
-        web.get("/margin.js", browser_asset),
-        web.get("/replay-chart.js", browser_asset),
+        web.get("/", index), *(web.get("/" + asset, browser_asset) for asset in UI_ASSETS),
         web.get("/api/markets", markets), web.get("/api/health", health), web.get("/api/ready", ready),
         web.get("/api/capabilities", capabilities),
         web.get("/api/backup-status", backup_status_api),
@@ -461,10 +473,10 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/rules/{id}/disable", rule_disable), web.post("/api/rules/{id}/rollback", rule_rollback),
         web.post("/api/presets/{name}", preset),
     ])
-    install_models(app, token)
-    install_operator_reviews(app, token, enabled=not col.demo)
-    install_research(app, token, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
+    install_models(app, runs.parent / "model_usage.db" if runs is not None else None)
+    install_operator_reviews(app, enabled=not col.demo)
+    install_research(app, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
     review_path = (Path(offline_review_journal.conn.execute("PRAGMA database_list").fetchone()[2])
                    if offline_review_journal is not None else runs.parent / "offline_reviews.db" if runs is not None else None)
-    install_offline_reviews(app, token, review_path)
+    install_offline_reviews(app, review_path)
     return app

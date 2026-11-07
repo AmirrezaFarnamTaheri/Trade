@@ -1,13 +1,12 @@
 """Fixed public RSS parsing, immutable receipt clocks and hostile input refusal."""
-from datetime import timedelta
 import json
+from datetime import timedelta
 
 import pytest
 
-from gym.services.news_feed import parse_feed, fetch_news, _NoRedirect, MAX_BODY
+from gym.services.news_feed import MAX_BODY, _NoRedirect, fetch_news, parse_feed
 from gym.services.research_protocol import ResearchProtocol
 from tests.support import START
-
 
 RSS = b'''<rss><channel><item><title>Public policy announcement</title>
 <link>https://www.federalreserve.gov/newsevents/pressreleases/monetary20261029a.htm</link>

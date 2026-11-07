@@ -1,11 +1,10 @@
 """Reproducibility, lookahead, warmup and total-cost checks for paper replays."""
-from datetime import timedelta
 from decimal import Decimal
 
 from ..domain.bars import BarSpec
 from ..domain.model import iso, parse_ts
-from ..domain.sim import CostModel
 from ..domain.registry import create_strategy
+from ..domain.sim import CostModel
 from .data_portal import DataPortal
 from .paper import run
 from .rules import RuleService
@@ -28,8 +27,7 @@ def diagnostics(db, out):
     portal, svc = DataPortal(db), RuleService(db)
     t0, t1 = parse_ts(inp["from"]), parse_ts(inp["to"])
     c = inp["cost"]
-    cost = CostModel(Decimal(c["fee_rate"]), timedelta(milliseconds=c["latency_ms"]),
-                     timedelta(seconds=c["max_wait_s"]))
+    cost = CostModel.from_description(c)
     today = svc.load()[1]
     rules = (lambda t: today) if inp["rules_mode"] == "today" else (lambda t: svc.load(t)[1])
 

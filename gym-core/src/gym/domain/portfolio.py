@@ -1,8 +1,16 @@
 """Joint paper-entry sizing from an explicitly ordered candidate list."""
 import re
-from decimal import Decimal, ROUND_FLOOR, localcontext
+from decimal import ROUND_FLOOR, Decimal, localcontext
 
-from .market_models import currency, decimal, elapsed, fields, instant, position_sizing, rate
+from .market_models import (
+    currency,
+    decimal,
+    elapsed,
+    fields,
+    instant,
+    position_sizing,
+    rate,
+)
 
 
 def rebalance_preview(request):

@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from ..domain.bars import BarSpec, CloseSubscriptions, qualified
-from ..domain.model import iso, parse_ts
 from ..domain.market_models import decimal
+from ..domain.model import iso, parse_ts
 from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
@@ -21,6 +21,10 @@ class PendingOrder:
     decision_time: datetime
     decision_price: Decimal
     stop_distance_bps: Decimal | None = None
+    max_qty: Decimal | None = None  # set on the working remainder of a resized order
+    limit: Decimal | None = None  # resting price of a limit order, once placed
+    queue_ahead: Decimal | None = None
+    checked: datetime | None = None
 
 
 class PaperSession:
@@ -49,6 +53,8 @@ class PaperSession:
         self.closes = CloseSubscriptions(symbol, resolutions, periods)
         self.consolidator = self.closes.by_resolution[resolution]
         self.book = CashBook({self.instrument.quote: cash})
+        self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
+        self.limit_trades = []  # trade prints that decided limit fills; part of the data identity
         self.last_quote = None
         self.pending: PendingOrder | None = None
         self.cursor = start
@@ -141,11 +147,19 @@ class PaperSession:
             decision["rules_ref"] = digest(rules_known)
             self.rule_snapshots[decision["rules_ref"]] = rules_known
             if action in ("BUY_REQUEST", "SELL_REQUEST"):
+                side = action.split("_")[0]
+                if side == "BUY" and not self.pending and (self.cost.max_fraction is not None or self.cost.vol_target is not None):
+                    fraction = self.cost.size(fraction, [Decimal(d["close"]) for d in self.decisions] + [bar.close])
+                    decision["sized_fraction"] = str(fraction)
+                if side == "BUY" and not self.pending and self.allocation is not None:
+                    fraction = self.allocation(fraction)
+                    decision["allocated_fraction"] = str(fraction)
                 if self.pending:
                     decision["skipped"] = "PENDING_ORDER"
+                elif ("sized_fraction" in decision or "allocated_fraction" in decision) and fraction <= 0:
+                    decision["skipped"] = "SIZED_TO_ZERO"
                 else:
                     ref = f"{self.symbol}#{len(self.orders) + 1}"
-                    side = action.split("_")[0]
                     order = {"ref": ref, "side": side, "decision_time": iso(bar.avail), "status": "PENDING"}
                     self.orders.append(order)
                     stop_distance = None
@@ -169,6 +183,8 @@ class PaperSession:
     def settle(self, top, at, closing=False):
         if not self.pending:
             return
+        if self.cost.order_type == "limit" and self.execution_limits is None:
+            return self.settle_limit(top, at, closing)
         pending = self.pending
         order = pending.record
         eligible_quote = (top is not None and qualified(top)
@@ -181,7 +197,7 @@ class PaperSession:
                 pending.decision_time, pending.decision_price, [top] if top is not None else [], 0,
                 self.cost, self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, order["ref"],
                 self.day_open.get(tehran_day(top.ts_avail)) if top is not None else None,
-                execution_limits=self.execution_limits,
+                execution_limits=self.execution_limits, max_qty=pending.max_qty,
             )
             order.update(result)
             if self.execution_limits is not None and result["status"] == "FILLED":
@@ -198,9 +214,61 @@ class PaperSession:
                     if remaining == 0:
                         self.position_entry = self.position_stop = self.position_opened = self.position_id = None
             self.pending = None
+            if (self.cost.carry_remainder and self.execution_limits is None and result["status"] == "FILLED"
+                    and "requested_qty" in result and not closing):
+                # Keep working the rest on later quotes; the original decision time bounds it by max_wait.
+                child = {"ref": f"{order.get('parent', order['ref'])}.{sum(o.get('parent') == order.get('parent', order['ref']) for o in self.orders) + 1}",
+                         "parent": order.get("parent", order["ref"]), "side": order["side"],
+                         "decision_time": order["decision_time"], "status": "PENDING"}
+                self.orders.append(child)
+                self.pending = PendingOrder(child, Decimal(1), pending.decision_time, pending.decision_price,
+                                            max_qty=Decimal(result["requested_qty"]) - Decimal(result["qty"]))
         elif closing:
             order.update(status="NONFILL", reason="SESSION_ENDED_BEFORE_SETTLEMENT")
             self.pending = None
+
+    def settle_limit(self, top, at, closing):
+        """Rest at the near touch; fill when the queue ahead trades away, or the market trades or quotes through."""
+        pending, order = self.pending, self.pending.record
+        buy = order["side"] == "BUY"
+        if closing or at > pending.decision_time + self.cost.max_wait:
+            order.update(status="NONFILL", reason="SESSION_ENDED_BEFORE_SETTLEMENT" if closing else "LIMIT_EXPIRED")
+            self.pending = None
+            return
+        if top is None or not qualified(top) or top.ts_avail < pending.decision_time + self.cost.latency:
+            return
+        if pending.limit is None:
+            shown = top.bid_qty if buy else top.ask_qty
+            if shown is None:
+                order.update(status="NONFILL", reason="QUEUE_UNKNOWN", fill_time=iso(top.ts_avail))
+                self.pending = None
+                return
+            pending.limit, pending.queue_ahead, pending.checked = (top.bid if buy else top.ask), shown, top.ts_avail
+            order.update(limit_price=str(pending.limit), placed_at=iso(top.ts_avail), queue_ahead=str(shown))
+            return
+        through = top.ask <= pending.limit if buy else top.bid >= pending.limit
+        prints = [x for x in self.portal.trades_by_event(self.symbol, pending.checked - self.cost.max_wait, top.ts_avail + timedelta(microseconds=1))
+                  if pending.checked < x.ts_avail <= top.ts_avail and x.ts_event >= pending.checked - self.cost.max_wait]
+        for trade in prints:
+            against = trade.aggressor == ("SELL" if buy else "BUY")  # takers hitting our side
+            if not against:
+                continue
+            self.limit_trades.append((iso(trade.ts_event), iso(trade.ts_avail), str(trade.price), str(trade.qty), trade.aggressor))
+            if trade.price < pending.limit if buy else trade.price > pending.limit:
+                through = True
+            elif trade.price == pending.limit:
+                pending.queue_ahead -= trade.qty
+        pending.checked = top.ts_avail
+        # shortcut: the whole order fills once the queue ahead is gone; partial queue fills are not modeled.
+        if not through and pending.queue_ahead >= 0:
+            return
+        result = market_order(self.book, self.instrument, order["side"], pending.fraction, pending.decision_time,
+                              pending.decision_price, [top], 0, self.cost, self.portal.spec_at(self.symbol, at),
+                              self.rules_for(at), self.quota, order["ref"],
+                              self.day_open.get(tehran_day(top.ts_avail)), max_qty=pending.max_qty, limit_price=pending.limit)
+        order.update({k: v for k, v in result.items() if k not in ("ref", "side", "decision_time")})
+        order["maker"] = True
+        self.pending = None
 
     def feed(self, top):
         if self.state in ("ENDED", "ABORTED") or top.ts_avail < self.cursor:

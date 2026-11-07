@@ -3,12 +3,12 @@ import asyncio
 import json
 import math
 import os
-from pathlib import Path
 import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 
-from ..adapters.wallex_account_read import parse_account_json, ReadUncertain
+from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
@@ -23,7 +23,7 @@ class ResearchProcessFailure(RuntimeError):
         self.status = status
         self.report = {"error": reason, "process_terminated": terminated,
                        "result_delivered": False, "operation_may_have_committed": True,
-                       "automatic_retry_allowed": False, "funded_authority": False}
+                       "automatic_retry_allowed": False}
         super().__init__(reason)
 
 

@@ -1,11 +1,16 @@
 """B3 offline ledger restore verification never overwrites an active ledger."""
-from pathlib import Path
 import hashlib
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from gym.services.restore_gate import RestoreUnsafe, inspect_ledger, check_restore_target
+from gym.services.restore_gate import (
+    RestoreUnsafe,
+    check_restore_target,
+    inspect_ledger,
+)
+
 
 def _symlink_or_skip(link, target):
     try:
@@ -132,8 +137,9 @@ def test_staged_restore_can_be_pinned_to_independently_verified_manifest(tmp_pat
 def test_staged_restore_rejects_manifest_mismatches_and_bad_digests(tmp_path):
     path = tmp_path / "snapshot.db"
     head = make_candidate(path)
-    from gym.services.restore_gate import inspect_pinned_ledger, RestoreUnsafe
     import hashlib
+
+    from gym.services.restore_gate import RestoreUnsafe, inspect_pinned_ledger
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     with pytest.raises(RestoreUnsafe, match="head"):
         inspect_pinned_ledger(path, expected_head_hash="1" * 64,
@@ -147,7 +153,7 @@ def test_staged_restore_rejects_manifest_mismatches_and_bad_digests(tmp_path):
 
 
 def test_staged_restore_preserves_existing_destination_under_manifest_checks(tmp_path):
-    from gym.services.restore_gate import check_pinned_restore_target, RestoreUnsafe
+    from gym.services.restore_gate import RestoreUnsafe, check_pinned_restore_target
     path, dest = tmp_path / "snapshot.db", tmp_path / "exec_ledger.db"
     head = make_candidate(path)
     import hashlib

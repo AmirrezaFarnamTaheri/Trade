@@ -3,6 +3,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 from decimal import Decimal
 from pathlib import Path
 
@@ -42,15 +43,41 @@ def save_run(out: dict, root: Path) -> Path:
     return path
 
 
-def list_runs(root: Path) -> list[dict]:
+_RUN_FILE = re.compile(r"[0-9a-f]{16}\.json")
+_SUMMARIES: dict[str, tuple[int, dict]] = {}  # run rows keyed by path, valid while mtime matches
+_SUMMARY_LOCK = threading.Lock()
+
+
+def list_runs(root: Path, limit: int = 50, offset: int = 0, symbol: str | None = None, strategy: str | None = None) -> list[dict]:
+    """Newest runs first, optionally filtered. Polled every few seconds: only changed files are parsed."""
+    try:
+        with os.scandir(root) as scan:  # DirEntry.stat() comes from the directory listing on Windows
+            entries = [entry for entry in scan if _RUN_FILE.fullmatch(entry.name)]
+    except FileNotFoundError:
+        return []
+    entries.sort(key=lambda entry: entry.stat().st_mtime_ns, reverse=True)
+    if symbol is None and strategy is None:
+        entries = entries[offset:offset + limit]
+        offset = 0
     rows = []
-    for path in sorted(root.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True):
-        if not re.fullmatch(r"[0-9a-f]{16}\.json", path.name):
-            continue
-        record = json.loads(path.read_text("utf-8"))
-        rows.append({"run_id": record["run_id"], "inputs": record["inputs"], "end": record["result"]["end"]})
-        if len(rows) == 50:
-            break
+    with _SUMMARY_LOCK:
+        for entry in entries:
+            stamp, cached = entry.stat().st_mtime_ns, _SUMMARIES.get(entry.path)
+            if cached is None or cached[0] != stamp:
+                record = json.loads(Path(entry.path).read_text("utf-8"))
+                cached = stamp, {"run_id": record["run_id"], "inputs": record["inputs"], "end": record["result"]["end"]}
+                _SUMMARIES[entry.path] = cached
+            inputs = cached[1]["inputs"]
+            if (symbol is None or inputs.get("symbol") == symbol) and (strategy is None or inputs.get("strategy") == strategy):
+                if offset:
+                    offset -= 1
+                elif len(rows) < limit:
+                    rows.append(cached[1])
+                else:
+                    break
+        if len(_SUMMARIES) > 4 * len(entries) + 1000:  # forget deleted runs once the cache clearly outgrows the folder
+            for stale in _SUMMARIES.keys() - {entry.path for entry in entries}:
+                del _SUMMARIES[stale]
     return rows
 
 

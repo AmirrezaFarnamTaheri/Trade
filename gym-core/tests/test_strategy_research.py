@@ -3,12 +3,13 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+
 from gym.adapters.store import MarketDB
 from gym.domain.registry import catalog, create_strategy
 from gym.domain.sim import CostModel
+from gym.services import research
 from gym.services.diagnostics import diagnostics
 from gym.services.paper import paper
-from gym.services import research
 from tests.support import START, market_db, quote, quote_history
 
 
@@ -40,7 +41,7 @@ def test_compare_reuses_data_costs_snapshots_and_independent_cash(tmp_path):
     args = (db, "BTCUSDT", START, START + timedelta(hours=5), candidates)
     result = research.compare(*args, resolution="1min", cost=CostModel(Decimal("0.0015")))
     assert result == research.compare(*args, resolution="1min", cost=CostModel(Decimal("0.0015")))
-    assert result["mode"] == "COMPARE" and result["funded_authority"] is False and result["order_submitted"] is False
+    assert result["mode"] == "COMPARE"
     first, second = result["runs"]
     assert first["inputs"]["data"] == second["inputs"]["data"]
     assert first["inputs"]["snapshots"] == second["inputs"]["snapshots"]

@@ -1,8 +1,8 @@
 """Fixed numeric analyst roles; no prose inference, external tools or trading votes."""
-from decimal import Decimal, ROUND_HALF_EVEN, localcontext
+from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 
-from ..domain.periods import instant
 from ..domain.model import parse_ts
+from ..domain.periods import instant
 from ..domain.strategy import digest
 from .research_grounding import MetricUnavailable, check_claims, resolve_run_metric
 

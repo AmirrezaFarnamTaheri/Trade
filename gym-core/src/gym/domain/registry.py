@@ -1,11 +1,19 @@
 """Explicit, versioned paper strategies and their public parameter schemas."""
 import re
+
 from .bars import FIXED_RESOLUTIONS
-
-from .strategy import BollingerReversion, ConfirmedTrend, EmaTrend, RelativeMomentum, SmaCross, SmaReversion, digest
+from .compound_strategies import PARAMETERS as COMPOUND_PARAMETERS
+from .compound_strategies import AdaptiveChannel, TrendPullback
+from .strategy import (
+    BollingerReversion,
+    ConfirmedTrend,
+    EmaTrend,
+    RelativeMomentum,
+    SmaCross,
+    SmaReversion,
+    digest,
+)
 from .technical_strategies import KeltnerBreakout, MacdCross, RsiRebound, TrixCross
-from .compound_strategies import AdaptiveChannel, TrendPullback, PARAMETERS as COMPOUND_PARAMETERS
-
 
 STRATEGIES = {
     "ema-trend": (EmaTrend, "EMA trend", {

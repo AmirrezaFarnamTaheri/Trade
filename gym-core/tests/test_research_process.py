@@ -1,14 +1,14 @@
 """Real disposable workers return verified data, die on deadlines and retain claims."""
 import asyncio
-from datetime import timedelta
 import sqlite3
 import time
+from datetime import timedelta
 
 import pytest
 
 from gym.domain.model import iso
-from gym.services.research_process import calculate, ResearchProcessFailure
 from gym.services.research_ledger import ResearchLedger
+from gym.services.research_process import ResearchProcessFailure, calculate
 from tests.support import START, market_db, quote_history
 
 
@@ -25,7 +25,7 @@ def prepare(root):
 def test_real_process_completes_native_run_and_validation_is_not_hidden(tmp_path):
     job = prepare(tmp_path)
     result = asyncio.run(calculate(tmp_path, "tick", at=iso(START + timedelta(minutes=30))))
-    assert len(result["completed"]) == 1 and not result["funded_authority"]
+    assert len(result["completed"]) == 1
     with ResearchLedger(tmp_path / "research.sqlite3", readonly=True) as ledger:
         row = ledger.overview()["jobs"][0]
         assert row["id"] == job and row["last_report"]["status"] == "COMPLETED"

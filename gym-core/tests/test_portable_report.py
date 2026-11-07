@@ -1,21 +1,21 @@
 """Portable paper reports are escaped, script-free and allowlisted."""
+import asyncio
+import json
 from datetime import timedelta
 from html import unescape
-import json
-import asyncio
 
 import pytest
+from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.run_store import save_run
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
 from gym.cli import main
+from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.portable_report import render_html
 from gym.services.reports import paper_summary
-from gym.services.collector import Collector
 from gym.services.rules import RuleService
-from aiohttp.test_utils import TestClient, TestServer
 from tests.support import START, market_db, quote_history
 
 

@@ -40,7 +40,7 @@ def test_setup_compare_and_saved_runs(research_app):
             setup_response = await client.get("/api/research")
             setup = await setup_response.json()
             assert setup_response.headers["Cache-Control"] == "no-store"
-            assert setup["authority"] == "PAPER_ONLY" and setup["funded_authority"] is False
+            assert setup["authority"] == "PAPER_ONLY"
             assert setup["symbols"] == ["BTCUSDT"]
             assert len(setup["strategies"]) == 12
             assert setup["coverage"]["observations"] == 180
@@ -59,7 +59,6 @@ def test_setup_compare_and_saved_runs(research_app):
                 result = await response.json()
                 assert response.headers["Cache-Control"] == "no-store"
                 assert result["mode"] == "COMPARE" and result["authority"] == "PAPER_ONLY"
-                assert result["funded_authority"] is False and result["order_submitted"] is False
                 assert len(result["runs"]) == 2
                 for record in result["runs"]:
                     assert record["inputs"]["cash"] == body["cash"]

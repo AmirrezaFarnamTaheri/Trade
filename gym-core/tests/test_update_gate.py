@@ -2,7 +2,8 @@
 import pytest
 
 from gym.services.restore_gate import RestoreUnsafe, assess_migration_staging
-from gym.services.update_gate import UpdateUnsafe, assess_update as assess_service_outage
+from gym.services.update_gate import UpdateUnsafe
+from gym.services.update_gate import assess_update as assess_service_outage
 
 
 def valid_state(**changes):

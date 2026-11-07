@@ -21,8 +21,8 @@ def test_live_readiness_rechecks_stale_and_future_sides_without_a_collector_tick
     from decimal import Decimal
     for symbol in col.books:
         col.books[symbol] = {
-            "bid": BookSide([(Decimal("100"), Decimal("5"))], START),
-            "ask": BookSide([(Decimal("101"), Decimal("5"))], START),
+            "bid": BookSide([(Decimal(100), Decimal(5))], START),
+            "ask": BookSide([(Decimal(101), Decimal(5))], START),
         }
     col.tick(START)
 
@@ -31,7 +31,6 @@ def test_live_readiness_rechecks_stale_and_future_sides_without_a_collector_tick
             response = await client.get("/api/ready")
             result = await response.json()
             assert response.status == 200 and result["ready"] is True
-            assert result["funded_authority"] is False
             col.books["ETHUSDT"]["ask"] = BookSide(col.books["ETHUSDT"]["ask"].levels, START - timedelta(seconds=121))
             response = await client.get("/api/ready")
             result = await response.json()

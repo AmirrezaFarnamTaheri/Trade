@@ -3,6 +3,7 @@ import asyncio
 import json
 
 from aiohttp.test_utils import TestClient, TestServer
+
 from gym.adapters.store import MarketDB, SegmentWriter
 from gym.api.server import make_app
 from gym.cli import main
@@ -57,7 +58,6 @@ def test_read_only_review_api_requires_token_and_shows_no_order_permission(tmp_p
                 text = await response.text()
                 result = await response.json()
                 assert result["authority"] == "OFFLINE_ONLY"
-                assert result["funded_authority"] is False
                 assert result["tickets"][0]["state"] == "REJECTED_OFFLINE"
                 assert result["reviews"][0]["tier1_approval"] is False
                 assert "api_key" not in text

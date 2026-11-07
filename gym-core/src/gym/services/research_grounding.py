@@ -1,6 +1,6 @@
 """Bounded numeric claim checks against native paper artifacts, never prose approval."""
-from decimal import Decimal, ROUND_HALF_EVEN, localcontext
 import re
+from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 
 from ..adapters.run_store import load_verified_run
 from ..domain.market_models import fields

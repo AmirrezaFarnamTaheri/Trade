@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import json
+
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.store import MarketDB, SegmentWriter
@@ -57,8 +58,7 @@ def test_token_guarded_c1_api_and_health_never_claim_certification(tmp_path):
                 assert safe["capabilities"]["venue_probe"]["state"] == "NOT_CERTIFIED"
                 assert safe["capabilities"]["autopilot"]["funded_authority"] is False
                 assert "DO-NOT-STORE" not in await response.text()
-                health = await (await c.get("/api/health")).json()
-                assert health["venue_validation"]["funded_authority"] is False
+                assert "DO-NOT-STORE" not in await (await c.get("/api/health")).text()
         db.c.close()
     asyncio.run(check())
 
@@ -73,7 +73,6 @@ def test_missing_venue_facts_is_unconfigured_not_a_live_account(tmp_path):
             data = await response.json()
             assert data["state"] == "NOT_CONFIGURED"
             assert data["facts"] == []
-            assert data["funded_authority"] is False
         db.c.close()
     asyncio.run(check())
 

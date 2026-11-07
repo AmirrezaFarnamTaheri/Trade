@@ -146,7 +146,7 @@ class ServiceAccountReader:
                     except (ValueError, TypeError):
                         raise ReadUncertain("inconsistent Executor account receipts") from None
                 return payload
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             raise ReadUncertain("Executor account observation unavailable") from None
         finally:
             if process is not None and process.returncode is None:
@@ -156,7 +156,7 @@ class ServiceAccountReader:
                     pass
                 try:
                     await asyncio.wait_for(process.wait(), 2)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     raise ReadUncertain("Executor account helper did not exit") from None
 
     async def balances(self) -> dict[str, dict[str, str]]:

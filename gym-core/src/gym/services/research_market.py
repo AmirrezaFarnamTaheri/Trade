@@ -1,17 +1,18 @@
 """Bounded recorded-data coverage and cross-market diagnostics, never entry authority."""
+import itertools
+import re
 from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal, localcontext
-import re
 
 from ..domain.bars import BarSpec, qualified
 from ..domain.market_models import fields
 from ..domain.model import QualityLimits, iso, parse_ts
 from ..domain.strategy import digest
 from ..domain.technical_features import TechnicalFeatures
-from .data_portal import DataPortal
 from .collector import now_utc
+from .data_portal import DataPortal
 from .technical_analysis import _report_from_quotes, closed_quote_bars
 
 
@@ -158,7 +159,7 @@ def screen_markets(db, request, *, store):
                 top = tops[-1]
                 if top.bid_qty is not None and top.ask_qty is not None and top.bid_qty >= 0 and top.ask_qty >= 0:
                     row["liquidity_quote"] = str(min(top.bid * top.bid_qty, top.ask * top.ask_qty))
-                returns = [b / a - 1 for a, b in zip(closes, closes[1:])]
+                returns = [b / a - 1 for a, b in itertools.pairwise(closes)]
                 if len(returns) >= 2:
                     mean = sum(returns) / len(returns)
                     row["volatility_percent"] = str(100 * (sum((r - mean)**2 for r in returns) / (len(returns) - 1)).sqrt())
@@ -204,14 +205,14 @@ def return_correlations(db, request, *, store):
         for symbol in symbols:
             tops = quotes[symbol]
             bars, _, bad, last = closed_quote_bars(tops, symbol, start, end, spec)
-            values = {(a.end, b.end): b.close / a.close - 1 for a, b in zip(bars, bars[1:])
+            values = {(a.end, b.end): b.close / a.close - 1 for a, b in itertools.pairwise(bars)
                       if a.end == b.start and a.close > 0 and b.close > 0}
             reason = ("NO_OBSERVATIONS" if last is None else "DISQUALIFIED_LATEST_QUOTE" if not qualified(tops[-1])
                       else "STALE_AT_WINDOW_END" if (end - last.ts_avail).total_seconds() > QualityLimits().stale_s else None)
             series[symbol] = values if reason is None else {}
             fingerprints[symbol] = digest([(iso(t.ts_avail), t.bid, t.ask, sorted(t.flags)) for t in tops])
             coverage.append({"symbol": symbol, "closed_bars": len(bars), "eligible_intervals": len(series[symbol]),
-                             "discarded_nonadjacent_intervals": sum(a.end != b.start for a, b in zip(bars, bars[1:])),
+                             "discarded_nonadjacent_intervals": sum(a.end != b.start for a, b in itertools.pairwise(bars)),
                              "disqualified_buckets": len(bad), "excluded_reason": reason,
                              "latest_observation_at": iso(last.ts_avail) if last else None})
         pairs = []

@@ -2,8 +2,8 @@
 
 Real Windows named-pipe creation and ACKs must be tested by hosted CI.
 """
-from pathlib import Path
 import re
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "executor/exec-svc/src/main.rs"

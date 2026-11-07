@@ -1,6 +1,6 @@
 """Bounded native decision-prefix and prehistory sensitivity diagnostics."""
-from datetime import timedelta
 import re
+from datetime import timedelta
 
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, instant, rate

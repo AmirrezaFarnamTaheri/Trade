@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from time import monotonic, sleep
@@ -18,8 +18,11 @@ from ..adapters.wallex_account_read import (
     parse_account_json,
     parse_fee_rates,
 )
+from ..adapters.wallex_order_evidence import (
+    validate_order_evidence,
+    validate_order_pages,
+)
 from ..contracts.account_receipt import service_receipts
-from ..adapters.wallex_order_evidence import validate_order_evidence, validate_order_pages
 from ..domain.account_observations import project_account
 
 SCHEMA = """
@@ -149,12 +152,12 @@ def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -
 
 def _utc(text: str) -> str:
     try:
-        stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        stamp = datetime.fromisoformat(text)
     except (ValueError, TypeError, AttributeError):
         raise ValueError("invalid external observation time") from None
     if stamp.utcoffset() is None:
         raise ValueError("external observation time needs timezone")
-    return stamp.astimezone(timezone.utc).isoformat(timespec="microseconds")
+    return stamp.astimezone(UTC).isoformat(timespec="microseconds")
 
 
 class ExternalJournal:

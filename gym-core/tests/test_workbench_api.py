@@ -6,16 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 from aiohttp import web
-
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.store import SegmentWriter
-from gym.api import models
-from gym.api import research
+from gym.api import guard, models, research
 from gym.api.server import make_app
 from gym.services.collector import Collector
-from gym.services.rules import RuleService
 from gym.services.research_ledger import ResearchLedger
+from gym.services.rules import RuleService
 from tests.support import market_db, quote_history
 
 
@@ -31,7 +29,7 @@ def test_research_workbench_uses_native_ledger_and_rejects_runner_or_clock_injec
             response = await client.post(route, json=body, headers={"X-Gym-Token": "tok"})
             assert response.status == 200
             result = await response.json()
-            assert result["authority"] == "PAPER_ONLY" and result["funded_authority"] is False
+            assert result["authority"] == "PAPER_ONLY"
             assert response.headers["Cache-Control"] == "no-store"
             assert (tmp_path / "research.sqlite3").is_file()
             diagnostic = await client.post(route, json={"action": "technicals", "value": {
@@ -101,8 +99,8 @@ def test_cancelled_research_client_keeps_lock_until_durable_work_finishes(tmp_pa
     monkeypatch.setattr(research, "research_action", work)
 
     async def check():
-        app = web.Application()
-        research.install(app, "tok", tmp_path, store="live")
+        app = web.Application(middlewares=[guard("tok")])
+        research.install(app, tmp_path, store="live")
         handler = next(iter(app.router.routes())).handler
 
         async def read():
@@ -126,8 +124,8 @@ def test_cancelled_research_client_keeps_lock_until_durable_work_finishes(tmp_pa
 def test_oversized_native_result_is_not_truncated_or_claimed_rolled_back(tmp_path, monkeypatch):
     monkeypatch.setattr(research, "MAX_RESULT_BYTES", 64)
     async def check():
-        app = web.Application()
-        research.install(app, "tok", tmp_path, store="live")
+        app = web.Application(middlewares=[guard("tok")])
+        research.install(app, tmp_path, store="live")
         async with TestClient(TestServer(app)) as client:
             request = {"action": "register", "value": {"symbol": "BTCUSDT", "strategy": "ema-trend", "params": {}}}
             response = await client.post("/api/research/action", json=request, headers={"X-Gym-Token": "tok"})

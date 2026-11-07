@@ -6,6 +6,7 @@ from gym.cli import account_cmd
 
 def test_account_cli_uses_identity_bound_fill_fee_evidence(monkeypatch, capsys):
     import aiohttp
+
     from gym.adapters import secret_store, wallex_account_read
 
     class Session:
@@ -47,6 +48,7 @@ def test_account_cli_uses_identity_bound_fill_fee_evidence(monkeypatch, capsys):
 
 def test_service_account_cli_never_loads_interactive_credentials(monkeypatch, capsys, tmp_path):
     import aiohttp
+
     from gym.adapters import secret_store, service_account_read
     from gym.cli import main
     from gym.services.external_journal import ExternalJournal
