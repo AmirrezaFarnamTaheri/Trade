@@ -35,7 +35,9 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Fake Venue chaos report (fails on any violated invariant)
         if: runner.os == 'Linux'
-        run: cargo run --locked --release -p exec-svc --bin gym-chaos -- target/chaos/report.json
+        run: |
+          mkdir -p target/chaos
+          cargo run --locked --release -p exec-svc --bin gym-chaos -- target/chaos/report.json
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
