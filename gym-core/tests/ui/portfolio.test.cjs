@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const esc = v => String(v ?? '').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-const setup = {symbols:['BTCUSDT','ETHUSDT','XRPUSDT'],resolutions:['1min','15min'],strategies:[{id:'ema-trend'}],defaults:{resolution:'15min',fee_rate:'0.001'}};
+const setup = {portfolio_replay:true,symbols:['BTCUSDT','ETHUSDT','XRPUSDT'],resolutions:['1min','15min'],strategies:[{id:'ema-trend'}],defaults:{resolution:'15min',fee_rate:'0.001'}};
 const record = {run_id:'a'.repeat(16),inputs:{symbols:['BTCUSDT','ETHUSDT'],to:'2026-10-29T09:30:00Z'},result:{quote:'USDT',end:{equity:'999',net:'-1'},markets:{BTCUSDT:{fills:2,closed_trades:1,realized_pnl:'-1',holding:'0',last_bid:'70000'}},balances:{USDT:'999'},curve:[]},performance:{total_return_pct:'-0.1'}};
 function page(api) {
   const nodes = new Map();
@@ -66,6 +66,12 @@ test('invalid setup cannot enable replay inputs',async()=>{
   await p.node('portfolio-load').onclick();
   assert.equal(p.node('portfolio-fields').disabled,true);
   assert.match(p.node('portfolio-status').textContent,/Request failed/);
+});
+test('older running backend leaves portfolio disabled with explicit activation message',async()=>{
+  const p=page(async()=>({...setup,portfolio_replay:undefined}));
+  await p.node('portfolio-load').onclick();
+  assert.equal(p.node('portfolio-fields').disabled,true);
+  assert.match(p.node('portfolio-status').textContent,/needs a restart/);
 });
 test('missing FX stays unavailable and stale FX is visible beside valuation',async()=>{
   const valued=JSON.parse(JSON.stringify(record));

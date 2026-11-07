@@ -7,6 +7,10 @@ and parameters. Available markets come from the stored observations, without a
 BTC/ETH shortlist. The eight-market bound is a local calculation budget, not a
 Wallex restriction.
 
+The form checks the running backend's portfolio capability. If an older
+observatory process is still running, it stays disabled and requests a restart;
+new static assets alone do not establish a new backend capability.
+
 Each market runs the same strategy against one cash book. Entries target an equal
 share of portfolio equity and cannot spend more cash than remains. Market clocks
 close before later quotes become visible. This models simultaneous holdings;

@@ -46,11 +46,16 @@ no three-market watch override is used. The old local workspace launcher now
 forwards to the maintained scripts/windows/Start-Workspace.ps1.
 
 The actual HTTP server is listening on 127.0.0.1:8765 and exposes all 12 strategies.
-At the latest runtime check, the pinned api.wallex.ir endpoint was unreachable:
-connection failures left the catalogue empty, stream disconnected and readiness
-BLOCKED. The collector retries; it does not fabricate current prices. Configured
-all-market coverage is not verified fresh coverage while the source is down.
-Receipt: .pi/operations/workspace-20261107T113243Z.json.
+At 13:06 UTC on 7 November, WebSockets were connected, all 373 selected spot
+pairs were present, and the 469-row catalogue was loaded. Readiness was DEGRADED:
+292 market states READY and 81 STALE. Public REST TLS handshakes still timed out;
+connected streaming does not establish healthy seeds/candle fetches or fresh quotes
+for every market. Receipt: .pi/operations/runtime-20261107T130631358110Z.json.
+
+The current process predates the new portfolio API. The GUI checks the backend
+capability before enabling replay and asks for an observatory restart when absent.
+The collector was not restarted while its REST bootstrap remained unavailable,
+to preserve the working stream. Fresh-process API/worker integration passed locally.
 
 The private browser link is in the current user's
 %LOCALAPPDATA%/TradingGYM/workspace-link.txt. The protected executor remains
@@ -59,9 +64,9 @@ was performed during this delivery.
 
 ## Current validation
 
-- Python: 1,203 passed, four skipped, 39 subtests passed for the portfolio/FX batch.
-  Receipt consolidation and legacy CLI compatibility then passed 16 targeted checks
-  with one unrelated platform skip.
+- Python: 1,206 passed, four skipped, 39 subtests passed after command-group
+  separation and receipt/CLI changes. Backend activation gating then passed all
+  26 API/workflow/UI checks.
 - Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
   loading does not import service orchestration. Architecture guards passed.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three
@@ -83,7 +88,8 @@ The separate 149,573-case historical campaign is still incomplete.
 
 These are historical modeled observations, not evidence of sustained profitability,
 measured venue execution costs or qualification of the new portfolio options.
-Future prospective sessions depend on restoring actual source connectivity.
+Future prospective sessions require adequate per-market coverage; the stream
+has recovered, but impaired REST and stale markets remain visible.
 
 ## Open work
 

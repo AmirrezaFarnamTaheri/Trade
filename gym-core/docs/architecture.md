@@ -8,6 +8,7 @@ combine these authorities.
 | Layer | Owner | Contract |
 | --- | --- | --- |
 | Domain calculations | `domain/` | Exact decimals, bounded inputs, no filesystem or provider calls. `technical_features.py` is the shared streaming indicator engine; batch diagnostics, four indicator strategies and two compound strategies use it. |
+| CLI composition | `cli.py`, `commands/` | One parser and dispatch entry point; command bodies grouped under research, account, maintenance and daemon owners. Common store selection and bounded offline JSON parsing have one owner. |
 | Durable observations and artifacts | `adapters/` | Market storage, raw segments, run identities and protected credential helpers. DEMO and observed stores remain distinct. |
 | Research workflows | `services/research_actions.py` | Fixed service actions shared by CLI and browser. No arbitrary subprocess, path, Python function or tool name is accepted. |
 | Shared-cash portfolio replay | `services/portfolio.py`, `portfolio_research.py`, `ui/portfolio.js` | One native snapshot and cash book; bounded supervised calculations; verified saved records and derived performance; point-in-time FX. Separate from independent-account comparisons. |

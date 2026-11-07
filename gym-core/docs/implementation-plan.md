@@ -55,7 +55,7 @@ results as produced by the corrected portfolio implementation.
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Startup verified; fresh venue coverage blocked by connectivity |
+| O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Startup/all 373 selected pairs verified; 13:06 UTC snapshot has 292 READY and 81 STALE; REST TLS remains impaired |
 | O2 | Supervise collection and paper scheduling | No duplicate processes; clear failures/retries; no hidden narrowing to BTC/ETH/USDT; recovery preserves history | Limited-user task supervision verified; sustained observation still open |
 | O3 | Publish one current campaign/results view | Show defined/attempted/completed/ready/traded counts, exclusions, dated progress and process liveness separately | Queued |
 | O4 | Add shared-cash portfolio replay to GUI/API | Same validated native owner as CLI, bounded jobs, readable errors and verified saved records | Implemented; native worker/API and EN/FA DOM regressions passed; real-browser visual check remains unverified |
@@ -77,7 +77,7 @@ not fabricated history. Multi-day paper sessions cannot be declared complete at 
 | 8 | Index docs and remove architecture/workspace duplication | Trace section links; one owner per contract and a docs index | Docs index delivered; architecture merge queued |
 | 9 | Align CHANGELOG, PRODUCT and DESIGN | State current behavior and remaining work; preserve intentional historical release notes | Queued |
 | 10 | Migrate legacy --fast/--slow usage | Find scripts/tests/users first; keep compatibility until consumers use --params; no gratuitous CLI break | Maintained example migrated; active-script audit found no further callers; frozen engines untouched; legacy/native-parameter equivalence test passed |
-| 11 | Split CLI by established command groups | One entry point; preserve invocation, defaults, return codes, errors and protected-boundary behavior | Queued |
+| 11 | Split CLI by established command groups | One entry point; preserve invocation, defaults, return codes, errors and protected-boundary behavior | Implemented; parser/dispatch and 36 executable function bodies preserved; full suite passed |
 | 12 | Continue browser view separation | Preserve EN/FA, theme, focus, mobile layout, hashed assets and existing UI contracts | Queued |
 | 13 | Review research service consolidation | Merge only actual redundant forwarding; preserve worker import/module identities used by protected launchers | Queued |
 | 14 | Consolidate duplicate tests/document invocation | Preserve behavioral coverage and independent boundary tests; test count reduction is not a goal | Queued |

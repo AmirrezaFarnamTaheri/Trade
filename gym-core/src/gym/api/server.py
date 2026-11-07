@@ -253,6 +253,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         observed, covered = await asyncio.to_thread(setup_snapshot, req.query.get("symbol"))
         return web.json_response({"strategies": catalog(), "symbols": observed, "resolutions": list(FIXED_RESOLUTIONS),
                                   "coverage": covered,
+                                  "portfolio_replay": True,
                                   "defaults": {"fee_rate": os.environ.get("GYM_FEE_RATE", str(CostModel().fee_rate)),
                                                "latency_ms": 500, "resolution": "15min"},
                                   "authority": "PAPER_ONLY"})

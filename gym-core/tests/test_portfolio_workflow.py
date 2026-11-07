@@ -74,6 +74,7 @@ def test_portfolio_private_api_uses_real_supervised_worker(tmp_path):
 
     async def check():
         async with TestClient(TestServer(app)) as client:
+            assert (await (await client.get("/api/research")).json())["portfolio_replay"] is True
             body = {"action": "portfolio-replay", "value": request()}
             assert (await client.post("/api/research/action", json=body)).status == 403
             response = await client.post("/api/research/action", json=body, headers={"X-Gym-Token": "tok"})

@@ -18,6 +18,10 @@
   their existing identities; changed configurations use strategy version 2.
 
 ### Correctness and operations
+- The single CLI entry point now delegates to established research, account,
+  maintenance and daemon command groups. Parser/dispatch and command semantics remain.
+- Portfolio controls verify running-backend support before enabling a calculation;
+  an older process reports that activation requires an observatory restart.
 - Backup receipt consolidation validates and preserves original history, deduplicates
   imports and selects current status by recorded time rather than import order.
   Both local source journals were snapshotted before the two missing receipts merged.

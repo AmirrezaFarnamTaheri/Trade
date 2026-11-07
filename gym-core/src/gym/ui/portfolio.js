@@ -29,7 +29,7 @@ window.gymPortfolio = (() => {
     async function act(work) {
       if (busy) return;
       busy = true; controls(); $('portfolio-status').textContent = text('Working…', 'در حال اجرا…');
-      try { await work(); $('portfolio-status').textContent = text('Request completed.', 'درخواست انجام شد.'); }
+      try { if (await work() !== false) $('portfolio-status').textContent = text('Request completed.', 'درخواست انجام شد.'); }
       catch { $('portfolio-status').textContent = text('Request failed. Check distinct observed markets, common quote, dates, cash and strategy parameters. Inspect saved portfolios before retrying; the calculation may have saved a result.', 'درخواست ناموفق بود. بازارهای متمایز، ارز مظنهٔ مشترک، تاریخ‌ها، موجودی و پارامترها را بررسی کنید. پیش از تکرار سبدهای ذخیره‌شده را بخوانید؛ ممکن است نتیجه ثبت شده باشد.'); }
       finally { busy = false; controls(); if (document.documentElement.lang !== language) mount({api, esc, table, keyValues, amount, when, curveFigure}); }
     }
@@ -70,6 +70,11 @@ window.gymPortfolio = (() => {
     $('portfolio-load').onclick = () => act(async () => {
       const data = await api('/api/research');
       if (!Array.isArray(data?.symbols) || !Array.isArray(data.resolutions) || !Array.isArray(data.strategies) || !data.defaults) throw new Error('Invalid research setup');
+      if (data.portfolio_replay !== true) {
+        setup = null;
+        $('portfolio-status').textContent = text('The running observatory needs a restart to activate portfolio replay.', 'برای فعال‌شدن بازپخش سبد، رصدگر در حال اجرا باید دوباره راه‌اندازی شود.');
+        return false;
+      }
       setup = data; fillSetup(); await savedRuns();
     });
     $('portfolio-form').onsubmit = event => { event.preventDefault(); return act(async () => {
