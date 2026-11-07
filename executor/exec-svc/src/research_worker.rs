@@ -2,8 +2,11 @@
 use std::io;
 use std::path::Path;
 
+#[cfg(windows)]
 pub const PROFILE: &str = "TradingGym.Research.R0";
+#[cfg(windows)]
 pub const WALL_MS: u32 = 300_000;
+#[cfg(windows)]
 pub const MEMORY_BYTES: usize = 512 * 1024 * 1024;
 
 pub fn launch(root: &Path, probe: bool) -> io::Result<u32> {
