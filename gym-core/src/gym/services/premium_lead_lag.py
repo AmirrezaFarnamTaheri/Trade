@@ -8,7 +8,7 @@ from decimal import Decimal, localcontext
 
 from ..domain.bars import BarSpec, qualified
 from ..domain.market_models import rate
-from ..domain.model import QualityLimits, iso
+from ..domain.model import iso
 from ..domain.strategy import digest
 
 MAX_QUOTES = 100000
