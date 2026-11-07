@@ -387,6 +387,25 @@ test('real CLI stdin is deadline-bounded and cancellable before provider dispatc
   assert.equal(code, 1); assert.match(stderr, /cancelled_or_deadline/); assert.equal(f.calls.length, 0);
 });
 
+test('Windows private state owner matches the OS token default owner and ACL grants the user', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  // The fixture already exercised initialization; verify the resulting Windows security contract.
+  const check = `
+$ErrorActionPreference='Stop'
+$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(f.home, 'utf8').toString('base64')}'))
+$identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+$acl=[IO.Directory]::GetAccessControl($p)
+if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $identity.Owner.Value) { throw 'unexpected directory owner' }
+if (-not $acl.AreAccessRulesProtected) { throw 'directory ACL inherits access' }
+$allowed=@($acl.GetAccessRules($true,$false,[Security.Principal.SecurityIdentifier]) | Where-Object { $_.AccessControlType -eq 'Allow' })
+if ($allowed.Count -ne 1 -or $allowed[0].IdentityReference.Value -ne $identity.User.Value) { throw 'directory ACL is not user-scoped' }
+`;
+  const { execFileSync } = await import('node:child_process');
+  const ps = join(process.env.SystemRoot || 'C:/Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe');
+  assert.doesNotThrow(() => execFileSync(ps, ['-NoProfile', '-NonInteractive', '-EncodedCommand',
+    Buffer.from(check, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 }));
+});
+
 test('Windows real DPAPI store roundtrip, encrypted SQLite bytes and corrupt-ciphertext refusal', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t);
   const old = process.env.GYM_MODEL_PYTHON;

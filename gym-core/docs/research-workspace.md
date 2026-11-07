@@ -12,6 +12,49 @@ The browser calls token-protected `POST /api/research/action` with exactly
 numbers are rejected. Object requests are bounded to 64 KiB. These actions use
 the actual clock; they reject `--at` overrides.
 
+
+## Paper premium, lag, TWAP and future comparison
+
+These actions use the same token-protected `/api/research/action` workbench and
+`gymctl research` dispatch. They never contact a private venue, submit/cancel
+orders, authorize capital, or change Executor state. `live` in the research
+store argument means *recorded public feed*, not live execution.
+
+- `premium-research`: `{"base":"BTC","from":"2026-11-01T00:00:00Z","to":"2026-11-01T02:00:00Z","resolution":"1min","max_age_seconds":120,"max_skew_seconds":10,"fee_rate":"0.001"}`.
+  Aligns primary BTCTMN, BTCUSDT and USDTTMN latest *available* quotes
+  strictly before each closed fixed-bar cutoff. Skew, stale, missing, closed
+  and disqualified observations appear as excluded counts rather than backfill.
+  It shows three hypothetical fee legs but **does not** prove cross-market
+  transferability, settlement, depth, venue availability or profit.
+- `lead-lag-research`: `{"primary":"BTCUSDT","leader":"ETHUSDT","from":"2026-11-01T00:00:00Z","to":"2026-11-01T02:00:00Z","resolution":"1min","max_age_seconds":120,"max_skew_seconds":10,"min_overlap":5}`.
+  Only adjacent aligned closed-cutoff mid returns are used; the leader's
+  preceding return is paired with the follower's next return. Zero variance,
+  insufficient overlap, stale data and missing quotes never become predictive
+  claims.
+- `twap-preview`: `{"symbol":"BTCUSDT","from":"2026-11-01T00:00:00Z","to":"2026-11-01T00:10:00Z","side":"BUY","quantity":"1","slices":5,"participation":"0.5","fee_rate":"0.001","available_quote":"1000","available_base":"0","max_delay_seconds":10}`.
+  Fixed-time child attempts use the first eligible quote *after* each slot,
+  capped by its displayed top size, funds and recorded precision/minimums.
+  Missing/late/closed quotes, partials and unfilled residuals are explicit.
+  Unfilled quantity expires: **no synthetic resubmission, venue cancellation
+  message, working live order or allocator reservation is created**. Fees
+  follow a declared fee-in-received-asset paper assumption.
+- `prospective-register`: `{"symbol":"BTCUSDT","candidates":[{"strategy":"ema-trend","params":{}},{"strategy":"sma-cross","params":{}}],"selection_end":"2026-11-01T00:00:00Z","test_from":"2026-12-01T00:00:00Z","test_to":"2026-12-02T00:00:00Z","resolution":"15min","cash":"1000","fee_rate":"0.001"}`.
+  Register **before** a future disjoint window. It freezes canonical strategy
+  parameters, engine fingerprint, window, fee and nominal cash; registrations
+  overlapping a frozen market/window are refused in the local journal.
+  `prospective-status` reads the returned 64-character registry ID;
+  `prospective-evaluate` consumes that ID **once after the window finishes**.
+  A committed attempt remains consumed when data loading or paper evaluation
+  fails. All candidate runs share an independently isolated simulated account
+  with the same nominal quote cash and modeled cost assumptions.
+  A local journal is not independent evaluation custody and does not certify
+  collection continuity, profitability, real-world slippage or capital authority.
+
+All new reports mark `funded_authority: false`. Prospective runs must also be
+judged against missing/stale coverage, no-trade cases and a separately approved
+independent future evaluation. Do not treat a successful API response as an
+Executor admission, order receipt, venue settlement or account balance.
+
 ## Entry risk and fractional sizing
 
 All registry strategies expose `entry_risk_bps` (0..200, default off). A positive

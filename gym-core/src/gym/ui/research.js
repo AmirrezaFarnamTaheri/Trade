@@ -31,7 +31,13 @@ window.gymResearch = (() => {
     'research-packet': ['Prepare AI evidence packet', 'آماده‌سازی شواهد برای هوش مصنوعی', 'run_ids'],
     'research-notes': ['Validate and save analyst notes', 'بررسی و ذخیره یادداشت تحلیلگر', 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
   };
-  const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status']);
+  const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status', 'prospective-status', 'prospective-evaluate']);
+  actions['premium-research'] = ['Analyze TMN conversion premium', 'بررسی صرف تبدیل تومان', 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
+  actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; descriptive only'];
+  actions['twap-preview'] = ['Preview paper TWAP child fills', 'پیش‌نمایش برش‌های آزمایشی TWAP', 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; no live submission'];
+  actions['prospective-register'] = ['Freeze future strategy comparison', 'ثبت ثابت مقایسهٔ آینده', 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
+  actions['prospective-status'] = ['Inspect frozen comparison', 'بررسی مقایسهٔ ثبت‌شده', 'Saved 64-character registry ID'];
+  actions['prospective-evaluate'] = ['Consume future comparison once', 'اجرای یک‌بارهٔ مقایسهٔ آینده', 'Saved 64-character registry ID; failures are consumed'];
   actions['market-products'] = ['Inspect observed market products and credit grids', 'بررسی محصولات بازار و گام اعتبار', 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
   actions['campaign-status'] = ['Inspect campaign progress and verified samples', 'پیشرفت مطالعه و نمونه‌های بررسی‌شده', 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
   actions['walk-forward'] = ['Expanding walk-forward search', 'جست‌وجوی پیش‌رونده با آموزش افزایشی', 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
@@ -73,8 +79,8 @@ window.gymResearch = (() => {
     const groups = [
       ['Schedules and recovery', 'زمان‌بندی و بازیابی', /^(schedule|job-|campaign-status$|list$)/],
       ['Experiments and replay', 'آزمایش‌ها و بازپخش', /^(register$|review$|experiment-|registry-|annotation-|replay)/],
-      ['Markets and observations', 'بازارها و مشاهدات', /^(technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-|news-)/],
-      ['Research evidence and evaluation', 'شواهد پژوهش و ارزیابی', /^(research-|claim-check$|outcome|final-)/],
+      ['Markets and observations', 'بازارها و مشاهدات', /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-|news-)/],
+      ['Research evidence and evaluation', 'شواهد پژوهش و ارزیابی', /^(research-|prospective-|claim-check$|outcome|final-)/],
       ['Account and execution diagnostics', 'حساب و تشخیص اجرا', /./],
     ];
     $('research-action').innerHTML = groups.map(([en, persian], index) => `<optgroup label="${esc(fa ? persian : en)}">${Object.entries(actions)
@@ -143,6 +149,33 @@ window.gymResearch = (() => {
     const resolutions = JSON.parse($('gym-config').textContent).resolutions || [];
     host.innerHTML = `<h2>${text('Research workspace', 'فضای پژوهش')}</h2>
       <p>${text('Recorded observations and paper decisions. Supplied account inputs remain unverified.', 'مشاهدات ثبت‌شده و تصمیمات آزمایشی؛ اطلاعات حساب ورودی تأییدشده نیست.')}</p>
+      <details open><summary>${text('Guided paper research', 'پژوهش آزمایشی مرحله‌ای')}</summary>
+        <p class="field-help">${text('Recorded quotes only. All outcomes remain hypothetical and disarmed. Future evaluation attempts consume their local registration once.', 'فقط قیمت‌های ثبت‌شده؛ همه نتایج فرضی و غیرفعال‌اند. تلاش ارزیابی آینده فقط یک بار از ثبت محلی استفاده می‌کند.')}</p>
+        <form id="guided-research-form" class="ticket-fields">
+          <label>${text('Research model', 'مدل پژوهش')}<select id="guided-model">
+            <option value="premium-research">${text('TMN premium', 'صرف تومان')}</option><option value="lead-lag-research">${text('Lead / lag', 'تقدم / تأخر')}</option>
+            <option value="twap-preview">${text('TWAP child preview', 'پیش‌نمایش TWAP')}</option></select></label>
+          <label>${text('Primary symbol or base (premium: BTC)', 'نماد یا دارایی پایه (صرف: BTC)')}<input id="guided-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
+          <label>${text('Leader symbol (lag only)', 'نماد پیشرو (فقط تقدم)')}<input id="guided-leader" value="ETHUSDT" pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
+          <label>${text('From · UTC', 'از · UTC')}<input id="guided-from" type="datetime-local" required></label>
+          <label>${text('To · UTC', 'تا · UTC')}<input id="guided-to" type="datetime-local" required></label>
+          <label>${text('Fixed bar', 'بازهٔ ثابت')}<select id="guided-resolution">${resolutions.filter(x => x !== 'session').map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
+          <label>${text('Max quote age (seconds)', 'حداکثر سن قیمت (ثانیه)')}<input id="guided-age" type="number" min="1" max="3600" value="120" required></label>
+          <label>${text('Max alignment skew (seconds)', 'حداکثر اختلاف زمانی (ثانیه)')}<input id="guided-skew" type="number" min="0" max="3600" value="10" required></label>
+          <label>${text('Fee fraction', 'نرخ کارمزد')}<input id="guided-fee" value="0.001" inputmode="decimal" required></label>
+          <div id="guided-twap-fields" class="ticket-fields" hidden>
+            <label>${text('Side', 'جهت')}<select id="guided-side"><option>BUY</option><option>SELL</option></select></label>
+            <label>${text('Base quantity', 'مقدار پایه')}<input id="guided-quantity" value="1" inputmode="decimal"></label>
+            <label>${text('Child slices', 'تعداد برش')}<input id="guided-slices" type="number" min="1" max="100" value="4"></label>
+            <label>${text('Participation', 'سهم از عمق')}<input id="guided-participation" value="0.5" inputmode="decimal"></label>
+            <label>${text('Available quote', 'موجودی ارز مظنه')}<input id="guided-cash" value="1000" inputmode="decimal"></label>
+            <label>${text('Available base', 'موجودی دارایی پایه')}<input id="guided-base" value="0" inputmode="decimal"></label>
+            <label>${text('Max delay (seconds)', 'حداکثر تأخیر (ثانیه)')}<input id="guided-delay" type="number" min="0" max="3600" value="10"></label>
+          </div>
+          <button class="button" type="submit">${text('Run paper diagnostic', 'اجرای بررسی آزمایشی')}</button>
+        </form>
+        <div id="guided-result" role="status" aria-live="polite"></div>
+      </details>
       <details open><summary>${text('Coverage timeline', 'خط زمانی پوشش داده')}</summary>
         <form id="coverage-form" class="ticket-fields">
           <label>${text('Symbol', 'نماد')}<input id="coverage-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
@@ -171,6 +204,41 @@ window.gymResearch = (() => {
       finally { button.disabled = button.id === 'replay-previous' ? offset === 0 : button.id === 'replay-next' ? offset + 1 >= total : false; }
     }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;
+    $('guided-model').onchange = () => {
+      const twap = $('guided-model').value === 'twap-preview';
+      $('guided-twap-fields').hidden = !twap;
+      const hideLabel = (id, hidden) => {
+        const label = $(id).closest?.('label');
+        if (label) label.hidden = hidden;
+      };
+      hideLabel('guided-leader', $('guided-model').value !== 'lead-lag-research');
+      hideLabel('guided-resolution', twap);
+      hideLabel('guided-age', twap);
+      hideLabel('guided-skew', twap);
+    };
+    $('guided-model').onchange();
+    $('guided-research-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
+      const action = $('guided-model').value;
+      const from = $('guided-from').value + ':00Z', to = $('guided-to').value + ':00Z';
+      const common = {from, to};
+      const value = action === 'premium-research'
+        ? {...common, base: $('guided-symbol').value, resolution: $('guided-resolution').value,
+           max_age_seconds: Number($('guided-age').value), max_skew_seconds: Number($('guided-skew').value), fee_rate: $('guided-fee').value}
+        : action === 'lead-lag-research'
+          ? {...common, primary: $('guided-symbol').value, leader: $('guided-leader').value,
+             resolution: $('guided-resolution').value, max_age_seconds: Number($('guided-age').value),
+             max_skew_seconds: Number($('guided-skew').value), min_overlap: 3}
+          : {...common, symbol: $('guided-symbol').value, side: $('guided-side').value, quantity: $('guided-quantity').value,
+             slices: Number($('guided-slices').value), participation: $('guided-participation').value,
+             fee_rate: $('guided-fee').value, available_quote: $('guided-cash').value,
+             available_base: $('guided-base').value, max_delay_seconds: Number($('guided-delay').value)};
+      $('guided-result').textContent = '';
+      const report = await call(action, value);
+      const summary = action === 'premium-research' ? report.coverage : action === 'lead-lag-research'
+        ? {status: report.status, overlap: report.overlap, correlation: report.correlation}
+        : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
+      $('guided-result').innerHTML = `<p><strong>${text('Paper only · no order submitted', 'فقط آزمایشی · هیچ سفارشی ثبت نشده')}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text('Inspect exact evidence', 'بررسی شواهد دقیق')}</summary>${json(report)}</details>`;
+    }); };
     $('coverage-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
       const result = await call('coverage', {symbol: $('coverage-symbol').value, from: $('coverage-from').value + ':00Z', to: $('coverage-to').value + ':00Z', resolution: $('coverage-resolution').value});
       $('coverage-timeline').innerHTML = `<p>${esc(result.report_id)} · ${esc(JSON.stringify(result.counts))}</p><p>${esc(result.limitation)}</p><div class="workspace-table"><table><thead><tr>${['UTC', text('State', 'وضعیت'), text('Quotes', 'قیمت‌ها'), text('Late trades', 'معاملات دیررس'), text('Quote age (s)', 'عمر قیمت (ثانیه)'), text('Indicators', 'شاخص‌ها')].map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${result.buckets.map(row => `<tr><td dir="ltr">${esc(row.from)}</td><td>${esc(row.status)}</td><td>${esc(row.quotes)}</td><td>${esc(row.late_trade_receipts)}</td><td>${esc(row.last_known_qualified_quote_age_seconds ?? 'UNKNOWN')} ${row.quote_stale ? text('(STALE)', '(کهنه)') : ''}</td><td><details><summary>${text('Readiness', 'آمادگی')}</summary>${json(row.indicator_readiness)}</details></td></tr>`).join('')}</tbody></table></div>`;

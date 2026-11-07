@@ -36,11 +36,11 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
-                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets")]))
+                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "prospective-status", "prospective-evaluate")]))
 
 
 def _market_db(root):
@@ -58,6 +58,80 @@ def research_action(root, action, value=None, *, store="live", at=None):
         raise ValueError("invalid research store")
     if at is not None and action not in ("review", "outcomes", "tick"):
         raise ValueError("protocol mutations use the actual clock, without --at overrides")
+    if action in ("premium-research", "lead-lag-research"):
+        from .premium_lead_lag import analyze_lead_lag, analyze_quotes
+        from .research_market import _read_quotes, _symbol, _window
+        if action == "premium-research":
+            fields(value, "base from to resolution max_age_seconds max_skew_seconds fee_rate")
+            base = value["base"]
+            if type(base) is not str or not re.fullmatch(r"[A-Z0-9]{2,16}", base) or base == "USDT":
+                raise ValueError("invalid premium base")
+            symbols = (base + "TMN", base + "USDT", "USDTTMN")
+        else:
+            fields(value, "primary leader from to resolution max_age_seconds max_skew_seconds min_overlap")
+            symbols = (_symbol(value["primary"]), _symbol(value["leader"]))
+            quote_assets = [next((q for q in ("USDT", "TMN") if len(symbol) > len(q) and symbol.endswith(q)), None)
+                            for symbol in symbols]
+            if symbols[0] == symbols[1] or quote_assets[0] is None or quote_assets[0] != quote_assets[1]:
+                raise ValueError("lead-lag needs distinct same-quote markets")
+        start, end, _ = _window(value)
+        db = _market_db(root)
+        try:
+            with _read_quotes(db, symbols, start, end) as books:
+                if action == "premium-research":
+                    return analyze_quotes(base, books, start, end, resolution=value["resolution"],
+                                          max_age_seconds=value["max_age_seconds"],
+                                          max_skew_seconds=value["max_skew_seconds"],
+                                          fee_rate=value["fee_rate"], store=store)
+                return analyze_lead_lag(books[symbols[0]], books[symbols[1]], start, end,
+                                        resolution=value["resolution"], max_age_seconds=value["max_age_seconds"],
+                                        max_skew_seconds=value["max_skew_seconds"],
+                                        min_overlap=value["min_overlap"], store=store)
+        finally:
+            db.c.close()
+    if action == "twap-preview":
+        from ..domain.market_models import instant
+        from .paper_twap import simulate_twap
+        fields(value, "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
+        symbol = value["symbol"]
+        if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol):
+            raise ValueError("invalid TWAP market")
+        start, end = instant(value["from"]), instant(value["to"])
+        if not start < end <= now_utc():
+            raise ValueError("TWAP requires an observed past window")
+        db = _market_db(root)
+        try:
+            db.c.execute("BEGIN")
+            portal = DataPortal(db)
+            count = db.c.execute("SELECT count(*) FROM book_top WHERE instrument_id=? AND ts_avail>=? AND ts_avail<?",
+                                 ("wallex:" + symbol, iso(start), iso(end))).fetchone()[0]
+            if count > 100000:
+                raise ValueError("too many TWAP observations")
+            instrument = portal.instrument(symbol)
+            spec = portal.spec_at(symbol, start)
+            quotes = portal.tops(symbol, start, end)
+            return simulate_twap(instrument, quotes, spec, start, end,
+                                 side=value["side"], quantity=decimal(value["quantity"], "quantity", positive=True),
+                                 slices=value["slices"], participation=decimal(value["participation"], "participation", positive=True),
+                                 fee_rate=value["fee_rate"],
+                                 available_quote=decimal(value["available_quote"], "available_quote"),
+                                 available_base=decimal(value["available_base"], "available_base"),
+                                 max_delay_seconds=value["max_delay_seconds"], store=store)
+        finally:
+            db.c.rollback()
+            db.c.close()
+    if action in ("prospective-register", "prospective-status", "prospective-evaluate"):
+        from .prospective_comparisons import evaluate_comparison, register_comparison
+        with ExperimentRegistry(root, store=store) as registry:
+            if action == "prospective-register":
+                return register_comparison(registry, value, now=now_utc())
+            if action == "prospective-status":
+                return registry.read(value)
+            db = _market_db(root)
+            try:
+                return evaluate_comparison(registry, value, db, now=now_utc())
+            finally:
+                db.c.close()
     if action in OPERATOR_ACTIONS:
         return operator_action(root, action, value, store=store)
     if action == "fractional-sizing":

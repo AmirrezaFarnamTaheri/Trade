@@ -114,9 +114,15 @@ def _compare_in_snapshot(db, symbol, t0, t1, candidates, *, resolution="15min", 
     if len(references) > 1:
         raise ValueError("paired comparison supports one common reference asset")
     reference = next(iter(references), None)
+    from .data_portal import DataPortal
+    instrument = DataPortal(db).instrument(symbol)
+    auxiliary_symbols = tuple(sorted({aux for strategy in strategies
+                                      for aux in (strategy.reference_symbols(instrument)
+                                                  if hasattr(strategy, "reference_symbols") else ())}))
     runs = [paper(db, symbol, t0, t1, resolution=resolution, cash=cash, cost=cost,
                   rules_mode=rules_mode, store=store, subscriptions=resolutions,
-                  strategy_id=s.name, params=s.params, reference_symbol=reference) for s in strategies]
+                  strategy_id=s.name, params=s.params, reference_symbol=reference,
+                  auxiliary_symbols=auxiliary_symbols) for s in strategies]
     if len({(r["inputs"]["data"], r["inputs"]["snapshots"]) for r in runs}) != 1:
         raise ValueError("comparison data or decision snapshots diverged")
     labels = [f"{chr(65 + i)}: {r['inputs']['strategy']}" for i, r in enumerate(runs)]
