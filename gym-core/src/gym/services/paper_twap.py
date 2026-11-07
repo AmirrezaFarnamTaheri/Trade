@@ -16,6 +16,7 @@ MAX_QUOTES = 100000
 
 
 def _floor(value, decimals):
+    """Floor an exact child quantity to an instrument's recorded base precision."""
     if decimals is None:
         return value
     if type(decimals) is not int or not 0 <= decimals <= 18:
