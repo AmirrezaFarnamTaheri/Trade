@@ -35,12 +35,32 @@ def test_native_walk_forward_records_all_trials_and_final_cutoff(tmp_path):
         assert len(attempts) == len(results) == 6
         assert result["selection_count"] == 4 and result["test_slots"] == 2
         assert result["final_data_read"] is False and result["independent_final_evidence"] is False
-        assert all(e["state"] in ("COMPLETED", "ABSTAIN", "INCOMPLETE", "FAILED") for e in results)
+        assert all(e["state"] in ("COMPLETED", "NOT_ACTIVE", "ABSTAIN", "INCOMPLETE", "FAILED") for e in results)
         for row in results:
             if row.get("run_id"):
                 run = load_verified_run(tmp_path / "runs", row["run_id"], store="live")
                 assert run["inputs"]["to"] <= request()["final_from"]
         assert not db.c.in_transaction
+    finally:
+        db.c.close()
+
+
+def test_short_test_cannot_count_unfinished_warmup_as_evaluated(tmp_path):
+    db = market_db(tmp_path, quote_history(n=750))
+    value = request()
+    value["candidates"] = [{"strategy": "ema-trend", "params": {"fast": 2, "slow": n}} for n in (50, 60)]
+    value["windows"] = [{"train_from": iso(START), "train_to": iso(START + timedelta(minutes=100)),
+                         "test_from": iso(START + timedelta(minutes=101)), "test_to": iso(START + timedelta(minutes=104))}]
+    try:
+        with ExperimentRegistry(tmp_path, store="live") as registry:
+            out = walk_forward(registry, db, value)
+            assert out["folds"][0]["selected"] is not None
+            test = out["folds"][0]["test"]
+            assert out["status"] == "INCOMPLETE"
+            assert test["state"] == "NOT_ACTIVE" and test["reason"] == "WARMUP_NOT_COMPLETED"
+            assert test["fills"] == 0 and not test["ready"]
+            saved = registry.read(out["experiment_id"])
+            assert any(e["kind"] == "RESULT" and e["state"] == "NOT_ACTIVE" for e in saved["events"])
     finally:
         db.c.close()
 

@@ -12,6 +12,65 @@ The browser calls token-protected `POST /api/research/action` with exactly
 numbers are rejected. Object requests are bounded to 64 KiB. These actions use
 the actual clock; they reject `--at` overrides.
 
+## Entry risk and fractional sizing
+
+All registry strategies expose `entry_risk_bps` (0..200, default off). A positive
+value requires `exit_stop_bps` greater than zero. Native replay reuses the exact
+portfolio sizing model, with received-asset fees, quantity rounding and known
+minimums. Existing fee-inclusive entry exposure and other working reservations
+consume the shared modeled stop budget. Fill-time checks apply again to market
+orders and maker partials. Unknown precision/minimums abstain. Strategy allocation,
+portfolio cash floors and loss latches still apply. Gaps, slippage, closures and
+closed-bar decision timing can exceed the hypothetical loss budget; no actual
+protective venue order is placed.
+
+`fractional-sizing` accepts exactly `evaluation_id`, `fraction`, `cap`, `seed`,
+`simulations`, `block_length`. The evaluation must be EVALUATED in the selected
+native protocol store and agree with its verified saved run's configuration,
+window, cash and fees. This is empirical maximization of mean log(1 + f × return)
+on 0 <= f < 1, following the log-growth objective in
+[Kelly's original paper](https://homepage.sns.it/marmi/esameIUE/kelly.pdf).
+
+The diagnostic needs 30..500 simple, closed, non-overlapping positions, a current
+end valuation and at least one observed loss. Partial/recycled/scaled cashflows
+are rejected because turnover return is not a self-financing wealth return.
+Moving-block resampling uses 100..500 simulations, a declared block length 1..50
+and seed 0..2^32-1. Its 5/50/95 percentiles show sample uncertainty. The supplied
+positive multiplier is at most one half; the positive hard cap is at most one
+quarter. The reported capped fraction uses the fifth percentile before this
+multiplier/cap. These are declared diagnostic policy bounds, not calibrated
+optimal risk settings. All-winning, incomplete, open-position or insufficient
+samples leave the fraction unavailable; no-loss data cannot establish tail risk.
+No allocation changes automatically. A supplied replay `max_fraction` remains an
+explicit assumption, not an inferred Kelly estimate or authority to trade.
+
+## Experiment scorecards and process ownership
+
+`experiment-scorecard` accepts exactly `experiment_id` and `shadow_run_ids` (zero
+to four distinct saved native prospective session IDs). It reads a regular
+strategy-trial experiment's complete bounded attempt set, verifies each referenced
+native artifact and retains missing/changed/failed/unready outcomes. Walk-forward
+selection uses its separate fold report and receives an explicit validation error
+through this workflow. Heatmaps retain the declared parameter/window/cost matrix;
+stale and unready results stay neutral. Quote currency, FX status, baseline data,
+fill counts and full-curve sampled drawdown remain explicit in each run card.
+
+A supplied prospective session must follow a historical case with matching market,
+configuration, cash, resolution, costs and rule mode. This check does not establish
+preregistration of that session. Select two to four paths in the Workbench to
+overlay their recorded times; no calendar matching or tooltip interpolation is
+invented. Display paths retain at most 1,000 observed marks plus the separately
+disclosed end valuation at cutoff, within that bound; full artifacts retain all
+marks. The heatmap does not select a winner or correct for searched trials.
+
+`campaign-status` includes `processes.owners` for up to 100 instrumented local
+workloads in the selected store. A held OS lock plus a heartbeat no older than
+20 seconds yields ALIVE; an unlocked saved owner is STOPPED, a stale held owner
+is HEARTBEAT_STALE, and unreadable/partial metadata is UNKNOWN. PID text alone is
+never proof. The scheduler and maintained campaign launcher hold these locks;
+frozen old engines and uninstrumented workloads remain outside this observation.
+The heartbeat thread proves process presence, not strategy progress or feed health.
+
 ## Expanding walk-forward selection
 
 `walk-forward`: exactly `hypothesis`, `symbol`, `candidates` (strategy/params
@@ -31,6 +90,9 @@ modeled costs, including negative winners. Missing/failed/stale/no-trade trials
 remain visible. Replay uses one bounded read snapshot and the native paper engine;
 saved runs are verified through the existing run reader. Each window has its own
 flat cash account and warmup; test returns are not compounded into a portfolio.
+An otherwise completed test with unfinished warmup or zero fills is NOT_ACTIVE,
+with WARMUP_NOT_COMPLETED or NO_TRADES recorded in its durable result. Such a
+fold keeps the overall report INCOMPLETE even if its end price is current.
 The workflow is supervised through the CLI and private workbench. Results are
 historical exploratory diagnostics, with no independent custody, future final
 evaluation, measured fees or capital permission. Read the durable experiment ID

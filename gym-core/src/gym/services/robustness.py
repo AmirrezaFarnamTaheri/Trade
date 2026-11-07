@@ -102,7 +102,7 @@ def robustness(root, request, *, store):
             raise ValueError("robustness requires at most 10000 saved marks per run")
         points = [(instant(t), decimal(value, "equity", positive=True)) for t, value in curve]
         mapping, excluded = {}, 0
-        regimes = {d["t"]: d.get("feature_values", {}).get("regime", "NOT_RECORDED") for d in out["result"]["decisions"]}
+        regimes = {d["t"]: d.get("feature_values", {}).get("entry_regime", d.get("feature_values", {}).get("regime", "NOT_RECORDED")) for d in out["result"]["decisions"]}
         groups = {}
         for (a, first), (b, last) in pairwise(points):
             gap = (b - a).total_seconds()

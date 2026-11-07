@@ -113,7 +113,7 @@ def portfolio_checkpoint(registry, db, request, *, saved):
 
     out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
-    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") != 4 or inputs["rules_mode"] != "point-in-time":
+    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") != 5 or inputs["rules_mode"] != "point-in-time":
         raise ValueError("checkpoint requires a current point-in-time portfolio")
     if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
         raise ValueError("checkpoint saved portfolio evidence changed")

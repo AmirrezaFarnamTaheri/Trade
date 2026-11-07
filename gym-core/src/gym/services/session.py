@@ -7,6 +7,7 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.market_models import decimal
 from ..domain.model import iso, parse_ts
+from ..domain.portfolio import portfolio_sizing
 from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
@@ -60,6 +61,7 @@ class PaperSession:
         self.book = CashBook({self.instrument.quote: cash})
         self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
         self.decision_filter = None
+        self.risk_budget = None
         self.limit_trades = []  # trade prints that decided limit fills; part of the data identity
         self.last_quote = None
         self.pending: PendingOrder | None = None
@@ -132,6 +134,12 @@ class PaperSession:
                 action, fraction, reasons = self.decision_filter(action, fraction, reasons)
                 if action in ("BUY_REQUEST", "SELL_REQUEST") and quote is None:
                     action, fraction, reasons = "ABSTAIN_NO_QUOTE", Decimal(0), (*reasons, "fresh quote required for portfolio order")
+            if action == "BUY_REQUEST" and self.strategy.params.get("entry_risk_bps") and not self.pending:
+                fraction, sizing = self.size_risk_entry(fraction, quote, bar.avail)
+                self.strategy.feature_values["entry_sizing"] = sizing
+                feature_hash = digest(self.strategy.feature_values)[:16]
+                if fraction <= 0:
+                    action, reasons = "ABSTAIN_RISK_SIZING", (sizing["status"],)
             if self.state == "WARMING_UP" and getattr(self.strategy,"ready",action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE")):
                 self.running_at = bar.avail
                 self.transition("RUNNING", bar.avail)
@@ -204,6 +212,14 @@ class PaperSession:
                           and top.ts_avail >= pending.decision_time + self.cost.latency)
         timed_out = at > pending.decision_time + self.cost.max_wait
         if eligible_quote or timed_out:
+            if eligible_quote and order["side"] == "BUY" and self.strategy.params.get("entry_risk_bps"):
+                spec = self.portal.spec_at(self.symbol, at)
+                if spec.qty_decimals is None or spec.min_notional is None:
+                    order.update(status="NONFILL", reason="UNKNOWN_RISK_SIZING_RULES", fill_time=iso(at))
+                    self.pending = None
+                    return
+                _, capacity = self.risk_cash(top)
+                pending.fraction = min(pending.fraction, (capacity / self.book.get(self.instrument.quote)).quantize(Decimal("0.000000000001"), ROUND_DOWN)) if self.book.get(self.instrument.quote) else Decimal(0)
             previous_base,previous_cash = self.book.get(self.instrument.base),self.book.get(self.instrument.quote)
             result = market_order(
                 self.book, self.instrument, order["side"], pending.fraction,
@@ -312,6 +328,16 @@ class PaperSession:
             capacity = min(capacity, previous_cash * pending.fraction / pending.limit)
             if capacity <= 0:
                 return
+        if buy and self.strategy.params.get("entry_risk_bps"):
+            spec = self.portal.spec_at(self.symbol, at)
+            if spec.qty_decimals is None or spec.min_notional is None:
+                order.update(status="NONFILL", reason="UNKNOWN_RISK_SIZING_RULES", fill_time=iso(at))
+                self.pending = None
+                return
+            _, budget = self.risk_cash(top)
+            capacity = min(capacity, budget / pending.limit)
+            if capacity <= 0:
+                return
         result = market_order(self.book, self.instrument, order["side"], Decimal(1), pending.decision_time,
                               pending.decision_price, [top], 0, self.cost, self.portal.spec_at(self.symbol, at),
                               self.rules_for(at), self.quota, order["ref"],
@@ -350,6 +376,40 @@ class PaperSession:
             order["residual_base"] = str(quantity)
             if quantity == 0:
                 self.position_entry = self.position_stop = self.position_opened = self.position_id = None
+
+    def risk_cash(self, quote):
+        if self.risk_budget is not None:
+            return self.risk_budget()
+        equity = self.book.equity(self.instrument, quote.bid)
+        held_cost = self.book.get(self.instrument.base) * (self.position_entry or Decimal(0))
+        rate = Decimal(self.strategy.params["entry_risk_bps"]) / 10000
+        stop = Decimal(self.strategy.params["exit_stop_bps"]) / 10000
+        return equity, max(Decimal(0), equity * rate / stop - held_cost)
+
+    def size_risk_entry(self, fraction, quote, at):
+        spec = self.portal.spec_at(self.symbol, at)
+        if spec.qty_decimals is None or spec.min_notional is None:
+            return Decimal(0), {"status": "UNKNOWN_VENUE_MINIMUM_OR_PRECISION"}
+        equity, capacity = self.risk_cash(quote)
+        cash = min(self.book.get(self.instrument.quote) * fraction, capacity)
+        fee = self.cost.maker_fee if self.cost.order_type == "limit" else self.cost.fee_rate
+        stop = quote.ask * (1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000) / (1 - fee)**2
+        if equity <= 0 or cash <= 0 or stop >= quote.ask:
+            return Decimal(0), {"status": "NO_RISK_CAPACITY_OR_INVALID_FEE_ADJUSTED_STOP"}
+        with localcontext() as context:
+            context.prec = 160
+            report = portfolio_sizing(self.instrument.quote, format(equity, "f"), format(cash, "f"),
+                format(Decimal(self.strategy.params["entry_risk_bps"]) / 10000, "f"), "0", "1", format(fee, "f"), "0", [{
+                    "symbol": self.symbol, "entry_price": format(quote.ask, "f"), "stop_price": format(stop, "f"),
+                    "risk_fraction": format(Decimal(self.strategy.params["entry_risk_bps"]) / 10000, "f"),
+                    "max_position_fraction": "1", "quantity_step": format(Decimal(1).scaleb(-spec.qty_decimals), "f")}])
+        row = report["allocations"][0]
+        if row["entry_cash_quote"] < spec.min_notional or spec.min_qty is not None and row["gross_base_quantity"] < spec.min_qty:
+            return Decimal(0), {"status": "BELOW_VENUE_MINIMUM"}
+        fraction = (row["entry_cash_quote"] / self.book.get(self.instrument.quote)).quantize(Decimal("0.000000000001"), ROUND_DOWN)
+        return fraction, {"status": row["status"], "quantity": str(row["gross_base_quantity"]),
+            "entry_cash_quote": str(row["entry_cash_quote"]), "modeled_loss_quote": str(row["modeled_loss_quote"]),
+            "remaining_capacity_quote": str(capacity), "stop_execution_verified": False}
 
     def feed(self, top):
         if self.state in ("ENDED", "ABORTED") or top.ts_avail < self.cursor:

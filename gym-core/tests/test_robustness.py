@@ -87,6 +87,21 @@ def test_native_compound_regimes_use_exact_saved_decision_clocks(tmp_path):
     assert any("UP_TREND" in row["regimes"]["groups"] for row in report["runs"])
 
 
+def test_regime_gate_decisions_are_grouped_by_the_recorded_entry_regime(tmp_path):
+    db = market_db(tmp_path, quote_history(n=1000))
+    try:
+        records = [paper(db, "BTCUSDT", START, START + timedelta(minutes=160), resolution="1min",
+            params={"fast": n, "slow": n + 2, "regime_gate": "UP_TREND"}) for n in (2, 3)]
+        for out in records:
+            save_run(out, tmp_path / "runs")
+    finally:
+        db.c.close()
+    report = robustness(tmp_path / "runs", {"run_ids": [r["run_id"] for r in records], "partitions": 4,
+        "seed": 23, "simulations": 100, "mean_block_length": 5, "max_gap_seconds": 90}, store="live")
+    assert all(row["regimes"]["status"] == "RECORDED" for row in report["runs"])
+    assert all("UP_TREND" in row["regimes"]["groups"] for row in report["runs"])
+
+
 def test_cost_or_window_mismatch_is_rejected_before_resampling(tmp_path):
     db = market_db(tmp_path, quote_history(n=1000))
     try:

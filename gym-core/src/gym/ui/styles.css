@@ -23,6 +23,9 @@ html { -webkit-text-size-adjust: 100%; scrollbar-color: var(--border) var(--page
 body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.55 "Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif; }
 [hidden] { display: none !important; }
 ::selection { background: var(--accent); color: var(--accent-text); }
+.heat-positive { color: var(--positive); background: var(--positive-soft); }
+.heat-negative { color: var(--negative); background: var(--negative-soft); }
+.heat-neutral { background: var(--neutral-soft); }
 h1, h2, h3, h4, p, figure { margin: 0; }
 h1, h2 { text-wrap: balance; }
 h1 { font-size: 30px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }

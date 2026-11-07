@@ -8,12 +8,15 @@ from .technical_features import TechnicalFeatures
 EXIT_PARAMETERS = {key: {"type": "integer", "default": 0, "minimum": 0, "maximum": maximum}
                    for key, maximum in (("exit_stop_bps", 9999), ("exit_profit_bps", 100000),
                                         ("exit_atr_multiple", 10), ("exit_after_bars", 100000))}
+EXIT_PARAMETERS["entry_risk_bps"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 200}
 
 
 class ExitPolicy:
     requires_position_context = True
 
     def __init__(self, strategy, controls):
+        if controls.get("entry_risk_bps") and not controls.get("exit_stop_bps"):
+            raise ValueError("entry risk sizing requires an explicit fixed exit stop")
         self.strategy, self.controls = strategy, controls
         self.params = {**strategy.params, **controls}
         self.version = strategy.version + 1

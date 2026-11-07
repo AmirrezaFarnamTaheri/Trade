@@ -51,13 +51,20 @@ def test_cash_reserve_position_cap_and_insufficient_step(changes, quantity, bind
     {"equity": "0"}, {"cash": "1001"}, {"cash": "-1"}, {"entry_price": "0"},
     {"stop_price": "100"}, {"stop_price": "101"}, {"stop_price": "0"},
     {"risk_fraction": "0"}, {"risk_fraction": "1"}, {"risk_fraction": "NaN"},
-    {"max_position_fraction": "1"}, {"cash_buffer_fraction": "1"},
+    {"max_position_fraction": "1.01"}, {"cash_buffer_fraction": "1"},
     {"quantity_step": "0"}, {"quantity_step": 0.01}, {"fee_rate": "1"},
     {"fee_rate": True}, {"slippage_rate": "-0.1"}, {"quote_currency": "IRT"},
 ])
 def test_invalid_or_unbounded_assumptions_fail(changes):
     with pytest.raises(ValueError):
         evaluate(**changes)
+
+
+def test_full_allocation_ceiling_still_cannot_exceed_cash_or_risk():
+    result = evaluate(max_position_fraction="1", risk_fraction="0.9", cash="1000", cash_buffer_fraction="0")["result"]
+    assert result["position_budget_quote"] == 1000
+    assert result["entry_cash_quote"] <= result["cash"]
+    assert result["modeled_loss_quote"] <= result["risk_budget_quote"]
 
 
 def test_explicit_assumptions_reach_offline_cli_without_touching_store(tmp_path, capsys):

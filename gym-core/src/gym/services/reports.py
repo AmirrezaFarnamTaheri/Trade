@@ -54,12 +54,7 @@ def economic_report(out, diag=None):
                  for name, record in out["baselines"].items() if record.get("end")]
     strongest = max(baselines, key=lambda baseline: baseline[1]) if baselines else None
     is_demo = inputs["store"] == "demo"
-    end = result.get("end")
-    valuation = {"status": "UNAVAILABLE", "as_of": None, "age_seconds": None}
-    if end and end.get("mark_time"):
-        age = (parse_ts(inputs["to"]) - parse_ts(end["mark_time"])).total_seconds()
-        valuation = {"status": "STALE" if age > QualityLimits().stale_s else "CURRENT" if age >= 0 else "INVALID",
-                     "as_of": end["mark_time"], "age_seconds": age}
+    valuation = run_valuation(out)
     limitation = ("Synthetic DEMO data is never capital evidence." if is_demo else
                   "No independent out-of-sample evidence; dependent trades and assumed fees prevent validated claims.")
     if valuation["status"] == "STALE":
@@ -87,6 +82,15 @@ def economic_report(out, diag=None):
         "diagnostics": diag,
         "decision": "No capital authorized. Operator decisions are recorded separately; this report cannot arm trading.",
     }
+
+
+def run_valuation(out):
+    end = out["result"].get("end")
+    if not end or not end.get("mark_time"):
+        return {"status": "UNAVAILABLE", "as_of": None, "age_seconds": None}
+    age = (parse_ts(out["inputs"]["to"]) - parse_ts(end["mark_time"])).total_seconds()
+    return {"status": "STALE" if age > QualityLimits().stale_s else "CURRENT" if age >= 0 else "INVALID",
+            "as_of": end["mark_time"], "age_seconds": age}
 
 
 def markdown(report):

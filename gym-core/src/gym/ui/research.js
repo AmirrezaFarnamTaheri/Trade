@@ -39,6 +39,8 @@ window.gymResearch = (() => {
   actions['robustness'] = ['Inspect selection and path robustness', 'بررسی پایداری انتخاب و مسیر', 'run_ids, partitions (4/6/8/10), seed, simulations, mean_block_length, max_gap_seconds; comparable verified historical runs only'];
   actions['strategy-audit'] = ['Check causality and warm-up', 'بررسی علیت و دورهٔ آماده‌سازی', 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
   actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
+  actions['fractional-sizing'] = ['Analyze capped fractional Kelly sizing', 'تحلیل اندازه‌گذاری محدود کلی', 'evaluation_id (completed preregistered evaluation), fraction (0..0.5 multiplier), cap (0..0.25), seed, simulations (100..500), block_length (1..50); no allocation changes automatically'];
+  actions['experiment-scorecard'] = ['Experiment scorecard and parameter heatmap', 'کارنامهٔ آزمایش و نقشهٔ پارامترها', 'experiment_id, shadow_run_ids: up to four matched native prospective session IDs, or []'];
   actions['job-interrupt'] = ['Release an interrupted paper attempt', 'آزادسازی تلاش متوقف‌شدهٔ آزمایشی', 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];
   actions['return-correlations'] = ['Compare aligned market returns', 'مقایسهٔ بازده هم‌زمان بازارها', 'symbols: [market], quote_currency, from, to, resolution, min_overlap'];
   actions['registry-page'] = ['Browse a registry snapshot', 'مرور نسخهٔ ثابت دفتر پژوهش', 'kind (null or event kind), parent (null or saved ID), after, through (null for first page), limit'];
@@ -96,6 +98,8 @@ window.gymResearch = (() => {
         const value = !actions[action][2] ? null : idActions.has(action) ? input.trim() : JSON.parse(input);
         const result = await api('/api/research/action', { method: 'POST', body: JSON.stringify({ action, value }) }, 130000);
         $('research-action-result').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('experiment-scorecard')?.remove();
+        if (action === 'experiment-scorecard') scorecard(result, esc, fa);
         $('research-action-status').textContent = fa ? 'درخواست انجام شد.' : 'Request completed.';
         if (action === 'research-packet') {
           $('research-packet-prompt').value = result.prompt;
@@ -104,6 +108,29 @@ window.gymResearch = (() => {
         }
       } catch { $('research-action-status').textContent = fa ? 'نتیجه دریافت نشد. ممکن است عملیات ثبت شده باشد؛ پیش از تکرار، ورودی و وضعیت ذخیره‌شده را بررسی کنید. ارزیابی مصرف‌شده را تکرار نکنید.' : 'Result was not delivered. The operation may have committed; inspect the input and saved state before retrying. Do not repeat a consumed evaluation.'; }
       finally { submit.disabled = false; }
+    };
+  }
+  function scorecard(report, esc, fa) {
+    const text = (en, persian) => fa ? persian : en;
+    const host = document.createElement('section'); host.id = 'experiment-scorecard'; host.className = 'panel';
+    const definitions = report.definition;
+    host.innerHTML = `<h3>${text('Every registered trial', 'تمام تلاش‌های ثبت‌شده')}</h3><p>${esc(report.registered_trials)} ${text('parameter trials', 'ترکیب پارامتر')} · ${esc(report.registered_attempts)} ${text('attempts including failures', 'تلاش با احتساب شکست‌ها')}</p>
+      <div class="table-wrap" tabindex="0"><table class="data"><caption>${text('Net result in quote currency · unready or stale cells stay neutral', 'نتیجهٔ خالص در ارز مظنه · سلول‌های ناآماده یا قدیمی خنثی می‌مانند')}</caption><thead><tr><th>${text('Window / cost', 'دوره / هزینه')}</th>${definitions.trials.map((params, i) => `<th scope="col">${i + 1}<br><code>${esc(JSON.stringify(params))}</code></th>`).join('')}</tr></thead><tbody>${definitions.windows.flatMap((period, w) => definitions.scenarios.map((cost, s) => `<tr><th scope="row"><time dir="ltr">${esc(period.from)} → ${esc(period.to)}</time><br><code>${esc(JSON.stringify(cost))}</code></th>${definitions.trials.map((_, trial) => {
+        const row = report.rows.find(r => r.trial === trial && r.window === w && r.scenario === s), run = row?.run;
+        const valid = run?.ready && run.valuation.status === 'CURRENT' && run.net_quote != null;
+        const tone = valid && Number(run.net_quote) !== 0 ? Number(run.net_quote) > 0 ? 'positive' : 'negative' : 'neutral';
+        return `<td class="heat-${tone}">${esc(run?.net_quote ?? row?.verification ?? row?.state ?? 'RESULT_PENDING')} ${esc(run?.quote ?? '')}<br>${esc(row?.verification ?? row?.state ?? '')}<br>${esc(run ? `${run.ready ? 'READY' : 'NOT_READY'} · ${run.valuation.status} · ${run.fills} fills` : row?.reason ?? '')}</td>`;
+      }).join('')}</tr>`)).join('')}</tbody></table></div><p class="field-help">${report.limits.map(esc).join(' ')}</p>
+      <form id="scorecard-overlay-form"><fieldset><legend>${text('Choose two to four recorded paths to overlay', 'دو تا چهار مسیر ثبت‌شده را برای مقایسه انتخاب کنید')}</legend></fieldset><button class="button" type="submit">${text('Compare selected paths', 'مقایسهٔ مسیرهای انتخاب‌شده')}</button></form><p id="scorecard-overlay-status" role="status"></p><div id="scorecard-overlay"></div>`;
+    $('research-action-result').before(host);
+    const runs = [...new Map([...report.rows.filter(r => r.run).map(r => r.run), ...report.shadows].map(run => [run.run_id, run])).values()];
+    host.querySelector('fieldset').insertAdjacentHTML('beforeend', runs.map(run => `<label class="check"><input type="checkbox" name="path" value="${esc(run.run_id)}">${esc(`${run.kind} · ${run.run_id} · ${run.valuation.status}`)}</label>`).join(''));
+    $('scorecard-overlay-form').onsubmit = event => {
+      event.preventDefault();
+      const ids = [...host.querySelectorAll('input[name="path"]:checked')].map(input => input.value);
+      if (ids.length < 2 || ids.length > 4) { $('scorecard-overlay-status').textContent = text('Choose two to four paths.', 'دو تا چهار مسیر انتخاب کنید.'); return; }
+      $('scorecard-overlay-status').textContent = text('Recorded times; each path starts at its own initial cash. No calendar alignment or interpolation.', 'زمان‌های ثبت‌شده؛ هر مسیر از وجه نقد آغازین خود شروع می‌شود. هم‌ترازی تقویمی یا درون‌یابی انجام نمی‌شود.');
+      $('scorecard-overlay').innerHTML = overlayFigure(runs.filter(run => ids.includes(run.run_id)).map(run => ({name:`${run.kind} · ${run.run_id}`, curve:run.curve})));
     };
   }
   function workspace(api, esc, fa) {

@@ -84,7 +84,7 @@ def test_runner_labels_its_wall_limit_in_saved_abort(tmp_path,campaign,monkeypat
 
 
 def test_interrupt_kills_active_base_process_and_cancels_queued_markets(tmp_path,campaign,monkeypatch):
-    campaign.write(tmp_path/"plan.json",{"universe":[{"symbol":symbol,"spot_status":"ELIGIBLE_SPOT"} for symbol in ("AUSDT","BUSDT","CUSDT")]})
+    campaign.write(tmp_path/"plan.json",{"data":str(tmp_path/"store"),"universe":[{"symbol":symbol,"spot_status":"ELIGIBLE_SPOT"} for symbol in ("AUSDT","BUSDT","CUSDT")]})
     started, killed = threading.Event(), threading.Event()
     calls = []
     class Child:
@@ -112,7 +112,7 @@ def test_interrupt_kills_active_base_process_and_cancels_queued_markets(tmp_path
 
 
 def test_timed_out_market_is_not_retried_or_reported_complete(tmp_path,campaign,monkeypatch):
-    campaign.write(tmp_path/"plan.json",{"universe":[{"symbol":"AUSDT","spot_status":"ELIGIBLE_SPOT"}]})
+    campaign.write(tmp_path/"plan.json",{"data":str(tmp_path/"store"),"universe":[{"symbol":"AUSDT","spot_status":"ELIGIBLE_SPOT"}]})
     class Child:
         stopped = False
         def __init__(self,*args,**kwargs):

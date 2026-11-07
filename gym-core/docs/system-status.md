@@ -1,6 +1,6 @@
 # Current system status
 
-Updated 7 November 2026 (Asia/Tehran). Historical receipts remain in Git history
+Updated 8 November 2026 (Asia/Tehran). Historical receipts remain in Git history
 and the local evidence folders. This page describes the current delivery.
 
 ## Implemented and checked
@@ -12,11 +12,14 @@ and the local evidence folders. This page describes the current delivery.
   experiments, replay/debugging, screening, recovery, notes and robustness tools.
 - Compound revision 3 keeps indicator history through wide spreads, records actual
   simulated positions and refuses fee-net holdings below known exit minimums.
-- Portfolio revision 4 closes all markets before later quotes/fills, binds resolved
+- Portfolio revision 5 closes all markets before later quotes/fills, binds resolved
   assets/reference snapshots/depth/limit prints/rules/specifications to its ID,
   and rejects alias markets that would double-count one holding. TMN portfolios
   carry point-in-time USDT-equivalent curve marks and explicit FX freshness. It uses one
   independent read snapshot. Old saved study engines and records are retained.
+  Within that snapshot, rule evidence is fingerprinted per recorded knowledge
+  vintage, not per quote. Valuation and staleness scan held markets; the next
+  close is cached instead of scanning the full universe on every update.
 - Equal/inverse-volatility/risk-parity targets, correlation caps, target clocks,
   optional rebalancing, cash floors and drawdown/Tehran daily-loss latches use the
   native shared cash book. Sell signals take precedence over rebalance buys;
@@ -26,9 +29,26 @@ and the local evidence folders. This page describes the current delivery.
   remain explicit. Rebuilt single-market and portfolio checkpoints verify saved
   history, pending orders, reservations, targets and latches without deserializing
   mutable state. This is replay reconstruction, not physical-host restoration.
+- Default-off `entry_risk_bps` reuses native exact portfolio sizing against an
+  explicit fixed stop. Shared held exposure and pending reservations reduce the
+  remaining budget; market and maker partials recheck capacity and current venue
+  minimum/precision before filling. Unknown limits abstain. This is a modeled
+  closed-bar stop budget, not a guaranteed loss ceiling or venue protection.
+- Capped fractional Kelly diagnostics require an evaluated preregistered native
+  run, at least 30 closed simple non-overlapping positions, current valuation and
+  observed losses. Seeded moving-block uncertainty precedes the supplied fraction
+  multiplier and cap. Scaled/recycled/partial cashflow structures are explicitly
+  unsupported; no allocation is changed automatically.
+- Regular strategy-trial experiments have verified scorecards, parameter/cost
+  heatmaps and user-selected saved historical/prospective path overlays. Every
+  registered attempt remains visible, including failures, missing artifacts and
+  unready or stale results. Walk-forward folds retain their separate native report.
 - Store-scoped campaign counts and a bounded verified readiness/trade sample are
-  visible in Schedules. Process liveness stays UNKNOWN rather than inferred from
-  recorded progress. Native workers use private temporary directories for Windows
+  visible in Schedules. Instrumented schedulers and campaign launchers hold an OS
+  ownership lock and recent heartbeat. Abrupt termination releases the lock even
+  when a saved receipt says RUNNING. Frozen/uninstrumented campaign processes stay
+  UNKNOWN; process presence does not establish progress or fresh data.
+  Native workers use private temporary directories for Windows
   SQL sorting without inheriting user secrets.
 - Shared-cash replay is available in the private research API and EN/FA Workbench.
   Native quote/trade counts, worker time, saved-file size and response size are bounded.
@@ -42,6 +62,10 @@ and the local evidence folders. This page describes the current delivery.
   existing experiment registry. Every training/test slot, failure and selection
   is retained; the final cutoff is not read. Historical diagnostics do not grant
   independent final-evaluation status.
+  Test windows that never warm up or never trade are retained as NOT_ACTIVE,
+  with separate WARMUP_NOT_COMPLETED/NO_TRADES reasons; they cannot make the
+  overall report EVALUATED. Robustness groups accept recorded entry_regime
+  from regime-gated strategies as well as the original compound regime field.
 - Historical TMN runs fingerprint causal FX curves through causal-fx-curve/1.
   Saved-run details show conversion/freshness without bridging missing factors;
   native USDT default identities remain unchanged.
@@ -96,9 +120,23 @@ was performed during this delivery.
 
 ## Current validation
 
-- Python: 1,286 passed, four skipped and 39 subtests passed, including catalogue
+- Python: 1,318 passed, four skipped and 39 subtests passed, including catalogue
   outage recovery, supervised workflow integration, robustness diagnostics and
   the separated UI contracts. Pinned default USDT run identities remain unchanged.
+- A paired synthetic 500-market/60,000-observation replay took 67.51 seconds with
+  the prior implementation and 13.06 seconds with revision 5. Cash balances,
+  equity marks and per-market orders matched exactly. A separate native worker
+  replay at 500 markets/200,000 observations completed and saved a verified DEMO
+  artifact in 79.80 seconds, inside the unchanged 120-second deadline.
+  Measurements are hardware/data-specific capacity evidence, not profit evidence
+  or a promise that every strategy/window fits the deadline. Local receipts are
+  retained under .pi/benchmarks/portfolio-throughput.
+- The restarted live workspace exposed all 14 strategies. Its private API returned
+  an ALIVE scheduler owner with a current heartbeat and served an actual saved
+  experiment scorecard retaining eight attempts: two completed, four incomplete,
+  two pending. Those pending receipts were not relabeled as completed. At this
+  check all 373 selected markets lacked a current qualified quote; process
+  presence did not change market readiness.
 - Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
   loading does not import service orchestration. Architecture guards passed.
 - Retained native baseline: all 152 Rust workspace tests passed with normal

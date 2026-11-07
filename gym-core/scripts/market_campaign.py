@@ -194,6 +194,14 @@ def environment():
 
 
 def launch(args, mode):
+    from gym.services.process_owner import ProcessOwner
+    plan = read(args.output.resolve() / "plan.json")
+    owner = "campaign-" + mode + "-" + hashlib.sha256(str(args.output.resolve()).encode()).hexdigest()[:16]
+    with ProcessOwner(Path(plan["data"]), owner, store="live"):
+        return _launch(args, mode)
+
+
+def _launch(args, mode):
     folder = args.output.resolve()
     plan = read(folder / "plan.json")
     directory = folder / ("historical" if mode == "history" else "prospective")

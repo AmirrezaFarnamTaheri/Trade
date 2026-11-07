@@ -300,8 +300,11 @@ def position_sizing(quote_currency, equity, cash, entry_price, stop_price, risk_
     equity, cash = decimal(equity, "equity", positive=True), decimal(cash, "cash")
     entry, stop, step = (decimal(value, name, positive=True) for value, name in
                          ((entry_price, "entry_price"), (stop_price, "stop_price"), (quantity_step, "quantity_step")))
-    risk, position, buffer, fee, slip = (rate(value, name) for value, name in
-        ((risk_fraction, "risk_fraction"), (max_position_fraction, "max_position_fraction"),
+    position = decimal(max_position_fraction, "max_position_fraction")
+    if position > 1:
+        raise ValueError("max_position_fraction must not exceed one")
+    risk, buffer, fee, slip = (rate(value, name) for value, name in
+        ((risk_fraction, "risk_fraction"),
          (cash_buffer_fraction, "cash_buffer_fraction"), (fee_rate, "fee_rate"), (slippage_rate, "slippage_rate")))
     if cash > equity or stop >= entry or not risk or not position:
         raise ValueError("need cash <= equity, stop_price < entry_price and positive risk/position fractions")

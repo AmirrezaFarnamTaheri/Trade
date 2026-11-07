@@ -90,7 +90,10 @@ def walk_forward(registry, db, request):
                 result = {"state": "COMPLETED", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
                     "data_digest": out["inputs"]["data"], "config_hash": strategy.config_hash,
                     "fills": out["result"]["fills"], "net_quote": out["result"]["end"]["net"],
+                    "ready": out["result"]["session"]["running_at"] is not None,
                     "valuation": economic_report(out)["valuation"]["status"]}
+                if slot["phase"] == "TEST" and (not result["ready"] or not result["fills"]):
+                    result.update(state="NOT_ACTIVE", reason="NO_TRADES" if result["ready"] else "WARMUP_NOT_COMPLETED")
             except (ValueError, ArithmeticError) as error:
                 result = {"state": "INCOMPLETE" if isinstance(error, PaperDataUnavailable) else "FAILED",
                           "reason": "NO_QUALIFIED_DATA" if isinstance(error, PaperDataUnavailable) else "REPLAY_REJECTED"}

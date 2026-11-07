@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from .collector import now_utc
+from .process_owner import ProcessOwner
 from .research_process import ResearchProcessFailure, calculate
 
 
@@ -19,6 +20,11 @@ async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 
     root, stop = Path(root), stop if stop is not None else asyncio.Event()
     if not (root / "market.db").is_file():
         raise sqlite3.OperationalError("paper market store missing")
+    with ProcessOwner(root, "scheduler", store=store):
+        return await _watch(root, store, poll_seconds, stop)
+
+
+async def _watch(root, store, poll_seconds, stop):
     ticks = completed = failed = 0
     reason = "Stop requested"
     try:

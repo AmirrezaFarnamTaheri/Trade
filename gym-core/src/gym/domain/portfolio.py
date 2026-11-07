@@ -96,9 +96,10 @@ def portfolio_sizing(quote_currency, equity, cash, total_risk_fraction, cash_buf
                      max_allocation_fraction, fee_rate, slippage_rate, candidates):
     currency(quote_currency)
     equity, cash = decimal(equity, "equity", positive=True), decimal(cash, "cash")
-    risk, reserve, allocation = (rate(value, name) for value, name in (
-        (total_risk_fraction, "total_risk_fraction"), (cash_buffer_fraction, "cash_buffer_fraction"),
-        (max_allocation_fraction, "max_allocation_fraction")))
+    risk, reserve = rate(total_risk_fraction, "total_risk_fraction"), rate(cash_buffer_fraction, "cash_buffer_fraction")
+    allocation = decimal(max_allocation_fraction, "max_allocation_fraction")
+    if allocation > 1:
+        raise ValueError("max_allocation_fraction must not exceed one")
     fee, slip = rate(fee_rate, "fee_rate"), rate(slippage_rate, "slippage_rate")
     if cash > equity or not risk or not allocation:
         raise ValueError("need cash <= equity and positive total risk/allocation fractions")

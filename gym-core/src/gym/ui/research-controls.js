@@ -10,7 +10,7 @@ function strategyFields(entry, prefix, values = {}, slot = '') {
       : `<input class="input" ${attrs} type="${spec.type === "integer" ? "number" : "text"}" value="${esc(value)}" ${spec.type === "integer" ? `min="${spec.minimum}" max="${spec.maximum}" step="1"` : `pattern="[A-Z0-9]{2,24}" maxlength="24"`}>`;
     return {key, html: `<label for="${id}"><span>${esc(t(names[key] || key))}</span>${input}</label>`};
   });
-  const shared = field => field.key === 'regime_gate' || field.key.startsWith('exit_') && field.key !== 'exit_lookback';
+  const shared = field => field.key === 'regime_gate' || field.key === 'entry_risk_bps' || field.key.startsWith('exit_') && field.key !== 'exit_lookback';
   return fields.filter(field => !shared(field)).map(field => field.html).join('') +
     `<details class="disclosure"><summary>${esc(t('sharedStrategyControls'))}</summary><div class="ticket-fields">${fields.filter(shared).map(field => field.html).join('')}</div><p class="field-help">${esc(t('sharedStrategyControlsNote'))}</p></details>` +
     (["trend-pullback", "adaptive-channel"].includes(entry.id) ? `<p class="field-help">${esc(t("compoundRiskNote"))}</p>` : "");

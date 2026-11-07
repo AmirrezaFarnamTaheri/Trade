@@ -16,6 +16,7 @@ from ..domain.strategy import digest
 from .collector import now_utc
 from .data_portal import DataPortal
 from .paper import PaperDataUnavailable, paper
+from .process_owner import process_status
 from .research_protocol import ResearchProtocol, _engine_digest
 
 
@@ -129,7 +130,7 @@ class ExperimentRegistry:
                     "registered_attempts": counts.get("ATTEMPT", 0), "terminal_states": states,
                     "completed": states.get("COMPLETED", 0), "unreported_attempts": max(0, counts.get("ATTEMPT", 0) - sum(states.values())),
                     "verified_sample": {"results_sampled": len(samples), "ready_runs": ready, "traded_runs": traded, "unavailable_runs": unavailable, "rows": samples},
-                    "process_liveness": "UNKNOWN", "funded_authority": False,
+                    "process_liveness": "UNKNOWN", "processes": process_status(self.root, store=self.store), "funded_authority": False,
                     "scope": "Journal-wide counts retain repeated trials and failures. Readiness/trades are verified only for the bounded newest result sample, not extrapolated to the campaign. Saved RUNNING/progress timestamps do not prove a process is alive. External/frozen campaign definitions not registered here are outside these counts."}
         finally:
             self.conn.rollback()
