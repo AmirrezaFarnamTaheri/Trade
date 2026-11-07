@@ -13,6 +13,8 @@ from gym.services.prospective_comparisons import (
     evaluate_comparison,
     register_comparison,
 )
+from gym.services.research_actions import research_action
+from tests.support import market_db
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -92,6 +94,38 @@ def test_paper_twap_refuses_unknown_or_late_quotes_and_never_overspends():
                       slices=2, participation=Decimal("1.1"), fee_rate=Decimal(0),
                       available_quote=Decimal(100), available_base=Decimal(0),
                       max_delay_seconds=5, store="demo")
+
+
+def test_twap_never_consumes_one_observed_book_multiple_times():
+    # Three scheduled children arrive before the same single observed 2-unit top.
+    # They must not collectively pretend that the quote has 6 units of depth.
+    top = [quote("BTCUSDT", 2, "9", "10", "2")]
+    result = simulate_twap(
+        InstrumentId.wallex("BTCUSDT"), top, Spec(qty_decimals=2),
+        START, START + timedelta(seconds=3), side="BUY", quantity=Decimal(6),
+        slices=3, participation=Decimal(1), fee_rate=Decimal(0),
+        available_quote=Decimal(100), available_base=Decimal(0),
+        max_delay_seconds=5, store="demo",
+    )
+    assert Decimal(result["filled_quantity"]) == 2
+    assert Decimal(result["cancelled_quantity"]) == 4
+    assert sum(Decimal(child["filled_quantity"]) for child in result["children"]) == 2
+    assert [child["status"] for child in result["children"]] == ["FILLED", "NONFILL", "NONFILL"]
+
+
+def test_lead_lag_accepts_distinct_markets_with_same_tmn_quote(tmp_path):
+    rows = [quote("BTCTMN", 1, "100", "101"), quote("ETHTMN", 1, "20", "21"),
+            quote("BTCTMN", 61, "102", "103"), quote("ETHTMN", 61, "21", "22")]
+    db = market_db(tmp_path, rows)
+    db.c.close()
+    report = research_action(tmp_path, "lead-lag-research", {
+        "primary": "BTCTMN", "leader": "ETHTMN",
+        "from": START.isoformat(), "to": (START + timedelta(minutes=3)).isoformat(),
+        "resolution": "1min", "max_age_seconds": 120, "max_skew_seconds": 10,
+        "min_overlap": 2,
+    }, store="demo")
+    assert report["schema"] == "lead-lag/1"
+    assert report["funded_authority"] is False
 
 
 def test_prospective_registry_freezes_future_candidates(tmp_path):
