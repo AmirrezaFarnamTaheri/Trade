@@ -88,9 +88,8 @@ def research_action(root, action, value=None, *, store="live", at=None):
         finally:
             db.c.close()
     if action == "twap-preview":
-        from .paper_twap import simulate_twap
         from ..domain.market_models import instant
-        from .data_portal import DataPortal
+        from .paper_twap import simulate_twap
         fields(value, "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
         symbol = value["symbol"]
         if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol):
@@ -120,7 +119,7 @@ def research_action(root, action, value=None, *, store="live", at=None):
             db.c.rollback()
             db.c.close()
     if action in ("prospective-register", "prospective-status", "prospective-evaluate"):
-        from .prospective_comparisons import register_comparison, evaluate_comparison
+        from .prospective_comparisons import evaluate_comparison, register_comparison
         with ExperimentRegistry(root, store=store) as registry:
             if action == "prospective-register":
                 return register_comparison(registry, value, now=now_utc())
