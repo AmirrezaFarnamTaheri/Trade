@@ -20,11 +20,11 @@ class PaperDataUnavailable(ValueError):
 
 
 def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: datetime, resolution: str,
-        cash: Decimal, cost: CostModel, subscriptions=(), reference_symbol=None) -> dict:
+        cash: Decimal, cost: CostModel, subscriptions=(), reference_symbol=None, auxiliary_symbols=()) -> dict:
     from .session import PaperSession
 
     tops = portal.tops(symbol, t0, t1)
-    session = PaperSession(portal, rules_for, strategy, symbol, t0, resolution, cash, cost, subscriptions, reference_symbol)
+    session = PaperSession(portal, rules_for, strategy, symbol, t0, resolution, cash, cost, subscriptions, reference_symbol, auxiliary_symbols)
     for top in tops:
         session.feed(top)
     session.finish(t1)
@@ -73,7 +73,7 @@ def session_result(session, tops, cash):
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,
           slow: int = 21, cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), rules_mode: str = "point-in-time",
-          store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None, outages=()) -> dict:
+          store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None, outages=(), auxiliary_symbols=()) -> dict:
     """A replayable paper run plus matched baselines. Same inputs give the same run_id and outputs."""
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
@@ -86,7 +86,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     strategy = create_strategy(strategy_id, {"fast": fast, "slow": slow} if params is None and strategy_id == "ema-trend" else params)
     subscriptions = tuple(dict.fromkeys((resolution, *subscriptions, *getattr(strategy, "required_resolutions", ()))))
     reference_symbol = reference_symbol or getattr(strategy, "reference_symbol", None)
-    main = run(portal, rules_for, strategy, symbol, t0, t1, resolution, cash, cost, subscriptions, reference_symbol)
+    main = run(portal, rules_for, strategy, symbol, t0, t1, resolution, cash, cost, subscriptions, reference_symbol, auxiliary_symbols)
     if main["qualified"] == 0:
         raise PaperDataUnavailable(f"no qualified {symbol} quotes between {iso(t0)} and {iso(t1)}")
     base_syms = {f"hold {inst.base}": symbol}
@@ -138,6 +138,8 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
               "snapshots": digest([(d["t"], d["snapshot"]) for d in main["decisions"]]),
               "metadata": metadata_ref, "ruleset_version_now": svc.load()[0],
               "modeled_feed_outages": [(iso(start), iso(end)) for start, end in outages]}
+    if auxiliary_symbols:
+        inputs["auxiliary_symbols"] = list(sorted(set(auxiliary_symbols) | set(strategy.reference_symbols(inst) if hasattr(strategy, "reference_symbols") else ())))
     if inst.quote == "TMN":
         inputs["valuation"] = {"model": "causal-fx-curve/1", "digest": digest(main["valuation"])}
     rank = ranking(main, baselines)
