@@ -3,9 +3,9 @@
 This is descriptive paper research, not a transferable arbitrage or execution signal.
 """
 from bisect import bisect_left
-from itertools import pairwise
 from datetime import timedelta
 from decimal import localcontext
+from itertools import pairwise
 
 from ..domain.bars import BarSpec, qualified
 from ..domain.market_models import rate
@@ -120,7 +120,7 @@ def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds
     if len(primary) > MAX_QUOTES or len(leader) > MAX_QUOTES:
         raise ValueError("too many observations")
     for rows in (primary, leader):
-        if any(a.ts_avail > b.ts_avail for a, b in zip(rows, rows[1:])):
+        if any(a.ts_avail > b.ts_avail for a, b in pairwise(rows)):
             raise ValueError("noncausal observation order")
     def aligned(rows, close):
         times = [x.ts_avail for x in rows]
