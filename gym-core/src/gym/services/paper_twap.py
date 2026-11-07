@@ -3,9 +3,9 @@
 No venue transport, credential, privileged IPC, live order or scheduling authority.
 """
 from bisect import bisect_left
-from itertools import pairwise
 from datetime import timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
+from itertools import pairwise
 
 from ..domain.bars import qualified
 from ..domain.market_models import rate
