@@ -2,6 +2,7 @@
 
 Not independent custody. This does not authorize funded execution or certify an edge.
 """
+import json
 import re
 from datetime import timedelta
 
@@ -46,7 +47,22 @@ def register_comparison(registry, request, *, now):
             "cash": str(cash), "fee_rate": str(fee), "engine_digest": _engine_digest(),
             "configuration_hash": digest({"candidates": frozen, "symbol": request["symbol"],
                                            "start": iso(start), "end": iso(end)})}
-    record = registry.append("PROSPECTIVE_COMPARE", None, {"configuration": body})
+    # Serialize registrations so a second local window cannot reuse the same
+    # held-out observations behind a different event identity.
+    registry.conn.execute("BEGIN IMMEDIATE")
+    try:
+        for (encoded,) in registry.conn.execute("SELECT body FROM events WHERE kind='PROSPECTIVE_COMPARE'"):
+            prior = json.loads(encoded)
+            c = prior.get("configuration", {})
+            if (prior.get("store") == registry.store and c.get("symbol") == body["symbol"]
+                    and c.get("test_from", "") < body["test_to"]
+                    and c.get("test_to", "") > body["test_from"]):
+                raise ValueError("prospective comparison overlaps an already frozen window")
+        record = registry.append("PROSPECTIVE_COMPARE", None, {"configuration": body})
+        registry.conn.commit()
+    except BaseException:
+        registry.conn.rollback()
+        raise
     return {**record, "authority": "PAPER_ONLY", "funded_authority": False,
             "independent_custody": False, "held_out": False,
             "limitations": ["Future window and configuration are frozen in a local append-only journal.",
@@ -68,8 +84,19 @@ def evaluate_comparison(registry, key, db, *, now):
         if create_strategy(candidate["strategy"], candidate["params"]).config_hash != candidate["config_hash"]:
             raise ValueError("strategy changed since frozen registration")
     # Commit attempt before reading any future observations; failed attempts remain consumed.
-    attempt = registry.append("PROSPECTIVE_ATTEMPT", key, {"status": "CONSUMED",
-                             "frozen_configuration_digest": digest(config)})
+    registry.conn.execute("BEGIN IMMEDIATE")
+    try:
+        claimed = registry.conn.execute(
+            "SELECT 1 FROM events WHERE kind='PROSPECTIVE_ATTEMPT' AND parent=? LIMIT 1", (key,)
+        ).fetchone()
+        if claimed:
+            raise ValueError("prospective comparison already consumed")
+        attempt = registry.append("PROSPECTIVE_ATTEMPT", key, {"status": "CONSUMED",
+                                  "frozen_configuration_digest": digest(config)})
+        registry.conn.commit()
+    except BaseException:
+        registry.conn.rollback()
+        raise
     try:
         if db is None or db.c.in_transaction:
             raise ValueError("independent market read snapshot required")
