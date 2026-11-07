@@ -12,6 +12,14 @@
   dependency. Active Windows collection uses --no-sync to avoid replacing its launcher.
 
 ### Portfolio workflows and execution realism
+- Historical TMN curves now record and fingerprint each point-in-time FX factor,
+  age and unavailable/stale state. Saved-run details expose the converted curve
+  and exact marks without joining through missing rates. USDT default identities
+  remain unchanged; earlier TMN artifacts are retained.
+- Expanding walk-forward search freezes bounded candidates/windows, registers all
+  attempts and selections in the existing journal and retains every failure.
+  CLI, disposable worker and private workbench share the native engine; disjoint
+  tests follow a declared purge and the final cutoff remains unread.
 - Portfolio revision 3 adds point-in-time USDT-equivalent curve marks and explicit
   LIVE/STALE/STALE_CLOSED/UNAVAILABLE FX states to the native records, CLI and browser.
   Future-only FX cannot value starting cash. Single-market boundary valuation shares

@@ -11,12 +11,12 @@ from decimal import ROUND_DOWN, Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso
 from ..domain.performance import performance, trade_ledger
 from ..domain.registry import create_strategy
 from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
-from .data_portal import DataPortal, valuation_at
+from .data_portal import DataPortal, curve_valuation
 from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
@@ -122,18 +122,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
             raise ValueError("portfolio FX observation budget exceeded; narrow the window")
         fx_tops = portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
 
-    def fx_at(at):
-        return ({"rate": "1", "at": iso(at), "age_seconds": 0, "status": "IDENTITY"}
-                if quote == "USDT" else valuation_at(fx_tops, at, rules_for))
-
-    first_fx, last_fx = fx_at(t0), fx_at(t1)
-    valued_curve = []
-    for at, value in curve:
-        fx = fx_at(parse_ts(at))
-        valued_curve.append({"at": at, "equity_usdt_eq": str(Decimal(value) / Decimal(fx["rate"])) if fx["rate"] else None, "fx": fx})
-    valuation = {"pair": "USDTTMN" if quote == "TMN" else None,
-                 "basis": "MID of last qualified quote; derived valuation rate, not executable" if quote == "TMN" else "USDT identity",
-                 "start": first_fx, "end": last_fx, "curve": valued_curve}
+    valuation = curve_valuation(quote, curve, t0, t1, fx_tops, rules_for)
+    first_fx, last_fx = valuation["start"], valuation["end"]
     inputs = {"engine": ENGINE_VERSION, "kind": "portfolio", "portfolio_version": 3,
               "symbols": symbols, "from": iso(t0), "to": iso(t1),
               "resolution": resolution, "strategy": strategy_id, "params": sessions[symbols[0]].strategy.params,

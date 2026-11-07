@@ -23,7 +23,10 @@ All of them describe a paper replay with modeled costs. None of them is evidence
 
 Execution models that change these figures: `--participation`, `--walk-depth` (needs `run --depth-levels`),
 `--carry-remainder`, `--order-type limit` with `--maker-fee`, and sizing with `--max-fraction` / `--vol-target`.
-Default runs keep their earlier run IDs (see [decision D4](decisions.md)).
+Default strategy configuration hashes remain unchanged (see [decision D4](decisions.md)).
+New TMN historical runs include the explicit causal-fx-curve/1 valuation fingerprint;
+their run IDs differ from older records, which are retained without rewriting.
+USDT already uses native identity and keeps its existing default run IDs.
 
 Resting limit fills use `queue-capacity/2`: trades first deplete the displayed
 queue ahead, and only their remaining quantity can fill the order. Trades through
@@ -41,3 +44,10 @@ parameter controls. RSI requires `period + 1` bars; MACD requires
 also requires its configured ADX and channel history. Gaps reset that history.
 Original defaults retain version 1 and their original configuration hashes;
 nondefault settings use version 2 and distinct hashes.
+
+Historical single-market curves and shared-cash portfolios use the same causal
+FX owner. Each curve mark carries its actual factor, age and LIVE/STALE/
+STALE_CLOSED/UNAVAILABLE state; USDT uses exact identity. Unknown factors remain
+null and prevent a joined conversion graph. FX conversion does not refresh a
+stale asset mark or establish an executable conversion price. Original historical
+records without these marks remain inspectable without retrospective mutation.

@@ -24,6 +24,13 @@ and the local evidence folders. This page describes the current delivery.
   New limit identities carry queue-capacity/2; old artifacts remain unchanged.
 - RSI/MACD/TRIX/Keltner periods and thresholds have validated registry schemas.
   Nondefault configurations use version 2; default identities remain version 1.
+- Expanding walk-forward selection freezes candidates and chronology in the
+  existing experiment registry. Every training/test slot, failure and selection
+  is retained; the final cutoff is not read. Historical diagnostics do not grant
+  independent final-evaluation status.
+- Historical TMN runs fingerprint causal FX curves through causal-fx-curve/1.
+  Saved-run details show conversion/freshness without bridging missing factors;
+  native USDT default identities remain unchanged.
 - Unsupported compound limit orders and working remainders now fail explicitly;
   the simulator does not silently reinterpret the requested execution model.
 - The canonical backup-status journal includes two missing historical receipts from
@@ -69,9 +76,9 @@ reviews with a verified relocation manifest. Current contracts no longer repeat
 historical donor inventories. Research-owner and duplicate-test audits retained
 independent boundaries; the documented check entry point includes pinned Ruff.
 
-- Python: 1,206 passed, four skipped, 39 subtests passed after command-group
-  separation and receipt/CLI changes. Backend activation gating then passed all
-  26 API/workflow/UI checks.
+- Python: 1,222 passed, four skipped, 39 subtests passed after native walk-forward,
+  causal historical FX curves, real worker/API and bilingual UI checks. Pinned
+  default USDT run identities remain unchanged.
 - Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
   loading does not import service orchestration. Architecture guards passed.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three

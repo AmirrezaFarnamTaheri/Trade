@@ -87,8 +87,8 @@ not fabricated history. Multi-day paper sessions cannot be declared complete at 
 
 | Original item | Consolidated work | Acceptance / dependency | State |
 | --- | --- | --- | --- |
-| 27 | Consistent TMN and USDT-equivalent valuation | Reuse existing point-in-time FX owner; add missing portfolio/curve surfaces; preserve STALE/STALE_CLOSED/UNAVAILABLE and never use later FX | Portfolio revision 3, CLI and GUI conversion delivered; existing single-market boundary valuation shares the owner; historical single-market curve surfaces still open |
-| 28 | Walk-forward parameter search | Freeze training/test chronology, purge overlaps, record every trial/failure and selection count; never tune the final window | Queued |
+| 27 | Consistent TMN and USDT-equivalent valuation | Reuse existing point-in-time FX owner; add missing portfolio/curve surfaces; preserve STALE/STALE_CLOSED/UNAVAILABLE and never use later FX | Implemented; shared portfolio/single-market curve owner, fingerprinted historical valuation and EN/FA curve/status inspection; old saved records retained |
+| 28 | Walk-forward parameter search | Freeze training/test chronology, purge overlaps, record every trial/failure and selection count; never tune the final window | Implemented; expanding chronological train windows, disjoint tests, explicit purge, every attempt/selection/result registered before its reads, final cutoff unread; CLI/worker/workbench share owner |
 | 29 | Overfitting and regime diagnostics | Declare CSCV/block/dependence assumptions; distinguish trade-path reshuffling from new market samples; no confidence from insufficient data | Queued |
 | 16 | Shared optional exit policy | Fixed, ATR trailing, profit and time exits; actual holdings/fills, partials, dust, costs and closures; defaults preserve existing run identities | Queued |
 | 17 | Parameterize RSI/MACD/TRIX/Keltner rules | Validate ranges and readiness; version/hash changed behavior; keep prior defaults reproducible | Implemented; bounded schemas, custom readiness/gap tests and unchanged default hashes passed |

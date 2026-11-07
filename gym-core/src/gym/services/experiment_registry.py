@@ -90,7 +90,7 @@ class ExperimentRegistry:
     def page(self, request):
         fields(request, "kind parent after through limit")
         kind, parent = request["kind"], request["parent"]
-        if kind not in (None, "EXPERIMENT", "ATTEMPT", "RESULT", "EVIDENCE_PACKET", "RESEARCH_NOTES", "REPLAY_ANNOTATION", "REPLAY_CHECKPOINT"):
+        if kind not in (None, "EXPERIMENT", "ATTEMPT", "RESULT", "SELECTION", "WALK_FORWARD_REPORT", "EVIDENCE_PACKET", "RESEARCH_NOTES", "REPLAY_ANNOTATION", "REPLAY_CHECKPOINT"):
             raise ValueError("invalid registry event kind")
         if parent is not None and (type(parent) is not str or not 1 <= len(parent) <= 160):
             raise ValueError("invalid registry parent")

@@ -2,6 +2,15 @@
 
 Short records of choices that are easy to undo by accident. Newest first.
 
+## D5 — Causal FX curves have explicit identity (7 November 2026)
+
+New historical TMN runs bind each recorded equity mark's point-in-time FX factor
+and status through the causal-fx-curve/1 input fingerprint. These new outputs need
+new run IDs; old artifacts are retained. USDT is already native and keeps the
+existing default identity without storing a redundant conversion for every mark.
+Shared-cash portfolios reuse the same curve owner and retain their conversion
+contract. The golden USDT identity guard remains unchanged.
+
 ## D4 — Fill-size cap keeps old run identities (2026-11)
 
 **Decision.** `CostModel.max_participation` is optional. `describe()` emits it only when set.

@@ -8,7 +8,7 @@ from ..domain.model import dec, iso
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel, Spec
 from ..domain.strategy import BuyAndHold, digest
-from .data_portal import DataPortal, valuation_at
+from .data_portal import DataPortal, curve_valuation
 from .rules import RuleService
 from .session import ENGINE_VERSION
 
@@ -106,7 +106,8 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     fx = None
     if inst.quote == "TMN":
         u = portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
-        r0, r1 = valuation_at(u, t0, rules_for), valuation_at(u, t1, rules_for)
+        main["valuation"] = curve_valuation(inst.quote, main["curve"], t0, t1, u, rules_for)
+        r0, r1 = main["valuation"]["start"], main["valuation"]["end"]
         if r0["rate"] and r1["rate"]:
             fx = {"pair": "USDTTMN", "start": r0["rate"], "start_time": r0["at"], "end": r1["rate"], "end_time": r1["at"],
                   "basis": "MID of last qualified quote; derived valuation rate, not executable"}
@@ -137,6 +138,8 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
               "snapshots": digest([(d["t"], d["snapshot"]) for d in main["decisions"]]),
               "metadata": metadata_ref, "ruleset_version_now": svc.load()[0],
               "modeled_feed_outages": [(iso(start), iso(end)) for start, end in outages]}
+    if inst.quote == "TMN":
+        inputs["valuation"] = {"model": "causal-fx-curve/1", "digest": digest(main["valuation"])}
     rank = ranking(main, baselines)
     out = {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "numeraire": "USDT-equivalent" if fx or inst.quote == "USDT" else inst.quote,
            "fx": fx, "result": main, "baselines": baselines, "ranking": rank,

@@ -26,6 +26,19 @@ function performancePanel(perf, quote) {
     <details class="disclosure" data-key="metric-glossary"><summary>${esc(t("glossaryTitle"))}</summary><ul class="glossary">${GLOSSARY.map(key => `<li>${esc(t(key))}</li>`).join("")}</ul></details></section>
     <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("tradesTitle"))} <span class="muted">${esc(quote)}</span></h3>${trades.length ? `<button type="button" class="button button-small" data-csv="trades">${esc(t("downloadCsv"))}</button>` : ""}</div><div class="cards">${table(heads, trades.slice(0, 25), t("noTrades"), numeric)}</div>${trades.length > 25 ? `<details class="disclosure" data-key="trades-more"><summary>${esc(t("showMore"))} · ${digits(trades.length - 25)}</summary>${table(heads, trades.slice(25), "", numeric)}</details>` : ""}</section>`;
 }
+function valuationPanel(result) {
+  const valuation = result.valuation;
+  if (!valuation) return "";
+  const curve = list(valuation.curve);
+  return `<section class="panel"><h3>${esc(t("usdtValuation"))}</h3>${keyValues([
+    [t("status"), `${label(valuation.start?.status)} → ${label(valuation.end?.status)}`],
+    [t("source"), esc(valuation.basis)]])}
+    ${valuation.pair && curve.length && curve.every(row => row.equity_usdt_eq != null)
+      ? curveFigure({curve: curve.map(row => [row.at, row.equity_usdt_eq]), quote: "USDT equivalent"}) : ""}
+    <p class="field-help">${esc(t("fxCurveNote"))}</p>
+    ${table([t("time"), t("usdtEquivalent"), t("fxState"), t("fxAge")], curve.slice(-25).map(row =>
+      [esc(when(row.at)), amount(row.equity_usdt_eq), label(row.fx?.status), num(row.fx?.age_seconds)]), t("noCurve"), [1, 3])}</section>`;
+}
 function renderRun(record) {
   if (!record) return;
   const result = record.result || {}, inputs = record.inputs || {}, end = result.end || {}, quote = result.quote || "";
@@ -43,7 +56,7 @@ function renderRun(record) {
   setHTML("run-detail", `<header class="run-heading"><div><h2>${code(result.symbol || inputs.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h2><p class="field-help">${esc(when(inputs.from))} → ${esc(when(inputs.to))} · ${code(inputs.resolution)} · ${code(result.session?.state || record.mode || "PAPER")} · ${esc(inputs.store === "demo" ? t("synthetic") : t("paperOnly"))}</p></div>${chip(t("noCapital"))}</header>
     <div class="stats stats-4">${stat(t("equity"), `${money(end.equity)} <small>${esc(quote)}</small>`)}${stat(t("net"), `<span class="${signed(end.net)}">${money(end.net)}</span> <small>${esc(quote)}</small>`)}${stat(t("fills"), num(result.fills))}${stat(t("observations"), `${num(result.qualified)} <small>/ ${num(result.observations)}</small>`)}</div>
     <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
-    ${performancePanel(evidence?.performance, quote)}
+    ${valuationPanel(result)}${performancePanel(evidence?.performance, quote)}
     <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${esc(when(end.mark_time))}</p></section>
     <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3><p class="field-help">${esc(t("baselineNote"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines, "", [1, 2, 3])}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), money(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"), [2, 3])}

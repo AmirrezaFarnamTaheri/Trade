@@ -32,6 +32,7 @@ window.gymResearch = (() => {
     'research-notes': ['Validate and save analyst notes', 'بررسی و ذخیره یادداشت تحلیلگر', 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status']);
+  actions['walk-forward'] = ['Expanding walk-forward search', 'جست‌وجوی پیش‌رونده با آموزش افزایشی', 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
   actions['strategy-audit'] = ['Check causality and warm-up', 'بررسی علیت و دورهٔ آماده‌سازی', 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
   actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
   actions['job-interrupt'] = ['Release an interrupted paper attempt', 'آزادسازی تلاش متوقف‌شدهٔ آزمایشی', 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];

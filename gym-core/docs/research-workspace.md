@@ -12,6 +12,30 @@ The browser calls token-protected `POST /api/research/action` with exactly
 numbers are rejected. Object requests are bounded to 64 KiB. These actions use
 the actual clock; they reject `--at` overrides.
 
+## Expanding walk-forward selection
+
+`walk-forward`: exactly `hypothesis`, `symbol`, `candidates` (strategy/params
+objects), `windows` (train_from/train_to/test_from/test_to), `final_from`,
+`resolution`, `cash`, `fee_rate`, `latency_ms`, `purge_bars`.
+Use 2..8 distinct registered configurations, 1..5 windows and at most 32 total
+training/test slots. Cash/fees are exact decimal strings. Windows must be
+historical closed-bar boundaries, at most 31 days/5,000 decision periods each.
+Training expands from one origin and can include earlier tests. Test windows
+are disjoint; a purge of 1..100 decision bars separates training from its test.
+The final cutoff cannot precede any test end and its market data is not read.
+
+The existing experiment registry freezes the definition and all attempt slots
+before market reads, then records every outcome and each selection before that
+fold's test. Selection maximizes active, current-valued training net quote after
+modeled costs, including negative winners. Missing/failed/stale/no-trade trials
+remain visible. Replay uses one bounded read snapshot and the native paper engine;
+saved runs are verified through the existing run reader. Each window has its own
+flat cash account and warmup; test returns are not compounded into a portfolio.
+The workflow is supervised through the CLI and private workbench. Results are
+historical exploratory diagnostics, with no independent custody, future final
+evaluation, measured fees or capital permission. Read the durable experiment ID
+after uncertain delivery before deciding whether another search is appropriate.
+
 ## Coverage and recovery
 
 `coverage`: exactly `symbol`, `from`, `to`, `resolution`. Times must be zoned;

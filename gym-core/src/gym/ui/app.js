@@ -409,6 +409,10 @@ Object.assign(vocabulary, {
   participationHelp: ["Fraction of the best-level quantity one fill may take, for example 0.25. Leave empty for no cap.", "سهمی از حجم بهترین سطح که یک معامله می‌تواند بردارد، برای مثال 0.25. برای بدون سقف خالی بگذارید."],
   latestNet: ["Latest paper result", "آخرین نتیجهٔ آزمایشی"], latestNetNote: ["Net of fees and spread", "پس از کارمزد و اختلاف قیمت"],
   exactValues: ["Exact values", "مقادیر دقیق"],
+  usdtValuation: ["USDT equivalent · valuation only", "معادل تتر · فقط ارزش‌گذاری"],
+  fxState: ["FX status", "وضعیت تبدیل"],
+  fxAge: ["Rate age · seconds", "عمر نرخ · ثانیه"],
+  fxCurveNote: ["Latest 25 marks. Old rates remain STALE or STALE_CLOSED. Missing rates stay unavailable and prevent a joined curve. Conversion cannot make stale holdings current or certify an executable price.", "۲۵ ارزش‌گذاری آخر؛ نرخ قدیمی STALE یا STALE_CLOSED می‌ماند. نرخ ناموجود خالی است و نمودار پیوسته رسم نمی‌شود. تبدیل، دارایی کهنه را تازه نمی‌کند و قیمت قابل‌اجرا را تأیید نمی‌کند."],
 });
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,
   Object.fromEntries(Object.entries(vocabulary).map(([key, values]) => [key, values[i]]))]));

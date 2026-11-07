@@ -150,3 +150,19 @@ def valuation_at(tops, at, rules_for):
             "status": "STALE_CLOSED" if closed else "STALE" if age > QualityLimits().stale_s else "LIVE"}
 
 
+def curve_valuation(quote, curve, start, end, tops, rules_for):
+    """Value recorded equity at its own clock without filling missing FX intervals."""
+    def factor(at):
+        return ({"rate": "1", "at": iso(at), "age_seconds": 0, "status": "IDENTITY"}
+                if quote == "USDT" else valuation_at(tops, at, rules_for))
+
+    valued = []
+    for at, value in curve:
+        fx = factor(parse_ts(at))
+        valued.append({"at": at, "equity_usdt_eq": (value if quote == "USDT" else
+            str(Decimal(value) / Decimal(fx["rate"])) if fx["rate"] else None), "fx": fx})
+    return {"pair": "USDTTMN" if quote == "TMN" else None,
+            "basis": "MID of last qualified quote; derived valuation rate, not executable" if quote == "TMN" else "USDT identity",
+            "start": factor(start), "end": factor(end), "curve": valued}
+
+

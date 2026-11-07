@@ -36,7 +36,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
@@ -60,6 +60,14 @@ def research_action(root, action, value=None, *, store="live", at=None):
         raise ValueError("protocol mutations use the actual clock, without --at overrides")
     if action in OPERATOR_ACTIONS:
         return operator_action(root, action, value, store=store)
+    if action == "walk-forward":
+        from .walk_forward import walk_forward
+        db = _market_db(root)
+        try:
+            with ExperimentRegistry(root, store=store) as registry:
+                return walk_forward(registry, db, value)
+        finally:
+            db.c.close()
     if action in ("portfolio-replay", "portfolio-read", "portfolio-list"):
         from .portfolio_research import portfolio_action
         return portfolio_action(root, action, value, store=store)

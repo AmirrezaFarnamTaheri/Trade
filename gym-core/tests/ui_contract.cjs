@@ -276,6 +276,21 @@ const click = async id => {
   assert.ok(byId("run-detail").innerHTML.includes("83.123456789012345678"), "Chart rounding must not round the exact net statistic");
   assert.ok(byId("run-detail").innerHTML.includes("1.12345678"));
   assert.ok(byId("run-detail").innerHTML.includes('data-export-run="1234567890abcdef"'));
+  for (const language of ["en", "fa"]) {
+    if (sandbox.document.documentElement.lang !== language) await click("language-toggle");
+    const result = {symbol:"BTCTMN",quote:"TMN",curve:[],valuation:{pair:"USDTTMN",basis:"<img> valuation",
+      start:{status:"UNAVAILABLE"},end:{status:"STALE_CLOSED"},curve:[
+        {at:"2026-10-29T09:00:00Z",equity_usdt_eq:null,fx:{status:"UNAVAILABLE",age_seconds:null}},
+        {at:"2026-10-29T09:01:00Z",equity_usdt_eq:"123.000000000000001",fx:{status:"STALE_CLOSED",age_seconds:200}}]}};
+    app.renderRun({run_id:"1234567890abcdef",inputs:{store:"live"},result});
+    const html = byId("run-detail").innerHTML;
+    assert.ok(html.includes(app.T[language].usdtValuation));
+    assert.ok(html.includes(app.T[language].fxCurveNote));
+    assert.ok(html.includes(language === "en" ? "123.000000000000001" : "۱۲۳.۰۰۰۰۰۰۰۰۰۰۰۰۰۰۱"));
+    assert.ok(html.includes("&lt;img&gt; valuation"));
+    assert.ok(!html.includes('<polyline class="chart-line"'), "Unavailable FX cannot be joined across missing marks");
+  }
+  if (sandbox.document.documentElement.lang !== "en") await click("language-toggle");
   replies.set("/api/runs/1234567890abcdef/summary", {});
   responseStatus = 503;
   const exportButton = { dataset: { exportRun: "1234567890abcdef" }, disabled: false };
