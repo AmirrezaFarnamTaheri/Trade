@@ -207,10 +207,14 @@ window.gymResearch = (() => {
     $('guided-model').onchange = () => {
       const twap = $('guided-model').value === 'twap-preview';
       $('guided-twap-fields').hidden = !twap;
-      $('guided-leader').closest('label').hidden = $('guided-model').value !== 'lead-lag-research';
-      $('guided-resolution').closest('label').hidden = twap;
-      $('guided-age').closest('label').hidden = twap;
-      $('guided-skew').closest('label').hidden = twap;
+      const hideLabel = (id, hidden) => {
+        const label = $(id).closest?.('label');
+        if (label) label.hidden = hidden;
+      };
+      hideLabel('guided-leader', $('guided-model').value !== 'lead-lag-research');
+      hideLabel('guided-resolution', twap);
+      hideLabel('guided-age', twap);
+      hideLabel('guided-skew', twap);
     };
     $('guided-model').onchange();
     $('guided-research-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
