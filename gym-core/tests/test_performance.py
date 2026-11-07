@@ -47,6 +47,20 @@ def test_selling_more_than_was_bought_is_an_error():
         trade_ledger([fill("SELL", "1", "100", "0", 0)], "BTC")
 
 
+def test_scaled_posting_roundoff_does_not_invent_an_oversell_at_full_liquidation():
+    rows = [("BUY", "0.839540976052006407257524429", "0.000839540976052006407257524429"),
+            ("BUY", "8.60431328796926498077033281E-7", "8.60431328796926498077033281E-10"),
+            ("BUY", "3.8005100908132862462395117", "0.0038005100908132862462395117"),
+            ("SELL", "1.715102393886650186720050949", "0"),
+            ("SELL", "1.080514508148589617633632098", "0"),
+            ("SELL", "1.839794973334085024619427625", "0")]
+    orders = [fill(side, qty, "1", fee, i) for i, (side, qty, fee) in enumerate(rows)]
+    assert Decimal(trade_ledger(orders, "BTC")["open"]["quantity"]) == 0
+    orders[-1]["qty"] = "1.839794973334085024619427626"
+    with pytest.raises(ValueError, match="exceeds"):
+        trade_ledger(orders, "BTC")
+
+
 def test_economic_report_counts_every_closed_trade_not_only_the_last_buy():
     out = {"run_id": "r", "outputs_digest": "d", "baselines": {}, "warnings": [],
            "inputs": {"from": iso(START), "to": iso(START + timedelta(hours=1)), "store": "live", "cost": {}},

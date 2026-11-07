@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from .market_models import decimal
 from .model import parse_ts
+from .regime import market_regime
 from .strategy import digest
 from .technical_features import TechnicalFeatures
 
@@ -133,10 +134,8 @@ class CompoundStrategy:
             return self.reply("ABSTAIN_SPREAD","entry spread exceeds configured limit")
         if not self.ready:
             return self.reply("HOLD" if holding else "ABSTAIN_WARMUP","need 50 continuous usable closed bars")
-        ema20,ema50 = (Decimal(current[f"ema_{n}"]["value"]) for n in (20,50))
-        adx = Decimal(current["adx_14"]["value"])
-        up = ema20>ema50 and Decimal(current["ema_20"]["slope_5_bars"])>0 and Decimal(current["adx_14"]["plus_di"])>Decimal(current["adx_14"]["minus_di"])
-        regime = "UP_TREND" if adx>=25 and up else "DOWN_TREND" if adx>=25 and ema20<ema50 else "RANGE" if adx<=18 and atr and abs(ema20-ema50)<=atr else "TRANSITION"
+        ema20 = Decimal(current["ema_20"]["value"])
+        regime = market_regime(current)
         self.feature_values["regime"] = regime
         if holding:
             if regime=="DOWN_TREND" or self.name=="adaptive-channel" and regime=="RANGE" and bar.close>=ema20:

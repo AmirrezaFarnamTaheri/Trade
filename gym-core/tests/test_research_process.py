@@ -3,6 +3,7 @@ import asyncio
 import sqlite3
 import time
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 
@@ -34,6 +35,22 @@ def test_real_process_completes_native_run_and_validation_is_not_hidden(tmp_path
     assert error.value.status == 400 and error.value.report["operation_may_have_committed"]
     with pytest.raises(ValueError, match="unsupported"):
         asyncio.run(calculate(tmp_path, "arbitrary-command"))
+
+
+def test_worker_gets_disposable_sql_temp_space_without_inheriting_private_environment(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    original, captured = asyncio.create_subprocess_exec, {}
+    async def launch(*args, **kwargs):
+        captured.update(kwargs["env"])
+        assert Path(kwargs["env"]["TEMP"]).is_dir()
+        return await original(*args, **kwargs)
+    monkeypatch.setenv("GYM_PRIVATE_TEST_SENTINEL", "do-not-inherit")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", launch)
+    result = asyncio.run(calculate(tmp_path, "tick", at=iso(START + timedelta(minutes=30))))
+    assert result["completed"]
+    assert "GYM_PRIVATE_TEST_SENTINEL" not in captured
+    assert captured["TEMP"] == captured["TMP"]
+    assert not Path(captured["TEMP"]).exists()
 
 
 def test_locked_database_deadline_kills_worker_and_never_retries_or_advances(tmp_path):

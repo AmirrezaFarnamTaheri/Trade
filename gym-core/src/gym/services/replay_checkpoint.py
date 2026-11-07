@@ -37,8 +37,11 @@ def _state(session):
 def checkpoint_replay(registry, db, request, *, resume=False):
     fields(request, "checkpoint_id" if resume else "run_id quote_count")
     saved = registry.read(request["checkpoint_id"]) if resume else None
-    if saved and (saved["kind"] != "REPLAY_CHECKPOINT" or saved["engine_digest"] != _engine_digest()):
+    if saved and (saved["kind"] not in ("REPLAY_CHECKPOINT", "PORTFOLIO_CHECKPOINT") or saved["engine_digest"] != _engine_digest()):
         raise ValueError("checkpoint engine is unavailable or changed")
+    run_id = saved["run_id"] if saved else request["run_id"]
+    if saved and saved["kind"] == "PORTFOLIO_CHECKPOINT" or not (registry.root / "runs" / (str(run_id) + ".json")).exists():
+        return portfolio_checkpoint(registry, db, request, saved=saved)
     out = load_verified_run(registry.root / "runs", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
     if inputs["engine"] != ENGINE_VERSION or inputs.get("kind") or inputs["rules_mode"] != "point-in-time":
@@ -103,3 +106,33 @@ def checkpoint_replay(registry, db, request, *, resume=False):
         "cursor": iso(tops[count - 1].ts_avail), "prefix_digest": prefix, "state_digest": state,
         "pending_order": pending, "funded_authority": False})
     return {"schema": "replay-checkpoint/1", "record": record, "funded_authority": False}
+
+
+def portfolio_checkpoint(registry, db, request, *, saved):
+    from .portfolio import portfolio
+
+    out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)
+    inputs = out["inputs"]
+    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") != 4 or inputs["rules_mode"] != "point-in-time":
+        raise ValueError("checkpoint requires a current point-in-time portfolio")
+    if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
+        raise ValueError("checkpoint saved portfolio evidence changed")
+    count = saved["quote_count"] if saved else request["quote_count"]
+    if type(count) is not int or not 1 <= count <= 100000:
+        raise ValueError("portfolio checkpoint needs 1..100000 quotes")
+    options = {"resolution": inputs["resolution"], "cash": Decimal(inputs["cash"]), "cost": CostModel.from_description(inputs["cost"]),
+        "strategy_id": inputs["strategy"], "params": inputs["params"], "rules_mode": inputs["rules_mode"],
+        "store": registry.store, "policy": inputs.get("policy")}
+    checkpoint = {"quote_count": count}
+    rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
+    if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):
+        raise ValueError("portfolio checkpoint prefix, rules, risk or reservations changed")
+    if rebuilt["run_id"] != out["run_id"] or rebuilt["outputs_digest"] != out["outputs_digest"]:
+        raise ValueError("portfolio replay differs from saved evidence")
+    if saved:
+        return {"schema": "portfolio-resume/1", "checkpoint_id": saved["id"], "run_id": out["run_id"],
+            "status": "EXACT_MATCH", "result_digest": rebuilt["outputs_digest"], "rebuilt_prefix_quotes": count,
+            "method": "REBUILD_VERIFIED_PREFIX", "mutable_object_deserialization": False, "funded_authority": False}
+    record = registry.append("PORTFOLIO_CHECKPOINT", None, {"run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
+        "inputs_digest": digest(inputs), "engine_digest": _engine_digest(), **checkpoint, "funded_authority": False})
+    return {"schema": "portfolio-checkpoint/1", "record": record, "funded_authority": False}

@@ -58,6 +58,7 @@ def test_native_portfolio_saved_read_and_integrity(tmp_path):
     {"to": iso(START + timedelta(days=32))}, {"from": iso(START + timedelta(days=1))},
     {"cash": "NaN"}, {"cash": "0"}, {"cost": {"fee_rate": "0.001", "ignored": True}},
     {"rules_mode": "invented"}, {"resolution": "invalid"}, {"params": {"fast": True}}, {"resolution": []},
+    *[{"policy": value} for value in (False, 0, "", [])],
     {"cost": {"fee_rate": "0.001", "latency_ms": 500, "max_wait_s": 10**1000, "fee_assumption": "fee-in-received-asset"}},
 ])
 def test_invalid_portfolio_requests_leave_no_records(tmp_path, change):
@@ -75,13 +76,14 @@ def test_portfolio_private_api_uses_real_supervised_worker(tmp_path):
     async def check():
         async with TestClient(TestServer(app)) as client:
             assert (await (await client.get("/api/research")).json())["portfolio_replay"] is True
-            body = {"action": "portfolio-replay", "value": request()}
+            value = {**request(), "policy": {"method": "inverse-volatility", "lookback": 3, "daily_loss_limit": "0.05"}}
+            body = {"action": "portfolio-replay", "value": value}
             assert (await client.post("/api/research/action", json=body)).status == 403
             response = await client.post("/api/research/action", json=body, headers={"X-Gym-Token": "tok"})
             assert response.status == 200, await response.text()
             saved = await response.json()
             assert saved["authority"] == "PAPER_ONLY"
-            loaded = await calculate(tmp_path, "portfolio-replay", request())
+            loaded = await calculate(tmp_path, "portfolio-replay", value)
             assert loaded["run_id"] == saved["run_id"]
             response = await client.post("/api/research/action", json={"action": "portfolio-read", "value": {"run_id": saved["run_id"]}},
                                          headers={"X-Gym-Token": "tok"})

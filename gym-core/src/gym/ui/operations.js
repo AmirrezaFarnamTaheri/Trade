@@ -178,7 +178,9 @@ function renderHealth(data) {
       chip(t(row.connected ? "connectedValue" : "disconnectedValue"), row.connected ? "ok" : "bad"), num(row.reconnects), num(row.last_frame_age_s)]), t("noShards"), [0, 1, 3, 4])
     : empty(t("unavailable")));
   const readiness = data.readiness;
-  setHTML("health-readiness", `<h2 class="panel-title">${esc(t("publicReadiness"))}</h2><p class="field-help">${esc(t("publicReadinessNote"))}</p><p>${label(readiness?.status)}</p>${table([t("pair"), t("status"), t("bidAge"), t("askAge")], list(readiness?.markets).map(row => [code(row.symbol), label(row.state), num(row.bid_age_seconds), num(row.ask_age_seconds)]), t("unavailable"))}`);
+  const counts = {};
+  for (const row of list(readiness?.markets)) counts[row.state] = (counts[row.state] || 0) + 1;
+  setHTML("health-readiness", `<h2 class="panel-title">${esc(t("publicReadiness"))}</h2><p class="field-help">${esc(t("publicReadinessNote"))}</p><p>${label(readiness?.status)}</p>${keyValues(Object.entries(counts).map(([key, count]) => [t(key), num(count)]))}<details class="disclosure" data-key="readiness-markets"><summary>${esc(t("marketWatch"))} · ${digits(list(readiness?.markets).length)}</summary>${table([t("pair"), t("status"), t("bidAge"), t("askAge")], list(readiness?.markets).map(row => [code(row.symbol), label(row.state), num(row.bid_age_seconds), num(row.ask_age_seconds)]), t("unavailable"))}</details>`);
 }
 async function venueFacts() {
   try {

@@ -23,7 +23,7 @@ def test_portfolio_fx_curve_never_reads_a_later_rate(tmp_path):
     try:
         out = replay(db)
         valuation = out["result"]["valuation"]
-        assert out["inputs"]["portfolio_version"] == 3
+        assert out["inputs"]["portfolio_version"] == 4
         assert valuation["start"]["rate"] == "100" and valuation["end"]["rate"] == "200"
         before = [r for r in valuation["curve"] if parse_ts(r["at"]) < START + timedelta(minutes=15)]
         assert before and all(r["fx"]["rate"] == "100" for r in before)

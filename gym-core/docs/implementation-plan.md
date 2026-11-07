@@ -16,27 +16,24 @@ No push, paid provider request or credential change is implied.
 | --- | --- | --- | --- |
 | O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Current assets and 373-pair retained selection verified; REST and WebSocket connections currently fail; freshness remains blocked |
 | O2 | Supervise collection and paper scheduling | No duplicate processes; clear failures/retries; no hidden narrowing to BTC/ETH/USDT; recovery preserves history | Direct Python task stop/child termination verified on an isolated collector; both current tasks running; sustained observation still open |
-| O3 | Publish one current campaign/results view | Show defined/attempted/completed/ready/traded counts, exclusions, dated progress and process liveness separately | Queued |
+| O3 | Independently establish campaign process liveness | Store-scoped journal counts and a bounded verified ready/traded/failure sample are available in Schedules; add a current owner/process heartbeat without relabeling old RUNNING receipts | Open |
 
 ## Research mechanics
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| 16 | Shared optional exit policy | Fixed, ATR trailing, profit and time exits; actual holdings/fills, partials, dust, costs and closures; defaults preserve existing run identities | Queued |
-| 19 | Optional reusable regime gate | Verify the actual detector owner first; causal inputs, explicit regime transitions, default-off identity compatibility | Queued |
 | 20 | Stop-risk sizing in replay | Reuse portfolio_sizing with exact quantities, stop distance, shared cash, reservations, venue minimums and explicit unknowns | Queued |
 
 ## Strategy and portfolio research
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| 18 | Toman premium, Donchian/turtle, compression and lead-lag hypotheses | Separate preregistered rules, causal aligned inputs, FX/closure costs and held-out comparisons; none is an established edge | Queued |
-| 21 | Inverse-volatility/risk-parity weights, correlation caps, rebalance clocks | Shared-cash accounting, lookback readiness, causal covariance and turnover/cost controls; test allocation conservation | Queued |
-| 22 | Portfolio drawdown and daily loss limits | Latched state, correct Tehran/UTC clock policy, actual simulated exposure and restart/replay parity | Queued |
+| 18 | Toman premium and lead-lag hypotheses | Prior Donchian/compression rules are available; remaining hypotheses need causal aligned inputs, FX/closure costs and held-out comparisons; none is an established edge | Open |
 | 23 | Capped fractional Kelly sizing | Require sufficient out-of-sample evidence; disclose estimation uncertainty; a supplied fraction is not an inferred optimal fraction | Queued |
 | 25 | TWAP and spread-aware execution choice | Recorded child orders, displayed capacity, partials, cancellation, timing and total reservation conservation; paper only | Queued |
 | 30 | Prospective shadow comparison | Freeze configurations before future data; matched costs/baselines; daily drift, gaps and no-trade cases visible | Queued |
 | 31 | Scorecards, parameter heatmaps and backtest/shadow overlays | Read native verified records; show USDT/FX status, trial counts, failure/readiness and statistical limitations | Queued |
+| UI | Complete the source-audited interface refinements and rendered checks | Guided workflows, readable reports/receipts, searchable states and current-build EN/FA/theme/phone/accessibility verification; see interface-review.md | Open |
 
 Predictive ML/RL training is outside delivery scope. New external data requires
 a provider, clock/revision/rights contract and explicit credentials/paid-call

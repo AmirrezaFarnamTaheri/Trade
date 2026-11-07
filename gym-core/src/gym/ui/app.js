@@ -412,6 +412,39 @@ Object.assign(vocabulary, {
   catalogSource: ["Catalogue source", "منبع فهرست بازار"],
   RETAINED_METADATA: ["Retained metadata · current catalogue freshness unknown", "فرادادهٔ ذخیره‌شده · تازگی فهرست فعلی نامعلوم"],
   PUBLIC_REST: ["Public REST receipt", "دریافت عمومی REST"],
+  period: ["Indicator period · bars", "دوره شاخص · شمع"],
+  entry_threshold: ["Entry threshold", "آستانه ورود"], exit_threshold: ["Exit threshold", "آستانه خروج"],
+  signal: ["Signal period · bars", "دوره سیگنال · شمع"], ema_period: ["EMA period · bars", "دوره میانگین نمایی · شمع"],
+  range_period: ["Range period · bars", "دوره دامنه · شمع"], multiplier: ["Band multiplier", "ضریب باند"],
+  adx_threshold: ["Minimum ADX", "کمینه ADX"],
+  exit_lookback: ["Exit channel · bars", "کانال خروج · شمع"],
+  compression_bps: ["Maximum prior width · bps · 0 disables", "بیشینه پهنای قبلی · واحد پایه · صفر غیرفعال"],
+  regime: ["Entry regime gate", "فیلتر رژیم ورود"],
+  regime_gate: ["Shared entry regime gate", "فیلتر مشترک رژیم ورود"],
+  sortMarkets: ["Sort markets", "مرتب‌سازی بازارها"],
+  overlayInspectionNote: ["Each series starts at its first recorded equity mark. Cursor values require an exact recorded time; missing samples are unavailable, not interpolated.", "آغاز هر سری نخستین ارزش ثبت‌شده آن است. مقدار نشانگر به زمان دقیق ثبت نیاز دارد؛ نمونه مفقود درون‌یابی نمی‌شود."],
+  sharedStrategyControls: ["Optional regime and exit controls", "کنترل‌های اختیاری رژیم و خروج"],
+  sharedStrategyControlsNote: ["Default off. Closed-bar paper exits use actual fills; gaps, costs and closures can exceed thresholds. No venue protection is placed.", "پیش‌فرض خاموش است. خروج آزمایشی در پایان کندل از اجراهای واقعی مدل استفاده می‌کند؛ شکاف، هزینه و تعطیلی می‌تواند از حد عبور کند. حفاظتی در صرافی ثبت نمی‌شود."],
+  sortSpread: ["Spread · lowest first", "فاصله قیمت · کمترین ابتدا"],
+  sortAge: ["Quote age · oldest first", "عمر قیمت · قدیمی‌ترین ابتدا"],
+  creditRatioGrid: ["Credit ratio · min → max · step", "نسبت اعتبار · کمینه تا بیشینه · گام"],
+  marginDirections: ["Margin directions", "جهت‌های تعهدی"],
+  sampleReady: ["Ready runs · newest sample", "اجراهای آماده · نمونه اخیر"],
+  sampleTraded: ["Traded runs · newest sample", "اجراهای دارای معامله · نمونه اخیر"],
+  sampleUnavailable: ["Unverifiable runs · newest sample", "اجراهای غیرقابل بررسی · نمونه اخیر"],
+  exit_stop_bps: ["Fixed exit loss · bps · 0 off", "حد زیان خروج · واحد پایه · صفر خاموش"],
+  exit_profit_bps: ["Profit exit · bps · 0 off", "حد سود خروج · واحد پایه · صفر خاموش"],
+  exit_atr_multiple: ["Trailing exit · ATR multiple · 0 off", "خروج متحرک · ضریب ATR · صفر خاموش"],
+  exit_after_bars: ["Maximum holding · bars · 0 off", "بیشینه نگهداری · کندل · صفر خاموش"],
+  marketProducts: ["Buy, sell, margin and credit scope", "دامنه خرید، فروش، تعهدی و اعتبار"],
+  productScopeHelp: ["Read all observed markets. Margin grids require a saved current public catalogue; trade credit requires separate account eligibility.", "همه بازارهای مشاهده‌شده خوانده می‌شوند. گام اعتبار به فهرست عمومی تازه و اعتبار معاملاتی به احراز شرایط جداگانه حساب نیاز دارد."],
+  loadProducts: ["Inspect observed products", "بررسی محصولات مشاهده‌شده"],
+  loadMarginProducts: ["Open margin rules and preview", "قواعد و پیش‌نمایش تعهدی"],
+  campaignProgress: ["Study progress", "پیشرفت مطالعه"],
+  loadProgress: ["Inspect progress and verified results", "بررسی پیشرفت و نتایج"],
+  definedExperiments: ["Defined experiments", "آزمایش‌های تعریف‌شده"],
+  registeredAttempts: ["Registered attempts", "تلاش‌های ثبت‌شده"],
+  unreportedAttempts: ["Attempts without a terminal result", "تلاش‌های بدون نتیجه نهایی"],
   usdtValuation: ["USDT equivalent · valuation only", "معادل تتر · فقط ارزش‌گذاری"],
   fxState: ["FX status", "وضعیت تبدیل"],
   fxAge: ["Rate age · seconds", "عمر نرخ · ثانیه"],
@@ -441,12 +474,12 @@ function num(value) {
   if (!match) return esc(raw);
   return digits(match[1] + match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (match[3] ? "." + match[3] : ""));
 }
-function when(value, dateOnly = false) {
+function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
   if (!value) return t("none");
   const stamp = new Date(value);
   if (!Number.isFinite(stamp.getTime())) return t("unknown");
   return new Intl.DateTimeFormat(lang === "fa" ? "fa-IR" : "en-GB", {
-    timeZone: "Asia/Tehran", year: "numeric", month: "short", day: "numeric",
+    timeZone, year: "numeric", month: "short", day: "numeric",
     ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
   }).format(stamp);
 }
@@ -527,6 +560,7 @@ function applyLang() {
   $("current-view").textContent = t(viewKeys[state.view]);
   renderMarkets(); renderRunList();
   if (state.record) renderRun(state.record);
+  else if (state.savedComparison) renderSavedComparison(state.savedComparison);
   if (state.health) renderHealth(state.health);
   if (state.rules) renderRules(state.rules);
   renderOverview(); renderTicketFields(); renderFeed(); updateClock();
@@ -534,7 +568,7 @@ function applyLang() {
   renderComparison();
   if (state.researchState) renderResearchJobs(state.researchState);
   if (state.view === "models") window.gymModels?.mount(api, esc);
-  if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure}); }
+  if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure, strategyFields}); }
 }
 
 function renderOverview() {
@@ -546,13 +580,15 @@ function renderOverview() {
   setHTML("overview-markets", state.markets ? table([t("pair"), t("bid"), t("ask"), t("spreadBps"), t("entry")], markets.slice(0, 5).map(m => [code(m.symbol), amount(m.bid), amount(m.ask), amount(m.spread_bps), eligibility(m.act?.entry)]), t("noMarkets"), [1, 2, 3]) : empty(t("loading")));
   const record = state.record, result = record?.result;
   setHTML("overview-research", result ? `<div class="run-heading"><h3>${code(result.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h3>${chip(t(record.inputs?.store === "demo" ? "synthetic" : "paperOnly"))}</div>${curveFigure(result)}${keyValues([[t("net"), `${money(result.end?.net)} ${code(result.quote)}`], [t("totalReturn"), pct(record.evidence?.performance?.total_return_pct)], [t("fills"), num(result.fills)]])}<p class="field-help">${esc(record.evidence?.primary_limitation || t("noCapital"))}</p>` : empty(t(state.runsLoaded ? "noRuns" : "loading"), t("noRunsHelp")));
-  setHTML("overview-activity", state.runs.length ? table([t("pair"), t("time"), t("net")], state.runs.slice(0, 4).map(run => [code(run.inputs?.symbol), esc(when(run.inputs?.to)), money(run.end?.net)]), "", [2]) : empty(t(state.runsLoaded ? "recentEvidenceEmpty" : "loading")));
+  setHTML("overview-activity", state.runs.length ? table([t("pair"), t("time"), t("net")], state.runs.slice(0, 4).map(run => [code(run.inputs?.symbol), esc(when(run.inputs?.to)), `${money(run.end?.net)} ${code(/(TMN|USDT)$/.exec(run.inputs?.symbol || "")?.[1])}`]), "", [2]) : empty(t(state.runsLoaded ? "recentEvidenceEmpty" : "loading")));
 }
 
 function renderFeed() {
   const health = state.health;
   const key = state.apiError ? "refreshFailed" : !health ? "feedUnknown" : health.fatal ? "feedStopped" : health.connected ? "feedConnected" : "feedDisconnected";
-  setHTML("feed-status", `<span class="dot${state.apiError || health?.fatal || health?.connected === false ? " dot-warn" : ""}" aria-hidden="true"></span><span>${esc(t(key))}</span>`);
+  const readiness = health?.readiness;
+  const ready = list(readiness?.markets).filter(row => row.state === "READY").length;
+  setHTML("feed-status", `<span class="dot${state.apiError || health?.fatal || !health?.connected || readiness?.ready !== true ? " dot-warn" : ""}" aria-hidden="true"></span><span>${esc(t(key))}${readiness ? ` · ${esc(t("publicReadiness"))}: ${label(readiness.status)} · ${digits(ready)}/${digits(list(readiness.markets).length)}` : ""}</span>`);
   $("connection-error").hidden = !state.apiError;
 }
 function updateClock() {
@@ -583,7 +619,7 @@ async function collectView(name, healthTask) {
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
   if (name === "research") {
     window.gymResearch?.mount(api, esc);
-    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure});
+    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure, strategyFields});
     const results = await Promise.allSettled([research(), researchJobs()]);
     if (results.some(result => result.status === "rejected")) throw new Error(t("requestError"));
   }
@@ -658,6 +694,26 @@ async function showView(name, focus = false) {
 }
 
 $("market-filter").addEventListener("input", event => { state.filter = event.target.value; renderMarkets(); });
+for (const id of ['market-quality', 'market-sort']) $(id).addEventListener('change', renderMarkets);
+$("products-refresh").onclick = async event => {
+  const button = event.target; button.disabled = true;
+  setHTML("product-capabilities", empty(t("loading")));
+  try {
+    const report = await api('/api/research/action', {method: 'POST', body: JSON.stringify({action: 'market-products', value: {margin_catalogue_id: window.gymMargin?.catalogueId() || null}})}, 130000);
+    setHTML("product-capabilities", `<p class="field-help">${esc(report.scope)} · ${esc(when(report.as_of))}</p>${table([t("pair"), t("entry"), t("exit"), t("status"), t("creditRatioGrid"), t("marginDirections"), t("funded_authority")], list(report.markets).map(row => [code(row.symbol), code(row.spot.buy), code(row.spot.sell), code(row.margin.status), row.margin.credit_grid ? `${code(row.margin.credit_grid.minimum)} → ${code(row.margin.credit_grid.maximum)} · ${code(row.margin.credit_grid.step)}` : code(row.trade_credit), list(row.margin.directions).map(code).join(' / '), code(row.funded_submission)]))}`);
+  } catch (_) { setHTML("product-capabilities", empty(t("requestError"))); }
+  finally { button.disabled = false; }
+};
+$("products-margin").onclick = async () => { await showView('research'); showResearchTab('margin', true); };
+$("campaign-refresh").onclick = async event => {
+  const button = event.target; button.disabled = true;
+  setHTML('campaign-progress', empty(t('loading')));
+  try {
+    const report = await api('/api/research/action', {method:'POST', body:JSON.stringify({action:'campaign-status', value:{limit:25}})}, 130000);
+    setHTML('campaign-progress', keyValues([[t('definedExperiments'), num(report.defined_experiments)], [t('registeredAttempts'), num(report.registered_attempts)], [t('COMPLETED'), num(report.completed)], [t('unreportedAttempts'), num(report.unreported_attempts)], [t('sampleReady'), num(report.verified_sample?.ready_runs)], [t('sampleTraded'), num(report.verified_sample?.traded_runs)], [t('sampleUnavailable'), num(report.verified_sample?.unavailable_runs)], [t('updated'), esc(when(report.last_recorded_progress))]]) + `<p class="field-help">${esc(report.scope)}</p>${table([t('status'), t('runs')], Object.entries(report.terminal_states).map(([key, count]) => [label(key), num(count)]))}${table([t('pair'), t('strategy'), t('status'), t('ready'), t('fills'), t('net'), t('reason')], list(report.verified_sample?.rows).map(row => [code(row.symbol), code(row.strategy), code(row.verification || row.state), row.ready == null ? label('UNKNOWN') : label(row.ready ? 'READY' : 'NOT_READY'), num(row.fills), `${money(row.net_quote)} ${code(row.quote)}`, esc(row.reason || '')]))}`);
+  } catch (_) { setHTML('campaign-progress', empty(t('requestError'))); }
+  finally { button.disabled = false; }
+};
 $("quote-filter").addEventListener("click", event => {
   const button = event.target.closest?.("[data-quote]") || event.target;
   if (button.dataset.quote !== undefined) { state.quote = button.dataset.quote; renderMarkets(); }

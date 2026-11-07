@@ -18,6 +18,9 @@ colors:
   caution: "#855508"
   caution-soft: "#fff1d6"
   neutral-soft: "#eae9e2"
+  chart-blue: "#2f6f8f"
+  chart-olive: "#596b21"
+  chart-purple: "#8a4f9e"
   sidebar: "#292824"
   sidebar-text: "#eeede6"
   sidebar-muted: "#b9b7ad"
@@ -40,6 +43,9 @@ colors:
   dark-caution: "#e8bf76"
   dark-caution-soft: "#3d3425"
   dark-neutral-soft: "#303a40"
+  dark-chart-blue: "#79bddf"
+  dark-chart-olive: "#b9cb73"
+  dark-chart-purple: "#d3a2e6"
   dark-sidebar: "#12171b"
   dark-sidebar-text: "#eeede6"
   dark-sidebar-muted: "#aeb7bb"
@@ -207,12 +213,20 @@ The interface is compact enough to compare financial records, with generous sepa
 **Key Characteristics:**
 - Warm, quiet working surfaces with one copper action and selection accent.
 - Precise tabular values, inline provenance, and plain capability language.
-- Persistent context with nine clear destinations and an equivalent dark theme.
+- Persistent context with ten clear destinations and an equivalent dark theme.
 - English and Persian layouts, keyboard access, and restrained feedback motion.
 
 ## Colors
 
 The palette combines warm neutral materials with copper controls and separate semantic state colors. Frontmatter records the implemented light and dark values; dark-prefixed tokens replace the corresponding CSS custom properties when the dark theme is selected.
+
+Equity curves use neutral copper. Comparison series use theme-specific chart
+colors and distinct dash patterns; hue alone must not identify a series.
+Unknown feed readiness uses caution rather than a positive indicator.
+Replay axes use HTML labels so they retain their text size as the graph narrows.
+Phone forms use one column, frequent compact actions have a 44px minimum height,
+and chart/waterfall labels retain the 11px floor. Rendered contrast, reflow and
+touch behavior still require current-build browser verification.
 
 ### Primary
 

@@ -47,8 +47,8 @@ window.gymMargin = (() => {
     }
     async function act(fn) {
       if (busy || demo) return;
-      busy = true; controls(); $('margin-status').textContent = '';
-      try { await fn(); }
+      busy = true; controls(); $('margin-status').textContent = text('Working…', 'در حال اجرا…');
+      try { await fn(); $('margin-status').textContent = text('Request completed.', 'درخواست انجام شد.'); }
       catch { $('margin-status').textContent = text('Request failed. Refresh market rules and check collateral, credit step, protection prices and quote coverage. Saved terms require a window after their receipt. No order was submitted.', 'درخواست ناموفق بود. قواعد بازار، وثیقه، گام اعتبار، قیمت‌های حفاظتی و پوشش داده را بررسی کنید. بازه باید پس از دریافت پیش‌نمایش باشد. سفارشی ارسال نشد.'); }
       finally { busy = false; controls(); if (document.documentElement.lang !== language) mount({api, esc, keyValues, table, amount, when, demo}); }
     }
@@ -119,5 +119,5 @@ window.gymMargin = (() => {
     for (const [id, value] of Object.entries(saved)) $(id).value = value;
     bounds(); renderPreview(); controls();
   }
-  return {mount};
+  return {mount, catalogueId: () => catalogue?.run_id || null};
 })();

@@ -33,7 +33,7 @@ def test_portfolio_rejects_mixed_quote_currencies_and_single_markets(tmp_path):
     db = market_db(tmp_path, quote_history(n=20) + quote_history(n=20, sym="BTCTMN"))
     with pytest.raises(ValueError, match="quote currency"):
         portfolio(db, ["BTCUSDT", "BTCTMN"], START, START + timedelta(hours=1))
-    with pytest.raises(ValueError, match="2..8"):
+    with pytest.raises(ValueError, match="2..500"):
         portfolio(db, ["BTCUSDT"], START, START + timedelta(hours=1))
 
 

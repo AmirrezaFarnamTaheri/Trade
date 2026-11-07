@@ -182,6 +182,16 @@ const click = async id => {
 
 (async () => {
   await settle();
+  const chartResult = {quote: "USDT", curve: [["2026-11-05T00:00:00Z", "1000"], ["2026-11-05T00:01:00Z", "999"]]};
+  assert.equal(vm.runInContext("curveFigure", context)(chartResult), vm.runInContext("curveFigure", context)(chartResult), "Identical saved curves must not replace focused charts on polling");
+  const overlay = vm.runInContext('overlayFigure', context)([{name:'first',curve:chartResult.curve},{name:'second',curve:chartResult.curve}]);
+  assert.match(overlay,/data-chart="chart-[0-9]+" tabindex="0"/);
+  assert.ok(overlay.includes(app.T.en.overlayInspectionNote), 'Overlay cursor must disclose its normalization and missing-time policy');
+  const when = vm.runInContext("when", context);
+  assert.notEqual(when("2026-11-05T00:00:00Z"), when("2026-11-05T00:00:00Z", false, "UTC"), "Explicit UTC headings need UTC values");
+  app.state.health = null;
+  vm.runInContext("renderFeed()", context);
+  assert.ok(byId("feed-status").innerHTML.includes("dot-warn"), "Unknown feed state cannot use a positive dot");
   assert.equal(app.state.view, "overview");
   assert.equal(byId("v-overview").hidden, false);
   assert.equal(sandbox.document.documentElement.lang, "en", "Invalid saved language must fall back safely");
@@ -336,6 +346,11 @@ const click = async id => {
   assert.ok(marketHTML.includes("12,345,678,901,234,567,890.123456789012345678"), "Market rendering must retain decimal precision");
   assert.ok(!marketHTML.includes('<img src="x"'), "Venue display names must be escaped");
   assert.doesNotMatch(marketHTML, /\bopens\b/i, "Next rule change must not promise an opening");
+  byId('market-quality').value = 'healthy'; app.renderMarkets();
+  assert.ok(!byId('market-rows').innerHTML.includes('BTCUSDT'), 'Unqualified quotes must not pass the healthy filter');
+  byId('market-quality').value = 'stale'; app.renderMarkets();
+  assert.ok(byId('market-rows').innerHTML.includes('BTCUSDT'), 'Stale filtering must retain the observed market');
+  byId('market-quality').value = 'all';
   app.state.filter = "not-a-watched-pair";
   app.renderMarkets();
   assert.ok(!byId("market-catalogue").innerHTML.includes("BTCUSDT"), "Search must also filter the complete catalogue");
@@ -611,6 +626,14 @@ const click = async id => {
   assert.equal(app.state.selectedRun, "bbbbbbbbbbbbbbbb");
   assert.equal(app.state.record.run_id, "bbbbbbbbbbbbbbbb");
   assert.ok(requests.some(request => request.path === "/api/runs/bbbbbbbbbbbbbbbb"));
+  vm.runInContext('renderSavedComparison', context)(comparison.runs);
+  app.state.record = null;
+  assert.equal(app.state.savedComparison.length,2);
+  await click('language-toggle');
+  assert.ok(byId('run-detail').innerHTML.includes(app.T.fa.savedComparisonTitle), 'Saved comparison must follow language changes');
+  await click('language-toggle');
+  assert.ok(byId('run-detail').innerHTML.includes(app.T.en.savedComparisonTitle));
+  app.state.savedComparison = false;
 
   let resolveSetup;
   delayedSetup = new Promise(resolve => { resolveSetup = resolve; });

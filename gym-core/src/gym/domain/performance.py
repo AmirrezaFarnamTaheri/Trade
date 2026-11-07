@@ -75,12 +75,26 @@ def _ledger(orders, base):
         qty, price, fee = Decimal(order["qty"]), Decimal(order["price"]), Decimal(order["fee"])
         at = parse_ts(order["fill_time"])
         if order["side"] == "BUY":
-            received = qty - fee if order.get("fee_ccy", base) == base else qty
+            # Match the cash book's separate gross-credit and fee-debit postings.
+            balance = held + qty
+            if order.get("fee_ccy", base) == base:
+                balance -= fee
+            received = balance - held
             if received > 0:
                 lots.append([received, qty * price, at])
-                held, held_cost = held + received, held_cost + qty * price
+                held, held_cost = balance, held_cost + qty * price
+            elif lots:
+                lots[-1][1] += qty * price
+                held_cost += qty * price
             continue
+        if qty > held:
+            raise ValueError(f"sell {order.get('ref')} exceeds the quantity bought earlier")
         proceeds, left, cost, opened = qty * price - fee, qty, Decimal(0), None
+        if qty == held:
+            cost = sum((lot[1] for lot in lots), Decimal(0))
+            opened = lots[0][2] if lots else None
+            lots.clear()
+            left = Decimal(0)
         while left > 0 and lots:
             lot = lots[0]
             take = min(lot[0], left)

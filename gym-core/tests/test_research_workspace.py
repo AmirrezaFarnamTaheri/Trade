@@ -56,6 +56,26 @@ def test_decision_replay_separates_future_orders_and_preserves_actual_predecisio
         replay_decisions(tmp_path / "runs", {"run_id": out["run_id"], "offset": 0, "limit": 1}, store="demo")
 
 
+def test_campaign_progress_retains_failed_and_unreported_attempts_without_claiming_liveness(tmp_path, artifact):
+    _, out = artifact
+    with ExperimentRegistry(tmp_path, store="live") as registry:
+        definition = registry.append("EXPERIMENT", None, {"definition": {"hypothesis": "test recorded progress"}})
+        attempts = [registry.append("ATTEMPT", definition["id"], {"state": "RESULT_PENDING", "trial": i}) for i in range(3)]
+        registry.append("RESULT", definition["id"], {"attempt_id": attempts[0]["id"], "state": "COMPLETED",
+            "run_id": out["run_id"], "outputs_digest": out["outputs_digest"]})
+        registry.append("RESULT", definition["id"], {"attempt_id": attempts[1]["id"], "state": "FAILED", "reason": "NO_DATA"})
+    with ExperimentRegistry(tmp_path, store="demo") as registry:
+        registry.append("EXPERIMENT", None, {"definition": {"hypothesis": "different evidence store"}})
+        registry.append("RESULT", None, {"attempt_id": "demo", "state": "FAILED", "reason": "DEMO_ONLY"})
+    result = research_action(tmp_path, "campaign-status", {"limit": 10})
+    assert result["registered_attempts"] == 3 and result["completed"] == 1 and result["unreported_attempts"] == 1
+    assert result["terminal_states"]["FAILED"] == 1 and result["process_liveness"] == "UNKNOWN"
+    assert result["verified_sample"]["results_sampled"] == 2
+    assert result["verified_sample"]["rows"][1]["verification"] == "VERIFIED_NATIVE"
+    (tmp_path / "runs" / (out["run_id"] + ".json")).write_text("{}", "utf-8")
+    assert research_action(tmp_path, "campaign-status", {"limit": 10})["verified_sample"]["unavailable_runs"] == 1
+
+
 def portfolio():
     return {"quote_currency": "USDT", "cash": "10", "reserved_cash": "5", "fee_rate": "0.01", "positions": [
         {"symbol": "BTCUSDT", "held": "10", "reserved": "8", "target_weight": "0", "bid": "10", "ask": "11", "quantity_step": "1", "minimum_quote": "1"},

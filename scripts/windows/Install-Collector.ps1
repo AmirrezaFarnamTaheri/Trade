@@ -26,7 +26,7 @@ if ($Uninstall) {
 if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-core' }
 if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data' }
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
-$python = Join-Path $core '.venv\Scripts\python.exe'
+$python = Join-Path $core '.venv\Scripts\pythonw.exe'
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Install the gym-core environment with uv sync first.' }
 $data = [IO.Path]::GetFullPath($DataDirectory)
 $arguments = @('-I', '-B', '-m', 'gym.cli', '--data', "`"$data`"", 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments

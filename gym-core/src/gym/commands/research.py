@@ -50,7 +50,8 @@ def replay_cmd(args) -> int:
             from ..services.portfolio import portfolio
             options.pop("subscriptions")
             out = portfolio(db, symbols, start, end, strategy_id=args.strategy,
-                            params=json.loads(args.params) if args.params else None, **options)
+                            params=json.loads(args.params) if args.params else None,
+                            policy=json.loads(args.policy) if args.policy else None, **options)
             perf = out["performance"]
             print(f"PORTFOLIO {out['run_id']} · {', '.join(symbols)} · shared {out['result']['quote']} cash · PAPER ONLY")
             print(f"end equity {out['result']['end']['equity']}  net {out['result']['end']['net']}  "

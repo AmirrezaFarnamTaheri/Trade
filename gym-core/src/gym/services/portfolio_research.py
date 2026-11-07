@@ -9,7 +9,7 @@ from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, fields, instant
 from ..domain.sim import CostModel
 from .collector import now_utc
-from .portfolio import portfolio
+from .portfolio import MAX_MARKETS, portfolio
 
 
 def portfolio_action(root, action, value, *, store):
@@ -24,12 +24,14 @@ def portfolio_action(root, action, value, *, store):
         if out["inputs"].get("kind") != "portfolio" or out.get("mode") != "PORTFOLIO":
             raise ValueError("source is not a portfolio replay")
         return out
-    fields(value, "symbols from to resolution cash strategy params rules_mode cost")
+    required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
+    if type(value) is not dict or not required <= value.keys() or value.keys() - required - {"policy"}:
+        raise ValueError("invalid portfolio replay fields")
     symbols = value["symbols"]
-    if (type(symbols) is not list or not 2 <= len(symbols) <= 8
+    if (type(symbols) is not list or not 2 <= len(symbols) <= MAX_MARKETS
             or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
             or len(set(symbols)) != len(symbols)):
-        raise ValueError("a portfolio needs 2..8 distinct market symbols")
+        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct market symbols")
     start, end = instant(value["from"]), instant(value["to"])
     if not start < end <= now_utc() or end - start > timedelta(days=31):
         raise ValueError("portfolio window must be historical, positive and at most 31 days")
@@ -62,7 +64,8 @@ def portfolio_action(root, action, value, *, store):
         if any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + s,)).fetchone() for s in symbols):
             raise ValueError("portfolio requires observed markets")
         out = portfolio(db, symbols, start, end, resolution=value["resolution"], cash=cash, cost=cost,
-                        strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store)
+                        strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store,
+                        policy=value.get("policy"))
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))

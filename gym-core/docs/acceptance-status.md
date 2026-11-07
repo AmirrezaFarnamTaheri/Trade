@@ -8,7 +8,7 @@ in Git history and local qualification artifacts.
 | Gate | Current state | What is required |
 | --- | --- | --- |
 | Public research implementation | Delivered, with current regressions passing | Continue the explicit remaining functionality in the unified plan; implementation is not economic acceptance |
-| Portfolio correctness | Revision 3 fixes implemented and regression-tested | Preserve old records and qualify newly selected options on new data; no retroactive relabeling |
+| Portfolio correctness | Revision 4 accounting, target/risk policies, fill-time cash reservations and checkpoint reconstruction implemented and tested | Preserve frozen records; running-process restoration, physical-host qualification and prospective evidence remain open |
 | Continuous market collection | Supervised processes running; venue connectivity blocked | Restore actual api.wallex.ir reachability, refresh full eligible catalogue and verify fresh quotes/gaps per market |
 | Sustained prospective paper | Open | Multi-day future evidence with preregistered configuration, real clocks, no-data failures, fills and costs; downtime stays visible |
 | Strategy profitability | Not established | Independent chronological evaluation with costs and selection accounting; the completed compound study had no positive cases |

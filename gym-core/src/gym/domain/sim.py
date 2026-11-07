@@ -243,6 +243,8 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
             return {**out,"fill_time":iso(t),"reason":"NET_HOLDING_BELOW_EXIT_MINIMUM"}
     if side == "BUY":
         fee = qty * fee_rate
+        if (book.get(inst.base) + qty) - fee <= book.get(inst.base):
+            return {**out, "fill_time": iso(t), "reason": "NET_BASE_ROUNDS_TO_ZERO"}
         book.post(t, inst.quote, -notional, "buy", ref)
         book.post(t, inst.base, qty, "buy", ref)
         book.post(t, inst.base, -fee, "fee", ref)

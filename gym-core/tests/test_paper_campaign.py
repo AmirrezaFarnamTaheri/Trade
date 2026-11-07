@@ -32,7 +32,7 @@ def test_every_supported_spot_market_gets_identical_matrix_including_risky_and_u
         count = len(request["trials"]) * len(request["windows"]) * len(request["scenarios"])
         assert count <= 32
         attempts[request["symbol"]] += count
-    assert attempts == {"ADAUSDT": 448, "ETHTMN": 448, "1INCHUSDT": 448}
+    assert attempts == {"ADAUSDT": 496, "ETHTMN": 496, "1INCHUSDT": 496}
     assert Counter(case["symbol"] for case in prospective_cases(universe)) == {
         "ADAUSDT": 2, "ETHTMN": 2, "1INCHUSDT": 2}
     for market in universe[:3]:

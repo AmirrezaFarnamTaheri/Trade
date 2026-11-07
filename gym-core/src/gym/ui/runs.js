@@ -97,19 +97,19 @@ async function loadOverlay(data) {
   state.overlays.set(data.comparison_id, "");
   try {
     const records = await Promise.all(list(data.runs).map(record => api("/api/runs/" + encodeURIComponent(record.run_id))));
-    state.overlays.set(data.comparison_id, overlayFigure(records.map(record => ({ name: record.inputs.strategy, curve: record.result.curve }))));
+    state.overlays.set(data.comparison_id, overlayFigure(records.map(record => ({ name: `${record.inputs.strategy} · ${record.inputs.resolution} · ${record.run_id}`, curve: record.result.curve }))));
     if (state.comparison?.comparison_id === data.comparison_id && $("compare-overlay")) setHTML("compare-overlay", state.overlays.get(data.comparison_id));
   } catch (_) { state.overlays.delete(data.comparison_id); }
 }
 function renderSavedComparison(records) {
-  state.savedComparison = true;
+  state.savedComparison = records;
   const rows = records.map(record => { const perf = record.evidence?.performance || {}, r = perf.returns || {}, end = record.result?.end || {};
     return [`${code(record.inputs?.symbol)} <span class="sub">${esc(record.inputs?.strategy || "")}</span>`, `${esc(when(record.inputs?.from, true))} → ${esc(when(record.inputs?.to, true))}`,
       `<span class="${signed(end.net)}">${money(end.net)}</span> ${code(record.result?.quote)}`, pct(perf.total_return_pct), pct(perf.max_drawdown_pct, false),
       ratio(r.sharpe_per_period, 3), percent(r.probabilistic_sharpe), num(record.result?.fills),
       `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]; });
   setHTML("run-detail", `<section class="panel"><h2 class="panel-title">${esc(t("savedComparisonTitle"))}</h2><p class="field-help">${esc(t("savedComparisonNote"))}</p>
-    ${overlayFigure(records.map(record => ({ name: `${record.inputs?.symbol} · ${record.inputs?.strategy}`, curve: record.result?.curve })))}
+    ${overlayFigure(records.map(record => ({ name: `${record.inputs?.symbol} · ${record.inputs?.strategy} · ${record.run_id}`, curve: record.result?.curve })))}
     ${table([t("strategy"), t("window"), t("net"), t("totalReturn"), t("maxDrawdown"), t("sharpePeriod"), t("psr"), t("fills"), t("inspectRun")], rows, "", [2, 3, 4, 5, 6, 7])}</section>`);
 }
 // Spreadsheet cells that start with =, +, - or @ run as formulas; quote them unless they are plain numbers.
@@ -134,5 +134,5 @@ function exportCsv(kind, record) {
 function renderRunList() {
   $("compare-picked").hidden = state.pickedRuns.size < 2;
   $("compare-picked").textContent = `${t("comparePicked")} · ${digits(state.pickedRuns.size)}`;
-  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(when(run.inputs?.from, true))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
+  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(run.inputs?.strategy || "")} · ${code(run.inputs?.resolution)}</span><span>${esc(when(run.inputs?.from))} → ${esc(when(run.inputs?.to))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
 }

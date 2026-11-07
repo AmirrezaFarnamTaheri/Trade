@@ -2,8 +2,11 @@
 import re
 
 from .bars import FIXED_RESOLUTIONS
+from .channel_strategies import CompressionBreakout, DonchianBreakout
 from .compound_strategies import PARAMETERS as COMPOUND_PARAMETERS
 from .compound_strategies import AdaptiveChannel, TrendPullback
+from .exit_policy import EXIT_PARAMETERS, ExitPolicy
+from .regime import REGIME_GATE, RegimeGate
 from .strategy import (
     BollingerReversion,
     ConfirmedTrend,
@@ -48,12 +51,19 @@ STRATEGIES = {
                                        ("trix-cross", TrixCross, "TRIX crossover"), ("keltner-breakout", KeltnerBreakout, "Keltner breakout"))},
     "trend-pullback": (TrendPullback, "Cost-aware trend pullback", COMPOUND_PARAMETERS),
     "adaptive-channel": (AdaptiveChannel, "Regime-adaptive channel", COMPOUND_PARAMETERS),
+    **{constructor.name: (constructor, title, {
+        "lookback": {"type": "integer", "default": 20, "minimum": 2, "maximum": 500},
+        "exit_lookback": {"type": "integer", "default": 10, "minimum": 2, "maximum": 500},
+        "compression_bps": {"type": "integer", "default": compression, "minimum": 0, "maximum": 10000},
+        "regime": {"type": "string", "default": "ANY", "enum": ["ANY", "UP_TREND", "RANGE"]},
+    }) for constructor, title, compression in ((DonchianBreakout, "Prior Donchian breakout", 0),
+                                               (CompressionBreakout, "Prior compression breakout", 100))},
 }
 
 
 def catalog():
     return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
-             "parameters": {"type": "object", "properties": properties, "additionalProperties": False},
+             "parameters": {"type": "object", "properties": {**properties, "regime_gate": REGIME_GATE, **EXIT_PARAMETERS}, "additionalProperties": False},
              "constraints": ["fast < slow"] if "fast" in properties else []}
             for name, (constructor, title, properties) in STRATEGIES.items()]
 
@@ -64,6 +74,19 @@ def create_strategy(name="ema-trend", params=None):
     constructor, _, properties = STRATEGIES[name]
     if params is None:
         params = {}
+    if not isinstance(params, dict):
+        raise ValueError("unsupported strategy parameters")
+    params = dict(params)
+    gate = params.pop("regime_gate", "ANY")
+    if gate not in REGIME_GATE["enum"]:
+        raise ValueError("invalid strategy parameter: regime_gate")
+    exits = {}
+    for key, spec in EXIT_PARAMETERS.items():
+        value = params.pop(key, 0)
+        if type(value) is not int or not 0 <= value <= spec["maximum"]:
+            raise ValueError("invalid strategy parameter: " + key)
+        if value:
+            exits[key] = value
     if not isinstance(params, dict) or params.keys() - properties.keys():
         raise ValueError("unsupported strategy parameters")
     values = {key: params.get(key, spec["default"]) for key, spec in properties.items()}
@@ -77,5 +100,9 @@ def create_strategy(name="ema-trend", params=None):
             raise ValueError(f"invalid strategy parameter: {key}")
     strategy = constructor(**values)
     strategy.version = getattr(strategy,"version",1)
+    if gate != "ANY":
+        strategy = RegimeGate(strategy, gate)
+    if exits:
+        strategy = ExitPolicy(strategy, exits)
     strategy.config_hash = digest({"strategy": name, "version": strategy.version, "params": strategy.params})
     return strategy

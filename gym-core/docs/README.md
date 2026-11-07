@@ -8,6 +8,7 @@ and the [implementation plan](implementation-plan.md).
 - [Install and run](../README.md)
 - [Supported capabilities](capabilities.md)
 - [Architecture and GUI coverage](architecture.md)
+- [Interface review and refinement priorities](interface-review.md)
 - [Research design](research-design.md)
 - [Research workspace contracts](research-workspace.md)
 - [Performance metrics](metrics.md)

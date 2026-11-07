@@ -16,6 +16,8 @@ test('chart preserves gaps, flat prices, escaped labels and excludes future deci
   assert.ok(!html.includes('NaN') && !html.includes('Infinity'));
   assert.ok(html.includes('role="button"') && html.includes('aria-current="step"'));
   assert.ok(!html.includes('data-replay-index="3"'));
+  assert.ok(!html.includes('<text '), 'Axis labels must remain HTML text rather than shrinking inside SVG');
+  assert.ok(html.includes('replay-target') && html.includes('<rect '), 'Replay points need a larger transparent pointer target');
 });
 
 test('empty and non-finite prices do not manufacture chart values', () => {

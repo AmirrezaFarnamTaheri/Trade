@@ -6,7 +6,7 @@ from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from ..adapters.run_store import save_run
+from ..adapters.run_store import load_verified_run, save_run
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, instant, rate
 from ..domain.model import iso
@@ -87,10 +87,57 @@ class ExperimentRegistry:
             "SELECT id FROM events WHERE kind='EXPERIMENT' AND json_extract(body,'$.store')=? ORDER BY seq DESC LIMIT 50", (self.store,))],
             "funded_authority": False, "independent_custody": False}
 
+    def progress(self, request):
+        fields(request, "limit")
+        limit = request["limit"]
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("progress sample limit must be 1..100")
+        self.conn.execute("BEGIN")
+        try:
+            through = self.conn.execute("SELECT COALESCE(MAX(seq),0) FROM events WHERE json_extract(body,'$.store')=?", (self.store,)).fetchone()[0]
+            counts = dict(self.conn.execute("SELECT kind,COUNT(*) FROM events WHERE seq<=? AND json_extract(body,'$.store')=? GROUP BY kind", (through, self.store)))
+            states = dict(self.conn.execute("""WITH latest AS (
+                SELECT MAX(seq) AS seq FROM events WHERE kind='RESULT' AND seq<=? AND json_extract(body,'$.store')=?
+                GROUP BY json_extract(body,'$.attempt_id'))
+                SELECT json_extract(e.body,'$.state'),COUNT(*) FROM events e JOIN latest l ON e.seq=l.seq
+                GROUP BY json_extract(e.body,'$.state')""", (through, self.store)))
+            rows = self.conn.execute("SELECT id,body FROM events WHERE kind='RESULT' AND seq<=? AND json_extract(body,'$.store')=? ORDER BY seq DESC LIMIT ?", (through, self.store, limit)).fetchall()
+            samples, ready, traded, unavailable = [], 0, 0, 0
+            for key, encoded in rows:
+                receipt = self.read_record(key, encoded)
+                run_id = receipt.get("run_id")
+                row = {"attempt_id": receipt["attempt_id"], "state": receipt["state"], "run_id": run_id, "reason": receipt.get("reason")}
+                if run_id:
+                    try:
+                        out = load_verified_run(self.root / "runs", run_id, store=self.store)
+                        if out["outputs_digest"] != receipt.get("outputs_digest"):
+                            raise ValueError("result receipt and saved run differ")
+                        result = out["result"]
+                        is_ready = result.get("session", {}).get("running_at") is not None
+                        fills = result.get("fills", 0)
+                        row.update(verification="VERIFIED_NATIVE", symbol=out["inputs"]["symbol"], strategy=out["inputs"]["strategy"],
+                                   ready=is_ready, fills=fills, net_quote=result.get("end", {}).get("net"), quote=result.get("quote"))
+                        ready += is_ready
+                        traded += fills > 0
+                    except (ValueError, OSError):
+                        row["verification"] = "UNAVAILABLE_OR_CHANGED"
+                        unavailable += 1
+                samples.append(row)
+            at = self.conn.execute("SELECT json_extract(body,'$.recorded_at') FROM events WHERE seq=?", (through,)).fetchone()
+            return {"schema": "campaign-progress/1", "store": self.store, "as_of": iso(now_utc()), "through": through,
+                    "last_recorded_progress": at[0] if at else None, "defined_experiments": counts.get("EXPERIMENT", 0),
+                    "registered_attempts": counts.get("ATTEMPT", 0), "terminal_states": states,
+                    "completed": states.get("COMPLETED", 0), "unreported_attempts": max(0, counts.get("ATTEMPT", 0) - sum(states.values())),
+                    "verified_sample": {"results_sampled": len(samples), "ready_runs": ready, "traded_runs": traded, "unavailable_runs": unavailable, "rows": samples},
+                    "process_liveness": "UNKNOWN", "funded_authority": False,
+                    "scope": "Journal-wide counts retain repeated trials and failures. Readiness/trades are verified only for the bounded newest result sample, not extrapolated to the campaign. Saved RUNNING/progress timestamps do not prove a process is alive. External/frozen campaign definitions not registered here are outside these counts."}
+        finally:
+            self.conn.rollback()
+
     def page(self, request):
         fields(request, "kind parent after through limit")
         kind, parent = request["kind"], request["parent"]
-        if kind not in (None, "EXPERIMENT", "ATTEMPT", "RESULT", "SELECTION", "WALK_FORWARD_REPORT", "EVIDENCE_PACKET", "RESEARCH_NOTES", "REPLAY_ANNOTATION", "REPLAY_CHECKPOINT"):
+        if kind not in (None, "EXPERIMENT", "ATTEMPT", "RESULT", "SELECTION", "WALK_FORWARD_REPORT", "EVIDENCE_PACKET", "RESEARCH_NOTES", "REPLAY_ANNOTATION", "REPLAY_CHECKPOINT", "PORTFOLIO_CHECKPOINT"):
             raise ValueError("invalid registry event kind")
         if parent is not None and (type(parent) is not str or not 1 <= len(parent) <= 160):
             raise ValueError("invalid registry parent")

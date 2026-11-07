@@ -1,18 +1,24 @@
 "use strict";
 // Native comparison setup, coverage and scheduled paper controls.
-function renderCandidate(slot) {
-  const entry = list(state.researchSetup?.strategies).find(item => item.id === $("candidate-" + slot).value);
-  if (!entry) return;
+function strategyFields(entry, prefix, values = {}, slot = '') {
   const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference", deviations: "parameterDeviations",
     risk_bps: "parameterRisk", allocation_bps: "parameterAllocation", max_spread_bps: "parameterMaxSpread", participation_bps: "parameterParticipation", stop_atr: "parameterStopAtr", reward_risk: "parameterRewardRisk", cooldown_bars: "parameterCooldown", max_holding_bars: "parameterMaxHolding", max_drawdown_bps: "parameterMaxDrawdown" };
-  const values = state.candidateParams[slot] || {};
-  setHTML("candidate-" + slot + "-params", Object.entries(entry.parameters.properties).map(([key, spec]) => {
-    const id = `parameter-${slot}-${key}`, value = values[key] ?? spec.default;
+  const fields = Object.entries(entry.parameters.properties).map(([key, spec]) => {
+    const id = `${prefix}-${key}`, value = values[key] ?? spec.default;
     const attrs = `id="${id}" data-slot="${slot}" data-parameter="${esc(key)}" required dir="ltr"`;
     const input = spec.enum ? `<select ${attrs}>${spec.enum.map(option => `<option${option === value ? " selected" : ""}>${esc(option)}</option>`).join("")}</select>`
       : `<input class="input" ${attrs} type="${spec.type === "integer" ? "number" : "text"}" value="${esc(value)}" ${spec.type === "integer" ? `min="${spec.minimum}" max="${spec.maximum}" step="1"` : `pattern="[A-Z0-9]{2,24}" maxlength="24"`}>`;
-    return `<label for="${id}"><span>${esc(t(names[key] || key))}</span>${input}</label>`;
-  }).join("") + (["trend-pullback", "adaptive-channel"].includes(entry.id) ? `<p class="field-help">${esc(t("compoundRiskNote"))}</p>` : ""));
+    return {key, html: `<label for="${id}"><span>${esc(t(names[key] || key))}</span>${input}</label>`};
+  });
+  const shared = field => field.key === 'regime_gate' || field.key.startsWith('exit_') && field.key !== 'exit_lookback';
+  return fields.filter(field => !shared(field)).map(field => field.html).join('') +
+    `<details class="disclosure"><summary>${esc(t('sharedStrategyControls'))}</summary><div class="ticket-fields">${fields.filter(shared).map(field => field.html).join('')}</div><p class="field-help">${esc(t('sharedStrategyControlsNote'))}</p></details>` +
+    (["trend-pullback", "adaptive-channel"].includes(entry.id) ? `<p class="field-help">${esc(t("compoundRiskNote"))}</p>` : "");
+}
+function renderCandidate(slot) {
+  const entry = list(state.researchSetup?.strategies).find(item => item.id === $("candidate-" + slot).value);
+  if (!entry) return;
+  setHTML("candidate-" + slot + "-params", strategyFields(entry, `parameter-${slot}`, state.candidateParams[slot] || {}, slot));
 }
 function renderCoverage() {
   const data = state.researchSetup?.coverage;

@@ -32,6 +32,8 @@ window.gymResearch = (() => {
     'research-notes': ['Validate and save analyst notes', 'بررسی و ذخیره یادداشت تحلیلگر', 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status']);
+  actions['market-products'] = ['Inspect observed market products and credit grids', 'بررسی محصولات بازار و گام اعتبار', 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
+  actions['campaign-status'] = ['Inspect campaign progress and verified samples', 'پیشرفت مطالعه و نمونه‌های بررسی‌شده', 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
   actions['walk-forward'] = ['Expanding walk-forward search', 'جست‌وجوی پیش‌رونده با آموزش افزایشی', 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
   actions['execution-calibration'] = ['Inspect execution assumption evidence', 'بررسی شواهد فرض‌های اجرا', 'symbol (null for all markets), from, to, max_age_seconds; public feed timing only, no automatic cost defaults'];
   actions['robustness'] = ['Inspect selection and path robustness', 'بررسی پایداری انتخاب و مسیر', 'run_ids, partitions (4/6/8/10), seed, simulations, mean_block_length, max_gap_seconds; comparable verified historical runs only'];
@@ -66,6 +68,16 @@ window.gymResearch = (() => {
     workspace(api, esc, fa);
     $('research-workbench').innerHTML = `<h2>${fa ? 'کارگاه پیشرفتهٔ پژوهش' : 'Advanced research workbench'}</h2><p class="field-help">${fa ? 'ورودی‌های محلی و نتایج آزمایشی؛ هیچ سفارشی ارسال نمی‌شود. ارزیابی آینده فقط یک‌بار مصرف می‌شود، حتی اگر اجرا شکست بخورد.' : 'Local inputs and paper results. No orders are sent. A future evaluation is consumed once, including when execution fails.'}</p><form id="research-action-form"><label for="research-action">${fa ? 'عملیات' : 'Workflow'}</label><select id="research-action">${Object.entries(actions).map(([id, labels]) => `<option value="${id}">${esc(labels[fa ? 1 : 0])}</option>`).join('')}</select><label for="research-action-input">${fa ? 'ورودی JSON یا شناسه' : 'Input JSON or saved ID'}</label><textarea id="research-action-input" rows="5" dir="ltr" spellcheck="false" aria-describedby="research-action-fields"></textarea><p id="research-action-fields" class="field-help" dir="ltr"></p><button class="button" type="submit">${fa ? 'اجرای عملیات' : 'Run workflow'}</button></form><p id="research-action-status" role="status"></p><pre id="research-action-result" class="output" dir="ltr"></pre>`;
     $('research-action-input').className = 'input code';
+    const groups = [
+      ['Schedules and recovery', 'زمان‌بندی و بازیابی', /^(schedule|job-|campaign-status$|list$)/],
+      ['Experiments and replay', 'آزمایش‌ها و بازپخش', /^(register$|review$|experiment-|registry-|annotation-|replay)/],
+      ['Markets and observations', 'بازارها و مشاهدات', /^(technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-|news-)/],
+      ['Research evidence and evaluation', 'شواهد پژوهش و ارزیابی', /^(research-|claim-check$|outcome|final-)/],
+      ['Account and execution diagnostics', 'حساب و تشخیص اجرا', /./],
+    ];
+    $('research-action').innerHTML = groups.map(([en, persian], index) => `<optgroup label="${esc(fa ? persian : en)}">${Object.entries(actions)
+      .filter(([id]) => groups.findIndex(group => group[2].test(id)) === index)
+      .map(([id, labels]) => `<option value="${id}">${esc(labels[fa ? 1 : 0])}</option>`).join('')}</optgroup>`).join('');
     function update() {
       const action = $('research-action').value;
       $('research-action-fields').textContent = actions[action][2];
@@ -76,7 +88,7 @@ window.gymResearch = (() => {
     $('research-action-form').onsubmit = async event => {
       event.preventDefault();
       const submit = event.target.querySelector('button'); submit.disabled = true;
-      $('research-action-status').textContent = '';
+      $('research-action-status').textContent = fa ? 'در حال اجرا…' : 'Working…';
       $('research-action-result').textContent = '';
       try {
         const action = $('research-action').value;
@@ -84,6 +96,7 @@ window.gymResearch = (() => {
         const value = !actions[action][2] ? null : idActions.has(action) ? input.trim() : JSON.parse(input);
         const result = await api('/api/research/action', { method: 'POST', body: JSON.stringify({ action, value }) }, 130000);
         $('research-action-result').textContent = JSON.stringify(result, null, 2);
+        $('research-action-status').textContent = fa ? 'درخواست انجام شد.' : 'Request completed.';
         if (action === 'research-packet') {
           $('research-packet-prompt').value = result.prompt;
           $('research-packet-id').textContent = result.packet.id;
@@ -125,8 +138,8 @@ window.gymResearch = (() => {
       <p id="research-workspace-status" role="status"></p>`;
     const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     async function act(button, fn) {
-      button.disabled = true; $('research-workspace-status').textContent = '';
-      try { await fn(); }
+      button.disabled = true; $('research-workspace-status').textContent = text('Working…', 'در حال اجرا…');
+      try { await fn(); if ($('research-workspace-status').textContent === text('Working…', 'در حال اجرا…')) $('research-workspace-status').textContent = text('Request completed.', 'درخواست انجام شد.'); }
       catch { $('research-workspace-status').textContent = text('Request failed. Refresh the saved state before retrying a mutation.', 'درخواست ناموفق بود. پیش از تکرار، وضعیت ذخیره‌شده را بازخوانی کنید.'); }
       finally { button.disabled = button.id === 'replay-previous' ? offset === 0 : button.id === 'replay-next' ? offset + 1 >= total : false; }
     }

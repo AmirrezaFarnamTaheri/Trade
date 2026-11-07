@@ -1,8 +1,8 @@
 """Shared-cash paper portfolio: one strategy over several markets of one quote currency.
 
 Each market keeps its own session (bars, decisions, rules, quotas), but all of them post to one CashBook,
-so an entry in one market leaves less cash for the others. Every entry is sized to an equal target weight
-of current portfolio equity. Quotes from all markets are fed in availability order.
+so an entry in one market leaves less cash for the others. The selected allocation policy sizes entries
+against current portfolio equity. Quotes from all markets are fed in availability order.
 """
 import heapq
 from dataclasses import asdict
@@ -13,6 +13,7 @@ from ..adapters.store import MarketDB
 from ..domain.bars import qualified
 from ..domain.model import iso
 from ..domain.performance import performance, trade_ledger
+from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
 from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
@@ -21,24 +22,26 @@ from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
 MAX_OBSERVATIONS = 200_000
+MAX_MARKETS = 500
 
 
 def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, resolution: str = "15min",
               cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), strategy_id: str = "ema-trend",
-              params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live") -> dict:
+              params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
+              checkpoint: dict | None = None) -> dict:
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
     db.c.execute("BEGIN")
     try:
         return _portfolio(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost,
-                          strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store)
+                          strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint)
     finally:
         db.c.rollback()
 
 
-def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store):
-    if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= 8:
-        raise ValueError("a portfolio needs 2..8 distinct markets")
+def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint):
+    if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
+        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
     placeholders = ",".join("?" for _ in symbols)
@@ -68,43 +71,153 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     quote = quotes.pop()
     book = CashBook({quote: cash})
     marks: dict[str, Decimal] = {}
-    weight = Decimal(1) / len(symbols)
+    mark_times = {}
+    controller = PortfolioPolicy({} if policy is None else policy, symbols)
+    weights = controller.weights({})
+    reserved, histories, policy_events = {}, {s: [] for s in symbols}, []
+    rebalance_pending = set()
+    next_rebalance, risk_state = t0, None
 
     def equity():
         return book.get(quote) + sum((book.get(instruments[s].base) * bid for s, bid in marks.items()), Decimal(0))
 
-    def allocate(fraction):
-        available = book.get(quote)
-        if available <= 0:
+    def valuation_state(at):
+        return "STALE_VALUATION" if any(book.get(instruments[s].base) > 0 and
+            (s not in mark_times or at - mark_times[s] > timedelta(seconds=120)) for s in symbols) else "CURRENT"
+
+    def allocate(symbol, fraction):
+        available = max(Decimal(0), book.get(quote) - sum(reserved.values(), Decimal(0)) - equity() * controller.rates["cash_buffer"])
+        if available <= 0 or risk_state or weights["status"] != "READY":
             return Decimal(0)
-        return min(Decimal(1), equity() * weight * fraction / available).quantize(Decimal("0.000001"), ROUND_DOWN)
+        held = book.get(instruments[symbol].base) * marks.get(symbol, Decimal(0))
+        target = max(Decimal(0), equity() * Decimal(weights["weights"][symbol]) - held)
+        budget = min(available, target * fraction)
+        fraction = min(Decimal(1), budget / book.get(quote)).quantize(Decimal("0.000001"), ROUND_DOWN)
+        reserved[symbol] = book.get(quote) * fraction
+        if policy is not None:
+            policy_events.append({"at": iso(controller.previous_at), "kind": "RESERVE", "symbol": symbol,
+                                  "budget_quote": str(reserved[symbol]), "cash_quote": str(book.get(quote)),
+                                  "reserved_quote": str(sum(reserved.values(), Decimal(0)))})
+        return fraction
+
+    def risk(at):
+        nonlocal risk_state
+        state = ("DRAWDOWN" if controller.drawdown_latched else "DAILY_LOSS" if controller.daily_latched else "STALE_VALUATION") if valuation_state(at) != "CURRENT" else controller.observe(at, equity())
+        if state != risk_state:
+            risk_state = state
+            policy_events.append({"at": iso(at), "kind": "RISK", "state": state, "equity": str(equity()),
+                                  "reserved_quote": str(sum(reserved.values(), Decimal(0)))})
+        if state:
+            for s, session in sessions.items():
+                if session.pending and session.pending.record["side"] == "BUY":
+                    session.pending.record.update(status="CANCELLED", reason="PORTFOLIO_" + state)
+                    session.pending = None
+                    reserved.pop(s, None)
+
+    def filter_decision(symbol, action, fraction, reasons):
+        if risk_state in ("DRAWDOWN", "DAILY_LOSS"):
+            if book.get(instruments[symbol].base) > 0:
+                return "SELL_REQUEST", Decimal(1), ("PORTFOLIO_" + risk_state,)
+            return "ABSTAIN_PORTFOLIO_RISK", Decimal(0), ("PORTFOLIO_" + risk_state,)
+        if risk_state and action == "BUY_REQUEST":
+            return "ABSTAIN_PORTFOLIO_RISK", Decimal(0), (risk_state,)
+        if action == "SELL_REQUEST":
+            return action, fraction, reasons
+        if (controller.description["rebalance"] and weights["status"] == "READY" and symbol in rebalance_pending
+                and not risk_state and action in ("HOLD", "BUY_REQUEST", "SELL_REQUEST")):
+            rebalance_pending.discard(symbol)
+            held = book.get(instruments[symbol].base) * marks.get(symbol, Decimal(0))
+            target = equity() * Decimal(weights["weights"][symbol])
+            delta = target - held
+            if equity() > 0 and abs(delta) > equity() * controller.rates["rebalance_threshold"]:
+                if delta > 0 and action != "BUY_REQUEST":
+                    strategy = sessions[symbol].strategy
+                    if held <= 0 or not getattr(strategy, "entry_allowed", True) or getattr(strategy, "execution_limits", None) is not None:
+                        return action, fraction, reasons
+                return ("BUY_REQUEST", Decimal(1), ("PORTFOLIO_REBALANCE",)) if delta > 0 else ("SELL_REQUEST", min(Decimal(1), -delta / held), ("PORTFOLIO_REBALANCE",))
+        return action, fraction, reasons
 
     sessions, tops = {}, {}
     for s in symbols:
         strategy = create_strategy(strategy_id, params)
         session = PaperSession(portal, rules_for, strategy, s, t0, resolution, cash, cost)
-        session.book, session.allocation = book, allocate
+        session.book = book
+        session.allocation = lambda fraction, symbol=s: allocate(symbol, fraction)
+        session.decision_filter = lambda action, fraction, reasons, symbol=s: filter_decision(symbol, action, fraction, reasons)
         sessions[s], tops[s] = session, portal.tops(s, t0, t1)
+    if checkpoint is not None and (type(checkpoint.get("quote_count")) is not int or
+            not 1 <= checkpoint["quote_count"] <= sum(len(rows) for rows in tops.values())):
+        raise ValueError("portfolio checkpoint cursor exceeds observed quotes")
     curve = []
 
     def close_through(at):
+        nonlocal weights, next_rebalance
         # Close every market before revealing any later quote or settling its fills.
         while ends := [s.consolidator.cur["end"] for s in sessions.values()
                        if s.consolidator.cur and s.consolidator.cur["end"] <= at]:
             close = min(ends)
+            risk(close)
             for session in sessions.values():
                 session.scan(close)
+            for s, session in sessions.items():
+                if session.decisions and session.decisions[-1]["t"] == iso(close):
+                    if histories[s] and close - histories[s][-1][0] != session.bar_spec.step:
+                        histories[s].clear()
+                        if controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None:
+                            weights = {"status": "WARMING_UP", "weights": {symbol: "0" for symbol in symbols}, "risk_contribution_error": None}
+                            next_rebalance = close
+                            rebalance_pending.clear()
+                    histories[s].append((close, Decimal(session.decisions[-1]["close"])))
+                    histories[s] = histories[s][-(controller.description["lookback"] + 1):]
+                if session.pending is None or session.pending.record["side"] != "BUY":
+                    reserved.pop(s, None)
+            if close >= next_rebalance:
+                weights = controller.weights(histories)
+                if weights["status"] == "READY" and controller.description["rebalance"]:
+                    rebalance_pending.update(symbols)
+                else:
+                    rebalance_pending.clear()
+                next_rebalance = close + timedelta(seconds=controller.description["rebalance_seconds"])
+                if policy is not None:
+                    policy_events.append({"at": iso(close), "kind": "TARGETS", **weights,
+                                          "reserved_quote": str(sum(reserved.values(), Decimal(0)))})
             curve.append((iso(close), str(equity())))
 
-    for _, _, symbol, top in heapq.merge(*([(x.ts_avail, i, s, x) for i, x in enumerate(tops[s])] for s in symbols)):
+    prefix = [] if checkpoint is not None else None
+    for index, (_, _, symbol, top) in enumerate(heapq.merge(*([(x.ts_avail, i, s, x) for i, x in enumerate(tops[s])] for s in symbols)), 1):
         close_through(top.ts_avail)
-        reopenings = len(sessions[symbol].reopenings)
-        sessions[symbol].feed(top)
         if qualified(top):
             marks[symbol] = top.bid
+            mark_times[symbol] = top.ts_avail
+        risk(top.ts_avail)
+        session = sessions[symbol]
+        if session.pending and session.pending.record["side"] == "BUY" and symbol in reserved:
+            other_reserved = sum((value for s, value in reserved.items() if s != symbol), Decimal(0))
+            capacity = max(Decimal(0), book.get(quote) - other_reserved - equity() * controller.rates["cash_buffer"])
+            session.pending.fraction = min(Decimal(1), min(reserved[symbol], capacity) / book.get(quote)) if book.get(quote) > 0 else Decimal(0)
+        previous_cash = book.get(quote)
+        reopenings = len(sessions[symbol].reopenings)
+        sessions[symbol].feed(top)
+        if symbol in reserved:
+            reserved[symbol] = max(Decimal(0), reserved[symbol] - max(Decimal(0), previous_cash - book.get(quote)))
+            if session.pending is None:
+                reserved.pop(symbol, None)
         if len(sessions[symbol].reopenings) > reopenings:
             curve.append((iso(top.ts_avail), str(equity())))
+        if checkpoint is not None and index <= checkpoint["quote_count"]:
+            prefix.append((symbol, iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), top.depth))
+            if index == checkpoint["quote_count"]:
+                checkpoint.update(cursor=iso(top.ts_avail), prefix_digest=digest(prefix),
+                    pending_orders={s: session.pending.record["ref"] for s, session in sessions.items() if session.pending},
+                    state_digest=digest({"book": book, "reserved": reserved, "histories": histories, "weights": weights,
+                        "risk": risk_state, "policy": vars(controller), "rebalance_pending": sorted(rebalance_pending),
+                        "next_rebalance": next_rebalance, "marks": marks, "mark_times": mark_times, "curve": curve,
+                        "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
+                            "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
+                            "bar_events": session.bar_events, "rules": session.rule_snapshots, "limit_trades": session.limit_trades}
+                            for s, session in sessions.items()}}))
     close_through(t1)
+    risk(t1)
     for session in sessions.values():
         session.finish(t1)
     if not marks:
@@ -124,7 +237,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
 
     valuation = curve_valuation(quote, curve, t0, t1, fx_tops, rules_for)
     first_fx, last_fx = valuation["start"], valuation["end"]
-    inputs = {"engine": ENGINE_VERSION, "kind": "portfolio", "portfolio_version": 3,
+    inputs = {"engine": ENGINE_VERSION, "kind": "portfolio", "portfolio_version": 4,
               "symbols": symbols, "from": iso(t0), "to": iso(t1),
               "resolution": resolution, "strategy": strategy_id, "params": sessions[symbols[0]].strategy.params,
               "strategy_version": sessions[symbols[0]].strategy.version,
@@ -138,17 +251,27 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                                                *((x.depth,) if cost.walk_depth else ())) for x in tops[s]],
                                   "limit_trades": sessions[s].limit_trades if cost.order_type == "limit" else []}
                               for s in symbols})}
+    if policy is not None:
+        inputs["policy"] = controller.description
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
         ledger = trade_ledger(orders, instruments[s].base)
         markets[s] = {"fills": sum(o["status"] == "FILLED" for o in orders), "orders": orders,
+                      "observations": len(tops[s]), "qualified": sum(qualified(top) for top in tops[s]),
+                      "running_at": iso(session.running_at), "session_state": session.state,
                       "closed_trades": len(ledger["trades"]), "realized_pnl": str(sum((Decimal(t["pnl"]) for t in ledger["trades"]), Decimal(0))),
-                      "holding": str(book.get(instruments[s].base)), "last_bid": str(marks.get(s)) if s in marks else None}
+                      "holding": str(book.get(instruments[s].base)), "last_bid": str(marks.get(s)) if s in marks else None,
+                      "mark_time": iso(mark_times.get(s)), "mark_age_seconds": (t1 - mark_times[s]).total_seconds() if s in mark_times else None,
+                      "mark_status": "UNAVAILABLE" if s not in mark_times else "STALE" if t1 - mark_times[s] > timedelta(seconds=120) else "CURRENT"}
     result = {"quote": quote, "start_cash": str(cash), "curve": curve, "orders": [], "markets": markets,
               "valuation": valuation,
               "balances": {k: str(v) for k, v in book.balances.items()},
-              "end": {"mark_time": iso(t1), "equity": str(end_equity), "net": str(end_equity - cash)}}
+              "end": {"mark_time": iso(t1), "equity": str(end_equity), "net": str(end_equity - cash), "valuation_status": valuation_state(t1)}}
+    if policy is not None:
+        result["policy_events"] = policy_events
+        result["policy_state"] = {"risk": risk_state, "weights": weights, "clock": "Asia/Tehran",
+                                  "scope": "Targets use prior closed returns. Optional rebalancing adjusts at subsequent decisions through normal fill/rule/cost checks; it does not assume unsettled sale proceeds. Risk exits use the next decision and executable quote. Limits can overshoot across gaps, fees or closures."}
     result["end"]["net_usdt_eq"] = (str(end_equity - cash) if quote == "USDT" else
         str((end_equity / Decimal(last_fx["rate"]) - cash / Decimal(first_fx["rate"])).quantize(Decimal("0.0001")))
         if first_fx["rate"] and last_fx["rate"] else None)

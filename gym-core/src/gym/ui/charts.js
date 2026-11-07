@@ -7,7 +7,7 @@ const tick = value => new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en-GB", M
 const chartData = new Map();  // chart id -> points with x in viewBox units, for the read-out
 let chartCount = 0;
 function chartPoints(curve) {
-  return list(curve).filter(point => Array.isArray(point) && point.length > 1 && Number.isFinite(Number(point[1])))
+  return list(curve).filter(point => Array.isArray(point) && point.length > 1 && point[1] != null && point[1] !== "" && Number.isFinite(Number(point[1])) && Number.isFinite(Date.parse(point[0])))
     .map(point => ({ t: point[0], ms: Date.parse(point[0]), raw: String(point[1]), v: Number(point[1]) }));
 }
 function placeX(points, first, last) {
@@ -23,9 +23,10 @@ function curveFigure(result) {
   placeX(points, first, last);
   const y = value => hi === lo ? 88 : 6 + (hi - value) * 164 / (hi - lo);
   const coordinates = polyline(points, y);
-  const id = `chart-${++chartCount}`;
-  if (chartData.size > 40) chartData.delete(chartData.keys().next().value);  // re-renders replace earlier charts
-  chartData.set(id, { points, quote: result.quote || "" });
+  const key = JSON.stringify([result.quote || "", points.map(point => [point.t, point.raw])]);
+  const id = [...chartData].find(([, data]) => data.key === key)?.[0] || `chart-${++chartCount}`;
+  if (!chartData.has(id) && chartData.size >= 40) chartData.delete(chartData.keys().next().value);
+  chartData.set(id, { key, points, quote: result.quote || "" });
   // Underwater: distance below the running peak, so the depth and length of each loss are visible.
   let peak = -Infinity;
   const under = points.map(point => { peak = Math.max(peak, point.v); return { ...point, v: peak > 0 ? point.v / peak - 1 : 0 }; });
@@ -57,11 +58,18 @@ function overlayFigure(series) {
   const lo = Math.min(0, ...all.map(p => p.v)), hi = Math.max(0, ...all.map(p => p.v));
   const y = value => 6 + (hi - value) * 164 / (hi - lo || 1);
   for (const item of usable) placeX(item.points, first, last);
+  const points = [...new Set(all.map(point => point.ms))].sort((a, b) => a - b).map(ms => ({ms, t: new Date(ms).toISOString()}));
+  placeX(points, first, last);
+  const key = JSON.stringify(usable.map(item => [item.name, item.points.map(point => [point.t, point.raw])]));
+  const id = [...chartData].find(([, data]) => data.key === key)?.[0] || `chart-${++chartCount}`;
+  if (!chartData.has(id) && chartData.size >= 40) chartData.delete(chartData.keys().next().value);
+  chartData.set(id, {key, points, series: usable});
   return `<figure class="equity-figure"><div class="chart-frame" dir="ltr"><div class="chart-y" aria-hidden="true"><span>${esc(digits((hi * 100).toFixed(1)))} %</span><span>${esc(digits((lo * 100).toFixed(1)))} %</span></div>
-    <svg class="chart" viewBox="0 0 640 176" preserveAspectRatio="none" role="img" aria-label="${esc(t("overlayTitle") + " · " + usable.map(item => item.name).join(", "))}">
-    <line class="chart-base" x1="0" y1="${y(0)}" x2="640" y2="${y(0)}"/>${usable.map((item, i) => `<polyline class="chart-line series-${i}" points="${polyline(item.points, y)}" fill="none"/>`).join("")}</svg>
+    <svg class="chart" data-chart="${id}" tabindex="0" viewBox="0 0 640 176" preserveAspectRatio="none" role="img" aria-label="${esc(t("overlayTitle") + " · " + usable.map(item => item.name).join(", ") + ' · ' + t('chartKeys'))}">
+    <line class="chart-base" x1="0" y1="${y(0)}" x2="640" y2="${y(0)}"/>${usable.map((item, i) => `<polyline class="chart-line series-${i % 4}" points="${polyline(item.points, y)}" fill="none"/>`).join("")}<line class="chart-cursor" x1="0" y1="0" x2="0" y2="176"/></svg>
+    <div class="chart-overlay"><output class="chart-tip" hidden></output></div>
     <div class="chart-x" aria-hidden="true"><span>${esc(when(new Date(first).toISOString(), true))}</span><span>${esc(when(new Date(last).toISOString(), true))}</span></div></div>
-    <figcaption class="chart-legend">${usable.map((item, i) => `<span class="series-${i}">${esc(item.name)}</span>`).join("")}</figcaption></figure>`;
+    <figcaption class="chart-legend">${usable.map((item, i) => `<span class="series-${i % 4}">${esc(item.name)}</span>`).join("")}</figcaption><p class="field-help">${esc(t('overlayInspectionNote'))}</p></figure>`;
 }
 function showCursor(svg, index) {
   const data = chartData.get(svg.dataset.chart);
@@ -71,8 +79,12 @@ function showCursor(svg, index) {
   const cursor = svg.querySelector(".chart-cursor"), tip = svg.parentElement.querySelector(".chart-tip");
   cursor.setAttribute("x1", point.x); cursor.setAttribute("x2", point.x); svg.classList.add("tracking");
   tip.hidden = false;
-  tip.textContent = `${when(point.t)} · ${num(point.raw)} ${data.quote}`;
-  tip.style.left = `${(point.x / 6.4).toFixed(2)}%`;
+  tip.textContent = data.series ? `${when(point.t)} · ` + data.series.map(item => {
+    const exact = item.points.find(row => row.ms === point.ms);
+    return `${item.name}: ${exact ? digits((exact.v * 100).toFixed(4)) + ' %' : t('unavailable')}`;
+  }).join(' · ') : `${when(point.t)} · ${num(point.raw)} ${data.quote}`;
+  tip.style.left = `${Math.max(0, Math.min(100, point.x / 6.4)).toFixed(2)}%`;
+  tip.style.transform = point.x < 128 ? 'translateX(0)' : point.x > 512 ? 'translateX(-100%)' : 'translateX(-50%)';
 }
 function hideCursor(svg) {
   svg.classList.remove("tracking");

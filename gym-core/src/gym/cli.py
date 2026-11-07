@@ -116,9 +116,10 @@ def main(argv=None):
     validation.add_argument("--candidate", action="append", required=True, help="registered candidate JSON; repeat 2..4 times")
     validation.add_argument("--folds", type=int, choices=range(1, 6), default=1,
                             help="1..5 successive independent 70/30 windows; default 1, not an expanding training run")
-    shared = sub.add_parser("portfolio", help="one strategy over 2..8 markets sharing one cash balance (PAPER ONLY)")
+    shared = sub.add_parser("portfolio", help="one strategy over 2..500 markets sharing one cash balance (PAPER ONLY)")
     shared.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
     shared.add_argument("--params", help="strategy parameter JSON; omitted values use registry defaults")
+    shared.add_argument("--policy", help="portfolio allocation and risk policy JSON; paper only")
     for command in (replay, comparison, validation, shared):
         command.add_argument("symbol", help="market, or comma-separated markets for portfolio")
         command.add_argument("--demo", action="store_true")

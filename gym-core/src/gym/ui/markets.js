@@ -43,8 +43,21 @@ function renderMarkets() {
   setHTML("market-catalogue", table([t("pair"), t("collectionState"), t("riskFlag")], catalogue.map(row => [
     code(row.symbol), label(row.reason), esc(t(row.risk_flagged ? "yes" : "no")),
   ]), t("nothing")));
+  const quality = $("market-quality").value || "all", sort = $("market-sort").value || "symbol";
   const shown = markets.filter(market => (!state.quote || market.quote === state.quote)
+    && (quality === "all" || (quality === "healthy" ? healthyQuote(market) : quality === "missing" ? !market.bid || !market.ask
+      : quality === "stale" ? list(market.flags).includes("STALE") : quality === "eligible" ? market.act?.entry?.allowed === true : market.act?.entry?.allowed === false))
     && (!search || [market.symbol, market.base, market.quote, ...Object.values(market.names || {})].some(value => String(value ?? "").toLocaleLowerCase().includes(search))));
+  shown.sort((a, b) => {
+    const field = sort === "age" ? "book_age_s" : "spread_bps";
+    if (sort !== "symbol") {
+      const av = a[field] == null ? null : Number(a[field]), bv = b[field] == null ? null : Number(b[field]);
+      if (av == null || !Number.isFinite(av)) return bv == null || !Number.isFinite(bv) ? a.symbol.localeCompare(b.symbol) : 1;
+      if (bv == null || !Number.isFinite(bv)) return -1;
+      if (av !== bv) return sort === "age" ? bv - av : av - bv;
+    }
+    return a.symbol.localeCompare(b.symbol);
+  });
   setHTML("market-summary", stat(t("observedPairs"), num(markets.length), t("observedPairsNote"))
     + stat(t("healthyQuotes"), num(markets.filter(healthyQuote).length), t("healthyQuotesNote"))
     + stat(t("eligibleEntries"), num(markets.filter(market => market.act?.entry?.allowed === true).length), t("eligibleEntriesNote")));

@@ -14,7 +14,7 @@ if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-c
 if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data' }
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $data = [IO.Path]::GetFullPath($DataDirectory)
-$python = Join-Path $core '.venv\Scripts\python.exe'
+$python = Join-Path $core '.venv\Scripts\pythonw.exe'
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Install the gym-core environment with uv sync first.' }
 $listeners = @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)
 if ($listeners.Count -and -not $WhatIfPreference) {

@@ -38,6 +38,7 @@ class PaperSession:
         self.instrument = portal.instrument(symbol)
         self.cost = cost
         self.execution_limits = getattr(strategy,"execution_limits",None)
+        self.track_positions = self.execution_limits is not None or getattr(strategy, "requires_position_context", False)
         if self.execution_limits is not None and cost.order_type == "limit":
             raise ValueError("compound strategies do not support limit orders; use market orders")
         if self.execution_limits is not None and cost.carry_remainder:
@@ -58,6 +59,7 @@ class PaperSession:
         self.consolidator = self.closes.by_resolution[resolution]
         self.book = CashBook({self.instrument.quote: cash})
         self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
+        self.decision_filter = None
         self.limit_trades = []  # trade prints that decided limit fills; part of the data identity
         self.last_quote = None
         self.pending: PendingOrder | None = None
@@ -103,13 +105,13 @@ class PaperSession:
                                               bar.avail + timedelta(microseconds=1))
                 reference = next((q for q in reversed(references) if qualified(q)), None)
             execution = None
-            if self.execution_limits is not None:
+            if self.track_positions:
                 quantity = self.book.get(self.instrument.base)
                 tradable = sellable_quantity(quantity,quote.bid,self.portal.spec_at(self.symbol,bar.avail)) if quote else quantity
                 holding = quantity>0 and (not self.position_closed or tradable>0)
                 execution = {"equity":self.book.equity(self.instrument,quote.bid) if quote else None,
                     "position_qty":quantity,"tradable_qty":tradable,
-                    "position_state":"OPEN" if holding else "DUST" if quantity>0 else "FLAT","fee_rate":self.cost.fee_rate,
+                    "position_state":"OPEN" if holding else "DUST" if quantity>0 else "FLAT","fee_rate":self.cost.maker_fee if self.cost.order_type == "limit" else self.cost.fee_rate,
                     "bid_qty":quote.bid_qty if quote else None,
                     "ask_qty":quote.ask_qty if quote else None,
                     "entry_price":self.position_entry,
@@ -126,6 +128,10 @@ class PaperSession:
             if execution is None:
                 holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
+            if self.decision_filter is not None:
+                action, fraction, reasons = self.decision_filter(action, fraction, reasons)
+                if action in ("BUY_REQUEST", "SELL_REQUEST") and quote is None:
+                    action, fraction, reasons = "ABSTAIN_NO_QUOTE", Decimal(0), (*reasons, "fresh quote required for portfolio order")
             if self.state == "WARMING_UP" and getattr(self.strategy,"ready",action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE")):
                 self.running_at = bar.avail
                 self.transition("RUNNING", bar.avail)
@@ -152,6 +158,9 @@ class PaperSession:
             self.rule_snapshots[decision["rules_ref"]] = rules_known
             if action in ("BUY_REQUEST", "SELL_REQUEST"):
                 side = action.split("_")[0]
+                if side == "SELL" and getattr(self.strategy, "requires_position_context", False) and self.pending and self.pending.record["side"] == "BUY":
+                    self.pending.record.update(status="CANCELLED", reason="EXIT_CANCELS_WORKING_ENTRY")
+                    self.pending = None
                 if side == "BUY" and not self.pending and (self.cost.max_fraction is not None or self.cost.vol_target is not None):
                     fraction = self.cost.size(fraction, [Decimal(d["close"]) for d in self.decisions] + [bar.close])
                     decision["sized_fraction"] = str(fraction)
@@ -167,7 +176,7 @@ class PaperSession:
                     order = {"ref": ref, "side": side, "decision_time": iso(bar.avail), "status": "PENDING"}
                     self.orders.append(order)
                     stop_distance = None
-                    if execution is not None and side == "BUY":
+                    if self.execution_limits is not None and side == "BUY":
                         stop_distance = Decimal(self.strategy.feature_values["stop_distance_bps"])
                         if not stop_distance.is_finite() or not 0<stop_distance<10000:
                             raise ValueError("invalid proposed paper stop distance")
@@ -217,6 +226,8 @@ class PaperSession:
                     order["residual_base"] = str(remaining)
                     if remaining == 0:
                         self.position_entry = self.position_stop = self.position_opened = self.position_id = None
+            elif self.track_positions and result["status"] == "FILLED":
+                self.record_position_fill(order, previous_base, previous_cash, top, at)
             self.pending = None
             if (self.cost.carry_remainder and self.execution_limits is None and result["status"] == "FILLED"
                     and "requested_qty" in result and not closing):
@@ -296,6 +307,11 @@ class PaperSession:
             pending.queue_ahead = Decimal(0)
         if capacity <= 0:
             return
+        previous_base, previous_cash = self.book.get(self.instrument.base), self.book.get(self.instrument.quote)
+        if buy and self.allocation is not None:
+            capacity = min(capacity, previous_cash * pending.fraction / pending.limit)
+            if capacity <= 0:
+                return
         result = market_order(self.book, self.instrument, order["side"], Decimal(1), pending.decision_time,
                               pending.decision_price, [top], 0, self.cost, self.portal.spec_at(self.symbol, at),
                               self.rules_for(at), self.quota, order["ref"],
@@ -307,6 +323,8 @@ class PaperSession:
         order["maker"] = True
         self.pending = None
         if result["status"] == "FILLED":
+            if self.track_positions:
+                self.record_position_fill(order, previous_base, previous_cash, top, at)
             remaining = pending.max_qty - Decimal(result["qty"])
             order["requested_qty"], order["remaining_qty"] = str(pending.max_qty), str(remaining)
             if remaining > 0:
@@ -319,6 +337,19 @@ class PaperSession:
                 self.pending = PendingOrder(child, Decimal(1), pending.decision_time, pending.decision_price,
                                             max_qty=remaining, limit=pending.limit,
                                             queue_ahead=pending.queue_ahead, checked=pending.checked)
+
+    def record_position_fill(self, order, previous_base, previous_cash, top, at):
+        quantity = self.book.get(self.instrument.base)
+        if order["side"] == "BUY":
+            self.position_entry = (previous_base * (self.position_entry or Decimal(0)) + previous_cash - self.book.get(self.instrument.quote)) / quantity
+            if self.position_closed:
+                self.position_opened, self.position_id = parse_ts(order["fill_time"]), order.get("parent", order["ref"])
+            self.position_closed = False
+        else:
+            self.position_closed = sellable_quantity(quantity, top.bid, self.portal.spec_at(self.symbol, at)) == 0
+            order["residual_base"] = str(quantity)
+            if quantity == 0:
+                self.position_entry = self.position_stop = self.position_opened = self.position_id = None
 
     def feed(self, top):
         if self.state in ("ENDED", "ABORTED") or top.ts_avail < self.cursor:

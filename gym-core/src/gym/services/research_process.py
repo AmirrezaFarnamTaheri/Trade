@@ -6,6 +6,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
@@ -13,7 +14,7 @@ from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
 MAX_OUTPUT = 2 * 1024 * 1024
-HEAVY_ACTIONS = frozenset(("tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
+HEAVY_ACTIONS = frozenset(("campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
                            "replay-checkpoint", "replay-resume", "final-run", "comparison", "validation", "news-fetch",
                            "margin-markets", "margin-preview", "margin-replay", "portfolio-replay"))
 
@@ -38,13 +39,16 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
                           "store": store, "at": at}, allow_nan=False).encode()
     if len(payload) > 70 * 1024:
         raise ValueError("supervised research input exceeds limit")
-    process, terminated = None, False
+    process, terminated, temporary = None, False, None
     try:
+        temporary = tempfile.TemporaryDirectory(prefix="tradinggym-research-")
+        environment = {k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "WINDIR", "SYSTEMDRIVE")}
+        environment.update(TEMP=temporary.name, TMP=temporary.name)
         async with asyncio.timeout(timeout_seconds):
             process = await asyncio.create_subprocess_exec(
                 sys.executable, "-I", "-B", "-m", "gym.services.research_process",
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                env={k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "WINDIR", "SYSTEMDRIVE")},
+                env=environment,
                 **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
             process.stdin.write(payload)
             await process.stdin.drain()
@@ -86,6 +90,8 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
                     pass
             # Wait for the exact child to exit before releasing the caller's lock.
             await asyncio.wait_for(process.wait(), 5)
+        if temporary is not None:
+            temporary.cleanup()
 
 
 def main():
