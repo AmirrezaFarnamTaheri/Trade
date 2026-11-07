@@ -24,6 +24,7 @@ def test_toman_discount_hypothesis_records_both_references_and_models_roundtrip(
         out = paper(db, "BTCTMN", START, START + timedelta(minutes=29), resolution="1min",
                     strategy_id="toman-premium", cash=Decimal(300000000))
         assert out["result"]["fills"] >= 2
+        assert out["inputs"]["auxiliary_symbols"] == ["BTCUSDT", "USDTTMN"]
         decisions = out["result"]["decisions"]
         entry = next(d for d in decisions if d["action"] == "BUY_REQUEST")
         assert {q["symbol"] for q in entry["auxiliary_known"]} == {"BTCUSDT", "USDTTMN"}
