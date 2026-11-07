@@ -70,7 +70,9 @@ def research_action(root, action, value=None, *, store="live", at=None):
         else:
             fields(value, "primary leader from to resolution max_age_seconds max_skew_seconds min_overlap")
             symbols = (_symbol(value["primary"]), _symbol(value["leader"]))
-            if symbols[0] == symbols[1] or symbols[0][-4:] != symbols[1][-4:]:
+            quote_assets = [next((q for q in ("USDT", "TMN") if len(symbol) > len(q) and symbol.endswith(q)), None)
+                            for symbol in symbols]
+            if symbols[0] == symbols[1] or quote_assets[0] is None or quote_assets[0] != quote_assets[1]:
                 raise ValueError("lead-lag needs distinct same-quote markets")
         start, end, _ = _window(value)
         db = _market_db(root)
