@@ -6,9 +6,10 @@
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [string]$CoreDirectory = (Join-Path $PSScriptRoot '..\..\gym-core'),
+    [string]$CoreDirectory,
+    [string]$DataDirectory,
     [string]$TaskName = 'TradingGYM Collector',
-    [string[]]$CollectorArguments = @('--no-browser'),
+    [string[]]$CollectorArguments = @('--no-browser', '--assets', 'all'),
     [string]$LinkFile = (Join-Path $env:LOCALAPPDATA 'TradingGYM\workspace-link.txt'),
     [switch]$Uninstall
 )
@@ -22,9 +23,12 @@ if ($Uninstall) {
     return
 }
 
+if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-core' }
+if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data' }
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $uv = (Get-Command uv -ErrorAction Stop).Source
-$arguments = @('run', 'gymctl', 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments
+$data = [IO.Path]::GetFullPath($DataDirectory)
+$arguments = @('run', 'gymctl', '--data', "`"$data`"", 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments
 $action = New-ScheduledTaskAction -Execute $uv -Argument ($arguments -join ' ') -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
 # Restart every minute after a failure, up to 999 times; never stop a long-running collector for running too long.

@@ -31,6 +31,11 @@ distance. This is a geometric filter, not a forecast of achievable profit.
 
 ## Costs, sizing and actual fills
 
+Compound strategies currently support market orders. Selecting resting limit
+orders or carried working remainders is rejected explicitly by the shared native
+session validator in CLI/API workflows; these options are never silently ignored
+or reinterpreted. Ordinary strategy limit simulations retain their existing model.
+
 The decision must have fresh two-sided quotes, displayed quantities, actual
 cash/equity/holdings and the selected scenario's fees. Target room must exceed
 twice `spread + two fees + 10 bps`. The additional 10 bps is a disclosed modeling

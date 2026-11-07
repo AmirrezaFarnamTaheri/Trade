@@ -9,6 +9,21 @@ from gym.domain.sim import CashBook, CostModel, Spec, market_order
 from tests.support import START
 
 
+@pytest.mark.parametrize("strategy", ["trend-pullback", "adaptive-channel"])
+@pytest.mark.parametrize("cost, reason", [(CostModel(order_type="limit"), "limit"),
+                                        (CostModel(carry_remainder=True), "remainder")])
+def test_compound_unsupported_execution_is_rejected(tmp_path, strategy, cost, reason):
+    from gym.services.paper import paper
+    from tests.support import market_db, quote_history
+    db = market_db(tmp_path, quote_history(n=100))
+    try:
+        with pytest.raises(ValueError, match="compound.*" + reason):
+            paper(db, "BTCUSDT", START, START + timedelta(minutes=17), resolution="1min",
+                  strategy_id=strategy, cost=cost)
+    finally:
+        db.c.close()
+
+
 def execute(side, bid, ask, quantity, *, limits):
     book = CashBook({"USDT":Decimal(1000),"BTC":Decimal(1) if side == "SELL" else Decimal(0)})
     top = BookTop("BTCUSDT",START+timedelta(seconds=1),Decimal(bid),Decimal(ask),quantity,quantity,frozenset())

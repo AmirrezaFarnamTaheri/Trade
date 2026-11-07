@@ -11,23 +11,36 @@ Paper research also includes an advanced workbench for hypotheses, observations,
 numeric reviews, outcome memory, future evaluation and native diagnostics.
 See [structure and GUI coverage](docs/architecture.md) for module owners and the
 remaining terminal-only or protected-console workflows.
+The [documentation index](docs/README.md), [current status](docs/system-status.md)
+and [unified implementation plan](docs/implementation-plan.md) separate delivered work from open goals.
 
 ```powershell
 cd gym-core
 uv sync
-uv run gymctl run              # full catalog + all supported spot assets -> data\live
-uv run gymctl run --assets 100 # choose 1..500 ranked non-risky assets; observe both TMN/USDT legs when listed
-uv run gymctl run --demo       # synthetic DEMO feed -> data\demo (never mixed with live)
-uv run gymctl rules list       # also: add|edit|import|export|disable|rollback|preset|check
-uv run gymctl spreads --output spreads.json  # all observed pairs, grouped by Tehran hour; creates a new file
-uv run gymctl trade-flow BTCUSDT --output flow.json  # recorded VWAP, volume and aggressor flow; creates a new file
-uv run gymctl candles BTCUSDT --fetch         # internal trade bars vs venue 1min candles, last two hours
-uv run gymctl paper USDTTMN --res session --subscribe 1h  # primary session decisions plus 1h close events
-uv run gymctl demo-seed         # 72 h synthetic DEMO history (USDTTMN goes silent in its closures)
-uv run gymctl paper BTCTMN --demo   # EMA replay + baselines + gross-to-net waterfall -> data\demo\runs\<id>.json
+uv run gymctl --data ../data run --assets all  # canonical repo data/live; all eligible spot pairs
+uv run gymctl --data ../data run --assets 100 # explicitly choose a ranked subset
+uv run gymctl --data ../data run --demo       # separate synthetic repo data/demo
+uv run gymctl --data ../data rules list       # also: add|edit|import|export|disable|rollback|preset|check
+uv run gymctl --data ../data spreads --output spreads.json  # all observed pairs, grouped by Tehran hour
+uv run gymctl --data ../data trade-flow BTCUSDT --output flow.json  # recorded VWAP, volume and aggressor flow
+uv run gymctl --data ../data candles BTCUSDT --fetch         # internal bars vs venue 1min candles
+uv run gymctl --data ../data paper USDTTMN --res session --subscribe 1h
+uv run gymctl --data ../data demo-seed         # 72 h synthetic DEMO history
+uv run gymctl --data ../data paper BTCTMN --demo   # saved synthetic replay under repo data/demo
 uv run pytest -q               # behavior and architecture checks
 uv run python scripts/check.py # lint + tests + real-browser smoke (also: lint|test|ui|smoke)
 ```
+
+Use the same absolute `--data` root for every command below. If running from
+`gym-core`, use `--data ../data` to access the repository's existing observations;
+omitting it selects `gym-core/data`, a separate store. Do not overwrite one store
+with another when resolving an older installation.
+
+On Windows, `scripts/windows/Start-Workspace.ps1` (from the repository root)
+starts the collector and paper scheduler as limited-user scheduled tasks, using
+the repository data root and all eligible spot markets. Preview with `-WhatIf`;
+use `-DataDirectory` for an existing custom root. The private browser link is in
+`%LOCALAPPDATA%\TradingGYM\workspace-link.txt`. This does not start the executor.
 
 `run` and `serve` print a private link (`http://127.0.0.1:<port>/#t=<session key>`) and open it in the
 default browser; pass `--no-browser` to only print it. The key stays in the link's fragment and the tab's

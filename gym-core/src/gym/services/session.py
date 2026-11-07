@@ -38,6 +38,10 @@ class PaperSession:
         self.instrument = portal.instrument(symbol)
         self.cost = cost
         self.execution_limits = getattr(strategy,"execution_limits",None)
+        if self.execution_limits is not None and cost.order_type == "limit":
+            raise ValueError("compound strategies do not support limit orders; use market orders")
+        if self.execution_limits is not None and cost.carry_remainder:
+            raise ValueError("compound strategies do not support working order remainders")
         self.position_entry = self.position_stop = self.position_opened = self.position_id = None
         self.position_closed = True
         self.bar_spec = BarSpec(resolution, "MID")

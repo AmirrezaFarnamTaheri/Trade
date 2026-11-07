@@ -1,10 +1,13 @@
 use exec_ipc::{ceiling::Ceiling, review::Ticket, StopMode};
 use exec_svc::offline_recovery::*;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 fn root() -> std::path::PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
-        "gym-review-{}-{}",
+        "gym-review-{}-{}-{}",
         std::process::id(),
+        NEXT_ID.fetch_add(1, Ordering::Relaxed),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

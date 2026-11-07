@@ -3,12 +3,15 @@ use exec_store::Ledger;
 use exec_svc::offline_recovery::{
     CeilingChange, CredentialMetadata, CredentialPermission, DurableOrderJournal,
 };
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn root() -> std::path::PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
-        "gym-ceiling-{}-{}",
+        "gym-ceiling-{}-{}-{}",
         std::process::id(),
+        NEXT_ID.fetch_add(1, Ordering::Relaxed),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

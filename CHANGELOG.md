@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Correctness and operations
+- Portfolio revision 2 closes all market clocks before revealing later quotes; shared-cash
+  marks and allocation no longer consume future prices. Its IDs bind resolved assets,
+  decision/reference snapshots, depth, consumed limit prints, rules and specification history.
+- Alias markets resolving to one base asset are rejected instead of double-counting holdings.
+- Compound strategies reject unsupported limit orders and carried working remainders explicitly.
+- Portable JSON/HTML summaries retain allowlisted execution and sizing assumptions.
+- Concurrent native test directories use atomic suffixes rather than relying on clock resolution.
+- Windows startup uses one explicit data root and all-market defaults, waits for collector startup,
+  and supervises collection and paper scheduling as separate limited-user tasks.
+- The implementation plan unifies the 31 cleanup/finance proposals with audit findings and
+  outstanding execution/acceptance contracts. Existing study evidence stays in place.
+
 ### Security
 - The session key is no longer embedded in the served page; open the private link printed by `gymctl run`.
   The Safety page can rotate the key. API responses carry a Content-Security-Policy and `nosniff`.

@@ -2,6 +2,7 @@
 import asyncio
 import json
 from datetime import timedelta
+from decimal import Decimal
 from html import unescape
 
 import pytest
@@ -11,12 +12,32 @@ from gym.adapters.run_store import save_run
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
 from gym.cli import main
+from gym.domain.sim import CostModel
 from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.portable_report import render_html
 from gym.services.reports import paper_summary
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
+
+
+def test_portable_exports_keep_optional_execution_assumptions(tmp_path):
+    db = market_db(tmp_path, quote_history(n=100))
+    try:
+        cost = CostModel(order_type="limit", maker_fee_rate=Decimal("0.0002"),
+                         max_participation=Decimal("0.25"), max_fraction=Decimal("0.3"))
+        out = paper(db, "BTCUSDT", START, START + timedelta(minutes=17), resolution="1min",
+                    fast=2, slow=3, cost=cost)
+        out["inputs"]["cost"]["private_notes"] = "private-canary"
+        expected = {**cost.describe(), "max_wait_s": "60.0"}
+        card = paper_summary(out)
+        assert card["cost_assumptions"] == expected
+        html = render_html(out)
+        assert "private-canary" not in html
+        exported = json.loads(unescape(html.split("<pre>", 1)[1].split("</pre>", 1)[0]))
+        assert exported["cost_assumptions"] == expected
+    finally:
+        db.c.close()
 
 
 def test_html_download_requires_token_and_uses_the_existing_allowlisted_report(tmp_path):

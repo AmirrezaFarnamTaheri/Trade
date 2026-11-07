@@ -1,5 +1,6 @@
 use exec_svc::account_observation::{AccountKind, AccountObservation};
 use exec_svc::offline_recovery::{CredentialMetadata, CredentialPermission, DurableOrderJournal};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 fn observed(kind: AccountKind, body: &[u8], id: u8, start: u64) -> AccountObservation {
     AccountObservation::from_response(kind, body, [3; 16], 10, [id; 16], start, start + 10).unwrap()
@@ -19,9 +20,11 @@ fn journal(path: &std::path::Path) -> DurableOrderJournal {
     journal
 }
 fn root() -> std::path::PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let root = std::env::temp_dir().join(format!(
-        "gym-account-{}-{}",
+        "gym-account-{}-{}-{}",
         std::process::id(),
+        NEXT_ID.fetch_add(1, Ordering::Relaxed),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
