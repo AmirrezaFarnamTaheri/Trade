@@ -3,6 +3,7 @@
 No venue transport, credential, privileged IPC, live order or scheduling authority.
 """
 from bisect import bisect_left
+from itertools import pairwise
 from datetime import timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
 
@@ -44,7 +45,7 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
     fee = rate(str(fee_rate))
     if len(quotes) > MAX_QUOTES or any(q.symbol != instrument.symbol for q in quotes):
         raise ValueError("invalid quote series")
-    if any(a.ts_avail > b.ts_avail for a, b in zip(quotes, quotes[1:])):
+    if any(a.ts_avail > b.ts_avail for a, b in pairwise(quotes)):
         raise ValueError("quotes are not availability ordered")
     if any(not start <= q.ts_avail < end for q in quotes):
         raise ValueError("quote outside preview window")
