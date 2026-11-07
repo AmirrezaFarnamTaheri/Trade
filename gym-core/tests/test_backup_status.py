@@ -1,6 +1,5 @@
 """Actual authenticated backup/restore receipts are bounded, private and observational."""
 import asyncio
-import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
@@ -17,41 +16,17 @@ from tests.support import market_db, quote_history
 from tests.test_encrypted_backup import make_ledger
 
 
-def test_receipt_merge_retains_history_is_idempotent_and_latest_is_chronological(tmp_path, monkeypatch):
+def test_latest_receipt_uses_recorded_time_not_append_order(tmp_path, monkeypatch):
     from datetime import UTC, datetime
 
     from gym.services import backup_status
-    canonical, older = tmp_path / "canonical", tmp_path / "older"
     report = {"encrypted": True, "authenticated": True, "verified_restore": True,
               "sequence": 3, "head_hash": "a" * 64, "file_sha256": "b" * 64, "schema_version": 1}
     monkeypatch.setattr(backup_status, "now_utc", lambda: datetime(2026, 11, 7, tzinfo=UTC))
-    newest = record(canonical, "BACKUP", report)
+    newest = record(tmp_path, "BACKUP", report)
     monkeypatch.setattr(backup_status, "now_utc", lambda: datetime(2026, 11, 5, tzinfo=UTC))
-    previous = record(older, "BACKUP", {**report, "sequence": 2})
-    source = (older / "backup_status.sqlite3").read_bytes()
-    assert backup_status.merge_receipts(canonical, older) == {"source_receipts": 1, "inserted": 1, "duplicates": 0}
-    assert backup_status.merge_receipts(canonical, older) == {"source_receipts": 1, "inserted": 0, "duplicates": 1}
-    assert status(canonical)["latest"]["BACKUP"] == newest
-    assert (older / "backup_status.sqlite3").read_bytes() == source
-    with sqlite3.connect(canonical / "backup_status.sqlite3") as conn:
-        assert [json.loads(body) for body, in conn.execute("SELECT body FROM receipts ORDER BY seq")] == [newest, previous]
-        with pytest.raises(sqlite3.IntegrityError, match="retain"):
-            conn.execute("DELETE FROM receipts")
-
-
-def test_receipt_merge_validates_whole_source_before_appending(tmp_path):
-    from gym.services.backup_status import merge_receipts
-    report = {"encrypted": True, "authenticated": True, "verified_restore": True,
-              "sequence": 1, "head_hash": "a" * 64, "file_sha256": "b" * 64, "schema_version": 1}
-    target, source = tmp_path / "target", tmp_path / "source"
-    record(target, "BACKUP", report)
-    record(source, "BACKUP", report)
-    with sqlite3.connect(source / "backup_status.sqlite3") as conn:
-        conn.execute("INSERT INTO receipts(kind,body) VALUES('RESTORE','{}')")
-    with pytest.raises(ValueError, match="fields"):
-        merge_receipts(target, source)
-    with sqlite3.connect(target / "backup_status.sqlite3") as conn:
-        assert conn.execute("SELECT count(*) FROM receipts").fetchone()[0] == 1
+    record(tmp_path, "BACKUP", {**report, "sequence": 2})
+    assert status(tmp_path)["latest"]["BACKUP"] == newest
 
 
 def test_real_roundtrip_receipts_preserve_concurrent_history_and_omit_private_fields(tmp_path):

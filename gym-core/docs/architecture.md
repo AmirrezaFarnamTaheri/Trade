@@ -43,7 +43,7 @@ combine these authorities.
 | Account and imported orders | Account journal and advanced workbench | Read-only sanitized observations, known-order native receipt references, saved partial-fill/fee-currency details and order-page imports. Actual protected service GETs, including explicit open/history pages, require the protected console and reviewed helper installation. Venue-key provisioning remains separate. |
 | Tickets, evidence and venue rules | Offline ticket, Account journal, saved runs, Venue rules, advanced workbench | Canonical preview review, offline probe staging, modeled conversion, manual account/venue-fact imports and evidence decisions share existing native owners with the CLI. No execution permission is issued. |
 | Protected operator intent | Operate, advanced JSON panel | Explicit service-context read and exact native approval/inspection/preparation/revocation through the same adapter as `gymctl operator-review`. DEMO disabled; no polling, automatic retry or order submission. Requires reviewed service/helper installation. |
-| Candle crosscheck | Advanced research workbench | Bounded local reads with an exclusive receipt/fetch cutoff. Immutable candle revisions are retained from market schema 3 onward; discarded pre-migration history cannot be recovered. No provider fetch or quality-table mutation. |
+| Candle crosscheck | Advanced research workbench | Bounded local reads with an exclusive receipt/fetch cutoff. Missing historical revisions remain unavailable. No provider fetch or quality-table mutation. |
 | Portable HTML summary | Saved run | Token-protected download of the existing escaped, script-free allowlisted report. |
 | Collector/session lifecycle | Terminal | The browser does not start arbitrary local processes or choose arbitrary filesystem paths. |
 | Backup, restore, release checks, executor provisioning and STOP | Backups, Safety and protected console | Read-only sanitized backup/restore receipts now drive actual status. No current archive-presence or independent-host claim. Passphrases, service custody and executor authority stay outside browser forms. |
@@ -67,11 +67,4 @@ maintained source tree provide versioned source history without a stale duplicat
 
 Request fields, limits, clock semantics and recovery behavior have one maintained
 owner: [research workspace contracts](research-workspace.md). Portfolio-specific
-contracts are in [portfolio replay](portfolio-replay.md). Historical integration
-narrative and attribution remain in [architecture notes](archive/architecture-notes.md)
-and the [source assessments](README.md#source-assessments).
-
-## Source adaptation
-
-See the retained [architecture source notes](archive/architecture-notes.md#source-adaptation)
-and [source capability decisions](archive/source-capability-decisions.md).
+contracts are in [portfolio replay](portfolio-replay.md).

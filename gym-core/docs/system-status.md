@@ -31,11 +31,12 @@ and the local evidence folders. This page describes the current delivery.
 - Historical TMN runs fingerprint causal FX curves through causal-fx-curve/1.
   Saved-run details show conversion/freshness without bridging missing factors;
   native USDT default identities remain unchanged.
+- Execution calibration exposes bounded, dated public-feed samples and exact
+  negative-clock counts. Stale, insufficient, mixed-market, DEMO and clock-
+  disagreement inputs cannot silently become execution defaults. Real fee,
+  slippage and order-latency measurements remain unverified.
 - Unsupported compound limit orders and working remainders now fail explicitly;
   the simulator does not silently reinterpret the requested execution model.
-- The canonical backup-status journal includes two missing historical receipts from
-  the older store. Both pre-merge databases are snapshotted, source data is retained,
-  and imported older receipts do not replace newer displayed status.
 - Portable JSON/HTML cards retain allowlisted optional execution/sizing assumptions.
 - AI connections support scoped Windows-protected keys/OAuth and explicit advisory
   requests. Advisory output grants no order authority.
@@ -49,15 +50,15 @@ and the local evidence folders. This page describes the current delivery.
 Collector and research scheduler are installed/running as separate limited-user
 Windows tasks, with restart-on-failure and IgnoreNew instance policy. Both use
 D:/GitHub/Trade/data. Collector configuration explicitly selects --assets all;
-no three-market watch override is used. The old local workspace launcher now
-forwards to the maintained scripts/windows/Start-Workspace.ps1.
+no three-market watch override is used. The maintained launcher is
+scripts/windows/Start-Workspace.ps1.
 
 The actual HTTP server is listening on 127.0.0.1:8765 and exposes all 12 strategies.
-At 13:06 UTC on 7 November, WebSockets were connected, all 373 selected spot
-pairs were present, and the 469-row catalogue was loaded. Readiness was DEGRADED:
-292 market states READY and 81 STALE. Public REST TLS handshakes still timed out;
+At 13:53 UTC on 7 November, WebSockets were connected with 373 selected spot
+pairs. Readiness was DEGRADED: 208 market states READY and 165 STALE.
+The independent direct public-catalogue request failed. Public REST remains impaired;
 connected streaming does not establish healthy seeds/candle fetches or fresh quotes
-for every market. Receipt: .pi/operations/runtime-20261107T130631358110Z.json.
+for every market.
 
 The current process predates the new portfolio API. The GUI checks the backend
 capability before enabling replay and asks for an observatory restart when absent.
@@ -71,14 +72,11 @@ was performed during this delivery.
 
 ## Current validation
 
-Documentation entry pages now link to preserved complete specifications and source
-reviews with a verified relocation manifest. Current contracts no longer repeat
-historical donor inventories. Research-owner and duplicate-test audits retained
-independent boundaries; the documented check entry point includes pinned Ruff.
-
-- Python: 1,222 passed, four skipped, 39 subtests passed after native walk-forward,
-  causal historical FX curves, real worker/API and bilingual UI checks. Pinned
-  default USDT run identities remain unchanged.
+- Python: 1,223 passed, four skipped, 39 subtests passed after registry-only
+  command inputs, current session/campaign callers, calibration and cleanup.
+  A further calibration regression with 25,000 samples passed and catches a
+  negative-clock observation even when its rounded percentage would be zero.
+  Pinned default USDT run identities remain unchanged.
 - Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
   loading does not import service orchestration. Architecture guards passed.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three
@@ -105,9 +103,8 @@ has recovered, but impaired REST and stale markets remain visible.
 
 ## Open work
 
-The [unified plan](implementation-plan.md) retains all 31 cleanup/finance proposals
-and audit findings. The first correctness batch is implemented; structural cleanup,
-expanded measurement/strategies and remaining acceptance
-are not all complete. Active .pi evidence and original specifications remain in place.
+The [implementation plan](implementation-plan.md) lists remaining implementation
+and acceptance work. Operational journals and saved paper evidence retain their
+existing owners.
 See [acceptance gates](acceptance-status.md) for protected account/execution,
 independent evaluation, cost calibration and physical-machine recovery requirements.

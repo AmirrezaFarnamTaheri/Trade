@@ -90,7 +90,7 @@ def test_live_watch_abort_preserves_record(tmp_path, monkeypatch):
     async def interrupt(_):
         raise asyncio.CancelledError()
     monkeypatch.setattr(live_paper.asyncio, "sleep", interrupt)
-    out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 1000, "1min", 1, 2, Decimal(1000)))
+    out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 1000, "1min", Decimal(1000), params={'fast': 1, 'slow': 2}))
     assert out["result"]["session"]["state"] == "ABORTED"
     assert run_path(tmp_path / "runs", out["run_id"]).exists()
 
@@ -111,7 +111,7 @@ def test_live_clock_regression_retains_an_explicit_aborted_receipt(tmp_path, mon
 
     monkeypatch.setattr(live_paper.asyncio, "sleep", interrupt)
     try:
-        out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 1000, "1min", 1, 2, Decimal(1000)))
+        out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 1000, "1min", Decimal(1000), params={'fast': 1, 'slow': 2}))
         assert out["result"]["session"]["state"] == "ABORTED"
         assert out["inputs"]["clock_regression"] == {
             "observed_finish_at": iso(START + timedelta(seconds=finish_second)),
@@ -135,7 +135,7 @@ def test_live_duration_stops_intents_at_deadline(tmp_path, monkeypatch, repeat_s
     async def no_wait(_):
         return None
     monkeypatch.setattr(live_paper.asyncio, "sleep", no_wait)
-    out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 5, "1min", 1, 2, Decimal(1000)))
+    out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 5, "1min", Decimal(1000), params={'fast': 1, 'slow': 2}))
     r = out["result"]
     assert r["session"]["state"] == "ENDED"
     assert max(d["t"] for d in r["decisions"]) <= iso(START + timedelta(seconds=125))
@@ -183,8 +183,7 @@ def test_live_watch_uses_registered_strategy_and_context(tmp_path, monkeypatch, 
 
     monkeypatch.setattr(live_paper.asyncio, "sleep", interrupt)
     try:
-        out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 10000, "1min", 1, 2,
-                                         Decimal(1000), strategy_id=name, params=params))
+        out = asyncio.run(live_paper.watch(db, tmp_path / "runs", "BTCUSDT", 10000, "1min", Decimal(1000), strategy_id=name, params=params))
         strategy = create_strategy(name, params)
         assert out["inputs"]["strategy"] == out["result"]["strategy"] == name
         assert out["inputs"]["params"] == strategy.params

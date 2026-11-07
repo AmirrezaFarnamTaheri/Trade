@@ -92,8 +92,8 @@ comparable between independent accounts; prior strategy identities and frozen
 campaign engines are preserved.
 
 ```powershell
-uv run gymctl paper BTCUSDT --strategy trend-pullback --res 1min
-uv run gymctl paper BTCUSDT --strategy adaptive-channel --res 1min
+uv run --no-sync gymctl paper BTCUSDT --strategy trend-pullback --res 1min
+uv run --no-sync gymctl paper BTCUSDT --strategy adaptive-channel --res 1min
 ```
 
 Tests exercise native trend and range triggers, costs, capacity rechecks,

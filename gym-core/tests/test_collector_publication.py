@@ -81,7 +81,7 @@ def test_live_watch_waits_for_publication_and_accepts_a_row_after_an_earlier_wal
             db.c.execute("UPDATE collector_publication SET through=?",(iso(START+timedelta(seconds=310)),))
     monkeypatch.setattr(live_paper.asyncio,"sleep",advance)
     try:
-        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",180,"1min",1,2,Decimal(1000)))
+        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",180,"1min",Decimal(1000), params={'fast': 1, 'slow': 2}))
         assert out["result"]["session"]["state"] == "ENDED"
         assert out["result"]["observations"] == 13  # The quote exactly at session start is not replayed.
         assert out["result"]["end"]["mark_time"] == iso(START+timedelta(seconds=135))
@@ -105,7 +105,7 @@ def test_wall_deadline_does_not_claim_completion_ahead_of_publication(tmp_path,m
             raise asyncio.CancelledError(*([cancellation] if cancellation else []))
     monkeypatch.setattr(live_paper.asyncio,"sleep",stop_after_deadline)
     try:
-        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",180,"1min",1,2,Decimal(1000)))
+        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",180,"1min",Decimal(1000), params={'fast': 1, 'slow': 2}))
         assert out["result"]["session"]["state"] == "ABORTED"
         assert out["result"]["session"]["events"][-1]["reason"] == (cancellation or "Session cancelled")
     finally:
@@ -127,7 +127,7 @@ def test_late_publication_keeps_decisions_before_the_requested_deadline(tmp_path
             db.c.execute("UPDATE collector_publication SET through=?",(iso(START+timedelta(seconds=310)),))
     monkeypatch.setattr(live_paper.asyncio,"sleep",publish_after_wall_deadline)
     try:
-        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",180,"1min",1,2,Decimal(1000)))
+        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",180,"1min",Decimal(1000), params={'fast': 1, 'slow': 2}))
         assert out["result"]["session"]["state"] == "ENDED"
         decisions = {row["t"] for row in out["result"]["decisions"]}
         assert {iso(START+timedelta(seconds=second)) for second in (180,240)} <= decisions
@@ -144,7 +144,7 @@ def test_quiet_scan_cannot_add_decisions_after_the_running_deadline(tmp_path,mon
         db.c.execute("UPDATE collector_publication SET through=?",(iso(START+timedelta(seconds=200)),))
     monkeypatch.setattr(live_paper.asyncio,"sleep",publish_quiet)
     try:
-        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",5,"1min",1,2,Decimal(1000)))
+        out = asyncio.run(live_paper.watch(db,tmp_path/"runs","BTCUSDT",5,"1min",Decimal(1000), params={'fast': 1, 'slow': 2}))
         assert out["result"]["session"]["state"] == "ENDED"
         assert max(row["t"] for row in out["result"]["decisions"]) <= iso(START+timedelta(seconds=125))
     finally:

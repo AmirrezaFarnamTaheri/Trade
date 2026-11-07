@@ -16,7 +16,7 @@ variables or chat.
 3. From a trusted interactive terminal in the gym-core directory, run:
 
    ~~~shell
-   uv run gymctl backup-once PATH_TO_QUIESCENT_EXECUTOR_LEDGER PATH_TO_BACKUP_FOLDER --keep 7
+   uv run --no-sync gymctl backup-once PATH_TO_QUIESCENT_EXECUTOR_LEDGER PATH_TO_BACKUP_FOLDER --keep 7
    ~~~
 
    The prompt reads a unique recovery passphrase without echoing. Do not use the
@@ -81,7 +81,7 @@ machine through a trusted, out-of-band process.
 On the receiving machine, before any attempt to decrypt or restore:
 
 ~~~shell
-uv run gymctl verify-backup-manifest BUNDLE.tgbak MANIFEST.json SIGNATURE.sig PINNED-PUBLIC-KEY.bin
+uv run --no-sync gymctl verify-backup-manifest BUNDLE.tgbak MANIFEST.json SIGNATURE.sig PINNED-PUBLIC-KEY.bin
 ~~~
 
 The command checks the detached signature, exact ciphertext SHA-256, filename,

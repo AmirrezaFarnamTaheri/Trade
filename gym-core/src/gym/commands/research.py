@@ -75,8 +75,7 @@ def replay_cmd(args) -> int:
                 print(f"COMPARE {result['comparison_id']} · identical window, costs and snapshots · PAPER ONLY")
         else:
             records = [paper(db, symbol, start, end, strategy_id=args.strategy,
-                             params=json.loads(args.params) if args.params else None,
-                             fast=args.fast, slow=args.slow, **options)]
+                             params=json.loads(args.params) if args.params else None, **options)]
         for record in records:
             path = save_run(record, store_root(args) / "runs")
             print(text_report(record))
@@ -304,7 +303,7 @@ def session_cmd(args):
     db = open_db(args)
     try:
         asyncio.run(watch(db, store_root(args) / "runs", args.symbol.upper(), args.seconds,
-                          args.res, args.fast, args.slow, cash, args.demo, subscriptions, cost,
+                          args.res, cash, args.demo, subscriptions, cost,
                           strategy_id=args.strategy, params=json.loads(args.params) if args.params else None))
     finally:
         db.c.close()

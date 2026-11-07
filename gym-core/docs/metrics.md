@@ -23,10 +23,9 @@ All of them describe a paper replay with modeled costs. None of them is evidence
 
 Execution models that change these figures: `--participation`, `--walk-depth` (needs `run --depth-levels`),
 `--carry-remainder`, `--order-type limit` with `--maker-fee`, and sizing with `--max-fraction` / `--vol-target`.
-Default strategy configuration hashes remain unchanged (see [decision D4](decisions.md)).
-New TMN historical runs include the explicit causal-fx-curve/1 valuation fingerprint;
-their run IDs differ from older records, which are retained without rewriting.
-USDT already uses native identity and keeps its existing default run IDs.
+Optional execution assumptions appear in the run fingerprint only when selected.
+TMN historical records bind per-mark FX factors through causal-fx-curve/1.
+Native USDT valuation uses identity.
 
 Resting limit fills use `queue-capacity/2`: trades first deplete the displayed
 queue ahead, and only their remaining quantity can fill the order. Trades through
@@ -34,20 +33,17 @@ the limit and crossing quotes also have observed capacity bounds. Quote and prin
 capacity are not added when they may describe the same liquidity. Partial fills
 retain a working child for the exact remaining quantity until expiry or session
 end. Maker fees post on every fill. Public observations do not reveal actual queue
-position; this remains a model. Older limit runs predate this correction and are
-retained; new limit runs carry a different cost-model fingerprint.
+position; this remains a model and the cost fingerprint names its semantics.
 
 RSI rebound, MACD crossover, TRIX crossover and Keltner breakout expose bounded
 periods and thresholds through the strategy registry, CLI `--params` and browser
 parameter controls. RSI requires `period + 1` bars; MACD requires
 `slow + signal - 1`; TRIX requires `3 × period + signal - 2`. Keltner readiness
 also requires its configured ADX and channel history. Gaps reset that history.
-Original defaults retain version 1 and their original configuration hashes;
-nondefault settings use version 2 and distinct hashes.
+Registry configuration hashes bind all selected parameters and their strategy version.
 
 Historical single-market curves and shared-cash portfolios use the same causal
 FX owner. Each curve mark carries its actual factor, age and LIVE/STALE/
 STALE_CLOSED/UNAVAILABLE state; USDT uses exact identity. Unknown factors remain
 null and prevent a joined conversion graph. FX conversion does not refresh a
-stale asset mark or establish an executable conversion price. Original historical
-records without these marks remain inspectable without retrospective mutation.
+stale asset mark or establish an executable conversion price.

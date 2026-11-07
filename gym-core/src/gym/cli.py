@@ -109,8 +109,6 @@ def main(argv=None):
     replay = sub.add_parser("paper", help="replay a registered strategy with matched baselines and costs")
     replay.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
     replay.add_argument("--params", help="strategy parameter JSON; omitted values use registry defaults")
-    replay.add_argument("--fast", type=int, default=8, help="legacy EMA fast length; use --params for other strategies")
-    replay.add_argument("--slow", type=int, default=21, help="legacy EMA slow length")
     comparison = sub.add_parser("compare", help="paired PAPER ONLY replay on identical data, costs and snapshots")
     comparison.add_argument("--candidate", action="append", required=True,
                             help='candidate JSON, e.g. {"strategy":"ema-trend","params":{"fast":3,"slow":8}}; repeat 2..4 times')
@@ -249,8 +247,6 @@ def main(argv=None):
     se.add_argument("--seconds", type=int, default=3600, help="duration after warmup")
     se.add_argument("--res", default="15min", choices=list(RESOLUTIONS))
     se.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
-    se.add_argument("--fast", type=int, default=8)
-    se.add_argument("--slow", type=int, default=21)
     se.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
     se.add_argument("--params", help="strategy parameters as JSON; uses registry defaults when omitted")
     se.add_argument("--cash")

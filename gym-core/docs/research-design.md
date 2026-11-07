@@ -23,30 +23,3 @@ Use [research workspace contracts](research-workspace.md) for request fields,
 bounds and unknown states, [architecture](architecture.md) for owners,
 [metrics](metrics.md) for statistical limits and the
 [implementation plan](implementation-plan.md) for remaining deliverables.
-
-## Retained source evidence
-
-The complete TradingGym review, source revision, adapted mechanisms, defects,
-test results and dated negative paper outcomes remain in
-[research source rationale](archive/research-source-rationale.md). The review did
-not modify the donor checkout or import credentials, data, trained models or a
-runtime. Current qualification is separate in [acceptance status](acceptance-status.md).
-
-## Historical section links
-
-## Highest-value pieces
-
-See the [retained section](archive/research-source-rationale.md#highest-value-pieces).
-
-## Additional defects corrected during integration
-
-See the [retained section](archive/research-source-rationale.md#additional-defects-corrected-during-integration).
-
-## Verification and actual observation exercise
-
-See the [retained section](archive/research-source-rationale.md#verification-and-actual-observation-exercise).
-
-## Remaining release work
-
-See the [retained section](archive/research-source-rationale.md#remaining-release-work).
-

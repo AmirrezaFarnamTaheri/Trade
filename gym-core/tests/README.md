@@ -20,8 +20,3 @@ Windows qualification. Node and browser prerequisites are distinct.
 For a focused regression, `uv run --no-sync python -m pytest tests/test_name.py -q` uses
 the same test runner. Synthetic fixtures stay in temporary test stores and
 cannot become live market, account or performance evidence.
-
-The November consolidation audit found one pair of identical test bodies in
-position sizing and trade economics. They call different local model helpers
-with different parameter cases and protect independent boundaries, so both are
-retained. Similar-looking assertions are not sufficient grounds to remove a test.

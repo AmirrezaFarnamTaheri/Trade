@@ -36,6 +36,22 @@ historical exploratory diagnostics, with no independent custody, future final
 evaluation, measured fees or capital permission. Read the durable experiment ID
 after uncertain delivery before deciding whether another search is appropriate.
 
+## Execution assumption evidence
+
+`execution-calibration`: exactly `symbol` (one observed market or null for the
+whole recorded universe), `from`, `to`, `max_age_seconds` (integer 1..86,400).
+The receipt window is historical, exclusive at the end, at most 31 days and
+100,000 trades. The bounded worker uses one read snapshot. Percentiles carry
+sample counts, receipt/data provenance, clock disagreement and age.
+
+A market-specific candidate needs at least 20 nonnegative observations, no
+negative-clock observations and a receipt inside the declared freshness limit.
+DEMO, insufficient/stale/clock-disagreement and mixed-market reports do not
+propose execution latency. Public event-to-receipt timing remains a lower-bound
+proxy; authenticated order latency, fees and slippage remain unknown. No candidate
+is applied automatically and no report can certify execution costs or authorize
+capital.
+
 ## Coverage and recovery
 
 `coverage`: exactly `symbol`, `from`, `to`, `resolution`. Times must be zoned;
@@ -341,8 +357,7 @@ unsequenced side snapshots are not relabeled as this sequenced feed.
 
 Market schema 3 retains immutable candle vintages on the actual collector path.
 Latest projections never regress on an older fetch. Exclusive point-in-time
-checks select a retained eligible vintage; pre-migration discarded revisions
-remain unrecoverable.
+checks select an eligible vintage; missing revisions remain unavailable.
 
 ## Shared local journal actions
 

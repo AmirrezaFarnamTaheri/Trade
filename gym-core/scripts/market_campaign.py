@@ -171,7 +171,7 @@ async def watch_worker(folder, shard, shards):
         write(path, receipt, exclusive=True)
         db = MarketDB(Path(plan["data"])/"market.db",readonly=True)
         try:
-            task = asyncio.create_task(watch(db,Path(plan["data"])/"runs",case["symbol"],plan["running_seconds"],"1min",2,5,
+            task = asyncio.create_task(watch(db,Path(plan["data"])/"runs",case["symbol"],plan["running_seconds"],"1min",
                 Decimal(case["cash"]),cost=CostModel(fee_rate=Decimal(plan["fee_rate"]),latency=timedelta(milliseconds=plan["latency_ms"])),
                 strategy_id=case["strategy"],params=case["params"]))
             deadline = asyncio.get_running_loop().call_later(plan["wall_limit_seconds"],task.cancel,"Campaign wall limit reached")

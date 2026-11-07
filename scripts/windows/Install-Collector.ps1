@@ -28,7 +28,7 @@ if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data'
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $uv = (Get-Command uv -ErrorAction Stop).Source
 $data = [IO.Path]::GetFullPath($DataDirectory)
-$arguments = @('run', 'gymctl', '--data', "`"$data`"", 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments
+$arguments = @('run', '--no-sync', 'gymctl', '--data', "`"$data`"", 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments
 $action = New-ScheduledTaskAction -Execute $uv -Argument ($arguments -join ' ') -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
 # Restart every minute after a failure, up to 999 times; never stop a long-running collector for running too long.

@@ -31,7 +31,7 @@ if (-not $WhatIfPreference) {
     } while ([DateTime]::UtcNow -lt $deadline)
     if (-not $ready) { throw 'Collector startup did not finish; paper scheduler was not started.' }
 }
-$arguments = @('run', 'gymctl', '--data', "`"$data`"", 'research', 'start', '--poll-seconds', '60')
+$arguments = @('run', '--no-sync', 'gymctl', '--data', "`"$data`"", 'research', 'start', '--poll-seconds', '60')
 $action = New-ScheduledTaskAction -Execute $uv -Argument ($arguments -join ' ') -WorkingDirectory $core
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user

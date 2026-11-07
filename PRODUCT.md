@@ -8,7 +8,7 @@ web
 
 ## Users
 
-An individual researcher monitoring Wallex markets and reviewing paper results. Confirmed by the user on 2026-11-02, with the clarification that the main product goal is an autonomous trading agent.
+An individual researcher monitoring Wallex markets and reviewing paper results. The product goal is an autonomous trading agent.
 
 ## Product Purpose
 
@@ -22,14 +22,14 @@ The current Python/aiohttp application runs on loopback and serves a dependency-
 
 - The current application is DISARMED. It has no funded order-submission path or enabled Autopilot. Autonomous trading is the product goal, not an available capability to invent in this redesign.
 - Private local reads and mutations use the per-run token. Do not expose credentials or echo ticket input into errors.
-- Monetary values arrive as exact decimal strings. Display them without floating-point rounding.
+- Monetary values arrive as exact decimal strings. Calculate with exact decimals; rounded summaries retain exact inspection and export.
 - Account observations and external orders are unverified, and do not establish spendable balances or settlement.
 - Demo observations are synthetic and must remain labelled. Paper results cannot authorize real capital.
 - Existing rule import, preset, disable, and export operations remain available.
 
 ## Brand Commitments
 
-Preserve the TradingGYM name. The user requested a complete redesign and invoked Impeccable, Redesign Existing Projects, and GPT Taste. User chose comp-first for this redesign.
+Use the TradingGYM name and the visual, language and accessibility contracts in DESIGN.md.
 
 ## Evidence on Hand
 
@@ -51,14 +51,10 @@ Preserve English/Persian and correct RTL layout, keyboard access, visible focus,
 The current [implementation plan](gym-core/docs/implementation-plan.md),
 [system status](gym-core/docs/system-status.md) and
 [acceptance gates](gym-core/docs/acceptance-status.md) own delivery state.
-The [retained specifications](gym-core/docs/archive/README.md) preserve the full
-original requirements and source decisions; their proposals do not establish
-that a capability has shipped or been qualified.
-
 - Observe the eligible public market universe and expose selection, exclusions,
   per-market freshness, missing periods and receipt-time knowledge separately.
 - Keep exact SQL observations and raw archives, immutable run identities, failed
-  attempts, revisions and source attribution. Preserve old data during migration.
+  attempts, revisions and source attribution.
 - Share the native engine across historical replay, prospective paper sessions,
   matched comparisons and shared-cash portfolios, with disclosed costs and gaps.
 - Distinguish chronological selection, exploratory diagnostics, future evaluation
@@ -74,5 +70,5 @@ that a capability has shipped or been qualified.
   acceptance requirements; neither can be replaced by simulated success.
 
 Predictive ML/RL training remains outside the accepted delivery scope. Current
-queued rule-based and statistical work remains visible in the plan. Historical
-source comparisons and unrelated donor runtimes do not expand authority.
+rule-based and statistical work remains visible in the plan. Unrelated runtimes
+do not expand authority.

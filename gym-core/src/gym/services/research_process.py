@@ -13,7 +13,7 @@ from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
 MAX_OUTPUT = 2 * 1024 * 1024
-HEAVY_ACTIONS = frozenset(("tick", "job-catch-up", "experiment-run", "walk-forward", "strategy-audit", "return-bootstrap",
+HEAVY_ACTIONS = frozenset(("tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "strategy-audit", "return-bootstrap",
                            "replay-checkpoint", "replay-resume", "final-run", "comparison", "validation", "news-fetch",
                            "margin-markets", "margin-preview", "margin-replay", "portfolio-replay"))
 
