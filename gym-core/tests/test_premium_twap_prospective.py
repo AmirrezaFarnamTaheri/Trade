@@ -68,10 +68,10 @@ def test_paper_twap_slices_partials_and_conserves_exact_cash_and_quantity():
     )
     assert result["order_submitted"] is False
     assert result["requested_quantity"] == "6"
-    assert result["filled_quantity"] == "4"
-    assert result["cancelled_quantity"] == "2"
-    assert result["remaining_quote"] == "57"  # 2*10 + 1*11 + 1*12
-    assert result["received_base"] == "3.96"
+    assert Decimal(result["filled_quantity"]) == 4
+    assert Decimal(result["cancelled_quantity"]) == 2
+    assert Decimal(result["remaining_quote"]) == 57  # 2*10 + 1*11 + 1*12
+    assert Decimal(result["received_base"]) == Decimal("3.96")
     assert [x["status"] for x in result["children"]] == ["FILLED", "PARTIAL", "PARTIAL"]
 
 
