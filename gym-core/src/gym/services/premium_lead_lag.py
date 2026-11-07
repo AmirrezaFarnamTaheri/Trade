@@ -106,7 +106,8 @@ def analyze_quotes(base, books, start, end, *, resolution, max_age_seconds,
 def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds,
                      max_skew_seconds, min_overlap, store):
     """Previous closed interval's leader return versus the next follower return."""
-    if primary == leader or store not in ("live", "demo"):
+    if (store not in ("live", "demo") or primary is leader or
+            (primary and leader and primary[0].symbol == leader[0].symbol)):
         raise ValueError("need distinct selected market observations")
     if type(min_overlap) is not int or not 2 <= min_overlap <= MAX_SAMPLES:
         raise ValueError("invalid minimum overlap")
@@ -122,8 +123,10 @@ def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds
     for rows in (primary, leader):
         if any(a.ts_avail > b.ts_avail for a, b in pairwise(rows)):
             raise ValueError("noncausal observation order")
-    def aligned(rows, close):
-        times = [x.ts_avail for x in rows]
+    primary_times = [x.ts_avail for x in primary]
+    leader_times = [x.ts_avail for x in leader]
+
+    def aligned(rows, times, close):
         idx = bisect_left(times, close) - 1
         if idx < 0:
             return None
@@ -137,7 +140,7 @@ def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds
     while stamp <= end:
         if len(closes) >= MAX_SAMPLES:
             raise ValueError("too many evaluation closes")
-        a, b = aligned(primary, stamp), aligned(leader, stamp)
+        a, b = aligned(primary, primary_times, stamp), aligned(leader, leader_times, stamp)
         if a is not None and b is not None and abs((a.ts_avail - b.ts_avail).total_seconds()) <= max_skew_seconds:
             closes.append((stamp, (a.bid + a.ask) / 2, (b.bid + b.ask) / 2))
         else:
