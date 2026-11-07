@@ -9,7 +9,10 @@ from gym.domain.sim import Spec
 from gym.services.experiment_registry import ExperimentRegistry
 from gym.services.paper_twap import simulate_twap
 from gym.services.premium_lead_lag import analyze_quotes
-from gym.services.prospective_comparisons import evaluate_comparison, register_comparison
+from gym.services.prospective_comparisons import (
+    evaluate_comparison,
+    register_comparison,
+)
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
 
