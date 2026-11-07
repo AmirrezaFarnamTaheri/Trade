@@ -138,8 +138,11 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
               "snapshots": digest([(d["t"], d["snapshot"]) for d in main["decisions"]]),
               "metadata": metadata_ref, "ruleset_version_now": svc.load()[0],
               "modeled_feed_outages": [(iso(start), iso(end)) for start, end in outages]}
-    if auxiliary_symbols:
-        inputs["auxiliary_symbols"] = sorted(set(auxiliary_symbols) | set(strategy.reference_symbols(inst) if hasattr(strategy, "reference_symbols") else ()))
+    effective_auxiliary = sorted(set(auxiliary_symbols) | set(
+        strategy.reference_symbols(inst) if hasattr(strategy, "reference_symbols") else ()
+    ))
+    if effective_auxiliary:
+        inputs["auxiliary_symbols"] = effective_auxiliary
     if inst.quote == "TMN":
         inputs["valuation"] = {"model": "causal-fx-curve/1", "digest": digest(main["valuation"])}
     rank = ranking(main, baselines)
