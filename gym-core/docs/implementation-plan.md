@@ -21,10 +21,10 @@ No push, paid provider request or credential change is implied.
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| 18 | Toman premium and lead-lag hypotheses | Prior Donchian/compression rules are available; remaining hypotheses need causal aligned inputs, FX/closure costs and held-out comparisons; none is an established edge | Open |
-| 25 | TWAP and spread-aware execution choice | Recorded child orders, displayed capacity, partials, cancellation, timing and total reservation conservation; paper only | Queued |
-| 30 | Prospective shadow comparison | Freeze configurations before future data; matched costs/baselines; daily drift, gaps and no-trade cases visible | Queued |
-| UI | Complete the source-audited interface refinements and rendered checks | Guided workflows, readable reports/receipts, searchable states and current-build EN/FA/theme/phone/accessibility verification; see interface-review.md | Open |
+| 18 | Toman premium and lead-lag hypotheses | Causal quote-time aligned exploratory diagnostics and historical paper strategy classes exist; held-out validation, transfer/closure costs and real costs remain required | Offline implementation; empirical qualification open |
+| 25 | TWAP and spread-aware execution choice | Exact-decimal bounded paper child preview records observed top quote, capacity-limited partials, quantity conservation and expired unfilled slices. Real child placement/cancel/reconciliation, venue reservation and timing remain unverified | Paper preview implemented; protected integration open |
+| 30 | Prospective shadow comparison | Locally frozen future configurations, disjoint windows, consume-before-read and matched simulated accounts; still needs real future collection, daily drift reports, independent custody and empirical evidence | Local preregistration implemented; future validation open |
+| UI | Complete the source-audited interface refinements and rendered checks | Guided EN/FA premium, lag and TWAP previews added; remaining destinations, visual verification, screen-reader review, theme/phone/accessibility and report segmentation still need current-build checks; see interface-review.md | Partial; not signed off |
 
 Predictive ML/RL training is outside delivery scope. New external data requires
 a provider, clock/revision/rights contract and explicit credentials/paid-call
