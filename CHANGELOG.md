@@ -18,6 +18,11 @@
   their existing identities; changed configurations use strategy version 2.
 
 ### Correctness and operations
+- Backup receipt consolidation validates and preserves original history, deduplicates
+  imports and selects current status by recorded time rather than import order.
+  Both local source journals were snapshotted before the two missing receipts merged.
+- Maintained EMA examples use registry parameters; legacy flags retain identical native
+  saved-record behavior and remain available for existing callers and frozen engines.
 - Portfolio revision 2 closes all market clocks before revealing later quotes; shared-cash
   marks and allocation no longer consume future prices. Its IDs bind resolved assets,
   decision/reference snapshots, depth, consumed limit prints, rules and specification history.

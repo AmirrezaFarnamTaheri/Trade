@@ -42,7 +42,7 @@ def status(root):
             conn.execute("BEGIN")
             _schema(conn)
             for kind in rows:
-                row = conn.execute("SELECT body FROM receipts WHERE kind=? ORDER BY seq DESC LIMIT 1", (kind,)).fetchone()
+                row = conn.execute("SELECT body FROM receipts WHERE kind=? ORDER BY json_extract(body,'$.recorded_at') DESC, seq DESC LIMIT 1", (kind,)).fetchone()
                 if row:
                     if len(row[0]) > 4096:
                         raise ValueError("backup receipt exceeds bound")
@@ -79,3 +79,45 @@ def record(root, kind, report):
     finally:
         conn.close()
     return row
+
+
+def merge_receipts(root, source_root):
+    """Append validated historical receipts to an existing journal; caller retains backups of both stores."""
+    target, source = _path(root), _path(source_root)
+    if target.resolve() == source.resolve() or not target.is_file() or not source.is_file():
+        raise ValueError("two distinct existing receipt journals required")
+
+    def entries(conn):
+        _schema(conn)
+        values = []
+        for kind, body in conn.execute("SELECT kind,body FROM receipts ORDER BY seq LIMIT 10001"):
+            if len(values) == 10000 or type(body) is not str or len(body.encode("utf-8")) > 4096:
+                raise ValueError("receipt migration budget exceeded")
+            if kind not in ("BACKUP", "RESTORE"):
+                raise ValueError("invalid receipt kind")
+            row = _validate(parse_account_json(body.encode("utf-8")))
+            row["recorded_at"] = iso(instant(row["recorded_at"]))
+            values.append((kind, json.dumps(row, sort_keys=True, separators=(",", ":"))))
+        return values
+
+    reader = sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+    try:
+        reader.execute("BEGIN")
+        source_rows = entries(reader)
+    finally:
+        reader.close()
+    conn = sqlite3.connect(target, isolation_level=None, timeout=5)
+    try:
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("BEGIN IMMEDIATE")
+        existing = set(entries(conn))
+        inserted = 0
+        for item in source_rows:
+            if item not in existing:
+                conn.execute("INSERT INTO receipts(kind,body) VALUES(?,?)", item)
+                existing.add(item)
+                inserted += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return {"source_receipts": len(source_rows), "inserted": inserted, "duplicates": len(source_rows) - inserted}

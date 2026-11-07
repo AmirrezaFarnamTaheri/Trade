@@ -107,7 +107,8 @@ fixed-timeframe catalogue. These bars derive from received observations; they do
 not backfill missing history. Direct venue candle fetching remains `1min`/`1h`.
 Daily bars align to Tehran midnight; intraday bars align to UTC.
 Other paper options include
-`--fast/--slow`, `--fee`, `--latency-ms` and `--rules point-in-time|today`. Subscribed closed bars are merged by
+`--params`, `--fee`, `--latency-ms` and `--rules point-in-time|today`. Legacy EMA
+`--fast/--slow` remain supported; maintained examples use registry parameters. Subscribed closed bars are merged by
 availability time and resolution rank; only the primary `--res` drives the current EMA strategy. The same inputs give the same `run_id` and `outputs` digest. Fills use the first qualified
 ask (buy) or bid (sell) at or after decision + latency. Rule closures, quota and minimums cause nonfills. Holdings are
 never auto-sold at the end. USDT-equivalent uses a disclosed USDTTMN mid valuation rate only when qualified
@@ -211,7 +212,7 @@ Run these from `gym-core` (use the same `--data` root in both terminals):
 ```powershell
 uv run gymctl run --demo
 # Second terminal: synthetic streaming paper, duration begins after two closed 1-minute bars
-uv run gymctl session BTCUSDT --demo --res 1min --fast 1 --slow 2 --seconds 60
+uv run gymctl session BTCUSDT --demo --res 1min --params '{"fast":1,"slow":2}' --seconds 60
 # Session and replay share the strategy registry and validated parameters:
 uv run gymctl session BTCUSDT --demo --res 1min --strategy sma-reversion --params '{"lookback":5,"entry_bps":50}' --seconds 60
 # Replay stored history for matched baselines, then use its printed run ID:

@@ -69,14 +69,14 @@ not fabricated history. Multi-day paper sessions cannot be declared complete at 
 | --- | --- | --- | --- |
 | 1 | Classify .pi, tool-state folders and target/tmp | Trace callers/processes first; retain active study/runtime evidence; archive only verified inactive files outside repo with a manifest and no overwrite | Consumer audit |
 | 2 | Consolidate the three root specification documents | Preserve live requirements in PRODUCT and this plan; check links/external consumers before moving originals | Queued |
-| 3 | Resolve duplicate backup-status databases | Establish canonical data root; inspect both histories, back up and merge through existing journal semantics; never overwrite either database | Queued |
+| 3 | Resolve duplicate backup-status databases | Establish canonical data root; inspect both histories, back up and merge through existing journal semantics; never overwrite either database | Canonical runtime root verified; both journals snapshotted; two missing receipts merged idempotently; original source retained |
 | 4 | Replace the system-status diary with a current status page | One dated current summary, links to evidence; historical receipts remain in Git/artifacts | Current page delivered |
 | 5 | Reduce acceptance-status to current gates | Distinguish implemented, verified, unverified and physically blocked; preserve original evidence | Current gates delivered |
 | 6 | Reduce capabilities/research-design repetition | Keep actual capability contracts and reuse decisions; archive historical source comparisons without losing attribution | Queued |
 | 7 | Shorten gym-core README | Install/run/common commands plus links; no arbitrary line-count target that removes necessary instructions | Queued |
 | 8 | Index docs and remove architecture/workspace duplication | Trace section links; one owner per contract and a docs index | Docs index delivered; architecture merge queued |
 | 9 | Align CHANGELOG, PRODUCT and DESIGN | State current behavior and remaining work; preserve intentional historical release notes | Queued |
-| 10 | Migrate legacy --fast/--slow usage | Find scripts/tests/users first; keep compatibility until consumers use --params; no gratuitous CLI break | Queued |
+| 10 | Migrate legacy --fast/--slow usage | Find scripts/tests/users first; keep compatibility until consumers use --params; no gratuitous CLI break | Maintained example migrated; active-script audit found no further callers; frozen engines untouched; legacy/native-parameter equivalence test passed |
 | 11 | Split CLI by established command groups | One entry point; preserve invocation, defaults, return codes, errors and protected-boundary behavior | Queued |
 | 12 | Continue browser view separation | Preserve EN/FA, theme, focus, mobile layout, hashed assets and existing UI contracts | Queued |
 | 13 | Review research service consolidation | Merge only actual redundant forwarding; preserve worker import/module identities used by protected launchers | Queued |

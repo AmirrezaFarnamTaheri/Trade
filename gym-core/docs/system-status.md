@@ -26,6 +26,9 @@ and the local evidence folders. This page describes the current delivery.
   Nondefault configurations use version 2; default identities remain version 1.
 - Unsupported compound limit orders and working remainders now fail explicitly;
   the simulator does not silently reinterpret the requested execution model.
+- The canonical backup-status journal includes two missing historical receipts from
+  the older store. Both pre-merge databases are snapshotted, source data is retained,
+  and imported older receipts do not replace newer displayed status.
 - Portable JSON/HTML cards retain allowlisted optional execution/sizing assumptions.
 - AI connections support scoped Windows-protected keys/OAuth and explicit advisory
   requests. Advisory output grants no order authority.
@@ -56,7 +59,9 @@ was performed during this delivery.
 
 ## Current validation
 
-- Python: 1,203 passed, four skipped, 39 subtests passed.
+- Python: 1,203 passed, four skipped, 39 subtests passed for the portfolio/FX batch.
+  Receipt consolidation and legacy CLI compatibility then passed 16 targeted checks
+  with one unrelated platform skip.
 - Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
   loading does not import service orchestration. Architecture guards passed.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three

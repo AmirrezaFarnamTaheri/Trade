@@ -4,6 +4,22 @@ Operational records already use SQLite. Retain this layout: SQL for queries and
 transactions, compressed raw segments for original exchange messages, and
 individual immutable JSON files for portable research reports.
 
+Use one explicit data root. Current Windows collector and research tasks use
+`D:/GitHub/Trade/data/live`; commands run from `gym-core` need `--data ../data`.
+The older `gym-core/data/live` store is separate and is not overwritten or silently
+selected as a fallback.
+
+On 7 November 2026, two missing backup receipts from the older store were appended
+to the canonical journal after integrity-checked snapshots of both databases.
+The source database remains intact. The merge is bounded, validates both schemas
+and every receipt before writing, deduplicates exact receipt content, preserves
+recording times and cannot update/delete old rows. Status selects by recording
+time, so importing an older receipt does not supersede a newer operation.
+The local migration evidence is `.pi/operations/backup-receipts-20261107T125534647652Z.json`;
+the snapshots are under `data/maintenance-snapshots/20261107T125534647652Z`.
+This consolidates historical display receipts; it does not prove current archive
+availability, independent origin or physical-host recovery.
+
 | Owner | Format | Contents |
 | --- | --- | --- |
 | Market collector | `market.db`, SQLite WAL | Instruments, specifications, quotes, trades, candle vintages, quality, rule history and raw-segment manifests |
