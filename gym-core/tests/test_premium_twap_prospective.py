@@ -6,10 +6,10 @@ import pytest
 
 from gym.domain.model import BookTop, InstrumentId
 from gym.domain.sim import Spec
+from gym.services.experiment_registry import ExperimentRegistry
 from gym.services.paper_twap import simulate_twap
 from gym.services.premium_lead_lag import analyze_quotes
-from gym.services.prospective_comparisons import register_comparison, evaluate_comparison
-from gym.services.experiment_registry import ExperimentRegistry
+from gym.services.prospective_comparisons import evaluate_comparison, register_comparison
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -59,9 +59,9 @@ def test_paper_twap_slices_partials_and_conserves_exact_cash_and_quantity():
               quote("BTCUSDT", 121, "11", "12", "1")]
     result = simulate_twap(
         InstrumentId.wallex("BTCUSDT"), prices, Spec(qty_decimals=2),
-        START, START + timedelta(seconds=180), side="BUY", quantity=Decimal("6"),
-        slices=3, participation=Decimal("1"), fee_rate=Decimal("0.01"),
-        available_quote=Decimal("100"), available_base=Decimal("0"), max_delay_seconds=10, store="demo",
+        START, START + timedelta(seconds=180), side="BUY", quantity=Decimal(6),
+        slices=3, participation=Decimal(1), fee_rate=Decimal("0.01"),
+        available_quote=Decimal(100), available_base=Decimal(0), max_delay_seconds=10, store="demo",
     )
     assert result["order_submitted"] is False
     assert result["requested_quantity"] == "6"
@@ -76,8 +76,8 @@ def test_paper_twap_refuses_unknown_or_late_quotes_and_never_overspends():
     late = [quote("BTCUSDT", 40, "9", "10", "10")]
     result = simulate_twap(
         InstrumentId.wallex("BTCUSDT"), late, Spec(), START, START + timedelta(seconds=120),
-        side="BUY", quantity=Decimal("5"), slices=2, participation=Decimal("0.5"),
-        fee_rate=Decimal("0"), available_quote=Decimal("1"), available_base=Decimal("0"),
+        side="BUY", quantity=Decimal(5), slices=2, participation=Decimal("0.5"),
+        fee_rate=Decimal(0), available_quote=Decimal(1), available_base=Decimal(0),
         max_delay_seconds=5, store="demo",
     )
     assert result["filled_quantity"] == "0"
@@ -85,9 +85,9 @@ def test_paper_twap_refuses_unknown_or_late_quotes_and_never_overspends():
     assert result["cancelled_quantity"] == "5"
     with pytest.raises(ValueError):
         simulate_twap(InstrumentId.wallex("BTCUSDT"), late, Spec(), START,
-                      START + timedelta(seconds=120), side="BUY", quantity=Decimal("5"),
-                      slices=2, participation=Decimal("1.1"), fee_rate=Decimal("0"),
-                      available_quote=Decimal("100"), available_base=Decimal("0"),
+                      START + timedelta(seconds=120), side="BUY", quantity=Decimal(5),
+                      slices=2, participation=Decimal("1.1"), fee_rate=Decimal(0),
+                      available_quote=Decimal(100), available_base=Decimal(0),
                       max_delay_seconds=5, store="demo")
 
 
@@ -109,7 +109,7 @@ def test_prospective_registry_freezes_future_candidates(tmp_path):
         with pytest.raises(ValueError):
             evaluate_comparison(registry, record["id"], None, now=START)
         # The recorded window is closed, but an evaluation error still consumes its one attempt.
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match="independent market read snapshot"):
             evaluate_comparison(registry, record["id"], None, now=future + timedelta(days=1))
         status = registry.read(record["id"])
         assert any(child["kind"] == "PROSPECTIVE_ATTEMPT" for child in status["events"])
