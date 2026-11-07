@@ -176,7 +176,9 @@ fn recorded_reply_is_exact_current_context_but_never_a_money_capability() {
 fn python_and_rust_share_the_same_synthetic_golden_frames() {
     let decode = |line: &str| {
         line.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect::<Vec<_>>()
     };
