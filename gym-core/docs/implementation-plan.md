@@ -81,7 +81,7 @@ not fabricated history. Multi-day paper sessions cannot be declared complete at 
 | 12 | Continue browser view separation | Preserve EN/FA, theme, focus, mobile layout, hashed assets and existing UI contracts | Queued |
 | 13 | Review research service consolidation | Merge only actual redundant forwarding; preserve worker import/module identities used by protected launchers | Queued |
 | 14 | Consolidate duplicate tests/document invocation | Preserve behavioral coverage and independent boundary tests; test count reduction is not a goal | Queued |
-| 15 | Establish line-ending policy | Inspect tracked EOLs first; add gitattributes if needed; isolate normalization from behavior changes | Queued |
+| 15 | Establish line-ending policy | Inspect tracked EOLs first; add gitattributes if needed; isolate normalization from behavior changes | Audited index: all 407 newline-bearing text blobs already LF; explicit LF policy added separately, wire fixtures/binaries excluded; no bulk rewrite required |
 
 ## Phase 4 — Measurement and realistic mechanics
 
