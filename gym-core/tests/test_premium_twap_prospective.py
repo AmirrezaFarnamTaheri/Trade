@@ -8,7 +8,7 @@ from gym.domain.model import BookTop, InstrumentId
 from gym.domain.sim import Spec
 from gym.services.experiment_registry import ExperimentRegistry
 from gym.services.paper_twap import simulate_twap
-from gym.services.premium_lead_lag import analyze_quotes
+from gym.services.premium_lead_lag import analyze_lead_lag, analyze_quotes
 from gym.services.prospective_comparisons import (
     evaluate_comparison,
     register_comparison,
@@ -126,6 +126,28 @@ def test_lead_lag_accepts_distinct_markets_with_same_tmn_quote(tmp_path):
     }, store="demo")
     assert report["schema"] == "lead-lag/1"
     assert report["funded_authority"] is False
+
+
+def test_twap_unknown_spec_uses_high_precision_for_child_conservation():
+    result = simulate_twap(
+        InstrumentId.wallex("BTCUSDT"), [], Spec(), START, START + timedelta(seconds=3),
+        side="BUY", quantity=Decimal(1), slices=3, participation=Decimal("0.5"),
+        fee_rate=Decimal(0), available_quote=Decimal(100), available_base=Decimal(0),
+        max_delay_seconds=0, store="demo",
+    )
+    assert Decimal(result["requested_quantity"]) == 1
+    assert Decimal(result["cancelled_quantity"]) == 1
+    assert len(result["children"]) == 3
+    assert all(child["status"] == "NONFILL" for child in result["children"])
+
+
+def test_lead_lag_empty_distinct_market_histories_report_insufficient_overlap():
+    report = analyze_lead_lag([], [], START, START + timedelta(minutes=3),
+                              resolution="1min", max_age_seconds=90, max_skew_seconds=10,
+                              min_overlap=2, store="demo")
+    assert report["status"] == "INSUFFICIENT_OVERLAP"
+    assert report["overlap"] == 0
+    assert report["established_edge"] is False
 
 
 def test_prospective_registry_freezes_future_candidates(tmp_path):
