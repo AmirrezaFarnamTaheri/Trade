@@ -20,6 +20,7 @@ REQUIRED = "symbol candidates selection_end test_from test_to resolution cash fe
 
 
 def register_comparison(registry, request, *, now):
+    """Freeze a unique future matched-paper window before observations occur."""
     fields(request, REQUIRED)
     if type(request["symbol"]) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", request["symbol"]):
         raise ValueError("invalid comparison symbol")
@@ -70,6 +71,7 @@ def register_comparison(registry, request, *, now):
 
 
 def evaluate_comparison(registry, key, db, *, now):
+    """Consume a frozen registration exactly once, then run its paper candidates."""
     record = registry.read(key)
     if record["kind"] != "PROSPECTIVE_COMPARE":
         raise ValueError("not a prospective comparison")
