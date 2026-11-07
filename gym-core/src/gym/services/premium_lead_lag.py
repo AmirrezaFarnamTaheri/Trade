@@ -3,8 +3,9 @@
 This is descriptive paper research, not a transferable arbitrage or execution signal.
 """
 from bisect import bisect_left
+from itertools import pairwise
 from datetime import timedelta
-from decimal import Decimal, localcontext
+from decimal import localcontext
 
 from ..domain.bars import BarSpec, qualified
 from ..domain.market_models import rate
@@ -46,7 +47,7 @@ def analyze_quotes(base, books, start, end, *, resolution, max_age_seconds,
             raise ValueError("too many quote observations")
         if any(top.symbol != symbol or not start <= top.ts_avail < end for top in rows):
             raise ValueError("quote symbol or window mismatch")
-        if any(a.ts_avail > b.ts_avail for a, b in zip(rows, rows[1:])):
+        if any(a.ts_avail > b.ts_avail for a, b in pairwise(rows)):
             raise ValueError("quotes must follow availability order")
         histories[symbol] = rows
         times[symbol] = [top.ts_avail for top in rows]
@@ -143,12 +144,12 @@ def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds
             closes.append((stamp, None, None))
         stamp += spec.step
     returns = []
-    for prev, cur in zip(closes, closes[1:]):
+    for prev, cur in pairwise(closes):
         if cur[0] - prev[0] != spec.step or any(x is None for x in (prev[1], prev[2], cur[1], cur[2])):
             returns.append(None)
         else:
             returns.append((cur[1] / prev[1] - 1, cur[2] / prev[2] - 1))
-    pairs = [(a[1], b[0]) for a, b in zip(returns, returns[1:]) if a is not None and b is not None]
+    pairs = [(a[1], b[0]) for a, b in pairwise(returns) if a is not None and b is not None]
     result = {"schema": "lead-lag/1", "store": store, "synthetic": store == "demo",
               "overlap": len(pairs), "min_overlap": min_overlap, "leader_precedes_follower": True,
               "correlation": None, "status": "INSUFFICIENT_OVERLAP", "held_out": False,
