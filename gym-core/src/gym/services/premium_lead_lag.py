@@ -127,6 +127,7 @@ def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds
     leader_times = [x.ts_avail for x in leader]
 
     def aligned(rows, times, close):
+        """Select the latest qualified quote strictly available before close."""
         idx = bisect_left(times, close) - 1
         if idx < 0:
             return None
