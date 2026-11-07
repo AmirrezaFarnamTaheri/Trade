@@ -92,19 +92,24 @@ export class State {
       const script = `
 $ErrorActionPreference='Stop'
 $p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedPath}'))
-$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
-if ([IO.Directory]::GetAccessControl($p).GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw 'owner' }
+# An elevated token can have Administrators as its OS-selected default owner.
+# Require the exact token owner (not an arbitrary Administrators membership),
+# and grant access only to the actual current user SID.
+$identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+$sid=$identity.User
+$owner=$identity.Owner
+if ([IO.Directory]::GetAccessControl($p).GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $owner.Value) { throw 'owner' }
 $acl=New-Object Security.AccessControl.DirectorySecurity
-$acl.SetOwner($sid)
+$acl.SetOwner($owner)
 $acl.SetAccessRuleProtection($true,$false)
 $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow')))
 [IO.Directory]::SetAccessControl($p,$acl)
 foreach ($name in @('config.json','state.sqlite','state.sqlite-journal','state.sqlite-wal','state.sqlite-shm')) {
   $file=Join-Path $p $name
   if (Test-Path -LiteralPath $file) {
-    if ([IO.File]::GetAccessControl($file).GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw 'owner' }
+    if ([IO.File]::GetAccessControl($file).GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $owner.Value) { throw 'owner' }
     $f=New-Object Security.AccessControl.FileSecurity
-    $f.SetOwner($sid)
+    $f.SetOwner($owner)
     $f.SetAccessRuleProtection($true,$false)
     $f.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','Allow')))
     [IO.File]::SetAccessControl($file,$f)
