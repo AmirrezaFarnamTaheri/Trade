@@ -1,0 +1,54 @@
+{
+  "source_revision": "c1a6c8d",
+  "files": [
+    {
+      "source": "TradingGYM_Master_Specification_and_Plan.md",
+      "archive": "gym-core/docs/archive/master-specification.md",
+      "source_sha256": "6a1d5af98c8cdebc70fc4d6ea051fe96cb47530392bb33bd4cdb0542708fb754",
+      "archive_sha256": "f316bc1cc7331d3ef6e49fd54ed1c3c710baba5702b8da1a8261328367e2c055",
+      "change": "relative Markdown destinations adjusted; original narrative and requirements retained"
+    },
+    {
+      "source": "TradingGYM_Reference_Companion.md",
+      "archive": "gym-core/docs/archive/reference-companion.md",
+      "source_sha256": "9e51ad446dde80aff93ab1ace8fe1024e91aa7dd1a700ef5a10537747187205f",
+      "archive_sha256": "9e51ad446dde80aff93ab1ace8fe1024e91aa7dd1a700ef5a10537747187205f",
+      "change": "relative Markdown destinations adjusted; original narrative and requirements retained"
+    },
+    {
+      "source": "TradingGYM_Wallex_Venue_Findings.md",
+      "archive": "gym-core/docs/archive/venue-findings.md",
+      "source_sha256": "2dfc53c0a433960abd9820b61e2b3ade00bac31fda60b2f1c72428d068879577",
+      "archive_sha256": "7bd5cd84ae4e1f458c14a3b153c3443069aefa66cfc1e167b02bb4ebe6ddb5b9",
+      "change": "relative Markdown destinations adjusted; original narrative and requirements retained"
+    },
+    {
+      "source": "gym-core/docs/capabilities.md",
+      "archive": "gym-core/docs/archive/source-capability-decisions.md",
+      "source_sha256": "2c75ee529ebd71754367ddd0d62bdb992a9f50341f3f3faec0c92e24bcef7eb8",
+      "archive_sha256": "a083b85d989c7c06a8589ee055c00c906d8c11350ede1719141563bee57b87a1",
+      "change": "relative Markdown destinations adjusted; original narrative and requirements retained"
+    },
+    {
+      "source": "gym-core/docs/research-design.md",
+      "archive": "gym-core/docs/archive/research-source-rationale.md",
+      "source_sha256": "210e7b6509d14bce26b3580aeb26e887a7107a41966aff1614433d996f92b67d",
+      "archive_sha256": "3346f2b983290920e3427159fc2de6653652ca319009c7286d1341be1f6ee2ca",
+      "change": "relative Markdown destinations adjusted; original narrative and requirements retained"
+    },
+    {
+      "source": "gym-core/README.md",
+      "archive": "gym-core/docs/command-reference.md",
+      "source_sha256": "f9d652f3504d882cb40d3eb6a157405e30b52e99dbda16f686c01a8925cf400a",
+      "archive_sha256": "78d8bd792adc840b735b28fd88f1a2bfe6324e9903d9bdaf605e56cba678c822",
+      "change": "relative Markdown destinations adjusted; original narrative and requirements retained"
+    },
+    {
+      "source": "gym-core/docs/architecture.md",
+      "archive": "gym-core/docs/archive/architecture-notes.md",
+      "source_sha256": "a64f4259454341e8a261be3d01ae6f631d79823dd7db470048ccddecfd8aa6f5",
+      "archive_sha256": "3bc827563711d626084dd3043db4f7bc23285215744b557639db3b318550d97f",
+      "change": "relative Markdown destinations adjusted; complete narrative retained"
+    }
+  ]
+}

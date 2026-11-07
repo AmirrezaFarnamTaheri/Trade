@@ -1,4 +1,4 @@
-"""Run: PYTHONPATH=gym-core/src python -m unittest discover -s gym-core/tests -p test_research_worker.py"""
+"""Fixed research-worker entry point and installed isolation probes."""
 import ctypes
 import io
 import json

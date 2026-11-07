@@ -6,6 +6,7 @@ and the [unified implementation plan](implementation-plan.md).
 ## Using and understanding the application
 
 - [Installation and common commands](../README.md)
+- [Detailed command reference](command-reference.md)
 - [Architecture and GUI coverage](architecture.md)
 - [Research workspace contracts](research-workspace.md)
 - [Eight-module research scope](research-workspace-plan.md)
@@ -29,6 +30,8 @@ and the [unified implementation plan](implementation-plan.md).
 
 These document adapted concepts, exclusions and candidates; inventory coverage is
 not proof that every candidate is implemented or economically qualified.
+
+- [Historical specification and review archive](archive/README.md)
 
 - [Capabilities and source decisions](capabilities.md)
 - [Research design](research-design.md)

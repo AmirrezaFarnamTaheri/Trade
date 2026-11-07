@@ -55,71 +55,23 @@ maintained source tree provide versioned source history without a stale duplicat
 
 ## Research workspace owners
 
-`services/research_market.py` owns bounded coverage/readiness and comparable
-recorded-market ranking. `services/replay_debugger.py` owns verified decision
-inspection and supplied-fill comparisons. `domain/portfolio.py` owns exact
-offline rebalance planning alongside existing entry sizing.
+| Owner | Responsibility |
+| --- | --- |
+| research_market.py | Recorded coverage, readiness, screening and comparable market groups |
+| replay_debugger.py, replay_checkpoint.py, replay_annotations.py | Verified inspection, continuation and separate operator notes |
+| experiment_registry.py, research_notes.py | Durable trials/failures, evidence packets and analyst notes |
+| research_process.py | Bounded isolated calculation supervisor shared by CLI/API/scheduler |
+| operator_actions.py | Existing local journal, conversion and offline probe workflows |
+| news_feed.py | Explicit fixed-origin public receipt retrieval |
+| backup_status.py | Append-only operation receipts and chronological status |
 
-`services/experiment_registry.py` owns the append-only experiment/attempt/note
-journal. Scenario runs reuse `paper.py` and `DataPortal` under one read snapshot;
-outages filter receipts without changing the market store. `session.py` records
-actual pre-decision balances and deduplicated rule snapshots. Its engine-version
-change keeps new trace outputs from colliding with older immutable runs.
-
-`replay_checkpoint.py` rebuilds a verified prefix and checks continuation against
-both the saved result and a fresh full native replay. `replay_annotations.py`
-keeps operator notes separate from immutable decision evidence. Registry pages
-retain a fixed sequence ceiling across requests. `entry_locks.py` uses the
-existing persistent rule ledger; `operator_actions.py` shares the existing
-journal/conversion/probe owners between terminal and authenticated workbench.
-The chart links recorded price, pre-decision equity and numeric feature panes
-by actual decision index, without reconstructing missing historical features.
-
-`research_process.py` supervises fixed heavy calculations in disposable isolated-
-import Python processes with a 120-second deadline, bounded JSON and no inherited
-credentials, PYTHONPATH or executable search path. It reaps the exact child before
-releasing locks and distinguishes uncertain delivery from rollback. These ordinary
-operator processes do not replace the separately qualified R0 AppContainer.
-CLI, scheduler and web calculations reuse the same supervisor; API inspection
-and explicit claim interruption remain available during work.
-
-`news_feed.py` fetches only one pinned official public RSS URL on explicit request.
-It records actual receipt knowledge through `ResearchProtocol`; it does not provide
-general URL fetching, earlier vintages, a paid news provider or verified sentiment.
-`backup_status.py` serializes append-only sanitized operation receipts for the
-protected-console commands and authenticated GUI reads. It never handles a
-passphrase or infers current archive availability from an old receipt.
-
-`services/research_notes.py` prepares allowlisted saved-evidence packets and
-validates role/citation/numeric-claim notes. Paid sending remains an explicit
-operation through the existing model gateway. `ui/research.js` provides dedicated
-coverage/recovery/replay controls plus advanced inputs for the other models.
-See [research workspace contracts](research-workspace.md) for CLI/API fields,
-work limits, unknown historical state and unauthenticated input boundaries.
+Request fields, limits, clock semantics and recovery behavior have one maintained
+owner: [research workspace contracts](research-workspace.md). Portfolio-specific
+contracts are in [portfolio replay](portfolio-replay.md). Historical integration
+narrative and attribution remain in [architecture notes](archive/architecture-notes.md)
+and the [source assessments](README.md#source-assessments).
 
 ## Source adaptation
 
-Archive follow-up owners: `strategy_audit.py` reuses the native paper engine and
-point-in-time portal for selected causality/prehistory comparisons;
-`return_bootstrap.py` reads verified saved equity with explicit gap/dependence
-assumptions. `ui/replay-chart.js` renders bounded saved decisions, using the
-existing replay route and exact labels rather than a second chart calculation
-engine. `ResearchLedger` stores claim ownership in the existing version-1 report
-JSON and retains attempt audit events; exact-claim interruption prevents stale
-publication. It does not certify process liveness or termination. Inspection
-and interruption bypass the workbench calculation lock while retaining token
-authentication and SQLite serialization of mutations.
-
-The exact Penguin source supplied in Downloads was inspected for provider-fleet
-controls, encrypted storage, redaction and PKCE lifecycle concepts. The exact Pi
-source was inspected for provider auth interactions, callback/manual input and
-credential ownership. These concepts use native owners above, rather than a
-second React server, credential database, login account or desktop framework.
-The already-pinned public Pi SDK supplies actual provider OAuth and completion
-implementations. No donor credential state, application runtime, private keys,
-environment files or copied cryptographic implementation was imported.
-
-The reviewed source entry points are Penguin's `packages/core/src/fleet/`
-credential/OAuth modules and Pi's `packages/ai/src/auth/oauth/anthropic.ts` and
-related provider modules. Source error bodies can contain tokens; the gateway
-returns fixed local error codes and deliberately omits those diagnostics.
+See the retained [architecture source notes](archive/architecture-notes.md#source-adaptation)
+and [source capability decisions](archive/source-capability-decisions.md).

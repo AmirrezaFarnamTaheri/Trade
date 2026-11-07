@@ -1,4 +1,4 @@
-"""Run: .venv/Scripts/python.exe -m unittest tests.test_market_models"""
+"""Offline diagnostic models, exact supplied assumptions and their CLI boundaries."""
 import copy
 import json
 import random

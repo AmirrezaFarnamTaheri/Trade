@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Documentation and verification
+- Current product, design, capabilities, architecture and research contracts have
+  focused entry pages. Complete earlier specifications, source decisions and
+  command examples remain linked with a source/archive hash manifest; original
+  specification paths retain their section headings for existing links.
+- Research owner and duplicate-test audits retain distinct validation boundaries.
+  The check entry point is documented consistently, and Ruff is a pinned development
+  dependency. Active Windows collection uses --no-sync to avoid replacing its launcher.
+
 ### Portfolio workflows and execution realism
 - Portfolio revision 3 adds point-in-time USDT-equivalent curve marks and explicit
   LIVE/STALE/STALE_CLOSED/UNAVAILABLE FX states to the native records, CLI and browser.

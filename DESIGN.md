@@ -248,7 +248,7 @@ The single humanist family supports long records and Persian fallback without a 
 
 The literal font-size ramp is (11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 25, 30px). This includes the brand's responsive sizes, FX values, and compact headings rather than only the primary page roles. Body text remains (14px).
 
-**The Exact Value Rule.** Monetary display preserves the API's decimal strings, including trailing precision. Use tabular figures and bidirectional isolation; floating-point conversion belongs only to chart geometry.
+**The Exact Value Rule.** Calculations and submitted amounts preserve the API's decimal strings. A rounded summary must retain exact values in inspection or export. Use tabular figures and bidirectional isolation; floating-point conversion belongs only to chart geometry.
 
 ## Layout
 
@@ -287,7 +287,7 @@ Primary buttons use copper with its paired text color. Secondary buttons share t
 
 ### Navigation and mission sequence
 
-All nine destinations are native hash links with a visible selected state and `aria-current="page"`. The mission sequence is a set of navigation shortcuts; its final execution stage stays visibly locked. At narrow widths, navigation scrolls within its own row. The mobile topbar preserves the disarmed state when the rail's longer reminder is hidden.
+All ten destinations are native hash links with a visible selected state and `aria-current="page"`. The mission sequence is a set of navigation shortcuts; its final execution stage stays visibly locked. At narrow widths, navigation scrolls within its own row. The mobile topbar preserves the disarmed state when the rail's longer reminder is hidden.
 
 ### Panels, tables, and disclosures
 
@@ -297,7 +297,7 @@ Panels group independent evidence or workflows. Table headers use raised surface
 
 Compact chips pair semantic color with text. Render real loading, empty, error, stale, unavailable, unknown, and unverified states. A failed private account refresh removes old balances; a failed general refresh leaves a visible stale-data warning. Ticket edits invalidate the prior result, and pending previews expose busy state. Never populate empty panels with mock metrics.
 
-Paper equity uses a labelled SVG line with currency and date context; cost bars retain exact textual values. Neither chart implies market forecasting or validated performance. Backups exposes the protected-console workflow and the honest “Status not connected” state, because the current API supplies no backup inventory or recovery status.
+Paper equity uses a labelled SVG line with currency and date context; cost bars retain exact textual values. Neither chart implies forecasting or validated performance. Shared-cash portfolios show native quote values and separately labeled causal USDT equivalents with FX freshness. Missing FX is unavailable, without a graph joining across unknown marks. Backups displays sanitized recorded backup/restore receipts; it does not infer current archive presence or physical-host recovery.
 
 ### Accessibility and motion
 
@@ -318,5 +318,5 @@ Keep the skip link, focusable main region, visible (2px) focus outline with (3px
 - **Don't** turn a healthy feed, eligible rule, passed fixture, or paper return into a trading-readiness claim.
 - **Don't** invent account assets, backup archives, diagnostic modules, protective stops, or funded authority to fill a reference composition.
 - **Don't** substitute green decoration for explicit capability text or use color as the only state cue.
-- **Don't** add credentials or recovery-passphrase inputs to the browser workspace.
-- **Don't** fragment the nine destinations into unrelated themes, fonts, or component systems.
+- **Don't** add exchange-custody secrets or recovery-passphrase inputs to ordinary browser workflows. Provider keys belong only in the existing scoped AI connections controls and never in browser storage.
+- **Don't** fragment the ten destinations into unrelated themes, fonts, or component systems.

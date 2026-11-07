@@ -45,3 +45,34 @@ Source contracts in gym-core/src/gym/api/server.py and domain/services modules; 
 ## Accessibility & Inclusion
 
 Preserve English/Persian and correct RTL layout, keyboard access, visible focus, responsive screens, and light/dark preferences.
+
+## Current delivery contract
+
+The current [implementation plan](gym-core/docs/implementation-plan.md),
+[system status](gym-core/docs/system-status.md) and
+[acceptance gates](gym-core/docs/acceptance-status.md) own delivery state.
+The [retained specifications](gym-core/docs/archive/README.md) preserve the full
+original requirements and source decisions; their proposals do not establish
+that a capability has shipped or been qualified.
+
+- Observe the eligible public market universe and expose selection, exclusions,
+  per-market freshness, missing periods and receipt-time knowledge separately.
+- Keep exact SQL observations and raw archives, immutable run identities, failed
+  attempts, revisions and source attribution. Preserve old data during migration.
+- Share the native engine across historical replay, prospective paper sessions,
+  matched comparisons and shared-cash portfolios, with disclosed costs and gaps.
+- Distinguish chronological selection, exploratory diagnostics, future evaluation
+  and independent custody. No statistical label establishes a profitable edge.
+- Expose provider connections, advisory research and evidence-linked notes through
+  explicit bounded workflows. Models have no order authority or silent paid calls.
+- Keep spot long/flat, margin credit ratios, debt, FX units and settlement as
+  separate contracts. New paper mechanisms do not qualify funded equivalents.
+- Preserve separate Windows principals, custody, exact operator intent, durable
+  uncertain outcomes and emergency stop for the protected execution boundary.
+- Enforce the existing zero funded-loss budget until a separate funded probe is
+  explicitly authorized. Physical-host and elapsed-time evidence remain actual
+  acceptance requirements; neither can be replaced by simulated success.
+
+Predictive ML/RL training remains outside the accepted delivery scope. Current
+queued rule-based and statistical work remains visible in the plan. Historical
+source comparisons and unrelated donor runtimes do not expand authority.

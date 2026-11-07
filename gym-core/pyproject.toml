@@ -9,7 +9,7 @@ dependencies = ["aiohttp>=3.9", "cryptography>=44", "zstandard>=0.22", "tzdata"]
 gymctl = "gym.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff==0.16.9"]
 
 [tool.uv.build-backend]
 module-name = "gym"

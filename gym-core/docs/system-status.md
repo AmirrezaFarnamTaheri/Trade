@@ -64,6 +64,11 @@ was performed during this delivery.
 
 ## Current validation
 
+Documentation entry pages now link to preserved complete specifications and source
+reviews with a verified relocation manifest. Current contracts no longer repeat
+historical donor inventories. Research-owner and duplicate-test audits retained
+independent boundaries; the documented check entry point includes pinned Ruff.
+
 - Python: 1,206 passed, four skipped, 39 subtests passed after command-group
   separation and receipt/CLI changes. Backend activation gating then passed all
   26 API/workflow/UI checks.

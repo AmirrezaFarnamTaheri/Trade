@@ -68,19 +68,19 @@ not fabricated history. Multi-day paper sessions cannot be declared complete at 
 | Original item | Consolidated work | Acceptance / decision | State |
 | --- | --- | --- | --- |
 | 1 | Classify .pi, tool-state folders and target/tmp | Trace callers/processes first; retain active study/runtime evidence; archive only verified inactive files outside repo with a manifest and no overwrite | Consumer audit |
-| 2 | Consolidate the three root specification documents | Preserve live requirements in PRODUCT and this plan; check links/external consumers before moving originals | Queued |
+| 2 | Consolidate the three root specification documents | Preserve live requirements in PRODUCT and this plan; check links/external consumers before moving originals | Implemented; complete narrative retained with source/archive hashes; original paths and section headings link to retained material |
 | 3 | Resolve duplicate backup-status databases | Establish canonical data root; inspect both histories, back up and merge through existing journal semantics; never overwrite either database | Canonical runtime root verified; both journals snapshotted; two missing receipts merged idempotently; original source retained |
 | 4 | Replace the system-status diary with a current status page | One dated current summary, links to evidence; historical receipts remain in Git/artifacts | Current page delivered |
 | 5 | Reduce acceptance-status to current gates | Distinguish implemented, verified, unverified and physically blocked; preserve original evidence | Current gates delivered |
-| 6 | Reduce capabilities/research-design repetition | Keep actual capability contracts and reuse decisions; archive historical source comparisons without losing attribution | Queued |
-| 7 | Shorten gym-core README | Install/run/common commands plus links; no arbitrary line-count target that removes necessary instructions | Queued |
-| 8 | Index docs and remove architecture/workspace duplication | Trace section links; one owner per contract and a docs index | Docs index delivered; architecture merge queued |
-| 9 | Align CHANGELOG, PRODUCT and DESIGN | State current behavior and remaining work; preserve intentional historical release notes | Queued |
+| 6 | Reduce capabilities/research-design repetition | Keep actual capability contracts and reuse decisions; archive historical source comparisons without losing attribution | Implemented; current contracts indexed, complete source decisions and attribution retained |
+| 7 | Shorten gym-core README | Install/run/common commands plus links; no arbitrary line-count target that removes necessary instructions | Implemented; install/run/common workflows and verification entry point; complete command reference retained |
+| 8 | Index docs and remove architecture/workspace duplication | Trace section links; one owner per contract and a docs index | Implemented; workspace owns field/bound contracts, architecture links owners, retained narrative and section links checked |
+| 9 | Align CHANGELOG, PRODUCT and DESIGN | State current behavior and remaining work; preserve intentional historical release notes | Implemented; current scope, UI states, exact values, valuation and authority boundaries aligned |
 | 10 | Migrate legacy --fast/--slow usage | Find scripts/tests/users first; keep compatibility until consumers use --params; no gratuitous CLI break | Maintained example migrated; active-script audit found no further callers; frozen engines untouched; legacy/native-parameter equivalence test passed |
 | 11 | Split CLI by established command groups | One entry point; preserve invocation, defaults, return codes, errors and protected-boundary behavior | Implemented; parser/dispatch and 36 executable function bodies preserved; full suite passed |
 | 12 | Continue browser view separation | Preserve EN/FA, theme, focus, mobile layout, hashed assets and existing UI contracts | Queued |
-| 13 | Review research service consolidation | Merge only actual redundant forwarding; preserve worker import/module identities used by protected launchers | Queued |
-| 14 | Consolidate duplicate tests/document invocation | Preserve behavioral coverage and independent boundary tests; test count reduction is not a goal | Queued |
+| 13 | Review research service consolidation | Merge only actual redundant forwarding; preserve worker import/module identities used by protected launchers | Reviewed; dispatch/supervisor/ledger/validation owners have distinct contracts, no redundant computational forwarding found; shared drawdown belongs to domain |
+| 14 | Consolidate duplicate tests/document invocation | Preserve behavioral coverage and independent boundary tests; test count reduction is not a goal | Implemented; one check entry point, declared pinned lint dependency; identical-looking sizing/economics tests retained for independent inputs and boundaries |
 | 15 | Establish line-ending policy | Inspect tracked EOLs first; add gitattributes if needed; isolate normalization from behavior changes | Audited index: all 407 newline-bearing text blobs already LF; explicit LF policy added separately, wire fixtures/binaries excluded; no bulk rewrite required |
 
 ## Phase 4 — Measurement and realistic mechanics
