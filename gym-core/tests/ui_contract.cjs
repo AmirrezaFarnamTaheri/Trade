@@ -166,7 +166,7 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 const context = vm.createContext(sandbox);
-for (const name of ["charts.js", "runs.js"])  // classic scripts loaded before app.js share its global scope
+for (const name of ["charts.js", "runs.js", "markets.js", "research-controls.js", "operations.js"])  // classic scripts loaded before app.js share its global scope
   vm.runInContext(fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), name), "utf8"), context, { timeout: 5000 });
 vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context, { timeout: 5000 });
 const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch, renderResearchJobs, controlResearch, accountJournal, serviceReceiptDetails })", context);

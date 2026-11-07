@@ -52,6 +52,33 @@ proxy; authenticated order latency, fees and slippage remain unknown. No candida
 is applied automatically and no report can certify execution costs or authorize
 capital.
 
+## Selection and path robustness
+
+`robustness`: exactly `run_ids` (2..8 distinct historical configurations),
+`partitions` (4, 6, 8 or 10), `seed`, `simulations` (100..2,000),
+`mean_block_length` (1..1,000), `max_gap_seconds` (1..604,800).
+The bounded worker verifies native artifacts and requires matching market, window,
+cash, costs, input observations, snapshots and clocks. Each run has at most 10,000
+marks; combination/interval/candidate work is capped at two million operations.
+
+CSCV partitions contiguous common return intervals into equal blocks and tests
+all symmetric half-block combinations. Selection uses mean simple interval
+return. The result discloses tail trimming, selection ties, median ties and both
+strictly-below / at-or-below median rank fractions. Missing/gapped/unequal clocks,
+fewer than ten intervals per block and indistinguishable configurations cannot
+receive an apparent overfitting estimate. This follows the rank framework in
+[Bailey et al.](https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf), with an
+explicit mean-return metric and tie convention. Symmetric recombination is an
+exploratory historical diagnostic, not chronological future validation.
+
+The report reuses stationary return blocks with their gap/dependence assumptions.
+It separately permutes fixed FIFO realized P/L when at least ten closed trades
+exist. Those permutations conserve total realized P/L; they do not simulate new
+fills, compounding, inventory or an executable capital path. Regime groups use
+recorded decision-time states only; missing labels remain NOT_RECORDED. Neither
+method supplies an independent market sample, complete search accounting,
+calibrated confidence or a promotion verdict.
+
 ## Coverage and recovery
 
 `coverage`: exactly `symbol`, `from`, `to`, `resolution`. Times must be zoned;

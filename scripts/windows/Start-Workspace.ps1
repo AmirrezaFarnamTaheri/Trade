@@ -14,7 +14,8 @@ if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-c
 if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data' }
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $data = [IO.Path]::GetFullPath($DataDirectory)
-$uv = (Get-Command uv -ErrorAction Stop).Source
+$python = Join-Path $core '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Install the gym-core environment with uv sync first.' }
 $listeners = @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)
 if ($listeners.Count -and -not $WhatIfPreference) {
     throw 'Port 8765 is already in use. Inspect the current workspace before starting another collector.'
@@ -31,8 +32,8 @@ if (-not $WhatIfPreference) {
     } while ([DateTime]::UtcNow -lt $deadline)
     if (-not $ready) { throw 'Collector startup did not finish; paper scheduler was not started.' }
 }
-$arguments = @('run', '--no-sync', 'gymctl', '--data', "`"$data`"", 'research', 'start', '--poll-seconds', '60')
-$action = New-ScheduledTaskAction -Execute $uv -Argument ($arguments -join ' ') -WorkingDirectory $core
+$arguments = @('-I', '-B', '-m', 'gym.cli', '--data', "`"$data`"", 'research', 'start', '--poll-seconds', '60')
+$action = New-ScheduledTaskAction -Execute $python -Argument ($arguments -join ' ') -WorkingDirectory $core
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `

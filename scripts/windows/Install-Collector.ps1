@@ -26,17 +26,18 @@ if ($Uninstall) {
 if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-core' }
 if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data' }
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
-$uv = (Get-Command uv -ErrorAction Stop).Source
+$python = Join-Path $core '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Install the gym-core environment with uv sync first.' }
 $data = [IO.Path]::GetFullPath($DataDirectory)
-$arguments = @('run', '--no-sync', 'gymctl', '--data', "`"$data`"", 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments
-$action = New-ScheduledTaskAction -Execute $uv -Argument ($arguments -join ' ') -WorkingDirectory $core
+$arguments = @('-I', '-B', '-m', 'gym.cli', '--data', "`"$data`"", 'run', '--link-file', "`"$LinkFile`"") + $CollectorArguments
+$action = New-ScheduledTaskAction -Execute $python -Argument ($arguments -join ' ') -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
 # Restart every minute after a failure, up to 999 times; never stop a long-running collector for running too long.
 $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
-if ($PSCmdlet.ShouldProcess($TaskName, "Register: $uv $($arguments -join ' ') in $core")) {
+if ($PSCmdlet.ShouldProcess($TaskName, "Register: $python $($arguments -join ' ') in $core")) {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
     Start-ScheduledTask -TaskName $TaskName
     Write-Output "Registered and started '$TaskName'. Open the private link in $LinkFile (it changes at every start)."

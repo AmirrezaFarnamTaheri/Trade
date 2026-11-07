@@ -17,7 +17,8 @@ def test_collector_task_uses_explicit_data_root_and_all_market_default(tmp_path)
     assert result.returncode == 0, result.stderr
     assert str(data) in result.stdout
     assert "--assets all" in result.stdout
-    assert "--no-sync gymctl" in result.stdout
+    assert "-I -B -m gym.cli" in result.stdout
+    assert ".venv\\Scripts\\python.exe" in result.stdout
     assert "--data" in result.stdout and "--watch" not in result.stdout
 
 

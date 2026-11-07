@@ -130,3 +130,9 @@ function exportCsv(kind, record) {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+function renderRunList() {
+  $("compare-picked").hidden = state.pickedRuns.size < 2;
+  $("compare-picked").textContent = `${t("comparePicked")} · ${digits(state.pickedRuns.size)}`;
+  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(when(run.inputs?.from, true))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
+}

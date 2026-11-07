@@ -48,7 +48,7 @@ def test_manual_json_observation_cli_is_durable_and_api_is_token_protected(tmp_p
 def test_external_order_ui_has_bilingual_journal_and_no_settlement_claims():
     ui = Path(__file__).resolve().parents[1] / "src" / "gym" / "ui"
     html = (ui / "index.html").read_text("utf-8")
-    js = (ui / "app.js").read_text("utf-8")
+    js = "\n".join((ui / name).read_text("utf-8") for name in ("app.js", "operations.js"))
     assert 'id="external-order-events"' in html
     assert 'data-t="externalHistory"' in html
     assert "/api/external-order-events" in js

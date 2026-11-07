@@ -14,21 +14,14 @@ No push, paid provider request or credential change is implied.
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Startup/all 373 selected pairs verified; 13:06 UTC snapshot has 292 READY and 81 STALE; REST TLS remains impaired |
-| O2 | Supervise collection and paper scheduling | No duplicate processes; clear failures/retries; no hidden narrowing to BTC/ETH/USDT; recovery preserves history | Limited-user task supervision verified; sustained observation still open |
+| O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Current assets and 373-pair retained selection verified; REST and WebSocket connections currently fail; freshness remains blocked |
+| O2 | Supervise collection and paper scheduling | No duplicate processes; clear failures/retries; no hidden narrowing to BTC/ETH/USDT; recovery preserves history | Direct Python task stop/child termination verified on an isolated collector; both current tasks running; sustained observation still open |
 | O3 | Publish one current campaign/results view | Show defined/attempted/completed/ready/traded counts, exclusions, dated progress and process liveness separately | Queued |
-
-## Organization
-
-| ID | Work | Acceptance | State |
-| --- | --- | --- | --- |
-| 12 | Continue browser view separation | Preserve EN/FA, theme, focus, mobile layout, hashed assets and existing UI contracts | Queued |
 
 ## Research mechanics
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| 29 | Overfitting and regime diagnostics | Declare CSCV/block/dependence assumptions; distinguish trade-path reshuffling from new market samples; no confidence from insufficient data | Queued |
 | 16 | Shared optional exit policy | Fixed, ATR trailing, profit and time exits; actual holdings/fills, partials, dust, costs and closures; defaults preserve existing run identities | Queued |
 | 19 | Optional reusable regime gate | Verify the actual detector owner first; causal inputs, explicit regime transitions, default-off identity compatibility | Queued |
 | 20 | Stop-risk sizing in replay | Reuse portfolio_sizing with exact quantities, stop distance, shared cash, reservations, venue minimums and explicit unknowns | Queued |

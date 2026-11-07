@@ -8,7 +8,7 @@ in Git history and local qualification artifacts.
 | Gate | Current state | What is required |
 | --- | --- | --- |
 | Public research implementation | Delivered, with current regressions passing | Continue the explicit remaining functionality in the unified plan; implementation is not economic acceptance |
-| Portfolio correctness | Revision 2 fixes implemented and regression-tested | Preserve old records and qualify newly selected options on new data; no retroactive relabeling |
+| Portfolio correctness | Revision 3 fixes implemented and regression-tested | Preserve old records and qualify newly selected options on new data; no retroactive relabeling |
 | Continuous market collection | Supervised processes running; venue connectivity blocked | Restore actual api.wallex.ir reachability, refresh full eligible catalogue and verify fresh quotes/gaps per market |
 | Sustained prospective paper | Open | Multi-day future evidence with preregistered configuration, real clocks, no-data failures, fills and costs; downtime stays visible |
 | Strategy profitability | Not established | Independent chronological evaluation with costs and selection accounting; the completed compound study had no positive cases |
@@ -39,9 +39,8 @@ installed native service binaries or custody state.
 
 ## Validation and authority
 
-Current source regression: 1,161 Python passed, four skipped, 39 subtests; 152
-native tests passed in normal parallel mode; lint, formatting and strict Clippy
-passed. Dependency-audit results are advisory-database snapshots, not certification.
+Current regression and audit results have one owner: [system status](system-status.md).
+Dependency-audit results are advisory-database snapshots, not certification.
 Tests use explicit synthetic fixtures where appropriate; their outcomes are never
 reported as actual venue orders or fabricated market evidence.
 

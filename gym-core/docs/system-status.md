@@ -7,6 +7,7 @@ and the local evidence folders. This page describes the current delivery.
 
 - Public Wallex catalogue/feed collection, exact SQL observations, rule-aware bars,
   vintages, quality/readiness and transactional publication watermarks.
+- Separated browser view owners preserve existing EN/FA contracts and hashed assets.
 - Twelve registry strategies, saved paper runs, chronological comparisons,
   experiments, replay/debugging, screening, recovery, notes and robustness tools.
 - Compound revision 3 keeps indicator history through wide spreads, records actual
@@ -35,6 +36,10 @@ and the local evidence folders. This page describes the current delivery.
   negative-clock counts. Stale, insufficient, mixed-market, DEMO and clock-
   disagreement inputs cannot silently become execution defaults. Real fee,
   slippage and order-latency measurements remain unverified.
+- Robustness diagnostics verify comparable saved records before CSCV rank
+  recombination, recorded-regime grouping, stationary return blocks or additive
+  FIFO P/L reshuffling. Gaps, insufficient samples, identical candidates and ties
+  remain explicit; no method grants a promotion verdict.
 - Unsupported compound limit orders and working remainders now fail explicitly;
   the simulator does not silently reinterpret the requested execution model.
 - Portable JSON/HTML cards retain allowlisted optional execution/sizing assumptions.
@@ -53,17 +58,18 @@ D:/GitHub/Trade/data. Collector configuration explicitly selects --assets all;
 no three-market watch override is used. The maintained launcher is
 scripts/windows/Start-Workspace.ps1.
 
-The actual HTTP server is listening on 127.0.0.1:8765 and exposes all 12 strategies.
-At 13:53 UTC on 7 November, WebSockets were connected with 373 selected spot
-pairs. Readiness was DEGRADED: 208 market states READY and 165 STALE.
-The independent direct public-catalogue request failed. Public REST remains impaired;
-connected streaming does not establish healthy seeds/candle fetches or fresh quotes
-for every market.
+The actual HTTP server listens on 127.0.0.1:8765 and exposes all 12 strategies,
+the portfolio replay capability and current content-hashed view assets. At 14:21
+UTC on 7 November, both REST and WebSocket requests failed at the network
+connection; all 373 selected pairs had MISSING current-process observations.
+The collector recovered observation selection from 469 retained catalogue rows,
+without changing their source clocks or claiming fresh catalogue confirmation.
+An independent public HTTPS request also failed with a reset.
 
-The current process predates the new portfolio API. The GUI checks the backend
-capability before enabling replay and asks for an observatory restart when absent.
-The collector was not restarted while its REST bootstrap remained unavailable,
-to preserve the working stream. Fresh-process API/worker integration passed locally.
+Windows tasks launch the installed Python module directly. A real isolated
+scheduled-task test confirmed that stopping the task terminates its collector
+child. The current collector and scheduler use that launch path; task state does
+not establish market-feed health or useful paper results.
 
 The private browser link is in the current user's
 %LOCALAPPDATA%/TradingGYM/workspace-link.txt. The protected executor remains
@@ -72,11 +78,9 @@ was performed during this delivery.
 
 ## Current validation
 
-- Python: 1,223 passed, four skipped, 39 subtests passed after registry-only
-  command inputs, current session/campaign callers, calibration and cleanup.
-  A further calibration regression with 25,000 samples passed and catches a
-  negative-clock observation even when its rounded percentage would be zero.
-  Pinned default USDT run identities remain unchanged.
+- Python: 1,236 passed, four skipped and 39 subtests passed, including catalogue
+  outage recovery, supervised workflow integration, robustness diagnostics and
+  the separated UI contracts. Pinned default USDT run identities remain unchanged.
 - Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
   loading does not import service orchestration. Architecture guards passed.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three
@@ -98,8 +102,8 @@ The separate 149,573-case historical campaign is still incomplete.
 
 These are historical modeled observations, not evidence of sustained profitability,
 measured venue execution costs or qualification of the new portfolio options.
-Future prospective sessions require adequate per-market coverage; the stream
-has recovered, but impaired REST and stale markets remain visible.
+Future prospective sessions require adequate per-market coverage; failed network
+connections and missing current-process observations remain visible.
 
 ## Open work
 

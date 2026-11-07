@@ -157,6 +157,7 @@ class Collector:
         self.names: dict[str, dict] = {}
         self.catalog: dict[str, dict] = {}
         self.catalog_received_at = None
+        self.catalog_source = "SYNTHETIC" if demo else "UNAVAILABLE"
         self.books: dict[str, dict[str, BookSide | None]] = {}
         self.depth_ref: dict[str, str] = {}
         self.tops = {}
@@ -318,8 +319,34 @@ class Collector:
                 await asyncio.sleep(delay)
         raise AssertionError("unreachable")
 
+    def retained_catalog(self, at):
+        """Recover observation selection only; metadata versions are not fresh catalogue receipts."""
+        rows = self.db.c.execute("""SELECT i.symbol,i.base,i.quote,s.spec FROM instruments i
+            JOIN instrument_specs s ON s.instrument_id=i.instrument_id
+            WHERE i.venue='wallex' AND s.source=? AND s.valid_from<=?
+            AND (s.valid_to IS NULL OR s.valid_to>?) ORDER BY i.symbol LIMIT 1001""",
+            ("rest:" + CATALOG_PATH, iso(at), iso(at))).fetchall()
+        if (not rows or len(rows) > 1000 or any(type(value) is not str for row in rows for value in row)
+                or sum(len(row[3].encode("utf-8")) for row in rows) > wallex.MAX_BODY):
+            return []
+        result = []
+        try:
+            for symbol, base, quote, raw in rows:
+                row = loads(raw)
+                if (not isinstance(row, dict) or row.get("symbol") != symbol or symbol != base + quote
+                        or not symbol.isascii() or not symbol.isalnum() or not 2 <= len(symbol) <= 24
+                        or _value(row, "base_asset", "baseAsset") != base or _value(row, "quote_asset", "quoteAsset") != quote
+                        or type(row.get("is_spot")) is not bool):
+                    raise ValueError("retained catalogue identity or eligibility is invalid")
+                result.append(row)
+        except (ValueError, TypeError):
+            self.quality(at, None, "SOURCE_ERROR", "retained catalogue metadata is invalid; selection remains unavailable")
+            return []
+        return result
+
     async def load_catalog(self, session):
         now = now_utc()
+        received = True
         try:
             raw = await self.rest_text(session, CATALOG_PATH)
             self.seg.write("rest:" + CATALOG_PATH, raw, now)
@@ -328,7 +355,11 @@ class Collector:
                 raise ValueError("catalog markets is not a list")
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError) as e:
             self.quality(now, None, "SOURCE_ERROR", f"catalog: {type(e).__name__}: {e}")
-            return
+            rows = self.retained_catalog(now)
+            if not rows:
+                return
+            received = False
+            self.quality(now, None, "CATALOG_RETAINED", "Observation selection recovered from retained metadata; current catalogue freshness is UNKNOWN")
         catalog = {}
         for m in rows:
             if not isinstance(m, dict) or not isinstance(m.get("symbol"), str) or not m["symbol"].strip():
@@ -336,7 +367,8 @@ class Collector:
                 continue
             catalog[m["symbol"].upper()] = m
         rows = list(catalog.values())
-        self.catalog, self.catalog_received_at = catalog, now
+        self.catalog, self.catalog_received_at = catalog, now if received else None
+        self.catalog_source = "PUBLIC_REST" if received else "RETAINED_METADATA"
         for s, m in catalog.items():
             base, quote = _value(m, "base_asset", "baseAsset"), _value(m, "quote_asset", "quoteAsset")
             if not base or not quote:
@@ -345,7 +377,8 @@ class Collector:
             inst = InstrumentId.wallex(s, base, quote)
             names = {"en": m.get("name_en") or m.get("enName") or s,
                      "fa": m.get("name_fa") or m.get("faName") or s}
-            self.db.upsert_instrument(inst, names, m, "rest:" + CATALOG_PATH, now)
+            if received:
+                self.db.upsert_instrument(inst, names, m, "rest:" + CATALOG_PATH, now)
         if self.explicit_symbols is None:
             symbols, self.universe = select_universe(rows, self.asset_count)
         else:

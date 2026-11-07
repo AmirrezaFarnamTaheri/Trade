@@ -16,6 +16,7 @@ def workspace_capabilities(col):
         "venue_candle_fetch_resolutions": list(UDF_RESOLUTIONS),
         "bar_source": "RECEIVED_OBSERVATIONS", "collection": dict(col.universe),
         "catalog_received_at": iso(col.catalog_received_at) if col.catalog_received_at else None,
+        "catalog_source": col.catalog_source,
         "catalog_markets": len(col.catalog), "asset_capacity": MAX_ASSETS,
         "websocket_channels_per_connection": MAX_CHANNELS,
         "rest_requests_per_second": REST_REQUESTS_PER_SECOND,

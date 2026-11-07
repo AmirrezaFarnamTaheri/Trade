@@ -80,7 +80,7 @@ def test_ui_asset_urls_follow_contents_without_restarting(tmp_path, monkeypatch)
     (tmp_path / "margin.js").write_text("// margin controls", encoding="utf-8")
     (tmp_path / "replay-chart.js").write_text("// decision chart", encoding="utf-8")
     (tmp_path / "native-review.js").write_text("// protected review controls", encoding="utf-8")
-    for extra in ("charts.js", "runs.js", "portfolio.js"):
+    for extra in ("charts.js", "runs.js", "portfolio.js", "markets.js", "research-controls.js", "operations.js"):
         (tmp_path / extra).write_text("// " + extra, encoding="utf-8")
     monkeypatch.setattr(server, "UI", ui)
 
