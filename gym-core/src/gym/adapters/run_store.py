@@ -119,8 +119,7 @@ def load_verified_run(root, run_id, *, store):
         if out["inputs"]["store"] != store:
             raise ValueError("run source store mismatch")
         if portfolio:
-            from ..domain.performance import performance
-            from ..services.reports import sampled_drawdown
+            from ..domain.performance import performance, sampled_drawdown
             out["performance"] = {k: v for k, v in performance(out, sampled_drawdown(out)).items() if k not in ("ledger", "trades")}
         return out
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, KeyError, TypeError, AttributeError):

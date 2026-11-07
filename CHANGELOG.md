@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Portfolio workflows and execution realism
+- Portfolio revision 3 adds point-in-time USDT-equivalent curve marks and explicit
+  LIVE/STALE/STALE_CLOSED/UNAVAILABLE FX states to the native records, CLI and browser.
+  Future-only FX cannot value starting cash. Single-market boundary valuation shares
+  the same owner. Pure drawdown arithmetic belongs to the domain layer.
 - Shared-cash portfolio replay now reaches the private research API and EN/FA browser
   workbench through the existing bounded worker. Saved portfolios are listed and verified;
   derived performance is recomputed from verified records.

@@ -4,12 +4,11 @@ from decimal import Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import InstrumentId, QualityLimits, dec, iso
+from ..domain.model import dec, iso
 from ..domain.registry import create_strategy
-from ..domain.rules import is_closed
 from ..domain.sim import CostModel, Spec
 from ..domain.strategy import BuyAndHold, digest
-from .data_portal import DataPortal, rate_at
+from .data_portal import DataPortal, valuation_at
 from .rules import RuleService
 from .session import ENGINE_VERSION
 
@@ -107,18 +106,13 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     fx = None
     if inst.quote == "TMN":
         u = portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
-        r0, r1 = rate_at(u, t0), rate_at(u, t1)
-        if r0 and r1:
-            fx = {"pair": "USDTTMN", "start": str(r0[0]), "start_time": iso(r0[1]), "end": str(r1[0]), "end_time": iso(r1[1]),
+        r0, r1 = valuation_at(u, t0, rules_for), valuation_at(u, t1, rules_for)
+        if r0["rate"] and r1["rate"]:
+            fx = {"pair": "USDTTMN", "start": r0["rate"], "start_time": r0["at"], "end": r1["rate"], "end_time": r1["at"],
                   "basis": "MID of last qualified quote; derived valuation rate, not executable"}
-            usdt = InstrumentId.wallex("USDTTMN")
-            for edge, at, rate in (("start", t0, r0), ("end", t1, r1)):
-                age = (at - rate[1]).total_seconds()
-                fx[f"{edge}_age_seconds"] = age
-                if is_closed(rules_for(at), usdt, at):
-                    fx[f"{edge}_status"] = "STALE_CLOSED"
-                else:
-                    fx[f"{edge}_status"] = "STALE" if age > QualityLimits().stale_s else "LIVE"
+            for edge, rate in (("start", r0), ("end", r1)):
+                fx[f"{edge}_age_seconds"] = rate["age_seconds"]
+                fx[f"{edge}_status"] = rate["status"]
     for row in [main, *baselines.values()]:
         e = row.get("end")
         if not e:

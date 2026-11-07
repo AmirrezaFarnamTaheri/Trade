@@ -49,14 +49,23 @@ window.gymPortfolio = (() => {
     }
     function render() {
       if (!record) return;
-      const result = record.result, end = result.end;
+      const result = record.result, end = result.end, valuation = result.valuation;
+      const fxCurve = valuation?.curve || [];
+      const conversion = valuation ? `<h4>${text('USDT equivalent · valuation only', 'معادل تتر · فقط ارزش‌گذاری')}</h4>` + keyValues([
+        [text('Net · USDT equivalent', 'خالص · معادل تتر'), end.net_usdt_eq == null ? text('Unavailable', 'ناموجود') : amount(end.net_usdt_eq)],
+        [text('Start / end FX status', 'وضعیت تبدیل ابتدا / انتها'), `${esc(valuation.start.status)} / ${esc(valuation.end.status)}`],
+        [text('Valuation basis', 'مبنای ارزش‌گذاری'), esc(valuation.basis)]]) +
+        (fxCurve.length && fxCurve.every(row => row.equity_usdt_eq != null) ? curveFigure({curve: fxCurve.map(row => [row.at, row.equity_usdt_eq]), quote: 'USDT equivalent'}) : '') +
+        `<p class="field-help">${text('STALE and STALE_CLOSED use an old rate. UNAVAILABLE remains blank. Conversion does not make stale holdings current or certify an executable FX price.', 'STALE و STALE_CLOSED از نرخ قدیمی استفاده می‌کنند. UNAVAILABLE خالی می‌ماند. تبدیل، قیمت کهنهٔ دارایی را تازه نمی‌کند و قیمت قابل‌اجرا را تأیید نمی‌کند.')}</p>` +
+        table([text('Latest 25 valuation marks · UTC', '۲۵ ارزش‌گذاری آخر · UTC'), text('USDT equivalent', 'معادل تتر'), text('FX status', 'وضعیت تبدیل'), text('Rate age · seconds', 'عمر نرخ · ثانیه')],
+          fxCurve.slice(-25).map(row => [esc(when(row.at)), row.equity_usdt_eq == null ? text('Unavailable', 'ناموجود') : amount(row.equity_usdt_eq), esc(row.fx.status), esc(row.fx.age_seconds ?? 'UNKNOWN')])) : '';
       $('portfolio-result').innerHTML = `<h3>${esc(record.run_id)} · ${esc(result.quote)}</h3>` + keyValues([
         [text('Equity · recorded bid marks', 'ارزش · قیمت خرید ثبت‌شده'), amount(end.equity)], [text('Net', 'خالص'), amount(end.net)],
         [text('Return · %', 'بازده · درصد'), amount(record.performance?.total_return_pct)],
         [text('Drawdown · sampled %', 'افت · درصد نمونه‌برداری‌شده'), amount(record.performance?.max_drawdown_pct)]]) + curveFigure(result) + table(
         [text('Market', 'بازار'), text('Fills', 'اجراها'), text('Closed trades', 'معاملات بسته'), text('Realized P/L', 'سود و زیان محقق'), text('Held · base units', 'دارایی · واحد پایه'), text('Last recorded bid', 'آخرین قیمت خرید ثبت‌شده')],
         Object.entries(result.markets).map(([s, row]) => [esc(s), esc(row.fills), esc(row.closed_trades), amount(row.realized_pnl), amount(row.holding), amount(row.last_bid)])) +
-        `<details><summary>${text('Verified inputs, orders and exact balances', 'ورودی، سفارش و موجودی دقیق بررسی‌شده')}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(record, null, 2))}</pre></details>`;
+        conversion + `<details><summary>${text('Verified inputs, orders and exact balances', 'ورودی، سفارش و موجودی دقیق بررسی‌شده')}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(record, null, 2))}</pre></details>`;
     }
     $('portfolio-load').onclick = () => act(async () => {
       const data = await api('/api/research');

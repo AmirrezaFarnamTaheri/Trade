@@ -40,6 +40,13 @@ amounts remain strings. The replay window is at most 31 days, native portfolio
 observation counts are bounded, and the disposable worker has a 120-second
 deadline. It cannot submit a venue order or borrow money.
 
-Replay marks can be stale and gaps can hide losses. Portfolio USDT conversion,
-dynamic weights and portfolio-wide risk limits remain separate items in the
+Revision 3 binds point-in-time FX conversion to the saved identity. Both boundary
+rates and every curve rate use the last qualified quote already available, with a
+one-day lookback before the window. Missing start FX leaves USDT-equivalent net
+unavailable. STALE and STALE_CLOSED retain an old derived rate explicitly; this
+is valuation rather than executable conversion. A graph is omitted if any FX
+curve mark is unavailable, instead of connecting across that gap.
+
+Replay marks can be stale and gaps can hide losses. Dynamic weights and
+portfolio-wide risk limits remain separate items in the
 [implementation plan](implementation-plan.md); this workflow does not claim them.

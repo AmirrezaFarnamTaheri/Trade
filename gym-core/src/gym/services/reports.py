@@ -4,42 +4,9 @@ import math
 from decimal import Decimal
 from statistics import mean, stdev
 
-from ..domain.model import QualityLimits, iso, parse_ts
-from ..domain.performance import performance
+from ..domain.model import QualityLimits, parse_ts
+from ..domain.performance import performance, sampled_drawdown
 from ..domain.strategy import digest
-
-
-def sampled_drawdown(out):
-    """Exact peak-to-trough diagnostic on recorded marks, including initial cash."""
-    result = out["result"]
-    initial = result.get("start_cash")
-    curve = result.get("curve", [])
-    if initial is None or not curve:
-        return {"status": "UNAVAILABLE", "basis": "RECORDED_MARK_TO_BID"}
-    initial = Decimal(initial)
-    if not initial.is_finite() or initial <= 0:
-        raise ValueError("invalid starting equity")
-    start, cutoff = parse_ts(out["inputs"]["from"]), parse_ts(out["inputs"]["to"])
-    peak, peak_at, previous = initial, start, start
-    worst, peak_time, trough_time = Decimal(0), start, start
-    samples = list(curve)
-    if result.get("end"):
-        samples.append((iso(cutoff), result["end"]["equity"]))
-    for timestamp, raw in samples:
-        at, equity = parse_ts(timestamp), Decimal(raw)
-        if not previous <= at <= cutoff or not equity.is_finite() or equity < 0:
-            raise ValueError("invalid recorded equity path")
-        previous = at
-        if equity > peak:
-            peak, peak_at = equity, at
-        loss = (peak - equity) / peak
-        if loss > worst:
-            worst, peak_time, trough_time = loss, peak_at, at
-    return {"status": "AVAILABLE", "basis": "RECORDED_MARK_TO_BID", "samples": len(samples),
-            "maximum_percent": str((worst * 100).quantize(Decimal("0.00000001"))),
-            "peak_at": iso(peak_time), "trough_at": iso(trough_time),
-            "peak_to_trough_seconds": (trough_time - peak_time).total_seconds(),
-            "continuous_path_verified": False}
 
 
 def paper_summary(out):

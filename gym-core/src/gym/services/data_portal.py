@@ -7,7 +7,16 @@ from decimal import Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import BookTop, InstrumentId, TradeTick, dec, iso, parse_ts
+from ..domain.model import (
+    BookTop,
+    InstrumentId,
+    QualityLimits,
+    TradeTick,
+    dec,
+    iso,
+    parse_ts,
+)
+from ..domain.rules import is_closed
 from ..domain.sim import Spec
 
 
@@ -122,7 +131,22 @@ def quote_gaps(db: MarketDB, symbol: str, t0: datetime, t1: datetime, min_second
 
 def rate_at(tops: list[BookTop], t: datetime) -> tuple[Decimal, datetime] | None:
     """Derived valuation rate: MID of the last qualified quote at or before t. Not an executable price."""
-    q = [x for x in tops[: bisect_right([x.ts_avail for x in tops], t)] if qualified(x)]
-    return ((q[-1].bid + q[-1].ask) / 2, q[-1].ts_avail) if q else None
+    index = bisect_right(tops, t, key=lambda top: top.ts_avail) - 1
+    while index >= 0:
+        top = tops[index]
+        if qualified(top):
+            return ((top.bid + top.ask) / 2, top.ts_avail)
+        index -= 1
+    return None
+
+
+def valuation_at(tops, at, rules_for):
+    rate = rate_at(tops, at)
+    if rate is None:
+        return {"rate": None, "at": None, "age_seconds": None, "status": "UNAVAILABLE"}
+    age = (at - rate[1]).total_seconds()
+    closed = is_closed(rules_for(at), InstrumentId.wallex("USDTTMN"), at)
+    return {"rate": str(rate[0]), "at": iso(rate[1]), "age_seconds": age,
+            "status": "STALE_CLOSED" if closed else "STALE" if age > QualityLimits().stale_s else "LIVE"}
 
 

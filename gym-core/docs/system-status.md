@@ -11,9 +11,10 @@ and the local evidence folders. This page describes the current delivery.
   experiments, replay/debugging, screening, recovery, notes and robustness tools.
 - Compound revision 3 keeps indicator history through wide spreads, records actual
   simulated positions and refuses fee-net holdings below known exit minimums.
-- Portfolio revision 2 closes all markets before later quotes/fills, binds resolved
+- Portfolio revision 3 closes all markets before later quotes/fills, binds resolved
   assets/reference snapshots/depth/limit prints/rules/specifications to its ID,
-  and rejects alias markets that would double-count one holding. It uses one
+  and rejects alias markets that would double-count one holding. TMN portfolios
+  carry point-in-time USDT-equivalent curve marks and explicit FX freshness. It uses one
   independent read snapshot. Old saved study engines and records are retained.
 - Shared-cash replay is available in the private research API and EN/FA Workbench.
   Native quote/trade counts, worker time, saved-file size and response size are bounded.
@@ -55,8 +56,9 @@ was performed during this delivery.
 
 ## Current validation
 
-- Python: 1,199 passed, four skipped, 39 subtests passed; 54 affected-path
-  checks passed after the final saved-read and UI validation changes.
+- Python: 1,203 passed, four skipped, 39 subtests passed.
+- Pure sampled-drawdown arithmetic lives in the domain layer; verified artifact
+  loading does not import service orchestration. Architecture guards passed.
 - Rust: all 152 workspace tests passed with normal parallel execution; the three
   shared-clock directory helpers now use atomic per-process suffixes.
 - Python lint, Rust formatting and strict Clippy passed.

@@ -67,3 +67,19 @@ test('invalid setup cannot enable replay inputs',async()=>{
   assert.equal(p.node('portfolio-fields').disabled,true);
   assert.match(p.node('portfolio-status').textContent,/Request failed/);
 });
+test('missing FX stays unavailable and stale FX is visible beside valuation',async()=>{
+  const valued=JSON.parse(JSON.stringify(record));
+  valued.result.end.net_usdt_eq=null;
+  valued.result.valuation={basis:'MID; not executable',start:{status:'UNAVAILABLE'},end:{status:'STALE_CLOSED'},curve:[{at:'2026-10-29T09:00:00Z',equity_usdt_eq:null,fx:{status:'UNAVAILABLE',age_seconds:null}}]};
+  const p=page(async(url,options)=>{
+    if(!options)return setup;
+    const body=JSON.parse(options.body);
+    return body.action==='portfolio-list'?{runs:[]}:body.action==='portfolio-replay'?{run_id:record.run_id}:valued;
+  });
+  await p.node('portfolio-load').onclick();
+  p.node('portfolio-symbols').value='BTCTMN,ETHTMN';p.node('portfolio-params').value='{}';
+  await p.node('portfolio-form').onsubmit({preventDefault(){}});
+  assert.match(p.node('portfolio-result').innerHTML,/UNAVAILABLE \/ STALE_CLOSED/);
+  assert.match(p.node('portfolio-result').innerHTML,/Unavailable/);
+  assert.match(p.node('portfolio-result').innerHTML,/not executable/);
+});

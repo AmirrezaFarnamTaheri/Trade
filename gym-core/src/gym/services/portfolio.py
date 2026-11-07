@@ -6,17 +6,17 @@ of current portfolio equity. Quotes from all markets are fed in availability ord
 """
 import heapq
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import iso
+from ..domain.model import iso, parse_ts
 from ..domain.performance import performance, trade_ledger
 from ..domain.registry import create_strategy
 from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
-from .data_portal import DataPortal
+from .data_portal import DataPortal, valuation_at
 from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
@@ -113,7 +113,28 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     metadata = {s: db.c.execute("SELECT valid_from, valid_to, spec, source FROM instrument_specs "
                                "WHERE instrument_id=? AND valid_from<? AND (valid_to IS NULL OR valid_to>?) "
                                "ORDER BY valid_from, rowid", ("wallex:" + s, iso(t1), iso(t0))).fetchall() for s in symbols}
-    inputs = {"engine": ENGINE_VERSION, "kind": "portfolio", "portfolio_version": 2,
+    fx_tops = []
+    if quote == "TMN":
+        count = db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
+                             "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
+                             (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+        if count > MAX_OBSERVATIONS:
+            raise ValueError("portfolio FX observation budget exceeded; narrow the window")
+        fx_tops = portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
+
+    def fx_at(at):
+        return ({"rate": "1", "at": iso(at), "age_seconds": 0, "status": "IDENTITY"}
+                if quote == "USDT" else valuation_at(fx_tops, at, rules_for))
+
+    first_fx, last_fx = fx_at(t0), fx_at(t1)
+    valued_curve = []
+    for at, value in curve:
+        fx = fx_at(parse_ts(at))
+        valued_curve.append({"at": at, "equity_usdt_eq": str(Decimal(value) / Decimal(fx["rate"])) if fx["rate"] else None, "fx": fx})
+    valuation = {"pair": "USDTTMN" if quote == "TMN" else None,
+                 "basis": "MID of last qualified quote; derived valuation rate, not executable" if quote == "TMN" else "USDT identity",
+                 "start": first_fx, "end": last_fx, "curve": valued_curve}
+    inputs = {"engine": ENGINE_VERSION, "kind": "portfolio", "portfolio_version": 3,
               "symbols": symbols, "from": iso(t0), "to": iso(t1),
               "resolution": resolution, "strategy": strategy_id, "params": sessions[symbols[0]].strategy.params,
               "strategy_version": sessions[symbols[0]].strategy.version,
@@ -122,7 +143,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
               "instruments": {s: asdict(inst) for s, inst in instruments.items()},
               "snapshots": digest({s: [(d["t"], d["snapshot"]) for d in session.decisions]
                                    for s, session in sessions.items()}),
-              "rules": digest(rule_evidence), "metadata": digest(metadata),
+              "rules": digest(rule_evidence), "metadata": digest(metadata), "valuation": digest(valuation),
               "data": digest({s: {"quotes": [(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
                                                *((x.depth,) if cost.walk_depth else ())) for x in tops[s]],
                                   "limit_trades": sessions[s].limit_trades if cost.order_type == "limit" else []}
@@ -135,8 +156,12 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                       "closed_trades": len(ledger["trades"]), "realized_pnl": str(sum((Decimal(t["pnl"]) for t in ledger["trades"]), Decimal(0))),
                       "holding": str(book.get(instruments[s].base)), "last_bid": str(marks.get(s)) if s in marks else None}
     result = {"quote": quote, "start_cash": str(cash), "curve": curve, "orders": [], "markets": markets,
+              "valuation": valuation,
               "balances": {k: str(v) for k, v in book.balances.items()},
               "end": {"mark_time": iso(t1), "equity": str(end_equity), "net": str(end_equity - cash)}}
+    result["end"]["net_usdt_eq"] = (str(end_equity - cash) if quote == "USDT" else
+        str((end_equity / Decimal(last_fx["rate"]) - cash / Decimal(first_fx["rate"])).quantize(Decimal("0.0001")))
+        if first_fx["rate"] and last_fx["rate"] else None)
     out = {"run_id": digest(inputs)[:16], "mode": "PORTFOLIO", "inputs": inputs, "result": result}
     from .reports import sampled_drawdown
     out["performance"] = {k: v for k, v in performance(out, sampled_drawdown(out)).items() if k not in ("ledger", "trades")}
