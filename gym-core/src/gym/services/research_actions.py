@@ -40,7 +40,7 @@ WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
-                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "prospective-status")]))
+                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "prospective-status", "prospective-evaluate")]))
 
 
 def _market_db(root):
