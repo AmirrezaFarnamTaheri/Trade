@@ -99,6 +99,12 @@ def test_depth_walk_fills_at_the_volume_weighted_price_within_the_budget():
     thin = CashBook({"BTC": Decimal(10)})
     o = market_order(thin, inst, "SELL", Decimal(1), START, Decimal(100), top, 0, walk, Spec(), [], {}, "t")
     assert Decimal(o["qty"]) == 6 and o["resized"] == "ObservedDepth" and o["requested_qty"] == "10"
+    steep = (((Decimal(100), Decimal(1)), (Decimal(97), Decimal(5))), depth[1])
+    deep = [BookTop("BTCUSDT", START + timedelta(seconds=1), Decimal(100), Decimal(101), Decimal(1), Decimal(1), frozenset(), steep)]
+    o = market_order(CashBook({"BTC": Decimal(2)}), inst, "SELL", Decimal(1), START, Decimal(100), deep, 0, walk, Spec(), [], {}, "g")
+    assert o["reason"] == "VENUE_PRICE_GUARD"  # reaching 97 is a 3% move: Wallex cancels the market order
+    o = market_order(CashBook({"BTC": Decimal(1)}), inst, "SELL", Decimal(1), START, Decimal(100), deep, 0, walk, Spec(), [], {}, "h")
+    assert o["status"] == "FILLED"  # the best level alone moves nothing
     blind = [BookTop("BTCUSDT", START + timedelta(seconds=1), Decimal(100), Decimal(101), Decimal(1), Decimal(1), frozenset())]
     o = market_order(CashBook({"USDT": Decimal(10)}), inst, "BUY", Decimal(1), START, Decimal(101), blind, 0, walk, Spec(), [], {}, "u")
     assert o["reason"] == "DEPTH_UNAVAILABLE"

@@ -5,14 +5,19 @@ import asyncio
 import json
 import os
 import sys
+from datetime import date, timedelta
 from decimal import Decimal
 
-from ..domain.model import iso
+from ..domain.model import TEHRAN, iso
 from ..services.collector import now_utc
 from .common import (
     _strict_offline_json,
     store_root,
 )
+
+
+def _today() -> date:
+    return now_utc().astimezone(TEHRAN).date()
 
 
 def key_cmd(args) -> int:
@@ -30,13 +35,21 @@ def key_cmd(args) -> int:
     if args.op == "show":
         for role in secret_store.ROLES:
             try:
-                print(f"{role}: {secret_store.masked(secret_store.load(role))}")
+                key = secret_store.load(role)
+                print(f"{role}: {secret_store.masked(key)}, {secret_store.expiry_note(role, _today())}")
             except ValueError:
                 print(f"{role}: not stored")
         return 0
+    expires = date.fromisoformat(args.expires) if args.expires else None
+    if expires is not None and not _today() <= expires <= _today() + timedelta(days=secret_store.MAX_KEY_DAYS):
+        raise ValueError(f"--expires must be between today and {secret_store.MAX_KEY_DAYS} days from today")
     key = os.environ.pop("WALLEX_KEY_INPUT", "") or getpass.getpass(f"Wallex {args.role} key: ")
     path = secret_store.save(args.role, key)
-    print(f"{args.role} key {secret_store.masked(key.strip())} stored at {path}")
+    if expires is not None:
+        secret_store.save_expiry(args.role, expires, _today())
+    else:
+        secret_store.clear_expiry(args.role)  # a replaced key must not inherit the old key's date
+    print(f"{args.role} key {secret_store.masked(key.strip())} stored at {path}; {secret_store.expiry_note(args.role, _today())}")
     return 0
 
 

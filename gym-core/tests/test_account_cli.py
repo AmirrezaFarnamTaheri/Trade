@@ -100,3 +100,21 @@ def test_service_account_failure_records_no_partial_observation(monkeypatch, cap
     assert main(["--data", str(tmp_path), "account", "--source", "service", "--record"]) == 3
     assert "UNKNOWN" in capsys.readouterr().err
     assert not (tmp_path / "live" / "external_journal.db").exists()
+
+
+def test_key_expiry_notes(tmp_path):
+    from datetime import date
+
+    import pytest
+
+    from gym.adapters import secret_store
+
+    today = date(2026, 11, 8)
+    assert "expiry unknown" in secret_store.expiry_note("read", today, tmp_path)
+    with pytest.raises(ValueError):
+        secret_store.save_expiry("read", date(2027, 2, 7), today, tmp_path)  # 91 days
+    secret_store.save_expiry("read", date(2026, 11, 20), today, tmp_path)
+    assert secret_store.expiry_note("read", today, tmp_path) == "expires 2026-11-20 (12 days); create a replacement soon"
+    assert secret_store.expiry_note("read", date(2026, 11, 21), tmp_path).startswith("EXPIRED")
+    secret_store.clear_expiry("read", tmp_path)
+    assert "expiry unknown" in secret_store.expiry_note("read", today, tmp_path)

@@ -116,7 +116,9 @@ class WallexAccountReader:
         return parse_fee_rates(await self._get("/v1/account/fee"))
 
     async def fee_observation(self) -> dict[str, object]:
-        """Read but never *assume* the undocumented account-specific fee shape.
+        """Read but never *assume* the account-specific fee rates.
+
+        The shape (result.<SYMBOL>.makerFeeRate/takerFeeRate/recent_days_sum) is documented; rates stay uncertified.
 
         A successful GET confirms connectivity, not the rate or fee asset.
         A separate dated VenueFacts/official-contract probe is needed before

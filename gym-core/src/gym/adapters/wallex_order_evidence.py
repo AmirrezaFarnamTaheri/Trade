@@ -135,7 +135,11 @@ def parse_manual_order_evidence(payload: object, requested_id: str) -> dict:
 
 
 def parse_order_page(payload, *, kind, page, per_page):
-    """Documented map-of-order-arrays only; a page never proves collection completeness."""
+    """Map-of-order-arrays only; a page never proves collection completeness.
+
+    developers.wallex.ir documents both reads (spot Swagger, 2026-11-08): GET /v1/account/openOrders and
+    GET /v1/account/orders, each with page/per_page (history: at most 100) and a result map of order arrays.
+    """
     if kind not in ("OPEN", "HISTORY") or type(page) is not int or not 1 <= page <= 1000 or type(per_page) is not int or not 1 <= per_page <= 100:
         raise InvalidOrderEvidence("invalid bounded order page request")
     result = payload.get("result") if type(payload) is dict and payload.get("success") is True else None

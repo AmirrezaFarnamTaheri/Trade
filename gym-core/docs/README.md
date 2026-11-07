@@ -16,6 +16,7 @@ and the [implementation plan](implementation-plan.md).
 - [Compound strategies](compound-strategies.md)
 - [Shared-cash portfolio replay](portfolio-replay.md)
 - [Wallex adapter contracts](wallex-api.md)
+- [Wallex API reference (local copy, 2026-11-08)](wallex-reference.md)
 - [Margin previews and paper replay](wallex-margin.md)
 - [Paper campaign definitions](paper-qualification.md)
 - [Verification](../tests/README.md)

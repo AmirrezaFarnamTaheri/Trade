@@ -79,8 +79,8 @@ class PaperSession:
         self.skipped = []
         self.reopenings = []
         # ponytail: on-close subscriptions only; add event/schedule/regime clocks when a real strategy needs them.
-        # ponytail: the band reference is the first observed mid of the Tehran day; switch to the venue's
-        # published reference price once Wallex exposes one.
+        # The band reference is the first observed mid of the Tehran day, an estimate: the official API publishes
+        # no reference price, daily open or band (checked 2026-11-08).
         self.day_open = {}
         self.state = "CONFIGURED"
         self.events.append({"state": self.state, "t": iso(start)})

@@ -9,6 +9,7 @@ import ctypes
 import os
 import re
 from ctypes import wintypes
+from datetime import date, timedelta
 from pathlib import Path
 
 ROLES = ("read", "trade")
@@ -81,6 +82,34 @@ def load_backup_passphrase(root: Path | None = None) -> str:
     if not path.is_file():
         raise ValueError("no stored backup passphrase; run: gymctl key set-backup")
     return _crypt(path.read_bytes(), False).decode()
+
+
+MAX_KEY_DAYS = 90  # api-docs.wallex.ir: a key lives at most 90 days and cannot be renewed
+
+
+def save_expiry(role: str, expires: date, today: date, root: Path | None = None) -> Path:
+    """Record the key's chosen expiry (not secret) so `key show` can warn before reads start failing."""
+    if not today <= expires <= today + timedelta(days=MAX_KEY_DAYS):
+        raise ValueError(f"expiry must be between today and {MAX_KEY_DAYS} days from today")
+    path = _path(role, root).with_suffix(".expires")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(expires.isoformat(), "ascii")
+    return path
+
+
+def clear_expiry(role: str, root: Path | None = None) -> None:
+    _path(role, root).with_suffix(".expires").unlink(missing_ok=True)
+
+
+def expiry_note(role: str, today: date, root: Path | None = None) -> str:
+    path = _path(role, root).with_suffix(".expires")
+    if not path.is_file():
+        return f"expiry unknown (set it with: gymctl key set {role} --expires YYYY-MM-DD)"
+    expires = date.fromisoformat(path.read_text("ascii").strip())
+    left = (expires - today).days
+    if left < 0:
+        return f"EXPIRED on {expires}; create a new key on Wallex"
+    return f"expires {expires} ({left} days)" + ("; create a replacement soon" if left <= 14 else "")
 
 
 def masked(key: str) -> str:

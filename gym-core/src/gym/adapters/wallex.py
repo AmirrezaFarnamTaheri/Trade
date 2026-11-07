@@ -1,4 +1,11 @@
-"""Wallex public REST and Centrifugo WebSocket v2 (public channels only; no keys, no orders)."""
+"""Wallex public REST and Centrifugo WebSocket v2 (public channels only; no keys, no orders).
+
+Protocol facts from developers.wallex.ir (socket pages, read 2026-11-08): Centrifugo "version 2" at
+/connection/websocket (the /ws version 1 is deprecated); at most 64 channels per connection; the server sends
+{} every 25 s and closes with 3012 if the same {} is not returned within 8 s; one frame may hold several
+newline-separated messages; close codes 3500+ mean do not reconnect. Every depth message is a full snapshot of
+that side, subscribe returns no snapshot, and nothing but candle: channels keeps history, so a gap is lost.
+"""
 from __future__ import annotations
 
 import json
@@ -31,7 +38,7 @@ def parse_channel(ch: str) -> tuple[str, str, str] | None:
     return None
 
 
-UDF_RESOLUTIONS = {"1min": "1", "1h": "60"}  # "D" answers no_data on the live API (probed 2026-10-31)
+UDF_RESOLUTIONS = {"1min": "1", "1h": "60"}  # "D" answered no_data (probed 2026-10-31); the documented daily code is "1D", unprobed
 
 
 def parse_udf(text: str) -> list[dict]:

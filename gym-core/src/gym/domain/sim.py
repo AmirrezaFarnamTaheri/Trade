@@ -134,6 +134,9 @@ def _floor(x: Decimal, decimals: int | None) -> Decimal:
     return x if decimals is None else x.quantize(Decimal(1).scaleb(-decimals), ROUND_DOWN)
 
 
+MARKET_PRICE_GUARD = Decimal("0.02")
+
+
 def _walk(levels, qty: Decimal) -> Decimal:
     """Quote notional of taking `qty` best-first from observed levels; qty never exceeds their total."""
     notional, left = Decimal(0), qty
@@ -226,6 +229,16 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         qty = _floor(max_qty, spec.qty_decimals)  # the unfilled rest of a resized order
     if qty < requested and out.get("resized") in ("ObservedDepth", "DisplayedCapacity"):
         out["requested_qty"] = str(requested if max_qty is None else min(requested, max_qty))
+    if levels and qty > 0:
+        taken, worst = Decimal(0), levels[0][0]
+        for level_price, size in levels:
+            if taken >= qty:
+                break
+            taken, worst = taken + size, level_price
+        # Wallex cancels a market order that would move the price 2% (developers.wallex.ir spot-types, 2026-11-08);
+        # the best observed level stands in for the venue's last-trade reference.
+        if abs(worst / levels[0][0] - 1) > MARKET_PRICE_GUARD:
+            return {**out, "fill_time": iso(t), "reason": "VENUE_PRICE_GUARD"}
     notional = _walk(levels, qty) if levels and qty > 0 else qty * price
     if levels and qty > 0:
         price = notional / qty  # volume-weighted across the levels taken

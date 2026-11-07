@@ -99,7 +99,8 @@ class TradeTick:
 
     @classmethod
     def wallex(cls, symbol: str, d: dict, ts_avail: datetime) -> TradeTick:
-        # isBuyOrder=true means the resting (maker) order was the buy, so the aggressor sold.
+        # developers.wallex.ir (socket-trade): isBuyOrder=true means the resting maker order was the buy, so the
+        # aggressor sold. Collected data agrees: BUY-aggressor prints sat at/above the prior ask 5.7x as often as at the bid.
         return cls(symbol, parse_ts(d["timestamp"]), ts_avail, dec(d["price"]), dec(d["quantity"]),
                    "SELL" if d["isBuyOrder"] else "BUY")
 

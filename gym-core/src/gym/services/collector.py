@@ -240,7 +240,7 @@ class Collector:
         t = TradeTick.wallex(sym, d, now)
         if only_after and t.ts_event <= only_after:
             return False
-        # ponytail: preserve ambiguous identical prints; dedupe by venue trade id when Wallex exposes one.
+        # Identical prints stay: the official API has no trade id in /v1/trades or SYMBOL@trade (checked 2026-11-08).
         self.db.add_trade(t, ref)
         self.trades[sym].appendleft(t)
         if sym not in self.last_trade_ts or t.ts_event > self.last_trade_ts[sym]:
