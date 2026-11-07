@@ -26,6 +26,7 @@ def _floor(value, decimals):
 def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slices,
                   participation, fee_rate, available_quote, available_base,
                   max_delay_seconds, store):
+    """Model bounded child attempts without reusing observed top-of-book capacity."""
     if store not in ("live", "demo") or side not in ("BUY", "SELL"):
         raise ValueError("unsupported paper TWAP mode")
     if type(slices) is not int or not 1 <= slices <= 100:
@@ -53,6 +54,7 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
     remaining_quote, remaining_base = available_quote, available_base
     filled = received_base = received_quote = fee_base = fee_quote = spent_quote = Decimal(0)
     children = []
+    last_used = -1
     with localcontext() as context:
         context.prec = 80
         unit = _floor(quantity / Decimal(slices), spec.qty_decimals)
@@ -64,10 +66,11 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
             target = _floor(target, spec.qty_decimals)
             first = bisect_left(times, slot)
             chosen = None
-            if first < len(quotes):
+            if first < len(quotes) and first != last_used:
                 candidate = quotes[first]
                 if candidate.ts_avail - slot <= timedelta(seconds=max_delay_seconds):
                     chosen = candidate
+                    last_used = first
             reason = "NO_TIMELY_QUOTE"
             qty = Decimal(0)
             price = None
@@ -108,11 +111,16 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
                              "requested_quantity": str(target), "filled_quantity": str(qty),
                              "unfilled_quantity": str(target - qty), "status": status,
                              "reason": reason, "price": str(price) if price is not None else None})
-    cancelled = quantity - filled
-    if cancelled < 0 or remaining_quote < 0 or remaining_base < 0:
-        raise ArithmeticError("paper TWAP reservation conservation violated")
-    if sum((Decimal(x["requested_quantity"]) for x in children), Decimal(0)) + (quantity - _floor(quantity, spec.qty_decimals)) != quantity:
-        raise ArithmeticError("TWAP children do not conserve requested quantity")
+    # The child split can contain 80-digit repeating fractions when a market
+    # has no known quantity precision; Python's default 28 digits are unsafe.
+    with localcontext() as context:
+        context.prec = 160
+        cancelled = quantity - filled
+        if cancelled < 0 or remaining_quote < 0 or remaining_base < 0:
+            raise ArithmeticError("paper TWAP reservation conservation violated")
+        total_children = sum((Decimal(child["requested_quantity"]) for child in children), Decimal(0))
+        if total_children + (quantity - _floor(quantity, spec.qty_decimals)) != quantity:
+            raise ArithmeticError("TWAP children do not conserve requested quantity")
     result = {"schema": "paper-twap/1", "symbol": instrument.symbol, "side": side, "store": store,
               "synthetic": store == "demo", "start": iso(start), "end_exclusive": iso(end),
               "requested_quantity": str(quantity), "filled_quantity": str(filled),
