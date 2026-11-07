@@ -11,7 +11,7 @@ class TomanPremium:
     requires_position_context = True
 
     def __init__(self, entry_bps=50, exit_bps=0, conversion_cost_bps=20, max_skew_seconds=10):
-        self.params = dict(entry_bps=entry_bps, exit_bps=exit_bps, conversion_cost_bps=conversion_cost_bps, max_skew_seconds=max_skew_seconds)
+        self.params = {"entry_bps": entry_bps, "exit_bps": exit_bps, "conversion_cost_bps": conversion_cost_bps, "max_skew_seconds": max_skew_seconds}
         self.feature_values, self.ready = {}, False
 
     @staticmethod
@@ -53,7 +53,7 @@ class LeadLag:
     same_quote_reference = True
 
     def __init__(self, lookback=20, reference="ETHUSDT", entry_bps=50, lag_bps=30, max_skew_seconds=10):
-        self.params = dict(lookback=lookback, reference=reference, entry_bps=entry_bps, lag_bps=lag_bps, max_skew_seconds=max_skew_seconds)
+        self.params = {"lookback": lookback, "reference": reference, "entry_bps": entry_bps, "lag_bps": lag_bps, "max_skew_seconds": max_skew_seconds}
         self.reference_symbol = reference
         self.history, self.last_end = deque(maxlen=lookback + 1), None
         self.feature_values, self.ready = {}, False
