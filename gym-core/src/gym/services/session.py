@@ -29,7 +29,7 @@ class PendingOrder:
 
 
 class PaperSession:
-    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None):
+    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None, auxiliary_symbols=()):
         if not cash.is_finite() or cash <= 0:
             raise ValueError("cash must be positive and finite")
         self.portal = portal
@@ -54,6 +54,9 @@ class PaperSession:
         self.reference_symbol = reference_symbol or getattr(strategy, "reference_symbol", None)
         if self.reference_symbol == symbol:
             raise ValueError("reference asset must differ from the traded asset")
+        if self.reference_symbol and getattr(strategy, "same_quote_reference", False) and portal.instrument(self.reference_symbol).quote != self.instrument.quote:
+            raise ValueError("lead-lag reference must use the traded quote currency")
+        self.auxiliary_symbols = tuple(sorted(set(auxiliary_symbols) | set(getattr(strategy, "reference_symbols", lambda _: ())(self.instrument))))
         self.latest_bars = {}
         periods = {"session": self.session_of} if "session" in resolutions else {}
         self.closes = CloseSubscriptions(symbol, resolutions, periods)
@@ -106,6 +109,14 @@ class PaperSession:
                 references = self.portal.tops(self.reference_symbol, bar.avail - timedelta(seconds=120),
                                               bar.avail + timedelta(microseconds=1))
                 reference = next((q for q in reversed(references) if qualified(q)), None)
+            auxiliary = []
+            for symbol in self.auxiliary_symbols:
+                if is_closed(self.rules_for(bar.avail), self.portal.instrument(symbol), bar.avail):
+                    continue
+                rows = self.portal.tops(symbol, bar.avail - timedelta(seconds=120), bar.avail + timedelta(microseconds=1))
+                latest = next((q for q in reversed(rows) if qualified(q)), None)
+                if latest is not None:
+                    auxiliary.append(latest)
             execution = None
             if self.track_positions:
                 quantity = self.book.get(self.instrument.base)
@@ -126,7 +137,7 @@ class PaperSession:
                         except ValueError:
                             execution[key] = None
             snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
-                                quote and quote.ts_avail, context, reference, execution)
+                                quote and quote.ts_avail, context, reference, execution, tuple(auxiliary))
             if execution is None:
                 holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
@@ -157,6 +168,8 @@ class PaperSession:
                 "available_at": iso(b.avail), "open": str(b.open), "high": str(b.high), "low": str(b.low), "close": str(b.close)} for b in context]
             decision["reference_known"] = None if reference is None else {"symbol": reference.symbol,
                 "available_at": iso(reference.ts_avail), "bid": str(reference.bid), "ask": str(reference.ask)}
+            if self.auxiliary_symbols:
+                decision["auxiliary_known"] = [{"symbol": q.symbol, "available_at": iso(q.ts_avail), "bid": str(q.bid), "ask": str(q.ask)} for q in auxiliary]
             rules_known = [{"id": r.id, "family": r.family, "class": r.cls, "action": r.action,
                 "scope": r.scope, "params": r.params, "effective_from": iso(r.effective_from),
                 "effective_until": r.effective_until and iso(r.effective_until), "status": r.status,

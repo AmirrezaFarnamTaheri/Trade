@@ -5,6 +5,7 @@ from .bars import FIXED_RESOLUTIONS
 from .channel_strategies import CompressionBreakout, DonchianBreakout
 from .compound_strategies import PARAMETERS as COMPOUND_PARAMETERS
 from .compound_strategies import AdaptiveChannel, TrendPullback
+from .cross_market_strategies import LeadLag, TomanPremium
 from .exit_policy import EXIT_PARAMETERS, ExitPolicy
 from .regime import REGIME_GATE, RegimeGate
 from .strategy import (
@@ -20,6 +21,15 @@ from .technical_strategies import PARAMETERS as TECHNICAL_PARAMETERS
 from .technical_strategies import KeltnerBreakout, MacdCross, RsiRebound, TrixCross
 
 STRATEGIES = {
+    "toman-premium": (TomanPremium, "TMN cross-market discount hypothesis", {
+        key: {"type": "integer", "default": default, "minimum": 0, "maximum": maximum}
+        for key, default, maximum in (("entry_bps", 50, 10000), ("exit_bps", 0, 10000),
+                                     ("conversion_cost_bps", 20, 10000), ("max_skew_seconds", 10, 120))}),
+    "lead-lag": (LeadLag, "Cost-aware lead-lag hypothesis", {
+        "reference": {"type": "string", "default": "ETHUSDT", "pattern": "^[A-Z0-9]{2,24}$"},
+        **{key: {"type": "integer", "default": default, "minimum": lo, "maximum": maximum}
+           for key, default, lo, maximum in (("lookback", 20, 2, 500), ("entry_bps", 50, 0, 10000),
+                                           ("lag_bps", 30, 0, 10000), ("max_skew_seconds", 10, 0, 120))}}),
     "ema-trend": (EmaTrend, "EMA trend", {
         "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 10000},
         "slow": {"type": "integer", "default": 21, "minimum": 2, "maximum": 10000},

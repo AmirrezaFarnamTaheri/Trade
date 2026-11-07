@@ -47,6 +47,7 @@ class Snapshot:
     context_bars: tuple[Bar, ...] = ()
     reference: BookTop | None = None
     execution: dict | None = None
+    auxiliary_quotes: tuple[BookTop, ...] = ()
 
     @property
     def id(self) -> str:
@@ -55,6 +56,8 @@ class Snapshot:
             reference = self.reference
             cut += [[(b.spec.resolution, b.start, b.avail, b.open, b.close) for b in self.context_bars],
                     [reference.symbol, reference.ts_avail, reference.bid, reference.ask] if reference else None]
+        if self.auxiliary_quotes:
+            cut += [[(q.symbol, q.ts_avail, q.bid, q.ask) for q in self.auxiliary_quotes]]
         return digest(cut)[:16]
 
 
