@@ -28,6 +28,7 @@ pub fn valid_submit_client_id(client_id: &str) -> Result<(), &'static str> {
 pub struct RequestV2(pub Request);
 
 impl RequestV2 {
+    /// Require venue-safe IDs for new approvals and preparations, not legacy reads.
     fn validate_submission_identity(&self) -> Result<(), &'static str> {
         match &self.0.command {
             Command::Approve(ticket) => valid_submit_client_id(&ticket.client_id),

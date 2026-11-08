@@ -5,6 +5,7 @@ use exec_ipc::{
     StopMode,
 };
 
+/// Build one exact canonical synthetic v1 ticket for cross-version codec tests.
 fn ticket(id: &str) -> Ticket {
     Ticket {
         client_id: id.into(),
@@ -30,6 +31,7 @@ fn ticket(id: &str) -> Ticket {
     }
 }
 
+/// Bind a proposed v2 command to a stable nonzero synthetic correlation.
 fn request(command: Command) -> RequestV2 {
     RequestV2(Request {
         command,
@@ -37,6 +39,7 @@ fn request(command: Command) -> RequestV2 {
     })
 }
 
+/// Verify v2 proposal IDs are stricter without retroactively changing v1.
 #[test]
 fn proposed_ids_require_ascii_letters_digits_or_underscore_in_v2_only() {
     for good in ["A", "_", "BUY_01", "x".repeat(64).as_str()] {
@@ -62,6 +65,7 @@ fn proposed_ids_require_ascii_letters_digits_or_underscore_in_v2_only() {
     .is_ok());
 }
 
+/// Enforce separate version magic and strict lengths, padding and canonicality.
 #[test]
 fn v2_approve_is_canonical_and_never_accepted_as_legacy_v1() {
     let proposed = request(Command::Approve(Box::new(ticket("New_01"))));
@@ -78,6 +82,7 @@ fn v2_approve_is_canonical_and_never_accepted_as_legacy_v1() {
     assert!(RequestV2::decode(&[0; 401]).is_err());
 }
 
+/// Permit historical order lookups while refusing old IDs for new preparation.
 #[test]
 fn old_read_side_id_can_still_be_inspected_or_revoked_but_not_prepared() {
     for command in [
@@ -102,6 +107,7 @@ fn old_read_side_id_can_still_be_inspected_or_revoked_but_not_prepared() {
     assert_eq!(RequestV2::decode(&new.encode().unwrap()).unwrap(), new);
 }
 
+/// Bind the receipt to exact v2 intent and reject old or forged correlations.
 #[test]
 fn v2_receipt_is_version_bound_correlated_and_never_funded_authority() {
     let req = request(Command::Approve(Box::new(ticket("New_01"))));
