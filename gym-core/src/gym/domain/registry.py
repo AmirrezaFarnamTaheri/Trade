@@ -24,12 +24,17 @@ STRATEGIES = {
     "toman-premium": (TomanPremium, "TMN cross-market discount hypothesis", {
         key: {"type": "integer", "default": default, "minimum": 0, "maximum": maximum}
         for key, default, maximum in (("entry_bps", 50, 10000), ("exit_bps", 0, 10000),
-                                     ("conversion_cost_bps", 20, 10000), ("max_skew_seconds", 10, 120))}),
+                                     ("conversion_cost_bps", 20, 10000), ("max_skew_seconds", 10, 120))} | {
+        "z_entry": {"type": "integer", "default": 0, "minimum": 0, "maximum": 8},
+        "z_exit": {"type": "integer", "default": 0, "minimum": 0, "maximum": 8},
+        "half_life_multiple": {"type": "integer", "default": 0, "minimum": 0, "maximum": 20},
+    }),
     "lead-lag": (LeadLag, "Cost-aware lead-lag hypothesis", {
         "reference": {"type": "string", "default": "ETHUSDT", "pattern": "^[A-Z0-9]{2,24}$"},
         **{key: {"type": "integer", "default": default, "minimum": lo, "maximum": maximum}
            for key, default, lo, maximum in (("lookback", 20, 2, 500), ("entry_bps", 50, 0, 10000),
-                                           ("lag_bps", 30, 0, 10000), ("max_skew_seconds", 10, 0, 120))}}),
+                                           ("lag_bps", 30, 0, 10000), ("max_skew_seconds", 10, 0, 120))},
+        "delay_bars": {"type": "integer", "default": 0, "minimum": 0, "maximum": 12}}),
     "ema-trend": (EmaTrend, "EMA trend", {
         "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 10000},
         "slow": {"type": "integer", "default": 21, "minimum": 2, "maximum": 10000},
