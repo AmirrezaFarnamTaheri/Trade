@@ -1,3 +1,4 @@
+/** Switch the document language, direction, accessible labels, and live view translations. */
 function applyLang() {
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
@@ -23,6 +24,7 @@ function applyLang() {
   if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure, strategyFields}); }
 }
 
+/** Summarize qualified markets and saved paper evidence without making profit claims. */
 function renderOverview() {
   const markets = list(state.markets?.markets), latest = state.runs[0];
   setHTML("overview-summary", stat(t("observedPairs"), state.markets ? num(markets.length) : t("none"), t("observedPairsNote"))
@@ -35,6 +37,7 @@ function renderOverview() {
   setHTML("overview-activity", state.runs.length ? table([t("pair"), t("time"), t("net")], state.runs.slice(0, 4).map(run => [code(run.inputs?.symbol), esc(when(run.inputs?.to)), `${money(run.end?.net)} ${code(/(TMN|USDT)$/.exec(run.inputs?.symbol || "")?.[1])}`]), "", [2]) : empty(t(state.runsLoaded ? "recentEvidenceEmpty" : "loading")));
 }
 
+/** Show connection and readiness failures explicitly, including unknown feed state. */
 function renderFeed() {
   const health = state.health;
   const key = state.apiError ? "refreshFailed" : !health ? "feedUnknown" : health.fatal ? "feedStopped" : health.connected ? "feedConnected" : "feedDisconnected";
@@ -43,6 +46,7 @@ function renderFeed() {
   setHTML("feed-status", `<span class="dot${state.apiError || health?.fatal || !health?.connected || readiness?.ready !== true ? " dot-warn" : ""}" aria-hidden="true"></span><span>${esc(t(key))}${readiness ? ` · ${esc(t("publicReadiness"))}: ${label(readiness.status)} · ${digits(ready)}/${digits(list(readiness.markets).length)}` : ""}</span>`);
   $("connection-error").hidden = !state.apiError;
 }
+/** Render the wall clock in Tehran time using the active locale. */
 function updateClock() {
   const now = new Date();
   $("clock").textContent = new Intl.DateTimeFormat(lang === "fa" ? "fa-IR" : "en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(now) + " · " + (lang === "fa" ? "تهران" : "Tehran");

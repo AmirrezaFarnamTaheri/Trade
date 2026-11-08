@@ -1,8 +1,10 @@
 const $ = id => document.getElementById(id);
+/** Read an optional persisted preference only when its value is allowed. */
 function saved(key, fallback, allowed) {
   try { const value = localStorage.getItem(key); return allowed.includes(value) ? value : fallback; }
   catch (_) { return fallback; }
 }
+/** Persist a non-secret workspace preference when browser storage is available. */
 function remember(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Storage is optional. */ } }
 let lang = saved("lang", "en", ["en", "fa"]);
 let theme = saved("theme", "light", ["light", "dark"]);
@@ -14,12 +16,14 @@ const t = key => T[lang][key] ?? key;
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const digits = value => lang === "fa" ? String(value).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]) : String(value);
 // Keep API money as decimal strings; floating point is used only for chart geometry.
+/** Display exact decimal-string money with locale digits and no floating-point conversion. */
 function num(value) {
   if (value == null || value === "") return t("none");
   const raw = String(value), match = raw.match(/^(-?)(\d+)(?:\.(\d+))?$/);
   if (!match) return esc(raw);
   return digits(match[1] + match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (match[3] ? "." + match[3] : ""));
 }
+/** Format a timestamp in the selected UI language and requested time zone. */
 function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
   if (!value) return t("none");
   const stamp = new Date(value);
@@ -30,6 +34,7 @@ function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
   }).format(stamp);
 }
 // Round a decimal string half-up for display only; the exact value stays in the tooltip.
+/** Round a decimal string for display only; never alter stored precision. */
 function rounded(value, places = 2) {
   const match = String(value ?? "").match(/^(-?)(\d+)(?:\.(\d+))?$/);
   if (!match || (match[3] || "").length <= places) return value;
@@ -55,6 +60,7 @@ const disclosure = (title, value, key) => `<details class="disclosure" data-key=
 const stat = (name, value, note = "") => `<div class="stat"><span class="stat-label">${esc(name)}</span><strong class="stat-value">${value}</strong>${note ? `<span class="stat-note">${esc(note)}</span>` : ""}</div>`;
 const keyValues = rows => `<dl class="key-values">${rows.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${value}</dd></div>`).join("")}</dl>`;
 // `numeric` lists column indexes that hold numbers: right-aligned, tabular figures.
+/** Render accessible responsive rows, preserving numeric column alignment. */
 function table(headings, rows, fallback, numeric = []) {
   if (!rows.length) return empty(fallback || t("nothing"));
   const cls = i => numeric.includes(i) ? ' class="num"' : "";
@@ -62,6 +68,7 @@ function table(headings, rows, fallback, numeric = []) {
 }
 
 const rendered = new Map();
+/** Refresh a view without closing disclosure panels or stealing keyboard focus. */
 function setHTML(id, html) {
   const element = $(id);
   if (rendered.get(id) === html) return;
@@ -74,6 +81,7 @@ function setHTML(id, html) {
   if (focusedInside) [...element.querySelectorAll("[data-focus]")].find(node => node.dataset.focus === focus)?.focus({ preventScroll: true });
 }
 
+/** Make a bounded same-origin request with token headers and safe error output. */
 async function api(path, options = {}, timeoutMs = 10000, asText = false) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);

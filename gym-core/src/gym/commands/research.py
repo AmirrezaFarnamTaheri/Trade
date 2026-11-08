@@ -23,6 +23,7 @@ from .common import (
 
 
 def replay_cmd(args) -> int:
+    """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
     from ..domain.sim import CostModel
     from ..services.paper import paper
@@ -94,6 +95,7 @@ def replay_cmd(args) -> int:
 
 
 def market_statistics_cmd(args) -> int:
+    """Calculate bounded observed market statistics from a local snapshot."""
     from datetime import timedelta
 
     from ..services.market_statistics import spread_report, trade_flow_report
@@ -130,6 +132,7 @@ def market_statistics_cmd(args) -> int:
 
 
 def technical_report_cmd(args) -> int:
+    """Render local technical diagnostics using recorded observations only."""
     from ..services.technical_analysis import technical_report, technical_reports
 
     path = store_root(args) / "market.db"
@@ -181,6 +184,7 @@ def candles_cmd(args) -> int:
             windows = quote_gaps(db, symbol, start, end)[:50] if args.fill_gaps else [(start, end)]
 
             async def fetch():
+                """Fetch or inspect candle windows while respecting the local data boundary."""
                 seg = SegmentWriter(store_root(args) / "raw", db)
                 try:
                     async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
@@ -210,6 +214,7 @@ def candles_cmd(args) -> int:
 
 
 def calibrate_cmd(args) -> int:
+    """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta
 
     from ..services.execution_calibration import feed_latency, fill_quality
@@ -234,11 +239,13 @@ def assistant_cmd(args) -> int:
     gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
 
     async def complete(action, value):
+        """Return a bounded advisory result while recording model usage."""
         result = await gateway.request(action, value)
         usage.record(result)
         return result
 
     async def go():
+        """Close the model gateway and usage store after an advisory request."""
         try:
             span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
             if not span[0]:
@@ -258,6 +265,7 @@ def assistant_cmd(args) -> int:
 
 
 def summary_cmd(args):
+    """Summarize persisted paper evidence without altering the source run."""
     from ..adapters.run_store import load_run
     from ..services.portable_report import render_html
     from ..services.reports import paper_summary
@@ -277,6 +285,7 @@ def summary_cmd(args):
 
 
 def evidence_cmd(args):
+    """Read saved economic evidence and record an independent operator decision."""
     from ..adapters.run_store import record_decision, run_path
     from ..services.diagnostics import diagnostics
     from ..services.reports import economic_report, markdown
@@ -297,6 +306,7 @@ def evidence_cmd(args):
 
 
 def session_cmd(args):
+    """Start a bounded paper session with no funded execution authority."""
     from ..domain.sim import CostModel
     from ..services.live_paper import watch
 
@@ -333,6 +343,7 @@ def paper_research_cmd(args) -> int:
 
 
 def research_cmd(args):
+    """Dispatch local research commands through their bounded execution owners."""
     from ..services.research_actions import OBJECT_ACTIONS, research_action
 
     root = store_root(args)
@@ -382,6 +393,7 @@ async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 
 
 
 async def _watch(root, store, poll_seconds, stop):
+    """Run scheduler ticks under the process lock until explicitly interrupted."""
     ticks = completed = failed = 0
     reason = "Stop requested"
     try:

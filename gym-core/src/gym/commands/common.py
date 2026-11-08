@@ -27,11 +27,13 @@ def default_data_root() -> Path:
 
 
 def store_root(args) -> Path:
+    """Separate demo and live data beneath the explicitly resolved workspace root."""
     # Demo data lives in its own directory and never mixes with real observations.
     return Path(args.data) / ("demo" if getattr(args, "demo", False) else "live")
 
 
 def open_db(args, preset_at=None) -> MarketDB:
+    """Open a market store and install first-run rules only when absent."""
     db = MarketDB(store_root(args) / "market.db")
     if not db.rule_events():
         RuleService(db).preset(DEFAULT_PRESET, preset_at or now_utc(), actor="first-run")
@@ -50,6 +52,7 @@ def _strict_offline_json(path: str, *, max_bytes: int) -> dict:
 
 
 def timedelta_ms(ms: int):
+    """Convert a validated millisecond argument into a duration."""
     from datetime import timedelta
 
     return timedelta(milliseconds=ms)

@@ -98,6 +98,7 @@ def test_account_api_does_not_expose_corrupt_snapshot_data(tmp_path):
 
 
 def test_journal_renders_readonly_account_state_bilingually():
+    """Keep read-only account evidence discoverable in both supported languages."""
     from pathlib import Path
     ui = Path(__file__).resolve().parents[1] / "src" / "gym" / "ui"
     html = (ui / "index.html").read_text("utf-8")

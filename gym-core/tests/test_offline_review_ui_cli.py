@@ -66,6 +66,7 @@ def test_read_only_review_api_requires_token_and_shows_no_order_permission(tmp_p
 
 
 def test_review_journal_is_visible_in_bilingual_ui():
+    """Show saved operator reviews in the actual split workspace assets."""
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]/"src"/"gym"/"ui"
     html = (root/"index.html").read_text("utf-8")

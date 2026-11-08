@@ -1,4 +1,5 @@
 let pollTimer, refreshTask, refreshAgain = false;
+/** Refresh one visible workspace view from read-only or explicitly approved APIs. */
 async function collectView(name, healthTask) {
   if (name === "operate") window.gymNativeReview?.mount(api, DEMO);
   if (name === "backups") {
@@ -37,6 +38,7 @@ async function collectView(name, healthTask) {
   }
 }
 
+/** Serialize polling, pause while hidden, and surface network failures. */
 async function refresh() {
   clearTimeout(pollTimer);
   if (document.hidden) return;
@@ -57,6 +59,7 @@ async function refresh() {
   }
 }
 const viewKeys = { overview: "navOverview", markets: "navMarkets", research: "navResearch", account: "navAccount", operate: "navOperate", rules: "navRules", health: "navHealth", safety: "navSafety", backups: "navBackups", models: "navModels" };
+/** Navigate to a known workspace view while preserving keyboard focus. */
 async function showView(name, focus = false) {
   if (!Object.hasOwn(viewKeys, name)) name = "overview";
   state.view = name;
@@ -70,6 +73,7 @@ async function showView(name, focus = false) {
 }
 
 // Deep links: #research/<tab>[/<run id>] opens a research tab and, for runs, a saved run.
+/** Decode a supported deep link without granting any execution capability. */
 function route(hash) {
   const [name, tab, id] = hash.slice(1).split("/");
   if (name === "research" && researchTabs.includes(tab)) {
@@ -78,6 +82,7 @@ function route(hash) {
   }
   return name;
 }
+/** Keep the research-tab deep link synchronized with current selection. */
 function linkResearch() {
   if (state.view !== "research") return;
   const id = researchTab === "runs" && state.selectedRun ? "/" + state.selectedRun : "";

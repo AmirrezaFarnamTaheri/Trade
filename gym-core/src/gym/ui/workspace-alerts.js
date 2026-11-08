@@ -1,6 +1,7 @@
 // Desktop notifications for conditions that need the operator, once per condition until it clears.
 let alertsOn = saved("alerts", "off", ["on", "off"]) === "on";
 const alerted = new Set();
+/** Emit each authorized operator alert once until the condition clears. */
 function checkAlerts(health) {
   if (!alertsOn || typeof Notification === "undefined" || Notification.permission !== "granted" || !health) return;
   const active = [
@@ -13,6 +14,7 @@ function checkAlerts(health) {
   for (const [key, body] of active) if (!alerted.has(key)) { alerted.add(key); new Notification("TradingGYM", { body, tag: key }); }
   for (const key of [...alerted]) if (!active.some(([name]) => name === key)) alerted.delete(key);
 }
+/** Keep the notification toggle label and pressed state synchronized. */
 function renderAlertToggle() {
   $("alerts-toggle").textContent = t(alertsOn ? "alertsOn" : "alertsOff");
   $("alerts-toggle").setAttribute("aria-pressed", String(alertsOn));

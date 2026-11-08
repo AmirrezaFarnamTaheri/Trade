@@ -50,6 +50,7 @@ OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule
 
 
 def _market_db(root):
+    """Open the existing research market store read-only without creating a new root."""
     path = root / "market.db"
     if not path.is_file():
         raise ValueError("research requires an existing market store")
@@ -57,6 +58,7 @@ def _market_db(root):
 
 
 def research_action(root, action, value=None, *, store="live", at=None):
+    """Dispatch bounded paper-only research actions with strict store and clock rules."""
     root = Path(root)
     if not isinstance(action, str):
         raise ValueError("invalid research action")
@@ -336,6 +338,7 @@ def research_action(root, action, value=None, *, store="live", at=None):
 # Kept together with the only research action dispatcher to avoid pass-through modules.
 
 def review_runs(root, run_ids, *, as_of, store="live"):
+    """Check historical saved-run metrics as of one conservative availability cutoff."""
     as_of = instant(as_of)
     if type(run_ids) is not list or not 1 <= len(run_ids) <= 4 or any(type(key) is not str for key in run_ids) or len(set(run_ids)) != len(run_ids):
         raise ValueError("review requires 1..4 distinct saved run IDs")
@@ -371,6 +374,7 @@ def review_runs(root, run_ids, *, as_of, store="live"):
     return result
 
 def prepare_packet(registry, request):
+    """Create a bounded immutable evidence packet for optional analyst interpretation."""
     fields(request, "run_ids")
     review = review_runs(registry.root / "runs", request["run_ids"], as_of=now_utc(), store=registry.store)
     citations = [f"{key}:{metric}" for key in request["run_ids"]
@@ -391,6 +395,7 @@ def prepare_packet(registry, request):
 
 
 def save_notes(registry, request):
+    """Validate and retain constrained analyst notes tied to a frozen evidence packet."""
     fields(request, "packet_id preset notes")
     packet = registry.read(request["packet_id"])
     if packet["kind"] != "EVIDENCE_PACKET":
@@ -436,6 +441,7 @@ def save_notes(registry, request):
     return {"schema": "research-notes/1", "record": saved, "funded_authority": False}
 
 def derived_series(protocol, request):
+    """Compute point-in-time aligned series arithmetic without using future vintages."""
     fields(request, "left right operation as_of max_age_seconds max_skew_seconds")
     if request["operation"] not in ("RATIO", "DIFFERENCE"):
         raise ValueError("derived series supports RATIO or DIFFERENCE")
@@ -492,6 +498,7 @@ def derived_series(protocol, request):
 
 
 def convert_series(protocol, request):
+    """Convert an observation using an explicit, time-aligned unit-epoch factor."""
     fields(request, "value factor from_epoch to_epoch target_unit as_of max_age_seconds max_skew_seconds")
     for key in ("from_epoch", "to_epoch", "target_unit"):
         pattern = r"[A-Za-z0-9][A-Za-z0-9_.:/%-]{0,63}" if key == "target_unit" else r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}"

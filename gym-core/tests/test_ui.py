@@ -90,6 +90,7 @@ def test_every_ui_node_suite_runs():
 
 
 def test_shell_stays_routing_only_and_view_assets_load_in_order():
+    """Require UI modules to load in declared dependency order with a slim shell."""
     html = UI.read_text("utf-8")
     names = ["workspace-config.js", "workspace-utils.js", "workspace-overview.js",
              "workspace-alerts.js", "app.js", "markets-events.js", "research-events.js",

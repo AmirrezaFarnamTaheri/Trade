@@ -6,6 +6,7 @@ $("ticket-example").onclick = () => {
   setHTML("ticket-output", `<p class="field-help">${esc(t("syntheticExample"))}</p>`);
 };
 $("preview-ticket").onclick = previewTicket;
+/** Save an explicitly selected offline review; failures never imply funded authority. */
 async function writeOfflineReview(button, action, value) {
   button.disabled = true;
   const status = action === "record" ? $("ticket-output") : $("offline-review-status");

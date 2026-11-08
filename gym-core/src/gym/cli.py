@@ -58,6 +58,7 @@ from .services.rules import RuleService
 
 
 def main(argv=None):
+    """Parse the native CLI and invoke the selected bounded command handler."""
     p = argparse.ArgumentParser(prog="gymctl")
     p.add_argument("--data", default=str(default_data_root()),
                    help="data directory (defaults to repository data/ in source checkouts)")

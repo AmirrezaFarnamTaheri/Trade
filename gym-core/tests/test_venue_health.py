@@ -78,6 +78,7 @@ def test_missing_venue_facts_is_unconfigured_not_a_live_account(tmp_path):
 
 
 def test_bilingual_health_panel_renders_evidence_and_blocked_capabilities():
+    """Display unverified venue capabilities honestly in both languages."""
     from pathlib import Path
     root = Path(__file__).resolve().parents[1] / "src" / "gym" / "ui"
     html = (root / "index.html").read_text("utf-8")

@@ -59,7 +59,9 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
              venue_facts: VenueFactsJournal | None = None,
              offline_review_journal: OfflineReviewJournal | None = None,
              chaos_report: Path | None = None) -> web.Application:
+    """Serve only the loopback research UI and bounded, non-authorizing API routes."""
     async def index(_):
+        """Render content-hashed asset references without disclosing the session token."""
         # Never embed the token: any local process can fetch "/". The browser receives it in the URL fragment.
         html = UI.read_text("utf-8").replace("__GYM_DEMO__", json.dumps(col.demo))
         html = html.replace("__GYM_RESOLUTIONS__", json.dumps(list(FIXED_RESOLUTIONS)))
@@ -72,6 +74,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         return web.Response(text=html, content_type="text/html")
 
     async def browser_asset(req):
+        """Serve only assets from the explicit UI_ASSETS route allowlist."""
         return web.FileResponse(UI.with_name(req.path[1:]))
 
     async def markets(_):

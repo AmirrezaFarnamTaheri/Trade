@@ -1,5 +1,6 @@
 const researchTabs = ["runs", "compare", "schedules", "margin", "workbench"];
 let researchTab = saved("researchTab", "runs", researchTabs);
+/** Select a research subview and keep URL history, focus, and ARIA state aligned. */
 function showResearchTab(name, focus = false, link = true) {
   if (name !== researchTab) window.scrollTo?.({ top: 0 });
   researchTab = name; remember("researchTab", name);
@@ -23,6 +24,7 @@ $("research-tabs").addEventListener("keydown", event => {
   event.preventDefault(); showResearchTab(researchTabs[index], true);
 });
 showResearchTab(researchTab);
+/** Choose a persisted research run and refresh its evidence without changing records. */
 function selectSavedRun(event) {
   const button = event.target.closest?.("[data-run]") || event.target;
   if (!button.dataset.run) return;
