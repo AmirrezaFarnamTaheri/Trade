@@ -13,9 +13,16 @@ uv sync
 uv run --no-sync gymctl --data ../data run --assets all
 ```
 
-Use the same explicit data root for every command. Here, `../data/live` is the
-canonical observed store; DEMO uses `../data/demo`. Omitting `--data` selects a
-separate `./data` store. Do not overwrite either store to resolve a mismatch.
+Use the same data root for every command. Here, `../data/live` is the
+canonical observed store; DEMO uses `../data/demo`. In a source checkout,
+omitting `--data` now resolves to the repository's `data/` directory whether
+you launch from the repository root or `gym-core/`. An explicit `--data` always
+wins. Installed wheels without a checkout must use an explicit data root.
+
+If an earlier launch wrote `gym-core/data/live/backup_status.sqlite3` or other
+data, **do not delete or overwrite it**. Stop all writers, inspect both roots,
+and follow the conservative migration notes in `docs/storage.md` before
+switching to the canonical root.
 
 Open the private link printed by the process. It carries the local session key
 in its fragment; the page itself contains no key. Market reads are public on
