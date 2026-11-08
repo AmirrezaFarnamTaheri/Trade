@@ -14,10 +14,14 @@ class PortfolioPolicy:
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
-        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage"}:
+        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target"}:
             raise ValueError("invalid portfolio policy fields")
         self.description = {**defaults, **value}
         self.symbols = symbols
+        self.portfolio_volatility_target = (decimal(value["portfolio_volatility_target"], "portfolio_volatility_target", positive=True)
+                                            if "portfolio_volatility_target" in value else None)
+        if self.portfolio_volatility_target is not None and self.portfolio_volatility_target > 1:
+            raise ValueError("portfolio_volatility_target exceeds one per closed bar")
         self.volatility_model = self.description.get("volatility_model", "close-std")
         self.covariance_shrinkage = self.description.get("covariance_shrinkage", "none")
         if self.covariance_shrinkage not in ("none", "ledoit-wolf-constant-correlation"):
@@ -31,7 +35,7 @@ class PortfolioPolicy:
         for key, low, high in (("lookback", 3, 500), ("rebalance_seconds", 60, 604800)):
             if type(self.description[key]) is not int or not low <= self.description[key] <= high:
                 raise ValueError(f"invalid portfolio {key}")
-        if (self.description["method"] != "equal" or self.description["correlation_limit"] is not None) and len(symbols) ** 2 * self.description["lookback"] > 1000000:
+        if (self.description["method"] != "equal" or self.description["correlation_limit"] is not None or self.portfolio_volatility_target is not None) and len(symbols) ** 2 * self.description["lookback"] > 1000000:
             raise ValueError("covariance calculation budget exceeded; reduce lookback or use equal weights without correlation grouping")
         self.rates = {}
         for key in ("max_weight", "cash_buffer", "correlation_limit", "correlation_cap", "max_drawdown", "daily_loss_limit", "rebalance_threshold"):
@@ -65,7 +69,8 @@ class PortfolioPolicy:
         n, count = len(self.symbols), self.description["lookback"]
         zero = {s: "0" for s in self.symbols}
         result = {"status": "READY", "weights": zero, "risk_contribution_error": None}
-        need_history = self.description["method"] != "equal" or self.description["correlation_limit"] is not None
+        need_history = (self.description["method"] != "equal" or self.description["correlation_limit"] is not None
+                        or self.portfolio_volatility_target is not None)
         with localcontext() as context:
             context.prec = 60
             covariance = shrinkage = None
@@ -139,6 +144,26 @@ class PortfolioPolicy:
                     if total > self.rates["correlation_cap"]:
                         for i in group:
                             weights[i] *= self.rates["correlation_cap"] / total
+            if self.portfolio_volatility_target is not None:
+                # The policy's target is a per-closed-bar standard deviation.
+                # This never leverages or reallocates spare cash to hit an
+                # unreachable target; every factor uses strictly prior bars.
+                variance = sum((weights[i] * covariance[i][j] * weights[j]
+                                for i in range(n) for j in range(n)), Decimal(0))
+                if variance <= 0:
+                    return {**result, "status": "DEGENERATE_COVARIANCE"}
+                before = variance.sqrt()
+                scale = min(Decimal(1), self.portfolio_volatility_target / before)
+                weights = [weight * scale for weight in weights]
+                projected = sum((weights[i] * covariance[i][j] * weights[j]
+                                 for i in range(n) for j in range(n)), Decimal(0)).sqrt()
+                result["portfolio_volatility"] = {
+                    "model": "joint-prior-covariance/1",
+                    "unit": "standard-deviation-per-closed-bar",
+                    "target_per_bar": str(self.portfolio_volatility_target),
+                    "unscaled_per_bar": str(+before), "scale": str(+scale),
+                    "projected_per_bar": str(+projected),
+                    "leverage_allowed": False}
             result["weights"] = {s: str(value.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)) for s, value in zip(self.symbols, weights)}
             if self.description["method"] == "risk-parity":
                 actual = [Decimal(result["weights"][s]) for s in self.symbols]
