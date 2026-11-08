@@ -17,6 +17,7 @@ from .trial_ledger import TrialLedger
 
 
 def portfolio_action(root, action, value, *, store):
+    """Validate and persist a reproducible paper-only portfolio research request."""
     runs = root / "runs" / "portfolios"
     if action == "portfolio-list":
         if value is not None:
