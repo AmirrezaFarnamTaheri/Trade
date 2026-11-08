@@ -60,7 +60,10 @@ def test_shrinkage_reports_actual_target_turnover_against_raw_counterfactual():
     assert Decimal(shrink["turnover_raw"]) >= 0
     assert Decimal(shrink["turnover_shrunk"]) >= 0
     assert Decimal(0) < Decimal(shrink["intensity"]) <= 1
-    assert second["weights"] != PortfolioPolicy(
+    # Shrinkage preserves the sample covariance diagonal by construction. Pure
+    # inverse-volatility weights therefore stay identical; risk-parity and
+    # correlation decisions can change when off-diagonal structure changes.
+    assert second["weights"] == PortfolioPolicy(
         {"method": "inverse-volatility", "lookback": 8}, symbols
     ).weights({s: rows[1:10] for s, rows in all_rows.items()})["weights"]
 
