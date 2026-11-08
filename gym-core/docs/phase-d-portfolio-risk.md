@@ -29,9 +29,18 @@ risk control or evidence of a stable volatility target.
 
 ## Ordered remaining work
 
-- **32 — TMN/USDT factor:** Value each TMN instrument's returns in USDT
-  using causally available FX quotes before estimating covariance. Block
-  missing FX; never pretend TMN risk is USDT risk.
+- **32 — TMN/USDT factor (mechanics implemented; empirical gate open):**
+  Optional `usdt_fx_risk: true` is restricted to TMN-quoted portfolios.
+  Each closed market price (and optional Parkinson high/low) is converted to
+  USDT using the previous strictly available, qualified, open USDT/TMN
+  midpoint. A missing, closed, invalid or stale FX rate clears all risk
+  histories, invalidates targets, and requires a fresh warmup; no future
+  prices may be used. Covariance therefore includes the TMN depreciation
+  factor while capital and cash accounting remain in the original TMN
+  units. Target events label risk currency USDT; the FX observation digest
+  and opt-in schema version (8, or 9 jointly with item 31) are recorded.
+  Still required: independent out-of-sample FX stress evidence and actual
+  USDT-denominated risk calibration.
 - **33 — Expected shortfall:** Evaluate worst historical 5% net USDT
   returns, recorded stress-day scenarios, and a bounded exposure-downscaling
   factor. Report the limit and tested scenario set.
