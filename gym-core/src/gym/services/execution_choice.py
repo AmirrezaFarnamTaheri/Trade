@@ -4,6 +4,7 @@ One immediate (single public top quote) attempt and one TWAP schedule share the
 same frozen public observation window, assumptions, and initial budget.  Future
 public quotes can inform a historical replay but never a start-time order choice.
 """
+
 from decimal import Decimal, localcontext
 
 
