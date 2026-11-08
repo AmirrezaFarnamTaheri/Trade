@@ -28,6 +28,7 @@ LIMITATIONS = [
 
 
 def _save(root, report):
+    """Persist a bounded local margin evidence receipt without funded authority."""
     record = {"schema": "wallex-margin/1", "funded_authority": False, "order_submitted": False, **report}
     record["run_id"] = digest(record)[:16]
     save_run(record, Path(root) / "margin")
@@ -35,6 +36,7 @@ def _save(root, report):
 
 
 def load_receipt(root, receipt_id, kind):
+    """Read an immutable margin receipt and verify its content-derived identity."""
     if type(receipt_id) is not str:
         raise ValueError("margin receipt id must be a string")
     path = run_path(Path(root) / "margin", receipt_id)
@@ -57,6 +59,7 @@ def load_receipt(root, receipt_id, kind):
 
 
 def margin_action(root, action, value, *, store):
+    """Dispatch public margin previews and causal paper replays only."""
     if store != "live":
         raise ValueError("public margin terms and replay use the live observation store only")
     if action == "margin-markets":
