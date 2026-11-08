@@ -41,7 +41,7 @@ def test_slices_capped_by_strictly_prior_public_volume_and_cash():
     report = preview(quotes, earlier)
     later = preview(quotes, [*earlier, trade(90, "1000")])
     assert report["schema"] == "paper-volume-twap/1"
-    assert report["children"][0]["requested_quantity"] == "2.00"
+    assert Decimal(report["children"][0]["requested_quantity"]) == Decimal(2)
     assert report["children"][1]["requested_quantity"] == "2.00"
     assert [r["requested_quantity"] for r in report["children"]] == [
         r["requested_quantity"] for r in later["children"]]
@@ -99,6 +99,6 @@ def test_adaptive_twap_research_action_reads_causal_public_prints(tmp_path):
         "max_spread_bps": "300", "urgency": "NORMAL"}
     report = research_action(tmp_path, "adaptive-twap-preview", request, store="demo")
     assert report["schema"] == "paper-volume-twap/1"
-    assert report["children"][0]["requested_quantity"] == "2.00"
+    assert Decimal(report["children"][0]["requested_quantity"]) == Decimal(2)
     assert report["cost_comparison"]["status"] in ("FULL_FILL_RETROSPECTIVE", "NOT_COMPARABLE")
     assert report["funded_authority"] is False
