@@ -41,9 +41,16 @@ risk control or evidence of a stable volatility target.
   and opt-in schema version (8, or 9 jointly with item 31) are recorded.
   Still required: independent out-of-sample FX stress evidence and actual
   USDT-denominated risk calibration.
-- **33 — Expected shortfall:** Evaluate worst historical 5% net USDT
-  returns, recorded stress-day scenarios, and a bounded exposure-downscaling
-  factor. Report the limit and tested scenario set.
+- **33 — Expected shortfall (partial mechanics; acceptance open):**
+  Optional `expected_shortfall_limit` requires at least 20 prior closed
+  bars and explicit portfolio rebalancing. For frozen current target weights,
+  the worst ceiling(5% × history length) prior portfolio bar returns yield a
+  descriptive historical ES95. The policy can only downscale exposure and
+  records the modeled loss, scale, confidence, limit, and worst observed
+  returns. This is not a verified realized loss limit: recorded historical
+  stress-day replay, out-of-sample tail calibration, and gap-aware realised
+  ES comparison remain unfinished. The optional policy uses portfolio
+  run version 10 and preserves default identities.
 - **34 — Cost-aware rebalance band:** Require the estimated benefit of
   trading to exceed explicitly modeled costs. Report tracking error,
   executed turnover, and resulting cash, using identical input data.
