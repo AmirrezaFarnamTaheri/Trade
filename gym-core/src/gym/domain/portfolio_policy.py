@@ -3,6 +3,7 @@ import itertools
 from decimal import ROUND_DOWN, Decimal, localcontext
 
 from .covariance_models import ledoit_wolf_constant_correlation
+from .hrp import hierarchical_risk_parity
 from .market_models import decimal
 from .model import TEHRAN
 from .volatility import parkinson_ewma
@@ -44,8 +45,10 @@ class PortfolioPolicy:
             raise ValueError("unsupported portfolio volatility model")
         if type(self.description["rebalance"]) is not bool:
             raise ValueError("rebalance must be boolean")
-        if self.description["method"] not in ("equal", "inverse-volatility", "risk-parity"):
+        if self.description["method"] not in ("equal", "inverse-volatility", "risk-parity", "hierarchical-risk-parity"):
             raise ValueError("invalid portfolio weighting method")
+        if self.description["method"] == "hierarchical-risk-parity" and len(symbols) > 100:
+            raise ValueError("HRP target allocator supports at most 100 markets")
         for key, low, high in (("lookback", 3, 500), ("rebalance_seconds", 60, 604800)):
             if type(self.description[key]) is not int or not low <= self.description[key] <= high:
                 raise ValueError(f"invalid portfolio {key}")
@@ -129,7 +132,16 @@ class PortfolioPolicy:
                                   for i in range(n)]
                     result["volatility_model"] = "parkinson-ewma/1"
             weights = [Decimal(1) / n] * n
-            if self.description["method"] != "equal":
+            if self.description["method"] == "hierarchical-risk-parity":
+                try:
+                    weights, order = hierarchical_risk_parity(covariance)
+                except ValueError:
+                    return {**result, "status": "DEGENERATE_COVARIANCE"}
+                result["hierarchical_risk_parity"] = {
+                    "method": "single-linkage-inverse-variance-bisect/1",
+                    "leaf_order": [self.symbols[i] for i in order],
+                    "basis": "prior aligned closed-bar covariance, paper target weights only"}
+            elif self.description["method"] != "equal":
                 weights = [1 / covariance[i][i].sqrt() for i in range(n)]
             if self.description["method"] == "risk-parity":
                 for _ in range(100):
