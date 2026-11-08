@@ -14,10 +14,14 @@ class PortfolioPolicy:
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
-        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target", "usdt_fx_risk", "expected_shortfall_limit"}:
+        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target", "usdt_fx_risk", "expected_shortfall_limit", "cost_aware_rebalance"}:
             raise ValueError("invalid portfolio policy fields")
         self.description = {**defaults, **value}
         self.symbols = symbols
+        self.cost_aware_rebalance = self.description.get("cost_aware_rebalance", False)
+        if type(self.cost_aware_rebalance) is not bool or (self.cost_aware_rebalance and
+                                                           self.description["rebalance"] is not True):
+            raise ValueError("cost_aware_rebalance requires true rebalancing and a boolean flag")
         self.expected_shortfall_limit = (
             decimal(value["expected_shortfall_limit"], "expected_shortfall_limit", positive=True)
             if "expected_shortfall_limit" in value else None)
