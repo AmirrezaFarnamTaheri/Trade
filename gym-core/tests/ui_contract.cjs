@@ -269,6 +269,14 @@ const click = async id => {
     await settle();
     assert.equal(coverageRequests.length, beforeInvalid, "Invalid future window must not submit a mutation");
     control("prospective-test-from").value = "2099-01-02T00:00";
+    control("prospective-test-to").value = "2099-01-04T00:00";
+    control("prospective-resolution").value = "1min";
+    const beforeTooDense = coverageRequests.length;
+    control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
+    await settle();
+    assert.equal(coverageRequests.length, beforeTooDense, "Reject windows exceeding 1440 fixed-bar decisions before mutation");
+    control("prospective-test-to").value = "2099-01-03T00:00";
+    control("prospective-resolution").value = "15min";
     control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
     await settle();
     const registration = coverageRequests.at(-1).body;
