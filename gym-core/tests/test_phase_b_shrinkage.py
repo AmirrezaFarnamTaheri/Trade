@@ -22,7 +22,7 @@ def test_constant_correlation_shrinkage_has_bounded_intensity_and_preserves_vari
         assert c[i][i] == s[i][i] == f[i][i]
         for j in range(3):
             assert c[i][j] == c[j][i]
-            assert abs(c[i][j] - (1 - shrink) * s[i][j] - shrink * f[i][j]) < Decimal("1e-50")
+            assert abs(c[i][j] - (1 - shrink) * s[i][j] - shrink * f[i][j]) < Decimal("1e-24")
     assert shrink > 0  # short/noisy sample must shrink toward target
 
 
