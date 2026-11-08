@@ -7,8 +7,10 @@ from datetime import timedelta
 import pytest
 
 from gym.cli import main
-from gym.services.trial_ledger import TrialLedger
+from gym.services import trial_ledger
 from tests.support import START, market_db, quote_history
+
+TrialLedger = trial_ledger.TrialLedger
 
 
 def test_trial_attempts_are_append_only_and_scoped_to_exact_research_question(tmp_path):
