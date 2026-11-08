@@ -7,7 +7,6 @@ public quotes can inform a historical replay but never a start-time order choice
 
 from decimal import Decimal, localcontext
 
-
 _SHARED_FIELDS = (
     "schema", "symbol", "side", "start", "end_exclusive", "requested_quantity",
     "fee_rate", "participation", "max_delay_seconds", "initial_quote",
