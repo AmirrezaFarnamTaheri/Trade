@@ -69,7 +69,7 @@ def test_review_journal_is_visible_in_bilingual_ui():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]/"src"/"gym"/"ui"
     html = (root/"index.html").read_text("utf-8")
-    js = (root/"app.js").read_text("utf-8")
+    js = "\n".join((root/name).read_text("utf-8") for name in ("workspace-config.js", "operator-events.js", "app.js"))
     assert 'id="offline-review-events"' in html
     assert 'data-t="offlineReviewTitle"' in html
     assert "/api/offline-ticket-reviews" in js

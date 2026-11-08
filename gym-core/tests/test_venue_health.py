@@ -81,7 +81,7 @@ def test_bilingual_health_panel_renders_evidence_and_blocked_capabilities():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1] / "src" / "gym" / "ui"
     html = (root / "index.html").read_text("utf-8")
-    js = "\n".join((root / name).read_text("utf-8") for name in ("app.js", "operations.js"))
+    js = "\n".join((root / name).read_text("utf-8") for name in ("workspace-config.js", "app.js", "operations.js"))
     assert 'id="venue-facts"' in html
     assert 'data-t="venueFactsTitle"' in html
     assert "/api/venue-facts" in js

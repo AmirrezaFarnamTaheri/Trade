@@ -64,8 +64,11 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         html = UI.read_text("utf-8").replace("__GYM_DEMO__", json.dumps(col.demo))
         html = html.replace("__GYM_RESOLUTIONS__", json.dumps(list(FIXED_RESOLUTIONS)))
         for asset in UI_ASSETS:
+            placeholder = f'"/{asset}"'
+            if placeholder not in html:
+                continue  # An allowlisted asset unused by this page needs no content hash.
             version = sha256(UI.with_name(asset).read_bytes()).hexdigest()[:16]
-            html = html.replace(f'"/{asset}"', f'"/{asset}?v={version}"')
+            html = html.replace(placeholder, f'"/{asset}?v={version}"')
         return web.Response(text=html, content_type="text/html")
 
     async def browser_asset(req):
