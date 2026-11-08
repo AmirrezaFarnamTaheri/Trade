@@ -147,6 +147,16 @@ window.gymResearch = (() => {
     }
     const text = (en, persian) => fa ? persian : en;
     const resolutions = JSON.parse($('gym-config').textContent).resolutions || [];
+    const prospectiveStrategies = [
+      ['ema-trend', 'EMA trend'], ['sma-cross', 'SMA crossover'],
+      ['sma-reversion', 'SMA reversion'], ['bollinger-reversion', 'Bollinger reversion'],
+      ['ema-confirmed', 'EMA confirmed'], ['relative-momentum', 'Relative momentum'],
+      ['rsi-rebound', 'RSI rebound'], ['macd-cross', 'MACD crossover'],
+    ];
+    const prospectiveOptions = (selected, optional = false) =>
+      (optional ? '<option value="">' + text('Not selected', 'انتخاب نشده') + '</option>' : '') +
+      prospectiveStrategies.map(([id, label]) => '<option value="' + esc(id) + '"' +
+        (selected === id ? ' selected' : '') + '>' + esc(label) + '</option>').join('');
     host.innerHTML = `<h2>${text('Research workspace', 'فضای پژوهش')}</h2>
       <p>${text('Recorded observations and paper decisions. Supplied account inputs remain unverified.', 'مشاهدات ثبت‌شده و تصمیمات آزمایشی؛ اطلاعات حساب ورودی تأییدشده نیست.')}</p>
       <details open><summary>${text('Guided paper research', 'پژوهش آزمایشی مرحله‌ای')}</summary>
@@ -175,6 +185,37 @@ window.gymResearch = (() => {
           <button class="button" type="submit">${text('Run paper diagnostic', 'اجرای بررسی آزمایشی')}</button>
         </form>
         <div id="guided-result" role="status" aria-live="polite"></div>
+      </details>
+      <details><summary>${text('Frozen prospective comparison · paper only', 'مقایسهٔ آیندهٔ ثبت‌شده · فقط آزمایشی')}</summary>
+        <p class="field-help">${text('Freeze two to four strategy configurations before collecting future data. The window must start in the future. Registration cannot authorize capital or establish a profitable edge.', 'دو تا چهار پیکربندی راهبرد را پیش از جمع‌آوری داده‌های آینده ثبت ثابت کنید. بازه باید در آینده آغاز شود. این ثبت اجازهٔ سرمایه یا اثبات سودآوری نیست.')}</p>
+        <form id="prospective-register-form" class="ticket-fields">
+          <label>${text('Market symbol', 'نماد بازار')}<input id="prospective-symbol" pattern="[A-Z0-9]{2,24}" autocomplete="off" required dir="ltr" placeholder="BTCUSDT"></label>
+          <label>${text('Selection cutoff · UTC', 'پایان انتخاب · UTC')}<input id="prospective-selection-end" type="datetime-local" step="60" required dir="ltr"></label>
+          <label>${text('Future evaluation start · UTC', 'شروع ارزیابی آینده · UTC')}<input id="prospective-test-from" type="datetime-local" step="60" required dir="ltr"></label>
+          <label>${text('Evaluation end · UTC (exclusive)', 'پایان ارزیابی · UTC (غیرشامل)')}<input id="prospective-test-to" type="datetime-local" step="60" required dir="ltr"></label>
+          <label>${text('Fixed close resolution', 'بازهٔ بسته‌شدن ثابت')}<select id="prospective-resolution" required dir="ltr">${resolutions.filter(x => x !== 'session').map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
+          <label>${text('Starting quote cash · exact decimal', 'موجودی آغازین ارز مظنه · اعشاری دقیق')}<input id="prospective-cash" value="1000" inputmode="decimal" required dir="ltr"></label>
+          <label>${text('Fee fraction · exact decimal', 'نرخ کارمزد · اعشاری دقیق')}<input id="prospective-fee" value="0.001" inputmode="decimal" required dir="ltr"></label>
+          <label>${text('Candidate A', 'گزینهٔ الف')}<select id="prospective-strategy-first" required>${prospectiveOptions('ema-trend')}</select></label>
+          <label>${text('Candidate B', 'گزینهٔ ب')}<select id="prospective-strategy-second" required>${prospectiveOptions('sma-cross')}</select></label>
+          <label>${text('Candidate C · optional', 'گزینهٔ پ · اختیاری')}<select id="prospective-strategy-third">${prospectiveOptions('', true)}</select></label>
+          <label>${text('Candidate D · optional', 'گزینهٔ ت · اختیاری')}<select id="prospective-strategy-fourth">${prospectiveOptions('', true)}</select></label>
+          <details><summary>${text('Optional strategy parameter overrides · JSON', 'تغییر اختیاری پارامترهای راهبرد · JSON')}</summary>
+            <p class="field-help">${text('Leave blank to freeze native defaults. This advanced section is optional.', 'برای ثبت پیش‌فرض‌های اصلی خالی بگذارید. این بخش پیشرفته اختیاری است.')}</p>
+            <label>${text('Candidate A parameters', 'پارامترهای گزینهٔ الف')}<textarea id="prospective-params-first" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+            <label>${text('Candidate B parameters', 'پارامترهای گزینهٔ ب')}<textarea id="prospective-params-second" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+            <label>${text('Candidate C parameters', 'پارامترهای گزینهٔ پ')}<textarea id="prospective-params-third" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+            <label>${text('Candidate D parameters', 'پارامترهای گزینهٔ ت')}<textarea id="prospective-params-fourth" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+          </details>
+          <button class="button" type="submit">${text('Freeze future paper comparison', 'ثبت ثابت مقایسهٔ آزمایشی آینده')}</button>
+        </form>
+        <form id="prospective-evaluate-form" class="ticket-fields">
+          <label>${text('Frozen registration ID · 64 hex characters', 'شناسهٔ ثبت ثابت · ۶۴ نویسهٔ شانزده‌شانزدهی')}<input id="prospective-id" pattern="[0-9a-f]{64}" maxlength="64" autocomplete="off" spellcheck="false" required dir="ltr"></label>
+          <button id="prospective-inspect" type="button" class="button">${text('Inspect saved status · read only', 'بررسی وضعیت ثبت‌شده · فقط خواندنی')}</button>
+          <label class="check"><input id="prospective-ack" type="checkbox">${text('I understand an evaluation attempt is consumed once, even if it fails. Inspect status before retrying anything.', 'می‌دانم تلاش ارزیابی حتی در صورت شکست فقط یک‌بار مصرف می‌شود. پیش از هر تکرار وضعیت را بررسی می‌کنم.')}</label>
+          <button type="submit" class="button">${text('Consume one paper evaluation · no orders', 'اجرای یک‌بارهٔ ارزیابی آزمایشی · بدون سفارش')}</button>
+        </form>
+        <div id="prospective-result" role="status" aria-live="polite"></div>
       </details>
       <details open><summary>${text('Coverage timeline', 'خط زمانی پوشش داده')}</summary>
         <form id="coverage-form" class="ticket-fields">
@@ -239,6 +280,128 @@ window.gymResearch = (() => {
         : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
       $('guided-result').innerHTML = `<p><strong>${text('Paper only · no order submitted', 'فقط آزمایشی · هیچ سفارشی ثبت نشده')}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text('Inspect exact evidence', 'بررسی شواهد دقیق')}</summary>${json(report)}</details>`;
     }); };
+    let prospectiveBusy = false;
+    const prospectiveIdPattern = /^[0-9a-f]{64}$/;
+    const prospectiveNumberPattern = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
+    const prospectiveError = message => {
+      $('prospective-result').textContent = message;
+      $('research-workspace-status').textContent = message;
+    };
+    const prospectiveUtc = id => {
+      const raw = $(id).value;
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) throw new Error(text('Enter valid UTC dates.', 'تاریخ‌های UTC معتبر وارد کنید.'));
+      const stamp = raw + ':00Z';
+      if (!Number.isFinite(Date.parse(stamp))) throw new Error(text('Invalid UTC date.', 'تاریخ UTC نامعتبر است.'));
+      return stamp;
+    };
+    const prospectiveParams = id => {
+      const raw = $(id).value.trim();
+      if (!raw) return {};
+      const params = JSON.parse(raw);
+      if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error(text('Parameters must be a JSON object.', 'پارامترها باید شیء JSON باشند.'));
+      return params;
+    };
+    const prospectiveEvidence = value => '<details><summary>' +
+      text('Inspect exact saved evidence', 'بررسی شواهد دقیق ذخیره‌شده') + '</summary>' + json(value) + '</details>';
+    const prospectiveShow = (action, result) => {
+      if (action === 'prospective-register') {
+        if (!prospectiveIdPattern.test(result.id || '')) throw new Error('Invalid registration receipt');
+        $('prospective-id').value = result.id;
+        $('prospective-result').innerHTML = '<p><strong>' +
+          text('FROZEN · paper only · no funded authority', 'ثبت ثابت · فقط آزمایشی · بدون مجوز سرمایه') +
+          '</strong></p><p dir="ltr"><code>' + esc(result.id) + '</code></p>' + prospectiveEvidence(result);
+      } else if (action === 'prospective-status') {
+        const consumed = (result.events || []).some(event => event.kind === 'PROSPECTIVE_ATTEMPT');
+        $('prospective-result').innerHTML = '<p><strong>' +
+          text(consumed ? 'Attempt already consumed · cannot retry' : 'Not yet consumed · inspect future window before evaluating',
+               consumed ? 'تلاش مصرف شده است · تکرار نکنید' : 'هنوز مصرف نشده · پیش از ارزیابی بازهٔ آینده را بررسی کنید') +
+          '</strong></p><p>' + esc(result.kind || 'UNKNOWN') + ' · ' + esc(result.id || '') +
+          '</p>' + prospectiveEvidence(result);
+      } else {
+        const report = result.report || {};
+        const candidates = report.configuration?.candidates || [];
+        const rows = Array.isArray(report.rows) ? report.rows : [];
+        const headings = [text('Candidate', 'گزینه'), text('Fills', 'پرشدن‌ها'),
+          text('Net in quote currency', 'خالص به ارز مظنه'), text('Trade / coverage', 'معامله / پوشش')];
+        const body = rows.map((row, index) => {
+          const net = row.net_available && row.net != null ? esc(String(row.net)) : text('UNAVAILABLE', 'ناموجود');
+          const trade = row.no_trade ? text('NO TRADE', 'بدون معامله') : text('Modeled trades', 'معاملات شبیه‌سازی‌شده');
+          const coverage = String(row.qualified ?? 'UNKNOWN') + '/' + String(row.observations ?? 'UNKNOWN');
+          return '<tr><td>' + esc(candidates[index]?.strategy || row.config_hash || 'UNKNOWN') +
+            '</td><td>' + esc(String(row.fills ?? 'UNKNOWN')) + '</td><td dir="ltr">' + net +
+            '</td><td>' + trade + ' · ' + esc(coverage) + '</td></tr>';
+        }).join('');
+        $('prospective-result').innerHTML = '<p><strong>' +
+          text('One-time attempt recorded · paper only · no order submitted', 'تلاش یک‌باره ثبت شد · فقط آزمایشی · بدون سفارش') +
+          '</strong></p><p>' + text(report.comparable ? 'Modeled comparisons available' : 'Incomplete coverage: not comparable',
+          report.comparable ? 'مقایسه‌های شبیه‌سازی‌شده موجودند' : 'پوشش ناکامل: غیرقابل مقایسه') +
+          '</p><div class="workspace-table"><table><thead><tr>' + headings.map(label => '<th>' + esc(label) + '</th>').join('') +
+          '</tr></thead><tbody>' + body + '</tbody></table></div>' + prospectiveEvidence(result);
+      }
+    };
+    const prospectiveCall = async (button, action, value) => {
+      if (prospectiveBusy) return;
+      prospectiveBusy = true; button.disabled = true;
+      $('prospective-result').textContent = text('Reading or saving local paper evidence…', 'در حال خواندن یا ثبت شواهد آزمایشی محلی…');
+      try {
+        const result = await call(action, value);
+        prospectiveShow(action, result);
+        $('research-workspace-status').textContent = text('Paper workflow completed.', 'گردش‌کار آزمایشی انجام شد.');
+      } catch {
+        prospectiveError(text('Outcome not confirmed. Inspect the saved ID before any further mutation; do not retry a consumed evaluation.',
+          'نتیجه تأیید نشد. پیش از هر تغییر دیگر شناسه ثبت‌شده را بررسی کنید و ارزیابی مصرف‌شده را تکرار نکنید.'));
+      } finally {
+        prospectiveBusy = false; button.disabled = false;
+      }
+    };
+    $('prospective-register-form').onsubmit = event => {
+      event.preventDefault(); if (prospectiveBusy || event.target.reportValidity?.() === false) return;
+      try {
+        const selection_end = prospectiveUtc('prospective-selection-end');
+        const test_from = prospectiveUtc('prospective-test-from');
+        const test_to = prospectiveUtc('prospective-test-to');
+        const selected = Date.parse(selection_end), from = Date.parse(test_from), to = Date.parse(test_to);
+        if (!(selected <= Date.now() && Date.now() < from && from < to && to - from <= 31 * 86400000))
+          throw new Error(text('Selection cutoff must be past; evaluation must be a disjoint future window of at most 31 days.',
+            'پایان انتخاب باید در گذشته باشد و ارزیابی در بازه‌ای جدا در آینده با حداکثر ۳۱ روز انجام شود.'));
+        const cash = $('prospective-cash').value.trim(), fee_rate = $('prospective-fee').value.trim();
+        if (!prospectiveNumberPattern.test(cash) || /^0(?:\.0+)?$/.test(cash) || !prospectiveNumberPattern.test(fee_rate))
+          throw new Error(text('Cash and fees must be nonnegative exact decimal strings; cash must be positive.',
+            'موجودی و کارمزد باید رشته‌های اعشاری دقیق و نامنفی باشند؛ موجودی باید مثبت باشد.'));
+        const candidates = [];
+        for (const slot of ['first', 'second', 'third', 'fourth']) {
+          const strategy = $('prospective-strategy-' + slot).value;
+          if (strategy) candidates.push({strategy, params: prospectiveParams('prospective-params-' + slot)});
+        }
+        if (candidates.length < 2 || candidates.length > 4 || new Set(candidates.map(c => JSON.stringify(c))).size !== candidates.length)
+          throw new Error(text('Select two to four distinct candidate configurations.', 'دو تا چهار پیکربندی متفاوت انتخاب کنید.'));
+        const symbol = $('prospective-symbol').value.trim();
+        if (!/^[A-Z0-9]{2,24}$/.test(symbol)) throw new Error(text('Enter a valid uppercase market symbol.', 'یک نماد بازار معتبر با حروف بزرگ وارد کنید.'));
+        prospectiveCall(event.target.querySelector('button'), 'prospective-register',
+          {symbol, candidates, selection_end, test_from, test_to, resolution: $('prospective-resolution').value, cash, fee_rate});
+      } catch (error) { prospectiveError(error.message || text('Invalid registration.', 'ثبت نامعتبر است.')); }
+    };
+    const prospectiveSavedId = () => {
+      const id = $('prospective-id').value.trim();
+      if (!prospectiveIdPattern.test(id)) throw new Error(text('Enter a saved 64-character registration ID.', 'یک شناسهٔ ذخیره‌شدهٔ ۶۴ نویسه‌ای وارد کنید.'));
+      return id;
+    };
+    $('prospective-inspect').onclick = event => {
+      if (prospectiveBusy) return;
+      try { prospectiveCall(event.target, 'prospective-status', prospectiveSavedId()); }
+      catch (error) { prospectiveError(error.message); }
+    };
+    $('prospective-evaluate-form').onsubmit = event => {
+      event.preventDefault();
+      if (prospectiveBusy || event.target.reportValidity?.() === false) return;
+      try {
+        const id = prospectiveSavedId();
+        if (!$('prospective-ack').checked) throw new Error(text('Explicit one-time evaluation acknowledgment is required.',
+          'تأیید آگاهانهٔ ارزیابی یک‌باره الزامی است.'));
+        $('prospective-ack').checked = false;
+        prospectiveCall(event.target.querySelector('button'), 'prospective-evaluate', id);
+      } catch (error) { prospectiveError(error.message); }
+    };
     $('coverage-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
       const result = await call('coverage', {symbol: $('coverage-symbol').value, from: $('coverage-from').value + ':00Z', to: $('coverage-to').value + ':00Z', resolution: $('coverage-resolution').value});
       $('coverage-timeline').innerHTML = `<p>${esc(result.report_id)} · ${esc(JSON.stringify(result.counts))}</p><p>${esc(result.limitation)}</p><div class="workspace-table"><table><thead><tr>${['UTC', text('State', 'وضعیت'), text('Quotes', 'قیمت‌ها'), text('Late trades', 'معاملات دیررس'), text('Quote age (s)', 'عمر قیمت (ثانیه)'), text('Indicators', 'شاخص‌ها')].map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${result.buckets.map(row => `<tr><td dir="ltr">${esc(row.from)}</td><td>${esc(row.status)}</td><td>${esc(row.quotes)}</td><td>${esc(row.late_trade_receipts)}</td><td>${esc(row.last_known_qualified_quote_age_seconds ?? 'UNKNOWN')} ${row.quote_stale ? text('(STALE)', '(کهنه)') : ''}</td><td><details><summary>${text('Readiness', 'آمادگی')}</summary>${json(row.indicator_readiness)}</details></td></tr>`).join('')}</tbody></table></div>`;
