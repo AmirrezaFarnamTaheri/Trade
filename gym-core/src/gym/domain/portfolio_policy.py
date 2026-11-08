@@ -65,7 +65,7 @@ class PortfolioPolicy:
         need_history = self.description["method"] != "equal" or self.description["correlation_limit"] is not None
         with localcontext() as context:
             context.prec = 60
-            covariance = None
+            covariance = shrinkage = None
             if need_history:
                 series = [observations.get(s, [])[-(count + 1):] for s in self.symbols]
                 if (any(len(row) < count + 1 for row in series)
@@ -84,7 +84,6 @@ class PortfolioPolicy:
                                for j in range(n)] for i in range(n)]
                 if any(covariance[i][i] <= 0 for i in range(n)):
                     return {**result, "status": "ZERO_VARIANCE"}
-                shrinkage = None
                 if self.covariance_shrinkage != "none":
                     shrinkage = ledoit_wolf_constant_correlation(list(zip(*returns)))
                     covariance = shrinkage["covariance"]
