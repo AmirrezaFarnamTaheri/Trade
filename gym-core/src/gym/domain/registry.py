@@ -24,12 +24,17 @@ STRATEGIES = {
     "toman-premium": (TomanPremium, "TMN cross-market discount hypothesis", {
         key: {"type": "integer", "default": default, "minimum": 0, "maximum": maximum}
         for key, default, maximum in (("entry_bps", 50, 10000), ("exit_bps", 0, 10000),
-                                     ("conversion_cost_bps", 20, 10000), ("max_skew_seconds", 10, 120))}),
+                                     ("conversion_cost_bps", 20, 10000), ("max_skew_seconds", 10, 120))} | {
+        "z_entry": {"type": "integer", "default": 0, "minimum": 0, "maximum": 8},
+        "z_exit": {"type": "integer", "default": 0, "minimum": 0, "maximum": 8},
+        "half_life_multiple": {"type": "integer", "default": 0, "minimum": 0, "maximum": 20},
+    }),
     "lead-lag": (LeadLag, "Cost-aware lead-lag hypothesis", {
         "reference": {"type": "string", "default": "ETHUSDT", "pattern": "^[A-Z0-9]{2,24}$"},
         **{key: {"type": "integer", "default": default, "minimum": lo, "maximum": maximum}
            for key, default, lo, maximum in (("lookback", 20, 2, 500), ("entry_bps", 50, 0, 10000),
-                                           ("lag_bps", 30, 0, 10000), ("max_skew_seconds", 10, 0, 120))}}),
+                                           ("lag_bps", 30, 0, 10000), ("max_skew_seconds", 10, 0, 120))},
+        "delay_bars": {"type": "integer", "default": 0, "minimum": 0, "maximum": 12}}),
     "ema-trend": (EmaTrend, "EMA trend", {
         "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 10000},
         "slow": {"type": "integer", "default": 21, "minimum": 2, "maximum": 10000},
@@ -72,6 +77,7 @@ STRATEGIES = {
 
 
 def catalog():
+    """Expose the paper-only, versioned strategy parameter catalog."""
     return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
              "parameters": {"type": "object", "properties": {**properties, "regime_gate": REGIME_GATE,
                             "regime_volatility_model": REGIME_VOLATILITY_MODEL,
@@ -81,6 +87,7 @@ def catalog():
 
 
 def create_strategy(name="ema-trend", params=None):
+    """Validate strategy inputs and derive a deterministic opt-in config hash."""
     if not isinstance(name, str) or name not in STRATEGIES:
         raise ValueError("unknown paper strategy")
     constructor, _, properties = STRATEGIES[name]

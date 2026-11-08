@@ -4,7 +4,7 @@ This is descriptive paper research, not a transferable arbitrage or execution si
 """
 from bisect import bisect_left
 from datetime import timedelta
-from decimal import localcontext
+from decimal import Decimal, localcontext
 from itertools import pairwise
 
 from ..domain.bars import BarSpec, qualified
@@ -18,6 +18,7 @@ MAX_SAMPLES = 1440
 
 def analyze_quotes(base, books, start, end, *, resolution, max_age_seconds,
                    max_skew_seconds, fee_rate, store):
+    """Compare strictly prior, qualified books at each fixed historical bar close."""
     if store not in ("live", "demo"):
         raise ValueError("invalid store")
     if type(base) is not str or not base.isalnum() or not base.isupper() or not 2 <= len(base) <= 16 or base == "USDT":
@@ -104,13 +105,15 @@ def analyze_quotes(base, books, start, end, *, resolution, max_age_seconds,
 
 
 def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds,
-                     max_skew_seconds, min_overlap, store):
+                     max_skew_seconds, min_overlap, store, max_delay_bars=1):
     """Previous closed interval's leader return versus the next follower return."""
     if (store not in ("live", "demo") or primary is leader or
             (primary and leader and primary[0].symbol == leader[0].symbol)):
         raise ValueError("need distinct selected market observations")
     if type(min_overlap) is not int or not 2 <= min_overlap <= MAX_SAMPLES:
         raise ValueError("invalid minimum overlap")
+    if type(max_delay_bars) is not int or not 1 <= max_delay_bars <= 12:
+        raise ValueError("lead-lag scan needs 1..12 prior delays")
     if type(max_age_seconds) is not int or not 1 <= max_age_seconds <= 3600:
         raise ValueError("invalid quote age")
     if type(max_skew_seconds) is not int or not 0 <= max_skew_seconds <= max_age_seconds:
@@ -170,6 +173,47 @@ def analyze_lead_lag(primary, leader, start, end, *, resolution, max_age_seconds
                 result["status"] = "DESCRIPTIVE_ONLY"
             else:
                 result["status"] = "ZERO_VARIANCE"
+    if max_delay_bars > 1:
+        # A lag-d pair is the leader return at t vs follower return at t+d.
+        # Require every intervening interval: missing market data must not
+        # bridge an apparent long-range predictive relationship.
+        def correlation(pairs):
+            """Pearson correlation of a historical, chronological return subset."""
+            if len(pairs) < 2:
+                return None
+            x, y = zip(*pairs)
+            mx, my = sum(x) / len(x), sum(y) / len(y)
+            vx = sum((value - mx) ** 2 for value in x)
+            vy = sum((value - my) ** 2 for value in y)
+            return (sum((a - mx) * (b - my) for a, b in pairs) / (vx * vy).sqrt()
+                    if vx > 0 and vy > 0 else None)
+
+        scan = []
+        with localcontext() as context:
+            context.prec = 80
+            for delay in range(1, max_delay_bars + 1):
+                matched = [(returns[i][1], returns[i + delay][0])
+                           for i in range(len(returns) - delay)
+                           if all(row is not None for row in returns[i:i + delay + 1])]
+                training = len(matched) * 7 // 10
+                train, holdout = matched[:training], matched[training:]
+                train_corr = correlation(train) if len(train) >= min_overlap else None
+                holdout_corr = correlation(holdout) if len(holdout) >= max(3, min_overlap // 4) else None
+                scan.append({"delay_bars": delay, "matched": len(matched),
+                             "training_samples": len(train), "holdout_samples": len(holdout),
+                             "training_correlation": str(train_corr) if train_corr is not None else None,
+                             "holdout_correlation": str(holdout_corr) if holdout_corr is not None else None,
+                             "same_sign_oos": (train_corr * holdout_corr > 0
+                                               if train_corr is not None and holdout_corr is not None else None)})
+        eligible = [row for row in scan if row["training_correlation"] is not None
+                    and Decimal(row["training_correlation"]) > 0]
+        best = max(eligible, key=lambda row: (Decimal(row["training_correlation"]),
+                                              -row["delay_bars"])) if eligible else None
+        result.update(schema="lead-lag/2", max_delay_bars=max_delay_bars,
+                      delay_scan=scan,
+                      best_training_delay=best["delay_bars"] if best else None,
+                      selection_basis="CHRONOLOGICAL_TRAIN_ONLY",
+                      internal_holdout_only=True)
     result["limitations"] = ["Consecutive causally aligned closed-window mid returns only; no interpolation.",
                              "Lagged correlation does not establish prediction, profitability or funded authority."]
     result["report_id"] = digest(result)[:16]

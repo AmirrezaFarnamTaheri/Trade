@@ -33,8 +33,13 @@ window.gymResearch = (() => {
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status', 'prospective-status', 'prospective-evaluate']);
   actions['premium-research'] = ['Analyze TMN conversion premium', 'بررسی صرف تبدیل تومان', 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
-  actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; descriptive only'];
+  actions['combine-oos'] = ['Combine matched historical OOS paper curves', 'ترکیب گذشته‌نگر منحنی‌های برون‌نمونه', 'run_ids (2..4 verified matched native prospective sessions), lookback (3..100), rebalance_cost_bps (or null); prior-only weights; no live allocation'];
+  actions['strategy-retirement-screen'] = ['Audit baseline underperformance before review', 'بررسی ضعف در برابر مبنای تصادفی', 'run_ids (3..100 verified matched live sessions), universe (same frozen markets); evidence-only, no catalog auto-hide'];
+  actions['meta-label-eligibility'] = ['Check deferred meta-label evidence threshold', 'آستانهٔ شواهد برچسب‌گذاری ثانویه', 'closed_trades (verified integer count; >=300 only research eligible, no model trained)'];
+  actions['margin-pairs-replay'] = ['Simulate a matched long/short margin pair', 'بازپخش آزمایشی جفت خرید و فروش اعتباری', 'long_preview_id, short_preview_id, from, to, exit_fee_rate, holding_seconds, max_skew_seconds (0..120); public archived quotes only, USDT scorecard if both USDT and settled; never venue orders'];
+  actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
   actions['twap-preview'] = ['Preview paper TWAP child fills', 'پیش‌نمایش برش‌های آزمایشی TWAP', 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
+  actions['execution-choice-preview'] = ['Compare historical immediate vs TWAP costs', 'مقایسهٔ تاریخی اجرای فوری و برش‌های TWAP', 'symbol, from, to, side, quantity, slices (2..100), participation, fee_rate, available_quote, available_base, max_delay_seconds; optional dated cost_models. Retrospective only; not live execution advice.'];
   actions['prospective-register'] = ['Freeze future strategy comparison', 'ثبت ثابت مقایسهٔ آینده', 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
   actions['prospective-status'] = ['Inspect frozen comparison', 'بررسی مقایسهٔ ثبت‌شده', 'Saved 64-character registry ID'];
   actions['prospective-evaluate'] = ['Consume future comparison once', 'اجرای یک‌بارهٔ مقایسهٔ آینده', 'Saved 64-character registry ID; failures are consumed'];
@@ -169,7 +174,8 @@ window.gymResearch = (() => {
         <form id="guided-research-form" class="ticket-fields">
           <label>${text('Research model', 'مدل پژوهش')}<select id="guided-model">
             <option value="premium-research">${text('TMN premium', 'صرف تومان')}</option><option value="lead-lag-research">${text('Lead / lag', 'تقدم / تأخر')}</option>
-            <option value="twap-preview">${text('TWAP child preview', 'پیش‌نمایش TWAP')}</option></select></label>
+            <option value="twap-preview">${text('TWAP child preview', 'پیش‌نمایش TWAP')}</option>
+            <option value="execution-choice-preview">${text('Immediate vs TWAP paper costs', 'مقایسهٔ هزینهٔ اجرای فوری و TWAP')}</option></select></label>
           <label>${text('Primary symbol or base (premium: BTC)', 'نماد یا دارایی پایه (صرف: BTC)')}<input id="guided-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text('Leader symbol (lag only)', 'نماد پیشرو (فقط تقدم)')}<input id="guided-leader" value="ETHUSDT" pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text('From · UTC', 'از · UTC')}<input id="guided-from" type="datetime-local" required></label>
@@ -251,8 +257,11 @@ window.gymResearch = (() => {
     }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;
     $('guided-model').onchange = () => {
-      const twap = $('guided-model').value === 'twap-preview';
+      const choice = $('guided-model').value === 'execution-choice-preview';
+      const twap = $('guided-model').value === 'twap-preview' || choice;
       $('guided-twap-fields').hidden = !twap;
+      $('guided-slices').min = choice ? '2' : '1';
+      if (choice && Number($('guided-slices').value) < 2) $('guided-slices').value = '2';
       const hideLabel = (id, hidden) => {
         const label = $(id).closest?.('label');
         if (label) label.hidden = hidden;
@@ -282,7 +291,10 @@ window.gymResearch = (() => {
       const report = await call(action, value);
       const summary = action === 'premium-research' ? report.coverage : action === 'lead-lag-research'
         ? {status: report.status, overlap: report.overlap, correlation: report.correlation}
-        : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
+        : action === 'execution-choice-preview'
+          ? {status: report.status, lowerHistoricalCost: report.retrospective_lower_cost,
+             twapAdvantageBps: report.twap_advantage_bps, reason: report.reason}
+          : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
       $('guided-result').innerHTML = `<p><strong>${text('Paper only · no order submitted', 'فقط آزمایشی · هیچ سفارشی ثبت نشده')}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text('Inspect exact evidence', 'بررسی شواهد دقیق')}</summary>${json(report)}</details>`;
     }); };
     let prospectiveBusy = false;
