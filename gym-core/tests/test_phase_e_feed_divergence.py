@@ -39,7 +39,7 @@ def test_reference_divergence_trips_paper_entry_block():
 
 def test_future_reference_quote_does_not_change_earlier_alarm():
     wallex, external = samples()
-    earlier = START + timedelta(minutes=21, seconds=30)
+    earlier = START + timedelta(minutes=20, seconds=30)  # quote at minute 21 is still in the future
     before = evaluate_divergence(wallex, external, symbol="BTCUSDT", as_of=earlier,
                                  training_samples=20, alert_sigma=3)
     external[-1]["mid"] = "999999"
