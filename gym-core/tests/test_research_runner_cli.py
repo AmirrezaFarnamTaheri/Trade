@@ -4,7 +4,7 @@ from gym.cli import main
 
 
 def test_research_start_uses_supervised_runner(monkeypatch, tmp_path, capsys):
-    from gym.services import research_runner
+    from gym.commands import research as research_runner
 
     async def watch(root, *, store, poll_seconds):
         assert root == tmp_path / "demo"

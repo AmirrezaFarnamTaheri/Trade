@@ -7,7 +7,7 @@ import pytest
 
 from gym.cli import main
 from gym.services.research_protocol import ResearchProtocol
-from gym.services.research_series import derived_series
+from gym.services.research_actions import derived_series
 from tests.support import START
 
 

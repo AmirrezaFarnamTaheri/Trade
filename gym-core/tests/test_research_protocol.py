@@ -8,7 +8,7 @@ from gym.adapters.run_store import save_run
 from gym.cli import main
 from gym.services.paper import paper
 from gym.services.research_protocol import ResearchProtocol
-from gym.services.research_review import review_runs
+from gym.services.research_actions import review_runs
 from tests.support import START, market_db, quote_history
 
 
