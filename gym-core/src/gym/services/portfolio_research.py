@@ -27,10 +27,13 @@ def portfolio_action(root, action, value, *, store):
         out["return_attribution"] = toman_attribution(out)
         return out
     required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
-    if type(value) is not dict or not required <= value.keys() or value.keys() - required - {"policy"}:
+    if (type(value) is not dict or not required <= value.keys()
+            or value.keys() - required - {"policy", "top_n", "quote_currency", "lookback_hours"}):
         raise ValueError("invalid portfolio replay fields")
     symbols = value["symbols"]
-    if (type(symbols) is not list or not 2 <= len(symbols) <= MAX_MARKETS
+    as_of_request = "top_n" in value
+    if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
+            or (as_of_request and symbols != [])
             or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
             or len(set(symbols)) != len(symbols)):
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct market symbols")
@@ -63,11 +66,20 @@ def portfolio_action(root, action, value, *, store):
         raise ValueError("portfolio requires an existing market store")
     db = MarketDB(path, readonly=True)
     try:
+        selection = None
+        if as_of_request:
+            from .historical_universe import select_universe
+
+            selection = select_universe(db, start, quote_currency=value.get("quote_currency"),
+                                        top_n=value["top_n"], lookback_hours=value.get("lookback_hours", 24))
+            if selection["status"] != "AVAILABLE" or len(selection["symbols"]) < 2:
+                raise ValueError("historical top-N portfolio lacks sufficient prior volume evidence")
+            symbols = selection["symbols"]
         if any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + s,)).fetchone() for s in symbols):
             raise ValueError("portfolio requires observed markets")
         out = portfolio(db, symbols, start, end, resolution=value["resolution"], cash=cash, cost=cost,
                         strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store,
-                        policy=value.get("policy"))
+                        policy=value.get("policy"), universe_selection=selection)
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))
@@ -75,6 +87,7 @@ def portfolio_action(root, action, value, *, store):
                 raise ValueError("portfolio artifact exceeds 16 MiB; narrow the window")
         save_run(out, runs)
         return {"run_id": out["run_id"], "outputs_digest": out["outputs_digest"], "authority": "PAPER_ONLY",
-                "return_attribution": toman_attribution(out)}
+                "return_attribution": toman_attribution(out),
+                **({"universe_selection": selection} if selection is not None else {})}
     finally:
         db.c.close()

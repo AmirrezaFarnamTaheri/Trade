@@ -29,23 +29,33 @@ MAX_MARKETS = 500
 def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, resolution: str = "15min",
               cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), strategy_id: str = "ema-trend",
               params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
-              checkpoint: dict | None = None) -> dict:
+              checkpoint: dict | None = None, universe_selection: dict | None = None) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
     db.c.execute("BEGIN")
     try:
         return _portfolio(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost,
-                          strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint)
+                          strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
+                          policy=policy, checkpoint=checkpoint, universe_selection=universe_selection)
     finally:
         db.c.rollback()
 
 
-def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint):
+def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
+               universe_selection):
     if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
+    if universe_selection is not None:
+        from .historical_universe import select_universe
+
+        actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
+                                 top_n=universe_selection["requested_top_n"],
+                                 lookback_hours=universe_selection["lookback_hours"])
+        if actual != universe_selection or actual["status"] != "AVAILABLE" or actual["symbols"] != symbols:
+            raise ValueError("historical universe selection evidence changed")
     placeholders = ",".join("?" for _ in symbols)
     tables = [("book_top", "ts_avail")]
     if cost.order_type == "limit":
@@ -288,6 +298,9 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                               for s in symbols})}
     if policy is not None:
         inputs["policy"] = controller.description
+    if universe_selection is not None:
+        inputs["portfolio_version"] = 6
+        inputs["universe_selection"] = universe_selection
     markets = {}
     for s, session in sessions.items():
         orders = session.orders

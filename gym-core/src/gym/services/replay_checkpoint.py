@@ -115,7 +115,7 @@ def portfolio_checkpoint(registry, db, request, *, saved):
 
     out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
-    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") != 5 or inputs["rules_mode"] != "point-in-time":
+    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in (5, 6) or inputs["rules_mode"] != "point-in-time":
         raise ValueError("checkpoint requires a current point-in-time portfolio")
     if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
         raise ValueError("checkpoint saved portfolio evidence changed")
@@ -124,7 +124,8 @@ def portfolio_checkpoint(registry, db, request, *, saved):
         raise ValueError("portfolio checkpoint needs 1..100000 quotes")
     options = {"resolution": inputs["resolution"], "cash": Decimal(inputs["cash"]), "cost": CostModel.from_description(inputs["cost"]),
         "strategy_id": inputs["strategy"], "params": inputs["params"], "rules_mode": inputs["rules_mode"],
-        "store": registry.store, "policy": inputs.get("policy")}
+        "store": registry.store, "policy": inputs.get("policy"),
+        "universe_selection": inputs.get("universe_selection")}
     checkpoint = {"quote_count": count}
     rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
     if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):
