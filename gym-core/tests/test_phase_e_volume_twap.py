@@ -77,3 +77,28 @@ def test_no_available_prints_or_prior_quote_blocks_child_plan():
 def test_invalid_adaptive_controls_fail_closed(change):
     with pytest.raises(ValueError):
         preview([top(-1), top(1), top(61)], [trade(-20, "10")], **change)
+
+
+def test_adaptive_twap_research_action_reads_causal_public_prints(tmp_path):
+    """The CLI/workbench action is paper-only and bounded to one recorded snapshot."""
+    from gym.services.research_actions import research_action
+    from tests.support import market_db
+
+    db = market_db(tmp_path, [top(-1), top(1), top(59), top(61), top(119)])
+    try:
+        for t in (trade(-30, "4"), trade(50, "2")):
+            db.add_trade(t, "synthetic-phase-e")
+    finally:
+        db.c.close()
+    request = {
+        "symbol": "BTCUSDT", "from": START.isoformat(),
+        "to": (START + timedelta(minutes=2)).isoformat(), "side": "BUY",
+        "quantity": "4", "slices": 2, "participation": "0.5",
+        "fee_rate": "0.001", "available_quote": "1000", "available_base": "0",
+        "max_delay_seconds": 10, "volume_lookback_seconds": 120,
+        "max_spread_bps": "300", "urgency": "NORMAL"}
+    report = research_action(tmp_path, "adaptive-twap-preview", request, store="demo")
+    assert report["schema"] == "paper-volume-twap/1"
+    assert report["children"][0]["requested_quantity"] == "2.00"
+    assert report["cost_comparison"]["status"] in ("FULL_FILL_RETROSPECTIVE", "NOT_COMPARABLE")
+    assert report["funded_authority"] is False
