@@ -5,6 +5,7 @@ from ..domain.model import parse_ts
 
 
 def _missing(status, reason):
+    """Return an explicit unavailable capacity diagnosis without inventing size."""
     return {"status": status, "reason": reason, "capacity_usdt": None,
             "funded_authority": False}
 
