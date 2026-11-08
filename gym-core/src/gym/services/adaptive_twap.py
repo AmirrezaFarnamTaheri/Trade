@@ -86,9 +86,11 @@ def adaptive_twap(instrument, quotes, trades, spec, start, end, *, side, quantit
             if target <= 0:
                 target = Decimal(0)
             kind = "NONE"
-            status = "NO_PRIOR_VOLUME" if not target else "NO_PRIOR_QUOTE"
             observed = prior is not None and qualified(prior) and "CLOSED" not in prior.flags and (
                 slot - prior.ts_avail <= timedelta(seconds=120))
+            # Report the blocking observation distinctly: missing prior quote
+            # takes precedence when volume and price are both unavailable.
+            status = "NO_PRIOR_VOLUME" if observed and not target else "NO_PRIOR_QUOTE"
             preview = None
             if target > 0 and observed:
                 spread_bps = (prior.ask - prior.bid) / ((prior.ask + prior.bid) / 2) * 10000
