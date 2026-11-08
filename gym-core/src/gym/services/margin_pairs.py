@@ -5,7 +5,6 @@ and short terms. Both legs replay inside one immutable local market snapshot.
 This is NOT executable pairs trading, margin eligibility or profit evidence.
 """
 from decimal import Decimal, localcontext
-from datetime import timedelta
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
