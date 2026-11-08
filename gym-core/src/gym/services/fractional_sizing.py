@@ -1,15 +1,15 @@
 """Capped empirical log-growth sizing from a consumed preregistered paper evaluation."""
 import json
-from pathlib import Path
 from decimal import Decimal, localcontext
 from itertools import pairwise
+from pathlib import Path
 from random import Random
 
 from ..adapters.run_store import load_verified_run, run_path
 from ..domain.market_models import fields, rate
 from ..domain.model import parse_ts
-from ..domain.registry import create_strategy
 from ..domain.performance import trade_ledger
+from ..domain.registry import create_strategy
 from ..domain.strategy import digest
 from .reports import economic_report
 
