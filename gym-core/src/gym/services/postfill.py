@@ -3,6 +3,7 @@ import re
 from bisect import bisect_left
 from datetime import timedelta
 from decimal import Decimal, localcontext
+from itertools import pairwise
 
 from ..domain.bars import qualified
 from ..domain.model import iso, parse_ts
@@ -30,7 +31,7 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
         raise ValueError("invalid postfill paper markout request")
     if any(top.symbol != symbol or top.ts_avail > cutoff for top in tops):
         raise ValueError("postfill quotes must be known by the report cutoff")
-    if any(a.ts_avail > b.ts_avail for a, b in zip(tops, tops[1:])):
+    if any(a.ts_avail > b.ts_avail for a, b in pairwise(tops)):
         raise ValueError("postfill quotes must be chronological")
     rows, marks = [], {str(k): [] for k in HORIZONS_SECONDS}
     times = [top.ts_avail for top in tops]
