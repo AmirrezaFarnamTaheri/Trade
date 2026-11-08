@@ -41,28 +41,28 @@ def _spread_statistics(long_points, short_points, skew_seconds):
             series.append((top.ts_avail, (mid_long / mid_short).ln()))
         n = len(series)
         result = {"status": "INSUFFICIENT_SAMPLES", "aligned_samples": n,
-                  "half_life_bars": None, "phi": None,
+                  "half_life_observations": None, "phi": None,
                   "training_std": None, "holdout_std": None,
                   "holdout_to_training_std": None, "independent_oos": False}
         if n < 12:
             return result
         values = [value for _, value in series]
-        fit = ar1_half_life(values)
         split = n * 7 // 10
         train, hold = values[:split], values[split:]
+        fit = ar1_half_life(train) if len(train) >= 12 else None
         def std(values):
             """Population dispersion of recorded spreads, not an executable quote."""
             mean = sum(values, Decimal(0)) / len(values)
             return (sum(((x - mean)**2 for x in values), Decimal(0)) /
                     len(values)).sqrt()
         a, b = std(train), std(hold)
-        result.update(half_life_bars=fit["half_life_bars"],
-                      phi=fit["phi"], training_std=str(+a),
+        result.update(half_life_observations=fit["half_life_bars"] if fit else None,
+                      phi=fit["phi"] if fit else None, training_std=str(+a),
                       holdout_std=str(+b),
                       holdout_to_training_std=str(+(b / a)) if a > 0 else None,
                       status=("DESCRIPTIVE_ONLY" if a > 0 else "UNIDENTIFIABLE"),
                       internal_split="CHRONOLOGICAL_70_30",
-                      caveat="Log-price spread is non-tradable; this is not a cointegration or stationarity proof.")
+                      caveat="Training-only AR(1) half-life counts aligned long-leg quote-update observations, not fixed time bars. Log-price spread is non-tradable; this is not a cointegration or stationarity proof.")
         return result
 
 
