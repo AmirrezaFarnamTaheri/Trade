@@ -5,17 +5,18 @@ so an entry in one market leaves less cash for the others. The selected allocati
 against current portfolio equity. Quotes from all markets are fed in availability order.
 """
 import heapq
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import iso, parse_ts
+from ..domain.model import InstrumentId, QualityLimits, iso, parse_ts
 from ..domain.performance import performance, trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
+from ..domain.rules import is_closed
 from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
@@ -95,6 +96,24 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     mark_times, mark_order = {}, {}
     held, held_order = set(), []
     controller = PortfolioPolicy({} if policy is None else policy, symbols)
+    if controller.usdt_fx_risk and quote != "TMN":
+        raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
+    fx_risk_tops = (portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
+                    if controller.usdt_fx_risk else [])
+    fx_risk_times = [top.ts_avail for top in fx_risk_tops]
+
+    def fx_at_close(close):
+        """Select only the most recent fresh, open, strictly earlier FX quote."""
+        idx = bisect_left(fx_risk_times, close) - 1
+        if idx < 0:
+            return None
+        top = fx_risk_tops[idx]
+        if (not qualified(top) or "CLOSED" in top.flags
+                or is_closed(rules_for(close), InstrumentId.wallex("USDTTMN"), close)
+                or close - top.ts_avail > timedelta(seconds=QualityLimits().stale_s)):
+            return None
+        return (top.bid + top.ask) / 2
+
     weights = controller.weights({})
     reserved, histories, policy_events = {}, {s: [] for s in symbols}, []
     rebalance_pending = set()
@@ -190,6 +209,15 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         while next_close is not None and next_close <= at:
             close = next_close
             risk(close)
+            risk_fx = fx_at_close(close) if controller.usdt_fx_risk else None
+            if controller.usdt_fx_risk and risk_fx is None:
+                # A missing FX observation breaks the return chain for all
+                # TMN assets. Never recycle target weights from stale risk data.
+                for history in histories.values():
+                    history.clear()
+                weights = controller.weights({})
+                next_rebalance = close
+                rebalance_pending.clear()
             for session in sessions.values():
                 session.scan(close)
             for s, session in sessions.items():
@@ -197,17 +225,20 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                     if histories[s] and close - histories[s][-1][0] != session.bar_spec.step:
                         histories[s].clear()
                         if (controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None
-                                or controller.portfolio_volatility_target is not None):
+                                or controller.portfolio_volatility_target is not None or controller.usdt_fx_risk):
                             weights = {"status": "WARMING_UP", "weights": {symbol: "0" for symbol in symbols}, "risk_contribution_error": None}
                             next_rebalance = close
                             rebalance_pending.clear()
                     decision = session.decisions[-1]
-                    if controller.volatility_model == "parkinson-ewma":
-                        known = decision["bar_known"]
-                        histories[s].append((close, Decimal(decision["close"]),
-                                             Decimal(known["high"]), Decimal(known["low"])))
-                    else:
-                        histories[s].append((close, Decimal(decision["close"])))
+                    if not controller.usdt_fx_risk or risk_fx is not None:
+                        scale = risk_fx if controller.usdt_fx_risk else Decimal(1)
+                        if controller.volatility_model == "parkinson-ewma":
+                            known = decision["bar_known"]
+                            histories[s].append((close, Decimal(decision["close"]) / scale,
+                                                 Decimal(known["high"]) / scale,
+                                                 Decimal(known["low"]) / scale))
+                        else:
+                            histories[s].append((close, Decimal(decision["close"]) / scale))
                     histories[s] = histories[s][-(controller.description["lookback"] + 1):]
                 if session.pending is None or session.pending.record["side"] != "BUY":
                     reserved.pop(s, None)
@@ -312,6 +343,10 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     if policy is not None and "portfolio_volatility_target" in controller.description:
         # New explicit portfolio risk input changes how targets are scaled.
         inputs["portfolio_version"] = 7
+    if controller.usdt_fx_risk:
+        inputs["portfolio_version"] = 9 if controller.portfolio_volatility_target is not None else 8
+        inputs["fx_risk_data"] = digest([(iso(top.ts_avail), top.bid, top.ask, sorted(top.flags))
+                                         for top in fx_risk_tops])
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
