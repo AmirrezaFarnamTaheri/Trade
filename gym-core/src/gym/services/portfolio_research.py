@@ -8,6 +8,7 @@ from ..adapters.run_store import list_runs, load_verified_run, save_run
 from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, fields, instant
 from ..domain.sim import CostModel
+from .attribution import toman_attribution
 from .collector import now_utc
 from .portfolio import MAX_MARKETS, portfolio
 
@@ -23,6 +24,7 @@ def portfolio_action(root, action, value, *, store):
         out = load_verified_run(runs, value["run_id"], store=store)
         if out["inputs"].get("kind") != "portfolio" or out.get("mode") != "PORTFOLIO":
             raise ValueError("source is not a portfolio replay")
+        out["return_attribution"] = toman_attribution(out)
         return out
     required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
     if type(value) is not dict or not required <= value.keys() or value.keys() - required - {"policy"}:
@@ -72,6 +74,7 @@ def portfolio_action(root, action, value, *, store):
             if size > 16 * 1024 * 1024:
                 raise ValueError("portfolio artifact exceeds 16 MiB; narrow the window")
         save_run(out, runs)
-        return {"run_id": out["run_id"], "outputs_digest": out["outputs_digest"], "authority": "PAPER_ONLY"}
+        return {"run_id": out["run_id"], "outputs_digest": out["outputs_digest"], "authority": "PAPER_ONLY",
+                "return_attribution": toman_attribution(out)}
     finally:
         db.c.close()

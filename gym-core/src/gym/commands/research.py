@@ -27,6 +27,7 @@ def replay_cmd(args) -> int:
     from ..adapters.run_store import save_run
     from ..domain.sim import CostModel
     from ..domain.strategy import digest
+    from ..services.attribution import toman_attribution
     from ..services.paper import paper
     from ..services.reports import text_report
     from ..services.research import compare
@@ -80,6 +81,12 @@ def replay_cmd(args) -> int:
             valuation = out["result"]["valuation"]
             print(f"USDT equivalent net {out['result']['end']['net_usdt_eq']}  "
                   f"FX {valuation['start']['status']} -> {valuation['end']['status']} (valuation only)")
+            components = toman_attribution(out)
+            if components["status"] == "AVAILABLE":
+                print(f"TMN return: USDT {components['usdt_return']} + rate {components['toman_move']} "
+                      f"+ interaction {components['interaction']} = {components['total_toman_return']}")
+            elif out["result"]["quote"] == "TMN":
+                print("TMN return attribution UNAVAILABLE: point-in-time FX evidence missing")
             for market, row in out["result"]["markets"].items():
                 print(f"  {market:<10} fills {row['fills']:<4} closed trades {row['closed_trades']:<4} realized {row['realized_pnl']}")
             print("portfolio record:", save_run(out, store_root(args) / "runs" / "portfolios"))

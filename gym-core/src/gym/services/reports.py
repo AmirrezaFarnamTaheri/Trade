@@ -61,6 +61,7 @@ def economic_report(out, diag=None):
         limitation = "Stale end valuation: the last qualified price is older than the run cutoff. " + limitation
     elif valuation["status"] in ("UNAVAILABLE", "INVALID"):
         limitation = "No valid end-of-window price is available. " + limitation
+    from .attribution import toman_attribution
     from .random_entry import random_entry_report
 
     return {
@@ -83,6 +84,7 @@ def economic_report(out, diag=None):
         "warnings": out["warnings"],
         "diagnostics": diag,
         "random_entry_baseline": random_entry_report(out),
+        "return_attribution": toman_attribution(out),
         "decision": "No capital authorized. Operator decisions are recorded separately; this report cannot arm trading.",
     }
 
@@ -138,6 +140,13 @@ def text_report(out: dict) -> str:
                        f"{ratio(ret.get('sharpe_annualized_lo'))} (lags {ret.get('lo_lags_used', 0)})."),
                       (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
                        f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
+    attribution = economic_report(out)["return_attribution"]
+    if attribution["status"] == "AVAILABLE":
+        lines.append("TMN return attribution: "
+                     f"USDT {attribution['usdt_return']} + TMN move {attribution['toman_move']} + "
+                     f"interaction {attribution['interaction']} = {attribution['total_toman_return']}")
+    elif currency == "TMN":
+        lines.append("TMN return attribution: UNAVAILABLE (point-in-time FX evidence missing).")
     timing = economic_report(out)["random_entry_baseline"]
     if timing["status"] == "EXPLORATORY":
         lines.append(f"Random-entry timing percentile: {timing['percentile']} (200 seeded simulations, "
