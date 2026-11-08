@@ -18,6 +18,7 @@ MAX_SAMPLES = 1440
 
 def analyze_quotes(base, books, start, end, *, resolution, max_age_seconds,
                    max_skew_seconds, fee_rate, store):
+    """Compare strictly prior, qualified books at each fixed historical bar close."""
     if store not in ("live", "demo"):
         raise ValueError("invalid store")
     if type(base) is not str or not base.isalnum() or not base.isupper() or not 2 <= len(base) <= 16 or base == "USDT":
