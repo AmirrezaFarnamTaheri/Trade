@@ -93,8 +93,8 @@ def screen_verified_retirement(root, request, *, store):
     fields(request, "run_ids universe")
     ids = request["run_ids"]
     if (type(ids) is not list or not 3 <= len(ids) <= 100
-            or len(set(ids)) != len(ids)
-            or any(type(s) is not str or not re.fullmatch(r"[0-9a-f]{16}", s) for s in ids)):
+            or any(type(s) is not str or not re.fullmatch(r"[0-9a-f]{16}", s) for s in ids)
+            or len(set(ids)) != len(ids)):
         raise ValueError("retirement screen needs 3..100 distinct verified run IDs")
     runs = [load_verified_run(Path(root) / "runs", rid, store=store) for rid in ids]
     inp = runs[0]["inputs"]
