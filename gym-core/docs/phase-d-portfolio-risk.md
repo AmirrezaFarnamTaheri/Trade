@@ -81,8 +81,9 @@ risk control or evidence of a stable volatility target.
   Decimal single-linkage correlation-distance clustering and recursive
   inverse-variance bisection on earlier aligned covariance. Up to 100
   markets are bounded; degenerate matrices fail closed. Its output records
-  the leaf order and only makes paper target weights. A textbook two-cluster
-  matrix regression verifies adjacency and risk-weight direction.
+  the leaf order and only makes paper target weights. Native HRP replays
+  use opt-in portfolio version 13. A textbook two-cluster matrix regression
+  verifies adjacency and risk-weight direction.
   Still required: compare realized costs, turnover, and OOS volatility
   against equal, inverse-vol and risk-parity baselines over >30 markets.
 
