@@ -225,3 +225,33 @@ def test_portfolio_volatility_target_rejects_bad_input_and_gaps():
                for s in symbols}
     history["ETHUSDT"][-1] = (10, Decimal(110))
     assert policy.weights(history)["status"] == "WARMING_UP"
+
+
+def test_expected_shortfall_target_scales_joint_paper_weights_from_prior_tail():
+    """One 10% historical loss among 20 bars gives a 10% empirical ES95 tail."""
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    policy = PortfolioPolicy({"lookback": 20, "rebalance": True,
+                              "expected_shortfall_limit": "0.02"}, symbols)
+    prices = [Decimal(100)]
+    for change in [Decimal("0.01")] * 19 + [Decimal("-0.1")]:
+        prices.append(prices[-1] * (1 + change))
+    observed = {symbol: [(i, price) for i, price in enumerate(prices)]
+                for symbol in symbols}
+    result = policy.weights(observed)
+    assert result["status"] == "READY"
+    tail = result["expected_shortfall"]
+    assert tail["confidence"] == "0.95"
+    assert tail["worst_observations"] == 1
+    assert Decimal(tail["unscaled_per_bar"]) == Decimal("0.1")
+    assert Decimal(tail["scale"]) == Decimal("0.2")
+    assert Decimal(tail["scaled_per_bar"]) <= Decimal("0.02")
+    assert sum(map(Decimal, result["weights"].values())) <= Decimal("0.2")
+
+
+def test_expected_shortfall_requires_explicit_rebalancing_and_track_record():
+    """Prevent pretending to cap held exposure when only new-entry sizing exists."""
+    for value in ({"expected_shortfall_limit": "0.02"},
+                  {"expected_shortfall_limit": "0.02", "rebalance": True, "lookback": 3},
+                  {"expected_shortfall_limit": "0", "rebalance": True, "lookback": 20}):
+        with pytest.raises(ValueError):
+            PortfolioPolicy(value, ["BTCUSDT", "ETHUSDT"])
