@@ -47,7 +47,7 @@ def experiment_scorecard(registry, request):
     if len(events) >= 500 or len(attempts) > 32:
         raise ValueError("scorecard requires one complete bounded experiment")
     results = {e["attempt_id"]: e for e in events if e["kind"] == "RESULT"}
-    rows, runs = [], []
+    rows, runs, verified = [], [], {}
     for attempt in attempts:
         receipt = results.get(attempt["id"], {})
         row = {"attempt_id": attempt["id"], **{k: attempt[k] for k in ("trial", "window", "scenario")},
@@ -59,6 +59,7 @@ def experiment_scorecard(registry, request):
                     raise ValueError("saved run differs from experiment receipt")
                 row["run"] = run_card(out)
                 runs.append(out)
+                verified[attempt["id"]] = out
             except (OSError, ValueError):
                 row["verification"] = "UNAVAILABLE_OR_CHANGED"
         rows.append(row)
@@ -72,9 +73,12 @@ def experiment_scorecard(registry, request):
         if not matched or any(parse_ts(out["inputs"]["from"]) < parse_ts(r["inputs"]["to"]) for r in matched):
             raise ValueError("shadow must follow a matched historical configuration, cash and costs")
         shadows.append(run_card(out))
+    from .spa import scorecard_spa
+    spa_tests = scorecard_spa(rows, verified)
     result = {"schema": "experiment-scorecard/1", "experiment_id": experiment["id"], "store": registry.store,
         "definition": definition, "registered_trials": len(definition["trials"]), "registered_attempts": len(attempts),
         "states": dict(Counter(r["state"] for r in rows)), "rows": rows, "shadows": shadows,
+        "spa_tests": spa_tests,
         "funded_authority": False, "independent_final_evidence": False,
         "limits": ["Every registered attempt is retained, including failed, missing, unready and zero-trade runs; no winner is selected.",
             "Heatmap cells use each run's quote currency. USDT-equivalent values depend on the displayed FX status.",
