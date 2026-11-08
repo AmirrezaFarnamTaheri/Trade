@@ -28,6 +28,7 @@ def replay_cmd(args) -> int:
     from ..domain.strategy import digest
     from ..services.attribution import toman_attribution
     from ..services.cost_defaults import calibrated_cost
+    from ..services.data_quality_gate import quote_coverage
     from ..services.paper import paper
     from ..services.reports import text_report
     from ..services.research import compare
@@ -68,6 +69,15 @@ def replay_cmd(args) -> int:
                                                   "folds": getattr(args, "folds", 1)}))
             ledger_trials = ledger.count(symbol=",".join(symbols), start=start, end=end,
                                          hypothesis=args.hypothesis)
+        if args.max_bad_share is not None:
+            quality = {market: quote_coverage(db, market, start, end, args.res,
+                       max_bad_share=args.max_bad_share) for market in symbols}
+            for market, report in quality.items():
+                print(f"QUOTE COVERAGE {market}: {report['coverage_share']} "
+                      f"(missing {report['missing_share']}, invalid/stale {report['stale_or_invalid_share']}); "
+                      f"{report['status']}", file=sys.stderr)
+            if any(report["status"] == "INSUFFICIENT_DATA" for report in quality.values()):
+                raise ValueError("INSUFFICIENT_DATA: missing/stale quote share exceeds the declared threshold")
         if args.cmd == "portfolio":
             from ..services.portfolio import portfolio
             options.pop("subscriptions")

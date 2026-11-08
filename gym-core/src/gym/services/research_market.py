@@ -123,8 +123,8 @@ def coverage_timeline(db, request, *, store):
 
 
 def screen_markets(db, request, *, store):
-    required = {"symbols", "reference", "quote_currency", "from", "to", "resolution", "metric"}
-    optional = {"top_n", "lookback_hours"}
+    required = set("symbols reference quote_currency from to resolution metric".split())
+    optional = {"top_n", "lookback_hours", "quality_max_bad_share"}
     if type(request) is not dict or not required <= request.keys() or request.keys() - required - optional:
         raise ValueError("invalid market-screen request")
     start, end, spec = _window(request)
@@ -178,6 +178,14 @@ def screen_markets(db, request, *, store):
                 if len(returns) >= 2:
                     mean = sum(returns) / len(returns)
                     row["volatility_percent"] = str(100 * (sum((r - mean)**2 for r in returns) / (len(returns) - 1)).sqrt())
+            if "quality_max_bad_share" in request:
+                from .data_quality_gate import quote_coverage
+
+                quality = quote_coverage(db, symbol, start, end, spec.resolution,
+                                         max_bad_share=request["quality_max_bad_share"])
+                row["quality_gate"] = quality
+                if quality["status"] == "INSUFFICIENT_DATA":
+                    row["excluded_reason"] = "INSUFFICIENT_DATA"
             rows.append(row)
         reference = next(row for row in rows if row["symbol"] == request["reference"])
         for row in rows:

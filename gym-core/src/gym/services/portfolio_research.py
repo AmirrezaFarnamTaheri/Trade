@@ -28,7 +28,7 @@ def portfolio_action(root, action, value, *, store):
         return out
     required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
     if (type(value) is not dict or not required <= value.keys()
-            or value.keys() - required - {"policy", "top_n", "quote_currency", "lookback_hours"}):
+            or value.keys() - required - {"policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share"}):
         raise ValueError("invalid portfolio replay fields")
     symbols = value["symbols"]
     as_of_request = "top_n" in value
@@ -77,6 +77,17 @@ def portfolio_action(root, action, value, *, store):
             symbols = selection["symbols"]
         if any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + s,)).fetchone() for s in symbols):
             raise ValueError("portfolio requires observed markets")
+        quality_gate = None
+        if "quality_max_bad_share" in value:
+            from .data_quality_gate import quote_coverage
+
+            if len(symbols) > 20:
+                raise ValueError("quality-gated portfolios require at most 20 markets")
+            quality_gate = {symbol: quote_coverage(db, symbol, start, end, value["resolution"],
+                            max_bad_share=value["quality_max_bad_share"]) for symbol in symbols}
+            if any(row["status"] == "INSUFFICIENT_DATA" for row in quality_gate.values()):
+                return {"status": "INSUFFICIENT_DATA", "quality_gate": quality_gate,
+                        "authority": "PAPER_ONLY", "funded_authority": False, "run_saved": False}
         out = portfolio(db, symbols, start, end, resolution=value["resolution"], cash=cash, cost=cost,
                         strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store,
                         policy=value.get("policy"), universe_selection=selection)
@@ -88,6 +99,7 @@ def portfolio_action(root, action, value, *, store):
         save_run(out, runs)
         return {"run_id": out["run_id"], "outputs_digest": out["outputs_digest"], "authority": "PAPER_ONLY",
                 "return_attribution": toman_attribution(out),
-                **({"universe_selection": selection} if selection is not None else {})}
+                **({"universe_selection": selection} if selection is not None else {}),
+                **({"quality_gate": quality_gate} if quality_gate is not None else {})}
     finally:
         db.c.close()
