@@ -7,7 +7,7 @@ from ..adapters.run_store import run_path, save_run
 from ..adapters.store import MarketDB
 from ..adapters.wallex_margin import LOAN, MARKETS, ORIGIN, PREVIEW, public_margin
 from ..domain.margin import margin_request, market_rule, preview_terms, replay_margin
-from ..domain.market_models import decimal, fields
+from ..domain.market_models import decimal
 from ..domain.model import iso, parse_ts
 from ..domain.rules import is_closed
 from ..domain.strategy import digest
@@ -28,6 +28,7 @@ LIMITATIONS = [
 
 
 def _save(root, report):
+    """Persist a bounded local margin evidence receipt without funded authority."""
     record = {"schema": "wallex-margin/1", "funded_authority": False, "order_submitted": False, **report}
     record["run_id"] = digest(record)[:16]
     save_run(record, Path(root) / "margin")
@@ -35,6 +36,7 @@ def _save(root, report):
 
 
 def load_receipt(root, receipt_id, kind):
+    """Read an immutable margin receipt and verify its content-derived identity."""
     if type(receipt_id) is not str:
         raise ValueError("margin receipt id must be a string")
     path = run_path(Path(root) / "margin", receipt_id)
@@ -57,6 +59,7 @@ def load_receipt(root, receipt_id, kind):
 
 
 def margin_action(root, action, value, *, store):
+    """Dispatch public margin previews and causal paper replays only."""
     if store != "live":
         raise ValueError("public margin terms and replay use the live observation store only")
     if action == "margin-markets":
@@ -106,7 +109,11 @@ def margin_action(root, action, value, *, store):
                             "body_sha256": body_hash, "loan_body_sha256": loan_hash, "limitations": LIMITATIONS})
     if action != "margin-replay":
         raise ValueError("unknown margin action")
-    fields(value, "preview_id from to exit_fee_rate holding_seconds")
+    required = {"preview_id", "from", "to", "exit_fee_rate", "holding_seconds"}
+    if (type(value) is not dict or not required <= value.keys()
+            or value.keys() - required - {"depth_valuation"}
+            or type(value.get("depth_valuation", False)) is not bool):
+        raise ValueError("margin replay requires known fields and a boolean depth valuation")
     preview = load_receipt(root, value["preview_id"], "PREVIEW")
     start, end = parse_ts(value["from"]), parse_ts(value["to"])
     if not parse_ts(preview["received_at"]) <= start < end <= now_utc() or end - start > timedelta(days=31):
@@ -126,9 +133,14 @@ def margin_action(root, action, value, *, store):
         tops = portal.tops(symbol, start, end)
         instrument = portal.instrument(symbol)
         points = [(top, is_closed(rules.load(top.ts_avail)[1], instrument, top.ts_avail)) for top in tops]
-        result = replay_margin(preview["terms"], preview["rule"], points, end, value["exit_fee_rate"], value["holding_seconds"])
-        data_hash = digest([(iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), closed) for top, closed in points])
+        opt_in_depth = value.get("depth_valuation", False)
+        result = replay_margin(preview["terms"], preview["rule"], points, end,
+                               value["exit_fee_rate"], value["holding_seconds"],
+                               depth_valuation=opt_in_depth)
+        data_hash = digest([(iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), closed,
+                             *((top.depth,) if opt_in_depth else ())) for top, closed in points])
     finally:
         db.c.close()
     return _save(root, {"kind": "REPLAY", "inputs": value, "data_digest": data_hash, "observations": len(tops),
+                        **({"margin_replay_version": 2} if value.get("depth_valuation", False) else {}),
                         "result": result, "limitations": LIMITATIONS})

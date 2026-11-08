@@ -5,17 +5,19 @@ so an entry in one market leaves less cash for the others. The selected allocati
 against current portfolio equity. Quotes from all markets are fed in availability order.
 """
 import heapq
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import iso, parse_ts
+from ..domain.execution_costs import modeled_execution_cost
+from ..domain.model import InstrumentId, QualityLimits, iso, parse_ts
 from ..domain.performance import performance, trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
+from ..domain.rules import is_closed
 from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
@@ -44,6 +46,7 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
 
 def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection):
+    """Replay strictly prior market observations against a shared simulated cash book."""
     if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
     cost.assert_causal(t0)
@@ -76,6 +79,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         rule_times.append(max(at, rule_times[-1]) if rule_times else at)
 
     def rules_for(at):
+        """Load the market rules known at the supplied historical decision time."""
         version = "today" if rules_mode == "today" else bisect_right(rule_times, at)
         if version not in rule_cache:
             rules = today if rules_mode == "today" else svc.load(at)[1]
@@ -95,18 +99,46 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     mark_times, mark_order = {}, {}
     held, held_order = set(), []
     controller = PortfolioPolicy({} if policy is None else policy, symbols)
+    if controller.usdt_fx_risk and quote != "TMN":
+        raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
+    if controller.usdt_fx_risk:
+        fx_count = db.c.execute(
+            "SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
+            "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
+            (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+        if fx_count > MAX_OBSERVATIONS:
+            raise ValueError("portfolio FX risk observation budget exceeded; narrow the window")
+    fx_risk_tops = (portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
+                    if controller.usdt_fx_risk else [])
+    fx_risk_times = [top.ts_avail for top in fx_risk_tops]
+
+    def fx_at_close(close):
+        """Select only the most recent fresh, open, strictly earlier FX quote."""
+        idx = bisect_left(fx_risk_times, close) - 1
+        if idx < 0:
+            return None
+        top = fx_risk_tops[idx]
+        if (not qualified(top) or "CLOSED" in top.flags
+                or is_closed(rules_for(close), InstrumentId.wallex("USDTTMN"), close)
+                or close - top.ts_avail > timedelta(seconds=QualityLimits().stale_s)):
+            return None
+        return (top.bid + top.ask) / 2
+
     weights = controller.weights({})
     reserved, histories, policy_events = {}, {s: [] for s in symbols}, []
     rebalance_pending = set()
     next_rebalance, risk_state, next_close = t0, None, None
 
     def equity():
+        """Value all paper holdings at currently known, currency-consistent marks."""
         return book.get(quote) + sum((book.get(instruments[s].base) * marks[s] for s in held_order), Decimal(0))
 
     def valuation_state(at):
+        """Fail portfolio valuation when a held market lacks a fresh mark."""
         return "STALE_VALUATION" if any(at - mark_times[s] > timedelta(seconds=120) for s in held_order) else "CURRENT"
 
     def allocate(symbol, fraction):
+        """Reserve only funded shared paper cash below the target risk budget."""
         available = max(Decimal(0), book.get(quote) - sum(reserved.values(), Decimal(0)) - equity() * controller.rates["cash_buffer"])
         if available <= 0 or risk_state or weights["status"] != "READY":
             return Decimal(0)
@@ -123,6 +155,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         return fraction
 
     def risk_budget(symbol):
+        """Return entry stop-loss capacity net of filled and reserved exposure."""
         strategy = sessions[symbol].strategy
         stop = Decimal(strategy.params["exit_stop_bps"]) / 10000
         exposure_cost = sum((book.get(instruments[s].base) * (sessions[s].position_entry or Decimal(0))
@@ -132,6 +165,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         return equity(), capacity
 
     def risk(at):
+        """Update portfolio loss latches and cancel unfilled entries when tripped."""
         nonlocal risk_state
         state = ("DRAWDOWN" if controller.drawdown_latched else "DAILY_LOSS" if controller.daily_latched else "STALE_VALUATION") if valuation_state(at) != "CURRENT" else controller.observe(at, equity())
         if state != risk_state:
@@ -147,6 +181,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                     reserved.pop(s, None)
 
     def filter_decision(symbol, action, fraction, reasons):
+        """Apply portfolio risk, allowed rebalance and modeled transaction costs."""
         if risk_state in ("DRAWDOWN", "DAILY_LOSS"):
             if book.get(instruments[symbol].base) > 0:
                 return "SELL_REQUEST", Decimal(1), ("PORTFOLIO_" + risk_state,)
@@ -161,7 +196,36 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
             held = book.get(instruments[symbol].base) * marks.get(symbol, Decimal(0))
             target = equity() * Decimal(weights["weights"][symbol])
             delta = target - held
-            if equity() > 0 and abs(delta) > equity() * controller.rates["rebalance_threshold"]:
+            band = controller.rates["rebalance_threshold"]
+            if controller.cost_aware_rebalance and equity() > 0:
+                latest = sessions[symbol].last_quote
+                if (latest is None or not qualified(latest)
+                        or latest.ts_avail > controller.previous_at
+                        or controller.previous_at - latest.ts_avail > timedelta(seconds=120)):
+                    policy_events.append({"at": iso(controller.previous_at), "kind": "REBALANCE_BAND",
+                                          "symbol": symbol, "status": "COST_UNAVAILABLE",
+                                          "requested": False})
+                    return action, fraction, reasons
+                maker = cost.order_type == "limit"
+                size = abs(delta) / (latest.bid if delta < 0 else latest.ask)
+                measured = modeled_execution_cost(cost, symbol, controller.previous_at, size,
+                                                  latest.bid, latest.ask, maker=maker)
+                fee_rate = measured["fee_rate"] if measured is not None else (
+                    cost.maker_fee if maker else cost.fee_rate)
+                uplift = measured["uplift_bps"] / 10000 if measured is not None else Decimal(0)
+                modeled = 2 * fee_rate + (latest.ask - latest.bid) / latest.bid + uplift
+                band = max(band, modeled)
+                drift = abs(delta) / equity()
+                policy_events.append({
+                    "at": iso(controller.previous_at), "kind": "REBALANCE_BAND", "symbol": symbol,
+                    "status": "READY", "source_quote_time": iso(latest.ts_avail),
+                    "tracking_error_fraction": str(drift),
+                    "modeled_cost_fraction": str(modeled), "band_fraction": str(band),
+                    "estimated_turnover_quote": str(abs(delta)),
+                    "estimated_roundtrip_cost_quote": str(abs(delta) * modeled),
+                    "requested": drift > band, "cost_basis": "two fees, observed spread, optional dated uplift",
+                    "model": "causal-cost-aware-band/1"})
+            if equity() > 0 and abs(delta) > equity() * band:
                 if delta > 0 and action != "BUY_REQUEST":
                     strategy = sessions[symbol].strategy
                     if held <= 0 or not getattr(strategy, "entry_allowed", True) or getattr(strategy, "execution_limits", None) is not None:
@@ -185,28 +249,43 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     curve = []
 
     def close_through(at):
+        """Advance every market to a common closed bar before any new quote."""
         nonlocal weights, next_rebalance, next_close
         # Close every market before revealing any later quote or settling its fills.
         while next_close is not None and next_close <= at:
             close = next_close
             risk(close)
+            risk_fx = fx_at_close(close) if controller.usdt_fx_risk else None
+            if controller.usdt_fx_risk and risk_fx is None:
+                # A missing FX observation breaks the return chain for all
+                # TMN assets. Never recycle target weights from stale risk data.
+                for history in histories.values():
+                    history.clear()
+                weights = controller.weights({})
+                next_rebalance = close
+                rebalance_pending.clear()
             for session in sessions.values():
                 session.scan(close)
             for s, session in sessions.items():
                 if session.decisions and session.decisions[-1]["t"] == iso(close):
                     if histories[s] and close - histories[s][-1][0] != session.bar_spec.step:
                         histories[s].clear()
-                        if controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None:
+                        if (controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None
+                                or controller.portfolio_volatility_target is not None or controller.usdt_fx_risk
+                                or controller.expected_shortfall_limit is not None):
                             weights = {"status": "WARMING_UP", "weights": {symbol: "0" for symbol in symbols}, "risk_contribution_error": None}
                             next_rebalance = close
                             rebalance_pending.clear()
                     decision = session.decisions[-1]
-                    if controller.volatility_model == "parkinson-ewma":
-                        known = decision["bar_known"]
-                        histories[s].append((close, Decimal(decision["close"]),
-                                             Decimal(known["high"]), Decimal(known["low"])))
-                    else:
-                        histories[s].append((close, Decimal(decision["close"])))
+                    if not controller.usdt_fx_risk or risk_fx is not None:
+                        scale = risk_fx if controller.usdt_fx_risk else Decimal(1)
+                        if controller.volatility_model == "parkinson-ewma":
+                            known = decision["bar_known"]
+                            histories[s].append((close, Decimal(decision["close"]) / scale,
+                                                 Decimal(known["high"]) / scale,
+                                                 Decimal(known["low"]) / scale))
+                        else:
+                            histories[s].append((close, Decimal(decision["close"]) / scale))
                     histories[s] = histories[s][-(controller.description["lookback"] + 1):]
                 if session.pending is None or session.pending.record["side"] != "BUY":
                     reserved.pop(s, None)
@@ -308,6 +387,21 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     if universe_selection is not None:
         inputs["portfolio_version"] = 6
         inputs["universe_selection"] = universe_selection
+    if policy is not None and "portfolio_volatility_target" in controller.description:
+        # New explicit portfolio risk input changes how targets are scaled.
+        inputs["portfolio_version"] = 7
+    if controller.usdt_fx_risk:
+        inputs["portfolio_version"] = 9 if controller.portfolio_volatility_target is not None else 8
+        inputs["fx_risk_data"] = digest([(iso(top.ts_avail), top.bid, top.ask, sorted(top.flags))
+                                         for top in fx_risk_tops])
+    if controller.expected_shortfall_limit is not None:
+        inputs["portfolio_version"] = 10
+    if controller.cost_aware_rebalance:
+        inputs["portfolio_version"] = 11
+    if cost.calibration is not None and "fractional_sizing_report_id" in cost.calibration:
+        inputs["portfolio_version"] = 12
+    if controller.description["method"] == "hierarchical-risk-parity":
+        inputs["portfolio_version"] = 13
     markets = {}
     for s, session in sessions.items():
         orders = session.orders

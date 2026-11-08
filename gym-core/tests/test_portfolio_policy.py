@@ -197,3 +197,92 @@ def test_resting_limit_respects_updated_cash_buffer_at_actual_settlement(tmp_pat
         assert not any(o["side"] == "BUY" and o["status"] == "FILLED" and o["fill_time"] >= iso(at) for o in out["result"]["markets"]["ETHUSDT"]["orders"]), out["result"]["markets"]["ETHUSDT"]["orders"]
     finally:
         db.c.close()
+
+
+def test_opt_in_portfolio_volatility_target_uses_prior_joint_covariance():
+    """Target the combined rather than each component's historical bar risk."""
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    policy = PortfolioPolicy({"lookback": 3, "portfolio_volatility_target": "0.01"}, symbols)
+    assert policy.weights({})["status"] == "WARMING_UP"
+    history = {"BTCUSDT": [(i, Decimal(v)) for i, v in enumerate((100, 110, 100, 110))],
+               "ETHUSDT": [(i, Decimal(v)) for i, v in enumerate((100, 105, 100, 105))]}
+    result = policy.weights(history)
+    assert result["status"] == "READY"
+    assert Decimal(0) < Decimal(result["portfolio_volatility"]["scale"]) < 1
+    assert Decimal(result["portfolio_volatility"]["projected_per_bar"]) <= Decimal("0.01")
+    assert sum(map(Decimal, result["weights"].values())) < 1
+    assert PortfolioPolicy({}, symbols).weights({})["status"] == "READY"
+
+
+def test_portfolio_volatility_target_rejects_bad_input_and_gaps():
+    """Do not apply a target when risk units or historical continuity are unknown."""
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    for invalid in ("0", "1.1", "-0.1", "NaN", 0.1):
+        with pytest.raises(ValueError):
+            PortfolioPolicy({"portfolio_volatility_target": invalid}, symbols)
+    policy = PortfolioPolicy({"lookback": 3, "portfolio_volatility_target": "0.01"}, symbols)
+    history = {s: [(i, Decimal(v)) for i, v in enumerate((100, 110, 100, 110))]
+               for s in symbols}
+    history["ETHUSDT"][-1] = (10, Decimal(110))
+    assert policy.weights(history)["status"] == "WARMING_UP"
+
+
+def test_expected_shortfall_target_scales_joint_paper_weights_from_prior_tail():
+    """One 10% historical loss among 20 bars gives a 10% empirical ES95 tail."""
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    policy = PortfolioPolicy({"lookback": 20, "rebalance": True,
+                              "expected_shortfall_limit": "0.02"}, symbols)
+    prices = [Decimal(100)]
+    for change in [Decimal("0.01")] * 19 + [Decimal("-0.1")]:
+        prices.append(prices[-1] * (1 + change))
+    observed = {symbol: [(i, price) for i, price in enumerate(prices)]
+                for symbol in symbols}
+    result = policy.weights(observed)
+    assert result["status"] == "READY"
+    tail = result["expected_shortfall"]
+    assert tail["confidence"] == "0.95"
+    assert tail["worst_observations"] == 1
+    assert abs(Decimal(tail["unscaled_per_bar"]) - Decimal("0.1")) < Decimal("1e-20")
+    assert abs(Decimal(tail["scale"]) - Decimal("0.2")) < Decimal("1e-10")
+    assert Decimal(tail["scaled_per_bar"]) <= Decimal("0.02")
+    assert sum(map(Decimal, result["weights"].values())) <= Decimal("0.2")
+
+
+def test_expected_shortfall_requires_explicit_rebalancing_and_track_record():
+    """Prevent pretending to cap held exposure when only new-entry sizing exists."""
+    for value in ({"expected_shortfall_limit": "0.02"},
+                  {"expected_shortfall_limit": "0.02", "rebalance": True, "lookback": 3},
+                  {"expected_shortfall_limit": "0", "rebalance": True, "lookback": 20}):
+        with pytest.raises(ValueError):
+            PortfolioPolicy(value, ["BTCUSDT", "ETHUSDT"])
+
+
+def test_cost_aware_rebalance_band_uses_observed_spread_and_fees(tmp_path):
+    """Opt-in no-trade bands report prior quote costs and weighted drift."""
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
+    try:
+        policy = {"rebalance": True, "rebalance_seconds": 300,
+                  "rebalance_threshold": "0.0001", "cost_aware_rebalance": True}
+        out = portfolio(db, ["BTCUSDT", "ETHUSDT"], START,
+                        START + timedelta(minutes=25), resolution="1min",
+                        policy=policy, cost=CostModel(fee_rate=Decimal("0.05")))
+        assert out["inputs"]["portfolio_version"] >= 11
+        events = [row for row in out["result"]["policy_events"] if row["kind"] == "REBALANCE_BAND"]
+        assert events
+        for event in events:
+            assert Decimal(event["band_fraction"]) >= Decimal("0.1")
+            assert Decimal(event["tracking_error_fraction"]) >= 0
+            assert Decimal(event["modeled_cost_fraction"]) >= Decimal("0.1")
+            assert event["source_quote_time"] <= event["at"]
+            assert event["requested"] == (Decimal(event["tracking_error_fraction"]) >
+                                          Decimal(event["band_fraction"]))
+    finally:
+        db.c.close()
+
+
+def test_cost_aware_rebalance_requires_explicit_rebalance_and_boolean():
+    for params in ({"cost_aware_rebalance": True},
+                   {"rebalance": True, "cost_aware_rebalance": "yes"},
+                   {"rebalance": True, "cost_aware_rebalance": 1}):
+        with pytest.raises(ValueError):
+            PortfolioPolicy(params, ["BTCUSDT", "ETHUSDT"])
