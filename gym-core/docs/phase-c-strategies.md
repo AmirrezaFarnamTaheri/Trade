@@ -19,8 +19,11 @@ The half-life is `-ln(2)/ln(phi)`, where phi is estimated by exact-Decimal
 AR(1) with intercept from the *previous* 12..129 discounts. Phi outside
 (0,1) is explicitly unidentifiable; there is no synthetic expiry. Missing,
 closed, skewed or gapped conversion quotes cannot be backfilled.
-An identified half-life optionally bounds modeled paper holding time; the
-existing fixed-discount costs and no-conversion-transport limitations remain.
+An identified half-life optionally bounds modeled paper holding time. A gap
+resets the score estimator without resetting the age of a held position; while
+z-score statistics warm up, a held position may exit on the original fixed
+`exit_bps` reversion rule, but new entries remain disabled. The existing
+fixed-discount costs and no-conversion-transport limitations remain.
 
 ## 26 — Lag selection on earlier observations
 
@@ -48,8 +51,10 @@ borrowed base on short sells, fee currencies, periodic extension, call
 levels, liquidation triggers, unfillable gaps and debt. This **is not**
 one shared live cross-margin account. Only two fully closed paper legs
 produce `net_quote`; `net_usdt` is null for TMN without eligible FX.
-Aligned log-mid-price-spread dispersion and an AR(1) half-life are
-descriptive and cannot certify cointegration or executable arbitrage.
+Aligned log-mid-price-spread dispersion and a training-only (first 70%) AR(1)
+half-life are descriptive and cannot certify cointegration or executable
+arbitrage. The `half_life_observations` field counts aligned long-leg quote
+updates, which are irregular events rather than fixed-duration bars.
 
 ## 28 — Causal out-of-sample paper weighting
 
