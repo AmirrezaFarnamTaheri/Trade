@@ -70,3 +70,25 @@ def test_opt_in_adverse_markout_cost_is_bounded_and_causal():
         cost.assert_causal(START - timedelta(seconds=1))
     with pytest.raises(ValueError):
         CostModel(postfill_costs={"BTCUSDT": {**profile["BTCUSDT"], "penalty_bps": "500"}})
+
+
+def test_postfill_action_uses_verified_native_run_and_read_only_market(tmp_path):
+    """The report references the exact original paper result without creating orders."""
+    from gym.adapters.run_store import save_run
+    from gym.services.paper import paper
+    from gym.services.research_actions import research_action
+    from tests.support import market_db, quote_history
+
+    db = market_db(tmp_path, quote_history(n=500))
+    try:
+        out = paper(db, "BTCUSDT", START, START + timedelta(minutes=35),
+                    resolution="1min", params={"fast": 2, "slow": 3}, store="demo")
+    finally:
+        db.c.close()
+    save_run(out, tmp_path / "runs")
+    report = research_action(tmp_path, "postfill-check", {"run_id": out["run_id"]}, store="demo")
+    assert report["source_run_id"] == out["run_id"]
+    assert report["source_outputs_digest"] == out["outputs_digest"]
+    assert report["schema"] == "paper-postfill-markouts/1"
+    assert report["funded_authority"] is False
+    assert len(report["rows"]) <= len(out["result"]["orders"])
