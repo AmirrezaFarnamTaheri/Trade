@@ -3,8 +3,8 @@ from datetime import timedelta
 
 import pytest
 
+from gym.services.research_actions import convert_series, derived_series
 from gym.services.research_protocol import ResearchProtocol
-from gym.services.research_series import convert_series, derived_series
 from tests.support import START
 from tests.test_research_series import request, row
 

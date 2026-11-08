@@ -16,12 +16,24 @@ DEFAULT_FEE = os.environ.get("GYM_FEE_RATE", "0.001")
 FEE_HELP = f"fee rate per side (default {DEFAULT_FEE}; observed account fee 0.1%%, override with GYM_FEE_RATE)"
 
 
+def default_data_root() -> Path:
+    """Keep editable source checkouts on the repository-level data directory."""
+    core = Path(__file__).resolve().parents[3]
+    if core.name == "gym-core" and (core / "pyproject.toml").is_file():
+        return core.parent / "data"
+    # A separately installed wheel has no reliable checkout root.
+    # Its caller must pass --data explicitly to choose a shared store.
+    return Path("data")
+
+
 def store_root(args) -> Path:
+    """Separate demo and live data beneath the explicitly resolved workspace root."""
     # Demo data lives in its own directory and never mixes with real observations.
     return Path(args.data) / ("demo" if getattr(args, "demo", False) else "live")
 
 
 def open_db(args, preset_at=None) -> MarketDB:
+    """Open a market store and install first-run rules only when absent."""
     db = MarketDB(store_root(args) / "market.db")
     if not db.rule_events():
         RuleService(db).preset(DEFAULT_PRESET, preset_at or now_utc(), actor="first-run")
@@ -40,6 +52,7 @@ def _strict_offline_json(path: str, *, max_bytes: int) -> dict:
 
 
 def timedelta_ms(ms: int):
+    """Convert a validated millisecond argument into a duration."""
     from datetime import timedelta
 
     return timedelta(milliseconds=ms)

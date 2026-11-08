@@ -73,10 +73,11 @@ def test_autopilot_health_is_disarmed_and_unavailable_even_on_demo_runner(tmp_pa
 
 
 def test_operate_cockpit_has_english_persian_and_no_fake_live_values():
+    """Keep paper controls bilingual without implying a live executor state."""
     from pathlib import Path
     root = Path(__file__).resolve().parents[1] / "src" / "gym" / "ui"
     html = (root / "index.html").read_text("utf-8")
-    js = "\n".join((root / name).read_text("utf-8") for name in ("app.js", "operations.js"))
+    js = "\n".join((root / name).read_text("utf-8") for name in ("workspace-config.js", "app.js", "operations.js"))
     assert 'data-view="operate"' in html
     assert 'id="v-operate"' in html
     assert 'id="offline-ticket"' in html

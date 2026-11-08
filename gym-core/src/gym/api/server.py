@@ -49,7 +49,9 @@ def s(x):
 
 
 # Served next to index.html, each with a content-hash query so a browser never runs a stale copy.
-UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "charts.js", "runs.js", "models.js", "replay-chart.js", "research.js", "margin.js", "portfolio.js", "native-review.js", "styles.css")
+UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "charts.js", "runs.js", "models.js", "replay-chart.js", "research.js", "margin.js", "portfolio.js", "native-review.js",
+             "workspace-config.js", "workspace-utils.js", "workspace-overview.js", "workspace-alerts.js",
+             "markets-events.js", "research-events.js", "operator-events.js", "shell-events.js", "styles.css")
 
 def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None = None,
              account_observation: dict | None = None,
@@ -57,16 +59,22 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
              venue_facts: VenueFactsJournal | None = None,
              offline_review_journal: OfflineReviewJournal | None = None,
              chaos_report: Path | None = None) -> web.Application:
+    """Serve only the loopback research UI and bounded, non-authorizing API routes."""
     async def index(_):
+        """Render content-hashed asset references without disclosing the session token."""
         # Never embed the token: any local process can fetch "/". The browser receives it in the URL fragment.
         html = UI.read_text("utf-8").replace("__GYM_DEMO__", json.dumps(col.demo))
         html = html.replace("__GYM_RESOLUTIONS__", json.dumps(list(FIXED_RESOLUTIONS)))
         for asset in UI_ASSETS:
+            placeholder = f'"/{asset}"'
+            if placeholder not in html:
+                continue  # An allowlisted asset unused by this page needs no content hash.
             version = sha256(UI.with_name(asset).read_bytes()).hexdigest()[:16]
-            html = html.replace(f'"/{asset}"', f'"/{asset}?v={version}"')
+            html = html.replace(placeholder, f'"/{asset}?v={version}"')
         return web.Response(text=html, content_type="text/html")
 
     async def browser_asset(req):
+        """Serve only assets from the explicit UI_ASSETS route allowlist."""
         return web.FileResponse(UI.with_name(req.path[1:]))
 
     async def markets(_):

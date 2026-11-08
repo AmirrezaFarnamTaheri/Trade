@@ -15,7 +15,7 @@ from .data_portal import DataPortal
 from .paper import run, session_result
 from .research_protocol import _engine_digest
 from .rules import RuleService
-from .session import ENGINE_VERSION, PaperSession
+from .session import ENGINE_VERSION, LIMIT_ENGINE_VERSION, PaperSession
 
 
 def _comparable(result):
@@ -35,6 +35,7 @@ def _state(session):
 
 
 def checkpoint_replay(registry, db, request, *, resume=False):
+    """Reconstruct and compare a frozen native run or portfolio from verified observations."""
     fields(request, "checkpoint_id" if resume else "run_id quote_count")
     saved = registry.read(request["checkpoint_id"]) if resume else None
     if saved and (saved["kind"] not in ("REPLAY_CHECKPOINT", "PORTFOLIO_CHECKPOINT") or saved["engine_digest"] != _engine_digest()):
@@ -44,7 +45,7 @@ def checkpoint_replay(registry, db, request, *, resume=False):
         return portfolio_checkpoint(registry, db, request, saved=saved)
     out = load_verified_run(registry.root / "runs", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
-    if inputs["engine"] != ENGINE_VERSION or inputs.get("kind") or inputs["rules_mode"] != "point-in-time":
+    if inputs["engine"] not in (ENGINE_VERSION, LIMIT_ENGINE_VERSION) or inputs.get("kind") or inputs["rules_mode"] != "point-in-time":
         raise ValueError("checkpoint requires a current native historical point-in-time run")
     if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
         raise ValueError("checkpoint saved evidence changed")
@@ -109,6 +110,7 @@ def checkpoint_replay(registry, db, request, *, resume=False):
 
 
 def portfolio_checkpoint(registry, db, request, *, saved):
+    """Rebuild a shared-cash portfolio snapshot without deserializing mutable objects."""
     from .portfolio import portfolio
 
     out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import sqlite3
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -10,6 +12,8 @@ from pathlib import Path
 from ..adapters.store import MarketDB, SegmentWriter
 from ..domain.model import iso, parse_ts
 from ..services.collector import Collector, now_utc
+from ..services.process_owner import ProcessOwner
+from ..services.research_process import ResearchProcessFailure, calculate
 from .common import (
     _strict_offline_json,
     open_db,
@@ -19,6 +23,7 @@ from .common import (
 
 
 def replay_cmd(args) -> int:
+    """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
     from ..domain.sim import CostModel
     from ..services.paper import paper
@@ -90,6 +95,7 @@ def replay_cmd(args) -> int:
 
 
 def market_statistics_cmd(args) -> int:
+    """Calculate bounded observed market statistics from a local snapshot."""
     from datetime import timedelta
 
     from ..services.market_statistics import spread_report, trade_flow_report
@@ -126,6 +132,7 @@ def market_statistics_cmd(args) -> int:
 
 
 def technical_report_cmd(args) -> int:
+    """Render local technical diagnostics using recorded observations only."""
     from ..services.technical_analysis import technical_report, technical_reports
 
     path = store_root(args) / "market.db"
@@ -177,6 +184,7 @@ def candles_cmd(args) -> int:
             windows = quote_gaps(db, symbol, start, end)[:50] if args.fill_gaps else [(start, end)]
 
             async def fetch():
+                """Fetch or inspect candle windows while respecting the local data boundary."""
                 seg = SegmentWriter(store_root(args) / "raw", db)
                 try:
                     async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
@@ -206,6 +214,7 @@ def candles_cmd(args) -> int:
 
 
 def calibrate_cmd(args) -> int:
+    """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta
 
     from ..services.execution_calibration import feed_latency, fill_quality
@@ -230,11 +239,13 @@ def assistant_cmd(args) -> int:
     gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
 
     async def complete(action, value):
+        """Return a bounded advisory result while recording model usage."""
         result = await gateway.request(action, value)
         usage.record(result)
         return result
 
     async def go():
+        """Close the model gateway and usage store after an advisory request."""
         try:
             span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
             if not span[0]:
@@ -254,6 +265,7 @@ def assistant_cmd(args) -> int:
 
 
 def summary_cmd(args):
+    """Summarize persisted paper evidence without altering the source run."""
     from ..adapters.run_store import load_run
     from ..services.portable_report import render_html
     from ..services.reports import paper_summary
@@ -273,6 +285,7 @@ def summary_cmd(args):
 
 
 def evidence_cmd(args):
+    """Read saved economic evidence and record an independent operator decision."""
     from ..adapters.run_store import record_decision, run_path
     from ..services.diagnostics import diagnostics
     from ..services.reports import economic_report, markdown
@@ -293,6 +306,7 @@ def evidence_cmd(args):
 
 
 def session_cmd(args):
+    """Start a bounded paper session with no funded execution authority."""
     from ..domain.sim import CostModel
     from ..services.live_paper import watch
 
@@ -329,6 +343,7 @@ def paper_research_cmd(args) -> int:
 
 
 def research_cmd(args):
+    """Dispatch local research commands through their bounded execution owners."""
     from ..services.research_actions import OBJECT_ACTIONS, research_action
 
     root = store_root(args)
@@ -336,7 +351,6 @@ def research_cmd(args):
         from ..services.research_mcp import serve_stdio
         return serve_stdio(root)
     if args.action == "start":
-        from ..services.research_runner import watch
         root.mkdir(parents=True, exist_ok=True)
         result = asyncio.run(watch(root, store="demo" if args.demo else "live", poll_seconds=args.poll_seconds))
     else:
@@ -359,3 +373,42 @@ def research_cmd(args):
             return 3
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
     return 3 if "error" in result or (args.action == "claim-check" and not result["all_matched"]) else 0
+
+
+# The foreground scheduler is owned by the CLI; no separate pass-through module.
+
+async def watch(root: Path | str, *, store: str = "live", poll_seconds: float = 5,
+                stop: asyncio.Event | None = None) -> dict[str, object]:
+    """Poll local data only; Ctrl+C or an event stops without disabling scheduled jobs."""
+    if store not in ("live", "demo"):
+        raise ValueError("research store must be live or demo")
+    if (type(poll_seconds) not in (int, float) or not math.isfinite(poll_seconds)
+            or not 1 <= poll_seconds <= 60):
+        raise ValueError("research poll interval must be 1..60 seconds")
+    root, stop = Path(root), stop if stop is not None else asyncio.Event()
+    if not (root / "market.db").is_file():
+        raise sqlite3.OperationalError("paper market store missing")
+    with ProcessOwner(root, "scheduler", store=store):
+        return await _watch(root, store, poll_seconds, stop)
+
+
+async def _watch(root, store, poll_seconds, stop):
+    """Run scheduler ticks under the process lock until explicitly interrupted."""
+    ticks = completed = failed = 0
+    reason = "Stop requested"
+    try:
+        while not stop.is_set():
+            result = await calculate(root, "tick", store=store, at=now_utc().isoformat())
+            ticks += 1
+            completed += len(result["completed"])
+            failed += len(result["failed"])
+            if not stop.is_set():
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=poll_seconds)
+                except TimeoutError:
+                    pass
+    except asyncio.CancelledError:
+        reason = "Operator interrupted"
+    except ResearchProcessFailure as error:
+        return {"state": "STOPPED", **error.report, "ticks": ticks, "completed": completed, "failed": failed}
+    return {"state": "STOPPED", "reason": reason, "ticks": ticks, "completed": completed, "failed": failed}

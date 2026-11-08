@@ -72,3 +72,38 @@ def test_portfolio_restart_rebuilds_reservations_targets_and_loss_latches(tmp_pa
             research_action(tmp_path, "replay-resume", {"checkpoint_id": record["id"]})
     finally:
         db.c.close()
+
+def test_limit_engine_checkpoints_from_saved_native_paper_runs(tmp_path):
+    """The new limit-fill provenance engine must retain verified restart support."""
+    from gym.services.session import LIMIT_ENGINE_VERSION
+
+    db = market_db(tmp_path, quote_history(n=180))
+    try:
+        out = paper(db, "BTCUSDT", START, START + timedelta(minutes=30), resolution="1min",
+                    fast=2, slow=3, cost=CostModel(order_type="limit"))
+        assert out["inputs"]["engine"] == LIMIT_ENGINE_VERSION
+        save_run(out, tmp_path / "runs")
+        record = research_action(tmp_path, "replay-checkpoint", {"run_id": out["run_id"], "quote_count": 25})["record"]
+        assert record["kind"] == "REPLAY_CHECKPOINT"
+        assert research_action(tmp_path, "replay-resume", {"checkpoint_id": record["id"]})["status"] == "EXACT_MATCH"
+    finally:
+        db.c.close()
+
+def test_checkpoint_rejects_unsupported_engine_even_with_well_formed_evidence(tmp_path, monkeypatch):
+    """Only the explicitly supported native engine revisions are restorable."""
+    from copy import deepcopy
+
+    from gym.services import replay_checkpoint
+
+    db = market_db(tmp_path, quote_history(n=180))
+    try:
+        out = paper(db, "BTCUSDT", START, START + timedelta(minutes=30), resolution="1min",
+                    fast=2, slow=3)
+        save_run(out, tmp_path / "runs")
+        bad = deepcopy(out)
+        bad["inputs"]["engine"] = "paper-session/unsupported"
+        monkeypatch.setattr(replay_checkpoint, "load_verified_run", lambda *args, **kwargs: bad)
+        with pytest.raises(ValueError, match="current native historical point-in-time"):
+            research_action(tmp_path, "replay-checkpoint", {"run_id": out["run_id"], "quote_count": 25})
+    finally:
+        db.c.close()

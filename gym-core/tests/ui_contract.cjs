@@ -166,9 +166,11 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 const context = vm.createContext(sandbox);
-for (const name of ["charts.js", "runs.js", "markets.js", "research-controls.js", "operations.js"])  // classic scripts loaded before app.js share its global scope
+// Preserve the same classic-script evaluation order as the deferred browser assets.
+for (const name of ["charts.js", "runs.js", "markets.js", "research-controls.js", "operations.js",
+                    "workspace-config.js", "workspace-utils.js", "workspace-overview.js", "workspace-alerts.js",
+                    "app.js", "markets-events.js", "research-events.js", "operator-events.js", "shell-events.js"])
   vm.runInContext(fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), name), "utf8"), context, { timeout: 5000 });
-vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context, { timeout: 5000 });
 const app = vm.runInContext("({ T, num, esc, api, state, showView, renderMarkets, renderRun, renderHealth, editTicketField, renderTicketFields, healthyQuote, waterfallFigure, setupResearch, renderResearchJobs, controlResearch, accountJournal, serviceReceiptDetails })", context);
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(setImmediate); };
 const plain = value => String(value).replace(/<[^>]*>/g, "");

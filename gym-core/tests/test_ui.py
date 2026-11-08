@@ -87,3 +87,18 @@ def test_every_ui_node_suite_runs():
     assert len(suites) >= 3
     result = subprocess.run([node(), "--test", *suites], cwd=root.parent, capture_output=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_shell_stays_routing_only_and_view_assets_load_in_order():
+    """Require UI modules to load in declared dependency order with a slim shell."""
+    html = UI.read_text("utf-8")
+    names = ["workspace-config.js", "workspace-utils.js", "workspace-overview.js",
+             "workspace-alerts.js", "app.js", "markets-events.js", "research-events.js",
+             "operator-events.js", "shell-events.js"]
+    assert all(html.count(f'src="/{name}"') == 1 for name in names)
+    assert [html.index(f'src="/{name}"') for name in names] == sorted(html.index(f'src="/{name}"') for name in names)
+    assert set(names) <= set(UI_ASSETS)
+    shell = UI.with_name("app.js").read_text("utf-8")
+    assert len(shell.splitlines()) < 150
+    assert "function route(" in shell and "async function showView(" in shell
+    assert "function renderOverview(" not in shell

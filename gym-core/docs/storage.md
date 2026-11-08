@@ -4,8 +4,27 @@ Operational records already use SQLite. Retain this layout: SQL for queries and
 transactions, compressed raw segments for original exchange messages, and
 individual immutable JSON files for portable research reports.
 
-Use one explicit data root. Current Windows collector and research tasks use
-`D:/GitHub/Trade/data/live`; commands run from `gym-core` need `--data ../data`.
+The repository-level `data/` directory is the single canonical root for
+source checkouts, including Windows collector and research tasks. Commands
+launched from the repository root or `gym-core/` use it by default; an
+explicit `--data ../data` from `gym-core/` still works. Standalone installed
+wheels must be given an explicit `--data` path.
+
+### Legacy receipt migration (operator machine only)
+
+Older commands launched from `gym-core/` without `--data` may have written
+`gym-core/data/live/backup_status.sqlite3`. This is a **separate** SQLite
+receipt journal, not the canonical `data/live/backup_status.sqlite3`.
+Stop the collector, research workers, backup commands, and other writers before
+migration. Inspect both files and make a recoverable copy of the legacy store.
+If the canonical file does not exist, use SQLite's **backup API** to copy the
+legacy database to a new canonical file, verify the receipts and immutable
+triggers, and only then archive the legacy file. Do not simply copy an open
+SQLite database: WAL sidecars can contain committed data. If both journals
+exist, **do not overwrite either file or concatenate SQLite files**; reconcile
+the immutable receipts with an operator-reviewed migration. Preserve all
+other files under the old data root until their owners are identified.
+This repository change does not move databases on a running machine.
 
 Backup/restore receipts are append-only, bounded and sanitized. Current status
 selects the latest recorded time, independent of append order. A receipt does not

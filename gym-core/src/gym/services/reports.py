@@ -98,6 +98,7 @@ def markdown(report):
 
 
 def text_report(out: dict) -> str:
+    """Render human-readable paper evidence without mutating saved artifact bytes."""
     result = out["result"]
     end = result["end"] or {}
     currency = result["quote"]
@@ -131,6 +132,13 @@ def text_report(out: dict) -> str:
                            f"P(Sharpe>0) {ratio(ret.get('probabilistic_sharpe'))}"),
                       (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
                        f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
+    if "limit_fill_diagnostics" in result:
+        print_evidence = result["limit_fill_diagnostics"]
+        lines.append("Limit fill print exposure: "
+                     f'{print_evidence["suspected_identical_prints"]} suspected identical trade prints '
+                     f'across {print_evidence["affected_fills"]} filled orders; '
+                     f'{print_evidence["identical_print_capacity_qty"]} base units of modeled capacity '
+                     "(not deduplicated; venue trade IDs unavailable).")
     active = out["ranking"]["active"]
     lines += ["", "active ranking (USDT-equivalent; abstainers excluded):"]
     if active:
@@ -157,4 +165,8 @@ def text_report(out: dict) -> str:
                      f"{out['fx']['end']} ({out['fx']['basis']}; start {out['fx'].get('start_status', 'LIVE')}, "
                      f"end {out['fx'].get('end_status', 'LIVE')})")
     lines += ["", *("! " + warning for warning in out["warnings"])]
+    # Display-only guidance: market-order warnings are part of frozen persisted IDs.
+    notice = "Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band."
+    if notice not in out["warnings"]:
+        lines.append("! " + notice)
     return "\n".join(lines)

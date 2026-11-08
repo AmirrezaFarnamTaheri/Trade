@@ -24,6 +24,7 @@ from .commands.account import (
 from .commands.common import (
     DEFAULT_FEE,
     FEE_HELP,
+    default_data_root,
     open_db,
 )
 from .commands.daemon import demo_seed, serve
@@ -57,8 +58,10 @@ from .services.rules import RuleService
 
 
 def main(argv=None):
+    """Parse the native CLI and invoke the selected bounded command handler."""
     p = argparse.ArgumentParser(prog="gymctl")
-    p.add_argument("--data", default="data", help="data directory (default ./data)")
+    p.add_argument("--data", default=str(default_data_root()),
+                   help="data directory (defaults to repository data/ in source checkouts)")
     sub = p.add_subparsers(dest="cmd", required=True)
     native_review = sub.add_parser("operator-review", help="explicit protected Windows operator intent; never submits an order")
     native_review.add_argument("input", help="native review JSON file (status, inspect, approve, prepare or revoke)")

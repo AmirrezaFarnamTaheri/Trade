@@ -5,8 +5,8 @@ from datetime import timedelta
 
 import pytest
 
+from gym.commands import research as research_runner
 from gym.domain.model import iso
-from gym.services import research_runner
 from gym.services.research_ledger import ResearchLedger
 from tests.support import START, market_db, quote_history
 

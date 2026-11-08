@@ -20,7 +20,7 @@ from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
 from .rules import RuleService
-from .session import ENGINE_VERSION, PaperSession
+from .session import ENGINE_VERSION, LIMIT_ENGINE_VERSION, PaperSession
 
 MAX_OBSERVATIONS = 200_000
 MAX_MARKETS = 500
@@ -30,6 +30,7 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
               cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), strategy_id: str = "ema-trend",
               params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
               checkpoint: dict | None = None) -> dict:
+    """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
     db.c.execute("BEGIN")
@@ -270,7 +271,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
 
     valuation = curve_valuation(quote, curve, t0, t1, fx_tops, rules_for)
     first_fx, last_fx = valuation["start"], valuation["end"]
-    inputs = {"engine": ENGINE_VERSION, "kind": "portfolio", "portfolio_version": 5,
+    inputs = {"engine": LIMIT_ENGINE_VERSION if cost.order_type == "limit" else ENGINE_VERSION,
+              "kind": "portfolio", "portfolio_version": 5,
               "symbols": symbols, "from": iso(t0), "to": iso(t1),
               "resolution": resolution, "strategy": strategy_id, "params": sessions[symbols[0]].strategy.params,
               "strategy_version": sessions[symbols[0]].strategy.version,
