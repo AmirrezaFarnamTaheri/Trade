@@ -92,3 +92,48 @@ def evaluate_divergence(wallex, reference, *, symbol, as_of, training_samples=20
         )
     result["report_id"] = digest(result)[:16]
     return result
+
+
+def persist_paper_feed_lock(db, report, *, now, duration_seconds=600):
+    """Materialize a justified BLOCK_ENTRY rule without changing exit or venue actions."""
+    from ..domain.model import iso as timestamp
+    from .rules import RuleService
+
+    if (type(duration_seconds) is not int or not 60 <= duration_seconds <= 3600
+            or report.get("schema") != "paper-feed-divergence/1"
+            or report.get("block_entry") is not True
+            or report.get("funded_authority") is not False
+            or now.tzinfo is None):
+        raise ValueError("entry lock requires bounded paper feed discrepancy evidence")
+    evidence = report["report_id"]
+    rule_id = "feed-lock-" + evidence[:24]
+    svc = RuleService(db)
+    db.c.execute("BEGIN IMMEDIATE")
+    try:
+        existing = db.rules_as_of()[1].get(rule_id)
+        if existing is None:
+            existing = {
+                "id": rule_id,
+                "name": "Reference feed discrepancy paper entry lock",
+                "family": "Custom", "class": "POLICY", "action": "BLOCK_ENTRY",
+                "scope": {"symbols": [report["symbol"]]},
+                "params": {"entry_lock": True, "trigger": "REFERENCE_FEED",
+                           "metric": "matched_midpoint_divergence_bps",
+                           "value": report["deviation_bps"], "threshold_bps": report["threshold_bps"],
+                           "evidence": evidence, "source_authenticated": False},
+                "effective_from": timestamp(now),
+                "effective_until": timestamp(now + timedelta(seconds=duration_seconds)),
+                "source": "operator", "status": "REPORTED",
+                "last_confirmed_at": timestamp(now), "review_hours": 24,
+                "exit_confirmed": False, "disabled": False,
+                "note": "Imported public-reference discrepancy; paper-only entry lock; exits and cancellations unaffected."
+            }
+            svc.put(existing, now, actor="operator-research")
+        db.c.commit()
+    except BaseException:
+        db.c.rollback()
+        raise
+    return {"status": "PAPER_ENTRY_LOCK_RECORDED", "rule_id": rule_id,
+            "evidence_report_id": evidence, "funded_authority": False,
+            "source_authenticated": False, "exit_blocked": False,
+            "cancel_blocked": False}
