@@ -58,8 +58,8 @@ def test_impact_fit_fails_closed_without_independent_explanatory_variation():
 
 def test_impact_is_priced_in_paper_fill_and_never_spends_more_than_cash():
     top = BookTop("BTCUSDT", START + timedelta(seconds=1),
-                  Decimal("100"), Decimal("100.2"), Decimal("1000"),
-                  Decimal("1000"), frozenset())
+                  Decimal(100), Decimal("100.2"), Decimal(1000),
+                  Decimal(1000), frozenset())
     inst = InstrumentId.wallex("BTCUSDT")
     legacy = CashBook({"USDT": Decimal(1000)})
     calibrated = CashBook({"USDT": Decimal(1000)})
