@@ -144,6 +144,8 @@ def main(argv=None):
         command.add_argument("--carry-remainder", action="store_true",
                              help="keep working a resized order on later quotes until it fills or max wait passes")
         command.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")
+        command.add_argument("--hypothesis", default="ad-hoc",
+                             help="research-question label for durable global trial counting; no change to run IDs")
     research = sub.add_parser("paper-research", help="offline market, portfolio, cash-flow return and forecast scoring diagnostics")
     research.add_argument("path", help='JSON object with "model" and exact "parameters"; decimals are strings')
     research.add_argument("--output", help="create a JSON report outside data/; never overwrite")

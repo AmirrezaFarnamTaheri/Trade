@@ -26,7 +26,9 @@ def replay_cmd(args) -> int:
     """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
     from ..domain.sim import CostModel
+    from ..domain.strategy import digest
     from ..services.paper import paper
+    from ..services.trial_ledger import TrialLedger
     from ..services.reports import text_report
     from ..services.research import compare
 
@@ -51,6 +53,18 @@ def replay_cmd(args) -> int:
                                                                            maker_fee_rate=Decimal(args.maker_fee) if args.maker_fee else None),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
+        # Attempt receipts live outside frozen run artifacts and survive failed evaluations.
+        trial_specs = ([json.loads(candidate) for candidate in args.candidate]
+                       if args.cmd in ("compare", "validate") else
+                       [{"strategy": args.strategy, "params": json.loads(args.params) if args.params else None,
+                         "policy": getattr(args, "policy", None)}])
+        with TrialLedger(store_root(args)) as ledger:
+            for trial in trial_specs:
+                ledger.record(symbol=",".join(symbols), start=start, end=end,
+                              hypothesis=args.hypothesis, source=args.cmd,
+                              config_hash=digest({"candidate": trial, "cost": options["cost"].describe(),
+                                                  "resolution": args.res, "rules_mode": args.rules,
+                                                  "folds": getattr(args, "folds", 1)}))
         if args.cmd == "portfolio":
             from ..services.portfolio import portfolio
             options.pop("subscriptions")
