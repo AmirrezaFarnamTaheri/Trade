@@ -39,7 +39,7 @@ class TomanPremium:
         if self.z_entry and self.previous_bar_end is not None and self.previous_bar_end != snap.bar.start:
             self.z_moments.reset()
             self.past_discounts.clear()
-            self.holding_since = None
+            # Estimator warmup restarts, but the already held position keeps its age.
         self.feature_values = {"conversion_cost_bps": self.params["conversion_cost_bps"], "hypothesis": "TMN discount to observed cross-market bounds; not executable arbitrage"}
         if not required:
             return self.answer("ABSTAIN_UNSUPPORTED_QUOTE", "requires an asset/TMN market and distinct asset/USDT and USDT/TMN references")
@@ -81,7 +81,8 @@ class TomanPremium:
             action = ("BUY_REQUEST" if not holding and z is not None and z >= self.z_entry and
                       discount > cost + self.params["entry_bps"] else
                       "SELL_REQUEST" if holding and (duration_reached or
-                          z is not None and z <= self.z_exit) else
+                          (z is not None and z <= self.z_exit) or
+                          (z is None and remaining <= self.params["exit_bps"])) else
                       "ABSTAIN_WARMUP" if not holding and z is None else "HOLD")
             reason = "prior-only z-score and fitted half-life; not executable arbitrage"
             self.z_moments.observe(discount)
