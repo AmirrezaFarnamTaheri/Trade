@@ -19,7 +19,7 @@ finishing work. These are design priorities, not security ratings.
 
 | Priority | Destination | Remaining work and acceptance |
 | --- | --- | --- |
-| P1 | Workbench | Provide guided forms/readable results for common workflows beyond the grouped advanced action menu. Keep exact JSON under advanced inspection. Reuse validated service actions. |
+| P1 | Workbench | Guided premium, lag, TWAP and prospective freeze/inspect/consume-once forms are implemented with exact-evidence disclosures. Further common workflows and current-build rendered keyboard/mobile/EN-FA checks remain open; preserve the advanced JSON path. |
 | P1 | All curve reports | Add native freshness/coverage intervals to the reporting contract and segment curves accordingly. Do not guess that a time gap is missing coverage or imply continuous observation. |
 | P2 | Saved runs | Lead with readiness, valuation freshness, fills, net/return and the main chart; group risk/cost/statistics/evidence into disclosures and link to the decision debugger. |
 | P2 | Compare | Separate market/window and candidates from costs and action-specific validation. Verify the shared keyboard/time overlay inspector in a real browser; retain independent-start normalization and exact-time missing samples. |

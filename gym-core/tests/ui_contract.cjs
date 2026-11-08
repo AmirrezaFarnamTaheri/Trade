@@ -223,11 +223,21 @@ const click = async id => {
   };
   control("gym-config").textContent = JSON.stringify({ resolutions });
   const coverageRequests = [];
+  const prospectiveId = "a".repeat(64);
+  let prospectiveFailure = null;
   const workbenchContext = vm.createContext({ window: {}, document: { documentElement: { lang: "en" }, getElementById: control } });
   vm.runInContext(fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), "research.js"), "utf8"), workbenchContext);
   for (const language of ["en", "fa"]) {
     workbenchContext.document.documentElement.lang = language;
-    workbenchContext.window.gymResearch.mount(async (path, options) => { coverageRequests.push({ path, body: JSON.parse(options.body) }); return {}; }, app.esc);
+    workbenchContext.window.gymResearch.mount(async (path, options) => {
+      const body = JSON.parse(options.body);
+      coverageRequests.push({ path, body });
+      if (prospectiveFailure?.action === body.action) throw Object.assign(new Error("Request failed"), { detail: prospectiveFailure.detail });
+      if (body.action === "prospective-register") return { id: prospectiveId, configuration: body.value, funded_authority: false };
+      if (body.action === "prospective-status") return { id: prospectiveId, kind: "PROSPECTIVE_COMPARE", events: [], configuration: { symbol: "BTCUSDT" } };
+      if (body.action === "prospective-evaluate") return { kind: "PROSPECTIVE_RESULT", report: { authority: "PAPER_ONLY", funded_authority: false, comparable: false, rows: [{ config_hash: "abc", fills: 0, net: null, no_trade: true, net_available: false }] } };
+      return {};
+    }, app.esc);
     for (const resolution of resolutions) assert.ok(control("research-workspace").innerHTML.includes(`<option>${resolution}</option>`), "Coverage must expose the shared timeframe catalogue in both languages");
     control("coverage-symbol").value = "BTCUSDT";
     control("coverage-from").value = "2026-11-05T00:00";
@@ -236,6 +246,77 @@ const click = async id => {
     control("coverage-form").onsubmit({ preventDefault() {}, target: control("coverage-form") });
     await settle();
     assert.equal(coverageRequests.at(-1).body.value.resolution, "4h", "Coverage must send the selected timeframe to the backend");
+
+    // RED: guided future comparisons must not require an opaque action JSON payload.
+    assert.ok(control("research-workspace").innerHTML.includes('id="prospective-register-form"'), "Future comparisons need an accessible guided form");
+    assert.ok(control("research-workspace").innerHTML.includes('id="prospective-evaluate-form"'), "One-time future evaluation must be a distinct opt-in");
+    control("prospective-symbol").value = "BTCUSDT";
+    control("prospective-selection-end").value = "2026-01-01T00:00";
+    control("prospective-test-from").value = "2099-01-02T00:00";
+    control("prospective-test-to").value = "2099-01-03T00:00";
+    control("prospective-resolution").value = "15min";
+    control("prospective-cash").value = "1000.000000000000000001";
+    control("prospective-fee").value = "0.001";
+    control("prospective-strategy-first").value = "ema-trend";
+    control("prospective-strategy-second").value = "sma-cross";
+    control("prospective-strategy-third").value = "";
+    control("prospective-strategy-fourth").value = "";
+    control("prospective-params-first").value = "";
+    control("prospective-params-second").value = "";
+    const beforeInvalid = coverageRequests.length;
+    control("prospective-test-from").value = "2025-12-31T00:00";
+    control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
+    await settle();
+    assert.equal(coverageRequests.length, beforeInvalid, "Invalid future window must not submit a mutation");
+    control("prospective-test-from").value = "2099-01-02T00:00";
+    control("prospective-test-to").value = "2099-01-04T00:00";
+    control("prospective-resolution").value = "1min";
+    const beforeTooDense = coverageRequests.length;
+    control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
+    await settle();
+    assert.equal(coverageRequests.length, beforeTooDense, "Reject windows exceeding 1440 fixed-bar decisions before mutation");
+    control("prospective-test-to").value = "2099-01-03T00:00";
+    control("prospective-resolution").value = "15min";
+    control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
+    await settle();
+    const registration = coverageRequests.at(-1).body;
+    assert.equal(registration.action, "prospective-register");
+    assert.equal(registration.value.cash, "1000.000000000000000001", "Money must remain an exact decimal string");
+    assert.equal(registration.value.test_from, "2099-01-02T00:00:00Z");
+    assert.deepEqual(JSON.parse(JSON.stringify(registration.value.candidates)), [
+      {strategy: "ema-trend", params: {}}, {strategy: "sma-cross", params: {}}
+    ], "Two distinct strategies with default canonical parameters");
+    assert.equal(control("prospective-id").value, prospectiveId, "Preserve registered identifier for inspection");
+    assert.ok(control("prospective-result").innerHTML.includes(prospectiveId), "Show durable registration receipt and exact evidence");
+
+    prospectiveFailure = {action: "prospective-register", detail: "prospective comparison overlaps an already frozen window"};
+    control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
+    await settle();
+    assert.ok(control("prospective-result").textContent.includes("overlaps"), "Server validation detail must be visible for safe correction");
+    assert.ok(!control("prospective-result").textContent.includes("consumed evaluation"), "Registration rejection must not be mislabelled as consumed evaluation");
+    prospectiveFailure = null;
+
+    control("prospective-evaluate-form").onsubmit({ preventDefault() {}, target: control("prospective-evaluate-form") });
+    await settle();
+    assert.equal(coverageRequests.at(-1).body.action, "prospective-register", "Never consume future evaluation without explicit acknowledgement");
+    control("prospective-ack").checked = true;
+    control("prospective-inspect").onclick({ preventDefault() {}, target: control("prospective-inspect") });
+    await settle();
+    assert.equal(coverageRequests.at(-1).body.action, "prospective-status", "Read status first without consuming");
+    prospectiveFailure = {action: "prospective-evaluate", detail: "future window has not completed"};
+    control("prospective-evaluate-form").onsubmit({ preventDefault() {}, target: control("prospective-evaluate-form") });
+    await settle();
+    assert.ok(control("prospective-result").textContent.includes("future window has not completed"), "Read backend no-consumption rejection details");
+    assert.equal(control("prospective-ack").checked, false, "A rejected attempt still clears browser confirmation");
+    prospectiveFailure = null;
+    control("prospective-ack").checked = true;
+    control("prospective-evaluate-form").onsubmit({ preventDefault() {}, target: control("prospective-evaluate-form") });
+    await settle();
+    assert.equal(coverageRequests.at(-1).body.action, "prospective-evaluate");
+    assert.equal(coverageRequests.at(-1).body.value, prospectiveId);
+    assert.equal(control("prospective-ack").checked, false, "One-time evaluation must consume the UI confirmation");
+    assert.ok(control("prospective-result").innerHTML.includes("UNAVAILABLE") || control("prospective-result").innerHTML.includes("موجود"),
+      "No-trade and unavailable outcomes must not be displayed as profit");
   }
   const receipt = {resource:'BALANCES',sequence:'9007199254740993',runtime_epoch:'10',started_at_ms:'1000',received_at_ms:'1010',credential_generation:'33'.repeat(16),request_id:'11'.repeat(16),response_digest:'44'.repeat(32),event_hash:'55'.repeat(32)};
   assert.equal(app.serviceReceiptDetails(undefined), '');

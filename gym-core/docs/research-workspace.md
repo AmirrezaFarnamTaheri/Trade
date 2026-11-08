@@ -50,6 +50,21 @@ store argument means *recorded public feed*, not live execution.
   A local journal is not independent evaluation custody and does not certify
   collection continuity, profitability, real-world slippage or capital authority.
 
+The **guided Workbench** now offers a separate frozen-comparison form so common
+prospective studies do not require editing raw action JSON. Select two to four
+candidate strategies (native defaults or optional explicit parameter overrides),
+choose the selection cutoff and future UTC evaluation window, and enter exact
+quote-currency cash and fee strings. On successful registration, keep the
+returned **64-character local ID**. Use **Inspect saved status** without
+consuming anything; the evaluation submit control requires an explicit
+one-time acknowledgment and clears that acknowledgment before sending.
+A failed or disconnected request may already have consumed the attempt:
+**inspect status before any further action; do not resubmit blindly**.
+Readable result rows distinguish modeled no-trade, unavailable net, incomplete
+coverage and simulated fills. The complete canonical response remains under
+**Inspect exact saved evidence**. The advanced JSON workbench and CLI use the
+same underlying validated paper-only actions.
+
 All new reports mark `funded_authority: false`. Prospective runs must also be
 judged against missing/stale coverage, no-trade cases and a separately approved
 independent future evaluation. Do not treat a successful API response as an
