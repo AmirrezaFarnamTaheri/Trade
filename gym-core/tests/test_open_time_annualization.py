@@ -2,7 +2,11 @@
 from datetime import timedelta
 
 from gym.domain.model import iso
-from gym.domain.performance import YEAR_SECONDS, _sharpe_block, market_open_annualization
+from gym.domain.performance import (
+    YEAR_SECONDS,
+    _sharpe_block,
+    market_open_annualization,
+)
 from tests.support import START
 
 
