@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from gym.domain.registry import catalog, create_strategy
+from gym.domain.registry import catalog
 from gym.services.oos_combination import combine_oos_curves
 from gym.services.strategy_retirement import assess_retirement, meta_label_eligibility
 from tests.support import START
