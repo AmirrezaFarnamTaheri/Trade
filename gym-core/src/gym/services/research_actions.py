@@ -42,7 +42,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
@@ -194,6 +194,17 @@ def research_action(root, action, value=None, *, store="live", at=None):
         finally:
             db.c.rollback()
             db.c.close()
+    if action == "feed-divergence-screen":
+        from .feed_divergence import evaluate_divergence
+
+        fields(value, "symbol wallex reference as_of training_samples alert_sigma")
+        when = parse_ts(value["as_of"])
+        if when > now_utc():
+            raise ValueError("future feed crosscheck is unavailable")
+        return evaluate_divergence(
+            value["wallex"], value["reference"], symbol=value["symbol"],
+            as_of=when, training_samples=value["training_samples"],
+            alert_sigma=value["alert_sigma"])
     if action == "paper-promotion-screen":
         from .promotion_gates import promotion_screen
 
