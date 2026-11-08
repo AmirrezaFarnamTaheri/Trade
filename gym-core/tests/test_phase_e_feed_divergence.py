@@ -66,3 +66,31 @@ def test_feed_threshold_rejects_invalid_sigmas(sigma):
         evaluate_divergence(wallex, other, symbol="BTCUSDT",
                             as_of=START + timedelta(minutes=22),
                             training_samples=20, alert_sigma=sigma)
+
+
+def test_manual_reference_disagreement_can_persist_paper_entry_lock(tmp_path, monkeypatch):
+    """A matched divergence writes BLOCK_ENTRY to the existing local rule ledger."""
+    from gym.adapters.store import MarketDB
+    from gym.services import research_actions
+    from gym.services.rules import RuleService
+    from tests.support import market_db, quote
+
+    now = START + timedelta(minutes=22)
+    db = market_db(tmp_path, [quote(START, "99", "101")])
+    db.c.close()
+    monkeypatch.setattr(research_actions, "now_utc", lambda: now)
+    local, external = samples(divergent=True)
+    report = research_actions.research_action(tmp_path, "feed-divergence-lock", {
+        "symbol": "BTCUSDT", "wallex": local, "reference": external,
+        "as_of": iso(now), "training_samples": 20, "alert_sigma": 3,
+        "duration_seconds": 600}, store="demo")
+    assert report["status"] == "PAPER_ENTRY_LOCK_RECORDED"
+    assert report["funded_authority"] is False
+    db = MarketDB(tmp_path / "market.db", readonly=True)
+    try:
+        rules = RuleService(db).listing(now, [])["rules"]
+        assert any(row["body"]["params"].get("entry_lock")
+                   and row["body"]["scope"]["symbols"] == ["BTCUSDT"]
+                   for row in rules)
+    finally:
+        db.c.close()
