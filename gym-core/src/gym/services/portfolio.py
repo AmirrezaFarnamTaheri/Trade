@@ -99,6 +99,13 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     controller = PortfolioPolicy({} if policy is None else policy, symbols)
     if controller.usdt_fx_risk and quote != "TMN":
         raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
+    if controller.usdt_fx_risk:
+        fx_count = db.c.execute(
+            "SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
+            "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
+            (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+        if fx_count > MAX_OBSERVATIONS:
+            raise ValueError("portfolio FX risk observation budget exceeded; narrow the window")
     fx_risk_tops = (portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
                     if controller.usdt_fx_risk else [])
     fx_risk_times = [top.ts_avail for top in fx_risk_tops]
