@@ -43,3 +43,32 @@ def test_volatility_sizing_is_opt_in_and_requires_closed_ranges():
     assert Decimal(0) < value < Decimal(1)
     with pytest.raises(ValueError, match="unsupported volatility"):
         CostModel(volatility_model="invented")
+
+
+
+def test_portfolio_weights_use_same_ohlc_volatility_when_opted_in():
+    from gym.domain.portfolio_policy import PortfolioPolicy
+
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    prices = {
+        "BTCUSDT": [100, 105, 103, 107, 102, 108],
+        "ETHUSDT": [100, 101, 99, 102, 100, 103],
+    }
+    observations = {
+        symbol: [(i, Decimal(close), Decimal(close) * Decimal("1.05"),
+                  Decimal(close) * Decimal("0.95"))
+                 for i, close in enumerate(values)]
+        for symbol, values in prices.items()
+    }
+    modeled = PortfolioPolicy({"method": "inverse-volatility", "lookback": 5,
+                               "volatility_model": "parkinson-ewma"}, symbols)
+    output = modeled.weights(observations)
+    assert output["status"] == "READY"
+    assert output["volatility_model"] == "parkinson-ewma/1"
+    a, b = (Decimal(output["weights"][s]) for s in symbols)
+    assert abs(a - b) <= Decimal("0.000000000002")
+    legacy = PortfolioPolicy({"method": "inverse-volatility", "lookback": 5}, symbols)
+    old = legacy.weights({s: [(v[0], v[1]) for v in observations[s]] for s in symbols})
+    assert Decimal(old["weights"]["BTCUSDT"]) < Decimal(old["weights"]["ETHUSDT"])
+    assert "volatility_model" not in legacy.description
+    assert modeled.weights({s: observations[s][:-1] for s in symbols})["status"] == "WARMING_UP"

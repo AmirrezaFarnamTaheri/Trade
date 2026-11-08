@@ -4,6 +4,7 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 
 from .market_models import decimal
 from .model import TEHRAN
+from .volatility import parkinson_ewma
 
 
 class PortfolioPolicy:
@@ -11,10 +12,13 @@ class PortfolioPolicy:
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
-        if type(value) is not dict or value.keys() - defaults.keys():
+        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model"}:
             raise ValueError("invalid portfolio policy fields")
         self.description = {**defaults, **value}
         self.symbols = symbols
+        self.volatility_model = self.description.get("volatility_model", "close-std")
+        if self.volatility_model not in ("close-std", "parkinson-ewma"):
+            raise ValueError("unsupported portfolio volatility model")
         if type(self.description["rebalance"]) is not bool:
             raise ValueError("rebalance must be boolean")
         if self.description["method"] not in ("equal", "inverse-volatility", "risk-parity"):
@@ -61,9 +65,10 @@ class PortfolioPolicy:
             if need_history:
                 series = [observations.get(s, [])[-(count + 1):] for s in self.symbols]
                 if (any(len(row) < count + 1 for row in series)
-                        or any([at for at, _ in row] != [at for at, _ in series[0]] for row in series[1:])):
+                        or any([item[0] for item in row] != [item[0] for item in series[0]]
+                               for row in series[1:])):
                     return {**result, "status": "WARMING_UP"}
-                if any(any(not value.is_finite() or value <= 0 for _, value in row) for row in series):
+                if any(any(not item[1].is_finite() or item[1] <= 0 for item in row) for row in series):
                     raise ValueError("allocation requires positive finite closed prices")
                 if any(b[0] <= a[0] for a, b in zip(series[0], series[0][1:])):
                     raise ValueError("allocation prices must be chronological")
@@ -75,6 +80,20 @@ class PortfolioPolicy:
                                for j in range(n)] for i in range(n)]
                 if any(covariance[i][i] <= 0 for i in range(n)):
                     return {**result, "status": "ZERO_VARIANCE"}
+                if self.volatility_model == "parkinson-ewma":
+                    if any(any(len(item) != 4 for item in row) for row in series):
+                        return {**result, "status": "WARMING_UP"}
+                    # Preserve observed co-movement while using the shared bar
+                    # volatility scale for every paper allocation target.
+                    sigma = [parkinson_ewma([(item[2], item[3]) for item in row[1:]])
+                             for row in series]
+                    if any(value is None or value <= 0 for value in sigma):
+                        return {**result, "status": "ZERO_VARIANCE"}
+                    raw_stdev = [covariance[i][i].sqrt() for i in range(n)]
+                    covariance = [[covariance[i][j] * sigma[i] * sigma[j]
+                                   / (raw_stdev[i] * raw_stdev[j]) for j in range(n)]
+                                  for i in range(n)]
+                    result["volatility_model"] = "parkinson-ewma/1"
             weights = [Decimal(1) / n] * n
             if self.description["method"] != "equal":
                 weights = [1 / covariance[i][i].sqrt() for i in range(n)]

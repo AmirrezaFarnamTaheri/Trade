@@ -199,7 +199,13 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                             weights = {"status": "WARMING_UP", "weights": {symbol: "0" for symbol in symbols}, "risk_contribution_error": None}
                             next_rebalance = close
                             rebalance_pending.clear()
-                    histories[s].append((close, Decimal(session.decisions[-1]["close"])))
+                    decision = session.decisions[-1]
+                    if controller.volatility_model == "parkinson-ewma":
+                        known = decision["bar_known"]
+                        histories[s].append((close, Decimal(decision["close"]),
+                                             Decimal(known["high"]), Decimal(known["low"])))
+                    else:
+                        histories[s].append((close, Decimal(decision["close"])))
                     histories[s] = histories[s][-(controller.description["lookback"] + 1):]
                 if session.pending is None or session.pending.record["side"] != "BUY":
                     reserved.pop(s, None)
