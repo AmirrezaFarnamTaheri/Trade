@@ -9,8 +9,8 @@ from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, evaluate_artifact, fields
 from ..domain.model import iso, parse_ts
 from ..domain.periods import instant
-from ..domain.strategy import digest
 from ..domain.portfolio import rebalance_preview
+from ..domain.strategy import digest
 from .collector import now_utc
 from .data_portal import DataPortal
 from .entry_locks import add_entry_lock
@@ -22,7 +22,12 @@ from .operator_actions import OPERATOR_ACTIONS, operator_action
 from .replay_annotations import annotations
 from .replay_checkpoint import checkpoint_replay
 from .replay_debugger import execution_quality, replay_decisions
-from .research_grounding import MetricUnavailable, _number, check_claims, resolve_run_metric
+from .research_grounding import (
+    MetricUnavailable,
+    _number,
+    check_claims,
+    resolve_run_metric,
+)
 from .research_ledger import ResearchLedger
 from .research_market import (
     coverage_timeline,

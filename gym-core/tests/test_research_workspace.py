@@ -18,8 +18,7 @@ from gym.services.collector import Collector, now_utc
 from gym.services.experiment_registry import ExperimentRegistry
 from gym.services.paper import paper
 from gym.services.replay_debugger import execution_quality, replay_decisions
-from gym.services.research_actions import research_action
-from gym.services.research_actions import prepare_packet, save_notes
+from gym.services.research_actions import prepare_packet, research_action, save_notes
 from gym.services.research_protocol import ResearchProtocol
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
