@@ -1,5 +1,4 @@
 """Non-executable public:all@fairPrice snapshots with causal receipt availability."""
-import json
 import re
 import sqlite3
 from pathlib import Path
