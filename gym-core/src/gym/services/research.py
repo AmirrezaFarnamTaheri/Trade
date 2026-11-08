@@ -138,7 +138,7 @@ def _compare_in_snapshot(db, symbol, t0, t1, candidates, *, resolution="15min", 
                                       **runs[0]["baselines"]}, labels[0])
     shared = {k: runs[0]["inputs"][k] for k in ("engine", "symbol", "from", "to", "resolution", "subscriptions",
               "cash", "cost", "rules_mode", "store", "data", "snapshots", "reference_symbol")}
-    measured = {label: performance(r, sampled_drawdown(r)) for label, r in zip(labels, runs)}
+    measured = {label: performance(r, sampled_drawdown(r), enhanced=True) for label, r in zip(labels, runs)}
     new = {r["inputs"]["config_hash"] for r in runs}
     return {"comparison_id": digest({"shared": shared, "runs": [r["run_id"] for r in runs]})[:16],
             "mode": "COMPARE", "authority": "PAPER_ONLY",

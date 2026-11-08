@@ -42,7 +42,7 @@ def economic_report(out, diag=None):
     inputs = out["inputs"]
     # One observation per closed trade (FIFO lots), not per tick or fill; still serially dependent.
     drawdown = sampled_drawdown(out)
-    perf = performance(out, drawdown)
+    perf = performance(out, drawdown, enhanced=True)
     returns = [float(trade["return"]) for trade in perf["ledger"] if trade["return"] is not None]
 
     mean_return = mean(returns) if returns else None
@@ -130,6 +130,9 @@ def text_report(out: dict) -> str:
             lines += ["", (f"Performance: return {perf.get('total_return_pct', 'n/a')}%   max drawdown {perf.get('max_drawdown_pct', 'n/a')}%   "
                            f"Sharpe/period {ratio(ret.get('sharpe_per_period'))}   annualized {ratio(ret.get('sharpe_annualized'))}   "
                            f"P(Sharpe>0) {ratio(ret.get('probabilistic_sharpe'))}"),
+                      (f"Track record: {ret.get('track_record_status', 'UNAVAILABLE')}; minimum observations "
+                       f"{ratio(ret.get('minimum_track_record'))}; Lo-adjusted annual Sharpe "
+                       f"{ratio(ret.get('sharpe_annualized_lo'))} (lags {ret.get('lo_lags_used', 0)})."),
                       (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
                        f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
     if "limit_fill_diagnostics" in result:
