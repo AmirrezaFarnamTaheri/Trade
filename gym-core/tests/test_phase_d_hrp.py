@@ -47,3 +47,24 @@ def test_hrp_rejects_degenerate_matrix_and_unbounded_universe():
         hierarchical_risk_parity([[Decimal(1), Decimal(2)], [Decimal(2), Decimal(1)]])
     with pytest.raises(ValueError):
         PortfolioPolicy({"method": "hierarchical-risk-parity"}, [f"A{i}USDT" for i in range(101)])
+
+
+def test_hrp_native_portfolio_replay_has_an_opt_in_version(tmp_path):
+    """New weighting behavior cannot reuse the legacy saved portfolio schema."""
+    from datetime import timedelta
+
+    from gym.services.portfolio import portfolio
+    from tests.support import START, market_db, quote_history
+
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]
+    rows = [top for symbol in symbols for top in quote_history(n=180, sym=symbol)]
+    db = market_db(tmp_path, rows)
+    try:
+        out = portfolio(db, symbols, START, START + timedelta(minutes=25),
+                        resolution="1min", params={"fast": 2, "slow": 3},
+                        policy={"method": "hierarchical-risk-parity", "lookback": 3})
+        assert out["inputs"]["portfolio_version"] == 13
+        assert any(event.get("hierarchical_risk_parity")
+                   for event in out["result"]["policy_events"] if event["kind"] == "TARGETS")
+    finally:
+        db.c.close()
