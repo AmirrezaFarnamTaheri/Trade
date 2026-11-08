@@ -44,6 +44,7 @@ class TrialLedger:
     """Persist attempts separately from immutable market and strategy run records."""
 
     def __init__(self, root: Path | str):
+        """Open or atomically initialize the immutable, concurrent attempt ledger."""
         root = Path(root)
         if root.is_symlink():
             raise ValueError("trial ledger root must not be a symlink")
