@@ -134,3 +134,10 @@ def test_lead_lag_delay_scan_selects_on_earlier_partition_only():
     assert report["held_out"] is False
     assert report["established_edge"] is False
     assert Decimal(report["delay_scan"][1]["holdout_correlation"]) > Decimal("0.9")
+
+
+def test_premium_z_signal_is_not_marked_ready_before_its_prior_warmup():
+    candidate = create_strategy("toman-premium", {"z_entry": 2})
+    action, _, _, _ = candidate.decide(_snap(0, Decimal(9500)), False)
+    assert action == "ABSTAIN_WARMUP"
+    assert candidate.ready is False
