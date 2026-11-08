@@ -50,7 +50,7 @@ def portfolio_action(root, action, value, *, store):
     base = {"fee_rate", "latency_ms", "max_wait_s", "fee_assumption"}
     optional = {"max_participation", "walk_depth", "carry_remainder", "max_fraction", "vol_target",
                 "vol_lookback", "volatility_model", "order_type", "maker_fee_rate", "limit_fill_model",
-                "impact_models", "hourly_costs"}
+                "impact_models", "hourly_costs", "fractional_sizing_report_id"}
     if type(description) is not dict or not base <= description.keys() or description.keys() - base - optional:
         raise ValueError("invalid portfolio cost fields")
     if "limit_fill_model" in description and description["limit_fill_model"] != "queue-capacity/2":
@@ -64,7 +64,24 @@ def portfolio_action(root, action, value, *, store):
     for key in ("fee_rate", "max_participation", "max_fraction", "vol_target", "maker_fee_rate"):
         if key in description:
             decimal(description[key], key)
-    cost = CostModel.from_description(description)
+    cost_inputs = dict(description)
+    if "fractional_sizing_report_id" in cost_inputs:
+        if as_of_request or "max_fraction" in cost_inputs:
+            raise ValueError("fractional report reference needs a fixed universe and no competing fraction")
+        from .fractional_sizing import load_fractional_report
+
+        report = load_fractional_report(
+            root, cost_inputs.pop("fractional_sizing_report_id"), store=store,
+            as_of=start, strategy=value["strategy"], params=value["params"],
+            resolution=value["resolution"], symbols=symbols, fee_rate=description["fee_rate"])
+        cost_inputs["max_fraction"] = report["fraction"]
+        cost_inputs["calibration"] = {
+            "fractional_sizing_report_id": report["report_id"],
+            "source_run_id": report["source_run_id"],
+            "source_outputs_digest": report["source_outputs_digest"],
+            "source_test_to": report["source_test_to"],
+            "authority": "PAPER_ONLY"}
+    cost = CostModel.from_description(cost_inputs)
     cash = decimal(value["cash"], "cash", positive=True)
     path = root / "market.db"
     if not path.is_file():
