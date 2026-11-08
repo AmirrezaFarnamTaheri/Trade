@@ -47,6 +47,9 @@ def replay_cmd(args) -> int:
         start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
         cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
         participation = Decimal(args.participation) if args.participation else None
+        cost_profiles = json.loads(args.cost_models_json) if args.cost_models_json else {}
+        if type(cost_profiles) is not dict or cost_profiles.keys() - {"impact_models", "hourly_costs"}:
+            raise ValueError("invalid opt-in cost-model profiles")
         options = {"resolution": args.res, "cash": cash,
                    "cost": calibrated_cost(store_root(args), symbol, fee=args.fee, maker_fee=args.maker_fee,
                                            latency_ms=args.latency_ms, order_type=args.order_type,
@@ -55,7 +58,7 @@ def replay_cmd(args) -> int:
                                            carry_remainder=args.carry_remainder,
                                            max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
                                            vol_target=Decimal(args.vol_target) if args.vol_target else None,
-                                           volatility_model=args.volatility_model),
+                                           volatility_model=args.volatility_model, **cost_profiles),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
         # Attempt receipts live outside frozen run artifacts and survive failed evaluations.
