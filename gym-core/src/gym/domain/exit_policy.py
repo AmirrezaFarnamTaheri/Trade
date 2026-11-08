@@ -4,11 +4,13 @@ from decimal import Decimal
 from .model import parse_ts
 from .strategy import digest
 from .technical_features import TechnicalFeatures
+from .volatility import ParkinsonEWMA
 
 EXIT_PARAMETERS = {key: {"type": "integer", "default": 0, "minimum": 0, "maximum": maximum}
                    for key, maximum in (("exit_stop_bps", 9999), ("exit_profit_bps", 100000),
                                         ("exit_atr_multiple", 10), ("exit_after_bars", 100000))}
 EXIT_PARAMETERS["entry_risk_bps"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 200}
+EXIT_VOLATILITY_MODEL = {"type": "string", "default": "atr", "enum": ["atr", "parkinson-ewma"]}
 
 
 class ExitPolicy:
@@ -21,6 +23,7 @@ class ExitPolicy:
         self.params = {**strategy.params, **controls}
         self.version = strategy.version + 1
         self.indicators, self.last_end = TechnicalFeatures(), None
+        self.volatility = ParkinsonEWMA() if controls.get("exit_volatility_model") == "parkinson-ewma" else None
         self.position_id = self.peak = self.trail = None
         self.feature_values = {}
         self.base_ready = False
@@ -42,8 +45,13 @@ class ExitPolicy:
             return "ABSTAIN_UNAVAILABLE_BAR", Decimal(0), ("closed available bar and actual holdings required",), ""
         if self.last_end is not None and self.last_end != bar.start:
             self.indicators = TechnicalFeatures()
+            if self.volatility is not None:
+                self.volatility = ParkinsonEWMA()
         self.last_end = bar.end
         value = self.indicators.update(bar.close, high=bar.high, low=bar.low)["atr_14"]["value"]
+        if self.volatility is not None:
+            sigma = self.volatility.update(bar.high, bar.low)
+            value = str(sigma * bar.close) if self.volatility.count >= 15 else None
         atr = Decimal(value) if value is not None else None
         action, fraction, reasons, _ = self.strategy.decide(snap, holding)
         self.base_ready = getattr(self.strategy, "ready", action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE"))
