@@ -73,10 +73,10 @@ class TomanPremium:
                     self.holding_since = snap.bar.start
             else:
                 self.holding_since = None
-            age = ((snap.bar.end - self.holding_since) / snap.bar.spec.step
-                   if holding and self.holding_since is not None else Decimal(0))
+            age_bars = (Decimal((snap.bar.end - self.holding_since) // snap.bar.spec.step)
+                        if holding and self.holding_since is not None else Decimal(0))
             duration_reached = (holding and half is not None and self.half_life_multiple > 0
-                                and Decimal(age) >= half * self.half_life_multiple)
+                                and age_bars >= half * self.half_life_multiple)
             action = ("BUY_REQUEST" if not holding and z is not None and z >= self.z_entry and
                       discount > cost + self.params["entry_bps"] else
                       "SELL_REQUEST" if holding and (duration_reached or
