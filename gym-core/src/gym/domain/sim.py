@@ -12,6 +12,7 @@ from .execution_costs import (
     modeled_execution_cost,
     validate_hourly_costs,
     validate_impact_models,
+    validate_postfill_costs,
 )
 from .market_models import decimal
 from .model import BookTop, InstrumentId, iso
@@ -45,6 +46,7 @@ class CostModel:
     calibration: dict | None = None  # optional immutable provenance, absent for legacy run identities
     impact_models: dict | None = None  # dated public-print proxy, explicitly chosen per market
     hourly_costs: dict | None = None  # dated quote/fee observations, explicitly chosen per market
+    postfill_costs: dict | None = None  # prior paper markout penalty, never independently verified fills
 
     def __post_init__(self):
         if not self.fee_rate.is_finite() or not 0 <= self.fee_rate < 1:
@@ -70,6 +72,7 @@ class CostModel:
             raise ValueError("invalid paper calibration provenance")
         validate_impact_models(self.impact_models)
         validate_hourly_costs(self.hourly_costs)
+        validate_postfill_costs(self.postfill_costs)
 
     def describe(self) -> dict:
         out = {"fee_rate": str(self.fee_rate), "latency_ms": self.latency // timedelta(milliseconds=1),
@@ -96,11 +99,13 @@ class CostModel:
             out["impact_models"] = self.impact_models
         if self.hourly_costs is not None:
             out["hourly_costs"] = self.hourly_costs
+        if self.postfill_costs is not None:
+            out["postfill_costs"] = self.postfill_costs
         return out
 
     def assert_causal(self, start: datetime):
         """Disallow fitting paper pricing with receipts later than its replay start."""
-        check_causal_costs(self.impact_models, self.hourly_costs, start)
+        check_causal_costs(self.impact_models, self.hourly_costs, start, self.postfill_costs)
 
     @property
     def maker_fee(self) -> Decimal:
@@ -142,7 +147,7 @@ class CostModel:
                    order_type=d.get("order_type", "market"),
                    maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None,
                    calibration=d.get("calibration"), impact_models=d.get("impact_models"),
-                   hourly_costs=d.get("hourly_costs"))
+                   hourly_costs=d.get("hourly_costs"), postfill_costs=d.get("postfill_costs"))
 
 
 @dataclass(frozen=True)
@@ -285,7 +290,7 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
     notional = _walk(levels, qty) if levels and qty > 0 else qty * price
     if levels and qty > 0:
         price = notional / qty  # volume-weighted across the levels taken
-    if cost.impact_models is not None or cost.hourly_costs is not None:
+    if cost.impact_models is not None or cost.hourly_costs is not None or cost.postfill_costs is not None:
         # Public bid/ask already carries the observed half-spread. Add only the
         # model's excess; for buys, recompute size to conserve cash including uplift.
         def estimate(quantity):
