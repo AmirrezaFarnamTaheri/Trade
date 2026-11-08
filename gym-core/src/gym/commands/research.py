@@ -25,8 +25,8 @@ from .common import (
 def replay_cmd(args) -> int:
     """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
-    from ..domain.sim import CostModel
     from ..domain.strategy import digest
+    from ..services.cost_defaults import calibrated_cost
     from ..services.attribution import toman_attribution
     from ..services.paper import paper
     from ..services.reports import text_report
@@ -45,13 +45,13 @@ def replay_cmd(args) -> int:
         start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
         cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
         participation = Decimal(args.participation) if args.participation else None
-        options = {"resolution": args.res, "cash": cash, "cost": CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms),
-                                                                           max_participation=participation,
-                                                                           walk_depth=args.walk_depth, carry_remainder=args.carry_remainder,
-                                                                           max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
-                                                                           vol_target=Decimal(args.vol_target) if args.vol_target else None,
-                                                                           order_type=args.order_type,
-                                                                           maker_fee_rate=Decimal(args.maker_fee) if args.maker_fee else None),
+        options = {"resolution": args.res, "cash": cash,
+                   "cost": calibrated_cost(store_root(args), symbol, fee=args.fee, maker_fee=args.maker_fee,
+                                           latency_ms=args.latency_ms, order_type=args.order_type,
+                                           max_participation=participation, walk_depth=args.walk_depth,
+                                           carry_remainder=args.carry_remainder,
+                                           max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
+                                           vol_target=Decimal(args.vol_target) if args.vol_target else None),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
         # Attempt receipts live outside frozen run artifacts and survive failed evaluations.
@@ -241,12 +241,16 @@ def calibrate_cmd(args) -> int:
     """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta
 
+    from ..services.cost_defaults import save_calibration
     from ..services.execution_calibration import feed_latency, fill_quality
 
     db = open_db(args)
     try:
-        report = {"feed": feed_latency(db, now_utc() - timedelta(hours=args.hours)),
-                  "paper_fills": fill_quality(store_root(args) / "runs")}
+        at = now_utc()
+        report = {"feed": feed_latency(db, at - timedelta(hours=args.hours), until=at),
+                  "paper_fills": fill_quality(store_root(args) / "runs"),
+                  "synthetic": bool(args.demo)}
+        report["calibration_receipt"] = str(save_calibration(store_root(args), report, at=at))
     finally:
         db.c.close()
     print(json.dumps(report, indent=2))

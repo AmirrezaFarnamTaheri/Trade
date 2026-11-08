@@ -131,14 +131,15 @@ def main(argv=None):
         command.add_argument("--res", default="15min", choices=list(RESOLUTIONS), help="decision close from the shared bar engine")
         command.add_argument("--subscribe", default="", help="comma-separated additional on-close resolutions")
         command.add_argument("--cash", help="starting quote cash (default 1000 USDT or 300,000,000 TMN)")
-        command.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
-        command.add_argument("--latency-ms", type=int, default=500)
+        command.add_argument("--fee", default=None, help=FEE_HELP + "; if omitted, use recent read-only fee snapshot if available")
+        command.add_argument("--latency-ms", type=int, default=None,
+                             help="explicit milliseconds; otherwise recent local feed calibration if available")
         command.add_argument("--participation", help="max share (0..1] of the displayed best-level size per fill; larger orders are resized")
         command.add_argument("--walk-depth", action="store_true",
                              help="fill across stored order-book levels at their volume-weighted price (needs run --depth-levels)")
         command.add_argument("--order-type", choices=["market", "limit"], default="market",
                              help="limit: rest at the near touch and fill from later trade prints (queue-aware) or expire")
-        command.add_argument("--maker-fee", help="fee fraction for limit fills (default: --fee)")
+        command.add_argument("--maker-fee", help="limit maker fee fraction; otherwise latest read-only fee snapshot or --fee")
         command.add_argument("--max-fraction", help="cap every entry at this share (0..1] of cash, e.g. a fractional-Kelly figure")
         command.add_argument("--vol-target", help="scale entries so the position's per-bar volatility is about this (0..1], e.g. 0.002")
         command.add_argument("--carry-remainder", action="store_true",
