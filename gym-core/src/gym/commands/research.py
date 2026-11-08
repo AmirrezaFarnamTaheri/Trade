@@ -28,7 +28,7 @@ def replay_cmd(args) -> int:
     from ..domain.strategy import digest
     from ..services.attribution import toman_attribution
     from ..services.cost_defaults import calibrated_cost
-    from ..services.data_quality_gate import quote_coverage
+    from ..services.data_quality_gate import quote_coverage, recorded_bar_coverage
     from ..services.paper import paper
     from ..services.reports import text_report
     from ..services.research import compare
@@ -49,7 +49,7 @@ def replay_cmd(args) -> int:
         options = {"resolution": args.res, "cash": cash,
                    "cost": calibrated_cost(store_root(args), symbol, fee=args.fee, maker_fee=args.maker_fee,
                                            latency_ms=args.latency_ms, order_type=args.order_type,
-                                           now=start,  # No receipt published after the historical test start.
+                                           now=start,  # Historical inputs cannot import future receipts.
                                            max_participation=participation, walk_depth=args.walk_depth,
                                            carry_remainder=args.carry_remainder,
                                            max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
@@ -98,6 +98,9 @@ def replay_cmd(args) -> int:
                       f"+ interaction {components['interaction']} = {components['total_toman_return']}")
             elif out["result"]["quote"] == "TMN":
                 print("TMN return attribution UNAVAILABLE: point-in-time FX evidence missing")
+            quality_observed = recorded_bar_coverage(out)
+            print(f"Recorded portfolio coverage: {quality_observed['status']} "
+                  "(qualified-receipt shares, not missing-time coverage).")
             for market, row in out["result"]["markets"].items():
                 print(f"  {market:<10} fills {row['fills']:<4} closed trades {row['closed_trades']:<4} realized {row['realized_pnl']}")
             print("portfolio record:", save_run(out, store_root(args) / "runs" / "portfolios"))

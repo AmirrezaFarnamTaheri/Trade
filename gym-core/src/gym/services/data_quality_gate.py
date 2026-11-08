@@ -71,3 +71,44 @@ def quote_coverage(db, symbol, start, end, resolution, *, max_bad_share=None):
             "status": state, "funded_authority": False,
             "limitation": "Bucket coverage is not continuous quote availability; only recorded venue closures are excluded. "
                           "Missingness or stale data never creates prices or an eligible paper fill."}
+
+
+
+def recorded_bar_coverage(out):
+    """Display archived closed-bar coverage, with limits explicit and no market DB reads."""
+    from ..domain.model import parse_ts
+
+    result, inputs = out["result"], out["inputs"]
+    if inputs.get("kind") == "portfolio":
+        rates = {}
+        for symbol, market in result.get("markets", {}).items():
+            observations, qualified_count = market.get("observations", 0), market.get("qualified", 0)
+            rates[symbol] = (str(Decimal(qualified_count) / observations) if observations else None)
+        return {"status": "RECEIPT_SHARE_ONLY", "per_market_qualified_receipt_share": rates,
+                "limitation": "Not a bar coverage ratio; missing-time buckets require a market receipt snapshot."}
+    if inputs.get("resolution") == "session":
+        return {"status": "NOT_ASSESSED", "reason": "VARIABLE_SESSION_PERIOD"}
+    try:
+        start, end = parse_ts(inputs["from"]), parse_ts(inputs["to"])
+        spec = BarSpec(inputs["resolution"])
+    except (KeyError, ValueError, TypeError):
+        return {"status": "NOT_ASSESSED", "reason": "NO_FIXED_BAR_WINDOW"}
+    spans = [(parse_ts(row["from"]), parse_ts(row["to"]))
+             for row in result.get("session", {}).get("skipped", [])
+             if row.get("reason") == "VENUE_CLOSED"]
+    expected = set()
+    at = spec.bucket(start)
+    while at < end and len(expected) <= 5000:
+        boundary = at + spec.step
+        if not any(a <= at and boundary <= b for a, b in spans):
+            expected.add(iso(at))
+        at = boundary
+    if len(expected) > 5000 or not expected:
+        return {"status": "NOT_ASSESSED", "reason": "INSUFFICIENT_OR_OVERSIZED_BAR_WINDOW"}
+    observed = {d.get("bar_known", {}).get("start") for d in result.get("decisions", [])}
+    count = len(expected & observed)
+    return {"status": "DESCRIPTIVE", "eligible_buckets": len(expected),
+            "observed_closed_buckets": count,
+            "coverage_share": str(Decimal(count) / len(expected)),
+            "limitation": "Frozen closed-bar presence only. Stale/invalid public quotes and intrabar gaps "
+                          "require the optional market receipt quality gate."}

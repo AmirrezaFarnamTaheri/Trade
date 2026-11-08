@@ -62,6 +62,7 @@ def economic_report(out, diag=None):
     elif valuation["status"] in ("UNAVAILABLE", "INVALID"):
         limitation = "No valid end-of-window price is available. " + limitation
     from .attribution import toman_attribution
+    from .data_quality_gate import recorded_bar_coverage
     from .random_entry import random_entry_report
 
     return {
@@ -83,6 +84,7 @@ def economic_report(out, diag=None):
         "assumptions": inputs["cost"],
         "warnings": out["warnings"],
         "diagnostics": diag,
+        "observed_bar_coverage": recorded_bar_coverage(out),
         "random_entry_baseline": random_entry_report(out),
         "return_attribution": toman_attribution(out),
         "decision": "No capital authorized. Operator decisions are recorded separately; this report cannot arm trading.",
@@ -119,6 +121,14 @@ def text_report(out: dict) -> str:
         (f"bars {result['bars']}  fills {result['fills']}  nonfills {result['nonfills'] or 0}  "
         f"observations {result['observations']} (qualified {result['qualified']})"), "",
     ]
+    from .data_quality_gate import recorded_bar_coverage
+
+    coverage = recorded_bar_coverage(out)
+    if coverage["status"] == "DESCRIPTIVE":
+        lines.append(f"Observed closed-bar coverage: {coverage['coverage_share']} "
+                     "(stale quote share NOT_ASSESSED without gate).")
+    else:
+        lines.append(f"Observed closed-bar coverage: {coverage['status']}.")
     if end:
         valuation = economic_report(out)["valuation"]
         lines.append(f"Valuation at run cutoff: {valuation['status']}; last qualified price {valuation['age_seconds']:g}s earlier.")

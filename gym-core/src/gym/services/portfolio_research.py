@@ -11,6 +11,7 @@ from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .attribution import toman_attribution
 from .collector import now_utc
+from .data_quality_gate import recorded_bar_coverage
 from .portfolio import MAX_MARKETS, portfolio
 from .trial_ledger import TrialLedger
 
@@ -26,6 +27,7 @@ def portfolio_action(root, action, value, *, store):
         out = load_verified_run(runs, value["run_id"], store=store)
         if out["inputs"].get("kind") != "portfolio" or out.get("mode") != "PORTFOLIO":
             raise ValueError("source is not a portfolio replay")
+        out["observed_bar_coverage"] = recorded_bar_coverage(out)
         out["return_attribution"] = toman_attribution(out)
         return out
     required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
@@ -105,6 +107,7 @@ def portfolio_action(root, action, value, *, store):
         save_run(out, runs)
         return {"run_id": out["run_id"], "outputs_digest": out["outputs_digest"], "authority": "PAPER_ONLY",
                 "return_attribution": toman_attribution(out),
+                "observed_bar_coverage": recorded_bar_coverage(out),
                 **({"universe_selection": selection} if selection is not None else {}),
                 **({"quality_gate": quality_gate} if quality_gate is not None else {})}
     finally:
