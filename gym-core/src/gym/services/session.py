@@ -12,7 +12,7 @@ from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
-ENGINE_VERSION = "paper-session/8"
+ENGINE_VERSION = "paper-session/9"
 
 
 @dataclass
@@ -26,6 +26,9 @@ class PendingOrder:
     limit: Decimal | None = None  # resting price of a limit order, once placed
     queue_ahead: Decimal | None = None
     checked: datetime | None = None
+    limit_prints_considered: int = 0
+    suspected_identical_prints: int = 0
+    identical_print_capacity_qty: Decimal = Decimal(0)
 
 
 class PaperSession:
@@ -66,6 +69,7 @@ class PaperSession:
         self.decision_filter = None
         self.risk_budget = None
         self.limit_trades = []  # trade prints that decided limit fills; part of the data identity
+        self._limit_print_fingerprints = set()  # identities without a venue trade ID; NEVER deduplicate fills
         self.last_quote = None
         self.pending: PendingOrder | None = None
         self.cursor = start
@@ -317,13 +321,29 @@ class PaperSession:
             except ValueError:
                 continue
             self.limit_trades.append((iso(trade.ts_event), iso(trade.ts_avail), str(trade.price), str(trade.qty), trade.aggressor))
+            # The API has no trade ID: the same payload can be a real second print
+            # or duplicated transport data. Keep BOTH in modeled capacity; disclose the exposure.
+            eligible = trade.price <= pending.limit if buy else trade.price >= pending.limit
+            repeated = False
+            if eligible:
+                fingerprint = (iso(trade.ts_event), str(trade.price), str(trade.qty), trade.aggressor)
+                repeated = fingerprint in self._limit_print_fingerprints
+                self._limit_print_fingerprints.add(fingerprint)
+                pending.limit_prints_considered += 1
+                if repeated:
+                    pending.suspected_identical_prints += 1
             if trade.price < pending.limit if buy else trade.price > pending.limit:
                 pending.queue_ahead = Decimal(0)
                 capacity += trade.qty
+                if repeated:
+                    pending.identical_print_capacity_qty += trade.qty
             elif trade.price == pending.limit:
                 ahead = min(pending.queue_ahead, trade.qty)
                 pending.queue_ahead -= ahead
-                capacity += trade.qty - ahead
+                modeled_capacity = trade.qty - ahead
+                capacity += modeled_capacity
+                if repeated:
+                    pending.identical_print_capacity_qty += modeled_capacity
         pending.checked = top.ts_avail
         if through:
             shown = top.ask_qty if buy else top.bid_qty
@@ -362,6 +382,9 @@ class PaperSession:
         order["maker"] = True
         self.pending = None
         if result["status"] == "FILLED":
+            order.update(limit_prints_considered=pending.limit_prints_considered,
+                         suspected_identical_prints=pending.suspected_identical_prints,
+                         identical_print_capacity_qty=str(pending.identical_print_capacity_qty))
             if self.track_positions:
                 self.record_position_fill(order, previous_base, previous_cash, top, at)
             remaining = pending.max_qty - Decimal(result["qty"])

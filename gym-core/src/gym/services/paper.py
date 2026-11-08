@@ -57,7 +57,7 @@ def session_result(session, tops, cash):
     for o in orders:
         if o["status"] == "NONFILL":
             nonfills[o["reason"]] = nonfills.get(o["reason"], 0) + 1
-    return {"strategy": strategy.name, "params": strategy.params, "symbol": symbol, "quote": inst.quote, "base": inst.base,
+    result = {"strategy": strategy.name, "params": strategy.params, "symbol": symbol, "quote": inst.quote, "base": inst.base,
             "start_cash": str(cash), "observations": len(tops), "qualified": sum(map(qualified, tops)),
             "data_digest": digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
                                     *((x.depth,) if cost.walk_depth else ())) for x in tops]
@@ -69,6 +69,20 @@ def session_result(session, tops, cash):
                         "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped,
                         "subscriptions": list(session.closes.by_resolution), "bar_events": session.bar_events,
                         "reopenings": session.reopenings, "rule_snapshots": session.rule_snapshots}}
+    result["session"]["price_band_reference"] = {
+        "status": "ESTIMATED", "basis": "FIRST_OBSERVED_TEHRAN_DAY_MID",
+        "venue_reference_documented": False,
+        "limitation": "The venue publishes no daily reference price or price band; the first observed midpoint may be wrong.",
+    }
+    if cost.order_type == "limit":
+        result["limit_fill_diagnostics"] = {
+            "trade_ids_available": False, "identical_prints_deduplicated": False,
+            "suspected_identical_prints": sum(o.get("suspected_identical_prints", 0) for o in fills),
+            "affected_fills": sum(o.get("suspected_identical_prints", 0) > 0 for o in fills),
+            "identical_print_capacity_qty": str(sum((Decimal(o.get("identical_print_capacity_qty", "0")) for o in fills), Decimal(0))),
+            "limitation": "Identical event-time/price/qty/aggressor prints have no venue IDs; counted, not removed. This is potential modeled fill capacity, not proven duplicate execution.",
+        }
+    return result
 
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,
@@ -207,6 +221,7 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
     if main["fills"] < 30:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
     w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
+    w.append("Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band.")
     if main["strategy"] in ("trend-pullback","adaptive-channel"):
         w.append("Compound paper policy: entry spread and displayed top-depth participation are checked at decision and fill; no queue or full-depth fill model. Baselines retain their original unconstrained execution model.")
         w.append("Stops and the session drawdown lock are evaluated at closed-bar decisions; gaps, minimums or insufficient displayed depth can prevent an exit or exceed the risk budget. No venue stop order or funded authority.")

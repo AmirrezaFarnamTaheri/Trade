@@ -131,6 +131,13 @@ def text_report(out: dict) -> str:
                            f"P(Sharpe>0) {ratio(ret.get('probabilistic_sharpe'))}"),
                       (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
                        f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
+    if "limit_fill_diagnostics" in result:
+        print_evidence = result["limit_fill_diagnostics"]
+        lines.append("Limit fill print exposure: "
+                     f'{print_evidence["suspected_identical_prints"]} suspected identical trade prints '
+                     f'across {print_evidence["affected_fills"]} filled orders; '
+                     f'{print_evidence["identical_print_capacity_qty"]} base units of modeled capacity '
+                     "(not deduplicated; venue trade IDs unavailable).")
     active = out["ranking"]["active"]
     lines += ["", "active ranking (USDT-equivalent; abstainers excluded):"]
     if active:
