@@ -25,7 +25,7 @@ def run(net="20", *, quote="USDT", with_impact=True):
 def test_capacity_is_size_where_impact_consumes_half_the_net_edge():
     capacity = scorecard_capacity(run())
     assert capacity["status"] == "MODELED_ESTIMATE"
-    assert abs(Decimal(capacity["capacity_usdt"]) - Decimal("2500")) < Decimal("1e-20")
+    assert abs(Decimal(capacity["capacity_usdt"]) - Decimal(2500)) < Decimal("1e-20")
     assert Decimal(capacity["edge_bps"]) == 100
     assert Decimal(capacity["half_edge_impact_bps"]) == 50
     assert capacity["funded_authority"] is False
