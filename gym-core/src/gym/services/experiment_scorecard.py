@@ -8,6 +8,7 @@ from ..domain.model import parse_ts
 from ..domain.performance import sampled_drawdown
 from ..domain.strategy import digest
 from .reports import run_valuation
+from .strategy_capacity import scorecard_capacity
 
 
 def run_card(out):
@@ -27,6 +28,7 @@ def run_card(out):
         "net_quote": result.get("end") and result["end"]["net"],
         "net_usdt_equivalent": result.get("end") and result["end"].get("net_usdt_eq"),
         "valuation": run_valuation(out), "fx": out.get("fx"), "sampled_drawdown": sampled_drawdown(out),
+        "capacity": scorecard_capacity(out),
         "baselines": out["baselines"], "curve": selected, "curve_source_marks": len(curve),
         "curve_downsample_stride": stride, "kind": inputs.get("kind", "historical-replay")}
 
@@ -51,13 +53,15 @@ def experiment_scorecard(registry, request):
     for attempt in attempts:
         receipt = results.get(attempt["id"], {})
         row = {"attempt_id": attempt["id"], **{k: attempt[k] for k in ("trial", "window", "scenario")},
-               "state": receipt.get("state", "RESULT_PENDING"), "reason": receipt.get("reason"), "run": None}
+               "state": receipt.get("state", "RESULT_PENDING"), "reason": receipt.get("reason"), "run": None,
+               "capacity": {"status": "UNAVAILABLE", "reason": "NO_VERIFIED_RUN", "capacity_usdt": None}}
         if receipt.get("run_id"):
             try:
                 out = load_verified_run(registry.root / "runs", receipt["run_id"], store=registry.store)
                 if out["outputs_digest"] != receipt["outputs_digest"]:
                     raise ValueError("saved run differs from experiment receipt")
                 row["run"] = run_card(out)
+                row["capacity"] = row["run"]["capacity"]
                 runs.append(out)
                 verified[attempt["id"]] = out
             except (OSError, ValueError):
@@ -77,7 +81,7 @@ def experiment_scorecard(registry, request):
     from .spa import scorecard_spa
     spa_tests = scorecard_spa(rows, verified)
     plateau = scorecard_plateau(definition, rows)
-    result = {"schema": "experiment-scorecard/1", "experiment_id": experiment["id"], "store": registry.store,
+    result = {"schema": "experiment-scorecard/2", "experiment_id": experiment["id"], "store": registry.store,
         "definition": definition, "registered_trials": len(definition["trials"]), "registered_attempts": len(attempts),
         "states": dict(Counter(r["state"] for r in rows)), "rows": rows, "shadows": shadows,
         "spa_tests": spa_tests, "parameter_plateau": plateau,
