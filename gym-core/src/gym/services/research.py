@@ -18,6 +18,7 @@ def saved_comparison(root, request, *, store, validation=False):
     from ..domain.market_models import decimal, fields, instant, rate
     from .collector import now_utc
     from .temporal_validation import validate
+    from .trial_ledger import TrialLedger
 
     fields(request, "symbol from to resolution cash fee_rate latency_ms rules_mode candidates folds participation walk_depth carry_remainder max_fraction vol_target order_type maker_fee_rate")
     start, end = instant(request["from"]), instant(request["to"])
@@ -41,10 +42,23 @@ def saved_comparison(root, request, *, store, validation=False):
         if type(symbol) is not str or not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + symbol,)).fetchone():
             raise ValueError("comparison requires an observed symbol")
         runs = root / "runs"
+        candidates = request["candidates"]
+        if (type(candidates) is not list or not 2 <= len(candidates) <= 4
+                or any(type(c) is not dict or c.keys() - {"strategy", "params"} for c in candidates)):
+            raise ValueError("compare requires two to four valid candidates")
+        # Invalid strategy definitions must not increment the immutable trial ledger.
+        for candidate in candidates:
+            create_strategy(candidate.get("strategy"), candidate.get("params"))
+        with TrialLedger(root) as ledger:
+            for candidate in candidates:
+                ledger.record(symbol=symbol, start=start, end=end, hypothesis="ad-hoc",
+                              source="validate" if validation else "compare", config_hash=digest(candidate))
+            ledger_trials = ledger.count(symbol=symbol, start=start, end=end, hypothesis="ad-hoc")
         result = (validate if validation else compare)(db, symbol, start, end, request["candidates"],
             resolution=request["resolution"], cash=decimal(request["cash"], "cash", positive=True),
             cost=cost, rules_mode=request["rules_mode"], store=store,
-            **({"folds": folds} if validation else {"prior_configs": tried_before(runs, symbol, request["resolution"])}))
+            **({"folds": folds} if validation else {"prior_configs": tried_before(runs, symbol, request["resolution"]),
+                                                "ledger_trials": ledger_trials}))
         for record in result["runs"]:
             save_run(record, runs)
         if validation:
@@ -86,19 +100,20 @@ def coverage(db, symbol):
 
 
 def compare(db, symbol, t0, t1, candidates, *, resolution="15min", cash=Decimal(1000),
-            cost=CostModel(), rules_mode="point-in-time", store="live", subscriptions=(), prior_configs=frozenset()):
+            cost=CostModel(), rules_mode="point-in-time", store="live", subscriptions=(), prior_configs=frozenset(), ledger_trials=0):
     if db.c.in_transaction:
         raise ValueError("comparison requires its own read snapshot")
     db.c.execute("BEGIN")
     try:
         return _compare_in_snapshot(db, symbol, t0, t1, candidates, resolution=resolution, cash=cash, cost=cost,
-                                    rules_mode=rules_mode, store=store, subscriptions=subscriptions, prior_configs=prior_configs)
+                                    rules_mode=rules_mode, store=store, subscriptions=subscriptions, prior_configs=prior_configs,
+                                    ledger_trials=ledger_trials)
     finally:
         db.c.rollback()
 
 
 def _compare_in_snapshot(db, symbol, t0, t1, candidates, *, resolution="15min", cash=Decimal(1000),
-                         cost=CostModel(), rules_mode="point-in-time", store="live", subscriptions=(), prior_configs=frozenset()):
+                         cost=CostModel(), rules_mode="point-in-time", store="live", subscriptions=(), prior_configs=frozenset(), ledger_trials=0):
     if not isinstance(symbol, str) or not re.fullmatch("[A-Z0-9]{2,24}", symbol):
         raise ValueError("invalid market symbol")
     if not t0 < t1 or t1 - t0 > timedelta(days=31):
@@ -130,11 +145,11 @@ def _compare_in_snapshot(db, symbol, t0, t1, candidates, *, resolution="15min", 
                                       **runs[0]["baselines"]}, labels[0])
     shared = {k: runs[0]["inputs"][k] for k in ("engine", "symbol", "from", "to", "resolution", "subscriptions",
               "cash", "cost", "rules_mode", "store", "data", "snapshots", "reference_symbol")}
-    measured = {label: performance(r, sampled_drawdown(r)) for label, r in zip(labels, runs)}
+    measured = {label: performance(r, sampled_drawdown(r), enhanced=True) for label, r in zip(labels, runs)}
     new = {r["inputs"]["config_hash"] for r in runs}
     return {"comparison_id": digest({"shared": shared, "runs": [r["run_id"] for r in runs]})[:16],
             "mode": "COMPARE", "authority": "PAPER_ONLY",
-            "shared_inputs": shared, "runs": runs, "ranking": ranked, "selection": selection_check(measured, len(prior_configs | new)),
+            "shared_inputs": shared, "runs": runs, "ranking": ranked, "selection": selection_check(measured, max(len(prior_configs | new), ledger_trials)),
             # Kept beside, never inside, saved run records so identical reruns stay byte-identical.
             "performance": {r["run_id"]: {k: v for k, v in measured[label].items() if k != "ledger"} for label, r in zip(labels, runs)},
             "limitation": "Independent paper accounts; one traded asset with optional reference signal, not a shared portfolio or execution proposals."}

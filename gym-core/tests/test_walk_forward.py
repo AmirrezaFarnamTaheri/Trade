@@ -57,8 +57,8 @@ def test_short_test_cannot_count_unfinished_warmup_as_evaluated(tmp_path):
             assert out["folds"][0]["selected"] is not None
             test = out["folds"][0]["test"]
             assert out["status"] == "INCOMPLETE"
-            assert test["state"] == "NOT_ACTIVE" and test["reason"] == "WARMUP_NOT_COMPLETED"
-            assert test["fills"] == 0 and not test["ready"]
+            assert test["state"] == "NOT_ACTIVE" and test["reason"] == "NO_TRADES"
+            assert test["fills"] == 0 and test["ready"]
             saved = registry.read(out["experiment_id"])
             assert any(e["kind"] == "RESULT" and e["state"] == "NOT_ACTIVE" for e in saved["events"])
     finally:
@@ -130,7 +130,7 @@ def test_action_uses_existing_registry_and_native_saved_runs(tmp_path):
     db = market_db(tmp_path, quote_history(n=750))
     db.c.close()
     out = research_action(tmp_path, "walk-forward", request(), store="live")
-    assert research_action(tmp_path, "experiment-status", out["experiment_id"])["workflow"] == "walk-forward/1"
+    assert research_action(tmp_path, "experiment-status", out["experiment_id"])["workflow"] == "walk-forward/2"
 
 
 def test_cli_uses_real_bounded_worker(tmp_path, capsys):
@@ -173,3 +173,44 @@ def test_authenticated_api_dispatches_native_worker(tmp_path):
             db.c.close()
 
     asyncio.run(check())
+
+def test_test_indicators_are_warm_from_pretest_bars_without_earlier_orders(tmp_path):
+    """A test starts flat, but its first closed decision sees fully warmed features."""
+    from decimal import Decimal
+
+    from gym.domain.registry import create_strategy
+    from gym.domain.sim import CostModel
+    from gym.services.walk_forward import warmup_test_replay
+
+    db = market_db(tmp_path, quote_history(n=750))
+    try:
+        from_at, test_at = START, START + timedelta(minutes=50)
+        end = START + timedelta(minutes=70)
+        out = warmup_test_replay(db, "BTCUSDT", test_at, end, from_at,
+                                 strategy=create_strategy("ema-trend", {"fast": 2, "slow": 3}),
+                                 cash=Decimal(1000), cost=CostModel(), resolution="1min", store="live")
+        assert out["inputs"]["engine"] == "walk-forward-warmup/2"
+        assert out["result"]["session"]["no_pretest_orders"] is True
+        assert out["result"]["decisions"]
+        assert out["result"]["decisions"][0]["action"] != "ABSTAIN_WARMUP"
+        assert all(row["decision_time"] > iso(test_at) for row in out["result"]["orders"])
+        assert out["result"]["session"]["warmup_from"] == iso(from_at)
+    finally:
+        db.c.close()
+
+
+def test_chained_out_of_sample_has_drawdown_and_losing_streak(tmp_path):
+    """Only complete verified test rows form the hypothetical chained curve."""
+    db = market_db(tmp_path, quote_history(n=750))
+    try:
+        with ExperimentRegistry(tmp_path, store="live") as registry:
+            report = walk_forward(registry, db, request())
+        if report["status"] == "EVALUATED":
+            curve = report["out_of_sample"]
+            assert curve["status"] == "EXPLORATORY_CHAINED"
+            assert curve["curve"] and curve["max_drawdown_fraction"] is not None
+            assert curve["longest_losing_trade_streak"] >= 0
+        else:
+            assert report["out_of_sample"]["status"] == "INCOMPLETE"
+    finally:
+        db.c.close()

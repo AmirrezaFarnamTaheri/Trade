@@ -260,11 +260,14 @@ class ExternalJournal:
             raise
         return written
 
-    def latest_snapshot(self, account_id: str = "main") -> dict | None:
+    def latest_snapshot(self, account_id: str = "main", *, at: datetime | None = None) -> dict | None:
+        """Read the newest account receipt available at a historical cutoff."""
         try:
+            cutoff = _utc(at.isoformat()) if at is not None else None
             row = self.conn.execute(
                 "SELECT observed_at,snapshot_json FROM external_account_snapshots WHERE account_id=? "
-                "ORDER BY sequence DESC LIMIT 1", (account_id,),
+                "AND (? IS NULL OR observed_at<=?) ORDER BY observed_at DESC, sequence DESC LIMIT 1",
+                (account_id, cutoff, cutoff),
             ).fetchone()
         except sqlite3.Error:
             raise ValueError("persisted account snapshot unavailable") from None

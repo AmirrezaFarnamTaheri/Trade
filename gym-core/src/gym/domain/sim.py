@@ -34,6 +34,7 @@ class CostModel:
     # market trades through; unfilled at max_wait means no fill. Maker fee defaults to the taker fee.
     order_type: str = "market"
     maker_fee_rate: Decimal | None = None
+    calibration: dict | None = None  # optional immutable provenance, absent for legacy run identities
 
     def __post_init__(self):
         if not self.fee_rate.is_finite() or not 0 <= self.fee_rate < 1:
@@ -52,6 +53,9 @@ class CostModel:
             raise ValueError("order type must be market or limit")
         if self.maker_fee_rate is not None and (not self.maker_fee_rate.is_finite() or not 0 <= self.maker_fee_rate < 1):
             raise ValueError("maker fee must be finite and in [0,1)")
+        if self.calibration is not None and (type(self.calibration) is not dict or
+                len(str(self.calibration)) > 1024 or not all(type(v) in (str, bool) for v in self.calibration.values())):
+            raise ValueError("invalid paper calibration provenance")
 
     def describe(self) -> dict:
         out = {"fee_rate": str(self.fee_rate), "latency_ms": self.latency // timedelta(milliseconds=1),
@@ -70,6 +74,8 @@ class CostModel:
             out["order_type"] = self.order_type
             out["maker_fee_rate"] = str(self.maker_fee)
             out["limit_fill_model"] = "queue-capacity/2"
+        if self.calibration is not None:
+            out["calibration"] = dict(self.calibration)
         return out
 
     @property
@@ -99,7 +105,8 @@ class CostModel:
                    max_fraction=Decimal(d["max_fraction"]) if "max_fraction" in d else None,
                    vol_target=Decimal(d["vol_target"]) if "vol_target" in d else None, vol_lookback=d.get("vol_lookback", 20),
                    order_type=d.get("order_type", "market"),
-                   maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None)
+                   maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None,
+                   calibration=d.get("calibration"))
 
 
 @dataclass(frozen=True)

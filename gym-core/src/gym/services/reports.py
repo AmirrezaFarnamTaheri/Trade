@@ -42,7 +42,7 @@ def economic_report(out, diag=None):
     inputs = out["inputs"]
     # One observation per closed trade (FIFO lots), not per tick or fill; still serially dependent.
     drawdown = sampled_drawdown(out)
-    perf = performance(out, drawdown)
+    perf = performance(out, drawdown, enhanced=True)
     returns = [float(trade["return"]) for trade in perf["ledger"] if trade["return"] is not None]
 
     mean_return = mean(returns) if returns else None
@@ -61,6 +61,10 @@ def economic_report(out, diag=None):
         limitation = "Stale end valuation: the last qualified price is older than the run cutoff. " + limitation
     elif valuation["status"] in ("UNAVAILABLE", "INVALID"):
         limitation = "No valid end-of-window price is available. " + limitation
+    from .attribution import toman_attribution
+    from .data_quality_gate import recorded_bar_coverage
+    from .random_entry import random_entry_report
+
     return {
         "run_id": out["run_id"],
         "outputs_digest": out["outputs_digest"],
@@ -80,6 +84,9 @@ def economic_report(out, diag=None):
         "assumptions": inputs["cost"],
         "warnings": out["warnings"],
         "diagnostics": diag,
+        "observed_bar_coverage": recorded_bar_coverage(out),
+        "random_entry_baseline": random_entry_report(out),
+        "return_attribution": toman_attribution(out),
         "decision": "No capital authorized. Operator decisions are recorded separately; this report cannot arm trading.",
     }
 
@@ -102,6 +109,7 @@ def text_report(out: dict) -> str:
     result = out["result"]
     end = result["end"] or {}
     currency = result["quote"]
+    report = economic_report(out)
 
     def money(value):
         return f"{Decimal(value):>16,.2f}"
@@ -114,15 +122,23 @@ def text_report(out: dict) -> str:
         (f"bars {result['bars']}  fills {result['fills']}  nonfills {result['nonfills'] or 0}  "
         f"observations {result['observations']} (qualified {result['qualified']})"), "",
     ]
+    from .data_quality_gate import recorded_bar_coverage
+
+    coverage = recorded_bar_coverage(out)
+    if coverage["status"] == "DESCRIPTIVE":
+        lines.append(f"Observed closed-bar coverage: {coverage['coverage_share']} "
+                     "(stale quote share NOT_ASSESSED without gate).")
+    else:
+        lines.append(f"Observed closed-bar coverage: {coverage['status']}.")
     if end:
-        valuation = economic_report(out)["valuation"]
+        valuation = report["valuation"]
         lines.append(f"Valuation at run cutoff: {valuation['status']}; last qualified price {valuation['age_seconds']:g}s earlier.")
         lines.append(f"Gross-to-net waterfall ({currency}, mark-to-bid at {end['mark_time']}):")
         for name, value in end["waterfall"].items():
             lines.append(f"  {name:<16}{money(value)}")
         lines.append(f"  {'equity':<16}{money(end['equity'])}   net liquidation estimate (modeled) "
                      f"{money(end['net_liquidation_estimate']).strip()}")
-        perf = economic_report(out)["performance"]
+        perf = report["performance"]
         if perf.get("status") == "AVAILABLE":
             trades, ret = perf["trades"], perf.get("returns") or {}
             def ratio(v):
@@ -130,8 +146,24 @@ def text_report(out: dict) -> str:
             lines += ["", (f"Performance: return {perf.get('total_return_pct', 'n/a')}%   max drawdown {perf.get('max_drawdown_pct', 'n/a')}%   "
                            f"Sharpe/period {ratio(ret.get('sharpe_per_period'))}   annualized {ratio(ret.get('sharpe_annualized'))}   "
                            f"P(Sharpe>0) {ratio(ret.get('probabilistic_sharpe'))}"),
+                      (f"Track record: {ret.get('track_record_status', 'UNAVAILABLE')}; minimum observations "
+                       f"{ratio(ret.get('minimum_track_record'))}; Lo-adjusted annual Sharpe "
+                       f"{ratio(ret.get('sharpe_annualized_lo'))} (lags {ret.get('lo_lags_used', 0)})."),
                       (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
                        f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
+    attribution = report["return_attribution"]
+    if attribution["status"] == "AVAILABLE":
+        lines.append("TMN return attribution: "
+                     f"USDT {attribution['usdt_return']} + TMN move {attribution['toman_move']} + "
+                     f"interaction {attribution['interaction']} = {attribution['total_toman_return']}")
+    elif currency == "TMN":
+        lines.append("TMN return attribution: UNAVAILABLE (point-in-time FX evidence missing).")
+    timing = report["random_entry_baseline"]
+    if timing["status"] == "EXPLORATORY":
+        lines.append(f"Random-entry timing percentile: {timing['percentile']} (200 seeded simulations, "
+                     f"{timing['trades']} exact-duration trades; modelled execution friction).")
+    else:
+        lines.append("Random-entry timing percentile: NOT_ENOUGH_DATA.")
     if "limit_fill_diagnostics" in result:
         print_evidence = result["limit_fill_diagnostics"]
         lines.append("Limit fill print exposure: "

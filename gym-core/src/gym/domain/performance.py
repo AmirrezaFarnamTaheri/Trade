@@ -234,12 +234,86 @@ def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
             "information_ratio_per_period": fmean(active) / tracking if tracking else None}
 
 
-def _sharpe_block(returns: list[float], periods_per_year: float | None) -> dict:
+def market_open_annualization(start: datetime, end: datetime, step_seconds: float, skipped: list[dict]) -> dict:
+    """Use recorded effective venue closure gaps, never missing-data gaps, for annualization."""
+    from .model import parse_ts
+
+    span = (end - start).total_seconds()
+    if span <= 0 or step_seconds <= 0 or not math.isfinite(step_seconds):
+        return {"status": "UNAVAILABLE"}
+    cuts = []
+    for row in skipped:
+        if row.get("reason") != "VENUE_CLOSED":
+            continue
+        a, b = parse_ts(row["from"]), parse_ts(row["to"])
+        if not a < b:
+            raise ValueError("invalid recorded trading closure")
+        left, right = max(a, start), min(b, end)
+        if left < right:
+            cuts.append((left, right))
+    cuts.sort()
+    merged = []
+    for left, right in cuts:
+        if merged and left <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(right, merged[-1][1]))
+        else:
+            merged.append((left, right))
+    closed = sum((right - left).total_seconds() for left, right in merged)
+    opened = span - closed
+    if opened <= 0:
+        return {"status": "NOT_ENOUGH_DATA", "calendar_span_seconds": span,
+                "closed_seconds": closed}
+    open_share = opened / span
+    return {"status": "AVAILABLE", "calendar_span_seconds": span,
+            "closed_seconds": closed, "open_seconds": opened,
+            "open_share": open_share, "observed_closure_intervals": len(merged),
+            "periods_per_year": YEAR_SECONDS * open_share / step_seconds,
+            "closure_basis": "Only causally recorded VENUE_CLOSED intervals; missing quote buckets are not closure."}
+
+
+def minimum_track_record_length(sharpe: float, skew: float, kurtosis: float, *,
+                                benchmark: float = 0.0, confidence: float = 0.95) -> float | None:
+    """Bailey/Lopez de Prado minimum observations for a one-sided Sharpe claim."""
+    if not math.isfinite(sharpe) or sharpe <= benchmark or not 0.5 < confidence < 1:
+        return None
+    spread = 1 - skew * sharpe + (kurtosis - 1) * sharpe ** 2 / 4
+    if not math.isfinite(spread) or spread <= 0:
+        return None
+    return 1 + spread * (_N.inv_cdf(confidence) / (sharpe - benchmark)) ** 2
+
+
+def _lo_factor(returns: list[float], periods_per_year: float, max_lags: int = 20) -> tuple[float | None, int]:
+    """Lo (2002) long-run variance with measured lags, zero beyond the capped sample."""
+    if len(returns) < 3 or periods_per_year <= 0 or max_lags < 1:
+        return None, 0
+    avg = fmean(returns)
+    centered = [r - avg for r in returns]
+    total = sum(r * r for r in centered)
+    if total <= 0:
+        return None, 0
+    lags = min(max_lags, len(returns) - 1, max(0, math.ceil(periods_per_year) - 1))
+    factor = periods_per_year + 2 * sum(
+        (periods_per_year - k) * sum(centered[j] * centered[j - k] for j in range(k, len(centered))) / total
+        for k in range(1, lags + 1)
+    )
+    return (factor if factor > 0 else None), lags
+
+
+def lo_annualized_sharpe(returns: list[float], periods_per_year: float, max_lags: int = 20) -> float | None:
+    """Autocorrelation-adjusted Sharpe; lag truncation is disclosed in enhanced reports."""
+    if len(returns) < 3:
+        return None
+    mu, sd, _, _ = _moments(returns)
+    factor, _ = _lo_factor(returns, periods_per_year, max_lags)
+    return mu / sd * periods_per_year / math.sqrt(factor) if sd and factor else None
+
+
+def _sharpe_block(returns: list[float], periods_per_year: float | None, *, enhanced: bool = False) -> dict:
     mu, sd, skew, kurt = _moments(returns)
     downside = math.sqrt(sum(min(r, 0.0) ** 2 for r in returns) / len(returns))
     sharpe = mu / sd if sd else None
     scale = math.sqrt(periods_per_year) if periods_per_year else None
-    return {
+    result = {
         "periods": len(returns), "mean_return": mu, "volatility": sd, "skew": skew, "kurtosis": kurt,
         "sharpe_per_period": sharpe,
         "sharpe_annualized": sharpe * scale if sharpe is not None and scale else None,
@@ -247,9 +321,19 @@ def _sharpe_block(returns: list[float], periods_per_year: float | None) -> dict:
         "volatility_annualized": sd * scale if scale else None,
         "probabilistic_sharpe": probabilistic_sharpe(sharpe, len(returns), skew, kurt) if sharpe is not None else None,
     }
+    if enhanced:
+        minimum = minimum_track_record_length(sharpe, skew, kurt) if sharpe is not None else None
+        factor, used = _lo_factor(returns, periods_per_year) if periods_per_year else (None, 0)
+        result.update(minimum_track_record=minimum,
+                      track_record_status="SUFFICIENT" if minimum is not None and len(returns) >= minimum
+                      else "NOT_ENOUGH_DATA",
+                      sharpe_annualized_lo=lo_annualized_sharpe(returns, periods_per_year) if periods_per_year else None,
+                      lo_lags_used=used, lo_lags_truncated=bool(periods_per_year and used < periods_per_year - 1),
+                      lo_method="autocorrelation/20-lag-cap" if factor else "UNAVAILABLE")
+    return result
 
 
-def performance(record: dict, drawdown: dict | None = None) -> dict:
+def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = False) -> dict:
     """Risk, return and trade statistics for one saved paper run."""
     result, inputs = record["result"], record["inputs"]
     if result.get("start_cash") is None:
@@ -266,6 +350,12 @@ def performance(record: dict, drawdown: dict | None = None) -> dict:
     returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(points) if a > 0]
     gaps = sorted((tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(points) if tb > ta)
     periods_per_year = YEAR_SECONDS / median(gaps) if gaps else None
+    open_calendar = (market_open_annualization(start, end, median(gaps),
+                     result.get("session", {}).get("skipped", []))
+                     if enhanced and gaps else None)
+    if enhanced and open_calendar and open_calendar["status"] == "AVAILABLE":
+        periods_per_year = open_calendar["periods_per_year"]
+        out["market_open_annualization"] = open_calendar
     if final:
         total = Decimal(final["equity"]) / cash - 1
         out["total_return_pct"] = str((total * 100).quantize(Decimal("0.0001")))
@@ -274,7 +364,7 @@ def performance(record: dict, drawdown: dict | None = None) -> dict:
         out["annualized_return_pct"] = str(round(((1 + float(total)) ** (1 / years) - 1) * 100, 4)) if years >= 30 / 365 and total > -1 else None
     # Annualizing a few days of marks turns noise into extreme ratios; per-period Sharpe and P(Sharpe>0) stay honest.
     long_enough = (end - start).total_seconds() >= 30 * 86400
-    out["returns"] = _sharpe_block(returns, periods_per_year if long_enough else None) if len(returns) >= 3 else None
+    out["returns"] = _sharpe_block(returns, periods_per_year if long_enough else None, enhanced=enhanced) if len(returns) >= 3 else None
     if len(returns) >= 20:
         out["returns"]["bootstrap_90"] = _bootstrap(returns)
     out["benchmark"] = _benchmark(record, periods_per_year if long_enough else None)
@@ -332,7 +422,10 @@ def selection_check(candidates: dict[str, dict], trials: int | None = None) -> d
     variance = sum((s - fmean(sharpes)) ** 2 for s in sharpes) / (len(sharpes) - 1)
     best_name = max(usable, key=lambda name: usable[name]["sharpe_per_period"])
     best = usable[best_name]
+    minimum = minimum_track_record_length(best["sharpe_per_period"], best["skew"], best["kurtosis"])
     return {"trials": trials, "compared": len(usable), "best": best_name, "best_sharpe_per_period": best["sharpe_per_period"],
             "luck_threshold_per_period": expected_max_sharpe(trials, variance),
+            "minimum_track_record": minimum,
+            "track_record_status": "SUFFICIENT" if minimum is not None and best["periods"] >= minimum else "NOT_ENOUGH_DATA",
             "deflated_sharpe": deflated_sharpe(best["sharpe_per_period"], best["periods"], best["skew"],
                                                best["kurtosis"], trials, variance)}

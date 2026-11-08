@@ -123,9 +123,24 @@ def coverage_timeline(db, request, *, store):
 
 
 def screen_markets(db, request, *, store):
-    fields(request, "symbols reference quote_currency from to resolution metric")
+    required = {"symbols", "reference", "quote_currency", "from", "to", "resolution", "metric"}
+    optional = {"top_n", "lookback_hours", "quality_max_bad_share"}
+    if type(request) is not dict or not required <= request.keys() or request.keys() - required - optional:
+        raise ValueError("invalid market-screen request")
     start, end, spec = _window(request)
-    symbols = request["symbols"]
+    selection = None
+    if "top_n" in request:
+        from .historical_universe import select_universe
+
+        if request["symbols"] != []:
+            raise ValueError("top-N as-of selection requires an empty supplied universe")
+        selection = select_universe(db, start, quote_currency=request["quote_currency"],
+                                    top_n=request["top_n"], lookback_hours=request.get("lookback_hours", 24))
+        if selection["status"] != "AVAILABLE":
+            return {"store": store, "from": iso(start), "to_exclusive": iso(end),
+                    "status": "INSUFFICIENT_DATA", "universe_selection": selection,
+                    "ranked": [], "excluded": [], "funded_authority": False}
+    symbols = selection["symbols"] if selection is not None else request["symbols"]
     metrics = ("momentum_percent", "relative_momentum_percent", "sma_distance_20_percent", "spread_bps", "liquidity_quote", "volatility_percent")
     if type(symbols) is not list or not 1 <= len(symbols) <= 20 or any(type(s) is not str for s in symbols) or len(set(symbols)) != len(symbols):
         raise ValueError("need 1..20 distinct explicit market symbols")
@@ -163,6 +178,14 @@ def screen_markets(db, request, *, store):
                 if len(returns) >= 2:
                     mean = sum(returns) / len(returns)
                     row["volatility_percent"] = str(100 * (sum((r - mean)**2 for r in returns) / (len(returns) - 1)).sqrt())
+            if "quality_max_bad_share" in request:
+                from .data_quality_gate import quote_coverage
+
+                quality = quote_coverage(db, symbol, start, end, spec.resolution,
+                                         max_bad_share=request["quality_max_bad_share"])
+                row["quality_gate"] = quality
+                if quality["status"] == "INSUFFICIENT_DATA":
+                    row["excluded_reason"] = "INSUFFICIENT_DATA"
             rows.append(row)
         reference = next(row for row in rows if row["symbol"] == request["reference"])
         for row in rows:
@@ -172,9 +195,16 @@ def screen_markets(db, request, *, store):
                 row["excluded_reason"] = "METRIC_UNAVAILABLE_OR_WARMUP"
     eligible = sorted((r for r in rows if r["excluded_reason"] is None), key=lambda r: (Decimal(r[request["metric"]]), r["symbol"]),
                       reverse=request["metric"] != "spread_bps")
+    from .historical_universe import collection_status
+
+    observation_status = collection_status(db, symbols, end) if selection is not None else None
+    if observation_status is not None:
+        for row in rows:
+            row["collection_status"] = observation_status[row["symbol"]]
     result = {"store": store, "from": iso(start), "to_exclusive": iso(end), "quote_currency": request["quote_currency"],
             "reference": request["reference"], "metric": request["metric"], "ranked": eligible,
             "excluded": [r for r in rows if r["excluded_reason"] is not None], "funded_authority": False,
+            **({"universe_selection": selection} if selection is not None else {}),
             "limitation": "Explicit supplied universe, not a historical listing census. Momentum compares first/last closed MID prices. "
                           "Volatility is sample standard deviation of bar returns, unannualized. Liquidity is the smaller received top-level "
                           "quote notional, not full book depth or fill capacity. No confidence, intrinsic value or order recommendation."}

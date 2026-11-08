@@ -68,6 +68,7 @@ class PaperSession:
         self.book = CashBook({self.instrument.quote: cash})
         self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
         self.decision_filter = None
+        self.warmup_until = None  # No simulated orders can enter before this boundary.
         self.risk_budget = None
         self.limit_trades = []  # trade prints that decided limit fills; part of the data identity
         self._limit_print_fingerprints = set()  # identities without a venue trade ID; NEVER deduplicate fills
@@ -146,6 +147,8 @@ class PaperSession:
             if execution is None:
                 holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
+            if self.warmup_until is not None and bar.avail <= self.warmup_until:
+                action, fraction, reasons = "ABSTAIN_WARMUP", Decimal(0), (*reasons, "pre-test indicators only; no orders")
             if self.decision_filter is not None:
                 action, fraction, reasons = self.decision_filter(action, fraction, reasons)
                 if action in ("BUY_REQUEST", "SELL_REQUEST") and quote is None:

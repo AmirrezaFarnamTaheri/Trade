@@ -15,6 +15,7 @@ from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .paper import paper
 from .research_protocol import _engine_digest
+from .trial_ledger import TrialLedger
 
 REQUIRED = "symbol candidates selection_end test_from test_to resolution cash fee_rate"
 
@@ -52,14 +53,26 @@ def register_comparison(registry, request, *, now):
     # held-out observations behind a different event identity.
     registry.conn.execute("BEGIN IMMEDIATE")
     try:
-        for (encoded,) in registry.conn.execute("SELECT body FROM events WHERE kind='PROSPECTIVE_COMPARE'"):
+        record = None
+        for prior_id, encoded in registry.conn.execute(
+                "SELECT id,body FROM events WHERE kind='PROSPECTIVE_COMPARE'"):
             prior = json.loads(encoded)
             c = prior.get("configuration", {})
             if (prior.get("store") == registry.store and c.get("symbol") == body["symbol"]
                     and c.get("test_from", "") < body["test_to"]
                     and c.get("test_to", "") > body["test_from"]):
-                raise ValueError("prospective comparison overlaps an already frozen window")
-        record = registry.append("PROSPECTIVE_COMPARE", None, {"configuration": body})
+                if c == body:
+                    record = {"id": prior_id, **prior}
+                else:
+                    raise ValueError("prospective comparison overlaps an already frozen window")
+        if record is None:
+            record = registry.append("PROSPECTIVE_COMPARE", None, {"configuration": body})
+        # Count before commit; a failed ledger append cannot freeze an uncounted window.
+        with TrialLedger(registry.root) as ledger:
+            for index, candidate in enumerate(frozen):
+                ledger.record(symbol=body["symbol"], start=start, end=end,
+                              hypothesis="prospective", source="prospective",
+                              config_hash=candidate["config_hash"], attempt_id=f"{record['id']}.{index}")
         registry.conn.commit()
     except BaseException:
         registry.conn.rollback()

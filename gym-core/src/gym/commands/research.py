@@ -25,10 +25,15 @@ from .common import (
 def replay_cmd(args) -> int:
     """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
-    from ..domain.sim import CostModel
+    from ..domain.market_models import decimal
+    from ..domain.strategy import digest
+    from ..services.attribution import toman_attribution
+    from ..services.cost_defaults import calibrated_cost
+    from ..services.data_quality_gate import quote_coverage, recorded_bar_coverage
     from ..services.paper import paper
     from ..services.reports import text_report
     from ..services.research import compare
+    from ..services.trial_ledger import TrialLedger
 
     if not (store_root(args) / "market.db").exists():
         raise ValueError(f"no data in {store_root(args)}")
@@ -42,15 +47,43 @@ def replay_cmd(args) -> int:
         start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
         cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
         participation = Decimal(args.participation) if args.participation else None
-        options = {"resolution": args.res, "cash": cash, "cost": CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms),
-                                                                           max_participation=participation,
-                                                                           walk_depth=args.walk_depth, carry_remainder=args.carry_remainder,
-                                                                           max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
-                                                                           vol_target=Decimal(args.vol_target) if args.vol_target else None,
-                                                                           order_type=args.order_type,
-                                                                           maker_fee_rate=Decimal(args.maker_fee) if args.maker_fee else None),
+        options = {"resolution": args.res, "cash": cash,
+                   "cost": calibrated_cost(store_root(args), symbol, fee=args.fee, maker_fee=args.maker_fee,
+                                           latency_ms=args.latency_ms, order_type=args.order_type,
+                                           now=start,  # Historical inputs cannot import future receipts.
+                                           max_participation=participation, walk_depth=args.walk_depth,
+                                           carry_remainder=args.carry_remainder,
+                                           max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
+                                           vol_target=Decimal(args.vol_target) if args.vol_target else None),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
+        # Attempt receipts live outside frozen run artifacts and survive failed evaluations.
+        trial_specs = ([json.loads(candidate) for candidate in args.candidate]
+                       if args.cmd in ("compare", "validate") else
+                       [{"strategy": args.strategy, "params": json.loads(args.params) if args.params else None,
+                         "policy": getattr(args, "policy", None)}])
+        if args.max_bad_share is not None:
+            threshold = decimal(args.max_bad_share, "maximum bad share")
+            if threshold > 1:
+                raise ValueError("maximum bad share exceeds one")
+        with TrialLedger(store_root(args)) as ledger:
+            for trial in trial_specs:
+                ledger.record(symbol=",".join(symbols), start=start, end=end,
+                              hypothesis=args.hypothesis, source=args.cmd,
+                              config_hash=digest({"candidate": trial, "cost": options["cost"].describe(),
+                                                  "resolution": args.res, "rules_mode": args.rules,
+                                                  "folds": getattr(args, "folds", 1)}))
+            ledger_trials = ledger.count(symbol=",".join(symbols), start=start, end=end,
+                                         hypothesis=args.hypothesis)
+        if args.max_bad_share is not None:
+            quality = {market: quote_coverage(db, market, start, end, args.res,
+                       max_bad_share=args.max_bad_share) for market in symbols}
+            for market, report in quality.items():
+                print(f"QUOTE COVERAGE {market}: {report['coverage_share']} "
+                      f"(missing {report['missing_share']}, invalid/stale {report['stale_or_invalid_share']}); "
+                      f"{report['status']}", file=sys.stderr)
+            if any(report["status"] == "INSUFFICIENT_DATA" for report in quality.values()):
+                raise ValueError("INSUFFICIENT_DATA: missing/stale quote share exceeds the declared threshold")
         if args.cmd == "portfolio":
             from ..services.portfolio import portfolio
             options.pop("subscriptions")
@@ -64,6 +97,15 @@ def replay_cmd(args) -> int:
             valuation = out["result"]["valuation"]
             print(f"USDT equivalent net {out['result']['end']['net_usdt_eq']}  "
                   f"FX {valuation['start']['status']} -> {valuation['end']['status']} (valuation only)")
+            components = toman_attribution(out)
+            if components["status"] == "AVAILABLE":
+                print(f"TMN return: USDT {components['usdt_return']} + rate {components['toman_move']} "
+                      f"+ interaction {components['interaction']} = {components['total_toman_return']}")
+            elif out["result"]["quote"] == "TMN":
+                print("TMN return attribution UNAVAILABLE: point-in-time FX evidence missing")
+            quality_observed = recorded_bar_coverage(out)
+            print(f"Recorded portfolio coverage: {quality_observed['status']} "
+                  "(qualified-receipt shares, not missing-time coverage).")
             for market, row in out["result"]["markets"].items():
                 print(f"  {market:<10} fills {row['fills']:<4} closed trades {row['closed_trades']:<4} realized {row['realized_pnl']}")
             print("portfolio record:", save_run(out, store_root(args) / "runs" / "portfolios"))
@@ -73,7 +115,8 @@ def replay_cmd(args) -> int:
             if args.cmd == "validate":
                 options["folds"] = args.folds
             compute = validate if args.cmd == "validate" else compare
-            result = compute(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate], **options)
+            result = compute(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate],
+                             **({**options, "ledger_trials": ledger_trials} if args.cmd == "compare" else options))
             records = result["runs"]
             if args.cmd == "validate":
                 report = {"run_id": result["validation_id"], **{k: v for k, v in result.items() if k != "runs"}}
@@ -217,12 +260,16 @@ def calibrate_cmd(args) -> int:
     """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta
 
+    from ..services.cost_defaults import save_calibration
     from ..services.execution_calibration import feed_latency, fill_quality
 
     db = open_db(args)
     try:
-        report = {"feed": feed_latency(db, now_utc() - timedelta(hours=args.hours)),
-                  "paper_fills": fill_quality(store_root(args) / "runs")}
+        at = now_utc()
+        report = {"feed": feed_latency(db, at - timedelta(hours=args.hours), until=at),
+                  "paper_fills": fill_quality(store_root(args) / "runs"),
+                  "synthetic": bool(args.demo)}
+        report["calibration_receipt"] = str(save_calibration(store_root(args), report, at=at))
     finally:
         db.c.close()
     print(json.dumps(report, indent=2))
