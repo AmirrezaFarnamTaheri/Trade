@@ -74,4 +74,7 @@ def hierarchical_risk_parity(covariance):
 
         allocate(order)
         total = sum(weights, Decimal(0))
-        return [+(w / total) for w in weights], order
+        result = [+(w / total) for w in weights]
+        # Preserve exact Decimal simplex conservation despite final rounding.
+        result[-1] = Decimal(1) - sum(result[:-1], Decimal(0))
+        return result, order
