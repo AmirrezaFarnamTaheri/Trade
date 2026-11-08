@@ -52,3 +52,20 @@ def test_five_individual_cli_replays_count_as_five_exploratory_trials(tmp_path, 
         capsys.readouterr()
     with TrialLedger(root) as ledger:
         assert ledger.count(symbol="BTCUSDT", start=START, end=end, hypothesis="ad-hoc") == 5
+
+def test_deflated_sharpe_uses_all_prior_question_attempts(tmp_path):
+    """Five one-off attempts must inflate the selection correction beyond two finalists."""
+    from gym.domain.performance import selection_check
+
+    end = START + timedelta(minutes=20)
+    with TrialLedger(tmp_path) as ledger:
+        for i in range(5):
+            ledger.record(symbol="BTCUSDT", start=START, end=end, hypothesis="timing",
+                          source="paper", config_hash=f"setup-{i}")
+        attempts = ledger.count(symbol="BTCUSDT", start=START, end=end, hypothesis="timing")
+    candidates = {name: {"returns": {"sharpe_per_period": sharp, "periods": 100,
+                                    "skew": 0.0, "kurtosis": 3.0}}
+                  for name, sharp in (("A", 0.15), ("B", 0.08))}
+    selection = selection_check(candidates, trials=attempts)
+    assert selection["trials"] == 5
+    assert selection["deflated_sharpe"] < selection_check(candidates, trials=2)["deflated_sharpe"]

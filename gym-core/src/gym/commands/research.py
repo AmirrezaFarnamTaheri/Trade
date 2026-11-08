@@ -65,6 +65,8 @@ def replay_cmd(args) -> int:
                               config_hash=digest({"candidate": trial, "cost": options["cost"].describe(),
                                                   "resolution": args.res, "rules_mode": args.rules,
                                                   "folds": getattr(args, "folds", 1)}))
+            ledger_trials = ledger.count(symbol=",".join(symbols), start=start, end=end,
+                                         hypothesis=args.hypothesis)
         if args.cmd == "portfolio":
             from ..services.portfolio import portfolio
             options.pop("subscriptions")
@@ -87,7 +89,8 @@ def replay_cmd(args) -> int:
             if args.cmd == "validate":
                 options["folds"] = args.folds
             compute = validate if args.cmd == "validate" else compare
-            result = compute(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate], **options)
+            result = compute(db, symbol, start, end, [json.loads(candidate) for candidate in args.candidate],
+                             **({**options, "ledger_trials": ledger_trials} if args.cmd == "compare" else options))
             records = result["runs"]
             if args.cmd == "validate":
                 report = {"run_id": result["validation_id"], **{k: v for k, v in result.items() if k != "runs"}}

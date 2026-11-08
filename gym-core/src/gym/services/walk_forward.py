@@ -13,6 +13,7 @@ from .data_portal import DataPortal
 from .paper import PaperDataUnavailable, paper
 from .reports import economic_report
 from .research_protocol import _engine_digest
+from .trial_ledger import TrialLedger
 
 
 def walk_forward(registry, db, request):
@@ -65,6 +66,14 @@ def walk_forward(registry, db, request):
         slots.append([registry.append("ATTEMPT", key, {"fold": fold, "candidate": i if i < len(strategies) else None,
             "phase": "TRAIN" if i < len(strategies) else "TEST", "state": "RESULT_PENDING"})
             for i in range(len(strategies) + 1)])
+    with TrialLedger(registry.root) as ledger:
+        for fold, (a, b, c, d) in enumerate(periods):
+            for i, slot in enumerate(slots[fold]):
+                training = i < len(strategies)
+                ledger.record(symbol=symbol, start=a if training else c, end=b if training else d,
+                              hypothesis=request["hypothesis"], source="walk-forward",
+                              config_hash=strategies[i].config_hash if training else "SELECTED_TEST",
+                              attempt_id=slot["id"])
     db.c.execute("BEGIN")
     try:
         instrument = DataPortal(db).instrument(symbol)

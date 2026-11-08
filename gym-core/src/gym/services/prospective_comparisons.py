@@ -15,6 +15,7 @@ from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .paper import paper
 from .research_protocol import _engine_digest
+from .trial_ledger import TrialLedger
 
 REQUIRED = "symbol candidates selection_end test_from test_to resolution cash fee_rate"
 
@@ -64,6 +65,11 @@ def register_comparison(registry, request, *, now):
     except BaseException:
         registry.conn.rollback()
         raise
+    with TrialLedger(registry.root) as ledger:
+        for index, candidate in enumerate(frozen):
+            ledger.record(symbol=body["symbol"], start=start, end=end,
+                          hypothesis="prospective", source="prospective",
+                          config_hash=candidate["config_hash"], attempt_id=f"{record['id']}.{index}")
     return {**record, "authority": "PAPER_ONLY", "funded_authority": False,
             "independent_custody": False, "held_out": False,
             "limitations": ["Future window and configuration are frozen in a local append-only journal.",

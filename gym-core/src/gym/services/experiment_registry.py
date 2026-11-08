@@ -236,6 +236,12 @@ class ExperimentRegistry:
             for window, period in enumerate(periods):
                 for scenario in range(len(scenarios)):
                     attempts.append((self.append("ATTEMPT", key, {"trial": trial, "window": window, "scenario": scenario, "state": "RESULT_PENDING"}), params, period, scenario))
+        from .trial_ledger import TrialLedger
+        with TrialLedger(self.root) as ledger:
+            for attempt, params, (start, end), scenario in attempts:
+                ledger.record(symbol=symbol, start=start, end=end, hypothesis=request["hypothesis"],
+                              source="experiment", config_hash=digest({"params": params, "scenario": scenario}),
+                              attempt_id=attempt["id"])
         if db.c.in_transaction:
             raise ValueError("experiment needs its own market snapshot")
         db.c.execute("BEGIN")

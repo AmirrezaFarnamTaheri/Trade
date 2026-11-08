@@ -120,6 +120,11 @@ class ResearchProtocol:
                 if overlap:
                     raise ValueError("evaluation overlaps a previously registered window")
                 self.conn.execute("INSERT INTO evaluations VALUES(?,?,?,'REGISTERED',NULL)", (key, json.dumps(body), iso(now)))
+        from .trial_ledger import TrialLedger
+        with TrialLedger(self.root) as ledger:
+            ledger.record(symbol=request["symbol"], start=start, end=end,
+                          hypothesis="prospective", source="prospective",
+                          config_hash=strategy.config_hash, attempt_id=key)
         return self.evaluation(key)
 
     def evaluation(self, key):

@@ -30,7 +30,7 @@ def _question(symbol: str, start: datetime | str, end: datetime | str, hypothesi
     """Identify one symbol, frozen window and stated research hypothesis exactly."""
     if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}(?:,[A-Z0-9]{2,24})*", symbol):
         raise ValueError("trial question requires observed uppercase symbols")
-    if type(hypothesis) is not str or not 1 <= len(hypothesis.strip()) <= 200:
+    if type(hypothesis) is not str or not 1 <= len(hypothesis.strip()) <= 500:
         raise ValueError("trial question requires a bounded hypothesis")
     first, last = _stamp(start), _stamp(end)
     if not first < last:
