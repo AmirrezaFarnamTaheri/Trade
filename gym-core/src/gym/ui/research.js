@@ -170,7 +170,8 @@ window.gymResearch = (() => {
         <form id="guided-research-form" class="ticket-fields">
           <label>${text('Research model', 'مدل پژوهش')}<select id="guided-model">
             <option value="premium-research">${text('TMN premium', 'صرف تومان')}</option><option value="lead-lag-research">${text('Lead / lag', 'تقدم / تأخر')}</option>
-            <option value="twap-preview">${text('TWAP child preview', 'پیش‌نمایش TWAP')}</option></select></label>
+            <option value="twap-preview">${text('TWAP child preview', 'پیش‌نمایش TWAP')}</option>
+            <option value="execution-choice-preview">${text('Immediate vs TWAP paper costs', 'مقایسهٔ هزینهٔ اجرای فوری و TWAP')}</option></select></label>
           <label>${text('Primary symbol or base (premium: BTC)', 'نماد یا دارایی پایه (صرف: BTC)')}<input id="guided-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text('Leader symbol (lag only)', 'نماد پیشرو (فقط تقدم)')}<input id="guided-leader" value="ETHUSDT" pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text('From · UTC', 'از · UTC')}<input id="guided-from" type="datetime-local" required></label>
@@ -252,8 +253,11 @@ window.gymResearch = (() => {
     }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;
     $('guided-model').onchange = () => {
-      const twap = $('guided-model').value === 'twap-preview';
+      const choice = $('guided-model').value === 'execution-choice-preview';
+      const twap = $('guided-model').value === 'twap-preview' || choice;
       $('guided-twap-fields').hidden = !twap;
+      $('guided-slices').min = choice ? '2' : '1';
+      if (choice && Number($('guided-slices').value) < 2) $('guided-slices').value = '2';
       const hideLabel = (id, hidden) => {
         const label = $(id).closest?.('label');
         if (label) label.hidden = hidden;
@@ -283,7 +287,10 @@ window.gymResearch = (() => {
       const report = await call(action, value);
       const summary = action === 'premium-research' ? report.coverage : action === 'lead-lag-research'
         ? {status: report.status, overlap: report.overlap, correlation: report.correlation}
-        : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
+        : action === 'execution-choice-preview'
+          ? {status: report.status, lowerHistoricalCost: report.retrospective_lower_cost,
+             twapAdvantageBps: report.twap_advantage_bps, reason: report.reason}
+          : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
       $('guided-result').innerHTML = `<p><strong>${text('Paper only · no order submitted', 'فقط آزمایشی · هیچ سفارشی ثبت نشده')}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text('Inspect exact evidence', 'بررسی شواهد دقیق')}</summary>${json(report)}</details>`;
     }); };
     let prospectiveBusy = false;
