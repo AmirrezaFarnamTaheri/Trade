@@ -141,8 +141,6 @@ def research_action(root, action, value=None, *, store="live", at=None):
             spec = portal.spec_at(symbol, start)
             quotes = portal.tops(symbol, start, end)
             if adaptive:
-                from datetime import timedelta
-
                 from .adaptive_twap import adaptive_twap
 
                 lookback = value["volume_lookback_seconds"]
