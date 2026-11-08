@@ -38,6 +38,8 @@ def test_volatility_sizing_is_opt_in_and_requires_closed_ranges():
     assert model.describe()["volatility_model"] == "parkinson-ewma"
     assert CostModel.from_description(model.describe()) == model
     assert model.size(Decimal(1), [Decimal(100)] * 6) == 0
+    assert model.size(Decimal(1), [Decimal(100)] * 6,
+                      ranges=[(Decimal(100), Decimal(100))] * 5) == 0
     ranges = [(Decimal(110), Decimal(100))] * 5
     value = model.size(Decimal(1), [Decimal(100)] * 6, ranges=ranges)
     assert Decimal(0) < value < Decimal(1)
