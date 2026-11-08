@@ -10,7 +10,7 @@ from ..domain.sim import CostModel, Spec
 from ..domain.strategy import BuyAndHold, digest
 from .data_portal import DataPortal, curve_valuation
 from .rules import RuleService
-from .session import ENGINE_VERSION
+from .session import ENGINE_VERSION, LIMIT_ENGINE_VERSION
 
 CENT = Decimal("1e-8")
 
@@ -69,12 +69,12 @@ def session_result(session, tops, cash):
                         "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped,
                         "subscriptions": list(session.closes.by_resolution), "bar_events": session.bar_events,
                         "reopenings": session.reopenings, "rule_snapshots": session.rule_snapshots}}
-    result["session"]["price_band_reference"] = {
-        "status": "ESTIMATED", "basis": "FIRST_OBSERVED_TEHRAN_DAY_MID",
-        "venue_reference_documented": False,
-        "limitation": "The venue publishes no daily reference price or price band; the first observed midpoint may be wrong.",
-    }
     if cost.order_type == "limit":
+        result["session"]["price_band_reference"] = {
+            "status": "ESTIMATED", "basis": "FIRST_OBSERVED_TEHRAN_DAY_MID",
+            "venue_reference_documented": False,
+            "limitation": "The venue publishes no daily reference price or price band; the first observed midpoint may be wrong.",
+        }
         result["limit_fill_diagnostics"] = {
             "trade_ids_available": False, "identical_prints_deduplicated": False,
             "suspected_identical_prints": sum(o.get("suspected_identical_prints", 0) for o in fills),
@@ -142,7 +142,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
         "valid_to": metadata["valid_to"] and iso(metadata["valid_to"]), "source": metadata["source"],
         "raw_digest": metadata["raw_digest"],
     }
-    inputs = {"engine": ENGINE_VERSION, "symbol": symbol, "from": iso(t0), "to": iso(t1), "resolution": resolution,
+    inputs = {"engine": LIMIT_ENGINE_VERSION if cost.order_type == "limit" else ENGINE_VERSION, "symbol": symbol, "from": iso(t0), "to": iso(t1), "resolution": resolution,
               "subscriptions": list(subscriptions), "params": main["params"],
               "strategy": strategy.name, "strategy_version": strategy.version, "config_hash": strategy.config_hash,
               "reference_symbol": reference_symbol,
@@ -220,8 +220,8 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
         w.append(f"Quotes in this window were compacted ({compacted[0]}); intra-bucket quote changes are gone. Raw archive keeps them.")
     if main["fills"] < 30:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
-    w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
     w.append("Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band.")
+    w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
     if main["strategy"] in ("trend-pullback","adaptive-channel"):
         w.append("Compound paper policy: entry spread and displayed top-depth participation are checked at decision and fill; no queue or full-depth fill model. Baselines retain their original unconstrained execution model.")
         w.append("Stops and the session drawdown lock are evaluated at closed-bar decisions; gaps, minimums or insufficient displayed depth can prevent an exit or exceed the risk budget. No venue stop order or funded authority.")

@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from gym.services.paper import session_result
-from gym.services.session import ENGINE_VERSION
+from gym.services.session import ENGINE_VERSION, LIMIT_ENGINE_VERSION
 from tests.test_simulation import _limit_session
 
 
@@ -44,4 +44,5 @@ def test_price_band_reference_is_explicitly_an_estimate(tmp_path):
     assert reference["status"] == "ESTIMATED"
     assert reference["basis"] == "FIRST_OBSERVED_TEHRAN_DAY_MID"
     assert reference["venue_reference_documented"] is False
-    assert ENGINE_VERSION == "paper-session/9"
+    assert ENGINE_VERSION == "paper-session/8"  # default-market identities are frozen
+    assert LIMIT_ENGINE_VERSION == "paper-session/9"

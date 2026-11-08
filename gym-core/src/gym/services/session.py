@@ -12,7 +12,8 @@ from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
-ENGINE_VERSION = "paper-session/9"
+ENGINE_VERSION = "paper-session/8"
+LIMIT_ENGINE_VERSION = "paper-session/9"
 
 
 @dataclass
