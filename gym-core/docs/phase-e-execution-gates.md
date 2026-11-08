@@ -15,7 +15,7 @@ external operator approval) is outside this workstream.
 | 43 | External executor order path and recovery | **Blocked external dependency**, not in this paper-only PR |
 | 44 | Read-only order `fills[]` with fee currency and maker/taker coefficients | Measured fee coefficients retained when complete in existing GET `fills[]` evidence; fee asset kept exact and maker/taker classification marked ambiguous when rates equal; account settlement remains unknown |
 | 45 | Public fair-price observation channel, timestamped storage, labeled non-executable fallback | `fairprice-observe`/`fairprice-read` parse the documented public snapshot shape into an immutable available-at journal; subscription and authentication not installed |
-| 46 | Versioned operator-review client-id constraints and paced submit path | `PaperSubmissionGate` dry-run journal enforces valid Wallex submit IDs, uniqueness and 20/10-second pacing. Native executor review wire v2 is **not** installed; no live submit path enabled |
+| 46 | Versioned operator-review client-id constraints and paced submit path | `PaperSubmissionGate` dry-run journal enforces submit-only IDs, uniqueness and 20/10-second paper pacing. A distinct **offline** Rust v2 review codec has tests; native service/helper wiring and real pacing are **not installed**; no live submit path enabled |
 
 ## Item 38 — mechanics and limits
 
@@ -81,9 +81,11 @@ opt-in so older run IDs and research receipts retain their meaning.
   never substituted into trading execution.
 - **46:** The stand-alone dry-run `PaperSubmissionGate` enforces ASCII
   `[A-Za-z0-9_]{1,64}`, durable per-account duplicate rejection and a
-  rolling 20-proposals-per-10-seconds cap. Read-side venue identifiers can
-  still contain a hyphen or dot. The existing native review IPC remains v1:
-  no funded submit method or pacing path is attached.
+  rolling 20-proposals-per-10-seconds cap. The offline Rust review v2
+  codec uses distinct request/reply magic and rejects invalid submit-side
+  IDs while allowing historical read-only identities. The installed
+  native review service remains v1: no funded submit or paced order path
+  is attached.
 
 All of these contracts require separate authenticated venue observations,
 prospective stress windows, integrated scheduler/executor controls and
