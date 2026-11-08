@@ -104,8 +104,10 @@ def _depth_liquidation_mark(top, quantity, long, cash, debt_quote, fee_rate):
               "liquidation_value_quote": None, "mid_value_quote": None,
               "gap_to_mid_quote": None, "walked_notional_quote": None,
               "modeled_exit_fee_quote": None}
-    if top.depth is None or type(top.depth) not in (tuple, list) or len(top.depth) != 2:
+    if top.depth is None:
         return report
+    if type(top.depth) not in (tuple, list) or len(top.depth) != 2:
+        return {**report, "status": "INVALID_DEPTH"}
     levels = top.depth[0 if long else 1]
     if type(levels) not in (list, tuple) or not 1 <= len(levels) <= 50:
         return {**report, "status": "INVALID_DEPTH"}
