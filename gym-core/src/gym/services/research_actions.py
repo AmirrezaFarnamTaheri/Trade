@@ -100,6 +100,8 @@ def research_action(root, action, value=None, *, store="live", at=None):
     if action == "twap-preview":
         from ..domain.market_models import instant
         from .paper_twap import simulate_twap
+        if type(value) is not dict:
+            raise ValueError("TWAP preview requires an object")
         fields({k: v for k, v in value.items() if k != "cost_models"},
                "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
         cost_model = None
