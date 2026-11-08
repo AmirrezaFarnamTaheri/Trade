@@ -106,7 +106,11 @@ def margin_action(root, action, value, *, store):
                             "body_sha256": body_hash, "loan_body_sha256": loan_hash, "limitations": LIMITATIONS})
     if action != "margin-replay":
         raise ValueError("unknown margin action")
-    fields(value, "preview_id from to exit_fee_rate holding_seconds")
+    required = {"preview_id", "from", "to", "exit_fee_rate", "holding_seconds"}
+    if (type(value) is not dict or not required <= value.keys()
+            or value.keys() - required - {"depth_valuation"}
+            or type(value.get("depth_valuation", False)) is not bool):
+        raise ValueError("margin replay requires known fields and a boolean depth valuation")
     preview = load_receipt(root, value["preview_id"], "PREVIEW")
     start, end = parse_ts(value["from"]), parse_ts(value["to"])
     if not parse_ts(preview["received_at"]) <= start < end <= now_utc() or end - start > timedelta(days=31):
@@ -126,9 +130,14 @@ def margin_action(root, action, value, *, store):
         tops = portal.tops(symbol, start, end)
         instrument = portal.instrument(symbol)
         points = [(top, is_closed(rules.load(top.ts_avail)[1], instrument, top.ts_avail)) for top in tops]
-        result = replay_margin(preview["terms"], preview["rule"], points, end, value["exit_fee_rate"], value["holding_seconds"])
-        data_hash = digest([(iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), closed) for top, closed in points])
+        opt_in_depth = value.get("depth_valuation", False)
+        result = replay_margin(preview["terms"], preview["rule"], points, end,
+                               value["exit_fee_rate"], value["holding_seconds"],
+                               depth_valuation=opt_in_depth)
+        data_hash = digest([(iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), closed,
+                             *((top.depth,) if opt_in_depth else ())) for top, closed in points])
     finally:
         db.c.close()
     return _save(root, {"kind": "REPLAY", "inputs": value, "data_digest": data_hash, "observations": len(tops),
+                        **({"margin_replay_version": 2} if value.get("depth_valuation", False) else {}),
                         "result": result, "limitations": LIMITATIONS})
