@@ -132,3 +132,19 @@ def test_alias_markets_cannot_double_count_one_base_asset(tmp_path):
                       resolution="1min", params={"fast": 2, "slow": 3})
     finally:
         db.c.close()
+
+def test_limit_portfolio_engine_identity_separates_diagnostic_revisions(tmp_path):
+    """Limit-portfolio result changes must not reuse pre-diagnostics run identities."""
+    from gym.services.session import ENGINE_VERSION, LIMIT_ENGINE_VERSION
+
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
+    try:
+        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3}}
+        market = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=30), **options)
+        limit = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=30),
+                          cost=CostModel(order_type="limit"), **options)
+        assert market["inputs"]["engine"] == ENGINE_VERSION
+        assert limit["inputs"]["engine"] == LIMIT_ENGINE_VERSION
+        assert market["run_id"] != limit["run_id"]
+    finally:
+        db.c.close()
