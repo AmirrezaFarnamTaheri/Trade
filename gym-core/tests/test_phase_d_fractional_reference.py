@@ -1,11 +1,9 @@
 """Phase D item 35: saved empirical paper fractions are opt-in and never funded."""
 from datetime import timedelta
-from decimal import Decimal
 
 import pytest
 
 from gym.adapters.run_store import save_run
-from gym.domain.model import iso
 from gym.domain.strategy import digest
 from gym.services.fractional_sizing import load_fractional_report
 from gym.services.paper import paper
@@ -16,7 +14,7 @@ def _source(tmp_path):
     db = market_db(tmp_path, quote_history(n=320))
     try:
         out = paper(db, "BTCUSDT", START, START + timedelta(minutes=40),
-                    resolution="1min", params={"fast": 2, "slow": 3})
+                    resolution="1min", params={"fast": 2, "slow": 3}, store="demo")
     finally:
         db.c.close()
     save_run(out, tmp_path / "runs")
