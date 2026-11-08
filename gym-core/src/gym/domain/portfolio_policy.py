@@ -205,6 +205,9 @@ class PortfolioPolicy:
                 unscaled = max(Decimal(0), sum(losses[:worst], Decimal(0)) / worst)
                 scale = (min(Decimal(1), self.expected_shortfall_limit / unscaled)
                          if unscaled > 0 else Decimal(1))
+                # Always round down: the published scale cannot exceed the
+                # modeled ES bound through finite-precision division.
+                scale = scale.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)
                 weights = [weight * scale for weight in weights]
                 result["expected_shortfall"] = {
                     "model": "historical-constant-target-es95/1",
