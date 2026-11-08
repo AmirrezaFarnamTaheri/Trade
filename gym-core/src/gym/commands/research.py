@@ -54,7 +54,8 @@ def replay_cmd(args) -> int:
                                            max_participation=participation, walk_depth=args.walk_depth,
                                            carry_remainder=args.carry_remainder,
                                            max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
-                                           vol_target=Decimal(args.vol_target) if args.vol_target else None),
+                                           vol_target=Decimal(args.vol_target) if args.vol_target else None,
+                                           volatility_model=args.volatility_model),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
         # Attempt receipts live outside frozen run artifacts and survive failed evaluations.
