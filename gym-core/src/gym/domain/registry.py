@@ -77,6 +77,7 @@ STRATEGIES = {
 
 
 def catalog():
+    """Expose the paper-only, versioned strategy parameter catalog."""
     return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
              "parameters": {"type": "object", "properties": {**properties, "regime_gate": REGIME_GATE,
                             "regime_volatility_model": REGIME_VOLATILITY_MODEL,
@@ -86,6 +87,7 @@ def catalog():
 
 
 def create_strategy(name="ema-trend", params=None):
+    """Validate strategy inputs and derive a deterministic opt-in config hash."""
     if not isinstance(name, str) or name not in STRATEGIES:
         raise ValueError("unknown paper strategy")
     constructor, _, properties = STRATEGIES[name]
