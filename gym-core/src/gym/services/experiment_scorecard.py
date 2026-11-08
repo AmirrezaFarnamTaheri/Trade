@@ -73,12 +73,14 @@ def experiment_scorecard(registry, request):
         if not matched or any(parse_ts(out["inputs"]["from"]) < parse_ts(r["inputs"]["to"]) for r in matched):
             raise ValueError("shadow must follow a matched historical configuration, cash and costs")
         shadows.append(run_card(out))
+    from .parameter_plateau import scorecard_plateau
     from .spa import scorecard_spa
     spa_tests = scorecard_spa(rows, verified)
+    plateau = scorecard_plateau(definition, rows)
     result = {"schema": "experiment-scorecard/1", "experiment_id": experiment["id"], "store": registry.store,
         "definition": definition, "registered_trials": len(definition["trials"]), "registered_attempts": len(attempts),
         "states": dict(Counter(r["state"] for r in rows)), "rows": rows, "shadows": shadows,
-        "spa_tests": spa_tests,
+        "spa_tests": spa_tests, "parameter_plateau": plateau,
         "funded_authority": False, "independent_final_evidence": False,
         "limits": ["Every registered attempt is retained, including failed, missing, unready and zero-trade runs; no winner is selected.",
             "Heatmap cells use each run's quote currency. USDT-equivalent values depend on the displayed FX status.",
