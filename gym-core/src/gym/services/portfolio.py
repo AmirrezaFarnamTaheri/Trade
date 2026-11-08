@@ -382,6 +382,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         inputs["portfolio_version"] = 10
     if controller.cost_aware_rebalance:
         inputs["portfolio_version"] = 11
+    if cost.calibration is not None and "fractional_sizing_report_id" in cost.calibration:
+        inputs["portfolio_version"] = 12
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
