@@ -16,7 +16,7 @@ DEADLINE_SECONDS = 120
 MAX_OUTPUT = 2 * 1024 * 1024
 HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-preview", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
                            "replay-checkpoint", "replay-resume", "final-run", "comparison", "validation", "news-fetch",
-                           "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "portfolio-replay",
+                           "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "portfolio-replay",
                            "execution-model-calibrate"))
 
 
