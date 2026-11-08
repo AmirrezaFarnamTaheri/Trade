@@ -166,11 +166,37 @@ def _validate_hourly_costs(models):
                 raise ValueError("future hourly fee observation")
 
 
-def check_causal_costs(impact_models, hourly_costs, at):
+def validate_postfill_costs(models):
+    """Normalize malformed paper receipts to the existing validation-error contract."""
+    try:
+        _validate_postfill_costs(models)
+    except (KeyError, TypeError):
+        raise ValueError("invalid paper postfill costs") from None
+
+
+def _validate_postfill_costs(models):
+    """Validate exact schema, sample count, bounded penalty and recorded cutoff."""
+    if models is None:
+        return
+    if type(models) is not dict or not 1 <= len(models) <= 20:
+        raise ValueError("invalid paper postfill costs")
+    for symbol, row in models.items():
+        if (type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol)
+                or type(row) is not dict
+                or set(row) != {"schema", "symbol", "trained_until", "penalty_bps", "sample_count", "source"}
+                or row["schema"] != "postfill-adverse/1" or row["symbol"] != symbol
+                or row["source"] != "PAPER_MARKOUT_DIAGNOSTIC"
+                or type(row["sample_count"]) is not int or row["sample_count"] < 30
+                or _number(row["penalty_bps"], "postfill penalty") > 200):
+            raise ValueError("invalid paper postfill costs")
+        parse_ts(row["trained_until"])
+
+
+def check_causal_costs(impact_models, hourly_costs, at, postfill_costs=None):
     """Reject models fitted after the paper replay's initial knowledge cutoff."""
     if at.tzinfo is None:
         raise ValueError("replay needs an aware start time")
-    for models in (impact_models, hourly_costs):
+    for models in (impact_models, hourly_costs, postfill_costs):
         for row in (models or {}).values():
             if parse_ts(row["trained_until"]) > at:
                 raise ValueError("future execution cost calibration is not available at replay start")
@@ -184,7 +210,8 @@ def modeled_execution_cost(cost, symbol, at, quantity, bid, ask, *, maker=False)
     """
     impact = (cost.impact_models or {}).get(symbol)
     model = (cost.hourly_costs or {}).get(symbol)
-    if impact is None and model is None:
+    postfill = (cost.postfill_costs or {}).get(symbol)
+    if impact is None and model is None and postfill is None:
         return None
     with localcontext() as context:
         context.prec = 60
@@ -204,8 +231,10 @@ def modeled_execution_cost(cost, symbol, at, quantity, bid, ask, *, maker=False)
         label = "maker_fee_rate" if maker else "taker_fee_rate"
         if group and group.get(label) is not None:
             fee = Decimal(group[label])
-        return {"uplift_bps": spread_add + impact_add, "fee_rate": fee,
-                "pricing": {"observed_spread_bps": str(+observed),
+        extra = Decimal(postfill["penalty_bps"]) if postfill is not None and not maker else Decimal(0)
+        return {"uplift_bps": spread_add + impact_add + extra, "fee_rate": fee,
+                "pricing": {**({"postfill_adverse_bps": str(+extra)} if postfill is not None and not maker else {}),
+                            "observed_spread_bps": str(+observed),
                             "modeled_spread_bps": str(+spread),
                             "spread_uplift_bps": str(+spread_add),
                             "impact_extra_bps": str(+impact_add),

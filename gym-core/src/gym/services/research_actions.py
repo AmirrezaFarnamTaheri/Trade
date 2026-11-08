@@ -42,7 +42,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
@@ -101,13 +101,15 @@ def research_action(root, action, value=None, *, store="live", at=None):
                                         max_delay_bars=value.get("max_delay_bars", 1))
         finally:
             db.c.close()
-    if action in ("twap-preview", "execution-choice-preview"):
+    if action in ("twap-preview", "execution-choice-preview", "adaptive-twap-preview"):
         from ..domain.market_models import instant
         from .paper_twap import simulate_twap
         if type(value) is not dict:
             raise ValueError("TWAP preview requires an object")
+        adaptive = action == "adaptive-twap-preview"
+        extra = " volume_lookback_seconds max_spread_bps urgency" if adaptive else ""
         fields({k: v for k, v in value.items() if k != "cost_models"},
-               "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
+               "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds" + extra)
         if action == "execution-choice-preview" and (
             type(value["slices"]) is not int or not 2 <= value["slices"] <= 100
         ):
@@ -117,7 +119,7 @@ def research_action(root, action, value=None, *, store="live", at=None):
             from ..domain.sim import CostModel
 
             definitions = value["cost_models"]
-            if type(definitions) is not dict or definitions.keys() - {"impact_models", "hourly_costs"}:
+            if type(definitions) is not dict or definitions.keys() - {"impact_models", "hourly_costs", "postfill_costs"}:
                 raise ValueError("invalid TWAP cost-model profiles")
             cost_model = CostModel(fee_rate=decimal(value["fee_rate"], "fee rate"),
                                    **definitions)
@@ -138,6 +140,38 @@ def research_action(root, action, value=None, *, store="live", at=None):
             instrument = portal.instrument(symbol)
             spec = portal.spec_at(symbol, start)
             quotes = portal.tops(symbol, start, end)
+            if adaptive:
+                from .adaptive_twap import adaptive_twap
+
+                lookback = value["volume_lookback_seconds"]
+                if type(lookback) is not int or not 60 <= lookback <= 3600:
+                    raise ValueError("invalid volume observation lookback")
+                earliest = start - timedelta(seconds=lookback)
+                count = db.c.execute(
+                    "SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? "
+                    "AND ts_avail>=? AND ts_avail<? LIMIT 100001)",
+                    ("wallex:" + symbol, iso(earliest), iso(end))).fetchone()[0]
+                if count > 100000:
+                    raise ValueError("too many adaptive TWAP quotes")
+                trade_count = db.c.execute(
+                    "SELECT count(*) FROM (SELECT 1 FROM trades WHERE instrument_id=? "
+                    "AND ts_event>=? AND ts_event<? LIMIT 100001)",
+                    ("wallex:" + symbol, iso(earliest), iso(end))).fetchone()[0]
+                if trade_count > 100000:
+                    raise ValueError("too many adaptive TWAP prints")
+                prior_quotes = portal.tops(symbol, earliest, end)
+                trades = sorted((t for t in portal.trades_by_event(symbol, earliest, end)
+                                 if earliest <= t.ts_avail < end), key=lambda t: t.ts_avail)
+                return adaptive_twap(instrument, prior_quotes, trades, spec, start, end,
+                    side=value["side"], quantity=decimal(value["quantity"], "quantity", positive=True),
+                    slices=value["slices"], participation=decimal(value["participation"], "participation", positive=True),
+                    fee_rate=value["fee_rate"],
+                    available_quote=decimal(value["available_quote"], "available_quote"),
+                    available_base=decimal(value["available_base"], "available_base"),
+                    max_delay_seconds=value["max_delay_seconds"], store=store, cost=cost_model,
+                    volume_lookback_seconds=lookback,
+                    max_spread_bps=decimal(value["max_spread_bps"], "max_spread_bps"),
+                    urgency=value["urgency"])
             # Both candidates use one read snapshot and the same explicit budget,
             # spread/fee model, participation and post-slot observed top quotes.
             shared = {"side": value["side"],
@@ -157,6 +191,83 @@ def research_action(root, action, value=None, *, store="live", at=None):
             immediate = simulate_twap(instrument, quotes, spec, start, end,
                                       slices=1, **shared)
             return compare_execution_previews(immediate, sliced)
+        finally:
+            db.c.rollback()
+            db.c.close()
+    if action in ("fairprice-observe", "fairprice-read"):
+        from .fair_price import fairprice_action
+
+        return fairprice_action(root, action, value, received_at=now_utc())
+    if action in ("feed-divergence-screen", "feed-divergence-lock"):
+        from .feed_divergence import evaluate_divergence, persist_paper_feed_lock
+
+        lock = action == "feed-divergence-lock"
+        fields(value, "symbol wallex reference as_of training_samples alert_sigma"
+               + (" duration_seconds" if lock else ""))
+        when, now = parse_ts(value["as_of"]), now_utc()
+        if when > now or (lock and now - when > timedelta(minutes=5)):
+            raise ValueError("feed reference check requires a recent past observation")
+        result = evaluate_divergence(
+            value["wallex"], value["reference"], symbol=value["symbol"],
+            as_of=when, training_samples=value["training_samples"],
+            alert_sigma=value["alert_sigma"])
+        if not lock:
+            return result
+        if not result["block_entry"]:
+            return {**result, "status": "PAPER_LOCK_NOT_TRIGGERED"}
+        if not (root / "market.db").is_file():
+            raise ValueError("paper feed lock requires existing market rules")
+        db = MarketDB(root / "market.db")
+        try:
+            receipt = persist_paper_feed_lock(
+                db, result, now=now, duration_seconds=value["duration_seconds"])
+            return {**result, **receipt}
+        finally:
+            db.c.close()
+    if action == "paper-promotion-screen":
+        from .promotion_gates import promotion_screen
+
+        return promotion_screen(value)
+    if action == "shadow-drift-screen":
+        from ..adapters.run_store import load_verified_run
+        from .shadow_drift import shadow_drift
+
+        fields(value, "historical_run_id shadow_run_id")
+        historical = load_verified_run(root / "runs", value["historical_run_id"], store=store)
+        shadow = load_verified_run(root / "runs", value["shadow_run_id"], store=store)
+        return shadow_drift(historical, shadow, observed_at=now_utc())
+    if action == "postfill-check":
+        from ..adapters.run_store import load_verified_run
+        from .postfill import post_fill_checks
+
+        fields(value, "run_id")
+        native = load_verified_run(root / "runs", value["run_id"], store=store)
+        if native["inputs"].get("kind") in ("portfolio", "live-session"):
+            raise ValueError("postfill-check requires one immutable historical paper market")
+        end = parse_ts(native["inputs"]["to"])
+        cutoff = min(now_utc(), end + timedelta(minutes=32))
+        start = parse_ts(native["inputs"]["from"])
+        symbol = native["inputs"]["symbol"]
+        if not start < cutoff:
+            raise ValueError("postfill-check requires an elapsed historical evaluation")
+        db = _market_db(root)
+        try:
+            db.c.execute("BEGIN")
+            count = db.c.execute(
+                "SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? "
+                "AND ts_avail>=? AND ts_avail<? LIMIT 100001)",
+                ("wallex:" + symbol, iso(start), iso(cutoff))).fetchone()[0]
+            if count > 100000:
+                raise ValueError("postfill-check quote budget exceeded")
+            portal = DataPortal(db)
+            tops = portal.tops(symbol, start, cutoff)
+            result = post_fill_checks(native["result"]["orders"], tops, symbol=symbol,
+                                      strategy=native["inputs"]["strategy"],
+                                      order_type=native["inputs"]["cost"].get("order_type", "market"),
+                                      cutoff=cutoff)
+            result["source_run_id"] = native["run_id"]
+            result["source_outputs_digest"] = native["outputs_digest"]
+            return result
         finally:
             db.c.rollback()
             db.c.close()

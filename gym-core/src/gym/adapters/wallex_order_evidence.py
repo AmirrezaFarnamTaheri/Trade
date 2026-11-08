@@ -111,10 +111,34 @@ def parse_manual_order_evidence(payload: object, requested_id: str) -> dict:
                 total += quantity
             if total > requested_qty:
                 raise InvalidOrderEvidence("total fills exceed order quantity")
+            coefficients = ("feeCoefficient", "makerFeeCoefficient", "takerFeeCoefficient")
+            observed = [field in fill for field in coefficients]
+            measured = {}
+            if any(observed):
+                if not all(observed) or type(fill.get("isBuyer")) is not bool:
+                    raise InvalidOrderEvidence("incomplete fill maker/taker coefficients")
+                values = [_decimal(fill[key], label=key) for key in coefficients]
+                if any(value >= 1 for value in values):
+                    raise InvalidOrderEvidence("invalid fill fee coefficient")
+                applied, maker_rate, taker_rate = values
+                if applied == maker_rate == taker_rate:
+                    role = "AMBIGUOUS_RATE_MATCH"
+                elif applied == maker_rate:
+                    role = "MAKER_RATE_MATCH"
+                elif applied == taker_rate:
+                    role = "TAKER_RATE_MATCH"
+                else:
+                    raise InvalidOrderEvidence("reported fee rate disagrees with maker/taker coefficients")
+                measured = {"fee_coefficient": _format(applied),
+                            "maker_fee_coefficient": _format(maker_rate),
+                            "taker_fee_coefficient": _format(taker_rate),
+                            "maker_taker_attribution": role,
+                            "is_buyer": fill["isBuyer"]}
             fills.append({
                 "quantity": _format(quantity), "price": _format(price),
                 "fee": _format(fee), "fee_asset": fee_asset,
                 "timestamp": _timestamp(fill.get("timestamp")),
+                **measured,
             })
         if fills:
             if total != executed_qty:
@@ -174,7 +198,13 @@ def validate_order_evidence(value):
             raise InvalidOrderEvidence("invalid stored order evidence")
         try:
             fills = [{"quantity": fill["quantity"], "price": fill["price"], "fee": fill["fee"],
-                      "feeAsset": fill["fee_asset"], "timestamp": fill["timestamp"]} for fill in row["fills"]]
+                      "feeAsset": fill["fee_asset"], "timestamp": fill["timestamp"],
+                      **({"feeCoefficient": fill["fee_coefficient"],
+                          "makerFeeCoefficient": fill["maker_fee_coefficient"],
+                          "takerFeeCoefficient": fill["taker_fee_coefficient"],
+                          "isBuyer": fill["is_buyer"]}
+                         if "fee_coefficient" in fill else {})}
+                     for fill in row["fills"]]
             parsed = parse_manual_order_evidence({"success": True, "result": {
                 "clientOrderId": row["client_id"], "status": row["raw_status"], "symbol": row["symbol"],
                 "side": row["side"], "origQty": row["requested_qty"], "executedQty": row["executed_qty"],

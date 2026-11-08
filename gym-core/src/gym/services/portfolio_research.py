@@ -51,7 +51,7 @@ def portfolio_action(root, action, value, *, store):
     base = {"fee_rate", "latency_ms", "max_wait_s", "fee_assumption"}
     optional = {"max_participation", "walk_depth", "carry_remainder", "max_fraction", "vol_target",
                 "vol_lookback", "volatility_model", "order_type", "maker_fee_rate", "limit_fill_model",
-                "impact_models", "hourly_costs", "fractional_sizing_report_id"}
+                "impact_models", "hourly_costs", "postfill_costs", "fractional_sizing_report_id"}
     if type(description) is not dict or not base <= description.keys() or description.keys() - base - optional:
         raise ValueError("invalid portfolio cost fields")
     if "limit_fill_model" in description and description["limit_fill_model"] != "queue-capacity/2":
