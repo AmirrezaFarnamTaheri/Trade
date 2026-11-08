@@ -22,6 +22,7 @@ HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-previe
 
 class ResearchProcessFailure(RuntimeError):
     def __init__(self, reason, *, terminated, status=503):
+        """Capture whether a failed supervised calculation may have committed."""
         self.status = status
         self.report = {"error": reason, "process_terminated": terminated,
                        "result_delivered": False, "operation_may_have_committed": True,
@@ -30,6 +31,7 @@ class ResearchProcessFailure(RuntimeError):
 
 
 async def calculate(root, action, value=None, *, store="live", at=None, timeout_seconds=DEADLINE_SECONDS):
+    """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
         raise ValueError("unsupported supervised paper calculation")
     if at is not None and action != "tick":
@@ -96,6 +98,7 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
 
 
 def main():
+    """Validate worker input and return a bounded single JSON result or error."""
     from .research_actions import research_action
     try:
         raw = sys.stdin.buffer.read(70 * 1024 + 1)
