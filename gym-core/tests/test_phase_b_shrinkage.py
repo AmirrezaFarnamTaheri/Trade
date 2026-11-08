@@ -72,7 +72,5 @@ def test_shrinkage_invalid_option_and_legacy_identity_are_unchanged():
     with pytest.raises(ValueError, match="shrinkage"):
         PortfolioPolicy({"covariance_shrinkage": "invented"}, ["A", "B"])
     policy = PortfolioPolicy({"method": "equal"}, ["A", "B"])
-    assert policy.description == PortfolioPolicy(
-        {"method": "equal", "covariance_shrinkage": "none"}, ["A", "B"]
-    ).description or "covariance_shrinkage" not in policy.description
+    assert "covariance_shrinkage" not in policy.description
     assert "covariance_shrinkage" not in policy.weights({})
