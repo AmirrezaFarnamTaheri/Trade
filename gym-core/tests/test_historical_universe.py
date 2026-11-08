@@ -10,7 +10,7 @@ from tests.support import START, market_db, quote_history
 
 
 def _receipt(db, symbol, amount, at):
-    db.add_trade(TradeTick(symbol, at, at, Decimal("100"), Decimal(amount), "BUY"), "fixture")
+    db.add_trade(TradeTick(symbol, at, at, Decimal(100), Decimal(amount), "BUY"), "fixture")
 
 
 def test_trade_volume_selection_uses_only_pre_start_receipts(tmp_path):

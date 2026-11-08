@@ -123,7 +123,7 @@ def coverage_timeline(db, request, *, store):
 
 
 def screen_markets(db, request, *, store):
-    required = set("symbols reference quote_currency from to resolution metric".split())
+    required = {"symbols", "reference", "quote_currency", "from", "to", "resolution", "metric"}
     optional = {"top_n", "lookback_hours"}
     if type(request) is not dict or not required <= request.keys() or request.keys() - required - optional:
         raise ValueError("invalid market-screen request")
