@@ -191,7 +191,10 @@ class PaperSession:
                     self.pending.record.update(status="CANCELLED", reason="EXIT_CANCELS_WORKING_ENTRY")
                     self.pending = None
                 if side == "BUY" and not self.pending and (self.cost.max_fraction is not None or self.cost.vol_target is not None):
-                    fraction = self.cost.size(fraction, [Decimal(d["close"]) for d in self.decisions] + [bar.close])
+                    ranges = [(Decimal(d["bar_known"]["high"]), Decimal(d["bar_known"]["low"]))
+                              for d in self.decisions] + [(bar.high, bar.low)]
+                    fraction = self.cost.size(
+                        fraction, [Decimal(d["close"]) for d in self.decisions] + [bar.close], ranges=ranges)
                     decision["sized_fraction"] = str(fraction)
                 if side == "BUY" and not self.pending and self.allocation is not None:
                     fraction = self.allocation(fraction)

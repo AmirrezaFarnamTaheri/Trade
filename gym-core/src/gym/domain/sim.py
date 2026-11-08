@@ -9,6 +9,7 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 from .bars import qualified
 from .market_models import decimal
 from .model import BookTop, InstrumentId, iso
+from .volatility import parkinson_ewma
 from .rules import Rule, evaluate, tehran_day
 
 
@@ -30,6 +31,7 @@ class CostModel:
     max_fraction: Decimal | None = None
     vol_target: Decimal | None = None  # target standard deviation of per-bar returns of the position
     vol_lookback: int = 20
+    volatility_model: str = "close-std"  # opt-in Parkinson high-low bars
     # "limit": rest at the near touch after latency and fill when the queue ahead trades away or the
     # market trades through; unfilled at max_wait means no fill. Maker fee defaults to the taker fee.
     order_type: str = "market"
@@ -49,6 +51,8 @@ class CostModel:
                 raise ValueError(f"{name.replace('_', ' ')} must be in (0, 1]")
         if type(self.vol_lookback) is not int or not 5 <= self.vol_lookback <= 500:
             raise ValueError("vol lookback must be 5..500 bars")
+        if self.volatility_model not in ("close-std", "parkinson-ewma"):
+            raise ValueError("unsupported volatility model")
         if self.order_type not in ("market", "limit"):
             raise ValueError("order type must be market or limit")
         if self.maker_fee_rate is not None and (not self.maker_fee_rate.is_finite() or not 0 <= self.maker_fee_rate < 1):
@@ -70,6 +74,8 @@ class CostModel:
             out["max_fraction"] = str(self.max_fraction)
         if self.vol_target is not None:
             out["vol_target"], out["vol_lookback"] = str(self.vol_target), self.vol_lookback
+            if self.volatility_model != "close-std":
+                out["volatility_model"] = self.volatility_model
         if self.order_type != "market":
             out["order_type"] = self.order_type
             out["maker_fee_rate"] = str(self.maker_fee)
@@ -82,15 +88,21 @@ class CostModel:
     def maker_fee(self) -> Decimal:
         return self.fee_rate if self.maker_fee_rate is None else self.maker_fee_rate
 
-    def size(self, fraction: Decimal, closes: list[Decimal]) -> Decimal:
-        """Entry fraction after the sizing rules; until enough closes exist, volatility targeting buys nothing."""
+    def size(self, fraction: Decimal, closes: list[Decimal], *, ranges=None) -> Decimal:
+        """Cap paper entries by one selected causal volatility model at known closes."""
         if self.vol_target is not None:
-            recent = closes[-(self.vol_lookback + 1):]
-            if len(recent) <= self.vol_lookback:
-                return Decimal(0)
-            returns = [b / a - 1 for a, b in itertools.pairwise(recent)]
-            mean = sum(returns, Decimal(0)) / len(returns)
-            vol = (sum(((r - mean) ** 2 for r in returns), Decimal(0)) / (len(returns) - 1)).sqrt()
+            if self.volatility_model == "parkinson-ewma":
+                recent = [] if ranges is None else ranges[-self.vol_lookback:]
+                if len(recent) < self.vol_lookback:
+                    return Decimal(0)
+                vol = parkinson_ewma(recent)
+            else:
+                recent = closes[-(self.vol_lookback + 1):]
+                if len(recent) <= self.vol_lookback:
+                    return Decimal(0)
+                returns = [b / a - 1 for a, b in itertools.pairwise(recent)]
+                mean = sum(returns, Decimal(0)) / len(returns)
+                vol = (sum(((r - mean) ** 2 for r in returns), Decimal(0)) / (len(returns) - 1)).sqrt()
             if vol > 0:
                 fraction = min(fraction, (self.vol_target / vol).quantize(Decimal("0.000001"), ROUND_DOWN))
         return fraction if self.max_fraction is None else min(fraction, self.max_fraction)
@@ -104,6 +116,7 @@ class CostModel:
                    walk_depth=d.get("walk_depth", False), carry_remainder=d.get("carry_remainder", False),
                    max_fraction=Decimal(d["max_fraction"]) if "max_fraction" in d else None,
                    vol_target=Decimal(d["vol_target"]) if "vol_target" in d else None, vol_lookback=d.get("vol_lookback", 20),
+                   volatility_model=d.get("volatility_model", "close-std"),
                    order_type=d.get("order_type", "market"),
                    maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None,
                    calibration=d.get("calibration"))
