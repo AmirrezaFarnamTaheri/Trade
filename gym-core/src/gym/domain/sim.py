@@ -7,6 +7,12 @@ from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
 
 from .bars import qualified
+from .execution_costs import (
+    check_causal_costs,
+    modeled_execution_cost,
+    validate_hourly_costs,
+    validate_impact_models,
+)
 from .market_models import decimal
 from .model import BookTop, InstrumentId, iso
 from .rules import Rule, evaluate, tehran_day
@@ -37,6 +43,8 @@ class CostModel:
     order_type: str = "market"
     maker_fee_rate: Decimal | None = None
     calibration: dict | None = None  # optional immutable provenance, absent for legacy run identities
+    impact_models: dict | None = None  # dated public-print proxy, explicitly chosen per market
+    hourly_costs: dict | None = None  # dated quote/fee observations, explicitly chosen per market
 
     def __post_init__(self):
         if not self.fee_rate.is_finite() or not 0 <= self.fee_rate < 1:
@@ -60,6 +68,8 @@ class CostModel:
         if self.calibration is not None and (type(self.calibration) is not dict or
                 len(str(self.calibration)) > 1024 or not all(type(v) in (str, bool) for v in self.calibration.values())):
             raise ValueError("invalid paper calibration provenance")
+        validate_impact_models(self.impact_models)
+        validate_hourly_costs(self.hourly_costs)
 
     def describe(self) -> dict:
         out = {"fee_rate": str(self.fee_rate), "latency_ms": self.latency // timedelta(milliseconds=1),
@@ -82,7 +92,15 @@ class CostModel:
             out["limit_fill_model"] = "queue-capacity/2"
         if self.calibration is not None:
             out["calibration"] = dict(self.calibration)
+        if self.impact_models is not None:
+            out["impact_models"] = self.impact_models
+        if self.hourly_costs is not None:
+            out["hourly_costs"] = self.hourly_costs
         return out
+
+    def assert_causal(self, start: datetime):
+        """Disallow fitting paper pricing with receipts later than its replay start."""
+        check_causal_costs(self.impact_models, self.hourly_costs, start)
 
     @property
     def maker_fee(self) -> Decimal:
@@ -119,7 +137,8 @@ class CostModel:
                    volatility_model=d.get("volatility_model", "close-std"),
                    order_type=d.get("order_type", "market"),
                    maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None,
-                   calibration=d.get("calibration"))
+                   calibration=d.get("calibration"), impact_models=d.get("impact_models"),
+                   hourly_costs=d.get("hourly_costs"))
 
 
 @dataclass(frozen=True)
@@ -262,8 +281,40 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
     notional = _walk(levels, qty) if levels and qty > 0 else qty * price
     if levels and qty > 0:
         price = notional / qty  # volume-weighted across the levels taken
-    if qty <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
+    if cost.impact_models is not None or cost.hourly_costs is not None:
+        # Public bid/ask already carries the observed half-spread. Add only the
+        # model's excess; for buys, recompute size to conserve cash including uplift.
+        def estimate(quantity):
+            return modeled_execution_cost(
+                cost, inst.symbol, t, quantity, top.bid, top.ask,
+                maker=limit_price is not None)
+
+        modeled = estimate(qty)
+        if modeled is not None:
+            fee_rate = modeled["fee_rate"]
+            if modeled["uplift_bps"] > 200:
+                return {**out, "fill_time": iso(t), "reason": "MODELED_IMPACT_PRICE_GUARD"}
+            if limit_price is None and qty > 0 and modeled["uplift_bps"] > 0:
+                uplift = mid * modeled["uplift_bps"] / 10000
+                if side == "BUY":
+                    budget = book.get(inst.quote) * fraction
+                    gross = notional + qty * uplift
+                    if gross > budget:
+                        qty = _floor(qty * budget / gross, spec.qty_decimals)
+                        out["resized"] = "ModeledImpactBudget"
+                        if qty > 0:
+                            notional = _walk(levels, qty) if levels else qty * best
+                            price = notional / qty
+                            modeled = estimate(qty)
+                            uplift = mid * modeled["uplift_bps"] / 10000
+                if qty > 0:
+                    price = price + uplift if side == "BUY" else price - uplift
+                    notional = qty * price
+            out["pricing"] = modeled["pricing"]
+    if qty <= 0 or price <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
         return {**out, "fill_time": iso(t), "reason": "BELOW_MIN_NOTIONAL"}
+    if side == "BUY" and notional > book.get(inst.quote):
+        return {**out, "fill_time": iso(t), "reason": "MODELED_COST_EXCEEDS_CASH"}
     if execution_limits is not None:
         available = top.ask_qty if side == "BUY" else top.bid_qty
         try:
