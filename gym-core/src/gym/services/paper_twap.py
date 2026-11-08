@@ -123,7 +123,8 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
                         if (qty <= 0 or (spec.min_qty is not None and qty < spec.min_qty)
                                 or (spec.min_notional is not None and notional < spec.min_notional)):
                             qty = Decimal(0)
-                            reason = "BELOW_LIMIT_OR_BALANCE"
+                            if reason != "MODELED_IMPACT_PRICE_GUARD":
+                                reason = "BELOW_LIMIT_OR_BALANCE"
                         else:
                             reason = "MODELED_FILL"
                             if side == "BUY":
