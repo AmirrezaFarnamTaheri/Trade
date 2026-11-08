@@ -42,12 +42,14 @@ fn proposed_ids_require_ascii_letters_digits_or_underscore_in_v2_only() {
     for good in ["A", "_", "BUY_01", "x".repeat(64).as_str()] {
         assert!(valid_submit_client_id(good).is_ok());
         assert!(request(Command::Approve(Box::new(ticket(good))))
-            .encode().is_ok());
+            .encode()
+            .is_ok());
     }
     for bad in ["", "legacy-id", "legacy.id", "two words", "/escape", "é"] {
         assert!(valid_submit_client_id(bad).is_err());
         assert!(request(Command::Approve(Box::new(ticket(bad))))
-            .encode().is_err());
+            .encode()
+            .is_err());
     }
     assert!(valid_submit_client_id(&"x".repeat(65)).is_err());
     // Historic v1 review IDs remain valid on their existing wire.
@@ -55,7 +57,9 @@ fn proposed_ids_require_ascii_letters_digits_or_underscore_in_v2_only() {
     assert!(Request {
         command: Command::Approve(Box::new(ticket("legacy-id"))),
         correlation: [4; 16],
-    }.encode().is_ok());
+    }
+    .encode()
+    .is_ok());
 }
 
 #[test]
