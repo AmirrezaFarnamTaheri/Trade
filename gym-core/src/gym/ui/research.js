@@ -347,9 +347,20 @@ window.gymResearch = (() => {
         const result = await call(action, value);
         prospectiveShow(action, result);
         $('research-workspace-status').textContent = text('Paper workflow completed.', 'گردش‌کار آزمایشی انجام شد.');
-      } catch {
-        prospectiveError(text('Outcome not confirmed. Inspect the saved ID before any further mutation; do not retry a consumed evaluation.',
-          'نتیجه تأیید نشد. پیش از هر تغییر دیگر شناسه ثبت‌شده را بررسی کنید و ارزیابی مصرف‌شده را تکرار نکنید.'));
+      } catch (error) {
+        // The shared API exposes bounded 4xx server validation text as error.detail,
+        // not error.message. Do not display 5xx bodies or automatically retry.
+        const detail = typeof error?.detail === 'string' && error.detail.trim()
+          ? error.detail.slice(0, 240) : '';
+        const guidance = action === 'prospective-evaluate'
+          ? text('Outcome not confirmed. Inspect the saved ID before any further mutation; do not retry a consumed evaluation.',
+            'نتیجه تأیید نشد. پیش از هر تغییر دیگر شناسه ثبت‌شده را بررسی کنید و ارزیابی مصرف‌شده را تکرار نکنید.')
+          : action === 'prospective-register'
+            ? text('Registration was not confirmed. Correct the inputs; if a previous ID exists, inspect it before retrying.',
+              'ثبت تأیید نشد. ورودی‌ها را اصلاح کنید؛ اگر شناسهٔ قبلی دارید، پیش از تلاش دوباره آن را بررسی کنید.')
+            : text('Could not read registration status. Verify the saved ID and retry this read-only inspection.',
+              'وضعیت ثبت خوانده نشد. شناسهٔ ذخیره‌شده را بررسی کرده و این مشاهدهٔ فقط‌خواندنی را تکرار کنید.');
+        prospectiveError(guidance + (detail ? ' · ' + detail : ''));
       } finally {
         prospectiveBusy = false; button.disabled = false;
       }
@@ -364,6 +375,12 @@ window.gymResearch = (() => {
         if (!(selected <= Date.now() && Date.now() < from && from < to && to - from <= 31 * 86400000))
           throw new Error(text('Selection cutoff must be past; evaluation must be a disjoint future window of at most 31 days.',
             'پایان انتخاب باید در گذشته باشد و ارزیابی در بازه‌ای جدا در آینده با حداکثر ۳۱ روز انجام شود.'));
+        const resolution = $('prospective-resolution').value;
+        const units = /^([1-9][0-9]*)(min|h|day)$/.exec(resolution);
+        const stepMs = units ? Number(units[1]) * {min: 60000, h: 3600000, day: 86400000}[units[2]] : NaN;
+        if (!Number.isFinite(stepMs) || from - selected < stepMs || (to - from) / stepMs > 1440)
+          throw new Error(text('Purge at least one fixed bar after selection; use at most 1440 evaluation closes.',
+            'پس از انتخاب دست‌کم یک بازهٔ ثابت فاصله دهید؛ ارزیابی حداکثر ۱۴۴۰ بسته‌شدن دارد.'));
         const cash = $('prospective-cash').value.trim(), fee_rate = $('prospective-fee').value.trim();
         if (!prospectiveNumberPattern.test(cash) || /^0(?:\.0+)?$/.test(cash) || !prospectiveNumberPattern.test(fee_rate))
           throw new Error(text('Cash and fees must be nonnegative exact decimal strings; cash must be positive.',
@@ -378,7 +395,7 @@ window.gymResearch = (() => {
         const symbol = $('prospective-symbol').value.trim();
         if (!/^[A-Z0-9]{2,24}$/.test(symbol)) throw new Error(text('Enter a valid uppercase market symbol.', 'یک نماد بازار معتبر با حروف بزرگ وارد کنید.'));
         prospectiveCall(event.target.querySelector('button'), 'prospective-register',
-          {symbol, candidates, selection_end, test_from, test_to, resolution: $('prospective-resolution').value, cash, fee_rate});
+          {symbol, candidates, selection_end, test_from, test_to, resolution, cash, fee_rate});
       } catch (error) { prospectiveError(error.message || text('Invalid registration.', 'ثبت نامعتبر است.')); }
     };
     const prospectiveSavedId = () => {
