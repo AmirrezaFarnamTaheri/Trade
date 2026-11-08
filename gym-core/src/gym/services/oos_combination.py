@@ -34,7 +34,7 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
             or type(lookback) is not int or not 3 <= lookback <= 100):
         raise ValueError("invalid OOS combination size or lookback")
     if rebalance_cost_bps is not None:
-        charge = _number(rebalance_cost_bps, "rebalance cost", positive=True)
+        charge = _number(rebalance_cost_bps, "rebalance cost")
         if charge > 500:
             raise ValueError("OOS combination rebalance cost exceeds bound")
     else:
@@ -129,8 +129,8 @@ def combine_verified_oos(root, request, *, store):
     fields(request, "run_ids lookback rebalance_cost_bps")
     ids = request["run_ids"]
     if (type(ids) is not list or not 2 <= len(ids) <= 4
-            or len(set(ids)) != len(ids)
-            or any(type(key) is not str for key in ids)):
+            or any(type(key) is not str for key in ids)
+            or len(set(ids)) != len(ids)):
         raise ValueError("need 2..4 distinct prospective native run IDs")
     root = Path(root) / "runs"
     runs = [load_verified_run(root, key, store=store) for key in ids]
