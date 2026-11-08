@@ -68,3 +68,38 @@ def test_hrp_native_portfolio_replay_has_an_opt_in_version(tmp_path):
                    for event in out["result"]["policy_events"] if event["kind"] == "TARGETS")
     finally:
         db.c.close()
+
+
+def test_hrp_parkinson_rescale_preserves_exact_covariance_symmetry(monkeypatch):
+    """Exact Decimal symmetry survives asymmetric multiplication rounding."""
+    from gym.domain import portfolio_policy as module
+
+    # Positive-definite covariance, but rounded products have different
+    # off-diagonal last digits in opposite multiplication orders.
+    cross = Decimal("79648984051333.2727272727272727")
+    mocked = [[Decimal("1e32"), cross], [cross, Decimal("1e32")]]
+    monkeypatch.setattr(module, "ledoit_wolf_constant_correlation",
+                        lambda *_: {"covariance": mocked, "intensity": Decimal("0.5")})
+    scalars = iter([Decimal("0.362713435339668662789710559685568163507675245478855957641668"),
+                    Decimal("0.319456961257526833064814527944512611149391125666539507478619")])
+    monkeypatch.setattr(module, "parkinson_ewma", lambda *_: next(scalars))
+    seen = []
+
+    def check_symmetry(covariance):
+        """Fail before clustering if rounding made an otherwise valid matrix asymmetric."""
+        assert covariance[0][1] == covariance[1][0]
+        seen.append(True)
+        return [Decimal("0.5"), Decimal("0.5")], [0, 1]
+
+    monkeypatch.setattr(module, "hierarchical_risk_parity", check_symmetry)
+    history = {
+        "BTCUSDT": [(i, Decimal(p), Decimal(p + 3), Decimal(p - 3))
+                    for i, p in enumerate((100, 110, 95, 120))],
+        "ETHUSDT": [(i, Decimal(p), Decimal(p + 4), Decimal(p - 4))
+                    for i, p in enumerate((103, 102, 115, 99))]
+    }
+    policy = module.PortfolioPolicy({"method": "hierarchical-risk-parity", "lookback": 3,
+                                     "covariance_shrinkage": "ledoit-wolf-constant-correlation",
+                                     "volatility_model": "parkinson-ewma"}, list(history))
+    assert policy.weights(history)["status"] == "READY"
+    assert seen
