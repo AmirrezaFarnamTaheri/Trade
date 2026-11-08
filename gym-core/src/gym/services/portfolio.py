@@ -225,7 +225,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                     if histories[s] and close - histories[s][-1][0] != session.bar_spec.step:
                         histories[s].clear()
                         if (controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None
-                                or controller.portfolio_volatility_target is not None or controller.usdt_fx_risk):
+                                or controller.portfolio_volatility_target is not None or controller.usdt_fx_risk
+                                or controller.expected_shortfall_limit is not None):
                             weights = {"status": "WARMING_UP", "weights": {symbol: "0" for symbol in symbols}, "risk_contribution_error": None}
                             next_rebalance = close
                             rebalance_pending.clear()
@@ -347,6 +348,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         inputs["portfolio_version"] = 9 if controller.portfolio_volatility_target is not None else 8
         inputs["fx_risk_data"] = digest([(iso(top.ts_avail), top.bid, top.ask, sorted(top.flags))
                                          for top in fx_risk_tops])
+    if controller.expected_shortfall_limit is not None:
+        inputs["portfolio_version"] = 10
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
