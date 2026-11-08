@@ -8,6 +8,7 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 from itertools import pairwise
 
 from ..domain.bars import qualified
+from ..domain.execution_costs import modeled_execution_cost
 from ..domain.market_models import rate
 from ..domain.model import iso
 from ..domain.strategy import digest
@@ -26,7 +27,7 @@ def _floor(value, decimals):
 
 def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slices,
                   participation, fee_rate, available_quote, available_base,
-                  max_delay_seconds, store):
+                  max_delay_seconds, store, cost=None):
     """Model bounded child attempts without reusing observed top-of-book capacity."""
     if store not in ("live", "demo") or side not in ("BUY", "SELL"):
         raise ValueError("unsupported paper TWAP mode")
@@ -45,6 +46,8 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
     if participation > 1:
         raise ValueError("participation cannot exceed one")
     fee = rate(str(fee_rate))
+    if cost is not None:
+        cost.assert_causal(start)
     if len(quotes) > MAX_QUOTES or any(q.symbol != instrument.symbol for q in quotes):
         raise ValueError("invalid quote series")
     if any(a.ts_avail > b.ts_avail for a, b in pairwise(quotes)):
@@ -75,6 +78,8 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
             reason = "NO_TIMELY_QUOTE"
             qty = Decimal(0)
             price = None
+            pricing = None
+            applied_fee = fee
             if chosen is not None:
                 if not qualified(chosen) or "CLOSED" in chosen.flags:
                     reason = "UNQUALIFIED_OR_CLOSED"
@@ -86,6 +91,34 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
                     else:
                         available = remaining_quote / price if side == "BUY" else remaining_base
                         qty = _floor(min(target, displayed * participation, available), spec.qty_decimals)
+                        if cost is not None and qty > 0:
+                            modeled = modeled_execution_cost(
+                                cost, instrument.symbol, chosen.ts_avail, qty,
+                                chosen.bid, chosen.ask)
+                            if modeled is not None:
+                                if modeled["uplift_bps"] > 200:
+                                    qty = Decimal(0)
+                                    reason = "MODELED_IMPACT_PRICE_GUARD"
+                                else:
+                                    mid = (chosen.bid + chosen.ask) / 2
+                                    uplift = mid * modeled["uplift_bps"] / 10000
+                                    price = price + uplift if side == "BUY" else price - uplift
+                                    if price <= 0:
+                                        qty = Decimal(0)
+                                        reason = "MODELED_IMPACT_PRICE_GUARD"
+                                    else:
+                                        available = remaining_quote / price if side == "BUY" else remaining_base
+                                        qty = _floor(min(qty, available), spec.qty_decimals)
+                                        modeled = modeled_execution_cost(
+                                            cost, instrument.symbol, chosen.ts_avail, qty,
+                                            chosen.bid, chosen.ask)
+                                        pricing = modeled["pricing"]
+                                        applied_fee = modeled["fee_rate"]
+                                        price = (chosen.ask if side == "BUY" else chosen.bid)
+                                        uplift = mid * modeled["uplift_bps"] / 10000
+                                        price = price + uplift if side == "BUY" else price - uplift
+                                        available = remaining_quote / price if side == "BUY" else remaining_base
+                                        qty = _floor(min(qty, available), spec.qty_decimals)
                         notional = qty * price
                         if (qty <= 0 or (spec.min_qty is not None and qty < spec.min_qty)
                                 or (spec.min_notional is not None and notional < spec.min_notional)):
@@ -96,22 +129,23 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
                             if side == "BUY":
                                 remaining_quote -= notional
                                 spent_quote += notional
-                                fee_base += qty * fee
-                                received_base += qty * (1 - fee)
-                                remaining_base += qty * (1 - fee)
+                                fee_base += qty * applied_fee
+                                received_base += qty * (1 - applied_fee)
+                                remaining_base += qty * (1 - applied_fee)
                             else:
                                 remaining_base -= qty
                                 gross = qty * price
-                                fee_quote += gross * fee
-                                received_quote += gross * (1 - fee)
-                                remaining_quote += gross * (1 - fee)
+                                fee_quote += gross * applied_fee
+                                received_quote += gross * (1 - applied_fee)
+                                remaining_quote += gross * (1 - applied_fee)
             filled += qty
             status = "NONFILL" if qty == 0 else "FILLED" if qty == target else "PARTIAL"
             children.append({"slice": idx + 1, "scheduled_at": iso(slot),
                              "observation_at": iso(chosen.ts_avail) if chosen else None,
                              "requested_quantity": str(target), "filled_quantity": str(qty),
                              "unfilled_quantity": str(target - qty), "status": status,
-                             "reason": reason, "price": str(price) if price is not None else None})
+                             "reason": reason, "price": str(price) if price is not None else None,
+                             **({"pricing": pricing} if pricing is not None else {})})
     # The child split can contain 80-digit repeating fractions when a market
     # has no known quantity precision; Python's default 28 digits are unsafe.
     with localcontext() as context:
@@ -131,6 +165,7 @@ def simulate_twap(instrument, quotes, spec, start, end, *, side, quantity, slice
               "remaining_quote": str(remaining_quote), "remaining_base": str(remaining_base),
               "initial_quote": str(available_quote), "initial_base": str(available_base),
               "fee_rate": str(fee), "participation": str(participation),
+              **({"cost_models": cost.describe() if cost is not None else None} if cost is not None else {}),
               "max_delay_seconds": max_delay_seconds, "children": children,
               "authority": "PAPER_ONLY", "funded_authority": False, "order_submitted": False,
               "cancel_submitted": False,
