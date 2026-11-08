@@ -9,8 +9,8 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 from .bars import qualified
 from .market_models import decimal
 from .model import BookTop, InstrumentId, iso
-from .volatility import parkinson_ewma
 from .rules import Rule, evaluate, tehran_day
+from .volatility import parkinson_ewma
 
 
 @dataclass(frozen=True)
