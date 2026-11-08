@@ -4,6 +4,7 @@ Two separately retained public margin PREVIEW receipts provide distinct long
 and short terms. Both legs replay inside one immutable local market snapshot.
 This is NOT executable pairs trading, margin eligibility or profit evidence.
 """
+from datetime import timedelta
 from decimal import Decimal, localcontext
 
 from ..adapters.store import MarketDB
