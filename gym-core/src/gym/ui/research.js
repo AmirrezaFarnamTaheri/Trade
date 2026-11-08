@@ -399,7 +399,7 @@ window.gymResearch = (() => {
         if (!$('prospective-ack').checked) throw new Error(text('Explicit one-time evaluation acknowledgment is required.',
           'تأیید آگاهانهٔ ارزیابی یک‌باره الزامی است.'));
         $('prospective-ack').checked = false;
-        prospectiveCall(event.target.querySelector('button'), 'prospective-evaluate', id);
+        prospectiveCall(event.target.querySelector('button[type="submit"]'), 'prospective-evaluate', id);
       } catch (error) { prospectiveError(error.message); }
     };
     $('coverage-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
