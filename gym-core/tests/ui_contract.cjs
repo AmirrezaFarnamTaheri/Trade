@@ -249,7 +249,7 @@ const click = async id => {
     assert.ok(control("research-workspace").innerHTML.includes('id="prospective-register-form"'), "Future comparisons need an accessible guided form");
     assert.ok(control("research-workspace").innerHTML.includes('id="prospective-evaluate-form"'), "One-time future evaluation must be a distinct opt-in");
     control("prospective-symbol").value = "BTCUSDT";
-    control("prospective-selection-end").value = "2099-01-01T00:00";
+    control("prospective-selection-end").value = "2026-01-01T00:00";
     control("prospective-test-from").value = "2099-01-02T00:00";
     control("prospective-test-to").value = "2099-01-03T00:00";
     control("prospective-resolution").value = "15min";
