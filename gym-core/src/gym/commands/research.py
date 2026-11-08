@@ -26,8 +26,8 @@ def replay_cmd(args) -> int:
     """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
     from ..domain.strategy import digest
-    from ..services.cost_defaults import calibrated_cost
     from ..services.attribution import toman_attribution
+    from ..services.cost_defaults import calibrated_cost
     from ..services.paper import paper
     from ..services.reports import text_report
     from ..services.research import compare
