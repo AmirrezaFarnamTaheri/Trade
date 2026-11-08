@@ -3,7 +3,10 @@ from datetime import timedelta
 
 import pytest
 
-from gym.contracts.order_submission_v2 import PaperSubmissionGate, valid_submit_client_id
+from gym.contracts.order_submission_v2 import (
+    PaperSubmissionGate,
+    valid_submit_client_id,
+)
 from tests.support import START
 
 
