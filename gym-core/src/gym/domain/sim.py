@@ -114,6 +114,10 @@ class CostModel:
                 if len(recent) < self.vol_lookback:
                     return Decimal(0)
                 vol = parkinson_ewma(recent)
+                if vol <= 0:
+                    # A flat range is an unidentifiable risk scale, not a safe
+                    # zero-risk position; abstain only for this opt-in model.
+                    return Decimal(0)
             else:
                 recent = closes[-(self.vol_lookback + 1):]
                 if len(recent) <= self.vol_lookback:
