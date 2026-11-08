@@ -196,7 +196,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                 if session.decisions and session.decisions[-1]["t"] == iso(close):
                     if histories[s] and close - histories[s][-1][0] != session.bar_spec.step:
                         histories[s].clear()
-                        if controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None:
+                        if (controller.description["method"] != "equal" or controller.description["correlation_limit"] is not None
+                                or controller.portfolio_volatility_target is not None):
                             weights = {"status": "WARMING_UP", "weights": {symbol: "0" for symbol in symbols}, "risk_contribution_error": None}
                             next_rebalance = close
                             rebalance_pending.clear()
