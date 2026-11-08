@@ -192,7 +192,7 @@ class PaperSession:
                     self.pending = None
                 if side == "BUY" and not self.pending and (self.cost.max_fraction is not None or self.cost.vol_target is not None):
                     ranges = [(Decimal(d["bar_known"]["high"]), Decimal(d["bar_known"]["low"]))
-                              for d in self.decisions] + [(bar.high, bar.low)]
+                              for d in self.decisions[-self.cost.vol_lookback:]] + [(bar.high, bar.low)]
                     fraction = self.cost.size(
                         fraction, [Decimal(d["close"]) for d in self.decisions] + [bar.close], ranges=ranges)
                     decision["sized_fraction"] = str(fraction)
