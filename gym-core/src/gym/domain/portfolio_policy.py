@@ -10,6 +10,7 @@ from .volatility import parkinson_ewma
 
 class PortfolioPolicy:
     def __init__(self, value, symbols):
+        """Validate a bounded, paper-only allocation policy and risk limits."""
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
@@ -45,6 +46,7 @@ class PortfolioPolicy:
         self.drawdown_latched = self.daily_latched = False
 
     def observe(self, at, equity):
+        """Update local drawdown and Tehran trading-day loss latches."""
         if at.tzinfo is None or not equity.is_finite() or equity < 0 or self.previous_at and at < self.previous_at:
             raise ValueError("portfolio risk requires chronological finite equity observations")
         self.previous_at = at
@@ -59,6 +61,7 @@ class PortfolioPolicy:
         return "DRAWDOWN" if self.drawdown_latched else "DAILY_LOSS" if self.daily_latched else None
 
     def weights(self, observations):
+        """Produce a causal target allocation with optional shrinkage receipts."""
         n, count = len(self.symbols), self.description["lookback"]
         zero = {s: "0" for s in self.symbols}
         result = {"status": "READY", "weights": zero, "risk_contribution_error": None}
@@ -149,20 +152,22 @@ class PortfolioPolicy:
                 baseline = PortfolioPolicy(
                     {k: v for k, v in self.description.items() if k != "covariance_shrinkage"},
                     self.symbols).weights(observations)
-                if baseline["status"] != "READY":
-                    raise ValueError("counterfactual covariance weights are unavailable")
                 def turnover(previous, current):
+                    """Measure half-L1 change in successive allocation targets."""
                     if previous is None:
                         return None
                     return str(sum((abs(Decimal(current[s]) - Decimal(previous[s]))
                                     for s in self.symbols), Decimal(0)) / 2)
 
-                raw, chosen = baseline["weights"], result["weights"]
+                raw = baseline["weights"] if baseline["status"] == "READY" else None
+                chosen = result["weights"]
                 result["covariance_shrinkage"] = {
                     "method": "ledoit-wolf-constant-correlation/1",
                     "target": "constant-correlation",
                     "intensity": str(shrinkage["intensity"]),
-                    "turnover_raw": turnover(getattr(self, "_last_raw_weights", None), raw),
+                    "raw_status": baseline["status"],
+                    "turnover_raw": (turnover(getattr(self, "_last_raw_weights", None), raw)
+                                     if raw is not None else None),
                     "turnover_shrunk": turnover(getattr(self, "_last_shrunk_weights", None), chosen),
                     "turnover_basis": "half L1 change of successive target weights, not executed fills"}
                 self._last_raw_weights, self._last_shrunk_weights = raw, chosen
