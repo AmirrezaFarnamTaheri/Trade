@@ -8,9 +8,11 @@ from ..adapters.run_store import list_runs, load_verified_run, save_run
 from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, fields, instant
 from ..domain.sim import CostModel
+from ..domain.strategy import digest
 from .attribution import toman_attribution
 from .collector import now_utc
 from .portfolio import MAX_MARKETS, portfolio
+from .trial_ledger import TrialLedger
 
 
 def portfolio_action(root, action, value, *, store):
@@ -28,7 +30,7 @@ def portfolio_action(root, action, value, *, store):
         return out
     required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
     if (type(value) is not dict or not required <= value.keys()
-            or value.keys() - required - {"policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share"}):
+            or value.keys() - required - {"policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis"}):
         raise ValueError("invalid portfolio replay fields")
     symbols = value["symbols"]
     as_of_request = "top_n" in value
@@ -77,6 +79,10 @@ def portfolio_action(root, action, value, *, store):
             symbols = selection["symbols"]
         if any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + s,)).fetchone() for s in symbols):
             raise ValueError("portfolio requires observed markets")
+        with TrialLedger(root) as ledger:
+            ledger.record(symbol=",".join(symbols), start=start, end=end,
+                          hypothesis=value.get("hypothesis", "ad-hoc"), source="portfolio",
+                          config_hash=digest({"replay": value, "selected_symbols": symbols}))
         quality_gate = None
         if "quality_max_bad_share" in value:
             from .data_quality_gate import quote_coverage

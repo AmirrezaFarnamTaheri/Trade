@@ -69,3 +69,19 @@ def test_deflated_sharpe_uses_all_prior_question_attempts(tmp_path):
     selection = selection_check(candidates, trials=attempts)
     assert selection["trials"] == 5
     assert selection["deflated_sharpe"] < selection_check(candidates, trials=2)["deflated_sharpe"]
+
+
+def test_api_portfolio_replay_is_counted_across_repeated_identical_requests(tmp_path):
+    """An API caller cannot bypass global search accounting by reusing a saved run ID."""
+    from gym.services.research_actions import research_action
+    from tests.test_portfolio_workflow import request
+
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
+    db.c.close()
+    value = request()
+    first = research_action(tmp_path, "portfolio-replay", value)
+    second = research_action(tmp_path, "portfolio-replay", value)
+    assert first["run_id"] == second["run_id"]
+    with TrialLedger(tmp_path) as ledger:
+        assert ledger.count(symbol="BTCUSDT,ETHUSDT", start=START,
+                            end=START + timedelta(minutes=30), hypothesis="ad-hoc") == 2
