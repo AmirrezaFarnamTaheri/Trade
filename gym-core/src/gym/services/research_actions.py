@@ -175,9 +175,15 @@ def research_action(root, action, value=None, *, store="live", at=None):
     if action in OPERATOR_ACTIONS:
         return operator_action(root, action, value, store=store)
     if action == "fractional-sizing":
+        from ..adapters.run_store import save_run
         from .fractional_sizing import fractional_sizing
         with ResearchProtocol(root, store=store) as protocol:
-            return fractional_sizing(protocol, value)
+            report = fractional_sizing(protocol, value)
+        # Research receipts are immutable. A later portfolio can only
+        # reference the same verified prior evaluation, not pasted numbers.
+        save_run({"run_id": report["report_id"], "report": report},
+                 root / "runs" / "fractional_sizing")
+        return report
     if action == "experiment-scorecard":
         from .experiment_scorecard import experiment_scorecard
         with ExperimentRegistry(root, store=store) as registry:
