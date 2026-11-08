@@ -29,7 +29,7 @@ def preview(quotes, trades, **changes):
                  "participation": Decimal("0.5"), "fee_rate": Decimal("0.001"),
                  "available_quote": Decimal(1000), "available_base": Decimal(0),
                  "max_delay_seconds": 10, "store": "demo",
-                 "volume_lookback_seconds": 120, "max_spread_bps": Decimal(50)}
+                 "volume_lookback_seconds": 120, "max_spread_bps": Decimal(300)}
     return adaptive_twap(InstrumentId.wallex("BTCUSDT"), quotes, trades, Spec(qty_decimals=2),
                          START, START + timedelta(minutes=2), **{**arguments, **changes})
 
