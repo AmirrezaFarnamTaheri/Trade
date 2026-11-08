@@ -31,12 +31,14 @@ def growth_fraction(returns):
 
 
 def simple_roundtrips(orders, trades):
+    """Reject interleaved or overlapping trades that lack a simple cash-flow model."""
     filled = [o for o in orders if o["status"] == "FILLED"]
     return (len(filled) == 2 * len(trades) and all(o["side"] == ("BUY" if i % 2 == 0 else "SELL") for i, o in enumerate(filled))
             and all(parse_ts(b["opened_at"]) >= parse_ts(a["closed_at"]) for a, b in pairwise(trades)))
 
 
 def fractional_sizing(protocol, request):
+    """Build a bounded descriptive log-growth report from one verified evaluation."""
     fields(request, "evaluation_id fraction cap seed simulations block_length")
     fraction, cap = rate(request["fraction"], "fraction"), rate(request["cap"], "cap")
     if not 0 < fraction <= Decimal("0.5") or not 0 < cap <= Decimal("0.25"):
