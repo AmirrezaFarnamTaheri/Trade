@@ -82,7 +82,9 @@ def shadow_drift(historical, shadow, *, observed_at):
                  / (len(values) - 1)).sqrt()
         report["mean_prior_daily_return"] = str(+mean)
         report["sigma_prior_daily_return"] = str(+stdev)
-        if stdev <= 0:
+        if stdev <= Decimal("1e-20"):
+            # Finite-precision cumulative equity can leave sub-ULP noise
+            # even when every economic daily return is identical.
             report["status"] = "UNIDENTIFIABLE_BASELINE"
         elif not future:
             report["status"] = "NO_COMPLETE_SHADOW_DAYS"
