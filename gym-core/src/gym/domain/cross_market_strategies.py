@@ -13,6 +13,7 @@ class TomanPremium:
 
     def __init__(self, entry_bps=50, exit_bps=0, conversion_cost_bps=20, max_skew_seconds=10,
                  z_entry=0, z_exit=0, half_life_multiple=0):
+        """Configure an opt-in premium model without changing legacy strategy identity."""
         if (type(z_entry) is not int or type(z_exit) is not int or type(half_life_multiple) is not int
                 or not 0 <= z_entry <= 8 or not 0 <= z_exit <= 8 or not 0 <= half_life_multiple <= 20
                 or (z_exit or half_life_multiple) and not z_entry):
@@ -30,9 +31,11 @@ class TomanPremium:
 
     @staticmethod
     def reference_symbols(instrument):
+        """Require contemporaneous asset/USDT and USDT/TMN reference books."""
         return (instrument.base + "USDT", "USDTTMN") if instrument.quote == "TMN" and instrument.base != "USDT" else ()
 
     def decide(self, snap, holding):
+        """Make a paper-only decision using only currently available quote history."""
         quotes = {q.symbol: q for q in snap.auxiliary_quotes}
         required = (snap.symbol[:-3] + "USDT", "USDTTMN") if snap.symbol.endswith("TMN") and snap.symbol != "USDTTMN" else ()
         self.ready = False
@@ -94,6 +97,7 @@ class TomanPremium:
         return self.answer(action, "declared discount/cost/reversion rule")
 
     def answer(self, action, reason):
+        """Return a signed-strength paper signal with a digest of observed features."""
         return action, Decimal(int(action in ("BUY_REQUEST", "SELL_REQUEST"))), (reason,), digest(self.feature_values)[:16]
 
 
@@ -104,6 +108,7 @@ class LeadLag:
 
     def __init__(self, lookback=20, reference="ETHUSDT", entry_bps=50, lag_bps=30,
                  max_skew_seconds=10, delay_bars=0):
+        """Configure the causal reference delay, defaulting to the legacy signal."""
         if type(delay_bars) is not int or not 0 <= delay_bars <= 12:
             raise ValueError("optional lead-lag delay must be 0..12")
         self.params = {"lookback": lookback, "reference": reference, "entry_bps": entry_bps,
@@ -117,6 +122,7 @@ class LeadLag:
         self.feature_values, self.ready = {}, False
 
     def decide(self, snap, holding):
+        """Reject discontinuous histories and compute delayed reference returns."""
         if self.last_end != snap.bar.start:
             self.history.clear()
         self.last_end, self.ready = snap.bar.end, False
