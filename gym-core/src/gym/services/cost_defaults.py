@@ -17,7 +17,7 @@ from ..domain.strategy import digest
 from .collector import now_utc
 
 _MAX_AGE = timedelta(hours=24)
-_FALLBACK_FEE = Decimal("0.001")
+_FALLBACK_FEE = Decimal(os.environ.get("GYM_FEE_RATE", "0.001"))
 _FALLBACK_LATENCY_MS = 500
 
 

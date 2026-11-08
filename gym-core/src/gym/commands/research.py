@@ -49,6 +49,7 @@ def replay_cmd(args) -> int:
         options = {"resolution": args.res, "cash": cash,
                    "cost": calibrated_cost(store_root(args), symbol, fee=args.fee, maker_fee=args.maker_fee,
                                            latency_ms=args.latency_ms, order_type=args.order_type,
+                                           now=start,  # No receipt published after the historical test start.
                                            max_participation=participation, walk_depth=args.walk_depth,
                                            carry_remainder=args.carry_remainder,
                                            max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,

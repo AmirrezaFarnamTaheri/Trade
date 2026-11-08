@@ -56,6 +56,16 @@ def test_explicit_flags_win_and_stale_or_demo_data_cannot_change_defaults(tmp_pa
     assert "calibration" not in other.describe()
 
 
+def test_historical_replay_cannot_use_calibration_published_after_its_start(tmp_path):
+    """A later account or feed receipt cannot be used as a historical cost input."""
+    observed = START + timedelta(minutes=30)
+    _receipts(tmp_path, observed)
+    out = calibrated_cost(tmp_path, "BTCUSDT", order_type="limit", now=START)
+    assert out.describe()["fee_rate"] == "0.001"
+    assert out.describe()["latency_ms"] == 500
+    assert "calibration" not in out.describe()
+
+
 def test_synthetic_feed_does_not_set_live_latency(tmp_path):
     at = START + timedelta(hours=1)
     save_calibration(tmp_path, {
