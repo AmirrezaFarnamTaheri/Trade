@@ -255,3 +255,34 @@ def test_expected_shortfall_requires_explicit_rebalancing_and_track_record():
                   {"expected_shortfall_limit": "0", "rebalance": True, "lookback": 20}):
         with pytest.raises(ValueError):
             PortfolioPolicy(value, ["BTCUSDT", "ETHUSDT"])
+
+
+def test_cost_aware_rebalance_band_uses_observed_spread_and_fees(tmp_path):
+    """Opt-in no-trade bands report prior quote costs and weighted drift."""
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
+    try:
+        policy = {"rebalance": True, "rebalance_seconds": 300,
+                  "rebalance_threshold": "0.0001", "cost_aware_rebalance": True}
+        out = portfolio(db, ["BTCUSDT", "ETHUSDT"], START,
+                        START + timedelta(minutes=25), resolution="1min",
+                        policy=policy, cost=CostModel(fee_rate=Decimal("0.05")))
+        assert out["inputs"]["portfolio_version"] >= 11
+        events = [row for row in out["result"]["policy_events"] if row["kind"] == "REBALANCE_BAND"]
+        assert events
+        for event in events:
+            assert Decimal(event["band_fraction"]) >= Decimal("0.1")
+            assert Decimal(event["tracking_error_fraction"]) >= 0
+            assert Decimal(event["modeled_cost_fraction"]) >= Decimal("0.1")
+            assert event["source_quote_time"] <= event["at"]
+            assert event["requested"] == (Decimal(event["tracking_error_fraction"]) >
+                                          Decimal(event["band_fraction"]))
+    finally:
+        db.c.close()
+
+
+def test_cost_aware_rebalance_requires_explicit_rebalance_and_boolean():
+    for params in ({"cost_aware_rebalance": True},
+                   {"rebalance": True, "cost_aware_rebalance": "yes"},
+                   {"rebalance": True, "cost_aware_rebalance": 1}):
+        with pytest.raises(ValueError):
+            PortfolioPolicy(params, ["BTCUSDT", "ETHUSDT"])
