@@ -163,8 +163,8 @@ def test_prospective_registry_freezes_future_candidates(tmp_path):
         assert record["kind"] == "PROSPECTIVE_COMPARE"
         assert record["configuration"]["candidates"][0]["params"]["fast"] == 8
         assert record["funded_authority"] is False
-        with pytest.raises(ValueError, match="overlaps"):
-            register_comparison(registry, request, now=START + timedelta(minutes=1))
+        repeated = register_comparison(registry, request, now=START + timedelta(minutes=1))
+        assert repeated["id"] == record["id"]  # idempotent retry after uncertain ledger failure
         with pytest.raises(ValueError):
             register_comparison(registry, {**request, "test_from": START.isoformat()}, now=START)
         with pytest.raises(ValueError):
