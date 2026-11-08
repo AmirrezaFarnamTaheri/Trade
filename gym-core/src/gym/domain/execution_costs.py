@@ -167,7 +167,15 @@ def _validate_hourly_costs(models):
 
 
 def validate_postfill_costs(models):
-    """Accept only bounded, labeled paper adverse-move receipts with past cutoffs."""
+    """Normalize malformed paper receipts to the existing validation-error contract."""
+    try:
+        _validate_postfill_costs(models)
+    except (KeyError, TypeError):
+        raise ValueError("invalid paper postfill costs") from None
+
+
+def _validate_postfill_costs(models):
+    """Validate exact schema, sample count, bounded penalty and recorded cutoff."""
     if models is None:
         return
     if type(models) is not dict or not 1 <= len(models) <= 20:
@@ -223,9 +231,9 @@ def modeled_execution_cost(cost, symbol, at, quantity, bid, ask, *, maker=False)
         label = "maker_fee_rate" if maker else "taker_fee_rate"
         if group and group.get(label) is not None:
             fee = Decimal(group[label])
-        extra = Decimal(postfill["penalty_bps"]) if postfill is not None else Decimal(0)
+        extra = Decimal(postfill["penalty_bps"]) if postfill is not None and not maker else Decimal(0)
         return {"uplift_bps": spread_add + impact_add + extra, "fee_rate": fee,
-                "pricing": {**({"postfill_adverse_bps": str(+extra)} if postfill is not None else {}),
+                "pricing": {**({"postfill_adverse_bps": str(+extra)} if postfill is not None and not maker else {}),
                             "observed_spread_bps": str(+observed),
                             "modeled_spread_bps": str(+spread),
                             "spread_uplift_bps": str(+spread_add),

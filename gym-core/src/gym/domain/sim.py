@@ -49,6 +49,7 @@ class CostModel:
     postfill_costs: dict | None = None  # prior paper markout penalty, never independently verified fills
 
     def __post_init__(self):
+        """Reject invalid fee, sizing, limit and opt-in cost-model parameters."""
         if not self.fee_rate.is_finite() or not 0 <= self.fee_rate < 1:
             raise ValueError("fee must be finite and in [0,1)")
         if self.latency < timedelta(0) or self.max_wait < self.latency:
@@ -75,6 +76,7 @@ class CostModel:
         validate_postfill_costs(self.postfill_costs)
 
     def describe(self) -> dict:
+        """Serialize enabled paper cost assumptions without changing legacy identities."""
         out = {"fee_rate": str(self.fee_rate), "latency_ms": self.latency // timedelta(milliseconds=1),
                "max_wait_s": self.max_wait.total_seconds(), "fee_assumption": self.fee_assumption}
         if self.max_participation is not None:  # absent by default so earlier run identities are unchanged
@@ -136,6 +138,7 @@ class CostModel:
 
     @classmethod
     def from_description(cls, d: dict) -> CostModel:
+        """Reconstruct a validated cost model from an immutable run description."""
         if d.get("limit_fill_model", "queue-capacity/2") != "queue-capacity/2":
             raise ValueError("unsupported limit fill model")
         return cls(Decimal(d["fee_rate"]), timedelta(milliseconds=d["latency_ms"]), timedelta(seconds=d["max_wait_s"]),

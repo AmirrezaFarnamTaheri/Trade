@@ -18,7 +18,10 @@ def _daily_returns(run, *, before):
     for item in observations:
         if type(item) not in (tuple, list) or len(item) != 2:
             raise ValueError("malformed shadow equity mark")
-        at, value = parse_ts(item[0]), Decimal(item[1])
+        try:
+            at, value = parse_ts(item[0]), Decimal(item[1])
+        except (ArithmeticError, TypeError):
+            raise ValueError("malformed shadow equity mark") from None
         if previous is not None and at <= previous:
             raise ValueError("shadow equity marks must be strictly chronological")
         previous = at

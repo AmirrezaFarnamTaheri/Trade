@@ -52,8 +52,9 @@ opt-in so older run IDs and research receipts retain their meaning.
 
 - **39:** Paper markouts read only qualified future quote midpoints *after* their
   synthetic fill, preserving missing horizons. A 30-sample, bounded adverse
-  5-minute profile may optionally affect later paper costs; it is never fit
-  within the replay that consumes it. Real authenticated fill markouts and
+  5-minute profile may optionally affect later paper costs and is fitted from
+  a qualified fill-time midpoint rather than the spread-bearing fill price;
+  it is never fit within the replay that consumes it. Real authenticated fill markouts and
   actual execution-cost correction remain outstanding.
 - **40:** The on-demand, matched/disjoint historical-versus-shadow report uses
   complete consecutive UTC days and a fixed training sample. A shadow daily

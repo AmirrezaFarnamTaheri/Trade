@@ -84,6 +84,17 @@ def test_oversize_fair_price_journal_still_allows_reads_but_refuses_writes(tmp_p
             journal.record(payload, received_at=START + timedelta(seconds=12))
 
 
+def test_near_future_event_timestamp_respects_five_second_ingest_grace(tmp_path):
+    """An event timestamp ahead of receipt by five seconds remains usable briefly."""
+    with fair_price.FairPriceJournal(tmp_path / "fair_price_future.sqlite3") as journal:
+        journal.record({"ts": iso(START + timedelta(seconds=5)),
+                        "prices": {"BTCUSDT": "100"}},
+                       received_at=START)
+        row = journal.valuation("BTCUSDT", as_of=START + timedelta(seconds=1))
+    assert row["status"] == "FRESH_NON_EXECUTABLE"
+    assert row["executable_quote"] is False
+
+
 def test_stale_fair_price_event_is_not_fresh_just_because_received_recently(tmp_path):
     """Receipt freshness does not turn an old public midpoint into an executable mark."""
     with fair_price.FairPriceJournal(tmp_path / "fair_price.sqlite3") as journal:

@@ -81,7 +81,8 @@ def adaptive_twap(instrument, quotes, trades, spec, start, end, *, side, quantit
             prior = quotes[prior_index] if prior_index >= 0 else None
             volume = sum((t.qty for t in trades
                           if slot - timedelta(seconds=volume_lookback_seconds) <= t.ts_avail < slot), Decimal(0))
-            target = _floor(min(max(Decimal(0), quantity - filled), volume * participation),
+            remaining = quantity - filled
+            target = _floor(min(max(Decimal(0), remaining), volume * participation),
                             spec.qty_decimals)
             if target <= 0:
                 target = Decimal(0)
@@ -90,7 +91,8 @@ def adaptive_twap(instrument, quotes, trades, spec, start, end, *, side, quantit
                 slot - prior.ts_avail <= timedelta(seconds=120))
             # Report the blocking observation distinctly: missing prior quote
             # takes precedence when volume and price are both unavailable.
-            status = "NO_PRIOR_VOLUME" if observed and not target else "NO_PRIOR_QUOTE"
+            status = ("TARGET_COMPLETE" if remaining <= 0 else
+                      "NO_PRIOR_VOLUME" if observed and not target else "NO_PRIOR_QUOTE")
             preview = None
             if target > 0 and observed:
                 spread_bps = (prior.ask - prior.bid) / ((prior.ask + prior.bid) / 2) * 10000

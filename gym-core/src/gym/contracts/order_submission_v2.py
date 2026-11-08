@@ -21,6 +21,7 @@ class PaperSubmissionGate:
     """Durable duplicate and 20/10-second admission checks with no order method."""
 
     def __init__(self, path):
+        """Open a durable, non-executable proposal ledger for duplicate and rate checks."""
         path = Path(path)
         if path.is_symlink() or (path.exists() and not path.is_file()):
             raise ValueError("invalid paper admission journal path")

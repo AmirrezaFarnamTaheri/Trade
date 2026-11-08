@@ -1,6 +1,6 @@
 """Retrospective public-quote markouts for simulated fills; never order authority."""
 import re
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from datetime import timedelta
 from decimal import Decimal, localcontext
 from itertools import pairwise
@@ -33,7 +33,7 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
         raise ValueError("postfill quotes must be known by the report cutoff")
     if any(a.ts_avail > b.ts_avail for a, b in pairwise(tops)):
         raise ValueError("postfill quotes must be chronological")
-    rows, marks = [], {str(k): [] for k in HORIZONS_SECONDS}
+    rows, marks, midpoint_marks = [], {str(k): [] for k in HORIZONS_SECONDS}, {str(k): [] for k in HORIZONS_SECONDS}
     times = [top.ts_avail for top in tops]
     latest_mark = None
     with localcontext() as context:
@@ -51,8 +51,19 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
             at = parse_ts(order["fill_time"])
             if at > cutoff:
                 raise ValueError("postfill order is beyond the report cutoff")
+            # A fill-time spread is already present in the simulated price.
+            # Train an additional adverse-move cost only against a qualified
+            # midpoint observed no later than that fill.
+            prior_index = bisect_right(times, at) - 1
+            prior = tops[prior_index] if prior_index >= 0 else None
+            if (prior is None or not qualified(prior) or "CLOSED" in prior.flags
+                    or at - prior.ts_avail > timedelta(seconds=max_delay_seconds)):
+                prior = None
+            fill_midpoint = (prior.bid + prior.ask) / 2 if prior is not None else None
             out = {"ref": order["ref"], "side": order["side"], "fill_time": iso(at),
-                   "fill_price": str(price), "quantity": str(qty), "markouts_bps": {},
+                   "fill_price": str(price), "quantity": str(qty),
+                   "fill_midpoint_at": iso(prior.ts_avail) if prior is not None else None,
+                   "markouts_bps": {}, "midpoint_markouts_bps": {},
                    "mark_available_at": {}}
             for h in HORIZONS_SECONDS:
                 target = at + timedelta(seconds=h)
@@ -61,6 +72,7 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
                 if (quote is None or not qualified(quote) or "CLOSED" in quote.flags
                         or quote.ts_avail - target > timedelta(seconds=max_delay_seconds)):
                     out["markouts_bps"][str(h)] = None
+                    out["midpoint_markouts_bps"][str(h)] = None
                     out["mark_available_at"][str(h)] = None
                     continue
                 mid = (quote.bid + quote.ask) / 2
@@ -69,6 +81,14 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
                 out["markouts_bps"][str(h)] = str(+markout)
                 out["mark_available_at"][str(h)] = iso(quote.ts_avail)
                 marks[str(h)].append(markout)
+                if fill_midpoint is not None:
+                    midpoint_markout = ((mid - fill_midpoint) / fill_midpoint
+                                       if order["side"] == "BUY" else
+                                       (fill_midpoint - mid) / fill_midpoint) * 10000
+                    out["midpoint_markouts_bps"][str(h)] = str(+midpoint_markout)
+                    midpoint_marks[str(h)].append(midpoint_markout)
+                else:
+                    out["midpoint_markouts_bps"][str(h)] = None
                 if latest_mark is None or latest_mark < quote.ts_avail:
                     latest_mark = quote.ts_avail
             rows.append(out)
@@ -78,17 +98,24 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
             average = sum(sample, Decimal(0)) / len(sample) if sample else None
             adverse = (sum((max(Decimal(0), -x) for x in sample), Decimal(0)) / len(sample)
                        if sample else None)
+            midpoint_sample = midpoint_marks[str(h)]
+            midpoint_adverse = (sum((max(Decimal(0), -x) for x in midpoint_sample), Decimal(0))
+                                / len(midpoint_sample) if midpoint_sample else None)
             horizons[str(h)] = {
                 "available": len(sample), "missing": len(rows) - len(sample),
                 "mean_signed_bps": str(+average) if average is not None else None,
-                "mean_adverse_bps": str(+adverse) if adverse is not None else None}
+                "mean_adverse_bps": str(+adverse) if adverse is not None else None,
+                "midpoint_baseline_available": len(midpoint_sample),
+                "midpoint_baseline_missing": len(rows) - len(midpoint_sample),
+                "mean_adverse_ex_spread_bps": (str(+midpoint_adverse)
+                                              if midpoint_adverse is not None else None)}
         profile = None
-        if latest_mark is not None and horizons["300"]["available"] >= 30:
-            penalty = min(Decimal(200), Decimal(horizons["300"]["mean_adverse_bps"]))
+        if latest_mark is not None and len(midpoint_marks["300"]) >= 30:
+            penalty = min(Decimal(200), Decimal(horizons["300"]["mean_adverse_ex_spread_bps"]))
             profile = {symbol: {"schema": "postfill-adverse/1", "symbol": symbol,
                                 "trained_until": iso(latest_mark),
                                 "penalty_bps": str(+penalty),
-                                "sample_count": horizons["300"]["available"],
+                                "sample_count": len(midpoint_marks["300"]),
                                 "source": "PAPER_MARKOUT_DIAGNOSTIC"}}
         result = {
             "schema": "paper-postfill-markouts/1", "symbol": symbol, "strategy": strategy,
@@ -100,7 +127,7 @@ def post_fill_checks(orders, tops, *, symbol, strategy, order_type, cutoff,
                 "These fills are simulated, not authenticated venue order executions.",
                 "A future quote is used only for retrospective post-fill diagnosis, never to change an earlier decision.",
                 "Unavailable or unqualified future quotes stay missing; no price interpolation.",
-                "The 5-minute adverse cost profile requires 30 observations and may enter only later paper replays.",
+                "A 5-minute adverse cost profile needs 30 qualified fill-time midpoints and enters only later paper replays.",
                 "Markouts omit custody, cross-venue transport, real settlement and other unobserved costs.",
             ],
         }

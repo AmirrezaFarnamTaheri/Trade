@@ -43,9 +43,11 @@ class FairPriceJournal:
     """Append-only research-only mark store; never an entry or venue price source."""
 
     def __init__(self, path):
+        """Open an append-only journal even when its size disallows new writes."""
         path = Path(path)
-        if path.is_symlink() or (path.exists() and (not path.is_file() or path.stat().st_size > MAX_DB_BYTES)):
+        if path.is_symlink() or (path.exists() and not path.is_file()):
             raise ValueError("invalid fair-price journal path")
+        self.path = path
         self.conn = sqlite3.connect(path, timeout=5, isolation_level=None)
         try:
             version = self.conn.execute("PRAGMA user_version").fetchone()[0]
@@ -83,6 +85,8 @@ class FairPriceJournal:
     def record(self, payload, *, received_at):
         """Atomically retain a bounded public snapshot with actual arrival time."""
         row = parse_fair_price(payload, received_at=received_at)
+        if self.path.stat().st_size > MAX_DB_BYTES:
+            raise ValueError("fair-price journal size limit reached")
         key = digest((row["event_at"], row["available_at"], row["prices"]))[:32]
         self.conn.execute("BEGIN IMMEDIATE")
         try:
@@ -116,7 +120,10 @@ class FairPriceJournal:
         if row is None:
             return result
         age = (as_of - parse_ts(row[2])).total_seconds()
-        fresh = 0 <= age <= max_age_seconds
+        event_age = (as_of - parse_ts(row[1])).total_seconds()
+        # Venue timestamps up to five seconds ahead of receipt are explicitly
+        # accepted at ingestion; do not mark those as stale before they elapse.
+        fresh = 0 <= age <= max_age_seconds and -5 <= event_age <= max_age_seconds
         return {**result, "status": "FRESH_NON_EXECUTABLE" if fresh else "STALE",
                 "derived_rate": row[0] if fresh else None,
                 "observed_rate": row[0], "observation_at": row[1],

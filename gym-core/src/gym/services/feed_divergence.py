@@ -100,8 +100,12 @@ def persist_paper_feed_lock(db, report, *, now, duration_seconds=600):
     from .rules import RuleService
 
     if (type(duration_seconds) is not int or not 60 <= duration_seconds <= 3600
+            or type(report) is not dict
             or report.get("schema") != "paper-feed-divergence/1"
             or report.get("block_entry") is not True
+            or report.get("status") != "DIVERGENT"
+            or report.get("deviation_bps") is None
+            or report.get("threshold_bps") is None
             or report.get("funded_authority") is not False
             or now.tzinfo is None):
         raise ValueError("entry lock requires bounded paper feed discrepancy evidence")
