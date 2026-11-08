@@ -33,7 +33,7 @@ window.gymResearch = (() => {
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status', 'prospective-status', 'prospective-evaluate']);
   actions['premium-research'] = ['Analyze TMN conversion premium', 'بررسی صرف تبدیل تومان', 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
-  actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; descriptive only'];
+  actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
   actions['twap-preview'] = ['Preview paper TWAP child fills', 'پیش‌نمایش برش‌های آزمایشی TWAP', 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
   actions['prospective-register'] = ['Freeze future strategy comparison', 'ثبت ثابت مقایسهٔ آینده', 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
   actions['prospective-status'] = ['Inspect frozen comparison', 'بررسی مقایسهٔ ثبت‌شده', 'Saved 64-character registry ID'];
