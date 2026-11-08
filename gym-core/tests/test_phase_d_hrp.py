@@ -80,9 +80,12 @@ def test_hrp_parkinson_rescale_preserves_exact_covariance_symmetry(monkeypatch):
     mocked = [[Decimal("1e32"), cross], [cross, Decimal("1e32")]]
     monkeypatch.setattr(module, "ledoit_wolf_constant_correlation",
                         lambda *_: {"covariance": mocked, "intensity": Decimal("0.5")})
-    scalars = iter([Decimal("0.362713435339668662789710559685568163507675245478855957641668"),
-                    Decimal("0.319456961257526833064814527944512611149391125666539507478619")])
-    monkeypatch.setattr(module, "parkinson_ewma", lambda *_: next(scalars))
+    sigma_high = Decimal("0.362713435339668662789710559685568163507675245478855957641668")
+    sigma_low = Decimal("0.319456961257526833064814527944512611149391125666539507478619")
+    # Baseline diagnostics may recompute the policy, so this mock must be
+    # determined by input history rather than exhaustible call order.
+    monkeypatch.setattr(module, "parkinson_ewma",
+                        lambda ranges: sigma_high if ranges[0][0] > Decimal(110) else sigma_low)
     seen = []
 
     def check_symmetry(covariance):
