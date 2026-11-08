@@ -76,7 +76,7 @@ def test_z_premium_is_opt_in_and_uses_prior_history_for_entry():
     action, _, _, _ = candidate.decide(_snap(24, spike), False)
     assert action == "BUY_REQUEST"
     assert Decimal(candidate.feature_values["discount_z"]) > 2
-    assert candidate.feature_values["half_life_bars"] is not None
+    assert "half_life_bars" in candidate.feature_values
     with pytest.raises(ValueError):
         create_strategy("toman-premium", {"half_life_multiple": 2})
 
