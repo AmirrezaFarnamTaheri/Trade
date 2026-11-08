@@ -48,3 +48,9 @@ def test_calibration_rejects_invalid_or_unbounded_windows(tmp_path, value):
     db.c.close()
     with pytest.raises(ValueError):
         research_action(tmp_path, "execution-model-calibrate", value)
+
+
+@pytest.mark.parametrize("malformed", [None, [], "not an object", 5])
+def test_twap_preview_rejects_non_object_input_without_uncaught_error(tmp_path, malformed):
+    with pytest.raises(ValueError):
+        research_action(tmp_path, "twap-preview", malformed)
