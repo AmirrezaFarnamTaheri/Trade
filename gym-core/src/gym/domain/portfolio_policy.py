@@ -130,6 +130,12 @@ class PortfolioPolicy:
                     covariance = [[covariance[i][j] * sigma[i] * sigma[j]
                                    / (raw_stdev[i] * raw_stdev[j]) for j in range(n)]
                                   for i in range(n)]
+                    if self.description["method"] == "hierarchical-risk-parity":
+                        # Decimal multiplication order may differ at the last
+                        # digit. Mirror exactly before HRP symmetry checks.
+                        for i in range(n):
+                            for j in range(i):
+                                covariance[j][i] = covariance[i][j]
                     result["volatility_model"] = "parkinson-ewma/1"
             weights = [Decimal(1) / n] * n
             if self.description["method"] == "hierarchical-risk-parity":
