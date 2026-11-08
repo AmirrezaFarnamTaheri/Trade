@@ -93,8 +93,60 @@ def preview_terms(value, request, rule):
     return {key: value[key] for key in required | (OPTIONAL_FIELDS & request.keys())}
 
 
-def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds):
+def _depth_liquidation_mark(top, quantity, long, cash, debt_quote, fee_rate):
+    """Price the *whole* open base exposure through a contemporaneous book side.
+
+    Depth can be absent or unfillable; never extend the last level or assume
+    a midpoint fill. The modeled exit fee is hypothetical until a real close.
+    """
+    status = "DEPTH_UNAVAILABLE"
+    report = {"status": status, "required_base": str(quantity),
+              "liquidation_value_quote": None, "mid_value_quote": None,
+              "gap_to_mid_quote": None, "walked_notional_quote": None,
+              "modeled_exit_fee_quote": None}
+    if top.depth is None or type(top.depth) not in (tuple, list) or len(top.depth) != 2:
+        return report
+    levels = top.depth[0 if long else 1]
+    if type(levels) not in (list, tuple) or not 1 <= len(levels) <= 50:
+        return {**report, "status": "INVALID_DEPTH"}
+    best = top.bid if long else top.ask
+    best_qty = top.bid_qty if long else top.ask_qty
+    previous, remaining, notional = None, quantity, Decimal(0)
+    for level in levels:
+        if (type(level) not in (list, tuple) or len(level) != 2
+                or any(type(v) is not Decimal or not v.is_finite() or v <= 0 for v in level)):
+            return {**report, "status": "INVALID_DEPTH"}
+        price, size = level
+        if ((previous is None and (price != best or size != best_qty))
+                or (previous is not None and (price >= previous if long else price <= previous))):
+            return {**report, "status": "INVALID_DEPTH"}
+        take = min(size, remaining)
+        notional += price * take
+        remaining -= take
+        previous = price
+        if remaining <= 0:
+            break
+    if remaining > 0:
+        return {**report, "status": "INSUFFICIENT_DEPTH"}
+    midpoint = (top.bid + top.ask) / 2
+    full_mid = midpoint * quantity
+    if long:
+        liquidation = cash + notional * (1 - fee_rate) - debt_quote
+        mid_equity = cash + full_mid * (1 - fee_rate) - debt_quote
+    else:
+        liquidation = cash - notional * (1 + fee_rate) - debt_quote
+        mid_equity = cash - full_mid * (1 + fee_rate) - debt_quote
+    return {"status": "AVAILABLE", "required_base": str(quantity),
+            "liquidation_value_quote": str(+liquidation), "mid_value_quote": str(+mid_equity),
+            "gap_to_mid_quote": str(+(mid_equity - liquidation)),
+            "walked_notional_quote": str(+notional),
+            "modeled_exit_fee_quote": str(+(notional * fee_rate))}
+
+
+def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds, *, depth_valuation=False):
     """Conservative limit entry, bid/ask exits and initial venue-preview trigger levels."""
+    if type(depth_valuation) is not bool:
+        raise ValueError("depth_valuation requires a boolean flag")
     request = {key: terms[key] for key in REQUEST_FIELDS - {"collateral"}}
     request["collateral"] = terms["collateral"]["value"]
     request.update({key: terms[key] for key in OPTIONAL_FIELDS & terms.keys()})
@@ -110,10 +162,10 @@ def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds):
         raise ValueError("invalid margin quote identity, cutoff or market state")
     with localcontext() as context:
         context.prec = 160
-        return _replay(terms, rule, points, end, fee_rate, holding_seconds)
+        return _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation)
 
 
-def _replay(terms, rule, points, end, fee_rate, holding_seconds):
+def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation):
     long = terms["side"] == "long"
     price = decimal(terms["open_price"])
     loan = decimal(terms["loan"]["value"])
@@ -207,9 +259,26 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds):
             state = "CLOSE_PENDING"
     fresh = last is not None and last is last_seen and not last_closed and 0 <= (end - last.ts_avail).total_seconds() <= 30
     equity = cash - debt_quote if state.startswith("CLOSED") else cash + units * last.bid - debt_quote - debt_base * last.ask if fresh and entry else None
+    liquidation = None
+    if depth_valuation:
+        if state.startswith("CLOSED"):
+            liquidation = {"status": "SETTLED", "liquidation_value_quote": str(cash - debt_quote),
+                           "mid_value_quote": None, "gap_to_mid_quote": None}
+        elif not fresh or entry is None:
+            liquidation = {"status": "UNAVAILABLE_FRESH_BOOK",
+                           "liquidation_value_quote": None, "mid_value_quote": None,
+                           "gap_to_mid_quote": None}
+        else:
+            liquidation = _depth_liquidation_mark(last, units if long else debt_base,
+                                                  long, cash, debt_quote, fee_rate)
+            equity = (Decimal(liquidation["liquidation_value_quote"])
+                      if liquidation["status"] == "AVAILABLE" else None)
     return {"state": state, "entry": {key: value for key, value in entry.items() if key != "clock"} if entry else None,
             "cash_quote": str(cash), "base_units": str(units), "debt_quote": str(debt_quote), "debt_base": str(debt_base),
             "equity_quote": str(equity) if equity is not None else None,
             "extension_periods": periods, "fees_by_currency": {key: str(value) for key, value in fees.items()},
-            "mark": {"at": iso(last.ts_avail) if last else None, "status": "FRESH" if fresh else "STALE" if last else "UNAVAILABLE"},
+            "mark": {"at": iso(last.ts_avail) if last else None,
+                     "status": "FRESH" if fresh else "STALE" if last else "UNAVAILABLE",
+                     **({"liquidation": liquidation, "valuation_model": "depth-walk-liquidation/1"}
+                        if depth_valuation else {})},
             "events": events, "nonfills": dict(nonfills)}
