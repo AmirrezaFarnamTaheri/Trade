@@ -147,5 +147,5 @@ def load_fractional_report(root, report_id, *, store, as_of, strategy, params, r
                 "source_outputs_digest": native["outputs_digest"],
                 "source_test_to": inputs["to"],
                 "authority": "PAPER_ONLY", "independent_final_evidence": False}
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ArithmeticError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError, KeyError, TypeError, ArithmeticError):
         raise ValueError("invalid or unavailable fractional sizing receipt") from None
