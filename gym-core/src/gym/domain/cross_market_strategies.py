@@ -61,6 +61,7 @@ class TomanPremium:
             # The current discount cannot influence the mean, variance or
             # mean-reversion half-life used by its own trading decision.
             z = self.z_moments.score(discount)
+            self.ready = z is not None
             fit = ar1_half_life(list(self.past_discounts)) if len(self.past_discounts) >= 12 else None
             half = Decimal(fit["half_life_bars"]) if fit and fit["half_life_bars"] is not None else None
             self.feature_values.update(discount_z=str(z) if z is not None else None,
