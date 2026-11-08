@@ -5,6 +5,7 @@ zero-return USDT cash benchmark. Weights use only *earlier* OOS marks. This
 does not model shared-cash fills or prove predictive forecast calibration.
 """
 from decimal import Decimal, localcontext
+from itertools import pairwise
 
 from ..domain.model import parse_ts
 from ..domain.strategy import digest
@@ -56,7 +57,7 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
                     raise ValueError("invalid OOS curve mark")
                 times.append(parse_ts(row["at"]))
                 values.append(_number(row["equity_usdt"], "equity", positive=True))
-            if any(b <= a for a, b in zip(times, times[1:])):
+            if any(b <= a for a, b in pairwise(times)):
                 raise ValueError("OOS curves must be strictly chronological")
             if stamps is None:
                 stamps = times
@@ -68,7 +69,7 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
             marks.append(values)
         if len(set(ids)) != len(ids) or len(set(names)) != len(names):
             raise ValueError("OOS candidates must have distinct run and strategy identities")
-        returns = [[None] + [current / before - 1 for before, current in zip(curve, curve[1:])]
+        returns = [[None] + [current / before - 1 for before, current in pairwise(curve)]
                    for curve in marks]
         gross, modeled = opening, opening
         previous = None
@@ -121,6 +122,7 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
 def combine_verified_oos(root, request, *, store):
     """Combine only locally verified native prospective sessions, never ad-hoc replays."""
     from pathlib import Path
+
     from ..adapters.run_store import load_verified_run
     from ..domain.market_models import fields
 
