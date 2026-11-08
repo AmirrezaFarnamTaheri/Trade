@@ -42,7 +42,7 @@ def test_slices_capped_by_strictly_prior_public_volume_and_cash():
     later = preview(quotes, [*earlier, trade(90, "1000")])
     assert report["schema"] == "paper-volume-twap/1"
     assert report["children"][0]["requested_quantity"] == "2.00"
-    assert report["children"][1]["requested_quantity"] == "3.00" or report["children"][1]["requested_quantity"] == "2.00"
+    assert report["children"][1]["requested_quantity"] == "2.00"
     assert [r["requested_quantity"] for r in report["children"]] == [
         r["requested_quantity"] for r in later["children"]]
     assert sum(Decimal(r["filled_quantity"]) for r in report["children"]) <= Decimal(4)
@@ -64,10 +64,10 @@ def test_wide_spread_prefers_unfilled_limit_then_urgency_triggers_market():
 
 
 def test_no_available_prints_or_prior_quote_blocks_child_plan():
-    report = preview([top(1), top(61)], [trade(15, "100")])
+    report = preview([top(1), top(61)], [trade(90, "100")])
     assert all(c["filled_quantity"] == "0" for c in report["children"])
     assert report["children"][0]["status"] == "NO_PRIOR_QUOTE"
-    assert report["children"][1]["status"] == "NO_PRIOR_QUOTE" or report["children"][1]["status"] == "NO_PRIOR_VOLUME"
+    assert report["children"][1]["status"] == "NO_PRIOR_VOLUME"
 
 
 @pytest.mark.parametrize("change", [
