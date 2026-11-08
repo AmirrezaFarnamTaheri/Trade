@@ -105,3 +105,24 @@ def test_meta_label_remains_deferred_below_three_hundred_closed_trades():
     assert "meta-labeling" not in [row["id"] for row in catalog()]
     with pytest.raises(ValueError):
         meta_label_eligibility(-1)
+
+
+def test_explicit_zero_switch_cost_is_valid_and_does_not_invent_fees():
+    report = combine_oos_curves(_paths(), lookback=6, rebalance_cost_bps=Decimal(0))
+    assert report["status"] == "MODELED_PROXY_ONLY"
+    assert report["rebalance_cost_bps"] == "0"
+    assert report["modeled_combination_net_usdt"] == report["gross_combination_net_usdt"]
+
+
+def test_unhashable_run_identifiers_are_rejected_as_validation_errors(tmp_path):
+    from gym.services.oos_combination import combine_verified_oos
+    from gym.services.strategy_retirement import screen_verified_retirement
+
+    with pytest.raises(ValueError):
+        combine_verified_oos(tmp_path, {
+            "run_ids": [{"malformed": True}, "b" * 16], "lookback": 6,
+            "rebalance_cost_bps": "5"}, store="demo")
+    with pytest.raises(ValueError):
+        screen_verified_retirement(tmp_path, {
+            "run_ids": [{"malformed": True}, "b" * 16, "c" * 16],
+            "universe": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]}, store="demo")
