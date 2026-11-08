@@ -14,10 +14,17 @@ class PortfolioPolicy:
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
-        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target", "usdt_fx_risk"}:
+        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target", "usdt_fx_risk", "expected_shortfall_limit"}:
             raise ValueError("invalid portfolio policy fields")
         self.description = {**defaults, **value}
         self.symbols = symbols
+        self.expected_shortfall_limit = (
+            decimal(value["expected_shortfall_limit"], "expected_shortfall_limit", positive=True)
+            if "expected_shortfall_limit" in value else None)
+        if self.expected_shortfall_limit is not None:
+            if (self.expected_shortfall_limit > 1 or self.description["lookback"] < 20
+                    or not self.description["rebalance"]):
+                raise ValueError("expected shortfall requires limit <= 1, lookback >= 20 and rebalancing")
         self.usdt_fx_risk = self.description.get("usdt_fx_risk", False)
         if type(self.usdt_fx_risk) is not bool:
             raise ValueError("usdt_fx_risk must be boolean")
@@ -38,7 +45,8 @@ class PortfolioPolicy:
         for key, low, high in (("lookback", 3, 500), ("rebalance_seconds", 60, 604800)):
             if type(self.description[key]) is not int or not low <= self.description[key] <= high:
                 raise ValueError(f"invalid portfolio {key}")
-        if (self.description["method"] != "equal" or self.description["correlation_limit"] is not None or self.portfolio_volatility_target is not None or self.usdt_fx_risk) and len(symbols) ** 2 * self.description["lookback"] > 1000000:
+        if (self.description["method"] != "equal" or self.description["correlation_limit"] is not None or self.portfolio_volatility_target is not None or self.usdt_fx_risk
+            or self.expected_shortfall_limit is not None) and len(symbols) ** 2 * self.description["lookback"] > 1000000:
             raise ValueError("covariance calculation budget exceeded; reduce lookback or use equal weights without correlation grouping")
         self.rates = {}
         for key in ("max_weight", "cash_buffer", "correlation_limit", "correlation_cap", "max_drawdown", "daily_loss_limit", "rebalance_threshold"):
@@ -76,7 +84,8 @@ class PortfolioPolicy:
             result["risk_currency"] = "USDT"
             result["risk_price_basis"] = "TMN closed price divided by prior qualified USDT/TMN midpoint"
         need_history = (self.description["method"] != "equal" or self.description["correlation_limit"] is not None
-                        or self.portfolio_volatility_target is not None or self.usdt_fx_risk)
+                        or self.portfolio_volatility_target is not None or self.usdt_fx_risk
+                        or self.expected_shortfall_limit is not None)
         with localcontext() as context:
             context.prec = 60
             covariance = shrinkage = None
@@ -170,6 +179,30 @@ class PortfolioPolicy:
                     "unscaled_per_bar": str(+before), "scale": str(+scale),
                     "projected_per_bar": str(+projected),
                     "leverage_allowed": False}
+            if self.expected_shortfall_limit is not None:
+                # Historical constant-target stress uses only completed returns
+                # strictly before the target event; a future bar never enters
+                # its own cap estimate. Downscaling never adds leverage.
+                losses = sorted((-sum((weights[i] * returns[i][k] for i in range(n)), Decimal(0))
+                                 for k in range(count)), reverse=True)
+                worst = max(1, (count + 19) // 20)
+                unscaled = max(Decimal(0), sum(losses[:worst], Decimal(0)) / worst)
+                scale = (min(Decimal(1), self.expected_shortfall_limit / unscaled)
+                         if unscaled > 0 else Decimal(1))
+                weights = [weight * scale for weight in weights]
+                result["expected_shortfall"] = {
+                    "model": "historical-constant-target-es95/1",
+                    "confidence": "0.95",
+                    "history": count,
+                    "worst_observations": worst,
+                    "unit": "loss-fraction-per-closed-bar",
+                    "limit_per_bar": str(self.expected_shortfall_limit),
+                    "unscaled_per_bar": str(+unscaled),
+                    "scale": str(+scale),
+                    "scaled_per_bar": str(+(unscaled * scale)),
+                    "stress_losses_per_bar": [str(+value) for value in losses[:min(5, len(losses))]],
+                    "realized_stress_replay": False,
+                    "scope": "Prior correlated bar returns with frozen current target weights, not executed margin or forced liquidation"}
             result["weights"] = {s: str(value.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)) for s, value in zip(self.symbols, weights)}
             if self.description["method"] == "risk-parity":
                 actual = [Decimal(result["weights"][s]) for s in self.symbols]
