@@ -46,6 +46,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                universe_selection):
     if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
+    cost.assert_causal(t0)
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
     if universe_selection is not None:
