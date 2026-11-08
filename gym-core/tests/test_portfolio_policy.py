@@ -197,3 +197,31 @@ def test_resting_limit_respects_updated_cash_buffer_at_actual_settlement(tmp_pat
         assert not any(o["side"] == "BUY" and o["status"] == "FILLED" and o["fill_time"] >= iso(at) for o in out["result"]["markets"]["ETHUSDT"]["orders"]), out["result"]["markets"]["ETHUSDT"]["orders"]
     finally:
         db.c.close()
+
+
+def test_opt_in_portfolio_volatility_target_uses_prior_joint_covariance():
+    """Target the combined rather than each component's historical bar risk."""
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    policy = PortfolioPolicy({"lookback": 3, "portfolio_volatility_target": "0.01"}, symbols)
+    assert policy.weights({})["status"] == "WARMING_UP"
+    history = {"BTCUSDT": [(i, Decimal(v)) for i, v in enumerate((100, 110, 100, 110))],
+               "ETHUSDT": [(i, Decimal(v)) for i, v in enumerate((100, 105, 100, 105))]}
+    result = policy.weights(history)
+    assert result["status"] == "READY"
+    assert Decimal(0) < Decimal(result["portfolio_volatility"]["scale"]) < 1
+    assert Decimal(result["portfolio_volatility"]["projected_per_bar"]) <= Decimal("0.01")
+    assert sum(map(Decimal, result["weights"].values())) < 1
+    assert PortfolioPolicy({}, symbols).weights({})["status"] == "READY"
+
+
+def test_portfolio_volatility_target_rejects_bad_input_and_gaps():
+    """Do not apply a target when risk units or historical continuity are unknown."""
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    for invalid in ("0", "1.1", "-0.1", "NaN", 0.1):
+        with pytest.raises(ValueError):
+            PortfolioPolicy({"portfolio_volatility_target": invalid}, symbols)
+    policy = PortfolioPolicy({"lookback": 3, "portfolio_volatility_target": "0.01"}, symbols)
+    history = {s: [(i, Decimal(v)) for i, v in enumerate((100, 110, 100, 110))]
+               for s in symbols}
+    history["ETHUSDT"][-1] = (10, Decimal(110))
+    assert policy.weights(history)["status"] == "WARMING_UP"
