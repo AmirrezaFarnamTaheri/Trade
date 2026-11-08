@@ -14,10 +14,13 @@ class PortfolioPolicy:
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
-        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target"}:
+        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage", "portfolio_volatility_target", "usdt_fx_risk"}:
             raise ValueError("invalid portfolio policy fields")
         self.description = {**defaults, **value}
         self.symbols = symbols
+        self.usdt_fx_risk = self.description.get("usdt_fx_risk", False)
+        if type(self.usdt_fx_risk) is not bool:
+            raise ValueError("usdt_fx_risk must be boolean")
         self.portfolio_volatility_target = (decimal(value["portfolio_volatility_target"], "portfolio_volatility_target", positive=True)
                                             if "portfolio_volatility_target" in value else None)
         if self.portfolio_volatility_target is not None and self.portfolio_volatility_target > 1:
@@ -35,7 +38,7 @@ class PortfolioPolicy:
         for key, low, high in (("lookback", 3, 500), ("rebalance_seconds", 60, 604800)):
             if type(self.description[key]) is not int or not low <= self.description[key] <= high:
                 raise ValueError(f"invalid portfolio {key}")
-        if (self.description["method"] != "equal" or self.description["correlation_limit"] is not None or self.portfolio_volatility_target is not None) and len(symbols) ** 2 * self.description["lookback"] > 1000000:
+        if (self.description["method"] != "equal" or self.description["correlation_limit"] is not None or self.portfolio_volatility_target is not None or self.usdt_fx_risk) and len(symbols) ** 2 * self.description["lookback"] > 1000000:
             raise ValueError("covariance calculation budget exceeded; reduce lookback or use equal weights without correlation grouping")
         self.rates = {}
         for key in ("max_weight", "cash_buffer", "correlation_limit", "correlation_cap", "max_drawdown", "daily_loss_limit", "rebalance_threshold"):
@@ -69,8 +72,11 @@ class PortfolioPolicy:
         n, count = len(self.symbols), self.description["lookback"]
         zero = {s: "0" for s in self.symbols}
         result = {"status": "READY", "weights": zero, "risk_contribution_error": None}
+        if self.usdt_fx_risk:
+            result["risk_currency"] = "USDT"
+            result["risk_price_basis"] = "TMN closed price divided by prior qualified USDT/TMN midpoint"
         need_history = (self.description["method"] != "equal" or self.description["correlation_limit"] is not None
-                        or self.portfolio_volatility_target is not None)
+                        or self.portfolio_volatility_target is not None or self.usdt_fx_risk)
         with localcontext() as context:
             context.prec = 60
             covariance = shrinkage = None
