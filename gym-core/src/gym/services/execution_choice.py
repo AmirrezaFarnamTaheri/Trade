@@ -47,13 +47,63 @@ def _verified_paper_shape(out, expected_slices):
     _quantity(out.get("received_quote"), "received quote")
     if filled > requested or filled + cancelled != requested:
         raise ValueError("paper preview quantity is not conserved")
-    child_filled = Decimal(0)
-    for child in out["children"]:
-        if type(child) is not dict or child.get("status") not in ("NONFILL", "PARTIAL", "FILLED"):
-            raise ValueError("invalid paper child attempt")
-        child_filled += _quantity(child.get("filled_quantity"), "child fill")
-    if child_filled != filled:
-        raise ValueError("paper child fills differ from aggregate")
+    # The simulator performs monetary operations inside an 80-digit Decimal
+    # context. Recreate its child postings with that same precision; a forged
+    # aggregate must never change a retrospective cost ranking.
+    with localcontext() as context:
+        context.prec = 80
+        child_filled = Decimal(0)
+        child_spent = child_received_base = child_received_quote = Decimal(0)
+        child_fee_base = child_fee_quote = Decimal(0)
+        default_fee = _quantity(out.get("fee_rate"), "default fee rate")
+        if default_fee >= 1:
+            raise ValueError("invalid paper fee assumption")
+        for child in out["children"]:
+            if type(child) is not dict or child.get("status") not in ("NONFILL", "PARTIAL", "FILLED"):
+                raise ValueError("invalid paper child attempt")
+            target = _quantity(child.get("requested_quantity"), "child requested")
+            qty = _quantity(child.get("filled_quantity"), "child fill")
+            unfilled = _quantity(child.get("unfilled_quantity"), "child unfilled")
+            if qty + unfilled != target or qty > target or (
+                    (qty == 0) != (child["status"] == "NONFILL")):
+                raise ValueError("paper child quantity is not conserved")
+            child_filled += qty
+            if qty == 0:
+                continue
+            price = _quantity(child.get("price"), "child price", positive=True)
+            pricing = child.get("pricing")
+            if pricing is not None and type(pricing) is not dict:
+                raise ValueError("invalid paper child pricing evidence")
+            fee = (_quantity(pricing.get("applied_fee_rate"), "child fee rate")
+                   if pricing is not None else default_fee)
+            if fee >= 1:
+                raise ValueError("invalid paper child fee assumption")
+            notional = qty * price
+            if out["side"] == "BUY":
+                child_spent += notional
+                child_fee_base += qty * fee
+                child_received_base += qty * (1 - fee)
+            else:
+                child_fee_quote += notional * fee
+                child_received_quote += notional * (1 - fee)
+        if child_filled != filled:
+            raise ValueError("paper child fills differ from aggregate")
+        expected = {
+            "spent_quote": child_spent,
+            "received_base": child_received_base,
+            "received_quote": child_received_quote,
+            "fee_base": child_fee_base,
+            "fee_quote": child_fee_quote,
+            "remaining_quote": (_quantity(out.get("initial_quote"), "initial quote")
+                                - child_spent + child_received_quote),
+            "remaining_base": (_quantity(out.get("initial_base"), "initial base")
+                               - child_filled + child_received_base
+                               if out["side"] == "SELL" else
+                               _quantity(out.get("initial_base"), "initial base") + child_received_base),
+        }
+        for name, amount in expected.items():
+            if amount != _quantity(out.get(name), name):
+                raise ValueError("paper child economic amounts do not conserve " + name)
     return requested, filled
 
 
