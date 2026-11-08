@@ -391,6 +391,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         inputs["portfolio_version"] = 11
     if cost.calibration is not None and "fractional_sizing_report_id" in cost.calibration:
         inputs["portfolio_version"] = 12
+    if controller.description["method"] == "hierarchical-risk-parity":
+        inputs["portfolio_version"] = 13
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
