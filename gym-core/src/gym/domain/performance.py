@@ -234,6 +234,43 @@ def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
             "information_ratio_per_period": fmean(active) / tracking if tracking else None}
 
 
+def market_open_annualization(start: datetime, end: datetime, step_seconds: float, skipped: list[dict]) -> dict:
+    """Use recorded effective venue closure gaps, never missing-data gaps, for annualization."""
+    from .model import parse_ts
+
+    span = (end - start).total_seconds()
+    if span <= 0 or step_seconds <= 0 or not math.isfinite(step_seconds):
+        return {"status": "UNAVAILABLE"}
+    cuts = []
+    for row in skipped:
+        if row.get("reason") != "VENUE_CLOSED":
+            continue
+        a, b = parse_ts(row["from"]), parse_ts(row["to"])
+        if not a < b:
+            raise ValueError("invalid recorded trading closure")
+        left, right = max(a, start), min(b, end)
+        if left < right:
+            cuts.append((left, right))
+    cuts.sort()
+    merged = []
+    for left, right in cuts:
+        if merged and left <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(right, merged[-1][1]))
+        else:
+            merged.append((left, right))
+    closed = sum((right - left).total_seconds() for left, right in merged)
+    opened = span - closed
+    if opened <= 0:
+        return {"status": "NOT_ENOUGH_DATA", "calendar_span_seconds": span,
+                "closed_seconds": closed}
+    open_share = opened / span
+    return {"status": "AVAILABLE", "calendar_span_seconds": span,
+            "closed_seconds": closed, "open_seconds": opened,
+            "open_share": open_share, "observed_closure_intervals": len(merged),
+            "periods_per_year": YEAR_SECONDS * open_share / step_seconds,
+            "closure_basis": "Only causally recorded VENUE_CLOSED intervals; missing quote buckets are not closure."}
+
+
 def minimum_track_record_length(sharpe: float, skew: float, kurtosis: float, *,
                                 benchmark: float = 0.0, confidence: float = 0.95) -> float | None:
     """Bailey/Lopez de Prado minimum observations for a one-sided Sharpe claim."""
@@ -313,6 +350,12 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(points) if a > 0]
     gaps = sorted((tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(points) if tb > ta)
     periods_per_year = YEAR_SECONDS / median(gaps) if gaps else None
+    open_calendar = (market_open_annualization(start, end, median(gaps),
+                     result.get("session", {}).get("skipped", []))
+                     if enhanced and gaps else None)
+    if enhanced and open_calendar and open_calendar["status"] == "AVAILABLE":
+        periods_per_year = open_calendar["periods_per_year"]
+        out["market_open_annualization"] = open_calendar
     if final:
         total = Decimal(final["equity"]) / cash - 1
         out["total_return_pct"] = str((total * 100).quantize(Decimal("0.0001")))
