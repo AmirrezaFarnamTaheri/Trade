@@ -262,7 +262,7 @@ const click = async id => {
     control("prospective-params-first").value = "";
     control("prospective-params-second").value = "";
     const beforeInvalid = coverageRequests.length;
-    control("prospective-test-from").value = "2098-12-31T00:00";
+    control("prospective-test-from").value = "2025-12-31T00:00";
     control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
     await settle();
     assert.equal(coverageRequests.length, beforeInvalid, "Invalid future window must not submit a mutation");
