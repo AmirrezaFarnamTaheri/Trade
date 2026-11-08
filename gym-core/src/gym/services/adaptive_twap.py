@@ -2,9 +2,9 @@
 from bisect import bisect_left
 from datetime import timedelta
 from decimal import Decimal, localcontext
+from itertools import pairwise
 
 from ..domain.bars import qualified
-from ..domain.execution_costs import modeled_execution_cost
 from ..domain.market_models import rate
 from ..domain.model import iso
 from ..domain.strategy import digest
@@ -55,8 +55,8 @@ def adaptive_twap(instrument, quotes, trades, spec, start, end, *, side, quantit
     if (len(quotes) > MAX_OBSERVATIONS or len(trades) > MAX_OBSERVATIONS
             or any(q.symbol != instrument.symbol for q in quotes)
             or any(t.symbol != instrument.symbol for t in trades)
-            or any(a.ts_avail > b.ts_avail for a, b in zip(quotes, quotes[1:]))
-            or any(a.ts_avail > b.ts_avail for a, b in zip(trades, trades[1:]))
+            or any(a.ts_avail > b.ts_avail for a, b in pairwise(quotes))
+            or any(a.ts_avail > b.ts_avail for a, b in pairwise(trades))
             or any(q.ts_avail < start - timedelta(seconds=volume_lookback_seconds)
                    or q.ts_avail >= end for q in quotes)
             or any(t.ts_avail < start - timedelta(seconds=volume_lookback_seconds)
