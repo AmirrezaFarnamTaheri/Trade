@@ -1,5 +1,9 @@
 # Read the current process token's OS-issued TokenLogonSid (TOKEN_INFORMATION_CLASS 28).
 # This is a read-only identity query; it does not change privileges or token state.
+param(
+    [uint32] $OperatorProcessId = 0,
+    [string] $ExpectedUserSid = ''
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -21,6 +25,9 @@ public static class TradeTokenLogonSid
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetCurrentProcess();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern SafeProcessHandle OpenProcess(uint access, bool inherit, uint processId);
+
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(
         IntPtr process, uint access, out SafeAccessTokenHandle token);
@@ -37,14 +44,23 @@ public static class TradeTokenLogonSid
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr memory);
 
-    public static string Get()
+    public static string Get(uint processId, string expectedUserSid)
     {
         SafeAccessTokenHandle token;
-        if (!OpenProcessToken(GetCurrentProcess(), 0x0008, out token))
-            throw new Win32Exception(Marshal.GetLastWin32Error());
-
+        using (SafeProcessHandle process = processId == 0 ? null : OpenProcess(0x1000, false, processId))
+        {
+            if (process != null && process.IsInvalid)
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (!OpenProcessToken(process == null ? GetCurrentProcess() : process.DangerousGetHandle(), 0x0008, out token))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
         using (token)
         {
+            using (var identity = new System.Security.Principal.WindowsIdentity(token.DangerousGetHandle()))
+            {
+                if (processId != 0 && (String.IsNullOrEmpty(expectedUserSid) || identity.User.Value != expectedUserSid))
+                    throw new InvalidOperationException("Selected operator token user mismatch.");
+            }
             int required;
             if (GetTokenInformation(token, 28, IntPtr.Zero, 0, out required))
                 throw new InvalidOperationException("Unexpected TokenLogonSid sizing success.");
@@ -98,7 +114,8 @@ public static class TradeTokenLogonSid
 if (-not ('TradeTokenLogonSid' -as [type])) {
     Add-Type -TypeDefinition $source -ErrorAction Stop
 }
-$sid = [TradeTokenLogonSid]::Get()
+if ($ExpectedUserSid -and $OperatorProcessId -eq 0) { throw 'Selected operator requires a real process ID.' }
+$sid = [TradeTokenLogonSid]::Get($OperatorProcessId, $ExpectedUserSid)
 if ($sid -notmatch '^S-1-5-5-[0-9]+-[0-9]+$') {
     throw 'Windows did not return a valid logon SID.'
 }

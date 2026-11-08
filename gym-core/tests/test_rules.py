@@ -3,13 +3,13 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
+
 from gym.adapters.store import MarketDB
 from gym.domain.model import TEHRAN, UTC, BookTop, InstrumentId
 from gym.domain.rules import PRESETS, evaluate, next_change, parse_rule
-from gym.services.rules import RuleService
 from gym.services.paper import paper
+from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
-
 
 USDT, BTCT, BTCU = (InstrumentId.wallex(s) for s in ("USDTTMN", "BTCTMN", "BTCUSDT"))
 
@@ -111,3 +111,21 @@ def test_replay_respects_rule_vintages(tmp_path):
     now = paper(db, "USDTTMN", t0, t1, resolution="1min", fast=3, slow=8, rules_mode="today")
     assert not any("RULE:" in r for r in pit["result"]["nonfills"])
     assert any("RULE:" in r for r in now["result"]["nonfills"]) and any("TODAY" in w for w in now["warnings"])
+
+
+@pytest.mark.parametrize("bad", [{"disabled": "false"}, {"exit_confirmed": 1}, {"review_hours": 1e9},
+                                 {"review_hours": float("inf")}, {"review_hours": "24"}, {"review_hours": 0}])
+def test_rule_flags_are_strict_and_review_window_is_bounded(bad):
+    with pytest.raises(ValueError):
+        restriction(**bad)
+    assert restriction(disabled=False, review_hours=48).review_hours == 48
+
+
+def test_bad_stored_rule_is_quarantined_not_fatal(tmp_path):
+    db = MarketDB(tmp_path / "m.db")
+    db.put_rule({"id": "x", "family": "PairSuspension", "class": "VENUE", "action": "BLOCK_ALL",
+                 "effective_from": "2026-01-01T00:00:00Z", "source": "operator", "status": "INFERRED",
+                 "review_hours": 1e9}, "import", "test", START)
+    _, rules, quarantined = RuleService(db).load()
+    assert rules == [] and quarantined[0]["id"] == "x"
+    assert RuleService(db).check(BTCT, "BUY", "ENTRY", START)["allowed"] is True

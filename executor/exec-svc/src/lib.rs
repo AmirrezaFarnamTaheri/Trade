@@ -1,7 +1,83 @@
 //! Stop control is outside the money loop: an atomic, monotone gate with
 //! independent request validation. No venue execution or credential handling.
-use exec_ipc::{ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE};
+use exec_ipc::{
+    ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE,
+};
 use std::sync::atomic::{AtomicU8, Ordering};
+
+/// Stable SCM service-specific startup and custody failures; never include credential or request data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ServiceFailure {
+    RestrictedIdentity = 1001,
+    ServiceIdentity = 1002,
+    OperatorLogon = 1003,
+    OperatorUser = 1004,
+    StopGate = 1005,
+    Vault = 1006,
+    PrivilegedPipe = 1007,
+    PrivilegedListener = 1008,
+    StopListener = 1009,
+    CredentialProtection = 1010,
+    CiphertextPublication = 1011,
+    CiphertextVerification = 1012,
+    CredentialCommit = 1013,
+    CiphertextCreation = 1014,
+    CiphertextWrite = 1015,
+    CiphertextSeal = 1016,
+    CiphertextRename = 1017,
+    OperateListener = 1018,
+    IncompleteUpdate = 1019,
+}
+
+#[cfg(test)]
+mod startup_failure_tests {
+    use super::ServiceFailure::*;
+
+    #[test]
+    fn startup_failures_have_distinct_stable_service_codes() {
+        let codes = [
+            RestrictedIdentity,
+            ServiceIdentity,
+            OperatorLogon,
+            OperatorUser,
+            StopGate,
+            Vault,
+            PrivilegedPipe,
+            PrivilegedListener,
+            StopListener,
+            CredentialProtection,
+            CiphertextPublication,
+            CiphertextVerification,
+            CredentialCommit,
+            CiphertextCreation,
+            CiphertextWrite,
+            CiphertextSeal,
+            CiphertextRename,
+            OperateListener,
+            IncompleteUpdate,
+        ];
+        assert_eq!(
+            codes.map(|phase| phase as u32),
+            [
+                1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014,
+                1015, 1016, 1017, 1018, 1019
+            ]
+        );
+    }
+}
+
+/// The SCM image folder is administrator-owned; any interrupted publication vetoes startup.
+pub fn require_complete_publication(code: &std::path::Path) -> std::io::Result<()> {
+    if !std::fs::metadata(code)?.is_dir() {
+        return Err(std::io::Error::other("invalid executor code directory"));
+    }
+    match std::fs::symlink_metadata(code.join("update.pending")) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+        Ok(_) => Err(std::io::Error::other("executor publication incomplete")),
+    }
+}
 
 /// The LocalService primary user is required but is not sufficient by itself.
 /// The SCM host also checks its restricted service-SID membership at runtime.
@@ -40,7 +116,9 @@ pub fn is_restricted_executor_token(
     {
         return false;
     }
-    groups.iter().any(|group| group.enabled && group.sid == service_sid)
+    groups
+        .iter()
+        .any(|group| group.enabled && group.sid == service_sid)
         && restricting_sids.iter().any(|sid| sid == service_sid)
 }
 
@@ -49,6 +127,9 @@ pub mod windows_identity;
 
 #[cfg(windows)]
 pub mod windows_pipe;
+
+#[cfg(windows)]
+pub mod windows_control;
 
 pub struct StopGate {
     runtime_epoch: u64,
@@ -60,11 +141,17 @@ impl StopGate {
         if runtime_epoch == 0 {
             return Err(ProtocolError::InvalidIdentity);
         }
-        Ok(Self { runtime_epoch, mode: AtomicU8::new(StopMode::Disarmed as u8) })
+        Ok(Self {
+            runtime_epoch,
+            mode: AtomicU8::new(StopMode::Disarmed as u8),
+        })
     }
 
     pub fn mode(&self) -> StopMode {
-        self.mode.load(Ordering::SeqCst).try_into().expect("mode only stored by StopGate")
+        self.mode
+            .load(Ordering::SeqCst)
+            .try_into()
+            .expect("mode only stored by StopGate")
     }
 
     pub fn runtime_epoch(&self) -> u64 {
@@ -108,3 +195,9 @@ impl StopGate {
 
 /// Durably replayed, offline-only B2 intents; never grants money authority.
 pub mod offline_recovery;
+
+/// Exact service account observations; never spendable balances or permission proof.
+pub mod account_observation;
+
+/// Durable service composition with an in-process fake venue, never a live adapter.
+pub mod fake_execution;

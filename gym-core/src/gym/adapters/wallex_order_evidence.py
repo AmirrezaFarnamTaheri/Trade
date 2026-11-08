@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\Z")
-_ASSET = re.compile(r"[A-Z0-9]{2,20}\Z")
+_ASSET = re.compile(r"[A-Z0-9]{1,20}\Z")
 _SYMBOL = re.compile(r"[A-Z0-9]{3,32}\Z")
 _STATUS = re.compile(r"[A-Za-z0-9_ .:-]{1,128}\Z")
 
@@ -32,6 +32,8 @@ def _decimal(value: object, *, label: str, zero: bool = True) -> Decimal:
         raise InvalidOrderEvidence(f"invalid {label} decimal") from None
     if not number.is_finite() or number < 0 or (not zero and number == 0):
         raise InvalidOrderEvidence(f"invalid {label} decimal")
+    if number.adjusted() > 79 or number.as_tuple().exponent < -24:
+        raise InvalidOrderEvidence(f"unsupported {label} decimal precision")
     # Fixed-point up to 24 decimals (no exponent/floating-binary promotion).
     normalized = format(number, "f")
     if len(normalized) > 80 or (
@@ -53,7 +55,7 @@ def _timestamp(value: object) -> str | int:
         value.endswith("Z") or re.search(r"[+-][0-9]{2}:[0-9]{2}\Z", value)
     ):
         try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value)
         except ValueError:
             raise InvalidOrderEvidence("invalid fill timestamp") from None
         if parsed.utcoffset() is not None:
@@ -104,7 +106,9 @@ def parse_manual_order_evidence(payload: object, requested_id: str) -> dict:
             fee_asset = fill.get("feeAsset")
             if not isinstance(fee_asset, str) or not _ASSET.fullmatch(fee_asset):
                 raise InvalidOrderEvidence("invalid fee asset")
-            total += quantity
+            with localcontext() as exact:
+                exact.prec = 256  # Preserve all digits across up to 256 bounded fills.
+                total += quantity
             if total > requested_qty:
                 raise InvalidOrderEvidence("total fills exceed order quantity")
             fills.append({
@@ -128,3 +132,84 @@ def parse_manual_order_evidence(payload: object, requested_id: str) -> dict:
         "fill_coverage": fill_coverage,
         "settlement": "UNKNOWN", "money_authority": False,
     }
+
+
+def parse_order_page(payload, *, kind, page, per_page):
+    """Map-of-order-arrays only; a page never proves collection completeness.
+
+    developers.wallex.ir documents both reads (spot Swagger, 2026-11-08): GET /v1/account/openOrders and
+    GET /v1/account/orders, each with page/per_page (history: at most 100) and a result map of order arrays.
+    """
+    if kind not in ("OPEN", "HISTORY") or type(page) is not int or not 1 <= page <= 1000 or type(per_page) is not int or not 1 <= per_page <= 100:
+        raise InvalidOrderEvidence("invalid bounded order page request")
+    result = payload.get("result") if type(payload) is dict and payload.get("success") is True else None
+    if type(result) is not dict or len(result) > 100 or any(type(rows) is not list for rows in result.values()):
+        raise InvalidOrderEvidence("unverified order collection contract")
+    orders, seen = [], set()
+    for group in result.values():
+        for row in group:
+            if len(orders) >= per_page or type(row) is not dict:
+                raise InvalidOrderEvidence("order page exceeds request bound or contains invalid rows")
+            evidence = parse_manual_order_evidence({"success": True, "result": row}, row.get("clientOrderId"))
+            if evidence["client_id"] in seen:
+                raise InvalidOrderEvidence("duplicate order identity in page")
+            seen.add(evidence["client_id"])
+            orders.append(evidence)
+    info = payload.get("result_info")
+    echoed = type(info) is dict and "page" in info and "per_page" in info
+    if echoed and (type(info["page"]) is not int or type(info["per_page"]) is not int or info["page"] != page or info["per_page"] != per_page):
+        raise InvalidOrderEvidence("order page identity differs from request")
+    return {"kind": kind, "requested_page": page, "requested_per_page": per_page, "orders": orders,
+            "pagination_echo": "MATCHED" if echoed else "UNVERIFIED", "collection_complete": False,
+            "snapshot_atomic": False, "absence_proven": False, "settlement": "UNKNOWN", "funded_authority": False}
+
+
+def validate_order_evidence(value):
+    """Validate stored sanitized evidence with the same parser used for actual GETs."""
+    if not isinstance(value, list) or len(value) > 1000:
+        raise InvalidOrderEvidence("invalid stored order evidence collection")
+    clean, seen = [], set()
+    for row in value:
+        if not isinstance(row, dict) or not isinstance(row.get("fills"), list) or len(row["fills"]) > 256 or row.get("money_authority") is not False:
+            raise InvalidOrderEvidence("invalid stored order evidence")
+        try:
+            fills = [{"quantity": fill["quantity"], "price": fill["price"], "fee": fill["fee"],
+                      "feeAsset": fill["fee_asset"], "timestamp": fill["timestamp"]} for fill in row["fills"]]
+            parsed = parse_manual_order_evidence({"success": True, "result": {
+                "clientOrderId": row["client_id"], "status": row["raw_status"], "symbol": row["symbol"],
+                "side": row["side"], "origQty": row["requested_qty"], "executedQty": row["executed_qty"],
+                "fills": fills,
+            }}, row["client_id"])
+        except (KeyError, TypeError):
+            raise InvalidOrderEvidence("invalid stored order evidence") from None
+        if parsed != row or parsed["client_id"] in seen:
+            raise InvalidOrderEvidence("changed or duplicate stored order evidence")
+        seen.add(parsed["client_id"])
+        clean.append(parsed)
+    return clean
+
+
+def validate_order_pages(value):
+    """Recheck stored pages without inferring completeness from empty results."""
+    if not isinstance(value, list) or len(value) > 2:
+        raise InvalidOrderEvidence("invalid stored order page collection")
+    clean, seen = [], set()
+    for row in value:
+        if not isinstance(row, dict) or any(row.get(key) is not False for key in (
+            "collection_complete", "snapshot_atomic", "absence_proven", "funded_authority"
+        )) or row.get("pagination_echo") not in ("MATCHED", "UNVERIFIED"):
+            raise InvalidOrderEvidence("invalid stored order page")
+        try:
+            payload = {"success": True, "result": {}}
+            if row["pagination_echo"] == "MATCHED":
+                payload["result_info"] = {"page": row["requested_page"], "per_page": row["requested_per_page"]}
+            parsed = parse_order_page(payload, kind=row["kind"], page=row["requested_page"], per_page=row["requested_per_page"])
+            parsed["orders"] = validate_order_evidence(row["orders"])
+            identity = parsed["kind"], parsed["requested_page"], parsed["requested_per_page"]
+            if len(parsed["orders"]) > parsed["requested_per_page"] or parsed != row or identity in seen:
+                raise InvalidOrderEvidence("changed or duplicate stored order page")
+        except (KeyError, TypeError):
+            raise InvalidOrderEvidence("invalid stored order page") from None
+        seen.add(identity)
+        clean.append(parsed)
+    return clean

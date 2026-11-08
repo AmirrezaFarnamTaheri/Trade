@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import secrets
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .encrypted_backup import BackupUnsafe, create_backup, restore_backup
@@ -47,7 +47,7 @@ def backup_once(
         raise BackupUnsafe("backup folder must be a pre-existing unsymlinked directory")
     if not _independent_volume(source, folder):
         raise BackupUnsafe("backup folder must reside on an independent volume")
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     bundle = folder / f"tradinggym-exec-{stamp}-{secrets.token_hex(8)}.tgbak"
     receipt = create_backup(source, bundle, passphrase=passphrase)
 

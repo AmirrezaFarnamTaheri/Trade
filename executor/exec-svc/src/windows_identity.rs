@@ -2,11 +2,85 @@
 //! This does not verify named-pipe ACLs, T2 principal or credential isolation.
 use std::io;
 use std::ptr;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
+use windows_sys::Win32::Foundation::{CloseHandle, LocalFree, HANDLE};
 use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
+/// Queried only while impersonating the connected T2 client; no wire claims.
+pub fn impersonated_elevated_administrator() -> io::Result<()> {
+    use windows_sys::Win32::Security::{
+        CheckTokenMembership, CreateWellKnownSid, TokenElevation, TokenElevationType,
+        WinBuiltinAdministratorsSid, TOKEN_ELEVATION, TOKEN_ELEVATION_TYPE,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
+    let mut raw = ptr::null_mut();
+    if unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, 1, &mut raw) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let token = OwnedToken(raw);
+    let mut elevated: TOKEN_ELEVATION = unsafe { std::mem::zeroed() };
+    let mut kind: TOKEN_ELEVATION_TYPE = 0;
+    let mut size = 0;
+    if unsafe {
+        GetTokenInformation(
+            token.0,
+            TokenElevation,
+            (&mut elevated as *mut TOKEN_ELEVATION).cast(),
+            std::mem::size_of_val(&elevated) as u32,
+            &mut size,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    if size as usize != std::mem::size_of_val(&elevated) {
+        return Err(io::Error::other("invalid elevation result"));
+    }
+    if unsafe {
+        GetTokenInformation(
+            token.0,
+            TokenElevationType,
+            (&mut kind as *mut TOKEN_ELEVATION_TYPE).cast(),
+            std::mem::size_of_val(&kind) as u32,
+            &mut size,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    if size as usize != std::mem::size_of_val(&kind) {
+        return Err(io::Error::other("invalid elevation type result"));
+    }
+    let mut sid = [0usize; 16];
+    let mut sid_size = std::mem::size_of_val(&sid) as u32;
+    if unsafe {
+        CreateWellKnownSid(
+            WinBuiltinAdministratorsSid,
+            ptr::null_mut(),
+            sid.as_mut_ptr().cast(),
+            &mut sid_size,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    let mut member = 0;
+    if unsafe { CheckTokenMembership(token.0, sid.as_mut_ptr().cast(), &mut member) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if !admits_elevation(elevated.TokenIsElevated, kind, member) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "T2 requires an actual elevated administrator token",
+        ));
+    }
+    Ok(())
+}
+fn admits_elevation(elevated: u32, kind: i32, enabled_admin: i32) -> bool {
+    // Full (2) and non-split elevated administrators (Default=1), never Limited=3.
+    elevated == 1 && matches!(kind, 1 | 2) && enabled_admin == 1
+}
 struct OwnedToken(HANDLE);
 impl Drop for OwnedToken {
     fn drop(&mut self) {
@@ -40,15 +114,25 @@ pub fn process_user_sid() -> io::Result<String> {
     // SAFETY: documented size-probe call; TokenUser result is variable-length.
     unsafe { GetTokenInformation(token.0, TokenUser, ptr::null_mut(), 0, &mut size) };
     if size < std::mem::size_of::<TOKEN_USER>() as u32 || size > 65_536 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid token user length"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid token user length",
+        ));
     }
     // TOKEN_USER is pointer-aligned, unlike Vec<u8>. Use pointer-sized storage.
     let word_size = std::mem::size_of::<usize>();
-    let mut storage = vec![0_usize; (size as usize + word_size - 1) / word_size];
+    let mut storage = vec![0_usize; (size as usize).div_ceil(word_size)];
     // SAFETY: storage is aligned, sized at least 'size', token and output live.
     if unsafe {
-        GetTokenInformation(token.0, TokenUser, storage.as_mut_ptr().cast(), size, &mut size)
-    } == 0 {
+        GetTokenInformation(
+            token.0,
+            TokenUser,
+            storage.as_mut_ptr().cast(),
+            size,
+            &mut size,
+        )
+    } == 0
+    {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: validated TokenUser result begins with the expected TOKEN_USER.
@@ -71,13 +155,16 @@ pub fn process_user_sid() -> io::Result<String> {
         count += 1;
     }
     if count == 256 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "SID text too long"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "SID text too long",
+        ));
     }
     // SAFETY: valid UTF-16 buffer from ConvertSidToStringSidW.
     let slice = unsafe { std::slice::from_raw_parts(text.0, count) };
-    String::from_utf16(slice).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid SID text"))
+    String::from_utf16(slice)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid SID text"))
 }
-
 
 /// Derive the fixed service SID from Windows account lookup, not from an
 /// environment variable, config file, IPC message, or installer output.
@@ -93,37 +180,64 @@ pub fn executor_service_sid_from_os() -> io::Result<String> {
     // SAFETY: documented sizing probe; both output lengths start at zero.
     let probe = unsafe {
         LookupAccountNameW(
-            ptr::null(), name.as_ptr(), ptr::null_mut(), &mut sid_len,
-            ptr::null_mut(), &mut domain_len, &mut sid_use,
+            ptr::null(),
+            name.as_ptr(),
+            ptr::null_mut(),
+            &mut sid_len,
+            ptr::null_mut(),
+            &mut domain_len,
+            &mut sid_use,
         )
     };
-    if probe != 0 || io::Error::last_os_error().raw_os_error() != Some(122)
-        || sid_len == 0 || sid_len > 1024 || domain_len > 4096
+    if probe != 0
+        || io::Error::last_os_error().raw_os_error() != Some(122)
+        || sid_len == 0
+        || sid_len > 1024
+        || domain_len > 4096
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid service SID lookup size"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid service SID lookup size",
+        ));
     }
-    let words = (sid_len as usize + std::mem::size_of::<usize>() - 1)
-        / std::mem::size_of::<usize>();
+    let words = (sid_len as usize).div_ceil(std::mem::size_of::<usize>());
     let mut sid_memory = vec![0_usize; words];
     let mut domain = vec![0_u16; domain_len as usize];
-    let domain_ptr = if domain.is_empty() { ptr::null_mut() } else { domain.as_mut_ptr() };
+    let domain_ptr = if domain.is_empty() {
+        ptr::null_mut()
+    } else {
+        domain.as_mut_ptr()
+    };
     // SAFETY: SID storage is aligned and sized using the OS-provided length.
     let found = unsafe {
         LookupAccountNameW(
-            ptr::null(), name.as_ptr(), sid_memory.as_mut_ptr().cast(),
-            &mut sid_len, domain_ptr, &mut domain_len, &mut sid_use,
+            ptr::null(),
+            name.as_ptr(),
+            sid_memory.as_mut_ptr().cast(),
+            &mut sid_len,
+            domain_ptr,
+            &mut domain_len,
+            &mut sid_use,
         )
     };
-    if found == 0 { return Err(io::Error::last_os_error()); }
+    if found == 0 {
+        return Err(io::Error::last_os_error());
+    }
     if sid_len < 8 || sid_len as usize > sid_memory.len() * std::mem::size_of::<usize>() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid service SID length"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid service SID length",
+        ));
     }
     sid_text(sid_memory.as_mut_ptr().cast())
 }
 
 fn sid_text(sid: *mut std::ffi::c_void) -> io::Result<String> {
     if sid.is_null() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "null token group SID"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "null token group SID",
+        ));
     }
     let mut raw_string: *mut u16 = ptr::null_mut();
     // SAFETY: SID comes from Windows token information or LookupAccountNameW.
@@ -135,17 +249,23 @@ fn sid_text(sid: *mut std::ffi::c_void) -> io::Result<String> {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "null SID text"));
     }
     let mut count = 0_usize;
-    while count < 256 && unsafe { *text.0.add(count) } != 0 { count += 1; }
+    while count < 256 && unsafe { *text.0.add(count) } != 0 {
+        count += 1;
+    }
     if count == 256 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "SID text too long"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "SID text too long",
+        ));
     }
     let slice = unsafe { std::slice::from_raw_parts(text.0, count) };
-    String::from_utf16(slice).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid SID text"))
+    String::from_utf16(slice)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid SID text"))
 }
 
-fn current_token_groups(kind: windows_sys::Win32::Security::TOKEN_INFORMATION_CLASS)
-    -> io::Result<Vec<super::TokenGroup>>
-{
+fn current_token_groups(
+    kind: windows_sys::Win32::Security::TOKEN_INFORMATION_CLASS,
+) -> io::Result<Vec<super::TokenGroup>> {
     use windows_sys::Win32::Security::{SID_AND_ATTRIBUTES, TOKEN_GROUPS};
     let mut raw_handle: HANDLE = ptr::null_mut();
     if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut raw_handle) } == 0 {
@@ -155,28 +275,41 @@ fn current_token_groups(kind: windows_sys::Win32::Security::TOKEN_INFORMATION_CL
     let mut size = 0_u32;
     // SAFETY: sizing probe; token is a process token with TOKEN_QUERY only.
     let probe = unsafe { GetTokenInformation(token.0, kind, ptr::null_mut(), 0, &mut size) };
-    if probe != 0 || io::Error::last_os_error().raw_os_error() != Some(122)
+    if probe != 0
+        || io::Error::last_os_error().raw_os_error() != Some(122)
         || (size as usize) < std::mem::size_of::<TOKEN_GROUPS>()
         || size > 1_048_576
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid token groups size"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid token groups size",
+        ));
     }
     let word = std::mem::size_of::<usize>();
-    let mut aligned = vec![0_usize; (size as usize + word - 1) / word];
+    let mut aligned = vec![0_usize; (size as usize).div_ceil(word)];
     let allocated = aligned.len() * word;
     // SAFETY: an aligned buffer with the OS-requested capacity.
-    let ok = unsafe { GetTokenInformation(token.0, kind, aligned.as_mut_ptr().cast(), size, &mut size) };
-    if ok == 0 { return Err(io::Error::last_os_error()); }
+    let ok =
+        unsafe { GetTokenInformation(token.0, kind, aligned.as_mut_ptr().cast(), size, &mut size) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
     let offset = std::mem::offset_of!(TOKEN_GROUPS, Groups);
     if (size as usize) < offset || (size as usize) > allocated {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "token groups length changed"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "token groups length changed",
+        ));
     }
     let base = aligned.as_ptr().cast::<TOKEN_GROUPS>();
     // SAFETY: GetTokenInformation returned a TOKEN_GROUPS header.
     let count = unsafe { (*base).GroupCount as usize };
     let available = (size as usize - offset) / std::mem::size_of::<SID_AND_ATTRIBUTES>();
     if count > available {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "token group count exceeds buffer"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "token group count exceeds buffer",
+        ));
     }
     // SAFETY: count is bounded by returned OS memory, and both structs have
     // compatible C alignment with the aligned Vec<usize> backing allocation.
@@ -208,11 +341,14 @@ pub fn is_restricted_executor_service() -> bool {
         let restricted = current_token_groups(TokenRestrictedSids)?;
         let restricting_sids = restricted.into_iter().map(|g| g.sid).collect::<Vec<_>>();
         Ok(super::is_restricted_executor_token(
-            &user_sid, &service_sid, &groups, &restricting_sids,
+            &user_sid,
+            &service_sid,
+            &groups,
+            &restricting_sids,
         ))
-    })().unwrap_or(false)
+    })()
+    .unwrap_or(false)
 }
-
 
 /// Query the Windows TokenUser of the currently impersonated named-pipe
 /// client, never a supplied user name or group. The server must call this
@@ -225,25 +361,37 @@ pub fn impersonated_thread_user_sid() -> io::Result<String> {
     }
     let token = OwnedToken(raw_token);
     let mut size = 0_u32;
-    let probe = unsafe {
-        GetTokenInformation(token.0, TokenUser, ptr::null_mut(), 0, &mut size)
-    };
-    if probe != 0 || io::Error::last_os_error().raw_os_error() != Some(122)
-        || size < std::mem::size_of::<TOKEN_USER>() as u32 || size > 65_536
+    let probe = unsafe { GetTokenInformation(token.0, TokenUser, ptr::null_mut(), 0, &mut size) };
+    if probe != 0
+        || io::Error::last_os_error().raw_os_error() != Some(122)
+        || size < std::mem::size_of::<TOKEN_USER>() as u32
+        || size > 65_536
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid client TokenUser size"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid client TokenUser size",
+        ));
     }
     let word = std::mem::size_of::<usize>();
-    let mut aligned = vec![0_usize; (size as usize + word - 1) / word];
+    let mut aligned = vec![0_usize; (size as usize).div_ceil(word)];
     if unsafe {
-        GetTokenInformation(token.0, TokenUser, aligned.as_mut_ptr().cast(), size, &mut size)
-    } == 0 {
+        GetTokenInformation(
+            token.0,
+            TokenUser,
+            aligned.as_mut_ptr().cast(),
+            size,
+            &mut size,
+        )
+    } == 0
+    {
         return Err(io::Error::last_os_error());
     }
-    if (size as usize) < std::mem::size_of::<TOKEN_USER>() ||
-        (size as usize) > aligned.len() * word
+    if (size as usize) < std::mem::size_of::<TOKEN_USER>() || (size as usize) > aligned.len() * word
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "client TokenUser length changed"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "client TokenUser length changed",
+        ));
     }
     let user = unsafe { &*aligned.as_ptr().cast::<TOKEN_USER>() };
     sid_text(user.User.Sid)
@@ -255,8 +403,7 @@ pub fn impersonated_thread_user_sid() -> io::Result<String> {
 /// process token or a client-supplied field as the authorized identity.
 pub fn impersonated_thread_logon_sid() -> io::Result<String> {
     use windows_sys::Win32::Security::{
-        GetTokenInformation, SID_AND_ATTRIBUTES, TOKEN_GROUPS, TOKEN_QUERY,
-        TokenLogonSid,
+        GetTokenInformation, TokenLogonSid, SID_AND_ATTRIBUTES, TOKEN_GROUPS, TOKEN_QUERY,
     };
     use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
@@ -268,46 +415,87 @@ pub fn impersonated_thread_logon_sid() -> io::Result<String> {
     }
     let token = OwnedToken(raw_token);
     let mut length = 0_u32;
-    let sizing_result = unsafe {
-        GetTokenInformation(token.0, TokenLogonSid, ptr::null_mut(), 0, &mut length)
-    };
-    if sizing_result != 0 || io::Error::last_os_error().raw_os_error() != Some(122)
-        || length < std::mem::size_of::<TOKEN_GROUPS>() as u32 || length > 65_536
+    let sizing_result =
+        unsafe { GetTokenInformation(token.0, TokenLogonSid, ptr::null_mut(), 0, &mut length) };
+    if sizing_result != 0
+        || io::Error::last_os_error().raw_os_error() != Some(122)
+        || length < std::mem::size_of::<TOKEN_GROUPS>() as u32
+        || length > 65_536
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid client logon SID size"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid client logon SID size",
+        ));
     }
     // The token's SID pointers require pointer-aligned storage.
     let word = std::mem::size_of::<usize>();
-    let mut storage = vec![0_usize; (length as usize + word - 1) / word];
+    let mut storage = vec![0_usize; (length as usize).div_ceil(word)];
     let allocated = storage.len() * word;
     if unsafe {
-        GetTokenInformation(token.0, TokenLogonSid, storage.as_mut_ptr().cast(),
-                            length, &mut length)
-    } == 0 {
+        GetTokenInformation(
+            token.0,
+            TokenLogonSid,
+            storage.as_mut_ptr().cast(),
+            length,
+            &mut length,
+        )
+    } == 0
+    {
         return Err(io::Error::last_os_error());
     }
     let groups = storage.as_ptr().cast::<TOKEN_GROUPS>();
     let offset = std::mem::offset_of!(TOKEN_GROUPS, Groups);
     if (length as usize) < offset || (length as usize) > allocated {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid client token groups"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid client token groups",
+        ));
     }
     // TokenLogonSid is a singleton OS-issued SID, not arbitrary TokenGroups.
     let count = unsafe { (*groups).GroupCount as usize };
     let capacity = (length as usize - offset) / std::mem::size_of::<SID_AND_ATTRIBUTES>();
     if count != 1 || capacity < 1 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "ambiguous client logon SID"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "ambiguous client logon SID",
+        ));
     }
     let entry = unsafe { &*std::ptr::addr_of!((*groups).Groups).cast::<SID_AND_ATTRIBUTES>() };
     if (entry.Attributes & 0xC000_0000) != 0xC000_0000 {
-        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "untrusted client logon group"));
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "untrusted client logon group",
+        ));
     }
     let sid = sid_text(entry.Sid)?;
     let components: Vec<&str> = sid.split('-').collect();
-    if components.len() != 6 || components[..4] != ["S", "1", "5", "5"]
-        || components[4..].iter().any(|part| part.is_empty()
-            || !part.bytes().all(|b| b.is_ascii_digit()))
+    if components.len() != 6
+        || components[..4] != ["S", "1", "5", "5"]
+        || components[4..]
+            .iter()
+            .any(|part| part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()))
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "malformed client logon SID"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "malformed client logon SID",
+        ));
     }
     Ok(sid)
+}
+
+#[cfg(test)]
+mod elevation_tests {
+    #[test]
+    fn elevated_enabled_admin_only() {
+        for elevation in [0, 1, 2] {
+            for kind in [0, 1, 2, 3, 4] {
+                for member in [0, 1] {
+                    assert_eq!(
+                        super::admits_elevation(elevation, kind, member),
+                        elevation == 1 && (kind == 1 || kind == 2) && member == 1
+                    );
+                }
+            }
+        }
+    }
 }

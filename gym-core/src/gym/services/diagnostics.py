@@ -1,11 +1,10 @@
 """Reproducibility, lookahead, warmup and total-cost checks for paper replays."""
-from datetime import timedelta
 from decimal import Decimal
 
 from ..domain.bars import BarSpec
 from ..domain.model import iso, parse_ts
+from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
-from ..domain.strategy import EmaTrend
 from .data_portal import DataPortal
 from .paper import run
 from .rules import RuleService
@@ -28,16 +27,20 @@ def diagnostics(db, out):
     portal, svc = DataPortal(db), RuleService(db)
     t0, t1 = parse_ts(inp["from"]), parse_ts(inp["to"])
     c = inp["cost"]
-    cost = CostModel(Decimal(c["fee_rate"]), timedelta(milliseconds=c["latency_ms"]),
-                     timedelta(seconds=c["max_wait_s"]))
+    cost = CostModel.from_description(c)
     today = svc.load()[1]
     rules = (lambda t: today) if inp["rules_mode"] == "today" else (lambda t: svc.load(t)[1])
 
     subscriptions = tuple(inp.get("subscriptions", ()))
+    strategy_id = inp.get("strategy", "ema-trend")
+    reference = inp.get("reference_symbol")
+
+    def strategy():
+        return create_strategy(strategy_id, inp["params"])
 
     def replay(end=t1, model=cost):
-        return run(portal, rules, EmaTrend(**inp["params"]), inp["symbol"], t0, end, inp["resolution"],
-                   Decimal(inp["cash"]), model, subscriptions)
+        return run(portal, rules, strategy(), inp["symbol"], t0, end, inp["resolution"],
+                   Decimal(inp["cash"]), model, subscriptions, reference)
 
     main = out["result"]
     repeat = replay()
@@ -47,27 +50,32 @@ def diagnostics(db, out):
     expected = [d for d in main["decisions"] if parse_ts(d["t"]) <= midpoint]
     checks["lookahead-check"] = first_divergence(expected, prefix["decisions"])
     # Incremental stream vs replay uses the same engine; not an independent implementation oracle.
-    stream = PaperSession(portal, rules, EmaTrend(**inp["params"]), inp["symbol"], t0, inp["resolution"],
-                          Decimal(inp["cash"]), cost, subscriptions)
+    stream = PaperSession(portal, rules, strategy(), inp["symbol"], t0, inp["resolution"],
+                          Decimal(inp["cash"]), cost, subscriptions, reference)
     for observation in portal.tops(inp["symbol"], t0, t1):
         stream.feed(observation)
     stream.finish(t1)
     checks["mode-parity"] = first_divergence(main["decisions"], stream.decisions)
-    earlier = t0 - BarSpec(inp["resolution"]).step * inp["params"]["slow"] * 2
+    prefix_bars = inp["params"].get("slow", inp["params"].get("lookback", 1)) * 2
+    prefix_span = max([BarSpec(inp["resolution"]).step * prefix_bars,
+                       *(BarSpec(r).step * 2 for r in getattr(strategy(), "required_resolutions", ()))])
+    earlier = t0 - prefix_span
+    feature = "mean" if strategy_id == "sma-reversion" else "trend"
     prehistory = portal.tops(inp["symbol"], earlier, t0)
     warmup = {"status": "NOT_RUN", "reason": "No longer prehistory available.",
-              "required_prefix_bars": inp["params"]["slow"] * 2, "prehistory_observations": len(prehistory)}
+              "required_prefix_bars": prefix_bars, "prehistory_observations": len(prehistory)}
     if prehistory:
-        longer = run(portal, rules, EmaTrend(**inp["params"]), inp["symbol"], earlier, t1, inp["resolution"],
-                     Decimal(inp["cash"]), cost, subscriptions)
+        longer = run(portal, rules, strategy(), inp["symbol"], earlier, t1, inp["resolution"],
+                     Decimal(inp["cash"]), cost, subscriptions, reference)
         lookup = {d["t"]: d for d in longer["decisions"]}
-        ready = [d for d in main["decisions"] if d.get("feature_values", {}).get("trend") is not None and d["t"] in lookup]
-        divergence = first_divergence([{"t": d["t"], "trend": d["feature_values"]["trend"]} for d in ready],
-                                      [{"t": d["t"], "trend": lookup[d["t"]]["feature_values"]["trend"]} for d in ready], ("trend",))
+        ready = [d for d in main["decisions"] if d["action"] != "ABSTAIN_WARMUP"
+                 and d.get("feature_values", {}).get(feature) is not None and d["t"] in lookup]
+        divergence = first_divergence([{"t": d["t"], feature: d["feature_values"][feature]} for d in ready],
+                                      [{"t": d["t"], feature: lookup[d["t"]]["feature_values"][feature]} for d in ready], (feature,))
         warmup = {"status": "FAIL" if divergence else "PASS" if ready else "NOT_RUN",
                   "first_divergence": divergence, "compared": len(ready), "prehistory_from": iso(earlier),
-                  "prehistory_observations": len(prehistory), "required_prefix_bars": inp["params"]["slow"] * 2,
-                  "scope": "EMA direction with twice-slow-length prehistory, not holding-dependent orders"}
+                  "prehistory_observations": len(prehistory), "required_prefix_bars": prefix_bars,
+                  "scope": f"{strategy_id} {feature} with longer prehistory; not holding-dependent orders"}
     stress = []
     waterfall = (main.get("end") or {}).get("waterfall")
     for factor_text in ("0", "1", "1.25", "2", "3"):

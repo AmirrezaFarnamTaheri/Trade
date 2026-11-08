@@ -4,8 +4,8 @@ These checks cannot substitute for real Win32 ACL / token tests.  They ensure
 that the target-side negative test and explicit SCM descriptor stay in the
 version-controlled release gates.
 """
-from pathlib import Path
 import re
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INSTALL = ROOT / "scripts/windows/Install-ReadOnlyExecutor.ps1"
@@ -35,6 +35,16 @@ def test_elevated_audit_inspects_scm_dacl_not_just_start_mode():
     assert '$ace.AccessMask -ne 0x0002008D' in body
 
 
+def test_service_registration_preserves_quotes_without_native_argument_marshalling():
+    body = INSTALL.read_text(encoding="utf-8")
+    assert 'Invoke-CimMethod -ClassName Win32_Service -MethodName Create' in body
+    assert "PathName = ('\"' + $ExePath + '\"')" in body
+    assert 'if ($registration.ReturnValue -ne 0)' in body
+    drill = (ROOT / "scripts/windows/Test-ExecutorInstalledHost.ps1").read_text(encoding="utf-8")
+    assert "function Sc(" not in drill  # Windows PowerShell resolves its Set-Content alias first.
+    assert "Invoke-DrillSc @('config'" in drill
+
+
 def test_unprivileged_script_uses_real_denied_access_attempts_not_only_acl_text():
     body = DENIAL.read_text(encoding="utf-8")
     assert 'WindowsBuiltInRole' in body
@@ -52,4 +62,4 @@ def test_unprivileged_script_uses_real_denied_access_attempts_not_only_acl_text(
 
 def test_windows_ci_syntax_checks_include_negative_probe():
     body = CI.read_text(encoding="utf-8")
-    assert 'Test-UnprivilegedExecutorAccess.ps1' in body
+    assert 'Get-ChildItem -LiteralPath scripts/windows -Filter *.ps1' in body

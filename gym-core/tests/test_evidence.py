@@ -3,15 +3,14 @@ import json
 from datetime import timedelta
 
 import pytest
+
 from gym.adapters.run_store import record_decision, run_path
 from gym.domain.model import iso
 from gym.services.diagnostics import diagnostics, first_divergence
-from gym.services.reports import economic_report
 from gym.services.paper import paper
+from gym.services.reports import economic_report
 from gym.services.session import outcome_marks
 from tests.support import START, market_db, quote, quote_history
-
-
 
 
 def test_marks_do_not_mature_early():
@@ -51,3 +50,26 @@ def test_diagnostics_report_and_demo_capital_guard(tmp_path):
     for rid in ("../secret", "A" * 16, "f" * 17):
         with pytest.raises(ValueError):
             run_path(tmp_path, rid)
+
+
+@pytest.mark.parametrize(("age", "status"), [(0, "CURRENT"), (120, "CURRENT"), (121, "STALE")])
+def test_evidence_discloses_end_price_age(age, status):
+    out = {
+        "run_id": "fixture", "outputs_digest": "fixture", "baselines": {}, "warnings": [],
+        "inputs": {"from": iso(START), "to": iso(START + timedelta(seconds=age)),
+                   "store": "live", "cost": {}},
+        "result": {"quote": "USDT", "orders": [], "end": {"mark_time": iso(START)}},
+    }
+    report = economic_report(out)
+    assert report["valuation"] == {"status": status, "as_of": iso(START), "age_seconds": age}
+    assert report["gate_eligible"] is False
+    if status == "STALE":
+        assert "stale" in report["primary_limitation"].lower()
+
+
+@pytest.mark.parametrize(("mark_time", "status"), [(None, "UNAVAILABLE"), (iso(START + timedelta(seconds=1)), "INVALID")])
+def test_evidence_rejects_missing_or_future_valuation(mark_time, status):
+    out = {"run_id": "fixture", "outputs_digest": "fixture", "baselines": {}, "warnings": [],
+           "inputs": {"from": iso(START), "to": iso(START), "store": "live", "cost": {}},
+           "result": {"quote": "USDT", "orders": [], "end": {"mark_time": mark_time} if mark_time else None}}
+    assert economic_report(out)["valuation"]["status"] == status

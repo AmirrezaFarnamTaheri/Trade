@@ -4,7 +4,7 @@ This is a host-side ACL/preflight, not proof of runtime Windows token isolation,
 client impersonation resistance, pipe DACL or 1-second stop responsiveness.
 #>
 [CmdletBinding()]
-param()
+param([switch]$MigrationPreflight)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Requires a Windows host.' }
@@ -12,9 +12,31 @@ if ($env:OS -ne 'Windows_NT') { throw 'Requires a Windows host.' }
 $ServiceName = 'TradingGYMExecutor'
 $CodeRoot = Join-Path ${env:ProgramFiles} 'TradingGYM'
 $CodeDir = Join-Path $CodeRoot 'Executor'
+if (-not $MigrationPreflight -and (Test-Path -LiteralPath (Join-Path $CodeDir 'update.pending'))) {
+    throw 'Incomplete executor publication requires administrator recovery.'
+}
 $Binary = Join-Path $CodeDir 'gym-executor.exe'
 $DataRoot = Join-Path ${env:ProgramData} 'TradingGYM'
 $DataDir = Join-Path $DataRoot 'Executor'
+# Untrusted sibling creation is harmless; replacing protected descendants is not.
+$ancestorTrusted = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+foreach ($root in @($CodeRoot, $DataRoot)) {
+    $ancestor = (Get-Item -LiteralPath $root).Parent
+    while ($null -ne $ancestor) {
+        if ($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked installation ancestor.' }
+        $ancestorAcl = Get-Acl -LiteralPath $ancestor.FullName
+        if ($ancestorAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $ancestorTrusted) { throw 'Untrusted installation ancestor owner.' }
+        $rawAncestor = [Security.AccessControl.RawSecurityDescriptor]::new($ancestorAcl.GetSecurityDescriptorBinaryForm(), 0)
+        if ($null -eq $rawAncestor.DiscretionaryAcl) { throw 'Null installation ancestor DACL.' }
+        foreach ($ace in $rawAncestor.DiscretionaryAcl) {
+            if ([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) { continue }
+            if ($ace.AceType -notin @([Security.AccessControl.AceType]::AccessAllowed, [Security.AccessControl.AceType]::AccessDenied)) { throw 'Unsupported installation ancestor ACE.' }
+            if ($ace.AceType -eq [Security.AccessControl.AceType]::AccessAllowed -and
+                ([int64]$ace.AccessMask -band 0x500d0040) -ne 0 -and $ace.SecurityIdentifier.Value -notin $ancestorTrusted) { throw 'Untrusted installation ancestor mutation.' }
+        }
+        $ancestor = $ancestor.Parent
+    }
+}
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name = 'TradingGYMExecutor'"
 if ($null -eq $service) { throw 'Missing SCM service registration.' }
 if ($service.StartName -ine 'NT AUTHORITY\LocalService') {
@@ -72,7 +94,39 @@ if ($serviceSeen.Count -ne 3) {
     throw 'Required SCM principals missing from service security descriptor.'
 }
 
+$StopCtl = Join-Path $CodeDir 'gym-stopctl.exe'
+$HardStop = Join-Path $CodeDir 'gym-hardstop.exe'
+$Provision = Join-Path $CodeDir 'gym-provision.exe'
+$AccountRead = Join-Path $CodeDir 'gym-account-read.exe'
+$CeilingControl = Join-Path $CodeDir 'gym-ceiling.exe'
+$OperatorReview = Join-Path $CodeDir 'gym-review.exe'
+$ResearchWorker = Join-Path $CodeDir 'gym-research-worker.exe'
+$StopUser = Join-Path $CodeDir 'stop-user.sid'
+$StopLogon = Join-Path $CodeDir 'stop-logon.sid'
 $trusted = @('S-1-5-18', 'S-1-5-32-544', $sid)
+foreach ($bindingPath in @($StopUser, $StopLogon)) {
+    $binding = Get-Item -LiteralPath $bindingPath -ErrorAction Stop
+    if ($binding.Length -gt 256 -or ($binding.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'Invalid protected operator binding file.'
+    }
+    $bindingAcl = Get-Acl -LiteralPath $bindingPath
+    if (-not $bindingAcl.AreAccessRulesProtected -or
+        $bindingAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $trusted[0..1]) {
+        throw 'Untrusted operator binding owner or inheritance.'
+    }
+    foreach ($ace in $bindingAcl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+        if ($ace.AccessControlType -eq 'Allow' -and
+            ($ace.IdentityReference.Value -notin $trusted -or
+             ($ace.IdentityReference.Value -eq $sid -and
+              (([int64]$ace.FileSystemRights -band -bnot [int64]([Security.AccessControl.FileSystemRights]::Read -bor [Security.AccessControl.FileSystemRights]::Synchronize)) -ne 0)))) {
+            throw 'Operator binding permits untrusted access or service mutation.'
+        }
+    }
+}
+$operatorSid = [Security.Principal.SecurityIdentifier]::new((Get-Content -LiteralPath $StopUser -Raw).Trim()).Value
+if ($operatorSid -in $trusted) { throw 'Operator must be a distinct selected user.' }
+$operatorPaths = @($CodeRoot, $CodeDir, $StopCtl, $HardStop, $OperatorReview, $ResearchWorker)
+$operatorRights = [int64]([Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Synchronize)
 $forbidden = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-19')
 $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::AppendData -bor
@@ -82,7 +136,8 @@ $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
     [Security.AccessControl.FileSystemRights]::TakeOwnership
 
-foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
+foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $CeilingControl, $OperatorReview, $ResearchWorker, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
+    if ($MigrationPreflight -and $path -in @($CeilingControl, $OperatorReview) -and -not (Test-Path -LiteralPath $path)) { continue }
     $item = Get-Item -LiteralPath $path -ErrorAction Stop
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Reparse point in protected path: $path"
@@ -95,9 +150,19 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
     if (-not $acl.AreAccessRulesProtected) { throw "ACL inheritance enabled: $path" }
     $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
     $seenService = $false
+    $seenOperator = $false
     foreach ($rule in $rules) {
         $ruleSid = $rule.IdentityReference.Value
         if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow) {
+            if ($ruleSid -eq $operatorSid) {
+                if ($path -notin $operatorPaths -or
+                    (([int64]$rule.FileSystemRights -band -bnot $operatorRights) -ne 0) -or
+                    (($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::ReadAndExecute) -ne [Security.AccessControl.FileSystemRights]::ReadAndExecute)) {
+                    throw "Operator access exceeds protected-code RX: $path"
+                }
+                $seenOperator = $true
+                continue
+            }
             if ($ruleSid -in $forbidden -or $ruleSid -notin $trusted) {
                 throw "Broad or unknown access rule on ${path}: $ruleSid"
             }
@@ -116,6 +181,10 @@ foreach ($path in @($CodeRoot, $CodeDir, $Binary, $DataRoot, $DataDir)) {
     if (-not $seenService) {
         throw "Missing service-SID allow rule: $path"
     }
+    if ($path -in $operatorPaths -and -not $seenOperator) {
+        throw "Selected operator cannot read/execute the protected helper path: $path"
+    }
 }
 if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) { throw 'Missing binary.' }
-Write-Output "PASS: $ServiceName is disabled/stopped with isolated code/data ACLs. Runtime and funded gates are NOT certified."
+if ($MigrationPreflight) { Write-Output 'MIGRATION_PREFLIGHT_ONLY: missing ceiling/review helpers and a publication marker are permitted. Not an installed-host acceptance receipt.' }
+else { Write-Output "PASS: $ServiceName is disabled/stopped with isolated code/data ACLs. Runtime and funded gates are NOT certified." }

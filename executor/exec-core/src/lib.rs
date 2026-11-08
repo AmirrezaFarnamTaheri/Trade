@@ -16,7 +16,10 @@ pub struct State {
 
 impl State {
     pub fn new(runtime_epoch: u64) -> Self {
-        Self { runtime_epoch, mode: Mode::Disarmed }
+        Self {
+            runtime_epoch,
+            mode: Mode::Disarmed,
+        }
     }
 }
 
@@ -43,7 +46,12 @@ pub enum StopResult {
 /// privileged path that does not exist in this read-only foundation.
 pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
     if request.runtime_epoch != state.runtime_epoch {
-        return (state, StopResult::StaleRuntime { current_epoch: state.runtime_epoch });
+        return (
+            state,
+            StopResult::StaleRuntime {
+                current_epoch: state.runtime_epoch,
+            },
+        );
     }
     let requested = match request.command {
         StopCommand::PauseEntries => Mode::Paused,
@@ -58,9 +66,16 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
             Mode::Halted => 3,
         }
     }
-    let mode = if rank(requested) > rank(state.mode) { requested } else { state.mode };
+    let mode = if rank(requested) > rank(state.mode) {
+        requested
+    } else {
+        state.mode
+    };
     let changed = mode != state.mode;
-    (State { mode, ..state }, StopResult::Acknowledged { mode, changed })
+    (
+        State { mode, ..state },
+        StopResult::Acknowledged { mode, changed },
+    )
 }
 
 pub mod orders;
@@ -71,4 +86,4 @@ pub mod fake_venue;
 pub mod authority;
 
 /// C-series pure preflight vetoes; NEVER a funded authorization token.
-pub mod c_admission;
+pub mod execution_admission;

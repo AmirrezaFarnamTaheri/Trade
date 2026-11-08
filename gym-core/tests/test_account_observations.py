@@ -1,6 +1,23 @@
 """B1 manual account observations never become funded balances or fills."""
 import pytest
-from gym.domain.account_observations import project_account, journal_changes, parse_wallex_balances
+
+from gym.domain.account_observations import (
+    journal_changes,
+    parse_wallex_balances,
+    project_account,
+)
+
+
+@pytest.mark.parametrize("balances", [
+    {"BTC<script>": {"value": "1", "locked": "0"}},
+    {"BTC": {"value": "1", "locked": "0"}, "btc": {"value": "1", "locked": "0"}},
+    {"BTC": {"value": "1e999999999", "locked": "0"}},
+    {"BTC": {"value": "1e-999999999", "locked": "0"}},
+    {"BTC": {"value": "0e-999999999", "locked": "0"}},
+])
+def test_raw_balance_assets_and_decimals_are_bounded_before_projection(balances):
+    with pytest.raises(ValueError):
+        parse_wallex_balances({"success": True, "result": {"balances": balances}})
 
 
 def test_balances_and_external_orders_never_become_funded_cash():

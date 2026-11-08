@@ -1,91 +1,191 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="en" dir="ltr" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TradingGYM</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f1">
+<title>TradingGYM · Market observatory</title>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<header>
-  <h1 data-t="title"></h1>
-  <span class="demo" id="demo" hidden>DEMO</span>
-  <span class="flag" id="fx" hidden></span>
-  <nav class="row" role="tablist">
-    <button data-view="markets" data-t="markets" aria-current="page"></button>
-    <button data-view="operate" data-t="operate"></button>
-    <button data-view="rules" data-t="rules"></button>
-    <button data-view="health" data-t="health"></button>
-    <button data-view="journal" data-t="journal"></button>
-  </nav>
-  <span class="spacer"></span>
-  <span class="clock" id="clock" aria-live="off"></span>
-  <button class="btn" id="lang" aria-label="Language">فارسی</button>
-</header>
-<main>
-  <section id="v-operate" hidden>
-    <h2 data-t="operate"></h2>
-    <p class="mut" data-t="operateWarning"></p>
-    <h3 data-t="protectionHeading"></h3>
-    <pre id="protection-state" role="status" aria-live="polite"></pre>
-    <h3 data-t="offlineTicketTitle"></h3>
-    <label for="offline-ticket" data-t="offlineTicketHelp"></label>
-    <textarea id="offline-ticket" spellcheck="false" rows="8"></textarea>
-    <div class="row">
-      <button class="btn" id="preview-ticket" data-t="previewOffline"></button>
+<a class="skip-link" href="#main" data-t="skipToContent">Skip to content</a>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="TradingGYM">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M4 21V7h6v14M11 17V4h6v13M18 24V10h6v14"/></svg></span>
+      <span><span class="brand-name">Trading<span>GYM</span></span><span class="brand-tagline" data-t="appTagline">A workspace for market research</span></span>
+    </a>
+    <nav class="nav" data-t-label="navigation" aria-label="Workspace navigation">
+      <span class="nav-label" data-t="navResearchGroup">Research</span>
+      <a href="#overview" data-view="overview"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m2 9 8-7 8 7M4 8v10h5v-6h3v6h4V8"/></svg><span data-t="navOverview">Overview</span></a>
+      <a href="#markets" data-view="markets" aria-current="page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15V9m5 6V4m5 11v-5m4 5V2M2 18h16"/></svg><span data-t="navMarkets">Markets</span></a>
+      <a href="#research" data-view="research"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h14v14H3zM6 13l3-4 3 2 3-5"/></svg><span data-t="navResearch">Paper research</span></a>
+      <span class="nav-label" data-t="navObserveGroup">Observe & prepare</span>
+      <a href="#account" data-view="account"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v12H3zM3 5l10-3v3m0 5h4v4h-4z"/></svg><span data-t="navAccount">Account journal</span></a>
+      <a href="#operate" data-view="operate"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2h10v16H5zM8 6h4m-4 4h4m-4 4h2"/></svg><span data-t="navOperate">Offline ticket</span></a>
+      <span class="nav-label" data-t="navWorkspaceGroup">Workspace</span>
+      <a href="#models" data-view="models"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 2v5m8-5v5M4 7h12v3a6 6 0 0 1-12 0zm6 9v3"/></svg><span data-t="navModels">AI connections</span></a>
+      <a href="#rules" data-view="rules"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14M7 3v4m6 1v4m-6 1v4"/></svg><span data-t="navRules">Venue rules</span></a>
+      <a href="#health" data-view="health"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h4l2-6 4 12 2-6h4"/></svg><span data-t="navHealth">System health</span></a>
+      <a href="#safety" data-view="safety"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 7 3v5c0 4-7 8-7 8S3 14 3 10V5z"/></svg><span data-t="navSafety">Safety</span></a>
+      <a href="#backups" data-view="backups"><svg viewBox="0 0 20 20" aria-hidden="true"><ellipse cx="10" cy="5" rx="7" ry="3"/><path d="M3 5v10c0 4 14 4 14 0V5M3 10c0 4 14 4 14 0"/></svg><span data-t="navBackups">Backups</span></a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="safety-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 9h10v8H5zM7 9V6a3 3 0 0 1 6 0v3"/></svg><div><strong data-t="disarmedStatus">Trading is disarmed</strong><p data-t="sidebarSafety">Observe, research, and preview. No live orders.</p></div></div>
+      <div class="sidebar-controls"><button type="button" id="theme-toggle" class="button button-quiet"></button><button type="button" id="language-toggle" class="button button-quiet" lang="fa">فارسی</button></div>
+      <div class="local-label"><span class="dot"></span><span data-t="localWorkspace">Local workspace</span><span class="version">v0.1</span></div>
     </div>
-    <pre id="ticket-output" role="status" aria-live="polite"></pre>
-  </section>
-  <section id="v-markets">
-    <table aria-describedby="mk-note">
-      <thead><tr><th data-t="pair"></th><th data-t="bid"></th><th data-t="ask"></th><th data-t="spread"></th>
-        <th data-t="last"></th><th data-t="quality"></th><th data-t="when"></th></tr></thead>
-      <tbody id="mk"></tbody>
-    </table>
-    <p class="mut" id="mk-note" data-t="mknote"></p>
-  </section>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb"><span data-t="workspace">Agent workspace</span><span aria-hidden="true">/</span><strong id="current-view">Overview</strong></div><div class="topbar-status"><span class="authority-indicator" data-t="disarmed">Disarmed</span><div id="feed-status" class="status-line" role="status"></div><span class="divider"></span><time id="clock"></time></div></header>
+    <main id="main" tabindex="-1">
+      <div id="demo-banner" class="banner banner-warn" hidden><strong data-t="demoLabel">Demo workspace</strong><span data-t="demoBanner">Synthetic market data. Research results cannot justify real capital.</span></div>
+      <div id="session-key-missing" class="banner banner-error" role="alert" hidden><span data-t="sessionKeyMissing">This tab has no session key. Open the link printed by gymctl run.</span></div>
+      <div id="connection-error" class="banner banner-error" role="alert" hidden><span data-t="connectionError">Data could not be refreshed. Previously loaded values may be out of date.</span><button type="button" id="retry" class="button button-small" data-t="retry">Retry</button></div>
 
-  <section id="v-rules" hidden>
-    <h2 data-t="rulesTitle"></h2>
-    <div class="row">
-      <button class="btn" id="preset" data-t="preset"></button>
-      <a class="btn" href="/api/rules/export" download data-t="export"></a>
-      <span class="mut" id="rv"></span>
-    </div>
-    <table><thead><tr><th data-t="rule"></th><th data-t="cls"></th><th data-t="state"></th><th data-t="blocksNow"></th><th data-t="window"></th><th></th></tr></thead>
-      <tbody id="rl"></tbody></table>
-    <h2 style="margin-top:20px" data-t="importTitle"></h2>
-    <label for="imp" class="mut" data-t="importHelp"></label>
-    <textarea id="imp" spellcheck="false"></textarea>
-    <div class="row"><button class="btn" id="doimp" data-t="import"></button><span id="impres" class="mut" role="status"></span></div>
-  </section>
+      <section id="v-overview" class="view" aria-labelledby="overview-title" hidden>
+        <header class="view-header"><div><h1 id="overview-title" data-t="overviewTitle">Operator workspace</h1><p class="lead" data-t="overviewLead">Follow your agent from market observation to research and preparation.</p></div><span class="observation-label" data-t="noCapital">No capital authority</span></header>
+        <nav class="mission-sequence" data-t-label="missionSequence"><div><strong data-t="missionSequence">Mission sequence</strong><small data-t="evidenceNotPermission">Evidence is not permission.</small></div><a href="#markets"><strong data-t="stageObserve">Observe</strong><small data-t="stageObserveHelp">Market data & venue state</small></a><a href="#research"><strong data-t="stageResearch">Research</strong><small data-t="stageResearchHelp">Paper runs & evidence</small></a><a href="#operate"><strong data-t="stagePrepare">Prepare</strong><small data-t="stagePrepareHelp">Offline tickets & costs</small></a><a href="#research"><strong data-t="stageValidate">Validate</strong><small data-t="stageValidateHelp">Inspect limitations</small></a><a href="#safety"><strong data-t="stageSafeguard">Safeguard</strong><small data-t="stageSafeguardHelp">Review missing protection</small></a><a href="#safety" class="locked"><strong data-t="stageExecute">Execute · locked</strong><small data-t="stageExecuteHelp">No funded authority</small></a></nav>
+        <div id="overview-summary" class="stats overview-stats"></div>
+        <div class="overview-grid"><section class="panel"><div class="panel-heading"><h2 class="panel-title" data-t="marketWatch">Market watch</h2><a class="button button-small" href="#markets" data-t="openMarkets">Open markets</a></div><div id="overview-markets"></div></section><section class="panel"><div class="panel-heading"><h2 class="panel-title" data-t="researchTitle">Paper research</h2><a class="button button-small" href="#research" data-t="openResearch">Open research</a></div><div id="overview-research"></div></section></div>
+        <div class="overview-bottom"><section class="panel"><div class="panel-heading"><h2 class="panel-title" data-t="safetyAuthority">Safety & authority</h2><a class="button button-small" href="#safety" data-t="navSafety">Safety</a></div><p class="field-help" data-t="protectionNote">Live execution is unavailable.</p><div id="overview-safety"></div></section><section class="panel"><h2 class="panel-title" data-t="recentEvidence">Recent evidence</h2><div id="overview-activity"></div></section><section class="panel"><h2 class="panel-title" data-t="knownConstraints">Known constraints</h2><ul class="constraint-list"><li><strong data-t="separateAuthority">Separate authorities</strong><span data-t="separateAuthorityHelp">Observation, simulation, and execution are independent.</span></li><li><strong data-t="unverifiedAccount">External observations</strong><span data-t="unverifiedAccountHelp">Balances are not spendable executor cash; terminal order status is not settlement.</span></li><li><strong data-t="exactPrecision">Exact precision</strong><span data-t="exactPrecisionHelp">Monetary values retain their source decimal precision.</span></li></ul></section></div>
+      </section>
 
-  <section id="v-journal" hidden>
-    <h2 data-t="journal"></h2>
-    <h3 data-t="accountRead"></h3>
-    <p id="account-state" role="status"></p>
-    <pre id="account-observations" aria-live="polite"></pre>
-    <h3 data-t="externalHistory"></h3>
-    <pre id="external-order-events" aria-live="polite"></pre>
-    <h3 data-t="offlineReviewTitle"></h3>
-    <pre id="offline-review-events" aria-live="polite"></pre>
-    <label for="run-select" data-t="chooseRun"></label> <select id="run-select"></select>
-    <p id="run-summary" role="status"></p>
-    <svg id="equity" viewBox="0 0 800 180" role="img" aria-label="Paper equity in quote currency" style="width:100%;max-height:200px"></svg>
-    <pre id="waterfall"></pre>
-    <h3 data-t="evidenceTitle"></h3><pre id="economic"></pre>
-    <h3 data-t="lastDecisions"></h3><div id="decisions"></div>
-  </section>
-  <section id="v-health" hidden>
-    <h2 data-t="health"></h2>
-    <pre id="hl"></pre>
-    <h3 data-t="venueFactsTitle"></h3>
-    <pre id="venue-facts" aria-live="polite"></pre>
-    <h3 data-t="chaosTitle"></h3>
-    <pre id="chaos"></pre>
-  </section>
-</main>
-<script id="gym-config" type="application/json">{"token":"__GYM_TOKEN__","demo":__GYM_DEMO__}</script>
+      <section id="v-markets" class="view" aria-labelledby="markets-title">
+        <header class="view-header"><div><p class="eyebrow" data-t="observatory">Market observatory</p><h1 id="markets-title" data-t="marketsTitle">The market, in view.</h1><p class="lead" data-t="marketsLead">Follow quotes, inspect liquidity, and understand the rules before you act.</p></div><button type="button" id="refresh-data" class="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 7a6 6 0 1 0 0 6M16 3v4h-4"/></svg><span data-t="refresh">Refresh data</span></button></header>
+        <div class="market-overview"><div id="market-summary" class="stats" aria-label="Market summary"></div><aside id="fx-summary" class="fx-panel"></aside></div>
+        <details class="panel"><summary data-t="workspaceCapabilities">Workspace capabilities</summary><div id="market-capabilities"></div></details>
+        <section class="market-board" aria-labelledby="watch-title">
+          <header class="board-header"><div><h2 id="watch-title" data-t="marketWatch">Market watch</h2><p id="market-count" class="muted" role="status"></p></div><span class="observation-label" data-t="observationOnly">Observation only</span></header>
+          <div class="toolbar"><div class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><label class="sr-only" for="market-filter" data-t="filterPlaceholder">Search pair or asset</label><input id="market-filter" type="search" autocomplete="off" data-t-placeholder="filterPlaceholder" placeholder="Search pair or asset"></div><div id="quote-filter" class="segmented" role="group" data-t-label="quoteFilter"><button type="button" data-quote="" aria-pressed="true" data-t="quoteAll">All pairs</button><button type="button" data-quote="TMN" aria-pressed="false">TMN</button><button type="button" data-quote="USDT" aria-pressed="false">USDT</button></div></div>
+          <div class="toolbar"><label for="market-quality"><span data-t="bookAge">Quote quality</span><select id="market-quality"><option value="all" data-t="quoteAll">All pairs</option><option value="healthy" data-t="healthy">Healthy</option><option value="stale" data-t="STALE">Stale</option><option value="missing" data-t="quoteMissing">Missing quote</option><option value="eligible" data-t="eligible">Eligible</option><option value="blocked" data-t="blocked">Blocked</option></select></label><label for="market-sort"><span data-t="sortMarkets">Sort markets</span><select id="market-sort"><option value="symbol" data-t="pair">Market</option><option value="spread" data-t="sortSpread">Spread · lowest first</option><option value="age" data-t="sortAge">Quote age · oldest first</option></select></label></div>
+          <div class="table-wrap" tabindex="0" data-t-label="marketWatch"><table class="data market-table"><thead><tr><th scope="col" data-t="pair">Market</th><th scope="col" class="num" data-t="bid">Bid</th><th scope="col" class="num" data-t="ask">Ask</th><th scope="col" class="num" data-t="spreadBps">Spread · bps</th><th scope="col" class="num" data-t="lastTrade">Last trade</th><th scope="col" data-t="bookAge">Quote quality</th><th scope="col" data-t="entry">Buy / entry</th><th scope="col" data-t="exit">Sell / exit</th></tr></thead><tbody id="market-rows"><tr><td colspan="8" class="empty" data-t="loading">Loading workspace…</td></tr></tbody></table></div>
+          <footer class="board-footer"><span data-t="pairHint">Select a market to inspect its rules and order-book quantities.</span><span id="market-updated"></span></footer>
+        </section>
+        <details class="panel"><summary data-t="marketProducts">Buy, sell, margin and credit scope</summary><p class="field-help" data-t="productScopeHelp">Read all observed markets. Margin grids require a saved current public catalogue; trade credit requires separate account eligibility.</p><div class="actions"><button id="products-refresh" class="button" type="button" data-t="loadProducts">Inspect observed products</button><button id="products-margin" class="button" type="button" data-t="loadMarginProducts">Open margin rules and preview</button></div><div id="product-capabilities" role="status"></div></details>
+        <details class="panel"><summary data-t="venueCatalogue">Full venue catalogue</summary><p class="field-help" data-t="catalogueNote">The market search also filters this list. Listing is separate from data collection, paper eligibility and execution permission.</p><div id="market-catalogue"></div></details>
+        <p class="footnote" data-t="marketNote">TMN prices are in toman. Rule eligibility is separate from execution permission; live trading remains disabled.</p>
+      </section>
+
+      <section id="v-research" class="view" aria-labelledby="research-title" hidden>
+        <header class="view-header"><div><p class="eyebrow" data-t="researchEyebrow">Test before you trust</p><h1 id="research-title" data-t="researchTitle">Paper research</h1><p class="lead" data-t="researchLead">Inspect saved runs, compare costs, and trace every decision.</p></div><span class="observation-label" data-t="paperOnly">Paper results only</span></header>
+        <div id="research-tabs" class="tabs" role="tablist" data-t-label="researchTabs" aria-label="Research sections"><button type="button" role="tab" id="tab-runs" data-tab="runs" aria-controls="panel-runs" aria-selected="true" data-t="tabRuns">Saved runs</button><button type="button" role="tab" id="tab-compare" data-tab="compare" aria-controls="panel-compare" aria-selected="false" tabindex="-1" data-t="tabCompare">Compare</button><button type="button" role="tab" id="tab-schedules" data-tab="schedules" aria-controls="panel-schedules" aria-selected="false" tabindex="-1" data-t="tabSchedules">Schedules</button><button type="button" role="tab" id="tab-margin" data-tab="margin" aria-controls="panel-margin" aria-selected="false" tabindex="-1" data-t="tabMargin">Margin</button><button type="button" role="tab" id="tab-workbench" data-tab="workbench" aria-controls="panel-workbench" aria-selected="false" tabindex="-1" data-t="tabWorkbench">Workbench</button></div>
+        <div id="panel-runs" class="tab-panel" role="tabpanel" aria-labelledby="tab-runs">
+          <div class="research"><aside class="panel run-panel"><h2 class="panel-title" data-t="paperRuns">Saved runs</h2><label class="field-help" for="run-filter"><span data-t="runFilter">Filter by symbol</span><input id="run-filter" class="input" type="search" dir="ltr" autocomplete="off" spellcheck="false" placeholder="BTCTMN"></label><ul id="run-list" class="run-list"></ul><button id="compare-picked" type="button" class="button button-small button-primary" hidden>Compare selected</button><button id="run-more" type="button" class="button button-small" data-t="loadMoreRuns" hidden>Load more runs</button></aside><div id="run-detail" class="run-detail"></div></div>
+        </div>
+        <div id="panel-compare" class="tab-panel" role="tabpanel" aria-labelledby="tab-compare" hidden>
+          <form id="compare-form" class="panel comparison-panel" aria-labelledby="compare-title">
+            <div class="panel-heading"><h2 id="compare-title" class="panel-title" data-t="compareTitle">Compare paper strategies</h2><span class="chip chip-warn" data-t="paperOnly">Paper results only</span></div>
+            <p class="field-help" data-t="compareHelp">Both accounts use the same stored window, quotes, close snapshots, cash and costs. No execution proposals or orders.</p>
+            <div id="paper-coverage" class="field-help" role="status"></div>
+            <fieldset id="comparison-fields" class="comparison-fields" disabled>
+              <div class="ticket-fields">
+                <label for="compare-symbol"><span data-t="symbol">Symbol</span><select id="compare-symbol" required dir="ltr"></select></label>
+                <label for="compare-from"><span data-t="windowFrom">From · UTC</span><input id="compare-from" class="input" type="datetime-local" step="1" required dir="ltr"></label>
+                <label for="compare-to"><span data-t="windowTo">To · UTC (exclusive)</span><input id="compare-to" class="input" type="datetime-local" step="1" required dir="ltr"></label>
+                <label for="compare-resolution"><span data-t="decisionResolution">Decision close</span><select id="compare-resolution" dir="ltr"></select></label>
+                <label for="compare-cash"><span data-t="startingCash">Starting quote cash</span><input id="compare-cash" class="input" type="text" inputmode="decimal" value="1000" required dir="ltr"></label>
+                <label for="compare-fee"><span data-t="feeFraction">Fee per fill · fraction</span><input id="compare-fee" class="input" type="text" inputmode="decimal" value="0.001" required dir="ltr"></label>
+                <label for="compare-participation"><span data-t="participation">Max share of displayed size · optional</span><input id="compare-participation" class="input" type="text" inputmode="decimal" placeholder="0.25" pattern="0?\.[0-9]{1,6}|1(\.0+)?" dir="ltr" aria-describedby="participation-help"><small id="participation-help" data-t="participationHelp">Fraction of the best-level quantity one fill may take, for example 0.25. Leave empty for no cap.</small></label>
+                <label for="validation-folds"><span data-t="validationWindows">Validation windows</span><input id="validation-folds" class="input" type="number" min="1" max="5" step="1" value="1" required dir="ltr" aria-describedby="validation-windows-help"><small id="validation-windows-help" data-t="validationWindowsHelp">Validation only · separate accounts in each window.</small></label>
+              </div>
+              <details class="disclosure" data-key="execution-model"><summary data-t="executionModel">Execution and sizing · optional</summary>
+                <div class="ticket-fields">
+                  <label for="compare-order-type"><span data-t="orderType">Order type</span><select id="compare-order-type" dir="ltr"><option value="market" data-t="orderMarket">Market · cross the spread</option><option value="limit" data-t="orderLimit">Limit · rest at the near touch</option></select></label>
+                  <label for="compare-maker-fee"><span data-t="makerFee">Maker fee · limit fills</span><input id="compare-maker-fee" class="input" type="text" inputmode="decimal" placeholder="0.001" pattern="0?\.[0-9]{1,6}" dir="ltr"></label>
+                  <label for="compare-max-fraction"><span data-t="maxFraction">Max share of cash per entry</span><input id="compare-max-fraction" class="input" type="text" inputmode="decimal" placeholder="0.5" pattern="0?\.[0-9]{1,6}|1(\.0+)?" dir="ltr"></label>
+                  <label for="compare-vol-target"><span data-t="volTarget">Target volatility per bar</span><input id="compare-vol-target" class="input" type="text" inputmode="decimal" placeholder="0.002" pattern="0?\.[0-9]{1,6}|1(\.0+)?" dir="ltr"></label>
+                  <label class="check" for="compare-walk-depth"><input id="compare-walk-depth" type="checkbox"> <span data-t="walkDepth">Fill across stored book levels</span></label>
+                  <label class="check" for="compare-carry"><input id="compare-carry" type="checkbox"> <span data-t="carryRemainder">Keep working a resized order</span></label>
+                </div>
+                <p class="field-help" data-t="executionHelp">Limit orders fill only when later trades clear the queue ahead or the market trades through. Book levels need a collector started with --depth-levels. Volatility targeting buys nothing until 20 decision bars exist.</p>
+              </details>
+              <div class="grid-2">
+                <fieldset><legend data-t="firstCandidate">First candidate</legend><label class="field-label" for="candidate-first" data-t="strategy">Strategy</label><select id="candidate-first" dir="ltr"></select><div id="candidate-first-params" class="ticket-fields candidate-parameters"></div></fieldset>
+                <fieldset><legend data-t="secondCandidate">Second candidate</legend><label class="field-label" for="candidate-second" data-t="strategy">Strategy</label><select id="candidate-second" dir="ltr"></select><div id="candidate-second-params" class="ticket-fields candidate-parameters"></div></fieldset>
+              </div>
+              <div class="actions"><button id="compare-submit" class="button button-primary" type="submit" data-t="compareAction">Run matched comparison</button><button id="validate-submit" class="button" type="button" data-t="validateAction">Run chronological validation</button><span class="field-help" data-t="compareCostNote">Fee 0.001 = 0.1% per fill. Latency: 500 ms. Point-in-time venue rules.</span></div><p class="field-help" data-t="validationNote">Chronological validation selects on the first 70%, skips one decision period, then evaluates the fixed choice on later data. Repeated historical tests are not independent final evidence.</p>
+            </fieldset>
+            <div id="compare-result" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+        <div id="panel-schedules" class="tab-panel" role="tabpanel" aria-labelledby="tab-schedules" hidden>
+          <section class="panel"><h2 class="panel-title" data-t="campaignProgress">Study progress</h2><button id="campaign-refresh" class="button" type="button" data-t="loadProgress">Inspect progress and verified results</button><div id="campaign-progress" role="status"></div></section>
+          <section class="panel" aria-labelledby="research-jobs-title"><div class="panel-heading"><h2 id="research-jobs-title" class="panel-title" data-t="researchJobs">Scheduled paper research</h2><button id="research-tick" type="button" class="button button-small" data-t="runDueResearch" disabled>Run due jobs now</button></div><p class="field-help" data-t="researchScheduleNote">Schedules are stored locally. Continuous execution requires the foreground research runner; this button runs one bounded batch.</p><div id="research-jobs" aria-live="polite"></div><div id="research-control-result" role="status" aria-live="polite"></div><h3 data-t="researchAlerts">Research alerts</h3><div id="research-alerts"></div></section>
+        </div>
+        <div id="panel-margin" class="tab-panel" role="tabpanel" aria-labelledby="tab-margin" hidden>
+          <section id="margin-workbench" class="panel"></section>
+        </div>
+        <div id="panel-workbench" class="tab-panel" role="tabpanel" aria-labelledby="tab-workbench" hidden>
+          <section id="portfolio-workbench" class="panel"></section>
+          <section id="research-workbench" class="panel"></section>
+        </div>
+      </section>
+
+      <section id="v-account" class="view" aria-labelledby="account-title" hidden>
+        <header class="view-header"><div><p class="eyebrow" data-t="accountEyebrow">Your observation journal</p><h1 id="account-title" data-t="accountTitle">Account journal</h1><p class="lead" data-t="accountLead">Recorded balances and external orders, with their source and limitations.</p></div><span class="observation-label" data-t="readOnly">Read-only</span></header>
+        <div class="panel"><h2 class="panel-title" data-t="accountRead">Venue account (read-only)</h2><div id="account-state" role="status"></div><div id="account-observations"></div></div>
+        <div class="panel"><h2 class="panel-title" data-t="externalHistory">External order observations (unverified)</h2><div id="external-order-events"></div></div>
+        <div class="panel"><h2 class="panel-title" data-t="offlineReviewTitle">Offline ticket reviews (no funded approval)</h2><p id="offline-review-status" role="status"></p><div id="offline-review-events"></div></div>
+      </section>
+
+      <section id="v-operate" class="view" aria-labelledby="operate-title" hidden>
+        <header class="view-header"><div><p class="eyebrow" data-t="offlineEyebrow">Prepare without placing an order</p><h1 id="operate-title" data-t="operateTitle">Offline ticket</h1><p class="lead" data-t="operateWarning">Estimate costs against a bounded snapshot. No order is submitted and no capital is authorized.</p></div><span class="chip chip-warn" data-t="disarmed">Disarmed</span></header>
+        <details class="panel">
+          <summary data-t="nativeReviewTitle">Protected operator intent</summary>
+          <p data-t="nativeReviewHelp">Requires the reviewed Windows service and helper to be installed. Records or revokes exact operator intent without sending orders. Holdings, fees and method qualification remain unverified.</p>
+          <button id="native-review-context" class="button" type="button" data-t="nativeReviewContext">Read service context</button>
+          <form id="native-review-form">
+            <label for="native-review-input" data-t="nativeReviewInput">Explicit native request (JSON)</label>
+            <textarea id="native-review-input" class="json-input" rows="8" spellcheck="false" dir="ltr"></textarea>
+            <p class="field-help" data-t="nativeReviewFields">Actions: status, inspect, approve, prepare, revoke. Prepare consumes an exact review once; it sends no order and reserves no money. Use the current client_id and expected_sequence. No credentials belong here.</p>
+            <button id="native-review-submit" class="button" type="submit" data-t="nativeReviewSubmit">Run protected review</button>
+          </form>
+          <pre id="native-review-result" class="output" dir="ltr" aria-live="polite"></pre>
+        </details>
+        <div class="operate-layout"><section class="panel ticket-panel"><div class="panel-heading"><h2 class="panel-title" data-t="offlineTicketTitle">Dry-run order ticket</h2><button type="button" id="ticket-example" class="button button-small" data-t="loadExample">Load synthetic example</button></div><div class="segmented" id="ticket-editor-mode" role="group" data-t-label="ticketEditor"><button type="button" data-editor="form" aria-pressed="true" data-t="structuredForm">Structured form</button><button type="button" data-editor="json" aria-pressed="false" data-t="jsonEditor">JSON editor</button></div><p id="ticket-help" class="field-help" data-t="offlineTicketHelp">Use exact decimal strings for amounts. This quote-fee model checks a BUY entry or SELL exit against declared limits.</p><div id="ticket-fields" class="ticket-fields"></div><div id="ticket-json-panel" hidden><label class="field-label" for="offline-ticket" data-t="ticketJson">Snapshot & order request · JSON</label><textarea id="offline-ticket" class="input code" spellcheck="false" rows="17" aria-describedby="ticket-help"></textarea></div><div class="actions"><button type="button" class="button button-primary" id="preview-ticket" data-t="previewOffline">Preview costs</button><span class="field-help" data-t="ticketPrivacy">Local preview. Keep credentials out of this field.</span></div><div id="ticket-output" role="status" aria-live="polite"></div></section><aside class="panel protection-panel"><h2 class="panel-title" data-t="protectionHeading">Protection & authority</h2><div id="protection-state" role="status"></div><p class="footnote" data-t="protectionNote">Account observations are not spendable cash. An offline preview cannot activate the executor or certify venue stops.</p></aside></div>
+      </section>
+
+      <section id="v-rules" class="view" aria-labelledby="rules-title" hidden>
+        <header class="view-header"><div><p class="eyebrow" data-t="rulesEyebrow">Know the constraints</p><h1 id="rules-title" data-t="rulesTitle">Venue rules</h1><p class="lead" data-t="rulesLead">Review closures, quotas, and the evidence behind each restriction.</p></div><a class="button" href="/api/rules/export" download data-t="exportRules">Export JSON</a></header>
+        <div class="toolbar"><button type="button" class="button" id="load-preset" data-t="loadPreset">Load October 2026 preset</button><span id="rule-version" class="muted"></span><span id="rule-action-result" class="muted" role="status"></span></div><div id="rule-rows"></div>
+        <details class="panel disclosure"><summary data-t="importTitle">Import a rule set</summary><label class="field-label" for="rule-import" data-t="importHelp">Paste a JSON list of rules. Malformed rules are quarantined and never applied.</label><textarea id="rule-import" class="input code" spellcheck="false" rows="8"></textarea><div class="actions"><button type="button" class="button button-primary" id="rule-import-submit" data-t="importRules">Import rules</button><span id="rule-import-result" class="muted" role="status"></span></div></details>
+      </section>
+
+      <section id="v-health" class="view" aria-labelledby="health-title" hidden>
+        <header class="view-header"><div><p class="eyebrow" data-t="healthEyebrow">Behind the observations</p><h1 id="health-title" data-t="healthTitle">System health</h1><p class="lead" data-t="healthLead">Check collection, data quality, and the evidence still missing.</p></div></header><div id="health-summary" class="stats"></div>
+        <section id="health-readiness" class="panel" aria-live="polite"></section>
+        <div class="grid-2"><section class="panel"><div class="panel-heading"><h2 class="panel-title" data-t="storageTitle">Storage and feed</h2><button id="alerts-toggle" type="button" class="button button-small" aria-pressed="false">Desktop alerts: off</button></div><div id="health-storage"></div></section><section class="panel"><h2 class="panel-title" data-t="errorsTitle">Collector events</h2><div id="health-errors"></div></section><section class="panel"><h2 class="panel-title" data-t="venueFactsTitle">Venue capability evidence (read-only)</h2><div id="venue-facts"></div></section></div><section class="panel"><h2 class="panel-title" data-t="qualityTitle">Recent quality observations</h2><div id="health-quality"></div></section><section class="panel"><h2 class="panel-title" data-t="chaosTitle">Simulated venue checks</h2><div id="chaos-report"></div></section>
+      </section>
+      <section id="v-safety" class="view" aria-labelledby="safety-title" hidden>
+        <header class="view-header"><div><h1 id="safety-title" data-t="navSafety">Safety</h1><p class="lead" data-t="safetyLead">Check the boundary between research and autonomous execution.</p></div></header>
+        <div class="grid-2"><section class="panel"><h2 class="panel-title" data-t="protectionHeading">Protection & authority</h2><div class="safety-callout"><strong data-t="disarmed">Disarmed</strong><p data-t="stageExecuteHelp">No funded authority</p></div><div id="safety-status"></div><h3 data-t="sessionKeyTitle">Session key</h3><p class="field-help" data-t="sessionKeyHelp">Rotate the key if the private link was shared or saved somewhere. Other tabs and the link printed in the terminal stop working; this tab keeps access.</p><div class="actions"><button id="rotate-key" type="button" class="button" data-t="rotateKey">Rotate session key</button></div><p id="rotate-key-result" class="field-help" role="status"></p></section><section class="panel"><h2 class="panel-title" data-t="missingGates">Execution gates still open</h2><ul class="checklist"><li><strong data-t="executor_state_verified">Executor state</strong><p class="field-help" data-t="executorGate">The browser cannot attest to the privileged executor service.</p></li><li><strong data-t="venue_stops">Venue stops</strong><p class="field-help" data-t="stopsGate">No certified protective venue stops are connected.</p></li><li><strong data-t="funded_authority">Funded authority</strong><p class="field-help" data-t="authorityGate">Offline previews and paper evidence cannot arm trading.</p></li></ul><a href="#operate" class="button" data-t="openTicket">Prepare an offline ticket</a></section></div>
+        <section class="panel"><h2 class="panel-title" data-t="installationCeiling">Installation capital limit</h2><p data-t="ceilingConsoleHelp">After installing the reviewed helper, inspect the recorded limit in an administrator console. Changing it requires administrator authorization; increases require a different account from the operator.</p><pre class="output" dir="ltr">&amp; "$env:ProgramFiles\TradingGYM\Executor\gym-ceiling.exe" get</pre><p class="field-help" data-t="ceilingUnverified">No service limit is verified by this page. Recording a limit does not arm trading or certify protection.</p></section>
+      </section>
+      <section id="v-backups" class="view" aria-labelledby="backups-title" hidden>
+        <header class="view-header"><div><h1 id="backups-title" data-t="navBackups">Backups</h1><p class="lead" data-t="backupLead">Encrypted ledger recovery uses the existing protected-console workflow.</p></div><span class="chip" data-t="backupReceipts">Local recovery receipts</span></header>
+        <div class="grid-2"><section class="panel"><h2 class="panel-title" data-t="backupWorkflow">Create an encrypted backup</h2><p class="field-help" data-t="backupHelp">Use a pre-existing directory on an independent mounted volume. Enter the recovery passphrase only in the protected console.</p><pre class="output" dir="ltr">uv run gymctl --data &lt;workspace-data&gt; backup-once &lt;ledger.db&gt; &lt;backup-directory&gt;</pre><h3 data-t="restoreWorkflow">Restore to a new ledger</h3><p class="field-help" data-t="restoreHelp">The destination must not exist. Restoration verifies the ledger and leaves execution disarmed.</p><pre class="output" dir="ltr">uv run gymctl --data &lt;workspace-data&gt; restore-backup &lt;archive.tgbak&gt; &lt;new-ledger.db&gt;</pre></section>
+        <section class="panel"><h2 class="panel-title" data-t="recoveryTruth">Recovery evidence</h2><div id="backup-operation-status" aria-live="polite"></div><ul class="checklist"><li><strong data-t="integrityFirst">Integrity before use</strong><p class="field-help" data-t="integrityHelp">A successful decrypt is not trading permission. Signed manifest checks require an independently pinned public key.</p></li><li><strong data-t="privacy">Privacy</strong><p class="field-help" data-t="backupPrivacy">Recovery passphrases and venue credentials never belong in a browser form.</p></li></ul></section></div>
+      </section>
+      <section id="v-models" class="view" aria-labelledby="models-title" hidden><header class="view-header"><h1 id="models-title" data-t="navModels">AI connections</h1></header><div id="models-content"></div></section>
+    </main>
+    <footer class="workspace-footer"><span>TradingGYM <span aria-hidden="true">/</span> <span data-t="footerPurpose">Market observation & paper research</span></span><span data-t="footerAuthority">Local data. No live execution.</span></footer>
+  </div>
+</div>
+<noscript><p>TradingGYM requires JavaScript to display the local workspace. / برای نمایش محیط، جاوااسکریپت را فعال کنید.</p></noscript>
+<script id="gym-config" type="application/json">{"demo":__GYM_DEMO__,"resolutions":__GYM_RESOLUTIONS__}</script>
+<script src="/models.js" defer></script>
+<script src="/research.js" defer></script>
+<script src="/margin.js" defer></script>
+<script src="/portfolio.js" defer></script>
+<script src="/native-review.js" defer></script>
+<script src="/replay-chart.js" defer></script>
+<script src="/charts.js" defer></script>
+<script src="/runs.js" defer></script>
+<script src="/markets.js" defer></script>
+<script src="/research-controls.js" defer></script>
+<script src="/operations.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

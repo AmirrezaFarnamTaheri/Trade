@@ -93,7 +93,7 @@ def _validate(value: dict) -> dict:
     ):
         raise VenueFactsUnsafe("timestamp must be zoned ISO 8601")
     try:
-        instant = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        instant = datetime.fromisoformat(stamp)
     except ValueError:
         raise VenueFactsUnsafe("invalid observation timestamp") from None
     if instant.utcoffset() is None:

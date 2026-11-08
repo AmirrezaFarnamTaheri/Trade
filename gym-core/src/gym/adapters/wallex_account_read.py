@@ -6,8 +6,8 @@ or supports venue writes. Every outcome is observational, not money authority.
 """
 from __future__ import annotations
 
-import asyncio
 import json
+import math
 import re
 from decimal import Decimal, InvalidOperation
 
@@ -24,6 +24,58 @@ class ReadUncertain(RuntimeError):
     """A failed read never proves an order is missing, cancelled or settled."""
 
 
+def parse_account_json(data: bytes) -> object:
+    """Reject overwritten identities, invalid UTF-8 and nonfinite JSON values."""
+    def unique_fields(pairs):
+        observed = {}
+        for key, value in pairs:
+            if key in observed:
+                raise ReadUncertain("duplicate JSON response key")
+            observed[key] = value
+        return observed
+
+    def forbidden_constant(_value):
+        raise ReadUncertain("nonfinite venue JSON number")
+
+    def finite_float(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ReadUncertain("nonfinite venue JSON number")
+        return number
+
+    try:
+        return json.loads(data.decode("utf-8"), object_pairs_hook=unique_fields,
+                          parse_constant=forbidden_constant, parse_float=finite_float)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise ReadUncertain("venue read returned unreadable data") from None
+
+
+def parse_fee_rates(payload: object) -> dict[str, dict[str, str]]:
+    """Documented per-symbol shape: result.<SYMBOL>.{makerFeeRate, takerFeeRate}."""
+    result = payload.get("result") if isinstance(payload, dict) and payload.get("success") is True else None
+    if not isinstance(result, dict):
+        raise ReadUncertain("unconfirmed account fee response")
+    out = {}
+    for symbol, row in result.items():
+        # Live responses include account-level entries such as levels and coin_levels.
+        if not isinstance(row, dict) or not {"makerFeeRate", "takerFeeRate"}.intersection(row):
+            continue
+        if not isinstance(symbol, str) or not _SYMBOL.fullmatch(symbol) or symbol.upper() in out:
+            raise ReadUncertain("invalid or duplicate fee row")
+        rates = {}
+        for side, key in (("maker", "makerFeeRate"), ("taker", "takerFeeRate")):
+            v = row.get(key)
+            try:
+                rate = Decimal(v) if isinstance(v, str) and len(v) <= 80 else None
+            except InvalidOperation:
+                rate = None
+            if rate is None or not rate.is_finite() or not 0 <= rate < 1 or not -80 <= rate.as_tuple().exponent <= 80:
+                raise ReadUncertain("invalid fee rate")
+            rates[side] = format(rate, "f")
+        out[symbol.upper()] = rates
+    return out
+
+
 class WallexAccountReader:
     def __init__(self, session: aiohttp.ClientSession, *,
                  base_url: str = BASE, max_body: int = 1_048_576):
@@ -38,7 +90,7 @@ class WallexAccountReader:
         if path not in ("/v1/account/balances", "/v1/account/fee") and not (
             path.startswith("/v1/account/orders/")
             and _ID.fullmatch(path[len("/v1/account/orders/"):])
-        ):
+        ) and not re.fullmatch(r"/v1/account/(?:orders|openOrders)\?page=(?:[1-9][0-9]{0,2}|1000)&per_page=(?:[1-9][0-9]?|100)", path):
             raise ValueError("not in read-only allowlist")
         try:
             async with self._session.get(
@@ -52,25 +104,8 @@ class WallexAccountReader:
                     if len(data) + len(chunk) > self._limit:
                         raise ReadUncertain("venue read exceeded response size limit")
                     data.extend(chunk)
-                # Duplicate keys can overwrite a failure indicator or an
-                # identity, so do not accept Python's last-key-wins default.
-                def unique_fields(pairs):
-                    observed = {}
-                    for key, value in pairs:
-                        if key in observed:
-                            raise ReadUncertain("duplicate JSON response key")
-                        observed[key] = value
-                    return observed
-
-                def forbidden_constant(_value):
-                    raise ReadUncertain("nonfinite venue JSON number")
-
-                return json.loads(
-                    data.decode("utf-8"),
-                    object_pairs_hook=unique_fields,
-                    parse_constant=forbidden_constant,
-                )
-        except (aiohttp.ClientError, asyncio.TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                return parse_account_json(data)
+        except (TimeoutError, aiohttp.ClientError):
             raise ReadUncertain("venue read failed or returned unreadable data") from None
 
     async def balances(self) -> dict[str, dict[str, str]]:
@@ -78,33 +113,12 @@ class WallexAccountReader:
         return parse_wallex_balances(await self._get("/v1/account/balances"))
 
     async def fee_rates(self) -> dict[str, dict[str, str]]:
-        """Documented per-symbol shape: result.<SYMBOL>.{makerFeeRate, takerFeeRate}."""
-        payload = await self._get("/v1/account/fee")
-        result = payload.get("result") if isinstance(payload, dict) and payload.get("success") is True else None
-        if not isinstance(result, dict):
-            raise ReadUncertain("unconfirmed account fee response")
-        out = {}
-        for symbol, row in result.items():
-            # Live result also carries account-level entries (levels, coin_levels); skip non-fee rows.
-            if not isinstance(row, dict) or "makerFeeRate" not in row:
-                continue
-            if not _SYMBOL.fullmatch(symbol):
-                raise ReadUncertain("invalid fee row")
-            rates = {}
-            for side, key in (("maker", "makerFeeRate"), ("taker", "takerFeeRate")):
-                v = row.get(key)
-                try:
-                    rate = Decimal(v) if isinstance(v, str) else None
-                except InvalidOperation:
-                    rate = None
-                if rate is None or not rate.is_finite() or not 0 <= rate < 1:
-                    raise ReadUncertain("invalid fee rate")
-                rates[side] = format(rate, "f")
-            out[symbol.upper()] = rates
-        return out
+        return parse_fee_rates(await self._get("/v1/account/fee"))
 
     async def fee_observation(self) -> dict[str, object]:
-        """Read but never *assume* the undocumented account-specific fee shape.
+        """Read but never *assume* the account-specific fee rates.
+
+        The shape (result.<SYMBOL>.makerFeeRate/takerFeeRate/recent_days_sum) is documented; rates stay uncertified.
 
         A successful GET confirms connectivity, not the rate or fee asset.
         A separate dated VenueFacts/official-contract probe is needed before
@@ -175,3 +189,13 @@ class WallexAccountReader:
             # Exception types and messages are allowlisted static strings;
             # the untrusted venue body is never included.
             raise ReadUncertain(str(exc)) from None
+
+    async def order_page(self, *, kind, page, per_page=100):
+        from .wallex_order_evidence import InvalidOrderEvidence, parse_order_page
+        parse_order_page({"success": True, "result": {}}, kind=kind, page=page, per_page=per_page)
+        collection = "openOrders" if kind == "OPEN" else "orders"
+        try:
+            payload = await self._get(f"/v1/account/{collection}?page={page}&per_page={per_page}")
+            return parse_order_page(payload, kind=kind, page=page, per_page=per_page)
+        except InvalidOrderEvidence as error:
+            raise ReadUncertain(str(error)) from None

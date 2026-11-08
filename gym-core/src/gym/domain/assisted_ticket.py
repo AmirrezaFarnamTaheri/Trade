@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_UP, localcontext
+from decimal import ROUND_UP, Decimal, localcontext
 
 _AMOUNT = re.compile(r"(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?\Z")
 _SYMBOL = re.compile(r"[A-Z0-9]{5,32}\Z")
@@ -38,7 +38,7 @@ def _zoned(raw: str) -> datetime:
     if not isinstance(raw, str) or not _ISO.fullmatch(raw):
         raise TicketUnsafe("timestamp must be a complete zoned ISO second")
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return datetime.fromisoformat(raw)
     except ValueError:
         raise TicketUnsafe("invalid ticket timestamp") from None
 

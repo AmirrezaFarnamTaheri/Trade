@@ -38,7 +38,7 @@ def test_session_bars_need_rules_and_close_at_the_closure():
         Consolidator("USDTTMN", BarSpec("session"))
     with pytest.raises(ValueError, match="trading-window"):
         BarSpec("session").bucket(START)
-    period = lambda t: session_period(RULES, USDT, t)  # noqa: E731
+    period = lambda t: session_period(RULES, USDT, t)
     tops = [replace(quote(teh("2026-10-31T12:00") + timedelta(hours=h), str(100 + h), str(101 + h)), symbol="USDTTMN")
             for h in range(11)]
     tops.append(replace(quote(teh("2026-11-01T12:00"), "200", "201"), symbol="USDTTMN"))
@@ -62,7 +62,7 @@ def test_replay_records_closures_as_closed_not_as_missing_data(tmp_path):
 def test_fx_factor_is_labeled_stale_while_usdt_irt_is_closed(tmp_path):
     t0, t1 = teh("2026-10-31T12:00"), teh("2026-11-01T01:00")  # ends inside the 23:30-11:30 closure
     steps = int((t1 - t0).total_seconds() // 60)
-    rows = [replace(quote(t0 + timedelta(minutes=i), "1000", "1002"), symbol="USDTTMN") for i in range(0, 690)]
+    rows = [replace(quote(t0 + timedelta(minutes=i), "1000", "1002"), symbol="USDTTMN") for i in range(690)]
     rows += [replace(quote(t0 + timedelta(minutes=i), str(70000000 + i), str(70000100 + i)), symbol="BTCTMN")
              for i in range(steps)]
     out = paper(market_db(tmp_path, rows), "BTCTMN", t0, t1, resolution="15min", fast=2, slow=3)
@@ -70,16 +70,44 @@ def test_fx_factor_is_labeled_stale_while_usdt_irt_is_closed(tmp_path):
     assert any("STALE_CLOSED" in w for w in out["warnings"])
 
 
+@pytest.mark.parametrize("start_age,end_age,start_status,end_status", [
+    (120, 1, "LIVE", "LIVE"),
+    (121, 1, "STALE", "LIVE"),
+    (0, 120, "LIVE", "LIVE"),
+    (0, 121, "LIVE", "STALE"),
+])
+def test_open_market_fx_freshness_uses_each_boundary_age(
+        tmp_path, start_age, end_age, start_status, end_status):
+    start, end = START, START + timedelta(minutes=10)
+    rows = [replace(quote(start + timedelta(minutes=i), "70000000", "70000100"), symbol="BTCTMN")
+            for i in range(10)]
+    rows += [replace(quote(at, "1000", "1002"), symbol="USDTTMN")
+             for at in (start - timedelta(seconds=start_age), end - timedelta(seconds=end_age))]
+    db = market_db(tmp_path, rows)
+    try:
+        out = paper(db, "BTCTMN", start, end, resolution="1min", fast=1, slow=2)
+        assert out["fx"]["start_status"] == start_status
+        assert out["fx"]["end_status"] == end_status
+        assert out["fx"]["start_age_seconds"] == start_age
+        assert out["fx"]["end_age_seconds"] == end_age
+        assert out["fx"]["start"] == out["fx"]["end"] == "1001"
+        assert (any("STALE" in warning and "last known" in warning for warning in out["warnings"])
+                == ("STALE" in (start_status, end_status)))
+        assert out["inputs"]["auxiliary_evidence"]["fx"] == out["fx"]
+    finally:
+        db.c.close()
+
+
 def test_rescale_exponent_recognises_only_powers_of_ten():
     assert rescale_exponent(Decimal("0.001")) == -3 and rescale_exponent(Decimal("1000.9")) == 3
-    assert rescale_exponent(Decimal("1.04")) is None and rescale_exponent(Decimal("3")) is None
+    assert rescale_exponent(Decimal("1.04")) is None and rescale_exponent(Decimal(3)) is None
 
 
 def mids(scale, drift=Decimal(1)):
-    usdt = Decimal("100000") * scale * drift
-    return {("USDT", "TMN"): usdt, ("BTC", "USDT"): Decimal("70000") * drift,
-            ("BTC", "TMN"): Decimal("70000") * usdt * drift, ("ETH", "USDT"): Decimal("2500"),
-            ("ETH", "TMN"): Decimal("2500") * usdt}
+    usdt = Decimal(100000) * scale * drift
+    return {("USDT", "TMN"): usdt, ("BTC", "USDT"): Decimal(70000) * drift,
+            ("BTC", "TMN"): Decimal(70000) * usdt * drift, ("ETH", "USDT"): Decimal(2500),
+            ("ETH", "TMN"): Decimal(2500) * usdt}
 
 
 def test_unit_watch_ignores_market_moves_and_lone_glitches():
@@ -98,7 +126,7 @@ def test_redenomination_freezes_irt_entries_but_never_exits(tmp_path):
 
     def show(scale, at):
         for (base, quote_ccy), mid in mids(scale).items():
-            side = lambda p: BookSide([(p, Decimal(1))] * 3, at)  # noqa: E731
+            side = lambda p: BookSide([(p, Decimal(1))] * 3, at)
             col.books[base + quote_ccy] = {"bid": side(mid * Decimal("0.9999")), "ask": side(mid * Decimal("1.0001"))}
         col.tick(at)
 

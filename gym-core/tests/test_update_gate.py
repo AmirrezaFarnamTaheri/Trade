@@ -2,6 +2,8 @@
 import pytest
 
 from gym.services.restore_gate import RestoreUnsafe, assess_migration_staging
+from gym.services.update_gate import UpdateUnsafe
+from gym.services.update_gate import assess_update as assess_service_outage
 
 
 def valid_state(**changes):
@@ -54,11 +56,6 @@ def test_policy_is_only_a_preflight_and_never_an_install_or_permission():
     decision = assess_migration_staging(valid_state())
     assert decision["install_authorized"] is False
     assert decision["funded_arming"] is False
-
-
-# Separately check the pure operator-outage policy, which is NOT the
-# migration staging policy and has no installer or journal side effects.
-from gym.services.update_gate import UpdateUnsafe, assess_update as assess_service_outage
 
 
 def test_service_update_outage_policy_refuses_unknown_orders_even_if_protected():

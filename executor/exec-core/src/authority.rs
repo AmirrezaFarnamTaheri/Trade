@@ -1,11 +1,20 @@
 //! Pure permission floor, not caller-authenticated capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthorityTier { T0, T1, T2 }
+pub enum AuthorityTier {
+    T0,
+    T1,
+    T2,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
-    PauseEntries, ExitOnly, Halt,
-    ApproveProposal, Flatten,
-    ProvisionCredential, ResolveUnknownOrder, HardStop,
+    PauseEntries,
+    ExitOnly,
+    Halt,
+    ApproveProposal,
+    Flatten,
+    ProvisionCredential,
+    ResolveUnknownOrder,
+    HardStop,
 }
 pub fn permits(tier: AuthorityTier, action: Action) -> bool {
     use Action::*;

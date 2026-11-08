@@ -7,10 +7,10 @@ import pytest
 from gym.domain.model import BookTop, InstrumentId
 from gym.domain.rules import evaluate, parse_rule
 from gym.domain.sim import CashBook, CostModel, Spec, market_order
-from gym.services.data_portal import DataPortal
-from gym.services.session import PaperSession
-from gym.services.rules import RuleService
 from gym.domain.strategy import BuyAndHold
+from gym.services.data_portal import DataPortal
+from gym.services.rules import RuleService
+from gym.services.session import PaperSession
 
 from .support import START, market_db
 
@@ -35,7 +35,7 @@ def test_price_band_is_side_specific_and_warns_without_reference():
     rules = [band()]
     assert not evaluate(rules, USDT, "BUY", "ENTRY", START, day_change_pct=Decimal("4.10")).allowed
     assert evaluate(rules, USDT, "BUY", "ENTRY", START, day_change_pct=Decimal("3.99")).allowed
-    assert evaluate(rules, USDT, "SELL", "EXIT", START, day_change_pct=Decimal("9")).allowed
+    assert evaluate(rules, USDT, "SELL", "EXIT", START, day_change_pct=Decimal(9)).allowed
     unknown = evaluate(rules, USDT, "BUY", "ENTRY", START)
     assert unknown.allowed and "day reference unknown" in unknown.warnings[0]["why"]
 

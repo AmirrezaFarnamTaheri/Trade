@@ -3,9 +3,77 @@ use exec_core::orders::{Event, FailureStage, Lifecycle, OrderError, Settlement};
 use exec_svc::offline_recovery::{DurableOrderJournal, RecoveryError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[test]
+fn recovered_cancel_cannot_invent_prebyte_proof_or_discard_racing_fills() {
+    use exec_core::orders::Cancellation;
+    let path = db_path("cancel-restart");
+    {
+        let mut journal = DurableOrderJournal::open(&path).unwrap();
+        journal
+            .create_intent("cancel-a", "main", "BTC", 100)
+            .unwrap();
+        for event in [
+            Event::BeginSend,
+            Event::Acknowledged,
+            Event::CumulativeFilled(20),
+            Event::BeginCancel,
+        ] {
+            journal.record_event("cancel-a", event).unwrap();
+        }
+    }
+    {
+        let mut journal = DurableOrderJournal::open(&path).unwrap();
+        let count = journal.record_count();
+        assert_eq!(
+            journal.get("cancel-a").unwrap().attempt.cancellation(),
+            Cancellation::Submitting
+        );
+        assert_eq!(
+            journal.record_event(
+                "cancel-a",
+                Event::CancelTransportFailed(FailureStage::BeforeFirstByte)
+            ),
+            Err(RecoveryError::Order(OrderError::IllegalTransition))
+        );
+        assert_eq!(
+            journal.record_event("cancel-a", Event::BeginCancel),
+            Err(RecoveryError::Order(OrderError::RetryForbidden))
+        );
+        assert_eq!(journal.record_count(), count);
+        for event in [
+            Event::CancelTransportFailed(FailureStage::AfterFirstByte),
+            Event::CumulativeFilled(30),
+            Event::CancelAcknowledged,
+        ] {
+            journal.record_event("cancel-a", event).unwrap();
+        }
+        assert_eq!(journal.pending_ids(), vec!["cancel-a"]);
+    }
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    assert_eq!(
+        journal.get("cancel-a").unwrap().attempt.cancellation(),
+        Cancellation::Acknowledged
+    );
+    assert_eq!(journal.get("cancel-a").unwrap().attempt.filled_quanta(), 30);
+    for event in [
+        Event::TerminalReported,
+        Event::CumulativeFilled(40),
+        Event::SettlementVerified,
+    ] {
+        journal.record_event("cancel-a", event).unwrap();
+    }
+    assert!(journal.pending_ids().is_empty());
+}
+
 fn db_path(test: &str) -> std::path::PathBuf {
-    let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    std::env::temp_dir().join(format!("tradinggym-b2-{test}-{}-{nonce}.sqlite", std::process::id()))
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    std::env::temp_dir().join(format!(
+        "tradinggym-b2-{test}-{}-{nonce}.sqlite",
+        std::process::id()
+    ))
 }
 
 #[test]
@@ -13,23 +81,49 @@ fn recovery_never_resends_ambiguous_or_inflight_orders() {
     let path = db_path("ack-lost");
     {
         let mut journal = DurableOrderJournal::open(&path).unwrap();
-        journal.create_intent("client-a", "main", "USDT", 10).unwrap();
+        journal
+            .create_intent("client-a", "main", "USDT", 10)
+            .unwrap();
         journal.record_event("client-a", Event::BeginSend).unwrap();
-        journal.record_event("client-a", Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
+        journal
+            .record_event(
+                "client-a",
+                Event::TransportFailed(FailureStage::AfterFirstByte),
+            )
+            .unwrap();
     }
     let mut restarted = DurableOrderJournal::open(&path).unwrap();
-    assert_eq!(restarted.get("client-a").unwrap().attempt.lifecycle(), Lifecycle::Unknown);
-    assert_eq!(restarted.record_event("client-a", Event::BeginSend),
-        Err(RecoveryError::Order(OrderError::RetryForbidden)));
+    assert_eq!(
+        restarted.get("client-a").unwrap().attempt.lifecycle(),
+        Lifecycle::Unknown
+    );
+    assert_eq!(
+        restarted.record_event("client-a", Event::BeginSend),
+        Err(RecoveryError::Order(OrderError::RetryForbidden))
+    );
     assert_eq!(restarted.pending_ids(), vec!["client-a"]);
-    restarted.record_event("client-a", Event::Acknowledged).unwrap();
-    restarted.record_event("client-a", Event::TerminalReported).unwrap();
-    restarted.record_event("client-a", Event::CumulativeFilled(0)).unwrap();
-    restarted.record_event("client-a", Event::SettlementVerified).unwrap();
+    restarted
+        .record_event("client-a", Event::Acknowledged)
+        .unwrap();
+    restarted
+        .record_event("client-a", Event::TerminalReported)
+        .unwrap();
+    restarted
+        .record_event("client-a", Event::CumulativeFilled(0))
+        .unwrap();
+    restarted
+        .record_event("client-a", Event::SettlementVerified)
+        .unwrap();
     drop(restarted);
     let recovered = DurableOrderJournal::open(&path).unwrap();
-    assert_eq!(recovered.get("client-a").unwrap().attempt.lifecycle(), Lifecycle::Closed);
-    assert_eq!(recovered.get("client-a").unwrap().attempt.settlement(), Settlement::Verified);
+    assert_eq!(
+        recovered.get("client-a").unwrap().attempt.lifecycle(),
+        Lifecycle::Closed
+    );
+    assert_eq!(
+        recovered.get("client-a").unwrap().attempt.settlement(),
+        Settlement::Verified
+    );
     assert!(recovered.pending_ids().is_empty());
 }
 
@@ -42,9 +136,14 @@ fn crash_after_begin_send_before_dispatch_proof_is_not_retryable() {
         journal.record_event("client-b", Event::BeginSend).unwrap();
     }
     let mut restarted = DurableOrderJournal::open(&path).unwrap();
-    assert_eq!(restarted.get("client-b").unwrap().attempt.lifecycle(), Lifecycle::Submitting);
-    assert_eq!(restarted.record_event("client-b", Event::BeginSend),
-        Err(RecoveryError::Order(OrderError::RetryForbidden)));
+    assert_eq!(
+        restarted.get("client-b").unwrap().attempt.lifecycle(),
+        Lifecycle::Submitting
+    );
+    assert_eq!(
+        restarted.record_event("client-b", Event::BeginSend),
+        Err(RecoveryError::Order(OrderError::RetryForbidden))
+    );
     assert_eq!(restarted.pending_ids(), vec!["client-b"]);
 }
 
@@ -52,12 +151,18 @@ fn crash_after_begin_send_before_dispatch_proof_is_not_retryable() {
 fn invalid_transition_does_not_append_to_durable_ledger() {
     let path = db_path("atomic");
     let mut journal = DurableOrderJournal::open(&path).unwrap();
-    journal.create_intent("client-c", "main", "USDT", 25).unwrap();
-    assert_eq!(journal.record_event("client-c", Event::SettlementVerified),
-        Err(RecoveryError::Order(OrderError::IllegalTransition)));
+    journal
+        .create_intent("client-c", "main", "USDT", 25)
+        .unwrap();
+    assert_eq!(
+        journal.record_event("client-c", Event::SettlementVerified),
+        Err(RecoveryError::Order(OrderError::IllegalTransition))
+    );
     let before = journal.get("client-c").unwrap().attempt;
-    assert_eq!(journal.create_intent("client-c", "main", "USDT", 25),
-        Err(RecoveryError::DuplicateIdentity));
+    assert_eq!(
+        journal.create_intent("client-c", "main", "USDT", 25),
+        Err(RecoveryError::DuplicateIdentity)
+    );
     drop(journal);
     let recovered = DurableOrderJournal::open(&path).unwrap();
     assert_eq!(recovered.get("client-c").unwrap().attempt, before);
@@ -80,7 +185,9 @@ fn exact_account_and_asset_identity_survives_restart() {
     let path = db_path("scoped");
     {
         let mut journal = DurableOrderJournal::open(&path).unwrap();
-        journal.create_intent("independent", "subaccount:credit-1", "BTC", 17).unwrap();
+        journal
+            .create_intent("independent", "subaccount:credit-1", "BTC", 17)
+            .unwrap();
         journal.record_event("independent", Event::Denied).unwrap();
     }
     let restarted = DurableOrderJournal::open(&path).unwrap();
@@ -96,41 +203,79 @@ fn recovered_inflight_attempt_cannot_claim_prebyte_failure_after_crash() {
     let path = db_path("crash-prebyte");
     {
         let mut writer = DurableOrderJournal::open(&path).unwrap();
-        writer.create_intent("client-crash", "main", "BTC", 5).unwrap();
-        writer.record_event("client-crash", Event::BeginSend).unwrap();
+        writer
+            .create_intent("client-crash", "main", "BTC", 5)
+            .unwrap();
+        writer
+            .record_event("client-crash", Event::BeginSend)
+            .unwrap();
     }
     for _ in 0..2 {
         let mut restarted = DurableOrderJournal::open(&path).unwrap();
         assert_eq!(restarted.record_count(), 2);
         assert_eq!(
-            restarted.record_event("client-crash",
-                Event::TransportFailed(FailureStage::BeforeFirstByte)),
+            restarted.record_event(
+                "client-crash",
+                Event::TransportFailed(FailureStage::BeforeFirstByte)
+            ),
             Err(RecoveryError::Order(OrderError::IllegalTransition))
         );
         assert_eq!(restarted.record_count(), 2);
-        assert_eq!(restarted.get("client-crash").unwrap().attempt.lifecycle(),
-            Lifecycle::Submitting);
-        assert_eq!(restarted.record_event("client-crash", Event::BeginSend),
-            Err(RecoveryError::Order(OrderError::RetryForbidden)));
+        assert_eq!(
+            restarted.get("client-crash").unwrap().attempt.lifecycle(),
+            Lifecycle::Submitting
+        );
+        assert_eq!(
+            restarted.record_event("client-crash", Event::BeginSend),
+            Err(RecoveryError::Order(OrderError::RetryForbidden))
+        );
     }
     let mut restarted = DurableOrderJournal::open(&path).unwrap();
-    restarted.record_event("client-crash",
-        Event::TransportFailed(FailureStage::AfterFirstByte)).unwrap();
-    assert_eq!(restarted.get("client-crash").unwrap().attempt.lifecycle(),
-        Lifecycle::Unknown);
+    restarted
+        .record_event(
+            "client-crash",
+            Event::TransportFailed(FailureStage::AfterFirstByte),
+        )
+        .unwrap();
+    assert_eq!(
+        restarted.get("client-crash").unwrap().attempt.lifecycle(),
+        Lifecycle::Unknown
+    );
 }
 
 #[test]
 fn continuous_process_may_record_proven_prebyte_failure_once() {
     let path = db_path("same-process-prebyte");
     let mut writer = DurableOrderJournal::open(&path).unwrap();
-    writer.create_intent("client-proven", "main", "USDT", 10).unwrap();
-    writer.record_event("client-proven", Event::BeginSend).unwrap();
-    writer.record_event("client-proven",
-        Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
-    assert!(writer.get("client-proven").unwrap().attempt.can_retry_same_identity());
-    writer.record_event("client-proven", Event::BeginSend).unwrap();
-    writer.record_event("client-proven",
-        Event::TransportFailed(FailureStage::BeforeFirstByte)).unwrap();
-    assert!(!writer.get("client-proven").unwrap().attempt.can_retry_same_identity());
+    writer
+        .create_intent("client-proven", "main", "USDT", 10)
+        .unwrap();
+    writer
+        .record_event("client-proven", Event::BeginSend)
+        .unwrap();
+    writer
+        .record_event(
+            "client-proven",
+            Event::TransportFailed(FailureStage::BeforeFirstByte),
+        )
+        .unwrap();
+    assert!(writer
+        .get("client-proven")
+        .unwrap()
+        .attempt
+        .can_retry_same_identity());
+    writer
+        .record_event("client-proven", Event::BeginSend)
+        .unwrap();
+    writer
+        .record_event(
+            "client-proven",
+            Event::TransportFailed(FailureStage::BeforeFirstByte),
+        )
+        .unwrap();
+    assert!(!writer
+        .get("client-proven")
+        .unwrap()
+        .attempt
+        .can_retry_same_identity());
 }

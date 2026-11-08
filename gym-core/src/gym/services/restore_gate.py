@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
-from pathlib import Path
 from contextlib import closing
+from pathlib import Path
 from urllib.parse import quote
 
 
@@ -61,7 +61,7 @@ def inspect_ledger(source: Path | str) -> dict:
                     raise RestoreUnsafe("ledger event hash mismatch")
                 previous = current
                 sequence = idx
-    except sqlite3.Error as exc:
+    except sqlite3.Error:
         raise RestoreUnsafe("unreadable or damaged SQLite candidate") from None
     digest = hashlib.sha256()
     with path.open("rb") as data:

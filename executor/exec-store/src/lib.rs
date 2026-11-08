@@ -61,7 +61,10 @@ impl fmt::Display for LedgerError {
             Self::InvalidSize(n) => write!(f, "invalid event length {n}"),
             Self::Configuration(why) => write!(f, "unsafe ledger configuration: {why}"),
             Self::Integrity { sequence, reason } => {
-                write!(f, "ledger integrity failure at sequence {sequence}: {reason}")
+                write!(
+                    f,
+                    "ledger integrity failure at sequence {sequence}: {reason}"
+                )
             }
         }
     }
@@ -124,24 +127,43 @@ fn load_verified(
     let mut visible = Vec::new();
     while let Some(row) = rows.next()? {
         let raw_sequence: i64 = row.get(0)?;
-        let expected = sequence.checked_add(1).ok_or(LedgerError::Configuration("sequence exhausted"))?;
+        let expected = sequence
+            .checked_add(1)
+            .ok_or(LedgerError::Configuration("sequence exhausted"))?;
         if raw_sequence < 1 || raw_sequence as u64 != expected {
-            return Err(LedgerError::Integrity { sequence: expected, reason: "missing or out-of-order sequence" });
+            return Err(LedgerError::Integrity {
+                sequence: expected,
+                reason: "missing or out-of-order sequence",
+            });
         }
         let event_bytes: Vec<u8> = row.get(1)?;
         if event_bytes.is_empty() || event_bytes.len() > MAX_EVENT_BYTES {
-            return Err(LedgerError::Integrity { sequence: expected, reason: "invalid event length" });
+            return Err(LedgerError::Integrity {
+                sequence: expected,
+                reason: "invalid event length",
+            });
         }
         let prev_hash = checked_hash(row.get(2)?, expected)?;
         let event_hash = checked_hash(row.get(3)?, expected)?;
         if prev_hash != previous {
-            return Err(LedgerError::Integrity { sequence: expected, reason: "broken previous hash" });
+            return Err(LedgerError::Integrity {
+                sequence: expected,
+                reason: "broken previous hash",
+            });
         }
         if hash_event(&previous, &event_bytes) != event_hash {
-            return Err(LedgerError::Integrity { sequence: expected, reason: "stored-byte hash mismatch" });
+            return Err(LedgerError::Integrity {
+                sequence: expected,
+                reason: "stored-byte hash mismatch",
+            });
         }
         if expected > after_sequence {
-            visible.push(LedgerEntry { sequence: expected, event_bytes, previous_hash: prev_hash, event_hash });
+            visible.push(LedgerEntry {
+                sequence: expected,
+                event_bytes,
+                previous_hash: prev_hash,
+                event_hash,
+            });
         }
         previous = event_hash;
         sequence = expected;
@@ -154,15 +176,22 @@ impl Ledger {
     /// ledger fails closed before any append is possible.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, LedgerError> {
         let path = path.as_ref();
-        let lock = OpenOptions::new().create(true).read(true).write(true).open(lock_path(path))?;
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(lock_path(path))?;
         if let Err(err) = lock.try_lock_exclusive() {
-            return Err(if err.kind() == io::ErrorKind::WouldBlock
-                || err.raw_os_error() == fs2::lock_contended_error().raw_os_error()
-            {
-                LedgerError::WriterLocked
-            } else {
-                LedgerError::Io(err)
-            });
+            return Err(
+                if err.kind() == io::ErrorKind::WouldBlock
+                    || err.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+                {
+                    LedgerError::WriterLocked
+                } else {
+                    LedgerError::Io(err)
+                },
+            );
         }
         let mut conn = Connection::open(path)?;
         conn.busy_timeout(Duration::from_secs(5))?;
@@ -173,7 +202,9 @@ impl Ledger {
         conn.execute_batch("PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")?;
         let sync: i64 = conn.query_row("PRAGMA synchronous", [], |r| r.get(0))?;
         if sync != 2 {
-            return Err(LedgerError::Configuration("synchronous=FULL was not applied"));
+            return Err(LedgerError::Configuration(
+                "synchronous=FULL was not applied",
+            ));
         }
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         match version {
@@ -190,13 +221,19 @@ impl Ledger {
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND ",
                 "name IN ('ledger_events_no_update', 'ledger_events_no_delete')"
             ),
-            [], |r| r.get(0),
+            [],
+            |r| r.get(0),
         )?;
         if trigger_count != 2 {
             return Err(LedgerError::Configuration("append-only guards missing"));
         }
         let (sequence, head_hash, _) = load_verified(&conn, u64::MAX)?;
-        Ok(Self { conn, _writer_lock: lock, sequence, head_hash })
+        Ok(Self {
+            conn,
+            _writer_lock: lock,
+            sequence,
+            head_hash,
+        })
     }
 
     /// Commit raw, already validated event bytes before returning an identity.
@@ -205,21 +242,36 @@ impl Ledger {
         if event_bytes.is_empty() || event_bytes.len() > MAX_EVENT_BYTES {
             return Err(LedgerError::InvalidSize(event_bytes.len()));
         }
-        let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let current: Option<(i64, Vec<u8>)> = tx.query_row(
-            "SELECT sequence,event_hash FROM ledger_events ORDER BY sequence DESC LIMIT 1",
-            [], |r| Ok((r.get(0)?, r.get(1)?)),
-        ).optional()?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let current: Option<(i64, Vec<u8>)> = tx
+            .query_row(
+                "SELECT sequence,event_hash FROM ledger_events ORDER BY sequence DESC LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
         let consistent = match current {
             None => self.sequence == 0 && self.head_hash == GENESIS,
-            Some((seq, hash)) => seq >= 1 && seq as u64 == self.sequence
-                && checked_hash(hash, self.sequence)? == self.head_hash,
+            Some((seq, hash)) => {
+                seq >= 1
+                    && seq as u64 == self.sequence
+                    && checked_hash(hash, self.sequence)? == self.head_hash
+            }
         };
         if !consistent {
-            return Err(LedgerError::Integrity { sequence: self.sequence + 1, reason: "head changed outside writer" });
+            return Err(LedgerError::Integrity {
+                sequence: self.sequence + 1,
+                reason: "head changed outside writer",
+            });
         }
-        let sequence = self.sequence.checked_add(1).ok_or(LedgerError::Configuration("sequence exhausted"))?;
-        let sequence_i64 = i64::try_from(sequence).map_err(|_| LedgerError::Configuration("sequence exhausted"))?;
+        let sequence = self
+            .sequence
+            .checked_add(1)
+            .ok_or(LedgerError::Configuration("sequence exhausted"))?;
+        let sequence_i64 = i64::try_from(sequence)
+            .map_err(|_| LedgerError::Configuration("sequence exhausted"))?;
         let previous_hash = self.head_hash;
         let event_hash = hash_event(&previous_hash, event_bytes);
         tx.execute(
@@ -229,14 +281,22 @@ impl Ledger {
         tx.commit()?;
         self.sequence = sequence;
         self.head_hash = event_hash;
-        Ok(LedgerEntry { sequence, event_bytes: event_bytes.to_vec(), previous_hash, event_hash })
+        Ok(LedgerEntry {
+            sequence,
+            event_bytes: event_bytes.to_vec(),
+            previous_hash,
+            event_hash,
+        })
     }
 
     /// Verify the entire chain, also detecting changes to the head while open.
     pub fn verify(&self) -> Result<[u8; 32], LedgerError> {
         let (sequence, head, _) = load_verified(&self.conn, u64::MAX)?;
         if sequence != self.sequence || head != self.head_hash {
-            return Err(LedgerError::Integrity { sequence: self.sequence + 1, reason: "head changed outside writer" });
+            return Err(LedgerError::Integrity {
+                sequence: self.sequence + 1,
+                reason: "head changed outside writer",
+            });
         }
         Ok(head)
     }
@@ -245,15 +305,22 @@ impl Ledger {
     pub fn replay_from(&self, after_sequence: u64) -> Result<Vec<LedgerEntry>, LedgerError> {
         let (sequence, head, events) = load_verified(&self.conn, after_sequence)?;
         if sequence != self.sequence || head != self.head_hash {
-            return Err(LedgerError::Integrity { sequence: self.sequence + 1, reason: "head changed outside writer" });
+            return Err(LedgerError::Integrity {
+                sequence: self.sequence + 1,
+                reason: "head changed outside writer",
+            });
         }
         Ok(events)
     }
 
     /// Diagnostic mode values; callers may not lower these settings.
     pub fn pragmas(&self) -> Result<(String, i64), LedgerError> {
-        let mode = self.conn.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
-        let sync = self.conn.query_row("PRAGMA synchronous", [], |r| r.get(0))?;
+        let mode = self
+            .conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
+        let sync = self
+            .conn
+            .query_row("PRAGMA synchronous", [], |r| r.get(0))?;
         Ok((mode, sync))
     }
 }

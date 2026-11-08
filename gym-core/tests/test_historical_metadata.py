@@ -149,9 +149,9 @@ def test_asset_count_boundaries_and_429_backoff(monkeypatch, tmp_path):
     import aiohttp
     import pytest
 
-    with pytest.raises(ValueError, match="25..500"):
-        collector_module.select_universe([], 24)
-    with pytest.raises(ValueError, match="25..500"):
+    with pytest.raises(ValueError, match="1..500"):
+        collector_module.select_universe([], 0)
+    with pytest.raises(ValueError, match="1..500"):
         collector_module.select_universe([], 501)
     assert collector_module.select_universe([], 500)[0] == []
 

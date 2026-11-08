@@ -63,6 +63,12 @@ def parse_rule(d: dict) -> Rule:
             raise ValueError("scope.side must be BUY or SELL")
         if not isinstance(scope.get("symbols", []), list):
             raise ValueError("scope.symbols must be a list")
+        for flag in ("disabled", "exit_confirmed"):
+            if type(d.get(flag, False)) is not bool:  # bool("false") is True; never coerce
+                raise ValueError(f"{flag} must be true or false")
+        review_hours = d.get("review_hours", 24)
+        if type(review_hours) not in (int, float) or not 0 < review_hours <= 24 * 366:
+            raise ValueError("review_hours must be a number of hours in (0, 8784]")
         r = Rule(
             id=d["id"], name=str(d.get("name", d["id"])), family=pick("family", FAMILIES),
             cls=pick("class", CLASSES), action=pick("action", ACTIONS), scope=scope, params=params,
@@ -70,8 +76,8 @@ def parse_rule(d: dict) -> Rule:
             effective_until=parse_ts(d["effective_until"]) if d.get("effective_until") else None,
             source=pick("source", SOURCES), status=pick("status", STATUSES),
             last_confirmed_at=parse_ts(d["last_confirmed_at"]) if d.get("last_confirmed_at") else None,
-            review_hours=float(d.get("review_hours", 24)), exit_confirmed=bool(d.get("exit_confirmed", False)),
-            disabled=bool(d.get("disabled", False)), note=str(d.get("note", "")),
+            review_hours=float(review_hours), exit_confirmed=d.get("exit_confirmed", False),
+            disabled=d.get("disabled", False), note=str(d.get("note", "")),
         )
         if r.effective_until and r.effective_until <= r.effective_from:
             raise ValueError("inverted effective interval")

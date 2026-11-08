@@ -12,7 +12,7 @@ from gym.services.feed_crosscheck import candle_crosscheck
 from tests.support import START, market_db, quote
 
 # Shape captured from GET https://api.wallex.ir/v1/udf/history?symbol=BTCUSDT&resolution=1 on 2026-10-31.
-UDF = ('{"s":"ok","t":[%d,%d],"o":["100","200"],"h":["110","210"],"l":["90","190"],"c":["105","205"],'
+UDF = ('{"s":"ok","t":[%d,%d],"o":["100","200"],"h":["110","210"],"l":["90","190"],"c":["105","205"],'  # noqa: UP031 - JSON braces make an f-string unreadable
        '"v":["0.00593456","0"]}' % (START.timestamp(), START.timestamp() + 60))
 
 
@@ -23,7 +23,7 @@ def trade(seconds, price, qty="0.1"):
 
 def test_udf_history_parses_exact_decimals_and_rejects_malformed_columns():
     candles = parse_udf(UDF)
-    assert candles[0]["t"] == START and candles[0]["v"] == Decimal("0.00593456") and candles[1]["c"] == Decimal("205")
+    assert candles[0]["t"] == START and candles[0]["v"] == Decimal("0.00593456") and candles[1]["c"] == Decimal(205)
     assert parse_udf('{"s":"no_data"}') == []
     with pytest.raises(ValueError, match="length"):
         parse_udf('{"s":"ok","t":[1],"o":[],"h":[],"l":[],"c":[],"v":[]}')
@@ -49,8 +49,8 @@ def crosscheck_db(tmp_path, trades, candles, fetched_late=True, listening=True):
     return DataPortal(db)
 
 
-def candle(minute, o, h, l, c, v="1"):
-    return {"t": START + timedelta(minutes=minute), **{k: Decimal(x) for k, x in zip("ohlcv", (o, h, l, c, v))}}
+def candle(minute, o, h, low, c, v="1"):
+    return {"t": START + timedelta(minutes=minute), **{k: Decimal(x) for k, x in zip("ohlcv", (o, h, low, c, v))}}
 
 
 def test_agreeing_divergent_and_missing_periods_are_classified(tmp_path):
@@ -75,3 +75,19 @@ def test_venue_candles_still_forming_when_fetched_are_not_compared(tmp_path):
 def test_venue_trading_while_the_collector_was_off_is_not_a_divergence(tmp_path):
     portal = crosscheck_db(tmp_path, [], [candle(0, "100", "100", "100", "100")], listening=False)
     assert candle_crosscheck(portal, "BTCUSDT", START, START + timedelta(minutes=2))["counts"] == {"NOT_COVERED": 1}
+
+
+def test_point_in_time_crosscheck_excludes_later_receipts_and_fetched_candles(tmp_path):
+    late = TradeTick("BTCUSDT", START, START + timedelta(minutes=20), Decimal(100), Decimal(1), "BUY")
+    portal = crosscheck_db(tmp_path, [late], [candle(0, "100", "100", "100", "100")])
+    cut = START + timedelta(minutes=2)
+    earlier = candle_crosscheck(portal, "BTCUSDT", START, cut, as_of=cut)
+    assert earlier["counts"] == {} and earlier["knowledge_mode"] == "POINT_IN_TIME"
+    observed = candle_crosscheck(portal, "BTCUSDT", START, cut, as_of=START + timedelta(minutes=11))
+    assert observed["counts"] == {"MISSING_INTERNAL": 1}
+    later = candle_crosscheck(portal, "BTCUSDT", START, cut, as_of=START + timedelta(minutes=21))
+    assert later["counts"] == {"AGREE": 1}
+    assert candle_crosscheck(portal, "BTCUSDT", START, cut)["knowledge_mode"] == "RETROSPECTIVE"
+    for options in ({"as_of": START}, {"tolerance_bps": Decimal("NaN")}, {"tolerance_bps": Decimal(-1)}):
+        with pytest.raises(ValueError):
+            candle_crosscheck(portal, "BTCUSDT", START, cut, **options)

@@ -1,127 +1,70 @@
-# gym-core — market observatory and paper research
+# gym-core — observatory and paper research
 
-Public Wallex collector, venue-rule service and a bilingual (EN/FA) Markets screen with a pair-scoped
-"When can I act?" bar, paper sessions and an economic evidence report. No live order code exists; nothing here can place, cancel or sign venue orders.
+TradingGYM collects public Wallex observations, runs reproducible paper research
+and provides an English/Persian operator workspace. The product goal is an
+autonomous agent; funded execution remains DISARMED and unavailable.
+
+## Install and run
+
+From the repository's gym-core directory:
 
 ```powershell
-cd gym-core
 uv sync
-uv run gymctl run              # full catalog + top 50 non-risky spot assets -> data\live
-uv run gymctl run --assets 100 # choose 25..500 assets; both TMN/USDT markets are observed when listed
-uv run gymctl run --demo       # synthetic DEMO feed -> data\demo (never mixed with live)
-uv run gymctl rules list       # also: add|edit|import|export|disable|rollback|preset|check
-uv run gymctl spreads --output spreads.json  # all observed pairs, grouped by Tehran hour; creates a new file
-uv run gymctl candles BTCUSDT --fetch         # internal trade bars vs venue 1min candles, last two hours
-uv run gymctl paper USDTTMN --res session --subscribe 1h  # primary session decisions plus 1h close events
-uv run gymctl demo-seed         # 72 h synthetic DEMO history (USDTTMN goes silent in its closures)
-uv run gymctl paper BTCTMN --demo   # EMA replay + baselines + gross-to-net waterfall -> data\demo\runs\<id>.json
-uv run pytest -q               # behavior and architecture checks
+uv run --no-sync gymctl --data ../data run --assets all
 ```
 
-Live `run` stores every current catalog row, then ranks active non-risky spot assets by combined 24-hour quote volume
-(TMNs are normalized through USDTTMN). The default is 50 assets; `--assets 25..500` changes the target. `--add-symbols BTCUSDT,XRPTMN` and `--remove-symbols PEPETMN` overlay
-the ranked set; `--watch` replaces it with an explicit market list. Custom additions are observation-only and bypass ranking filters. Each WebSocket observes at most 21 markets (63 of Wallex's 64 channels). Public REST is globally
-paced at four requests/second, backs off again on HTTP 429, reseeds stale books in batches of five, and rotates ten candle
-checks per minute. The local `/api/markets` response exposes the selection and pacing policy.
+Use the same explicit data root for every command. Here, `../data/live` is the
+canonical observed store; DEMO uses `../data/demo`. Omitting `--data` selects a
+separate `./data` store. Do not overwrite either store to resolve a mismatch.
 
-`paper` takes `--from/--to` (zoned ISO), `--res 1min|15min|1h|1day|session`, `--subscribe 1min,15min,1h,1day,session`,
-`--fast/--slow`, `--fee`, `--latency-ms` and `--rules point-in-time|today`. Subscribed closed bars are merged by
-availability time and resolution rank; only the primary `--res` drives the current EMA strategy. The same inputs give the same `run_id` and `outputs` digest. Fills use the first qualified
-ask (buy) or bid (sell) at or after decision + latency. Rule closures, quota and minimums cause nonfills. Holdings are
-never auto-sold at the end. USDT-equivalent uses a disclosed USDTTMN mid valuation rate only when qualified
-quotes were already available at both valuation boundaries. Otherwise results remain in the quote currency;
-a later FX quote is never borrowed to value starting cash.
+Open the private link printed by the process. It carries the local session key
+in its fragment; the page itself contains no key. Market reads are public on
+loopback. Private reads and writes require the key. `--no-browser` suppresses
+opening the browser.
 
-## Observed spread report
+On Windows, run `scripts/windows/Start-Workspace.ps1` from the repository root.
+It supervises collection and paper scheduling as separate limited-user tasks
+with the canonical data root and all eligible pairs. Preview with `-WhatIf`.
+The private link is saved under `%LOCALAPPDATA%/TradingGYM/workspace-link.txt`.
+Protected executor installation and custody remain separate.
 
-`gymctl spreads [SYMBOL] [--demo] [--from <zoned-ISO>] [--to <zoned-ISO>] [--output <new-file>]`
-reports sample counts, minimum, median, nearest-rank p95 and maximum spread in basis points for each pair/Tehran hour.
-Ranges are start-inclusive and end-exclusive; defaults include the last stored quote. Reports retain a source-data digest.
-Without `--output`, JSON goes to stdout. File output never overwrites an existing file, including the source database.
-
-These are **observation-weighted** distributions of change-only snapshots and heartbeats, not time-weighted estimates.
-Unobserved hours are absent, not zero. Invalid/stale observations are excluded; windows are not filtered, so a stored
-quote is not proof of executability. DEMO is explicitly synthetic. This does not measure fees, depth slippage or latency.
-See [acceptance status](docs/acceptance-status.md) for the remaining release blockers.
-
-## Offline external-order observation (B1 development only)
-
-`uv run gymctl --data data external-observe /path/to/manual-observation.json`
-accepts a local JSON object with `account_id`, a zoned `observed_at` and
-`orders` entries containing `client_id`, `status`, `filled` as exact decimal
-text and optionally `symbol`. The importer stores only sanitized,
-**unverified external observations** in `data/live/external_journal.db`. The
-Journal view displays this sequence read-only; its endpoint requires the
-per-run local token. Never include API keys in the import file.
-
-A missing row does not prove a trade was canceled/absent. A terminal status
-is not settlement. Imported balances are never spendable Executor cash. The
-GET-only Wallex adapter is not wired to an authenticated account and has
-**no order-write methods**. There is no service-owned trading credential, T2
-authority or funded capability in this release candidate.
-
-## Code organization
-
-- `src/gym/domain/`: pure market types, bars, rules, strategies and simulation/accounting.
-- `src/gym/adapters/`: Wallex transport, SQLite/raw segments and validated run-artifact storage.
-- `src/gym/services/data_portal.py`: point-in-time market-data queries.
-- `src/gym/services/session.py`: paper-session state and pending-order settlement.
-- `src/gym/services/paper.py` and `live_paper.py`: replay and streaming orchestration.
-- `src/gym/services/diagnostics.py`: reproducibility, causality and stress checks.
-- `src/gym/services/reports.py`: economic evidence and human-readable reporting.
-- `src/gym/services/market_statistics.py`: observed spreads by pair and venue-local hour.
-- `src/gym/services/feed_crosscheck.py`: internal LAST bars against venue candles.
-- `src/gym/domain/units.py`: IRT unit-discontinuity detection and the entry-freeze rule it produces.
-- `src/gym/api/server.py`: loopback HTTP endpoints; `src/gym/ui/`: HTML, JavaScript and CSS.
-- `tests/`: behavior-focused suites with deterministic fixtures in `tests/support.py`.
-
-Architecture tests enforce inward dependencies: domain → no I/O, adapters → no services/API,
-services → no API. There are no milestone-named production modules or tests.
-
-Storage: raw WS/REST frames go to hourly `raw/YYYYMMDD/*.jsonl.zst` with a SHA-256 manifest in `segments`. `market.db` holds
-change-only `book_top`, `trades`, `quality_events` and the immutable `regime_events` rule ledger.
-
-The first run preloads the preset `usdt-irt-october-2026`: USDTTMN closed 21:00-09:00 Tehran from 30 Sep, then 23:30-11:30
-from 18 Oct, plus a 2,000 USDT purchase cap per Tehran day. Status is REPORTED, from an announcement. Edit it in
-Settings -> Venue rules.
-
-## Paper sessions, Journal and economic evidence
-
-Run these from `gym-core` (use the same `--data` root in both terminals):
+## Common workflows
 
 ```powershell
-uv run gymctl run --demo
-# Second terminal: synthetic streaming paper, duration begins after two closed 1-minute bars
-uv run gymctl session BTCUSDT --demo --res 1min --fast 1 --slow 2 --seconds 60
-# Replay stored history for matched baselines, then use its printed run ID:
-uv run gymctl paper BTCTMN --demo
-uv run gymctl evidence <run-id> --demo --diagnostics --decide NONE --cap 0 --note "Synthetic data: no capital"
+uv run --no-sync gymctl --data ../data paper BTCUSDT --res 1min --params '{"fast":8,"slow":21}'
+uv run --no-sync gymctl --data ../data portfolio BTCUSDT,ETHUSDT --res 1min
+uv run --no-sync gymctl --data ../data rules list
+uv run --no-sync gymctl --data ../data spreads --output spreads.json
+uv run --no-sync gymctl --data ../data research list
 ```
 
-Sessions record CONFIGURED → WARMING_UP → RUNNING → FINISHING → ENDED; Ctrl+C preserves ABORTED,
-reason and replay cursor. There is no warmup timeout: stop an idle session with Ctrl+C. Pending requests settle
-only on later qualified observations; ending never sells a holding. Live duration stops new decisions at the
-post-warmup deadline and drains pending orders until their fill or timeout. Replay ends at its explicit data cut,
-recording any unsettled request as a nonfill. Missing intervals are recorded, not filled with invented HOLDs.
+Paper research exposes comparisons, validation, saved runs, shared-cash
+portfolios, margin previews/replays and research workflows. AI connections use
+the optional [model gateway](../model-gateway/README.md); paid requests are
+explicit and initially disabled. Spot paper is long/flat; selling exits owned
+assets. Margin paper has separate venue credit/collateral contracts.
 
-Open **Research / Journal** in the local UI for saved runs, equity, gross-to-net costs, the active-trading
-USDT-equivalent ranking, matched replay baselines, reports and expandable decisions (snapshot, feature hash, request,
-order/veto, +15m/+1h/+4h outcome marks). Zero-trade results remain visible as abstainers and are excluded from the
-active rank. Public Wallex instrument metadata is stored as complete, point-in-time vintages with source, availability
-interval, version and raw digest; missing historical fields remain UNKNOWN rather than borrowing today's catalog.
-Marks are PENDING before their horizon, MISSING without a later qualified quote, or OBSERVED_AFTER_GAP with delay.
-The UI lists the latest 50 runs and last 100 decisions; full records remain in `data/<store>/runs`.
+These example markets demonstrate syntax. The collector defaults to every
+eligible spot market; it does not restrict the universe to those examples.
+Missing history stays missing. Synthetic DEMO observations and modeled fills
+are labeled and cannot authorize capital.
 
-`evidence` writes `<id>.evidence.md` and `.evidence.json`. Diagnostics check repeatability, midpoint future-truncation
-and streaming/replay decision parity. Warmup compares EMA direction against twice-slow-length prehistory when
-available, otherwise explicitly NOT_RUN. Matched-filled-path cost stress scales observed spread, fees and latency drift
-by 0/1/1.25/2/3; it does not change fills, depth or decisions. Parity shares an engine, not an independent simulator. The horizon estimate uses completed round trips
-and an explicitly IID approximation, not a power guarantee for dependent trades. No report currently supports a
-validated/promising claim or gate promotion. DEMO permits only NONE/zero capital.
+## Documentation and checks
 
-`--decide NONE|EXPERIMENTAL --cap <amount> --ccy USDT|TMN --note <text>` adds an immutable `*.decision.json`,
-never trading permission. Existing decisions are never edited. Live sessions disclose that baselines and USDT
-attribution need a separate matched replay; live-session diagnostics are explicitly NOT_RUN.
+- [Current system status](docs/system-status.md) and [acceptance gates](docs/acceptance-status.md)
+- [Implementation plan](docs/implementation-plan.md) and [documentation index](docs/README.md)
+- [Architecture and GUI coverage](docs/architecture.md)
+- Full command and option reference: gymctl --help and gymctl COMMAND --help
+- [Portfolio replay](docs/portfolio-replay.md), [research contracts](docs/research-workspace.md),
+  [margin rules](docs/wallex-margin.md) and [metrics](docs/metrics.md)
+- [Storage, archive movement and backup receipts](docs/storage.md)
 
-Deferred: independent parity oracle, depth/queue-position stress, event/schedule/regime strategy clocks, limit orders,
-automatic promotion, tray and Rust Executor. No monitoring stack or new dependency was added.
+```powershell
+uv run --no-sync python scripts/check.py  # lint, tests and real-browser smoke
+uv run --no-sync python scripts/check.py test  # focused mode when browser checks are unavailable
+```
+
+Real-browser checks depend on an installed supported browser and are not implied
+by API or DOM contract tests. Installed-host security drills, funded-cost
+measurement, future evaluation windows and physical-host recovery have separate
+acceptance evidence.

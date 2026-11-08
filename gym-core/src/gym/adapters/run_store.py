@@ -3,6 +3,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 from decimal import Decimal
 from pathlib import Path
 
@@ -42,15 +43,41 @@ def save_run(out: dict, root: Path) -> Path:
     return path
 
 
-def list_runs(root: Path) -> list[dict]:
+_RUN_FILE = re.compile(r"[0-9a-f]{16}\.json")
+_SUMMARIES: dict[str, tuple[int, dict]] = {}  # run rows keyed by path, valid while mtime matches
+_SUMMARY_LOCK = threading.Lock()
+
+
+def list_runs(root: Path, limit: int = 50, offset: int = 0, symbol: str | None = None, strategy: str | None = None) -> list[dict]:
+    """Newest runs first, optionally filtered. Polled every few seconds: only changed files are parsed."""
+    try:
+        with os.scandir(root) as scan:  # DirEntry.stat() comes from the directory listing on Windows
+            entries = [entry for entry in scan if _RUN_FILE.fullmatch(entry.name)]
+    except FileNotFoundError:
+        return []
+    entries.sort(key=lambda entry: entry.stat().st_mtime_ns, reverse=True)
+    if symbol is None and strategy is None:
+        entries = entries[offset:offset + limit]
+        offset = 0
     rows = []
-    for path in sorted(root.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True):
-        if not re.fullmatch(r"[0-9a-f]{16}\.json", path.name):
-            continue
-        record = json.loads(path.read_text("utf-8"))
-        rows.append({"run_id": record["run_id"], "inputs": record["inputs"], "end": record["result"]["end"]})
-        if len(rows) == 50:
-            break
+    with _SUMMARY_LOCK:
+        for entry in entries:
+            stamp, cached = entry.stat().st_mtime_ns, _SUMMARIES.get(entry.path)
+            if cached is None or cached[0] != stamp:
+                record = json.loads(Path(entry.path).read_text("utf-8"))
+                cached = stamp, {"run_id": record["run_id"], "inputs": record["inputs"], "end": record["result"]["end"]}
+                _SUMMARIES[entry.path] = cached
+            inputs = cached[1]["inputs"]
+            if (symbol is None or inputs.get("symbol") == symbol) and (strategy is None or inputs.get("strategy") == strategy):
+                if offset:
+                    offset -= 1
+                elif len(rows) < limit:
+                    rows.append(cached[1])
+                else:
+                    break
+        if len(_SUMMARIES) > 4 * len(entries) + 1000:  # forget deleted runs once the cache clearly outgrows the folder
+            for stale in _SUMMARIES.keys() - {entry.path for entry in entries}:
+                del _SUMMARIES[stale]
     return rows
 
 
@@ -64,6 +91,39 @@ def load_run(root: Path, run_id: str) -> dict:
         for decision in sorted(root.glob(run_id + "-*.decision.json"))
     ]
     return record
+
+
+def load_verified_run(root, run_id, *, store):
+    """Read one bounded native artifact once; fingerprints are integrity, not source authentication."""
+    if type(run_id) is not str or store not in ("live", "demo"):
+        raise ValueError("invalid run reference or store")
+    path = run_path(root, run_id)
+    if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= 16 * 1024 * 1024:
+        raise ValueError("run source must be a bounded regular artifact")
+    try:
+        with path.open("rb") as source:
+            raw = source.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            raise ValueError("run source exceeds size bound")
+        out = json.loads(raw)
+        live_session = out["inputs"].get("kind") == "live-session"
+        portfolio = out["inputs"].get("kind") == "portfolio"
+        if portfolio and (out.get("mode") != "PORTFOLIO" or any(k in out for k in ("baselines", "ranking", "fx"))):
+            raise ValueError("portfolio cannot contain independent replay comparisons")
+        if live_session and (out["baselines"] != {} or out["fx"] is not None or "ranking" in out):
+            raise ValueError("live session cannot contain replay comparisons")
+        outputs = out["result"] if live_session or portfolio else {k: out[k] for k in ("result", "baselines", "ranking", "fx")}
+        if (out["run_id"] != run_id or digest(out["inputs"])[:16] != run_id
+                or digest(outputs)[:16] != out["outputs_digest"]):
+            raise ValueError("run digest mismatch")
+        if out["inputs"]["store"] != store:
+            raise ValueError("run source store mismatch")
+        if portfolio:
+            from ..domain.performance import performance, sampled_drawdown
+            out["performance"] = {k: v for k, v in performance(out, sampled_drawdown(out)).items() if k not in ("ledger", "trades")}
+        return out
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, KeyError, TypeError, AttributeError):
+        raise ValueError("invalid run artifact structure") from None
 
 def record_decision(root, out, claim, cap, currency, note, now):
     cap = Decimal(cap)

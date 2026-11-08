@@ -4,22 +4,46 @@ import math
 from decimal import Decimal
 from statistics import mean, stdev
 
+from ..domain.model import QualityLimits, parse_ts
+from ..domain.performance import performance, sampled_drawdown
+from ..domain.strategy import digest
+
+
+def paper_summary(out):
+    """Portable allowlisted run card; private notes and arbitrary evidence stay local."""
+    inputs, result = out["inputs"], out["result"]
+    evidence = economic_report(out)
+    # v2: adds risk/return performance; drops the constant funded_authority/order_submitted flags.
+    card = {"schema": "paper-summary/2", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
+            "authority": "PAPER_ONLY",
+            "inputs": {k: inputs[k] for k in ("engine", "symbol", "from", "to", "resolution", "strategy",
+                                              "strategy_version", "config_hash", "rules_mode", "store", "data", "snapshots")},
+            "currency": result["quote"], "starting_cash": result["start_cash"],
+            "end": {k: result["end"][k] for k in ("mark_time", "equity", "net")} if result.get("end") else None,
+            "counts": {k: result[k] for k in ("observations", "qualified", "bars", "fills")},
+            "valuation": evidence["valuation"], "sampled_drawdown": evidence["sampled_drawdown"],
+            "performance": {k: v for k, v in evidence["performance"].items() if k != "ledger"},
+            "cost_assumptions": {k: inputs["cost"][k] for k in (
+                "fee_rate", "latency_ms", "max_wait_s", "fee_assumption", "max_participation", "walk_depth",
+                "carry_remainder", "max_fraction", "vol_target", "vol_lookback", "order_type", "maker_fee_rate", "limit_fill_model")
+                if k in inputs["cost"]},
+            "limitations": ["Paper fills and costs are modeled. No capital is authorized.",
+                            "Summary omits decisions, private notes and account data; retain the original run for replay.",
+                            "Recorded equity marks can miss losses between samples and during observation gaps.",
+                            "Public metadata does not certify account fees, minimums or executable capacity; inspect full-run warnings."]}
+    # Decimal durations must survive browser JSON's conversion of 60.0 to 60.
+    card = json.loads(json.dumps(card), parse_float=str)
+    card["summary_digest"] = digest(card)
+    return card
+
 
 def economic_report(out, diag=None):
     result = out["result"]
     inputs = out["inputs"]
-    # One observation per completed round trip, not per tick or fill; still serially dependent.
-    returns = []
-    entry_value = None
-    for order in result["orders"]:
-        if order["status"] != "FILLED":
-            continue
-        if order["side"] == "BUY":
-            entry_value = Decimal(order["qty"]) * Decimal(order["price"])
-        elif entry_value:
-            proceeds = Decimal(order["qty"]) * Decimal(order["price"]) - Decimal(order["fee"])
-            returns.append(float((proceeds - entry_value) / entry_value))
-            entry_value = None
+    # One observation per closed trade (FIFO lots), not per tick or fill; still serially dependent.
+    drawdown = sampled_drawdown(out)
+    perf = performance(out, drawdown)
+    returns = [float(trade["return"]) for trade in perf["ledger"] if trade["return"] is not None]
 
     mean_return = mean(returns) if returns else None
     sample_sigma = stdev(returns) if len(returns) >= 2 else None
@@ -30,6 +54,13 @@ def economic_report(out, diag=None):
                  for name, record in out["baselines"].items() if record.get("end")]
     strongest = max(baselines, key=lambda baseline: baseline[1]) if baselines else None
     is_demo = inputs["store"] == "demo"
+    valuation = run_valuation(out)
+    limitation = ("Synthetic DEMO data is never capital evidence." if is_demo else
+                  "No independent out-of-sample evidence; dependent trades and assumed fees prevent validated claims.")
+    if valuation["status"] == "STALE":
+        limitation = "Stale end valuation: the last qualified price is older than the run cutoff. " + limitation
+    elif valuation["status"] in ("UNAVAILABLE", "INVALID"):
+        limitation = "No valid end-of-window price is available. " + limitation
     return {
         "run_id": out["run_id"],
         "outputs_digest": out["outputs_digest"],
@@ -40,17 +71,26 @@ def economic_report(out, diag=None):
         "sample_sigma": sample_sigma,
         "iid_sample_estimate": sample_estimate,
         "strongest_baseline": {"name": strongest[0], "net": str(strongest[1])} if strongest else None,
+        "valuation": valuation,
+        "sampled_drawdown": drawdown,
+        "performance": perf,
         "claim_ceiling": "NONE" if is_demo else "EXPERIMENTAL",
         "gate_eligible": False,
-        "primary_limitation": (
-            "Synthetic DEMO data is never capital evidence." if is_demo else
-            "No independent out-of-sample evidence; dependent trades and assumed fees prevent validated claims."
-        ),
+        "primary_limitation": limitation,
         "assumptions": inputs["cost"],
         "warnings": out["warnings"],
         "diagnostics": diag,
         "decision": "No capital authorized. Operator decisions are recorded separately; this report cannot arm trading.",
     }
+
+
+def run_valuation(out):
+    end = out["result"].get("end")
+    if not end or not end.get("mark_time"):
+        return {"status": "UNAVAILABLE", "as_of": None, "age_seconds": None}
+    age = (parse_ts(out["inputs"]["to"]) - parse_ts(end["mark_time"])).total_seconds()
+    return {"status": "STALE" if age > QualityLimits().stale_s else "CURRENT" if age >= 0 else "INVALID",
+            "as_of": end["mark_time"], "age_seconds": age}
 
 
 def markdown(report):
@@ -66,19 +106,31 @@ def text_report(out: dict) -> str:
         return f"{Decimal(value):>16,.2f}"
 
     lines = [
-        f"PAPER run {out['run_id']}  {result['strategy']} {result['params']} "
-        f"on {result['symbol']} {out['inputs']['resolution']}",
-        f"window {out['inputs']['from']} .. {out['inputs']['to']}   rules: {out['inputs']['rules_mode']}   "
-        f"outputs {out['outputs_digest']}",
-        f"bars {result['bars']}  fills {result['fills']}  nonfills {result['nonfills'] or 0}  "
-        f"observations {result['observations']} (qualified {result['qualified']})", "",
+        (f"PAPER run {out['run_id']}  {result['strategy']} {result['params']} "
+        f"on {result['symbol']} {out['inputs']['resolution']}"),
+        (f"window {out['inputs']['from']} .. {out['inputs']['to']}   rules: {out['inputs']['rules_mode']}   "
+        f"outputs {out['outputs_digest']}"),
+        (f"bars {result['bars']}  fills {result['fills']}  nonfills {result['nonfills'] or 0}  "
+        f"observations {result['observations']} (qualified {result['qualified']})"), "",
     ]
     if end:
+        valuation = economic_report(out)["valuation"]
+        lines.append(f"Valuation at run cutoff: {valuation['status']}; last qualified price {valuation['age_seconds']:g}s earlier.")
         lines.append(f"Gross-to-net waterfall ({currency}, mark-to-bid at {end['mark_time']}):")
         for name, value in end["waterfall"].items():
             lines.append(f"  {name:<16}{money(value)}")
         lines.append(f"  {'equity':<16}{money(end['equity'])}   net liquidation estimate (modeled) "
                      f"{money(end['net_liquidation_estimate']).strip()}")
+        perf = economic_report(out)["performance"]
+        if perf.get("status") == "AVAILABLE":
+            trades, ret = perf["trades"], perf.get("returns") or {}
+            def ratio(v):
+                return "n/a" if v is None else f"{v:.2f}"
+            lines += ["", (f"Performance: return {perf.get('total_return_pct', 'n/a')}%   max drawdown {perf.get('max_drawdown_pct', 'n/a')}%   "
+                           f"Sharpe/period {ratio(ret.get('sharpe_per_period'))}   annualized {ratio(ret.get('sharpe_annualized'))}   "
+                           f"P(Sharpe>0) {ratio(ret.get('probabilistic_sharpe'))}"),
+                      (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
+                       f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
     active = out["ranking"]["active"]
     lines += ["", "active ranking (USDT-equivalent; abstainers excluded):"]
     if active:

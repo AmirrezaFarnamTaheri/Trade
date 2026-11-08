@@ -6,3 +6,7 @@ __pycache__/
 .pi/
 .unipi/
 /target/
+node_modules/
+.statamcp/
+.impeccable/build/
+.impeccable/questions/

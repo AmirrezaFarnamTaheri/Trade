@@ -1,28 +1,44 @@
-# TradingGYM B1 Executor (unified, read-only work in progress)
+# Rust Executor
 
-**NOT release-ready, NOT funded, NOT emergency-stop protection.**
+The Windows service remains **DISARMED / NOT CERTIFIED**. There is no funded
+submission, cancellation or protective-exit transport.
 
-- `exec-core`: pure, disarmed/monotone stop-state reducer.
-- `exec-store`: single-writer SQLite WAL event ledger with FULL
-  synchronous commits, immutable guards and exact stored-byte hash verification.
-- `exec-ipc`: bounded, versioned T0 stop-only wire codec.
-- `exec-svc`: Windows SCM no-op host with strict LocalService
-  restricted-token identity, safe disabled installer and hosted Windows
-  SCM/NTFS/hostile-local-user tests. The independent stop-pipe code is a
-  **library only**; the host does not activate it.
-- `gym-core`: public observatory and pure sanitized *read-only*
-  account/manual-order projection. The Journal defaults to NOT_CONFIGURED;
-  no authenticated venue observation is enabled by this change.
+- `exec-core`: authority/stop policies, exact order/reservation state and seeded Fake Venue scenarios.
+- `exec-store`: single-writer SQLite WAL ledger with FULL-synchronous commits and stored-byte hash verification.
+- `exec-ipc`: bounded stop, credential provisioning and read-only account contracts.
+- `exec-svc`: restricted LocalService host, independent authenticated STOP listener,
+  elevated provisioning/account-read pipe, service-context DPAPI custody and explicit recovery startup.
+- `gym-research-worker`: constrained AppContainer launcher for the fixed public-data-only Python entrypoint.
 
-All existing tests run through GitHub Actions; Rust uses
-`cargo test --locked --workspace --all-targets` on Linux/Windows,
-plus Windows disposable SCM integration and the Python suite.
+The protected account helper makes only fixed-origin GET requests. Its output is
+an unparsed observation; key permissions, settlement and spendable balances are
+not established by a successful read. Python can normalize those observations
+with `gymctl account --source service --record`, from a separate elevated console.
+The operator and research worker cannot read the service credential.
 
-**See [B1 progress](docs/b1-progress.md) for passing evidence and outstanding
-T2 credential, operator stop channel, real Wallex account reader and journal
-end-to-end gates.** No venue-write API, trade key, funded authority, emergency
-exit guarantee or reliable external coverage exists in this branch.
+The new reviewed source adds `gym-account-read open-orders <page> <per-page>`
+and `order-history <page> <per-page>` (pages 1..1000, sizes 1..100), using only
+the fixed GET origin and existing privileged admission. These new builds are
+not yet installed or qualified against a real account. The shared order journal
+also retains cancellation intent, uncertain delivery and acknowledgement separately
+from order lifecycle/settlement; cancelled orders retain late fills and holds.
+That durable offline contract does not add a real DELETE transport.
 
-All B1 changes are reviewed together in
-[unified draft PR #10](https://github.com/AmirrezaFarnamTaheri/Trade/pull/10),
-not merged into master separately.
+`gym-ceiling` adds administrator-only exact installation-limit recording, retained
+history and stale-update rejection. Increases require a different user SID from
+the configured operator. It grants no money authority; the current protected
+installation has not been updated. See [installation capital limit](docs/installation-ceiling.md).
+
+From the repository root:
+
+```powershell
+cargo fmt --all --check
+cargo test --locked --workspace --all-targets
+cargo clippy --locked --workspace --all-targets -- -D warnings
+```
+
+Earlier B1/B2/B3 and C preparation PRs have merged. The current combined work is
+in PR #18; merging code does not certify a money path. See
+[service security status](docs/service-security-status.md) for implemented
+boundaries and installed-host/venue gates, and
+[Windows setup](docs/windows-service-bootstrap.md) for protected installation.

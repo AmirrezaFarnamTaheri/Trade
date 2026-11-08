@@ -1,75 +1,53 @@
-# Workstation acceptance progress
+# Acceptance gates
 
-Workstream A's public-only implementation and acceptance evidence were recorded before
-the B and C draft branches. Public market data and paper simulation are not
-proof of funded safety. B1–B3 PRs are merged but **not certified**. Authenticated
-read-only Wallex balances/fees/order status work (`gymctl account`); no funded
-submission, venue-side stop order or live recovery drill is demonstrated.
+Updated 7 November 2026 (Asia/Tehran). The application is DISARMED. Research,
+account observations, operator acknowledgements and local tests grant no funded
+execution authority. This page tracks current gates; dated older receipts remain
+in Git history and local qualification artifacts.
 
-## Workstream B offline exit evidence (2026-11-02)
-
-- **B2:** seeded Fake Venue (`executor/exec-core/src/fake_venue.rs`, 12 fixtures
-  incl. lost ack, reset-after-write, cancel/fill race, partial cancel, delayed and
-  expired unblock, unknown status) drives the real order/reservation model.
-  `cargo run -p exec-svc --bin gym-chaos -- data/chaos/report.json` → 12×500 seeds,
-  0 invariant violations; unresolved cases stay frozen with an incident. Health
-  shows the report. SEC-02 sandboxed-worker probe still needs the installed B1
-  service on the operator host.
-- **B3:** `gymctl restore-backup` (no-overwrite, verified, DISARMED receipt) and
-  `gymctl update-check` (refuses unknown orders, unprotected positions, damaged
-  ledger).
-- **B3 cross-OS restore (2026-11-02):** a 100-event ledger built on Windows with the
-  real `exec-store` schema was backed up on Windows, then restored with
-  `gymctl restore-backup` inside WSL2 Ubuntu (Linux 6.18, Python 3.13) from a clean
-  `git archive` install with no Windows files or keys. The receipt matched
-  sequence 100 and head `79b6b3d1…59d2b`; an independent Linux chain check agreed, and a
-  second restore to the same path was refused. WSL runs on the same hardware, so
-  this proves portability, not hardware loss; repeat on a separate machine when
-  one exists.
-
-## Workstream C development status (2026-11-01)
-
-| Epic | Latest draft | Implemented in code | Still missing for release |
-| --- | --- | --- | --- |
-| C1 | #14 | Immutable, bounded, sanitized VenueFacts evidence metadata; capability states in token-protected API and bilingual Health; offline import | T2 service-owned read-only API credential and authenticated Wallex reads, real balances/fees/exposure, pagination and status probes, validated operator budget and provenance |
-| C2 | #15 | Exact-decimal BUY-entry/SELL-exit dry-run ticket and offline acknowledgment queue; price, fee, cap, base, expiry and snapshot checks | Executor-owned durable approvals and funded identity, assisted conversion, settled actual-versus-modeled cost |
-| C3 | #16 | Offline, non-executable Exit Guard and reopening veto policy; epoch and unknown-order checks | Certified protective venue stops, real Exit Guard and independently verified funded Autopilot with capped/session-reconciled operations |
-
-**Security:** none of the C drafts authorize a new money path. All C outputs
-are advisory, with `funded_authority=false`, until the real installed B1/B2
-boundaries and live venue acceptance are completed.
-
-
-
-## Release gaps
-
-| Criterion | State | Evidence and next action |
+| Gate | Current state | What is required |
 | --- | --- | --- |
-| Session bars, section 15.1 | Done | `resolution="session"` bars are bounded by merged BLOCK_ALL TradingWindow closures (rule vintage at the bar's time) and Tehran midnight; a closure is its own period. Replay labels gaps inside closures `VENUE_CLOSED`, not `NO_OBSERVATIONS`. |
-| DATA-01 | Improved | Padded zoned dates, malformed numeric CLI inputs, non-finite bar observations, invalid unflagged quotes, ranges, unsupported resolutions; LAST on quote history fails explicitly. |
-| DATA-02 | Done (public metadata) | The collector stores each complete public Wallex symbol object in the existing as-observed validity history. `metadata_at` returns the point-in-time raw object, interval, source, SQLite version and SHA-256. Missing historical flags stay UNKNOWN. Account-specific fees remain a B1 read-only-account fact. |
-| DATA-03 | Improved | Future-only FX is unavailable, never backdated. Engine version `paper-session/5`. |
-| DATA-04 | Done (detector) | `domain/units.py` tracks the IRT-per-USDT rate implied by each asset; a 10^k jump (|k| 1..4, 15% tolerance) on at least two assets at once records `UNIT_DISCONTINUITY` and an INFERRED CurrencyUnit BLOCK_ENTRY rule for TMN. Exits and USDT pairs stay allowed; stored rows are unchanged; market moves and single-asset glitches do not trigger. Relabeling derived views under a new unit epoch is not implemented. |
-| DATA-05 | Done with source limitation | Quote bars have streaming/batch parity. `gymctl candles` compares internal LAST bars with venue 1min candles. Pre-fix evidence exposed identical same-second public trades being collapsed. After preserving ambiguous identical prints, the post-fix probe had 11/11 BTCUSDT minutes AGREE with no divergence. Source retransmissions remain indistinguishable without venue trade IDs. |
-| DATA-06 | Done (close clocks) | `CloseSubscriptions` deterministically merges availability-safe 1min/15min/1h/1day/session close events by timestamp, resolution rank and subscription order. Forming bars remain flagged. Replay and live CLI expose `--subscribe`; the primary `--res` alone drives the current EMA. Event/schedule/regime clocks wait for a strategy that needs them. |
-| SIM-01/04 | Done | Latency, lifecycle, quotas, closures and PriceBand locks are nonfills with a reason. Reopening gaps are marked once (`session.reopenings`). The band reference is the first observed mid of the Tehran day, not a venue-published price. |
-| SIM-02 | Deferred integration proof | No funded Executor exists. Prove isolation when B is integrated. |
-| SIM-03 | Done | Matched-window results retain nominal quote net and use USDT-equivalent for active ranking when point-in-time FX exists. Zero-trade runs remain visible as abstainers and are excluded from active-trading rank. |
-| EVAL-01 | Done (shared-engine diagnostic) | Repeatability, midpoint truncation and stream/replay parity include first divergences. Warmup has a passing genuine-prehistory fixture and reports NOT_RUN when unavailable. Cost stress scales observed spread, fees and latency drift at 0/1/1.25/2/3 on the matched fill path; it does not change fills/depth/decisions. |
-| REG-01/02/05 | Improved | Scope, precedence, vintage, rollback, CurrencyUnit and PriceBand are executable. |
-| REG-07 | Improved | Pair scope and quota work. The FX factor is `STALE_CLOSED` while USDT/IRT is closed in replay, reports, Markets API and UI. External-channel quota reconciliation belongs to the money path. |
-| Measured costs, section 15.1 | Done for observed spreads | `gymctl spreads` reports exact-decimal distributions by pair/Tehran hour. The post-fix probe had 3,374 observations, zero excluded and 10 pair/hour groups. Unobserved hours remain absent rather than invented; fee, depth and latency evidence remain separate. |
+| Public research implementation | Delivered, with current regressions passing | Continue the explicit remaining functionality in the unified plan; implementation is not economic acceptance |
+| Portfolio correctness | Revision 4 accounting, target/risk policies, fill-time cash reservations and checkpoint reconstruction implemented and tested | Preserve frozen records; running-process restoration, physical-host qualification and prospective evidence remain open |
+| Continuous market collection | Supervised processes running; venue connectivity blocked | Restore actual api.wallex.ir reachability, refresh full eligible catalogue and verify fresh quotes/gaps per market |
+| Sustained prospective paper | Open | Multi-day future evidence with preregistered configuration, real clocks, no-data failures, fills and costs; downtime stays visible |
+| Strategy profitability | Not established | Independent chronological evaluation with costs and selection accounting; the completed compound study had no positive cases |
+| Account permissions and exposure | Observation transport/journaling delivered; venue acceptance unverified | Actual key-permission semantics, instrument/rule/unit identity, complete locked/external exposure and fee evidence |
+| Account/order settlement | Unverified | Exact cumulative fills, fee currencies, pagination completeness, spendability and independent settlement evidence |
+| T1 admission/arming | Unfinished | Atomically bind trusted account/rule/cost evidence, exact review/reservation and installation/session/loss caps |
+| Submit/cancel/reconciliation | Unfinished | Fixed-origin real transport, durable first-byte outcomes, bounded retry rules, unknown holds and restart recovery |
+| Protective exits/automation | Unfinished | Qualified native protection, disjoint quantities, reopening/restart and hard loss/installation caps through the real money path |
+| Measured execution costs | Unqualified | Independently reconcile observed fills/fees/depth/latency; a separately bounded authorization and budget before funded probes |
+| Independent final evaluation | Local consume-once controls delivered; independent custody open | Separate access/custody and an untouched prospective evaluation window |
+| Physical-host recovery | Blocked: no second physical machine available | Restore on another host, reprovision host-bound credentials and verify DISARMED; same-machine WSL does not satisfy this |
+| Current browser appearance/accessibility | Not rechecked in a real browser | Current-build desktop/mobile, EN/FA/RTL, focus, contrast and interaction checks |
 
-## Verification evidence
+## Retained installed-host evidence
 
-- `uv run pytest -q`: **80 passed**. No new dependency.
-- DEMO end-to-end: `gymctl paper BTCUSDT --demo --res 15min --subscribe 1h` produced run `bbcad5a794f2e363`; ranking retained `hold USDT` as an abstainer and diagnostics wrote an evidence report with no FAIL status.
-- Earlier live spreads: `D:/GitHub/Trade/data/live/spreads-pre-b1.json`, 1,190 qualified observations, 19 excluded and 10 pair/hour groups; absent hours are explicitly absent.
-- Pre-fix candles: `D:/GitHub/Trade/data/live/candle-crosscheck-pre-b1.json`, AGREE 25 / DIVERGENT 1 / NOT_COVERED 4. The 38.91 bps divergence led to the identical-print preservation fix.
-- Post-fix interim candles: `D:/GitHub/Trade/data/live/candle-crosscheck-postfix-interim.json`, 11 AGREE / 0 DIVERGENT from `2026-10-31T08:54:00Z` to `09:32:00Z`.
-- Post-fix interim spreads: `D:/GitHub/Trade/data/live/spreads-postfix-interim.json`, 3,374 observations / 0 excluded / 10 groups over the same 38-minute window.
-## Next slice
+The exact protected native bundle previously passed ordinary ACER review,
+consume-once preparation/revocation, seven isolated-worker denials and four STOP
+acknowledgements in 67/11/10/11 ms. The final strict audit left the service
+Stopped/Disabled. Latest recorded bundle receipt:
+.pi/qualification/20261106T1139159526512.
 
-B1 may start immediately, in parallel as specified by section 15.1. Executor scaffolding and Fake Venue work need no credential; provisioning and read-only account validation later require a locally stored API key.
+Earlier synthetic custody/restart/corruption/recovery and suspended-process
+containment evidence has its own dated receipts. Those drills do not establish
+real venue permissions, settlement, funded safety or physical-host portability.
+Repeat affected drills after native deployment, principal or security-policy changes.
+This delivery changes Python research/startup and native test fixtures, not the
+installed native service binaries or custody state.
 
-Demo observations are not venue-cost evidence. No passing row grants trading authority.
+## Validation and authority
+
+Current regression and audit results have one owner: [system status](system-status.md).
+Dependency-audit results are advisory-database snapshots, not certification.
+Tests use explicit synthetic fixtures where appropriate; their outcomes are never
+reported as actual venue orders or fabricated market evidence.
+
+No positive funded loss budget exists. No automatic promotion, real order,
+borrowing, transfer, paid provider dispatch or credential replacement is authorized
+by a paper result or by this acceptance checklist.
+
+See [current status](system-status.md), [the unified plan](implementation-plan.md),
+[paper definitions](paper-qualification.md), and
+[the integration runbook](controlled-integration-runbook.md).
