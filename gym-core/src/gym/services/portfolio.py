@@ -12,6 +12,7 @@ from decimal import ROUND_DOWN, Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
+from ..domain.execution_costs import modeled_execution_cost
 from ..domain.model import InstrumentId, QualityLimits, iso, parse_ts
 from ..domain.performance import performance, trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
@@ -180,7 +181,36 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
             held = book.get(instruments[symbol].base) * marks.get(symbol, Decimal(0))
             target = equity() * Decimal(weights["weights"][symbol])
             delta = target - held
-            if equity() > 0 and abs(delta) > equity() * controller.rates["rebalance_threshold"]:
+            band = controller.rates["rebalance_threshold"]
+            if controller.cost_aware_rebalance and equity() > 0:
+                latest = sessions[symbol].last_quote
+                if (latest is None or not qualified(latest)
+                        or latest.ts_avail > controller.previous_at
+                        or controller.previous_at - latest.ts_avail > timedelta(seconds=120)):
+                    policy_events.append({"at": iso(controller.previous_at), "kind": "REBALANCE_BAND",
+                                          "symbol": symbol, "status": "COST_UNAVAILABLE",
+                                          "requested": False})
+                    return action, fraction, reasons
+                maker = cost.order_type == "limit"
+                size = abs(delta) / (latest.bid if delta < 0 else latest.ask)
+                measured = modeled_execution_cost(cost, symbol, controller.previous_at, size,
+                                                  latest.bid, latest.ask, maker=maker)
+                fee_rate = measured["fee_rate"] if measured is not None else (
+                    cost.maker_fee if maker else cost.fee_rate)
+                uplift = measured["uplift_bps"] / 10000 if measured is not None else Decimal(0)
+                modeled = 2 * fee_rate + (latest.ask - latest.bid) / latest.bid + uplift
+                band = max(band, modeled)
+                drift = abs(delta) / equity()
+                policy_events.append({
+                    "at": iso(controller.previous_at), "kind": "REBALANCE_BAND", "symbol": symbol,
+                    "status": "READY", "source_quote_time": iso(latest.ts_avail),
+                    "tracking_error_fraction": str(drift),
+                    "modeled_cost_fraction": str(modeled), "band_fraction": str(band),
+                    "estimated_turnover_quote": str(abs(delta)),
+                    "estimated_roundtrip_cost_quote": str(abs(delta) * modeled),
+                    "requested": drift > band, "cost_basis": "two fees, observed spread, optional dated uplift",
+                    "model": "causal-cost-aware-band/1"})
+            if equity() > 0 and abs(delta) > equity() * band:
                 if delta > 0 and action != "BUY_REQUEST":
                     strategy = sessions[symbol].strategy
                     if held <= 0 or not getattr(strategy, "entry_allowed", True) or getattr(strategy, "execution_limits", None) is not None:
@@ -350,6 +380,8 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                                          for top in fx_risk_tops])
     if controller.expected_shortfall_limit is not None:
         inputs["portfolio_version"] = 10
+    if controller.cost_aware_rebalance:
+        inputs["portfolio_version"] = 11
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
