@@ -26,10 +26,10 @@ class PortfolioPolicy:
         self.expected_shortfall_limit = (
             decimal(value["expected_shortfall_limit"], "expected_shortfall_limit", positive=True)
             if "expected_shortfall_limit" in value else None)
-        if self.expected_shortfall_limit is not None:
-            if (self.expected_shortfall_limit > 1 or type(self.description["lookback"]) is not int
-                    or self.description["lookback"] < 20 or self.description["rebalance"] is not True):
-                raise ValueError("expected shortfall requires limit <= 1, lookback >= 20 and rebalancing")
+        if (self.expected_shortfall_limit is not None
+                and (self.expected_shortfall_limit > 1 or type(self.description["lookback"]) is not int
+                     or self.description["lookback"] < 20 or self.description["rebalance"] is not True)):
+            raise ValueError("expected shortfall requires limit <= 1, lookback >= 20 and rebalancing")
         self.usdt_fx_risk = self.description.get("usdt_fx_risk", False)
         if type(self.usdt_fx_risk) is not bool:
             raise ValueError("usdt_fx_risk must be boolean")
