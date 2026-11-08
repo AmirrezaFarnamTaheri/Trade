@@ -7,9 +7,16 @@ from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
 
 from .bars import qualified
+from .execution_costs import (
+    check_causal_costs,
+    modeled_execution_cost,
+    validate_hourly_costs,
+    validate_impact_models,
+)
 from .market_models import decimal
 from .model import BookTop, InstrumentId, iso
 from .rules import Rule, evaluate, tehran_day
+from .volatility import parkinson_ewma
 
 
 @dataclass(frozen=True)
@@ -30,11 +37,14 @@ class CostModel:
     max_fraction: Decimal | None = None
     vol_target: Decimal | None = None  # target standard deviation of per-bar returns of the position
     vol_lookback: int = 20
+    volatility_model: str = "close-std"  # opt-in Parkinson high-low bars
     # "limit": rest at the near touch after latency and fill when the queue ahead trades away or the
     # market trades through; unfilled at max_wait means no fill. Maker fee defaults to the taker fee.
     order_type: str = "market"
     maker_fee_rate: Decimal | None = None
     calibration: dict | None = None  # optional immutable provenance, absent for legacy run identities
+    impact_models: dict | None = None  # dated public-print proxy, explicitly chosen per market
+    hourly_costs: dict | None = None  # dated quote/fee observations, explicitly chosen per market
 
     def __post_init__(self):
         if not self.fee_rate.is_finite() or not 0 <= self.fee_rate < 1:
@@ -49,6 +59,8 @@ class CostModel:
                 raise ValueError(f"{name.replace('_', ' ')} must be in (0, 1]")
         if type(self.vol_lookback) is not int or not 5 <= self.vol_lookback <= 500:
             raise ValueError("vol lookback must be 5..500 bars")
+        if self.volatility_model not in ("close-std", "parkinson-ewma"):
+            raise ValueError("unsupported volatility model")
         if self.order_type not in ("market", "limit"):
             raise ValueError("order type must be market or limit")
         if self.maker_fee_rate is not None and (not self.maker_fee_rate.is_finite() or not 0 <= self.maker_fee_rate < 1):
@@ -56,6 +68,8 @@ class CostModel:
         if self.calibration is not None and (type(self.calibration) is not dict or
                 len(str(self.calibration)) > 1024 or not all(type(v) in (str, bool) for v in self.calibration.values())):
             raise ValueError("invalid paper calibration provenance")
+        validate_impact_models(self.impact_models)
+        validate_hourly_costs(self.hourly_costs)
 
     def describe(self) -> dict:
         out = {"fee_rate": str(self.fee_rate), "latency_ms": self.latency // timedelta(milliseconds=1),
@@ -70,27 +84,47 @@ class CostModel:
             out["max_fraction"] = str(self.max_fraction)
         if self.vol_target is not None:
             out["vol_target"], out["vol_lookback"] = str(self.vol_target), self.vol_lookback
+            if self.volatility_model != "close-std":
+                out["volatility_model"] = self.volatility_model
         if self.order_type != "market":
             out["order_type"] = self.order_type
             out["maker_fee_rate"] = str(self.maker_fee)
             out["limit_fill_model"] = "queue-capacity/2"
         if self.calibration is not None:
             out["calibration"] = dict(self.calibration)
+        if self.impact_models is not None:
+            out["impact_models"] = self.impact_models
+        if self.hourly_costs is not None:
+            out["hourly_costs"] = self.hourly_costs
         return out
+
+    def assert_causal(self, start: datetime):
+        """Disallow fitting paper pricing with receipts later than its replay start."""
+        check_causal_costs(self.impact_models, self.hourly_costs, start)
 
     @property
     def maker_fee(self) -> Decimal:
         return self.fee_rate if self.maker_fee_rate is None else self.maker_fee_rate
 
-    def size(self, fraction: Decimal, closes: list[Decimal]) -> Decimal:
-        """Entry fraction after the sizing rules; until enough closes exist, volatility targeting buys nothing."""
+    def size(self, fraction: Decimal, closes: list[Decimal], *, ranges=None) -> Decimal:
+        """Cap paper entries by one selected causal volatility model at known closes."""
         if self.vol_target is not None:
-            recent = closes[-(self.vol_lookback + 1):]
-            if len(recent) <= self.vol_lookback:
-                return Decimal(0)
-            returns = [b / a - 1 for a, b in itertools.pairwise(recent)]
-            mean = sum(returns, Decimal(0)) / len(returns)
-            vol = (sum(((r - mean) ** 2 for r in returns), Decimal(0)) / (len(returns) - 1)).sqrt()
+            if self.volatility_model == "parkinson-ewma":
+                recent = [] if ranges is None else ranges[-self.vol_lookback:]
+                if len(recent) < self.vol_lookback:
+                    return Decimal(0)
+                vol = parkinson_ewma(recent)
+                if vol <= 0:
+                    # A flat range is an unidentifiable risk scale, not a safe
+                    # zero-risk position; abstain only for this opt-in model.
+                    return Decimal(0)
+            else:
+                recent = closes[-(self.vol_lookback + 1):]
+                if len(recent) <= self.vol_lookback:
+                    return Decimal(0)
+                returns = [b / a - 1 for a, b in itertools.pairwise(recent)]
+                mean = sum(returns, Decimal(0)) / len(returns)
+                vol = (sum(((r - mean) ** 2 for r in returns), Decimal(0)) / (len(returns) - 1)).sqrt()
             if vol > 0:
                 fraction = min(fraction, (self.vol_target / vol).quantize(Decimal("0.000001"), ROUND_DOWN))
         return fraction if self.max_fraction is None else min(fraction, self.max_fraction)
@@ -104,9 +138,11 @@ class CostModel:
                    walk_depth=d.get("walk_depth", False), carry_remainder=d.get("carry_remainder", False),
                    max_fraction=Decimal(d["max_fraction"]) if "max_fraction" in d else None,
                    vol_target=Decimal(d["vol_target"]) if "vol_target" in d else None, vol_lookback=d.get("vol_lookback", 20),
+                   volatility_model=d.get("volatility_model", "close-std"),
                    order_type=d.get("order_type", "market"),
                    maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None,
-                   calibration=d.get("calibration"))
+                   calibration=d.get("calibration"), impact_models=d.get("impact_models"),
+                   hourly_costs=d.get("hourly_costs"))
 
 
 @dataclass(frozen=True)
@@ -249,8 +285,40 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
     notional = _walk(levels, qty) if levels and qty > 0 else qty * price
     if levels and qty > 0:
         price = notional / qty  # volume-weighted across the levels taken
-    if qty <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
+    if cost.impact_models is not None or cost.hourly_costs is not None:
+        # Public bid/ask already carries the observed half-spread. Add only the
+        # model's excess; for buys, recompute size to conserve cash including uplift.
+        def estimate(quantity):
+            return modeled_execution_cost(
+                cost, inst.symbol, t, quantity, top.bid, top.ask,
+                maker=limit_price is not None)
+
+        modeled = estimate(qty)
+        if modeled is not None:
+            fee_rate = modeled["fee_rate"]
+            if modeled["uplift_bps"] > 200:
+                return {**out, "fill_time": iso(t), "reason": "MODELED_IMPACT_PRICE_GUARD"}
+            if limit_price is None and qty > 0 and modeled["uplift_bps"] > 0:
+                uplift = mid * modeled["uplift_bps"] / 10000
+                if side == "BUY":
+                    budget = book.get(inst.quote) * fraction
+                    gross = notional + qty * uplift
+                    if gross > budget:
+                        qty = _floor(qty * budget / gross, spec.qty_decimals)
+                        out["resized"] = "ModeledImpactBudget"
+                        if qty > 0:
+                            notional = _walk(levels, qty) if levels else qty * best
+                            price = notional / qty
+                            modeled = estimate(qty)
+                            uplift = mid * modeled["uplift_bps"] / 10000
+                if qty > 0:
+                    price = price + uplift if side == "BUY" else price - uplift
+                    notional = qty * price
+            out["pricing"] = modeled["pricing"]
+    if qty <= 0 or price <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
         return {**out, "fill_time": iso(t), "reason": "BELOW_MIN_NOTIONAL"}
+    if side == "BUY" and notional > book.get(inst.quote):
+        return {**out, "fill_time": iso(t), "reason": "MODELED_COST_EXCEEDS_CASH"}
     if execution_limits is not None:
         available = top.ask_qty if side == "BUY" else top.bid_qty
         try:

@@ -42,7 +42,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
@@ -100,7 +100,19 @@ def research_action(root, action, value=None, *, store="live", at=None):
     if action == "twap-preview":
         from ..domain.market_models import instant
         from .paper_twap import simulate_twap
-        fields(value, "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
+        if type(value) is not dict:
+            raise ValueError("TWAP preview requires an object")
+        fields({k: v for k, v in value.items() if k != "cost_models"},
+               "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
+        cost_model = None
+        if "cost_models" in value:
+            from ..domain.sim import CostModel
+
+            definitions = value["cost_models"]
+            if type(definitions) is not dict or definitions.keys() - {"impact_models", "hourly_costs"}:
+                raise ValueError("invalid TWAP cost-model profiles")
+            cost_model = CostModel(fee_rate=decimal(value["fee_rate"], "fee rate"),
+                                   **definitions)
         symbol = value["symbol"]
         if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol):
             raise ValueError("invalid TWAP market")
@@ -124,7 +136,8 @@ def research_action(root, action, value=None, *, store="live", at=None):
                                  fee_rate=value["fee_rate"],
                                  available_quote=decimal(value["available_quote"], "available_quote"),
                                  available_base=decimal(value["available_base"], "available_base"),
-                                 max_delay_seconds=value["max_delay_seconds"], store=store)
+                                 max_delay_seconds=value["max_delay_seconds"], store=store,
+                                 cost=cost_model)
         finally:
             db.c.rollback()
             db.c.close()
@@ -155,6 +168,14 @@ def research_action(root, action, value=None, *, store="live", at=None):
         db = _market_db(root)
         try:
             return market_products(root, db, value, store=store)
+        finally:
+            db.c.close()
+    if action == "execution-model-calibrate":
+        from .execution_market_models import market_execution_model_report
+
+        db = _market_db(root)
+        try:
+            return market_execution_model_report(root, db, value, store=store)
         finally:
             db.c.close()
     if action == "execution-calibration":

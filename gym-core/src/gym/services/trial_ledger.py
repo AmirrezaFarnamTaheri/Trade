@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -43,6 +44,7 @@ class TrialLedger:
     """Persist attempts separately from immutable market and strategy run records."""
 
     def __init__(self, root: Path | str):
+        """Open or atomically initialize the immutable, concurrent attempt ledger."""
         root = Path(root)
         if root.is_symlink():
             raise ValueError("trial ledger root must not be a symlink")
@@ -53,7 +55,17 @@ class TrialLedger:
         self.conn = sqlite3.connect(path, isolation_level=None, timeout=5)
         try:
             self.conn.execute("PRAGMA busy_timeout=5000")
-            self.conn.execute("PRAGMA journal_mode=WAL")
+            # Two first-open workers can collide while converting a fresh SQLite
+            # database to WAL. This PRAGMA may return SQLITE_BUSY immediately
+            # despite busy_timeout, so retry only transient lock conflicts.
+            for retry in range(20):
+                try:
+                    self.conn.execute("PRAGMA journal_mode=WAL")
+                    break
+                except sqlite3.OperationalError as error:
+                    if "locked" not in str(error).lower() or retry == 19:
+                        raise
+                    time.sleep(0.05)
             self.conn.execute("PRAGMA synchronous=FULL")
             # Acquire the DDL lock before inspecting the version and tables.
             self.conn.execute("BEGIN IMMEDIATE")

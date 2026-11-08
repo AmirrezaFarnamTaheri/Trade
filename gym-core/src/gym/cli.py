@@ -142,6 +142,9 @@ def main(argv=None):
         command.add_argument("--maker-fee", help="limit maker fee fraction; otherwise latest read-only fee snapshot or --fee")
         command.add_argument("--max-fraction", help="cap every entry at this share (0..1] of cash, e.g. a fractional-Kelly figure")
         command.add_argument("--vol-target", help="scale entries so the position's per-bar volatility is about this (0..1], e.g. 0.002")
+        command.add_argument("--cost-models-json", help="opt-in JSON cost_models from execution-model-calibrate; all receipts must precede replay start")
+        command.add_argument("--volatility-model", choices=["close-std", "parkinson-ewma"], default="close-std",
+                             help="opt-in high-low EWMA paper sizing; defaults preserve run identity")
         command.add_argument("--carry-remainder", action="store_true",
                              help="keep working a resized order on later quotes until it fills or max wait passes")
         command.add_argument("--rules", choices=["point-in-time", "today"], default="point-in-time")

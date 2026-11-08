@@ -6,8 +6,8 @@ from .channel_strategies import CompressionBreakout, DonchianBreakout
 from .compound_strategies import PARAMETERS as COMPOUND_PARAMETERS
 from .compound_strategies import AdaptiveChannel, TrendPullback
 from .cross_market_strategies import LeadLag, TomanPremium
-from .exit_policy import EXIT_PARAMETERS, ExitPolicy
-from .regime import REGIME_GATE, RegimeGate
+from .exit_policy import EXIT_PARAMETERS, EXIT_VOLATILITY_MODEL, ExitPolicy
+from .regime import REGIME_GATE, REGIME_VOLATILITY_MODEL, RegimeGate
 from .strategy import (
     BollingerReversion,
     ConfirmedTrend,
@@ -73,7 +73,9 @@ STRATEGIES = {
 
 def catalog():
     return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
-             "parameters": {"type": "object", "properties": {**properties, "regime_gate": REGIME_GATE, **EXIT_PARAMETERS}, "additionalProperties": False},
+             "parameters": {"type": "object", "properties": {**properties, "regime_gate": REGIME_GATE,
+                            "regime_volatility_model": REGIME_VOLATILITY_MODEL,
+                            "exit_volatility_model": EXIT_VOLATILITY_MODEL, **EXIT_PARAMETERS}, "additionalProperties": False},
              "constraints": ["fast < slow"] if "fast" in properties else []}
             for name, (constructor, title, properties) in STRATEGIES.items()]
 
@@ -90,6 +92,12 @@ def create_strategy(name="ema-trend", params=None):
     gate = params.pop("regime_gate", "ANY")
     if gate not in REGIME_GATE["enum"]:
         raise ValueError("invalid strategy parameter: regime_gate")
+    regime_model = params.pop("regime_volatility_model", "atr")
+    exit_model = params.pop("exit_volatility_model", "atr")
+    if regime_model not in REGIME_VOLATILITY_MODEL["enum"] or (gate == "ANY" and regime_model != "atr"):
+        raise ValueError("invalid strategy parameter: regime_volatility_model")
+    if exit_model not in EXIT_VOLATILITY_MODEL["enum"]:
+        raise ValueError("invalid strategy parameter: exit_volatility_model")
     exits = {}
     for key, spec in EXIT_PARAMETERS.items():
         value = params.pop(key, 0)
@@ -97,6 +105,10 @@ def create_strategy(name="ema-trend", params=None):
             raise ValueError("invalid strategy parameter: " + key)
         if value:
             exits[key] = value
+    if exit_model != "atr":
+        if not exits.get("exit_atr_multiple"):
+            raise ValueError("Parkinson exit model requires an ATR-style trailing stop")
+        exits["exit_volatility_model"] = exit_model
     if not isinstance(params, dict) or params.keys() - properties.keys():
         raise ValueError("unsupported strategy parameters")
     values = {key: params.get(key, spec["default"]) for key, spec in properties.items()}
@@ -111,7 +123,7 @@ def create_strategy(name="ema-trend", params=None):
     strategy = constructor(**values)
     strategy.version = getattr(strategy,"version",1)
     if gate != "ANY":
-        strategy = RegimeGate(strategy, gate)
+        strategy = RegimeGate(strategy, gate, regime_model)
     if exits:
         strategy = ExitPolicy(strategy, exits)
     strategy.config_hash = digest({"strategy": name, "version": strategy.version, "params": strategy.params})

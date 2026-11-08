@@ -89,6 +89,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
           slow: int = 21, cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), rules_mode: str = "point-in-time",
           store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None, outages=(), auxiliary_symbols=()) -> dict:
     """A replayable paper run plus matched baselines. Same inputs give the same run_id and outputs."""
+    cost.assert_causal(t0)
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
     if any(not t0 <= start < end <= t1 for start, end in outages):

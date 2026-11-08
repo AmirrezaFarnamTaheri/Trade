@@ -34,7 +34,7 @@ window.gymResearch = (() => {
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status', 'prospective-status', 'prospective-evaluate']);
   actions['premium-research'] = ['Analyze TMN conversion premium', 'بررسی صرف تبدیل تومان', 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
   actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; descriptive only'];
-  actions['twap-preview'] = ['Preview paper TWAP child fills', 'پیش‌نمایش برش‌های آزمایشی TWAP', 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; no live submission'];
+  actions['twap-preview'] = ['Preview paper TWAP child fills', 'پیش‌نمایش برش‌های آزمایشی TWAP', 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
   actions['prospective-register'] = ['Freeze future strategy comparison', 'ثبت ثابت مقایسهٔ آینده', 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
   actions['prospective-status'] = ['Inspect frozen comparison', 'بررسی مقایسهٔ ثبت‌شده', 'Saved 64-character registry ID'];
   actions['prospective-evaluate'] = ['Consume future comparison once', 'اجرای یک‌بارهٔ مقایسهٔ آینده', 'Saved 64-character registry ID; failures are consumed'];
@@ -42,6 +42,7 @@ window.gymResearch = (() => {
   actions['campaign-status'] = ['Inspect campaign progress and verified samples', 'پیشرفت مطالعه و نمونه‌های بررسی‌شده', 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
   actions['walk-forward'] = ['Expanding walk-forward search', 'جست‌وجوی پیش‌رونده با آموزش افزایشی', 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
   actions['execution-calibration'] = ['Inspect execution assumption evidence', 'بررسی شواهد فرض‌های اجرا', 'symbol (null for all markets), from, to, max_age_seconds; public feed timing only, no automatic cost defaults'];
+  actions['execution-model-calibrate'] = ['Fit causal public impact and hourly cost models', 'برازش علّی اثر قیمت و هزینهٔ ساعتی', 'symbol, from, to; bounded historical public prints, quotes, and local read-only fee receipts; paper-only, opt in explicitly'];
   actions['robustness'] = ['Inspect selection and path robustness', 'بررسی پایداری انتخاب و مسیر', 'run_ids, partitions (4/6/8/10), seed, simulations, mean_block_length, max_gap_seconds; comparable verified historical runs only'];
   actions['strategy-audit'] = ['Check causality and warm-up', 'بررسی علیت و دورهٔ آماده‌سازی', 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
   actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
@@ -125,7 +126,11 @@ window.gymResearch = (() => {
         const row = report.rows.find(r => r.trial === trial && r.window === w && r.scenario === s), run = row?.run;
         const valid = run?.ready && run.valuation.status === 'CURRENT' && run.net_quote != null;
         const tone = valid && Number(run.net_quote) !== 0 ? Number(run.net_quote) > 0 ? 'positive' : 'negative' : 'neutral';
-        return `<td class="heat-${tone}">${esc(run?.net_quote ?? row?.verification ?? row?.state ?? 'RESULT_PENDING')} ${esc(run?.quote ?? '')}<br>${esc(row?.verification ?? row?.state ?? '')}<br>${esc(run ? `${run.ready ? 'READY' : 'NOT_READY'} · ${run.valuation.status} · ${run.fills} fills` : row?.reason ?? '')}</td>`;
+        const capacity = row?.capacity ?? run?.capacity;
+        const capacityLabel = capacity?.capacity_usdt != null
+          ? `${text('Modeled capacity', 'ظرفیت برآوردی')}: ${capacity.capacity_usdt} USDT`
+          : `${text('Capacity unavailable', 'ظرفیت ناموجود')}: ${capacity?.reason ?? 'NO_VERIFIED_RUN'}`;
+        return `<td class="heat-${tone}">${esc(run?.net_quote ?? row?.verification ?? row?.state ?? 'RESULT_PENDING')} ${esc(run?.quote ?? '')}<br>${esc(row?.verification ?? row?.state ?? '')}<br>${esc(run ? `${run.ready ? 'READY' : 'NOT_READY'} · ${run.valuation.status} · ${run.fills} fills` : row?.reason ?? '')}<br><small>${esc(capacityLabel)}</small></td>`;
       }).join('')}</tr>`)).join('')}</tbody></table></div><p class="field-help">${report.limits.map(esc).join(' ')}</p>
       <form id="scorecard-overlay-form"><fieldset><legend>${text('Choose two to four recorded paths to overlay', 'دو تا چهار مسیر ثبت‌شده را برای مقایسه انتخاب کنید')}</legend></fieldset><button class="button" type="submit">${text('Compare selected paths', 'مقایسهٔ مسیرهای انتخاب‌شده')}</button></form><p id="scorecard-overlay-status" role="status"></p><div id="scorecard-overlay"></div>`;
     $('research-action-result').before(host);

@@ -35,6 +35,8 @@ def replay_cmd(args) -> int:
     from ..services.research import compare
     from ..services.trial_ledger import TrialLedger
 
+    if args.volatility_model != "close-std" and args.vol_target is None:
+        raise ValueError("--volatility-model needs --vol-target")
     if not (store_root(args) / "market.db").exists():
         raise ValueError(f"no data in {store_root(args)}")
     db, symbol = open_db(args), args.symbol.upper()
@@ -47,6 +49,9 @@ def replay_cmd(args) -> int:
         start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
         cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
         participation = Decimal(args.participation) if args.participation else None
+        cost_profiles = json.loads(args.cost_models_json) if args.cost_models_json else {}
+        if type(cost_profiles) is not dict or cost_profiles.keys() - {"impact_models", "hourly_costs"}:
+            raise ValueError("invalid opt-in cost-model profiles")
         options = {"resolution": args.res, "cash": cash,
                    "cost": calibrated_cost(store_root(args), symbol, fee=args.fee, maker_fee=args.maker_fee,
                                            latency_ms=args.latency_ms, order_type=args.order_type,
@@ -54,7 +59,8 @@ def replay_cmd(args) -> int:
                                            max_participation=participation, walk_depth=args.walk_depth,
                                            carry_remainder=args.carry_remainder,
                                            max_fraction=Decimal(args.max_fraction) if args.max_fraction else None,
-                                           vol_target=Decimal(args.vol_target) if args.vol_target else None),
+                                           vol_target=Decimal(args.vol_target) if args.vol_target else None,
+                                           volatility_model=args.volatility_model, **cost_profiles),
                    "rules_mode": args.rules, "store": "demo" if args.demo else "live",
                    "subscriptions": tuple(x.strip() for x in args.subscribe.split(",") if x.strip())}
         # Attempt receipts live outside frozen run artifacts and survive failed evaluations.
