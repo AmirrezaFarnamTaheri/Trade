@@ -7,15 +7,15 @@ external operator approval) is outside this workstream.
 
 | Item | Contract | Current implementation state |
 | --- | --- | --- |
-| 38 | Trade-volume participation TWAP, limit-vs-market decisions from prior spread and urgency, selected dated impact-model costs, paired equal-slice report | In progress: `adaptive-twap-preview` paper-only research action; no Almgren–Chriss fit or verified improvement |
-| 39 | 1/5/30-minute post-fill adverse move per strategy and order type, causally fitted cost feedback | Not implemented |
-| 40 | Daily shadow drift beyond 2σ alerts, immutable demotion evidence | Not implemented |
-| 41 | Fixed DSR, history, SPA, prospective and shadow gates, logged before any operator approval | Not implemented |
-| 42 | Reference-vs-Wallex feed divergence trips entry lock, with frozen-feed test | Not implemented |
+| 38 | Trade-volume participation TWAP, limit-vs-market decisions from prior spread and urgency, selected dated impact-model costs, paired equal-slice report | Paper mechanics added: `adaptive-twap-preview` prior-volume/spread/urgency and equal-slice reference; no significant Almgren–Chriss fit or verified cost improvement |
+| 39 | 1/5/30-minute post-fill adverse move per strategy and order type, causally fitted cost feedback | Paper mechanics added: `postfill-check` records retrospective 1/5/30-minute signed markouts on verified native paper fills; optional bounded later-replay adverse-cost profile |
+| 40 | Daily shadow drift beyond 2σ alerts, immutable demotion evidence | On-demand `shadow-drift-screen` uses a prior disjoint run and recorded prospective paper days; no continuous monitor or executor demotion |
+| 41 | Fixed DSR, history, SPA, prospective and shadow gates, logged before any operator approval | Local paper diagnostic: `paper-promotion-screen` reports fixed numerical thresholds, always blocks any funded promotion without independent evidence |
+| 42 | Reference-vs-Wallex feed divergence trips entry lock, with frozen-feed test | `feed-divergence-screen` uses strictly prior matched quotes and a trained spread bound; `feed-divergence-lock` records a scoped, paper-only `BLOCK_ENTRY` rule; reference authenticity unverified |
 | 43 | External executor order path and recovery | **Blocked external dependency**, not in this paper-only PR |
-| 44 | Read-only order `fills[]` with fee currency and maker/taker coefficients | Not implemented |
-| 45 | Public fair-price observation channel, timestamped storage, labeled non-executable fallback | Not implemented; public payload shape must be verified |
-| 46 | Versioned operator-review client-id constraints and paced submit path | Not implemented; no live submit path enabled |
+| 44 | Read-only order `fills[]` with fee currency and maker/taker coefficients | Measured fee coefficients retained when complete in existing GET `fills[]` evidence; fee asset kept exact and maker/taker classification marked ambiguous when rates equal; account settlement remains unknown |
+| 45 | Public fair-price observation channel, timestamped storage, labeled non-executable fallback | `fairprice-observe`/`fairprice-read` parse the documented public snapshot shape into an immutable available-at journal; subscription and authentication not installed |
+| 46 | Versioned operator-review client-id constraints and paced submit path | `PaperSubmissionGate` dry-run journal enforces valid Wallex submit IDs, uniqueness and 20/10-second pacing. Native executor review wire v2 is **not** installed; no live submit path enabled |
 
 ## Item 38 — mechanics and limits
 
@@ -46,3 +46,45 @@ No Phase E mechanism is accepted solely from synthetic tests. End-to-end
 browser/CLI and Windows/Linux CI plus independent real-data qualification are
 required before declaring the phase complete. Each new contract must remain
 opt-in so older run IDs and research receipts retain their meaning.
+
+
+## Items 39–42, 44–46 — controls and remaining acceptance
+
+- **39:** Paper markouts read only qualified future quote midpoints *after* their
+  synthetic fill, preserving missing horizons. A 30-sample, bounded adverse
+  5-minute profile may optionally affect later paper costs; it is never fit
+  within the replay that consumes it. Real authenticated fill markouts and
+  actual execution-cost correction remain outstanding.
+- **40:** The on-demand, matched/disjoint historical-versus-shadow report uses
+  complete consecutive UTC days and a fixed training sample. A shadow daily
+  return below mean minus two standard deviations records a paper-only
+  demotion recommendation. No always-on scheduler, independent provenance or
+  live registry demotion is claimed.
+- **41:** Fixed local thresholds include DSR probability at least 0.95, at least
+  300 closed positions and 90 days' history, SPA-style p at most 0.05,
+  successful prospective study and at least 20 compliant shadow days.
+  Self-reported figures are **never** independent evidence and never pass the
+  protected executor's approval gates. No funded permission is possible here.
+- **42:** Matched, prior public midpoint deviations train a baseline and trip
+  a paper `BLOCK_ENTRY` rule on divergence or stale input. Local input is
+  not authenticated as a second independent feed; manual invocation is not
+  continuous monitoring and never blocks exits or cancellations.
+- **44:** The existing private-order **read parser**, not a new endpoint,
+  retains the supplied fee amount, fee asset and complete maker/taker rate
+  fields; no exchange reconciliation, fill authenticity or cash settlement
+  is assumed. Missing/inconsistent coefficients fail or stay unavailable.
+- **45:** Documented `public:all@fairPrice` snapshots use ISO `ts` plus
+  `prices{SYMBOL:string}`. Imported snapshots are persisted by receipt
+  availability, and fresh midpoints are labeled **not executable**.
+  No websocket channel subscription is enabled, and missing/stale marks are
+  never substituted into trading execution.
+- **46:** The stand-alone dry-run `PaperSubmissionGate` enforces ASCII
+  `[A-Za-z0-9_]{1,64}`, durable per-account duplicate rejection and a
+  rolling 20-proposals-per-10-seconds cap. Read-side venue identifiers can
+  still contain a hyphen or dot. The existing native review IPC remains v1:
+  no funded submit method or pacing path is attached.
+
+All of these contracts require separate authenticated venue observations,
+prospective stress windows, integrated scheduler/executor controls and
+operator sign-off before a live Phase E completion claim. CI green only
+establishes the paper-side regression contract, not those external gates.
