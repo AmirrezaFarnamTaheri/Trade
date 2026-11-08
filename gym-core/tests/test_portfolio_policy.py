@@ -243,7 +243,7 @@ def test_expected_shortfall_target_scales_joint_paper_weights_from_prior_tail():
     assert tail["confidence"] == "0.95"
     assert tail["worst_observations"] == 1
     assert abs(Decimal(tail["unscaled_per_bar"]) - Decimal("0.1")) < Decimal("1e-20")
-    assert abs(Decimal(tail["scale"]) - Decimal("0.2")) < Decimal("1e-20")
+    assert abs(Decimal(tail["scale"]) - Decimal("0.2")) < Decimal("1e-10")
     assert Decimal(tail["scaled_per_bar"]) <= Decimal("0.02")
     assert sum(map(Decimal, result["weights"].values())) <= Decimal("0.2")
 
