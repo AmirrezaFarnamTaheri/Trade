@@ -23,9 +23,9 @@ def test_opt_in_tmn_fx_risk_uses_usdt_returns_and_records_factor(tmp_path):
             quote_history(n=180, sym="ETHTMN") + fx)
     db = market_db(tmp_path, rows)
     try:
-        kwargs = dict(resolution="1min", cash=Decimal(1000),
-                      policy={"method": "inverse-volatility", "lookback": 3,
-                              "usdt_fx_risk": True})
+        kwargs = {"resolution": "1min", "cash": Decimal(1000),
+                  "policy": {"method": "inverse-volatility", "lookback": 3,
+                             "usdt_fx_risk": True}}
         before = portfolio(db, ["BTCTMN", "ETHTMN"],
                            START, START + timedelta(minutes=20), **kwargs)
         assert before["inputs"]["portfolio_version"] >= 8
