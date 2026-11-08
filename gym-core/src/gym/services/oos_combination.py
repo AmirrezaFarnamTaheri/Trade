@@ -116,3 +116,59 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
                              "No prediction, capacity, funded authority or automatic allocation is established."]}
         result["report_id"] = digest(result)[:16]
         return result
+
+
+def combine_verified_oos(root, request, *, store):
+    """Combine only locally verified native prospective sessions, never ad-hoc replays."""
+    from pathlib import Path
+    from ..adapters.run_store import load_verified_run
+    from ..domain.market_models import fields
+
+    fields(request, "run_ids lookback rebalance_cost_bps")
+    ids = request["run_ids"]
+    if (type(ids) is not list or not 2 <= len(ids) <= 4
+            or len(set(ids)) != len(ids)
+            or any(type(key) is not str for key in ids)):
+        raise ValueError("need 2..4 distinct prospective native run IDs")
+    root = Path(root) / "runs"
+    runs = [load_verified_run(root, key, store=store) for key in ids]
+    first, *following = runs
+    required = ("symbol", "from", "to", "resolution", "cash", "cost",
+                "rules_mode", "store")
+    def eligible(out):
+        """Only prospectively tagged, complete USDT paper runs may supply marks."""
+        inputs, result = out["inputs"], out["result"]
+        if (out["mode"] != "PAPER" or inputs.get("kind") != "live-session"
+                or result.get("quote") != "USDT" or result.get("end") is None
+                or result["end"].get("net_usdt_eq") is None
+                or not result.get("curve")):
+            raise ValueError("OOS combination requires complete native prospective USDT runs")
+        return inputs
+    reference = eligible(first)
+    for run in following:
+        current = eligible(run)
+        if any(reference.get(key) != current.get(key) for key in required):
+            raise ValueError("OOS components must have matched native cash, quote, costs and windows")
+    if len({r["inputs"]["config_hash"] for r in runs}) != len(runs):
+        raise ValueError("OOS combination needs distinct candidate configurations")
+    components = []
+    for out in runs:
+        inp, result = out["inputs"], out["result"]
+        # Native curve points are recorded after modeled fills/fees, in USDT.
+        # Include the initial cash balance as a boundary only when necessary.
+        points = list(result["curve"])
+        if points[0][0] != inp["from"]:
+            points.insert(0, (inp["from"], result["start_cash"]))
+        if len(points) > 1000:
+            raise ValueError("OOS combined path exceeds 1000 native marks")
+        components.append({"run_id": out["run_id"], "strategy": inp["strategy"],
+                           "marks": [{"at": t, "equity_usdt": equity} for t, equity in points]})
+    result = combine_oos_curves(components, lookback=request["lookback"],
+                                rebalance_cost_bps=request["rebalance_cost_bps"])
+    result.update(store=store, source="VERIFIED_LOCAL_PROSPECTIVE_RUNS",
+                  independent_custody=False,
+                  limitations=result["limits"] + [
+                      "Local live-session tags are not independently attested registration or final evaluation.",
+                      "No new order is submitted, and aggregation does not construct a live rebalanced portfolio.",
+                  ])
+    return result
