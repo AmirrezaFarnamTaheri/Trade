@@ -7,7 +7,7 @@ from ..adapters.run_store import run_path, save_run
 from ..adapters.store import MarketDB
 from ..adapters.wallex_margin import LOAN, MARKETS, ORIGIN, PREVIEW, public_margin
 from ..domain.margin import margin_request, market_rule, preview_terms, replay_margin
-from ..domain.market_models import decimal, fields
+from ..domain.market_models import decimal
 from ..domain.model import iso, parse_ts
 from ..domain.rules import is_closed
 from ..domain.strategy import digest
