@@ -40,6 +40,8 @@ def parameter_plateau(params: list[dict], scores: list[str | None]) -> dict:
 def scorecard_plateau(definition, rows):
     """Aggregate comparable trial net-USDT results before smoothing parameter choices."""
     trials = definition["trials"]
+    if len(trials) < 2:
+        return {"status": "INSUFFICIENT_CANDIDATES", "registered_trials": len(trials)}
     by_trial = {i: [] for i in range(len(trials))}
     for row in rows:
         by_trial[row["trial"]].append(row)
