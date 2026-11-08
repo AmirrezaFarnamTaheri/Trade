@@ -109,6 +109,7 @@ def text_report(out: dict) -> str:
     result = out["result"]
     end = result["end"] or {}
     currency = result["quote"]
+    report = economic_report(out)
 
     def money(value):
         return f"{Decimal(value):>16,.2f}"
@@ -130,14 +131,14 @@ def text_report(out: dict) -> str:
     else:
         lines.append(f"Observed closed-bar coverage: {coverage['status']}.")
     if end:
-        valuation = economic_report(out)["valuation"]
+        valuation = report["valuation"]
         lines.append(f"Valuation at run cutoff: {valuation['status']}; last qualified price {valuation['age_seconds']:g}s earlier.")
         lines.append(f"Gross-to-net waterfall ({currency}, mark-to-bid at {end['mark_time']}):")
         for name, value in end["waterfall"].items():
             lines.append(f"  {name:<16}{money(value)}")
         lines.append(f"  {'equity':<16}{money(end['equity'])}   net liquidation estimate (modeled) "
                      f"{money(end['net_liquidation_estimate']).strip()}")
-        perf = economic_report(out)["performance"]
+        perf = report["performance"]
         if perf.get("status") == "AVAILABLE":
             trades, ret = perf["trades"], perf.get("returns") or {}
             def ratio(v):
@@ -150,14 +151,14 @@ def text_report(out: dict) -> str:
                        f"{ratio(ret.get('sharpe_annualized_lo'))} (lags {ret.get('lo_lags_used', 0)})."),
                       (f"Trades: {trades['closed_trades']} closed   win rate {ratio(trades['win_rate'])}   "
                        f"profit factor {ratio(trades['profit_factor'])}   exposure {ratio(trades['exposure'])}   turnover {trades['turnover']}x")]
-    attribution = economic_report(out)["return_attribution"]
+    attribution = report["return_attribution"]
     if attribution["status"] == "AVAILABLE":
         lines.append("TMN return attribution: "
                      f"USDT {attribution['usdt_return']} + TMN move {attribution['toman_move']} + "
                      f"interaction {attribution['interaction']} = {attribution['total_toman_return']}")
     elif currency == "TMN":
         lines.append("TMN return attribution: UNAVAILABLE (point-in-time FX evidence missing).")
-    timing = economic_report(out)["random_entry_baseline"]
+    timing = report["random_entry_baseline"]
     if timing["status"] == "EXPLORATORY":
         lines.append(f"Random-entry timing percentile: {timing['percentile']} (200 seeded simulations, "
                      f"{timing['trades']} exact-duration trades; modelled execution friction).")

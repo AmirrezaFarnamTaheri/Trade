@@ -80,8 +80,9 @@ def scorecard_spa(rows: list[dict], verified: dict[str, dict]) -> list[dict]:
             common = sorted(set.intersection(*observed)) if len(observed) >= 2 else []
             if len(common) >= 20 and len(excess) >= 2 and all(len(v) == len(common) for v in excess.values()):
                 report = stationary_spa({k: [values[t] for t in common] for k, values in excess.items()})
-                reports.append({"window": window, "scenario": scenario, **report})
+                reports.append({"window": window, "scenario": scenario, "registered_candidates": len(group), **report})
                 continue
-        reports.append({"window": window, "scenario": scenario, "status": "INSUFFICIENT_COMPARABLE_DATA",
+        reports.append({"window": window, "scenario": scenario, "registered_candidates": len(group),
+                        "status": "INSUFFICIENT_COMPARABLE_DATA",
                         "limitation": "Requires >=20 exactly matched recorded return intervals and identical costs."})
     return reports

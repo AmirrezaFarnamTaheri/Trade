@@ -1,10 +1,11 @@
 """Causal bucket-level quote coverage; missing data is never assumed to be a venue closure."""
+from bisect import bisect_right
 from collections import defaultdict
 from decimal import Decimal
 
 from ..domain.bars import BarSpec, qualified
 from ..domain.market_models import decimal
-from ..domain.model import iso
+from ..domain.model import iso, parse_ts
 from ..domain.rules import is_closed
 from .data_portal import DataPortal
 from .rules import RuleService
@@ -40,10 +41,22 @@ def quote_coverage(db, symbol, start, end, resolution, *, max_bad_share=None):
     for quote in portal.tops(symbol, start, end):
         rows[spec.bucket(quote.ts_avail)].append(quote)
     counts = {"OBSERVED": 0, "MISSING": 0, "STALE_OR_INVALID": 0, "VENUE_CLOSED": 0}
+    rule_times, rule_cache = [], {}
+    for (stamp,) in db.c.execute("SELECT ts FROM regime_events ORDER BY seq"):
+        at = parse_ts(stamp)
+        rule_times.append(max(at, rule_times[-1]) if rule_times else at)
+
+    def rules_at(at):
+        """Load each causal rule-event prefix only once."""
+        version = bisect_right(rule_times, at)
+        if version not in rule_cache:
+            rule_cache[version] = rules.load(at)[1]
+        return rule_cache[version]
+
     for beginning in buckets:
         boundary = min(beginning + spec.step, end)
         # Only a causally effective venue rule can suppress an expected open-market bucket.
-        if is_closed(rules.load(beginning)[1], instrument, beginning):
+        if is_closed(rules_at(beginning), instrument, beginning):
             counts["VENUE_CLOSED"] += 1
             continue
         samples = rows[beginning]

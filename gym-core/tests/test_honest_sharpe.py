@@ -31,9 +31,7 @@ def test_psr_and_minimum_track_record_match_analytic_example():
 
 def test_short_track_record_is_explicitly_ineligible():
     """A visually high Sharpe does not imply an adequate sample length."""
-    returns = [0.1, 0.11, 0.09]
+    returns = [0.01, -0.008, 0.012, -0.009, 0.011]
     output = _sharpe_block(returns, 12, enhanced=True)
-    assert output["minimum_track_record"] is not None
-    assert output["track_record_status"] in ("SUFFICIENT", "NOT_ENOUGH_DATA")
-    if output["minimum_track_record"] > len(returns):
-        assert output["track_record_status"] == "NOT_ENOUGH_DATA"
+    assert output["minimum_track_record"] > len(returns)
+    assert output["track_record_status"] == "NOT_ENOUGH_DATA"
