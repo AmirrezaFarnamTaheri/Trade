@@ -14,16 +14,17 @@ def select_universe(db, start, *, quote_currency, top_n, lookback_hours=24):
     if type(lookback_hours) is not int or not 1 <= lookback_hours <= 744:
         raise ValueError("historical universe lookback must be 1..744 hours")
     begin = start - timedelta(hours=lookback_hours)
-    # Cap source rows before materializing. The receipt time is the information clock.
+    # Filter venue and quote before applying the observation budget.
     records = db.c.execute(
         "SELECT instrument_id,ts_avail,price,qty FROM trades "
-        "WHERE ts_avail>=? AND ts_avail<? ORDER BY ts_avail,rowid LIMIT 100001",
-        (iso(begin), iso(start)),
-    ).fetchall()
-    if len(records) > 100000:
-        raise ValueError("historical universe selection exceeds observation budget")
+        "WHERE instrument_id GLOB ? AND ts_avail>=? AND ts_avail<? "
+        "ORDER BY ts_avail,rowid LIMIT 100001",
+        ("wallex:*" + quote_currency, iso(begin), iso(start)),
+    )
     volume, source_rows = {}, {}
-    for iid, available, price, qty in records:
+    for index, (iid, available, price, qty) in enumerate(records):
+        if index >= 100000:
+            raise ValueError("historical universe selection exceeds observation budget")
         if not iid.startswith("wallex:"):
             continue
         symbol = iid[7:]

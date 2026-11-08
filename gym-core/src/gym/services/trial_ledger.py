@@ -51,34 +51,38 @@ class TrialLedger:
         if path.is_symlink() or (path.exists() and not path.is_file()):
             raise ValueError("trial ledger requires a regular file")
         self.conn = sqlite3.connect(path, isolation_level=None, timeout=5)
-        self.conn.execute("PRAGMA busy_timeout=5000")
-        version = self.conn.execute("PRAGMA user_version").fetchone()[0]
-        tables = {r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        if version not in (0, 1) or version == 0 and tables:
+        try:
+            self.conn.execute("PRAGMA busy_timeout=5000")
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=FULL")
+            # Acquire the DDL lock before inspecting the version and tables.
+            self.conn.execute("BEGIN IMMEDIATE")
+            version = self.conn.execute("PRAGMA user_version").fetchone()[0]
+            tables = {r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if version not in (0, 1) or version == 0 and tables:
+                raise ValueError("unsupported or unversioned trial ledger")
+            if not version:
+                statements = (
+                    "CREATE TABLE trial_attempts("
+                    "attempt_id TEXT PRIMARY KEY, question_id TEXT NOT NULL, "
+                    "source TEXT NOT NULL, config_hash TEXT NOT NULL, recorded_at TEXT NOT NULL)",
+                    "CREATE INDEX trial_question ON trial_attempts(question_id)",
+                    "CREATE TRIGGER trial_no_update BEFORE UPDATE ON trial_attempts "
+                    "BEGIN SELECT RAISE(ABORT, 'immutable trial attempt'); END",
+                    "CREATE TRIGGER trial_no_delete BEFORE DELETE ON trial_attempts "
+                    "BEGIN SELECT RAISE(ABORT, 'retain trial attempt'); END",
+                    "PRAGMA user_version=1",
+                )
+                for statement in statements:
+                    self.conn.execute(statement)
+            names = {r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'")}
+            if names != {"trial_no_update", "trial_no_delete"}:
+                raise ValueError("trial ledger integrity guards are absent")
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
             self.conn.close()
-            raise ValueError("unsupported or unversioned trial ledger")
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA synchronous=FULL")
-        if not version:
-            self.conn.executescript("""BEGIN IMMEDIATE;
-                CREATE TABLE trial_attempts(
-                    attempt_id TEXT PRIMARY KEY,
-                    question_id TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    config_hash TEXT NOT NULL,
-                    recorded_at TEXT NOT NULL
-                );
-                CREATE INDEX trial_question ON trial_attempts(question_id);
-                CREATE TRIGGER trial_no_update BEFORE UPDATE ON trial_attempts
-                    BEGIN SELECT RAISE(ABORT, 'immutable trial attempt'); END;
-                CREATE TRIGGER trial_no_delete BEFORE DELETE ON trial_attempts
-                    BEGIN SELECT RAISE(ABORT, 'retain trial attempt'); END;
-                PRAGMA user_version=1;
-                COMMIT;""")
-        names = {r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'")}
-        if names != {"trial_no_update", "trial_no_delete"}:
-            self.conn.close()
-            raise ValueError("trial ledger integrity guards are absent")
+            raise
 
     def __enter__(self):
         """Support deterministic close/flush of a local trial ledger."""

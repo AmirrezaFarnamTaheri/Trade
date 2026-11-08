@@ -32,8 +32,8 @@ def toman_attribution(out):
         move = (last / first - 1).quantize(precision)
         # Use the exact residual at disclosure precision to keep the displayed sum exact.
         interaction = total - usdt - move
-        if abs(interaction - usdt * move) > Decimal("0.0000000000000004"):
-            raise ValueError("attribution interaction differs from the compounded FX identity")
+        if abs(interaction - usdt * move) > precision * (3 + abs(usdt) + abs(move)):
+            return {"status": "UNAVAILABLE", "reason": "IDENTITY_CHECK_FAILED"}
         return {"status": "AVAILABLE", "currency": "TMN",
                 "usdt_return": str(usdt), "toman_move": str(move),
                 "interaction": str(interaction), "total_toman_return": str(total),

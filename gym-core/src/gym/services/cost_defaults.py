@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -66,8 +67,15 @@ def _recent_calibration(root: Path, symbol: str, now: datetime) -> tuple[int, st
     directory = root / "cost_calibrations"
     if directory.is_symlink() or not directory.is_dir():
         return None
+    # Receipt filenames are content hashes, not chronological names.
+    def mtime(path):
+        try:
+            return path.stat().st_mtime if not path.is_symlink() else -1
+        except OSError:
+            return -1
+
     eligible = []
-    for path in sorted(directory.glob("*.json"))[:500]:
+    for path in sorted(directory.glob("*.json"), key=mtime, reverse=True)[:500]:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 128_000:
             continue
         try:
@@ -104,15 +112,21 @@ def _recent_fees(root: Path, symbol: str, now: datetime) -> tuple[Decimal, Decim
         return None
     from .external_journal import ExternalJournal
 
-    with ExternalJournal(path) as journal:
-        row = journal.latest_snapshot("main")
+    try:
+        with ExternalJournal(path) as journal:
+            row = journal.latest_snapshot("main", at=now)
+    except (ValueError, sqlite3.Error, OSError):
+        return None
     if (row is None or row.get("transport") not in ("INTERACTIVE_USER_GET", "EXECUTOR_SERVICE_WINHTTP")
             or not _recent(row["observed_at"], now)):
         return None
     fees = (row.get("fee_rates") or {}).get(symbol)
     if not fees:
         return None
-    maker, taker = Decimal(fees["maker"]), Decimal(fees["taker"])
+    try:
+        maker, taker = Decimal(fees["maker"]), Decimal(fees["taker"])
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return None
     if not all(x.is_finite() and 0 <= x < 1 for x in (maker, taker)):
         return None
     return maker, taker, row["observed_at"]
@@ -123,13 +137,14 @@ def calibrated_cost(root: Path, symbol: str, *, fee: str | None = None,
                     order_type: str = "market", now: datetime | None = None, **options) -> CostModel:
     """Resolve explicit overrides first, otherwise use recent receipts with dated provenance."""
     now = now or now_utc()
-    fees = _recent_fees(root, symbol, now) if fee is None or maker_fee is None else None
+    need_fees = fee is None or (order_type == "limit" and maker_fee is None)
+    fees = _recent_fees(root, symbol, now) if need_fees else None
     timing = _recent_calibration(root, symbol, now) if latency_ms is None else None
     fee_value = Decimal(fee) if fee is not None else fees[1] if fees else _FALLBACK_FEE
     maker_value = Decimal(maker_fee) if maker_fee is not None else fees[0] if fees else None
     latency = latency_ms if latency_ms is not None else timing[0] if timing else _FALLBACK_LATENCY_MS
     provenance = {}
-    if fees and (fee is None or maker_fee is None):
+    if fees and need_fees:
         provenance["fee_observed_at"] = fees[2]
         provenance["fee_source"] = "READ_ONLY_ACCOUNT_GET"
         provenance["maker_taker_separate"] = True
