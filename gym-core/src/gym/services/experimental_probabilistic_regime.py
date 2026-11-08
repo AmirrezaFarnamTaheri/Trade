@@ -14,6 +14,7 @@ _STATES = ("DOWN_TREND", "RANGE", "UP_TREND")
 
 
 def _strict_decimal(value, label, *, positive=False):
+    """Parse a finite Decimal observation, rejecting impossible positive values."""
     if type(value) not in (str, int, Decimal):
         raise ValueError("invalid regime " + label)
     try:
@@ -118,7 +119,7 @@ def review_regime_prospective_evidence(candidate, baseline, *,
             or any(type(r) is not str or not r for r in prospective_registration_ids)):
         raise ValueError("invalid prospective regime comparison")
     probability = _strict_decimal(spa_p_value, "SPA p-value")
-    if probability > 1:
+    if probability < 0 or probability > 1:
         raise ValueError("invalid SPA p-value")
     verified = (independent_final_evidence is True and len(candidate) >= 20
                 and bool(prospective_registration_ids)
