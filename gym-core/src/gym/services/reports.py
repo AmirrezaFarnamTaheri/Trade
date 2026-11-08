@@ -98,6 +98,7 @@ def markdown(report):
 
 
 def text_report(out: dict) -> str:
+    """Render human-readable paper evidence without mutating saved artifact bytes."""
     result = out["result"]
     end = result["end"] or {}
     currency = result["quote"]
@@ -164,4 +165,8 @@ def text_report(out: dict) -> str:
                      f"{out['fx']['end']} ({out['fx']['basis']}; start {out['fx'].get('start_status', 'LIVE')}, "
                      f"end {out['fx'].get('end_status', 'LIVE')})")
     lines += ["", *("! " + warning for warning in out["warnings"])]
+    # Display-only guidance: market-order warnings are part of frozen persisted IDs.
+    notice = "Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band."
+    if notice not in out["warnings"]:
+        lines.append("! " + notice)
     return "\n".join(lines)

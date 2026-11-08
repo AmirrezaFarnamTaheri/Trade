@@ -200,6 +200,7 @@ def ranking(main, baselines, main_name="strategy"):
 
 
 def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
+    """Retain deterministic artifact warnings, preserving historical market-run identities."""
     w = []
     if store == "demo":
         w.append("DEMO data: synthetic quotes. Not evidence; can never reach a gate report.")
@@ -220,7 +221,8 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
         w.append(f"Quotes in this window were compacted ({compacted[0]}); intra-bucket quote changes are gone. Raw archive keeps them.")
     if main["fills"] < 30:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
-    w.append("Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band.")
+    if cost.order_type == "limit":
+        w.append("Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band.")
     w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
     if main["strategy"] in ("trend-pullback","adaptive-channel"):
         w.append("Compound paper policy: entry spread and displayed top-depth participation are checked at decision and fill; no queue or full-depth fill model. Baselines retain their original unconstrained execution model.")
