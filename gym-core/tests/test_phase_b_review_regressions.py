@@ -95,10 +95,11 @@ def test_gap_after_trade_finalized_bucket_resets_public_impact_volatility(tmp_pa
     try:
         for minute, qty in [(2, 100), (12, 1), (26, 1)]:
             when = START + timedelta(minutes=minute, seconds=1)
-            db.add_trade(TradeTick("BTCUSDT", when, when, Decimal(110), Decimal(qty), "BUY"),
+            db.add_trade(TradeTick("BTCUSDT", when, when, Decimal(114 if minute == 12 else 128 if minute == 26 else 104), Decimal(qty), "BUY"),
                          "test-print")
         samples, _ = _public_trade_samples(db, "BTCUSDT", START, START + timedelta(minutes=27))
-        # Minute 26 follows a 13-minute quote gap; earlier EWMA history is invalid.
+        # Minute 26 follows a 13-minute quote gap; even plausible prints must
+        # not use the previous minute chain as an impact variance estimate.
         assert len(samples) == 1
     finally:
         db.c.close()
