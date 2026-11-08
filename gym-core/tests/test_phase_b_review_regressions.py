@@ -11,7 +11,9 @@ from gym.domain.model import BookTop, InstrumentId, TradeTick, iso
 from gym.domain.portfolio_policy import PortfolioPolicy
 from gym.domain.sim import CostModel, Spec
 from gym.services.execution_market_models import _public_trade_samples
-from gym.services.experimental_probabilistic_regime import review_regime_prospective_evidence
+from gym.services.experimental_probabilistic_regime import (
+    review_regime_prospective_evidence,
+)
 from gym.services.paper_twap import simulate_twap
 from gym.services.research_process import HEAVY_ACTIONS, calculate
 from tests.support import START, market_db, quote_history
@@ -102,7 +104,7 @@ def test_gap_after_trade_finalized_bucket_resets_public_impact_volatility(tmp_pa
         db.c.close()
 
 
-@pytest.mark.parametrize("invalid", [Decimal("-0.001"), Decimal("-1"), Decimal("1.001")])
+@pytest.mark.parametrize("invalid", [Decimal("-0.001"), Decimal(-1), Decimal("1.001")])
 def test_regime_pvalue_must_be_valid_probability(invalid):
     with pytest.raises(ValueError, match="p-value"):
         review_regime_prospective_evidence(
