@@ -46,6 +46,7 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
 
 def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection):
+    """Replay strictly prior market observations against a shared simulated cash book."""
     if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
     cost.assert_causal(t0)
@@ -78,6 +79,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         rule_times.append(max(at, rule_times[-1]) if rule_times else at)
 
     def rules_for(at):
+        """Load the market rules known at the supplied historical decision time."""
         version = "today" if rules_mode == "today" else bisect_right(rule_times, at)
         if version not in rule_cache:
             rules = today if rules_mode == "today" else svc.load(at)[1]
@@ -128,12 +130,15 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     next_rebalance, risk_state, next_close = t0, None, None
 
     def equity():
+        """Value all paper holdings at currently known, currency-consistent marks."""
         return book.get(quote) + sum((book.get(instruments[s].base) * marks[s] for s in held_order), Decimal(0))
 
     def valuation_state(at):
+        """Fail portfolio valuation when a held market lacks a fresh mark."""
         return "STALE_VALUATION" if any(at - mark_times[s] > timedelta(seconds=120) for s in held_order) else "CURRENT"
 
     def allocate(symbol, fraction):
+        """Reserve only funded shared paper cash below the target risk budget."""
         available = max(Decimal(0), book.get(quote) - sum(reserved.values(), Decimal(0)) - equity() * controller.rates["cash_buffer"])
         if available <= 0 or risk_state or weights["status"] != "READY":
             return Decimal(0)
@@ -150,6 +155,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         return fraction
 
     def risk_budget(symbol):
+        """Return entry stop-loss capacity net of filled and reserved exposure."""
         strategy = sessions[symbol].strategy
         stop = Decimal(strategy.params["exit_stop_bps"]) / 10000
         exposure_cost = sum((book.get(instruments[s].base) * (sessions[s].position_entry or Decimal(0))
@@ -159,6 +165,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
         return equity(), capacity
 
     def risk(at):
+        """Update portfolio loss latches and cancel unfilled entries when tripped."""
         nonlocal risk_state
         state = ("DRAWDOWN" if controller.drawdown_latched else "DAILY_LOSS" if controller.daily_latched else "STALE_VALUATION") if valuation_state(at) != "CURRENT" else controller.observe(at, equity())
         if state != risk_state:
@@ -174,6 +181,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                     reserved.pop(s, None)
 
     def filter_decision(symbol, action, fraction, reasons):
+        """Apply portfolio risk, allowed rebalance and modeled transaction costs."""
         if risk_state in ("DRAWDOWN", "DAILY_LOSS"):
             if book.get(instruments[symbol].base) > 0:
                 return "SELL_REQUEST", Decimal(1), ("PORTFOLIO_" + risk_state,)
@@ -241,6 +249,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     curve = []
 
     def close_through(at):
+        """Advance every market to a common closed bar before any new quote."""
         nonlocal weights, next_rebalance, next_close
         # Close every market before revealing any later quote or settling its fills.
         while next_close is not None and next_close <= at:
