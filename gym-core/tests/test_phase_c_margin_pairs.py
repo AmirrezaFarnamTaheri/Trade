@@ -50,11 +50,11 @@ def fixture(tmp_path):
     b = _save(tmp_path, {"kind": "PREVIEW", "received_at": iso(START - timedelta(hours=1)),
                          "rule": rule("ETHUSDT"), "terms": preview("ETHUSDT", "short")})
     points = [top("BTCUSDT", 0, "99", "100"), top("ETHUSDT", 0, "100", "101"),
-              top("BTCUSDT", 3600, "110", "111"), top("ETHUSDT", 3600, "89", "90")]
+              top("BTCUSDT", 14400, "110", "111"), top("ETHUSDT", 14400, "89", "90")]
     market_db(tmp_path, sorted(points, key=lambda q: q.ts_avail)).c.close()
     request = {"long_preview_id": a["run_id"], "short_preview_id": b["run_id"],
-               "from": iso(START), "to": iso(START + timedelta(hours=1, seconds=1)),
-               "exit_fee_rate": "0.001", "holding_seconds": 3600,
+               "from": iso(START), "to": iso(START + timedelta(hours=4, seconds=1)),
+               "exit_fee_rate": "0.001", "holding_seconds": 14400,
                "max_skew_seconds": 10}
     return request
 
@@ -96,7 +96,7 @@ def test_future_quotes_cannot_change_historical_pair_report(tmp_path):
 
     db = MarketDB(tmp_path / "market.db")
     try:
-        db.add_book_top(top("ETHUSDT", 3700, "1", "2"), None)
+        db.add_book_top(top("ETHUSDT", 14500, "1", "2"), None)
     finally:
         db.c.close()
     second = margin_pairs_research(tmp_path, request, store="live")
