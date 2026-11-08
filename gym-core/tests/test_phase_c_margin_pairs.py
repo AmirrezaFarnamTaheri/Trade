@@ -1,12 +1,13 @@
 """Phase C item 27: paired long/short margin paper replay, not venue orders."""
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
+from gym.domain.cross_market_models import ar1_half_life
 from gym.domain.model import BookTop, iso
 from gym.services.margin import _save
-from gym.services.margin_pairs import margin_pairs_research
+from gym.services.margin_pairs import _spread_statistics, margin_pairs_research
 from gym.services.research_actions import research_action
 from gym.services.research_process import HEAVY_ACTIONS
 from tests.support import START, market_db
@@ -72,7 +73,7 @@ def test_paired_margin_replay_uses_real_short_side_debt_math(tmp_path):
     assert Decimal(out["net_usdt"]) == combined
     assert out["funded_authority"] is False and out["order_submitted"] is False
     assert out["spread_stability"]["status"] == "INSUFFICIENT_SAMPLES"
-    assert out["spread_stability"]["half_life_bars"] is None
+    assert out["spread_stability"]["half_life_observations"] is None
     assert research_action(tmp_path, "margin-pairs-replay", request,
                            store="live")["net_usdt"] == out["net_usdt"]
 
@@ -102,3 +103,29 @@ def test_future_quotes_cannot_change_historical_pair_report(tmp_path):
     second = margin_pairs_research(tmp_path, request, store="live")
     assert second["net_usdt"] == first["net_usdt"]
     assert second["spread_stability"] == first["spread_stability"]
+
+
+def test_spread_half_life_uses_training_quotes_and_names_observation_unit():
+    """Holdout changes cannot leak into the fitted training AR(1) half-life."""
+    long_points, short_points, training_values = [], [], []
+    with localcontext() as context:
+        context.prec = 90
+        for i in range(30):
+            # First 70% mean-reverts; deliberately different holdout follows.
+            discount = (Decimal("0.4") / (2 ** i) if i < 21
+                        else (Decimal("0.7") if i % 2 else Decimal("0.02")))
+            long_bid = Decimal(100) * (1 + discount)
+            short_bid = Decimal(100)
+            long_ask = long_bid + Decimal("0.01")
+            short_ask = short_bid + Decimal("0.01")
+            long_points.append((top("BTCUSDT", i * 60, str(long_bid), str(long_ask)), False))
+            short_points.append((top("ETHUSDT", i * 60, str(short_bid), str(short_ask)), False))
+            if i < 21:
+                training_values.append(((long_bid + long_ask) / (short_bid + short_ask)).ln())
+    expected = ar1_half_life(training_values)
+    stats = _spread_statistics(long_points, short_points, 10)
+    assert stats["aligned_samples"] == 30
+    assert stats["phi"] == expected["phi"]
+    assert stats["half_life_observations"] == expected["half_life_bars"]
+    assert "half_life_bars" not in stats
+    assert "aligned long-leg quote-update observations" in stats["caveat"]
