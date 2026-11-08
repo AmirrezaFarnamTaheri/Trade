@@ -26,6 +26,7 @@ def replay_cmd(args) -> int:
     """Replay paper strategy or portfolio evidence and save immutable run records."""
     from ..adapters.run_store import save_run
     from ..domain.strategy import digest
+    from ..domain.market_models import decimal
     from ..services.attribution import toman_attribution
     from ..services.cost_defaults import calibrated_cost
     from ..services.data_quality_gate import quote_coverage, recorded_bar_coverage
@@ -61,6 +62,10 @@ def replay_cmd(args) -> int:
                        if args.cmd in ("compare", "validate") else
                        [{"strategy": args.strategy, "params": json.loads(args.params) if args.params else None,
                          "policy": getattr(args, "policy", None)}])
+        if args.max_bad_share is not None:
+            threshold = decimal(args.max_bad_share, "maximum bad share")
+            if threshold > 1:
+                raise ValueError("maximum bad share exceeds one")
         with TrialLedger(store_root(args)) as ledger:
             for trial in trial_specs:
                 ledger.record(symbol=",".join(symbols), start=start, end=end,

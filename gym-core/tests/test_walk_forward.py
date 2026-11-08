@@ -189,7 +189,7 @@ def test_test_indicators_are_warm_from_pretest_bars_without_earlier_orders(tmp_p
         out = warmup_test_replay(db, "BTCUSDT", test_at, end, from_at,
                                  strategy=create_strategy("ema-trend", {"fast": 2, "slow": 3}),
                                  cash=Decimal(1000), cost=CostModel(), resolution="1min", store="live")
-        assert out["inputs"]["engine"] == "walk-forward-warmup/1"
+        assert out["inputs"]["engine"] == "walk-forward-warmup/2"
         assert out["result"]["session"]["no_pretest_orders"] is True
         assert out["result"]["decisions"]
         assert out["result"]["decisions"][0]["action"] != "ABSTAIN_WARMUP"

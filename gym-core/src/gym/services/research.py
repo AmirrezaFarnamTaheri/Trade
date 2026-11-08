@@ -42,8 +42,15 @@ def saved_comparison(root, request, *, store, validation=False):
         if type(symbol) is not str or not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + symbol,)).fetchone():
             raise ValueError("comparison requires an observed symbol")
         runs = root / "runs"
+        candidates = request["candidates"]
+        if (type(candidates) is not list or not 2 <= len(candidates) <= 4
+                or any(type(c) is not dict or c.keys() - {"strategy", "params"} for c in candidates)):
+            raise ValueError("compare requires two to four valid candidates")
+        # Invalid strategy definitions must not increment the immutable trial ledger.
+        for candidate in candidates:
+            create_strategy(candidate.get("strategy"), candidate.get("params"))
         with TrialLedger(root) as ledger:
-            for candidate in request["candidates"]:
+            for candidate in candidates:
                 ledger.record(symbol=symbol, start=start, end=end, hypothesis="ad-hoc",
                               source="validate" if validation else "compare", config_hash=digest(candidate))
             ledger_trials = ledger.count(symbol=symbol, start=start, end=end, hypothesis="ad-hoc")

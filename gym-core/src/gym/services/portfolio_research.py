@@ -81,6 +81,12 @@ def portfolio_action(root, action, value, *, store):
             symbols = selection["symbols"]
         if any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + s,)).fetchone() for s in symbols):
             raise ValueError("portfolio requires observed markets")
+        if "quality_max_bad_share" in value:
+            if len(symbols) > 20:
+                raise ValueError("quality-gated portfolios require at most 20 markets")
+            threshold = decimal(value["quality_max_bad_share"], "maximum bad share")
+            if threshold > 1:
+                raise ValueError("maximum bad share exceeds one")
         with TrialLedger(root) as ledger:
             ledger.record(symbol=",".join(symbols), start=start, end=end,
                           hypothesis=value.get("hypothesis", "ad-hoc"), source="portfolio",
@@ -89,8 +95,6 @@ def portfolio_action(root, action, value, *, store):
         if "quality_max_bad_share" in value:
             from .data_quality_gate import quote_coverage
 
-            if len(symbols) > 20:
-                raise ValueError("quality-gated portfolios require at most 20 markets")
             quality_gate = {symbol: quote_coverage(db, symbol, start, end, value["resolution"],
                             max_bad_share=value["quality_max_bad_share"]) for symbol in symbols}
             if any(row["status"] == "INSUFFICIENT_DATA" for row in quality_gate.values()):

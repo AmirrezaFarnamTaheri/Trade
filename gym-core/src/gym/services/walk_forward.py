@@ -11,7 +11,7 @@ from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .collector import now_utc
-from .data_portal import DataPortal
+from .data_portal import DataPortal, curve_valuation
 from .paper import PaperDataUnavailable, paper
 from .reports import economic_report
 from .research_protocol import _engine_digest
@@ -52,11 +52,14 @@ def warmup_test_replay(db, symbol, test_start, test_end, warmup_start, *, strate
     if not main["session"]["no_pretest_orders"]:
         raise ValueError("warm-up issued an order before the test cutoff")
     quote = main["quote"]
+    if quote == "TMN":
+        fx_tops = portal.tops("USDTTMN", test_start - timedelta(days=1), test_end)
+        main["valuation"] = curve_valuation(
+            quote, main["curve"], test_start, test_end, fx_tops, lambda at: rules.load(at)[1])
     if main["end"] and quote == "USDT":
         main["end"]["net_usdt_eq"] = main["end"]["net"]
     elif main["end"] and original["fx"]:
         fx = original["fx"]
-        main["valuation"] = original["result"].get("valuation")
         main["end"]["net_usdt_eq"] = str(
             (Decimal(main["end"]["equity"]) / Decimal(fx["end"]) - cash / Decimal(fx["start"]))
             .quantize(Decimal("0.0001")))
@@ -64,7 +67,9 @@ def warmup_test_replay(db, symbol, test_start, test_end, warmup_start, *, strate
     result["result"] = main
     result["ranking"] = ranking(main, result["baselines"])
     inputs = result["inputs"]
-    inputs["engine"] = "walk-forward-warmup/1"
+    inputs["engine"] = "walk-forward-warmup/2"
+    if quote == "TMN":
+        inputs["valuation"] = {"model": "causal-fx-curve/1", "digest": digest(main["valuation"])}
     inputs["data"] = main["data_digest"]
     inputs["snapshots"] = digest([(d["t"], d["snapshot"]) for d in main["decisions"]])
     inputs["warmup_from"] = iso(warmup_start)
