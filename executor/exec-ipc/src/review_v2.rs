@@ -4,7 +4,7 @@
 //! order, or create funded authority. The installed service remains on v1.
 //! Only future *submission-side* approvals/preparations narrow client IDs;
 //! legacy inspection/revocation retains the original read-side grammar.
-use crate::review::{self, Command, Reply, Request, REPLY_SIZE, REQUEST_SIZE};
+use crate::review::{Command, Reply, Request, REPLY_SIZE, REQUEST_SIZE};
 
 const REQUEST_MAGIC: [u8; 8] = *b"TGREVW02";
 const REPLY_MAGIC: [u8; 8] = *b"TGREPLY2";
