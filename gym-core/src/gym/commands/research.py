@@ -28,9 +28,9 @@ def replay_cmd(args) -> int:
     from ..domain.sim import CostModel
     from ..domain.strategy import digest
     from ..services.paper import paper
-    from ..services.trial_ledger import TrialLedger
     from ..services.reports import text_report
     from ..services.research import compare
+    from ..services.trial_ledger import TrialLedger
 
     if not (store_root(args) / "market.db").exists():
         raise ValueError(f"no data in {store_root(args)}")
