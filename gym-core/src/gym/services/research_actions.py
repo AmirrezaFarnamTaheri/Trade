@@ -76,7 +76,10 @@ def research_action(root, action, value=None, *, store="live", at=None):
                 raise ValueError("invalid premium base")
             symbols = (base + "TMN", base + "USDT", "USDTTMN")
         else:
-            fields(value, "primary leader from to resolution max_age_seconds max_skew_seconds min_overlap")
+            if type(value) is not dict:
+                raise ValueError("lead-lag requires a request object")
+            fields({key: item for key, item in value.items() if key != "max_delay_bars"},
+                   "primary leader from to resolution max_age_seconds max_skew_seconds min_overlap")
             symbols = (_symbol(value["primary"]), _symbol(value["leader"]))
             quote_assets = [next((q for q in ("USDT", "TMN") if len(symbol) > len(q) and symbol.endswith(q)), None)
                             for symbol in symbols]
@@ -94,7 +97,8 @@ def research_action(root, action, value=None, *, store="live", at=None):
                 return analyze_lead_lag(books[symbols[0]], books[symbols[1]], start, end,
                                         resolution=value["resolution"], max_age_seconds=value["max_age_seconds"],
                                         max_skew_seconds=value["max_skew_seconds"],
-                                        min_overlap=value["min_overlap"], store=store)
+                                        min_overlap=value["min_overlap"], store=store,
+                                        max_delay_bars=value.get("max_delay_bars", 1))
         finally:
             db.c.close()
     if action == "twap-preview":
