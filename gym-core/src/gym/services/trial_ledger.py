@@ -63,14 +63,14 @@ class TrialLedger:
                 raise ValueError("unsupported or unversioned trial ledger")
             if not version:
                 statements = (
-                    "CREATE TABLE trial_attempts("
-                    "attempt_id TEXT PRIMARY KEY, question_id TEXT NOT NULL, "
-                    "source TEXT NOT NULL, config_hash TEXT NOT NULL, recorded_at TEXT NOT NULL)",
+                    ("CREATE TABLE trial_attempts("
+                     "attempt_id TEXT PRIMARY KEY, question_id TEXT NOT NULL, "
+                     "source TEXT NOT NULL, config_hash TEXT NOT NULL, recorded_at TEXT NOT NULL)"),
                     "CREATE INDEX trial_question ON trial_attempts(question_id)",
-                    "CREATE TRIGGER trial_no_update BEFORE UPDATE ON trial_attempts "
-                    "BEGIN SELECT RAISE(ABORT, 'immutable trial attempt'); END",
-                    "CREATE TRIGGER trial_no_delete BEFORE DELETE ON trial_attempts "
-                    "BEGIN SELECT RAISE(ABORT, 'retain trial attempt'); END",
+                    ("CREATE TRIGGER trial_no_update BEFORE UPDATE ON trial_attempts "
+                     "BEGIN SELECT RAISE(ABORT, 'immutable trial attempt'); END"),
+                    ("CREATE TRIGGER trial_no_delete BEFORE DELETE ON trial_attempts "
+                     "BEGIN SELECT RAISE(ABORT, 'retain trial attempt'); END"),
                     "PRAGMA user_version=1",
                 )
                 for statement in statements:
