@@ -101,3 +101,25 @@ def test_choice_action_uses_single_read_snapshot_and_is_supervised(tmp_path):
     with pytest.raises(ValueError):
         research_action(tmp_path, "execution-choice-preview",
                         {**request, "slices": 1}, store="demo")
+
+
+@pytest.mark.parametrize(("change", "field"), [
+    ("aggregate_spend", "spent_quote"),
+    ("aggregate_fee", "fee_base"),
+    ("aggregate_receipt", "received_base"),
+    ("remaining_quote", "remaining_quote"),
+    ("child_price", "children"),
+])
+def test_execution_choice_rejects_child_aggregate_monetary_mismatch(change, field):
+    """Tampering with an apparent cheaper path must not alter its ranking."""
+    import copy
+
+    quotes = [quote(0, 100, 101), quote(1, 99, 100), quote(2, 98, 99)]
+    immediate = preview(quotes, slices=1)
+    sliced = copy.deepcopy(preview(quotes, slices=3))
+    if change == "child_price":
+        sliced["children"][0]["price"] = "1"
+    else:
+        sliced[field] = str(Decimal(sliced[field]) + Decimal(1))
+    with pytest.raises(ValueError, match="conserv|economic|amount|quote|child"):
+        compare_execution_previews(immediate, sliced)
