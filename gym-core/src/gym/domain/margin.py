@@ -15,12 +15,14 @@ OPTIONAL_FIELDS = {"stop_loss", "take_profit"}
 
 
 def seconds(value, name):
+    """Validate a bounded positive number of seconds for margin rules."""
     if type(value) is not int or not 0 < value <= 366 * 86400:
         raise ValueError(f"{name} must be positive integer seconds, at most 366 days")
     return value
 
 
 def market_rule(row):
+    """Validate the venue margin grid and normalize its whitelisted fields."""
     if type(row) is not dict or not set(RULE_FIELDS) <= row.keys():
         raise ValueError("incomplete margin market rules")
     for key in ("symbol", "base", "quote"):
@@ -37,6 +39,7 @@ def market_rule(row):
 
 
 def margin_request(value, rule):
+    """Check requested margin terms, price protection and permitted credit ratio."""
     market_rule(rule)
     if type(value) is not dict or not REQUEST_FIELDS <= value.keys() or value.keys() - REQUEST_FIELDS - OPTIONAL_FIELDS:
         raise ValueError("margin preview requires market, side, collateral, risk_coef, open_price and optional protection prices only")
@@ -60,6 +63,7 @@ def margin_request(value, rule):
 
 
 def preview_terms(value, request, rule):
+    """Validate returned venue preview amounts, fee currencies and liquidation levels."""
     margin_request(request, rule)
     required = REQUEST_FIELDS | {"loan", "trade_fee", "open_fee", "extend_fee", "extend_time", "max_age", "call_price", "liquidity_price"}
     if type(value) is not dict or not required <= value.keys():
@@ -168,6 +172,7 @@ def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds, *, d
 
 
 def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation):
+    """Simulate a causal margin position through qualified historical quote updates."""
     long = terms["side"] == "long"
     price = decimal(terms["open_price"])
     loan = decimal(terms["loan"]["value"])
@@ -177,6 +182,7 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
     nonfills, last_seen, last_closed = Counter(), None, False
 
     def charge(money, count=1):
+        """Charge a margin fee in its original quote or base-denominated currency."""
         nonlocal cash, units, debt_base
         value, currency = decimal(money["value"]) * count, money["currency"]
         fees[currency] = fees.get(currency, Decimal(0)) + value
@@ -190,6 +196,7 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             debt_base += value
 
     def accrue(at):
+        """Accrue fee periods only after the position's recorded opening time."""
         nonlocal periods
         elapsed = (at - entry["clock"]) // timedelta(seconds=terms["extend_time"])
         if elapsed > periods:
@@ -224,6 +231,7 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             state = "OPEN"
         mark = top.bid if long else top.ask
         def crossed(level, below, mark=mark):
+            """Evaluate a level against the currently observed executable quote side."""
             return mark <= decimal(level) if below else mark >= decimal(level)
         liquidation = crossed(terms["liquidity_price"], long)
         warning = crossed(terms["call_price"], long)
