@@ -72,3 +72,22 @@ def test_fx_risk_flag_requires_boolean(value):
 
     with pytest.raises(ValueError):
         PortfolioPolicy({"usdt_fx_risk": value}, ["BTCTMN", "ETHTMN"])
+
+
+def test_fx_risk_read_has_a_separate_observation_budget(tmp_path, monkeypatch):
+    """A tiny primary universe cannot authorize unbounded FX quote loading."""
+    from importlib import import_module
+
+    module = import_module("gym.services.portfolio")
+    db = market_db(tmp_path,
+                   quote_history(n=3, sym="BTCTMN") +
+                   quote_history(n=3, sym="ETHTMN") +
+                   [fx_top(i * 60, 100 + i) for i in range(20)])
+    monkeypatch.setattr(module, "MAX_OBSERVATIONS", 10)
+    try:
+        with pytest.raises(ValueError, match="FX risk observation budget"):
+            module.portfolio(db, ["BTCTMN", "ETHTMN"], START,
+                             START + timedelta(minutes=20), resolution="1min",
+                             policy={"usdt_fx_risk": True})
+    finally:
+        db.c.close()
