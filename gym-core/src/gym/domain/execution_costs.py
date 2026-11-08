@@ -14,6 +14,7 @@ _SOURCE = "PUBLIC_TRADE_VS_PRIOR_MID_PROXY"
 
 
 def _number(value, label, *, positive=False):
+    """Parse a finite, nonnegative Decimal, with optional strict positivity."""
     if type(value) not in (str, Decimal, int):
         raise ValueError("invalid " + label)
     try:
@@ -26,6 +27,7 @@ def _number(value, label, *, positive=False):
 
 
 def _regression(rows):
+    """Fit bounded nonnegative linear coefficients from explanatory observations."""
     xx = xz = zz = xy = zy = Decimal(0)
     for x, z, y in rows:
         xx += x * x
@@ -100,6 +102,15 @@ def fit_square_root_impact(symbol, samples, *, trained_until: datetime):
 
 
 def validate_impact_models(models):
+    """Validate user-supplied impact models and normalize malformed input errors."""
+    try:
+        _validate_impact_models(models)
+    except (KeyError, TypeError):
+        raise ValueError("invalid impact profiles") from None
+
+
+def _validate_impact_models(models):
+    """Apply strict schema, symbol, timestamp, and coefficient bounds."""
     if models is None:
         return
     if type(models) is not dict or not 1 <= len(models) <= 20:
@@ -120,6 +131,15 @@ def validate_impact_models(models):
 
 
 def validate_hourly_costs(models):
+    """Validate user-supplied hourly cost models as bounded, causal receipts."""
+    try:
+        _validate_hourly_costs(models)
+    except (KeyError, TypeError):
+        raise ValueError("invalid time-of-day cost profiles") from None
+
+
+def _validate_hourly_costs(models):
+    """Enforce recorded hourly spreads, sample counts, and fee provenance."""
     if models is None:
         return
     if type(models) is not dict or not 1 <= len(models) <= 20:
@@ -147,6 +167,7 @@ def validate_hourly_costs(models):
 
 
 def check_causal_costs(impact_models, hourly_costs, at):
+    """Reject models fitted after the paper replay's initial knowledge cutoff."""
     if at.tzinfo is None:
         raise ValueError("replay needs an aware start time")
     for models in (impact_models, hourly_costs):
