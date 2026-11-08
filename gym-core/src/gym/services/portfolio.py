@@ -308,6 +308,9 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     if universe_selection is not None:
         inputs["portfolio_version"] = 6
         inputs["universe_selection"] = universe_selection
+    if policy is not None and "portfolio_volatility_target" in controller.description:
+        # New explicit portfolio risk input changes how targets are scaled.
+        inputs["portfolio_version"] = 7
     markets = {}
     for s, session in sessions.items():
         orders = session.orders
