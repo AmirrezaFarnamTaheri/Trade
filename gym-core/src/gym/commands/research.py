@@ -35,6 +35,8 @@ def replay_cmd(args) -> int:
     from ..services.research import compare
     from ..services.trial_ledger import TrialLedger
 
+    if args.volatility_model != "close-std" and args.vol_target is None:
+        raise ValueError("--volatility-model needs --vol-target")
     if not (store_root(args) / "market.db").exists():
         raise ValueError(f"no data in {store_root(args)}")
     db, symbol = open_db(args), args.symbol.upper()
