@@ -147,7 +147,7 @@ def test_z_premium_preserves_holding_age_across_quote_gap():
     """A gap clears estimation history, not the age of an already held paper position."""
     candidate = create_strategy("toman-premium", {"z_entry": 2, "half_life_multiple": 2})
     for i in range(24):
-        candidate.decide(_snap(i, Decimal("9800") + Decimal(i % 3)), False)
+        candidate.decide(_snap(i, Decimal(9800) + Decimal(i % 3)), False)
     candidate.decide(_snap(24, Decimal(9500)), True)
     entered = candidate.holding_since
     assert entered == _snap(24, Decimal(9500)).bar.start
@@ -163,7 +163,7 @@ def test_z_premium_can_exit_on_reversion_during_gap_warmup():
     """No new entry is allowed during warmup, but a held position can exit."""
     candidate = create_strategy("toman-premium", {"z_entry": 2})
     for i in range(24):
-        candidate.decide(_snap(i, Decimal("9800") + Decimal(i % 3)), False)
+        candidate.decide(_snap(i, Decimal(9800) + Decimal(i % 3)), False)
     candidate.decide(_snap(24, Decimal(9500)), True)
     action, _, _, _ = candidate.decide(_snap(30, Decimal(11000)), True)
     assert action == "SELL_REQUEST"
