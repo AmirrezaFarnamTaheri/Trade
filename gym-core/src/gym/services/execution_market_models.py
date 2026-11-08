@@ -78,25 +78,36 @@ def _public_trade_samples(db, symbol, start, end):
         raise ValueError("impact quote scan exceeds 100000 receipts; narrow the window")
     quotes = DataPortal(db).tops(symbol, boot, end)
     qindex, last = 0, None
-    bucket = high = low = None
+    bucket = high = low = last_closed_bucket = None
     estimator = ParkinsonEWMA()
     volume_queue = deque()
     volume = Decimal(0)
     observations, excluded = [], 0
 
+    def close_bucket():
+        """Finalize the active closed quote-minute once, retaining its start."""
+        nonlocal bucket, high, low, last_closed_bucket
+        if bucket is None:
+            return
+        estimator.update(high, low)
+        last_closed_bucket = bucket
+        bucket = high = low = None
+
     def observe(quote):
-        nonlocal last, bucket, high, low, estimator
+        """Consume a qualified available quote, resetting on discontinuous minutes."""
+        nonlocal last, bucket, high, low, estimator, last_closed_bucket
         if not isinstance(quote, BookTop) or not qualified(quote):
             return
         at = quote.ts_avail.replace(second=0, microsecond=0)
         mid = (quote.bid + quote.ask) / 2
         if bucket is not None and at != bucket:
-            if at - bucket == timedelta(minutes=1):
-                estimator.update(high, low)
-            else:
+            close_bucket()
+        if bucket is None:
+            # A trade may have already closed the previous minute. Track that
+            # close independently so a later quote cannot carry EWMA over a gap.
+            if last_closed_bucket is not None and at - last_closed_bucket != timedelta(minutes=1):
                 estimator = ParkinsonEWMA()
-            high = low = None
-        if bucket != at:
+                last_closed_bucket = None
             bucket, high, low = at, mid, mid
         else:
             high, low = max(high, mid), min(low, mid)
@@ -118,8 +129,7 @@ def _public_trade_samples(db, symbol, start, end):
             observe(quotes[qindex])
             qindex += 1
         if bucket is not None and at >= bucket + timedelta(minutes=1):
-            estimator.update(high, low)
-            bucket = high = low = None
+            close_bucket()
         while volume_queue and volume_queue[0][0] <= at - timedelta(hours=1):
             _, old_qty = volume_queue.popleft()
             volume -= old_qty
