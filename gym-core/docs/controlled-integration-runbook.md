@@ -96,6 +96,8 @@ operator-controlled deployment evidence.
   never becomes verified live settlement. Quote fee is the supported fee
   assumption, **not** an assertion of the actual account fee asset.
 
+The read-only Research Workbench also offers the bounded `execution-choice-preview` for item 25. It compares a one-slice immediate paper attempt with multi-slice TWAP on the same historical public quotes and dated cost assumptions. Partial outcomes are **NOT_COMPARABLE**; full-fill price differences are retrospective diagnostics, not orders or live trading recommendations. See [Phase C paper execution choice](phase-c-execution-choice.md).
+
 ## C3 — exit/reopening safety
 
 The earlier Python shadow-Autopilot, exit-guard and reopening advisory models were
