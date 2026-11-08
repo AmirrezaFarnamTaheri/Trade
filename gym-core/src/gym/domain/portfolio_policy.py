@@ -2,6 +2,7 @@
 import itertools
 from decimal import ROUND_DOWN, Decimal, localcontext
 
+from .covariance_models import ledoit_wolf_constant_correlation
 from .market_models import decimal
 from .model import TEHRAN
 from .volatility import parkinson_ewma
@@ -12,11 +13,14 @@ class PortfolioPolicy:
         defaults = {"method": "equal", "lookback": 20, "rebalance_seconds": 60, "max_weight": "1",
                     "cash_buffer": "0", "correlation_limit": None, "correlation_cap": "1",
                     "max_drawdown": None, "daily_loss_limit": None, "rebalance": False, "rebalance_threshold": "0.01"}
-        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model"}:
+        if type(value) is not dict or value.keys() - defaults.keys() - {"volatility_model", "covariance_shrinkage"}:
             raise ValueError("invalid portfolio policy fields")
         self.description = {**defaults, **value}
         self.symbols = symbols
         self.volatility_model = self.description.get("volatility_model", "close-std")
+        self.covariance_shrinkage = self.description.get("covariance_shrinkage", "none")
+        if self.covariance_shrinkage not in ("none", "ledoit-wolf-constant-correlation"):
+            raise ValueError("unsupported covariance shrinkage model")
         if self.volatility_model not in ("close-std", "parkinson-ewma"):
             raise ValueError("unsupported portfolio volatility model")
         if type(self.description["rebalance"]) is not bool:
@@ -80,6 +84,10 @@ class PortfolioPolicy:
                                for j in range(n)] for i in range(n)]
                 if any(covariance[i][i] <= 0 for i in range(n)):
                     return {**result, "status": "ZERO_VARIANCE"}
+                shrinkage = None
+                if self.covariance_shrinkage != "none":
+                    shrinkage = ledoit_wolf_constant_correlation(list(zip(*returns)))
+                    covariance = shrinkage["covariance"]
                 if self.volatility_model == "parkinson-ewma":
                     if any(any(len(item) != 4 for item in row) for row in series):
                         return {**result, "status": "WARMING_UP"}
@@ -136,4 +144,27 @@ class PortfolioPolicy:
                 total_risk = sum(contributions)
                 result["risk_contribution_error"] = str(max(abs(value / total_risk - Decimal(1) / n) for value in contributions)) if total_risk > 0 else None
                 result["risk_basis"] = "Realized target risk contributions after weight/correlation caps and rounding; constraints can prevent equal risk."
+            if shrinkage is not None:
+                # Compare consecutive target *weights* under the same bars/limits.
+                # This is not execution turnover; realized fills may differ.
+                baseline = PortfolioPolicy(
+                    {k: v for k, v in self.description.items() if k != "covariance_shrinkage"},
+                    self.symbols).weights(observations)
+                if baseline["status"] != "READY":
+                    raise ValueError("counterfactual covariance weights are unavailable")
+                def turnover(previous, current):
+                    if previous is None:
+                        return None
+                    return str(sum((abs(Decimal(current[s]) - Decimal(previous[s]))
+                                    for s in self.symbols), Decimal(0)) / 2)
+
+                raw, chosen = baseline["weights"], result["weights"]
+                result["covariance_shrinkage"] = {
+                    "method": "ledoit-wolf-constant-correlation/1",
+                    "target": "constant-correlation",
+                    "intensity": str(shrinkage["intensity"]),
+                    "turnover_raw": turnover(getattr(self, "_last_raw_weights", None), raw),
+                    "turnover_shrunk": turnover(getattr(self, "_last_shrunk_weights", None), chosen),
+                    "turnover_basis": "half L1 change of successive target weights, not executed fills"}
+                self._last_raw_weights, self._last_shrunk_weights = raw, chosen
             return result
