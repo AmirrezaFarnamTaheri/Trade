@@ -224,6 +224,7 @@ const click = async id => {
   control("gym-config").textContent = JSON.stringify({ resolutions });
   const coverageRequests = [];
   const prospectiveId = "a".repeat(64);
+  let prospectiveFailure = null;
   const workbenchContext = vm.createContext({ window: {}, document: { documentElement: { lang: "en" }, getElementById: control } });
   vm.runInContext(fs.readFileSync(require("node:path").join(require("node:path").dirname(process.argv[2]), "research.js"), "utf8"), workbenchContext);
   for (const language of ["en", "fa"]) {
@@ -231,6 +232,7 @@ const click = async id => {
     workbenchContext.window.gymResearch.mount(async (path, options) => {
       const body = JSON.parse(options.body);
       coverageRequests.push({ path, body });
+      if (prospectiveFailure?.action === body.action) throw Object.assign(new Error("Request failed"), { detail: prospectiveFailure.detail });
       if (body.action === "prospective-register") return { id: prospectiveId, configuration: body.value, funded_authority: false };
       if (body.action === "prospective-status") return { id: prospectiveId, kind: "PROSPECTIVE_COMPARE", events: [], configuration: { symbol: "BTCUSDT" } };
       if (body.action === "prospective-evaluate") return { kind: "PROSPECTIVE_RESULT", report: { authority: "PAPER_ONLY", funded_authority: false, comparable: false, rows: [{ config_hash: "abc", fills: 0, net: null, no_trade: true, net_available: false }] } };
@@ -279,6 +281,13 @@ const click = async id => {
     assert.equal(control("prospective-id").value, prospectiveId, "Preserve registered identifier for inspection");
     assert.ok(control("prospective-result").innerHTML.includes(prospectiveId), "Show durable registration receipt and exact evidence");
 
+    prospectiveFailure = {action: "prospective-register", detail: "prospective comparison overlaps an already frozen window"};
+    control("prospective-register-form").onsubmit({ preventDefault() {}, target: control("prospective-register-form") });
+    await settle();
+    assert.ok(control("prospective-result").textContent.includes("overlaps"), "Server validation detail must be visible for safe correction");
+    assert.ok(!control("prospective-result").textContent.includes("consumed evaluation"), "Registration rejection must not be mislabelled as consumed evaluation");
+    prospectiveFailure = null;
+
     control("prospective-evaluate-form").onsubmit({ preventDefault() {}, target: control("prospective-evaluate-form") });
     await settle();
     assert.equal(coverageRequests.at(-1).body.action, "prospective-register", "Never consume future evaluation without explicit acknowledgement");
@@ -286,6 +295,13 @@ const click = async id => {
     control("prospective-inspect").onclick({ preventDefault() {}, target: control("prospective-inspect") });
     await settle();
     assert.equal(coverageRequests.at(-1).body.action, "prospective-status", "Read status first without consuming");
+    prospectiveFailure = {action: "prospective-evaluate", detail: "future window has not completed"};
+    control("prospective-evaluate-form").onsubmit({ preventDefault() {}, target: control("prospective-evaluate-form") });
+    await settle();
+    assert.ok(control("prospective-result").textContent.includes("future window has not completed"), "Read backend no-consumption rejection details");
+    assert.equal(control("prospective-ack").checked, false, "A rejected attempt still clears browser confirmation");
+    prospectiveFailure = null;
+    control("prospective-ack").checked = true;
     control("prospective-evaluate-form").onsubmit({ preventDefault() {}, target: control("prospective-evaluate-form") });
     await settle();
     assert.equal(coverageRequests.at(-1).body.action, "prospective-evaluate");
