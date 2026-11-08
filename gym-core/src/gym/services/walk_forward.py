@@ -57,7 +57,7 @@ def walk_forward(registry, db, request):
     if db.c.in_transaction:
         raise ValueError("walk-forward requires its own market snapshot")
 
-    definition = registry.append("EXPERIMENT", None, {"workflow": "walk-forward/1", "definition": request,
+    definition = registry.append("EXPERIMENT", None, {"workflow": "walk-forward/2", "definition": request,
         "engine_digest": _engine_digest(), "selection_is_exploratory": True,
         "final_data_read": False, "independent_final_evidence": False})
     key, slots = definition["id"], []
@@ -91,10 +91,17 @@ def walk_forward(registry, db, request):
             if count > 100000:
                 raise ValueError("walk-forward observation budget exceeded; narrow the window")
 
-        def replay(slot, strategy, first, last):
+        test_records = {}
+
+        def replay(slot, strategy, first, last, *, warmup_from=None):
             try:
-                out = paper(db, symbol, first, last, resolution=spec.resolution, cash=cash,
-                            cost=cost, store=registry.store, strategy_id=strategy.name, params=strategy.params)
+                out = (warmup_test_replay(db, symbol, first, last, warmup_from, strategy=strategy,
+                                         cash=cash, cost=cost, resolution=spec.resolution, store=registry.store)
+                       if warmup_from is not None else
+                       paper(db, symbol, first, last, resolution=spec.resolution, cash=cash,
+                             cost=cost, store=registry.store, strategy_id=strategy.name, params=strategy.params))
+                if warmup_from is not None:
+                    test_records[out["run_id"]] = out
                 save_run(out, registry.root / "runs")
                 result = {"state": "COMPLETED", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
                     "data_digest": out["inputs"]["data"], "config_hash": strategy.config_hash,
@@ -125,17 +132,20 @@ def walk_forward(registry, db, request):
                 test = {"state": "ABSTAIN", "reason": "NO_CURRENT_ACTIVE_TRAINING_RESULT"}
                 registry.append("RESULT", key, {"attempt_id": slots[index][-1]["id"], **test})
             else:
-                test = replay(slots[index][-1], strategies[chosen], c, d)
+                test = replay(slots[index][-1], strategies[chosen], c, d, warmup_from=a)
             folds.append({"window": windows[index], "training": training, "selected": selected, "test": test})
     finally:
         db.c.rollback()
-    report = {"schema": "walk-forward/1", "experiment_id": key, "store": registry.store,
+    out_of_sample = chained_out_of_sample(folds, test_records, cash)
+    report = {"schema": "walk-forward/2", "experiment_id": key, "store": registry.store,
         "status": "EVALUATED" if all(f["test"]["state"] == "COMPLETED" and f["test"]["valuation"] == "CURRENT" for f in folds) else "INCOMPLETE",
         "selection_count": len(strategies) * len(periods), "test_slots": len(periods), "folds": folds,
+        "out_of_sample": out_of_sample,
         "final_from": iso(final_from), "final_data_read": False, "independent_final_evidence": False,
         "funded_authority": False,
         "limits": ["Expanding training can include earlier test periods; each later test stays disjoint and is read only after selection.",
-                   "Every window starts a separate flat account with its own warmup; returns are not a compounded portfolio.",
+                   "Pre-test bars warm indicators without simulated orders; tests start with flat cash and ready indicators.",
+                   "The chained test curve compounds selected after-cost flat-account results hypothetically; not a funded portfolio.",
                    "Selection maximizes current active net quote after modeled costs, including negative winners.",
                    "Historical test results are exploratory. The final cutoff is not a consume-once or independent custody gate."]}
     registry.append("WALK_FORWARD_REPORT", key, {"report": report})
