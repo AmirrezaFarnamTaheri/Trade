@@ -42,7 +42,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
@@ -97,13 +97,17 @@ def research_action(root, action, value=None, *, store="live", at=None):
                                         min_overlap=value["min_overlap"], store=store)
         finally:
             db.c.close()
-    if action == "twap-preview":
+    if action in ("twap-preview", "execution-choice-preview"):
         from ..domain.market_models import instant
         from .paper_twap import simulate_twap
         if type(value) is not dict:
             raise ValueError("TWAP preview requires an object")
         fields({k: v for k, v in value.items() if k != "cost_models"},
                "symbol from to side quantity slices participation fee_rate available_quote available_base max_delay_seconds")
+        if action == "execution-choice-preview" and (
+            type(value["slices"]) is not int or not 2 <= value["slices"] <= 100
+        ):
+            raise ValueError("execution-choice requires 2..100 TWAP slices")
         cost_model = None
         if "cost_models" in value:
             from ..domain.sim import CostModel
@@ -130,14 +134,25 @@ def research_action(root, action, value=None, *, store="live", at=None):
             instrument = portal.instrument(symbol)
             spec = portal.spec_at(symbol, start)
             quotes = portal.tops(symbol, start, end)
-            return simulate_twap(instrument, quotes, spec, start, end,
-                                 side=value["side"], quantity=decimal(value["quantity"], "quantity", positive=True),
-                                 slices=value["slices"], participation=decimal(value["participation"], "participation", positive=True),
-                                 fee_rate=value["fee_rate"],
-                                 available_quote=decimal(value["available_quote"], "available_quote"),
-                                 available_base=decimal(value["available_base"], "available_base"),
-                                 max_delay_seconds=value["max_delay_seconds"], store=store,
-                                 cost=cost_model)
+            # Both candidates use one read snapshot and the same explicit budget,
+            # spread/fee model, participation and post-slot observed top quotes.
+            shared = {"side": value["side"],
+                      "quantity": decimal(value["quantity"], "quantity", positive=True),
+                      "participation": decimal(value["participation"], "participation", positive=True),
+                      "fee_rate": value["fee_rate"],
+                      "available_quote": decimal(value["available_quote"], "available_quote"),
+                      "available_base": decimal(value["available_base"], "available_base"),
+                      "max_delay_seconds": value["max_delay_seconds"],
+                      "store": store, "cost": cost_model}
+            sliced = simulate_twap(instrument, quotes, spec, start, end,
+                                   slices=value["slices"], **shared)
+            if action == "twap-preview":
+                return sliced
+            from .execution_choice import compare_execution_previews
+
+            immediate = simulate_twap(instrument, quotes, spec, start, end,
+                                      slices=1, **shared)
+            return compare_execution_previews(immediate, sliced)
         finally:
             db.c.rollback()
             db.c.close()
