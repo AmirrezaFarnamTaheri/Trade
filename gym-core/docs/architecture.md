@@ -31,7 +31,7 @@ combine these authorities.
 | --- | --- | --- |
 | Market, depth, quote/rule readiness | Markets | Existing public observations; no fabricated outage values. |
 | Wallex margin rules, previews and LONG/SHORT paper replay | Paper research → Wallex margin | Actual per-market credit grid and collateral range, explicit public calculations, saved terms and source quotes. Closures/gaps do not synthesize settlement. Funded margin remains unavailable. |
-| Strategy comparison and historical validation | Paper research | Twelve registry strategies, including two compound rules with explicit risk controls; native replay and saved artifacts. Historical selection is diagnostic. |
+| Strategy comparison and historical validation | Paper research | Sixteen registry strategies, including two compound rules with explicit risk controls; native replay and saved artifacts. Historical selection is diagnostic. |
 | Shared-cash portfolio replay | Paper research → Workbench | Dedicated EN/FA form, all observed market choices, 2–8 distinct bases with one quote currency; saved records, portfolio curve and FX status. The bounds are local research budgets, not venue restrictions. |
 | Hypothesis/shadow/schedule registration | Advanced research workbench | Shared service validation; advanced JSON inputs. Existing job controls provide pause/resume/tick. Foreground continuous runner remains a terminal process. |
 | Numeric claims, run review and outcome memory | Advanced research workbench | Saved IDs and exact allowlisted references; no invented lessons or analyst prose. |

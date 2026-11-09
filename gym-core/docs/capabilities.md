@@ -8,7 +8,7 @@ the supported product boundary.
 | Capability | Current scope | Evidence limit |
 | --- | --- | --- |
 | Market collection | Catalogue-wide public spot observations, recorded depth/trades/candles, SQL publication and raw archive | Selection is not freshness; per-market gaps and stale quotes remain visible |
-| Paper strategies | Fourteen native long/flat rules, configurable indicators, compound policies, default-off regime gates and fixed/profit/ATR/time exits | Closed-bar paper exits can miss or exceed thresholds; no venue protection or established edge |
+| Paper strategies | Sixteen native long/flat rules, configurable indicators, compound policies, default-off regime gates and fixed/profit/ATR/time exits | Closed-bar paper exits can miss or exceed thresholds; no venue protection or established edge |
 | Comparison and validation | Matched independent accounts, expanding walk-forward selection and held-out diagnostics | Historical selection is not independent final evaluation |
 | Shared-cash portfolios | Up to 500 distinct-base markets per quote book, exact reservations, equal/inverse-volatility/risk-parity targets, correlation caps, conditional rebalancing, cash buffers, loss latches, causal FX and verified checkpoint reconstruction | Covariance/observation/worker budgets apply; stale held marks block entries; no authenticated portfolio execution or physical-host recovery qualification |
 | Product capabilities | All observed markets joined to an explicitly selected public margin receipt, credit grid and LONG/SHORT availability | Observation is not current listing, credit eligibility, permission or collateral qualification |

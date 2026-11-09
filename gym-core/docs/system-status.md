@@ -8,7 +8,7 @@ and the local evidence folders. This page describes the current delivery.
 - Public Wallex catalogue/feed collection, exact SQL observations, rule-aware bars,
   vintages, quality/readiness and transactional publication watermarks.
 - Separated browser view owners preserve existing EN/FA contracts and hashed assets.
-- Fourteen registry strategies, saved paper runs, chronological comparisons,
+- Sixteen registry strategies, saved paper runs, chronological comparisons,
   experiments, replay/debugging, screening, recovery, notes and robustness tools.
 - Compound revision 3 keeps indicator history through wide spreads, records actual
   simulated positions and refuses fee-net holdings below known exit minimums.

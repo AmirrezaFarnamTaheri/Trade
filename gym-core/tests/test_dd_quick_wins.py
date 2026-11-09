@@ -87,3 +87,18 @@ def test_gateway_child_sees_only_allowlisted_and_configured_key_variables(tmp_pa
     assert "GYM_MODEL_PYTHON" in env
     (tmp_path / "config.json").write_text("not json", encoding="utf-8")
     assert "RESEARCH_KEY_1" not in gateway_env(parent)
+
+
+def test_docs_state_the_registry_strategy_count():
+    import re
+    from pathlib import Path
+
+    from gym.domain.registry import STRATEGIES
+    words = {12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen",
+             18: "eighteen", 19: "nineteen", 20: "twenty"}
+    expected = words[len(STRATEGIES)]
+    docs = Path(__file__).resolve().parents[1] / "docs"
+    # Current-state claims only; dated study write-ups keep the count they had at the time.
+    claims = [(p.name, m.group(1).lower()) for p in docs.glob("*.md")
+              for m in re.finditer(r"\b(" + "|".join(words.values()) + r") (?:registry strategies|native long/flat rules)", p.read_text(encoding="utf-8"), re.IGNORECASE)]
+    assert claims and all(word == expected for _, word in claims), claims
