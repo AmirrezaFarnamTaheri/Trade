@@ -4,6 +4,11 @@
 
 Hardening from the 2026-11-09 technical due-diligence review (finding IDs in brackets).
 
+- Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
+  replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
+  must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
+  faults prove it bites: a strategy that precomputes from the whole stored history, a data layer that publishes
+  quotes a minute early, and a signal that depends on the replay start [R-2, M-2 step 1].
 - API: a non-ASCII `X-Gym-Token` is refused with 403 instead of a 500 [E-3].
 - Wallex candles are parsed as `Decimal` straight from the JSON text; non-finite values are rejected [E-2].
 - Instrument-spec close and successor insert run in one savepoint [E-5].
