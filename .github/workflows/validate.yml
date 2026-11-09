@@ -21,7 +21,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
       - name: Verify clean Windows checkout and exact wire fixtures
@@ -35,8 +35,9 @@ jobs:
             $attribute = git check-attr text -- $fixture
             if ($attribute -notmatch ': text: unset$') { throw "Wire fixture not protected from line ending conversion: $fixture" }
           }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
         with:
+          toolchain: 1.96.0
           components: rustfmt, clippy
       - name: Check Rust formatting
         run: cargo fmt --all --check
@@ -49,7 +50,7 @@ jobs:
         run: |
           mkdir -p target/chaos
           cargo run --locked --release -p exec-svc --bin gym-chaos -- target/chaos/report.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() && runner.os == 'Linux' }}
         with:
           name: chaos-report
@@ -80,10 +81,10 @@ jobs:
       run:
         working-directory: gym-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv lock --check
       - run: uv sync --locked --group dev
       - name: Check Python lint
@@ -94,11 +95,11 @@ jobs:
         run: |
           uv run --with coverage==7.6.10 coverage report --skip-covered --sort=cover | tail -40
           uv run --with coverage==7.6.10 coverage html -d "$RUNNER_TEMP/coverage"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-html
           path: ${{ runner.temp }}/coverage
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - name: Install axe-core for the accessibility pass
@@ -116,12 +117,12 @@ jobs:
       run:
         working-directory: gym-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - run: node tests/browser_smoke.cjs
@@ -132,24 +133,24 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
       - name: Scan history for committed secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - name: Python dependencies (pip-audit)
         working-directory: gym-core
         run: |
           uv export --locked --no-hashes --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
           uvx pip-audit --strict -r "$RUNNER_TEMP/requirements.txt"
-      - uses: taiki-e/install-action@cargo-audit
+      - uses: taiki-e/install-action@f84dff0ad3f25ff0e5dc531e626734a4e7d11ac7 # cargo-audit
       - name: Rust dependencies (cargo audit)
         run: cargo audit
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - name: Node dependencies (npm audit)
@@ -165,10 +166,10 @@ jobs:
       run:
         working-directory: gym-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked --group dev
       # Surviving mutants in these files are untested behavior in money, fills and statistics.
       - run: uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate src/gym/domain/performance.py,src/gym/domain/sim.py --tests-dir tests --runner "python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py"
@@ -186,13 +187,13 @@ jobs:
       run:
         working-directory: model-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - run: npm ci --ignore-scripts
@@ -207,10 +208,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
+        with:
+          toolchain: 1.96.0
       - name: Build read-only service and every protected helper using pinned dependencies
         run: cargo build --release --locked -p exec-svc --bins
       - name: Verify service identity, DACL and two non-admin OS principals
@@ -225,17 +228,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - name: Install reviewed Python lock
         working-directory: gym-core
         run: uv sync --locked --group dev
       - name: Create encrypted synthetic archive (no credentials)
         working-directory: gym-core
         run: uv run python scripts/restore_portability_probe.py produce "$RUNNER_TEMP/b3-demo.tgbak"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: b3-ci-synthetic-archive
           path: ${{ runner.temp }}/b3-demo.tgbak
@@ -249,11 +252,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/download-artifact@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: b3-ci-synthetic-archive
           path: ${{ runner.temp }}/b3-input
