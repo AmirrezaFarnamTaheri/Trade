@@ -14,6 +14,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - `gymctl backup-research`, `research-restore-drill`, `restore-research` and a nightly schedule script: encrypted
   snapshots of every research store and the raw archive, with an authenticated restore that never overwrites;
   `doctor` reports the age of the last snapshot [R-5, OD-4 groundwork].
+- Holdout custody for the long-history study: every look at a test window is recorded in an append-only
+  ledger; a second look is withheld unless `--rescore-holdout`, and then the deflated Sharpe counts the
+  configurations tried across every look [R-1].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

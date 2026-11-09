@@ -166,3 +166,31 @@ def test_only_margin_markets_short_or_borrow(lhs):
     assert all(0 <= v <= 1 for c in shorted for v in runs[c]["BUSDT"][1])
     plain, _ = lhs.sleeves(data, dict.fromkeys(data, 0.003), 1)
     assert all(c[4] == "long" and c[5] == 1.0 for c, _ in plain)  # no margin markets: no duplicate configurations
+
+
+def test_test_window_is_withheld_on_a_second_look_and_rescoring_counts_every_try(lhs, tmp_path):
+    from gym.services.holdout_ledger import HoldoutLedger
+    a, b = series(), series(phase=1.0)
+    times = days(len(a))
+    data = {"A": (times, a), "B": (times, b)}
+    ledger = HoldoutLedger(tmp_path / "holdout.sqlite3")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        first = lhs.report(data, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger)
+        again = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger)  # a tweaked rerun
+        rescored = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger, rescore=True)
+    text = out.getvalue()
+    assert first["validated"] and first["holdout"]["look"] == 1
+    assert not again["validated"] and again["holdout"] is None and "Test window withheld" in text
+    assert rescored["holdout"]["look"] == 2
+    assert rescored["holdout"]["configurations_all_looks"] == 2 * first["holdout"]["configurations_all_looks"]
+    assert rescored["deflated_sharpe"] <= first["deflated_sharpe"]  # more tries, less credit for the best one
+    assert "tries across 2 looks" in text
+    # Different test prices are a different window: no refusal.
+    other = {"A": (times, series(swing=0.1)), "B": (times, b)}
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert lhs.report(other, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger)["holdout"]["look"] == 1
+    import sqlite3
+    with pytest.raises(sqlite3.DatabaseError, match="append-only"):
+        ledger.conn.execute("DELETE FROM looks")
+    ledger.close()

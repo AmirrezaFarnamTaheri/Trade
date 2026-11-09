@@ -516,8 +516,13 @@ def walk_forward(portfolio, bars_per_year):
     return returns, exposure, picks
 
 
-def report(data, costs, interval, train_end, test_start, end="9999", margin=frozenset(), terms=MARGIN):
-    """Run the protocol and print it. costs is one cost per side for all assets or {symbol: cost}."""
+def report(data, costs, interval, train_end, test_start, end="9999", margin=frozenset(), terms=MARGIN,
+           holdout=None, rescore=False):
+    """Run the protocol and print it. costs is one cost per side for all assets or {symbol: cost}.
+
+    `holdout` (a HoldoutLedger) records each look at the test window; a repeat look is withheld unless
+    `rescore`, and then the deflated Sharpe counts the configurations tried across every look.
+    """
     bars_per_day = BARS_PER_DAY[interval]
     year = 365 * bars_per_day
     costs = costs if isinstance(costs, dict) else dict.fromkeys(data, costs)
@@ -570,9 +575,29 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
     dsr = deflated_sharpe(train_sharpe[chosen] / math.sqrt(year), len(train_returns), skew, kurt, len(candidates),
                           sum((s - mean) ** 2 for s in per_period) / (len(per_period) - 1))
     valid = passes(score(portfolio[chosen], splits[1]), score(portfolio[HOLD], splits[1]))
+    custody = None
+    if valid and holdout is not None:
+        from gym.services.holdout_ledger import HoldoutRefused, window_id
+        prices = [(f"{sym}@{t}", p) for sym, (times, closes) in sorted(data.items())
+                  for t, p in zip(times, closes) if test_start <= t < end]
+        spec = {"costs": costs, "margin": sorted(margin), "terms": terms, "train_end": train_end,
+                "chosen": label(chosen)}
+        try:
+            custody = holdout.look(window_id(data, interval, test_start, end, prices), spec, len(candidates),
+                                   rescore=rescore)
+        except HoldoutRefused as refused:
+            print(f"\nTest window withheld: {refused}. Rerun with --rescore-holdout to look again; the look is "
+                  "recorded and every configuration tried at this window counts toward the deflated Sharpe.")
+            valid = False
+        if custody and custody["look"] > 1:
+            dsr = deflated_sharpe(train_sharpe[chosen] / math.sqrt(year), len(train_returns), skew, kurt,
+                                  custody["configurations_all_looks"],
+                                  sum((s - mean) ** 2 for s in per_period) / (len(per_period) - 1))
     shown = "n/a" if dsr is None else f"{dsr:.3f}"
-    print(f"\nShared configuration: {label(chosen)}  deflated Sharpe probability {shown} over {len(candidates)} tries"
-          f"  -> validation {'PASSED' if valid else 'FAILED (not taken to test)'}")
+    tries = (f"{custody['configurations_all_looks']} tries across {custody['look']} looks at this test window"
+             if custody and custody["look"] > 1 else f"{len(candidates)} tries")
+    print(f"\nShared configuration: {label(chosen)}  deflated Sharpe probability {shown} over {tries}"
+          f"  -> validation {'PASSED' if valid else 'FAILED or withheld (not taken to test)'}")
     for split in splits if valid else splits[:2]:
         print(f" {split[0]}")
         print(line(label(chosen), score(portfolio[chosen], split)))
@@ -608,7 +633,7 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
         print(f"\nWalk-forward from {start}: " + " ".join(picks))
         print(line("walk-forward", stats(returns, exposure, year)))
         print(line("buy & hold", stats(*window(portfolio[HOLD], start, end), year)))
-    return {"chosen": label(chosen), "validated": valid, "deflated_sharpe": dsr,
+    return {"chosen": label(chosen), "validated": valid, "deflated_sharpe": dsr, "holdout": custody,
             "tailoring_better": bool(better), "walk_forward": picks}
 
 
@@ -632,6 +657,10 @@ def main(argv=None):
     study.add_argument("--liquidation", type=float, default=MARGIN["liquidation"], help="margin ratio that liquidates")
     study.add_argument("--train-end", default="2022-01-01", help="first bar of validation")
     study.add_argument("--test-start", default="2024-01-01", help="first bar of test (scored once)")
+    study.add_argument("--holdout-ledger", type=Path, default=CACHE.parent / "holdout_ledger.sqlite3",
+                       help="append-only record of every look at a test window")
+    study.add_argument("--rescore-holdout", action="store_true",
+                       help="look at an already scored test window again (recorded; deflation counts every look)")
     for sub in (pull, study):
         sub.add_argument("symbols", nargs="+", type=symbol)
         sub.add_argument("--interval", choices=BARS_PER_DAY, default="1d")
@@ -646,7 +675,13 @@ def main(argv=None):
             costs |= {s: float(c) for s, c in json.loads(args.costs.read_text()).items() if s in data}
         margin = {s.strip().upper() for s in args.margin.split(",") if s.strip()}
         terms = {"borrow_rate": args.borrow_rate, "roll_days": args.roll_days, "liquidation": args.liquidation}
-        report(data, costs, args.interval, args.train_end, args.test_start, margin=margin, terms=terms)
+        from gym.services.holdout_ledger import HoldoutLedger
+        ledger = HoldoutLedger(args.holdout_ledger)
+        try:
+            report(data, costs, args.interval, args.train_end, args.test_start, margin=margin, terms=terms,
+                   holdout=ledger, rescore=args.rescore_holdout)
+        finally:
+            ledger.close()
 
 
 if __name__ == "__main__":
