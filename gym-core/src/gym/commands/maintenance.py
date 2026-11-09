@@ -187,6 +187,8 @@ def restore_drill_cmd(args) -> int:
             report = restore_backup(bundles[-1], Path(scratch) / "ledger.db", passphrase=phrase)
         finally:
             del phrase
+        from ..services.ledger_anchors import verify
+        report["anchors_checked"] = verify(Path(args.folder), Path(scratch) / "ledger.db")["anchors"]
     report |= {"bundle": str(bundles[-1]), "drill": True, "restored_copy": "deleted"}
     _backup_receipt(args, "RESTORE", report)  # a drill is a verified restore; the copy is gone
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))

@@ -24,6 +24,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Conformance vectors for the ticket quote envelope (`contracts/v1/fixtures/ticket-envelopes.json`): Rust and
   Python accept and refuse the same 16 tickets at the same rounding boundary [A-1 step 1, partial].
 - Model gateway: optional `policy.allowedHosts` pins custom endpoints to approved hosts [S-7].
+- Executor-ledger head anchors in the backup folder: each verified backup records (sequence, head hash); a
+  truncated or rebuilt ledger is refused before older bundles are rotated, and the restore drill checks the same [R-3].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
