@@ -102,3 +102,20 @@ def test_shell_stays_routing_only_and_view_assets_load_in_order():
     assert len(shell.splitlines()) < 150
     assert "function route(" in shell and "async function showView(" in shell
     assert "function renderOverview(" not in shell
+
+
+def test_persian_copy_outside_the_vocabulary_does_not_grow():
+    """Copy kept in workspace-config.js gets one native-speaker review; inline pairs elsewhere are missed.
+
+    The counts are the lines holding Persian on 2026-11-09. Moving copy into the vocabulary lowers them (update
+    the table down); adding inline Persian anywhere else fails here.
+    """
+    import re
+    allowed = {"margin.js": 39, "models.js": 11, "native-review.js": 2, "portfolio.js": 52, "replay-chart.js": 4,
+               "research.js": 188, "workspace-overview.js": 2, "workspace-utils.js": 1, "index.html": 2}
+    persian = re.compile("[\u0600-\u06ff]")
+    for path in [*sorted(UI.with_name("app.js").parent.glob("*.js")), UI.with_name("index.html")]:
+        if path.name == "workspace-config.js":
+            continue
+        lines = sum(1 for line in path.read_text("utf-8").splitlines() if persian.search(line))
+        assert lines <= allowed.get(path.name, 0), f"{path.name}: {lines} lines of inline Persian; move copy to workspace-config.js"
