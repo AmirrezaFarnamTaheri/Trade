@@ -67,13 +67,46 @@ mod windows_host {
         result
     }
 
+    /// `C:\Program Files` from the shell's known-folder table, not from the
+    /// process environment, which a service's configuration could redirect.
+    fn program_files() -> std::io::Result<PathBuf> {
+        use std::os::windows::ffi::OsStringExt;
+        use windows_sys::Win32::System::Com::CoTaskMemFree;
+        use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath};
+        let denied = || {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "Program Files known-folder lookup failed",
+            )
+        };
+        let mut raw = std::ptr::null_mut();
+        // SAFETY: valid GUID and out-pointer; the returned buffer is freed below on every path.
+        if unsafe {
+            SHGetKnownFolderPath(&FOLDERID_ProgramFiles, 0, std::ptr::null_mut(), &mut raw)
+        } < 0
+        {
+            return Err(denied());
+        }
+        let mut length = 0;
+        // SAFETY: the shell returns a NUL-terminated wide string; the scan is bounded.
+        while length < 32768 && unsafe { *raw.add(length) } != 0 {
+            length += 1;
+        }
+        let root = (length < 32768).then(|| {
+            // SAFETY: `length` UTF-16 units were just read from this buffer.
+            PathBuf::from(OsString::from_wide(unsafe {
+                std::slice::from_raw_parts(raw, length)
+            }))
+        });
+        // SAFETY: allocated by SHGetKnownFolderPath with the COM task allocator.
+        unsafe { CoTaskMemFree(raw.cast()) };
+        root.ok_or_else(denied)
+    }
+
     /// The elevated installer binds a single OS-issued operator *logon* SID.
     /// The protected file cannot be supplied by a regular pipe caller.
     fn provisioned_logon_sid() -> std::io::Result<String> {
-        let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramData")
-        })?;
-        let file = PathBuf::from(root)
+        let file = program_files()?
             .join("TradingGYM")
             .join("Executor")
             .join("stop-logon.sid");
@@ -104,10 +137,7 @@ mod windows_host {
     /// Operator user identity is separately provisioned from a trusted OS
     /// process token, never copied from a client request or environment value.
     fn provisioned_user_sid() -> std::io::Result<String> {
-        let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramFiles")
-        })?;
-        let file = PathBuf::from(root)
+        let file = program_files()?
             .join("TradingGYM")
             .join("Executor")
             .join("stop-user.sid");
