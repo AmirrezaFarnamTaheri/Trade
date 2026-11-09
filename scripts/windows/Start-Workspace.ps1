@@ -21,16 +21,42 @@ if ($listeners.Count -and -not $WhatIfPreference) {
     throw 'Port 8765 is already in use. Inspect the current workspace before starting another collector.'
 }
 
+function Get-WorkspaceReadiness {
+    # The listener must answer /api/ready as TradingGYM does: 200 when quotes are current, 503 when the venue
+    # stream is blocked. Anything else (no answer, another program on the port) is not a started workspace.
+    Add-Type -AssemblyName System.Net.Http
+    $client = New-Object System.Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(3)
+    try {
+        $reply = $client.GetAsync('http://127.0.0.1:8765/api/ready').GetAwaiter().GetResult()
+        $status = [int]$reply.StatusCode
+        if ($status -ne 200 -and $status -ne 503) { return $null }
+        $report = $reply.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+        if ($report.scope -ne 'PUBLIC_OBSERVATIONS') { return $null }
+        return $report
+    } catch {
+        return $null
+    } finally {
+        $client.Dispose()
+    }
+}
+
 & (Join-Path $PSScriptRoot 'Install-Collector.ps1') -CoreDirectory $core -DataDirectory $data
 if (-not $WhatIfPreference) {
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    $report = $null
     do {
         $ready = (Test-Path -LiteralPath (Join-Path $data 'live\market.db')) -and
             @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue).Count -eq 1
-        if ($ready) { break }
+        if ($ready) { $report = Get-WorkspaceReadiness }
+        if ($report) { break }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
-    if (-not $ready) { throw 'Collector startup did not finish; paper scheduler was not started.' }
+    if (-not $report) { throw 'Collector startup did not finish (no TradingGYM answer on /api/ready); paper scheduler was not started.' }
+    if (-not $report.ready) {
+        # Research on stored data still runs; the operator is told that live observation is blocked.
+        Write-Warning ('Collector is serving but market data is not ready: ' + (@($report.reasons) -join ', '))
+    }
 }
 $arguments = @('-I', '-B', '-m', 'gym.cli', '--data', "`"$data`"", 'research', 'start', '--poll-seconds', '60')
 $action = New-ScheduledTaskAction -Execute $python -Argument ($arguments -join ' ') -WorkingDirectory $core
