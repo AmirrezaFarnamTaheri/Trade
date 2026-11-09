@@ -96,13 +96,13 @@ def test_segment_sweep_finds_missing_and_altered_files(tmp_path):
     writer.write("ws", "b", START.replace(hour=START.hour + 1))
     writer.close()
     ids = [row[0] for row in db.c.execute("SELECT seg_id FROM segments ORDER BY seg_id")]
-    assert verify_segments(db, [tmp_path / "raw"]) == {"checked": 2, "missing": [], "mismatched": []}
+    assert verify_segments(db, [tmp_path / "raw"]) == {"checked": 2, "missing": [], "mismatched": [], "unclosed": [], "unregistered": []}
     (tmp_path / "raw" / ids[0]).write_bytes(b"tampered")
     archive = tmp_path / "cold"
     (archive / ids[1]).parent.mkdir(parents=True)
     (tmp_path / "raw" / ids[1]).rename(archive / ids[1])
     report = verify_segments(db, [tmp_path / "raw", archive])
-    assert report == {"checked": 2, "missing": [], "mismatched": [ids[0]]}
+    assert report == {"checked": 2, "missing": [], "mismatched": [ids[0]], "unclosed": [], "unregistered": []}
     assert verify_segments(db, [tmp_path / "raw"])["missing"] == [ids[1]]
 
 

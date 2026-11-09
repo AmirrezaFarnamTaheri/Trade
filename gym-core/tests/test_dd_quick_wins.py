@@ -102,3 +102,37 @@ def test_docs_state_the_registry_strategy_count():
     claims = [(p.name, m.group(1).lower()) for p in docs.glob("*.md")
               for m in re.finditer(r"\b(" + "|".join(words.values()) + r") (?:registry strategies|native long/flat rules)", p.read_text(encoding="utf-8"), re.IGNORECASE)]
     assert claims and all(word == expected for _, word in claims), claims
+
+
+def test_open_segment_is_in_the_manifest_and_crash_tails_are_reported(tmp_path):
+    from gym.adapters.store import MarketDB, SegmentWriter, verify_segments
+    db = MarketDB(tmp_path / "market.db")
+    writer = SegmentWriter(tmp_path / "raw", db)
+    writer.write("ws", "a", START)
+    [(seg_id, sha)] = db.c.execute("select seg_id, sha256 from segments").fetchall()
+    assert sha is None  # registered at open, before any close
+    report = verify_segments(db, [tmp_path / "raw"])
+    assert report["unclosed"] == [seg_id] and report["checked"] == 0
+    writer.close()
+    assert db.c.execute("select sha256 is not null, seq_to from segments").fetchone() == (1, 1)
+    assert verify_segments(db, [tmp_path / "raw"])["unclosed"] == []
+    # A file written by an older build, or copied in, with no row at all.
+    stray = tmp_path / "raw" / seg_id.split("/")[0] / "99-0.jsonl.zst"
+    stray.write_bytes(b"")
+    assert verify_segments(db, [tmp_path / "raw"])["unregistered"] == [f"{seg_id.split('/')[0]}/99-0.jsonl.zst"]
+
+
+def test_daily_sweep_flags_crash_tails_but_not_the_live_segment(tmp_path):
+    from gym.adapters.store import MarketDB, SegmentWriter
+    from gym.services.collector import Collector
+    db = MarketDB(tmp_path / "market.db")
+    crashed = SegmentWriter(tmp_path / "raw", db)
+    crashed.write("ws", "a", START)
+    crashed.w = None  # a hard kill: the row stays open and the file is never finalized
+    live = SegmentWriter(tmp_path / "raw", db)
+    live.write("ws", "b", START + timedelta(minutes=5))
+    col = Collector(db, live, ["BTCUSDT"])
+    col.db_path = tmp_path / "market.db"
+    flags = [flag for flag, _ in col.verify_raw(START + timedelta(minutes=10))]
+    assert flags == ["SEGMENT_UNCLOSED"]
+    live.close()

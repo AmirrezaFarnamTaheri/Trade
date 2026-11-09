@@ -540,7 +540,11 @@ class Collector:
             db.c.close()
         self.status["integrity"] = {"at": iso(now), **{k: v if k == "checked" else len(v) for k, v in report.items()}}
         event("integrity", **self.status["integrity"])
-        return [("SEGMENT_CORRUPT", f"{seg_id} no longer matches its manifest hash") for seg_id in report["mismatched"]]
+        live = self.seg.path.relative_to(self.seg.root).as_posix() if self.seg.w else None
+        return ([("SEGMENT_CORRUPT", f"{seg_id} no longer matches its manifest hash") for seg_id in report["mismatched"]]
+                + [("SEGMENT_UNCLOSED", f"{seg_id} was opened but never closed; its tail has no manifest hash")
+                   for seg_id in report["unclosed"] if seg_id != live]
+                + [("SEGMENT_UNREGISTERED", f"{seg_id} is on disk with no manifest row") for seg_id in report["unregistered"]])
 
     def archive_raw(self, now: datetime):
         """Move finished raw day folders older than the kept days; a failure is reported, never fatal."""

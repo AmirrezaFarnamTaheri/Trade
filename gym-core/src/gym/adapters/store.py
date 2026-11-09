@@ -164,7 +164,11 @@ class MarketDB:
 
 
 class SegmentWriter:
-    """Raw frames, append-only, one Zstd file per UTC hour; manifest row on rotate/close."""
+    """Raw frames, append-only, one Zstd file per UTC hour.
+
+    The manifest row is written when a file opens (sha256 NULL) and completed on rotate/close, so a hard kill
+    leaves a visible unclosed row instead of an unlisted file.
+    """
 
     def __init__(self, root: Path, db: MarketDB, flush_s: float = 2.0):
         self.root, self.db, self.flush_s = root, db, flush_s
@@ -189,6 +193,8 @@ class SegmentWriter:
                 n += 1
         self.path, self.hour, self.seq_from = p, hour, self.seq + 1
         self.w = zstd.ZstdCompressor(level=3).stream_writer(self.f, closefd=False)
+        self.db.c.execute("insert into segments values(?,?,?,?,?,?,?)",
+                          (p.relative_to(self.root).as_posix(), str(p), self.seq_from, None, None, None, None))
 
     def write(self, src: str, raw: str, now: datetime) -> str:
         hour = now.astimezone(UTC).strftime("%Y%m%d%H")
@@ -260,9 +266,23 @@ def compact_quotes(db: MarketDB, before: datetime, bucket: str, now: datetime) -
 
 
 def verify_segments(db: MarketDB, roots: list[Path], since: str = "") -> dict:
-    """Re-hash closed raw segments against the manifest; `roots` are the raw folder and any archive folders."""
-    report = {"checked": 0, "missing": [], "mismatched": []}
-    for seg_id, sha, size in db.c.execute("SELECT seg_id, sha256, bytes FROM segments WHERE seg_id >= ? ORDER BY seg_id", (since,)).fetchall():
+    """Re-hash closed raw segments against the manifest; `roots` are the raw folder and any archive folders.
+
+    `unclosed` lists rows opened but never completed (the live file, or a crash tail with no hash yet);
+    `unregistered` lists segment files on disk that have no manifest row at all.
+    """
+    import re
+    report = {"checked": 0, "missing": [], "mismatched": [], "unclosed": [], "unregistered": []}
+    rows = db.c.execute("SELECT seg_id, sha256, bytes FROM segments WHERE seg_id >= ? ORDER BY seg_id", (since,)).fetchall()
+    known = {row[0] for row in rows}
+    for root in roots:
+        days = (d for d in root.iterdir() if d.is_dir() and re.fullmatch(r"[0-9]{8}", d.name) and d.name >= since[:8])             if root.is_dir() else ()
+        report["unregistered"] += sorted(f"{d.name}/{f.name}" for d in days for f in d.glob("*.jsonl.zst")
+                                         if f"{d.name}/{f.name}" not in known)
+    for seg_id, sha, size in rows:
+        if sha is None:
+            report["unclosed"].append(seg_id)
+            continue
         path = next((root / seg_id for root in roots if (root / seg_id).is_file()), None)
         if path is None:
             report["missing"].append(seg_id)
