@@ -1,4 +1,5 @@
 //! Pure Executor control core. No I/O, venue credentials, or order transport.
+#![forbid(unsafe_code)]
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {

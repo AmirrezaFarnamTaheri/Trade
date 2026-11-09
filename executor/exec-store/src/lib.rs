@@ -3,6 +3,7 @@
 //! This crate cannot submit, sign or cancel venue orders. Each append returns
 //! only after an SQLite FULL-synchronous transaction commits. The exact stored
 //! bytes are chained; parsing and authorization are separate, future layers.
+#![forbid(unsafe_code)]
 
 use fs2::FileExt;
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};

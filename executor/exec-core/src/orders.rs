@@ -499,13 +499,14 @@ impl ReservationBook {
             .filter(|e| e.asset == asset && !e.released)
             .try_fold(0u64, |total, e| total.checked_add(e.quanta))
     }
+    /// Saturates instead of wrapping, so an impossible overflow makes every
+    /// later admission fail closed rather than see a small total.
     pub fn reserved(&self, account: &str, asset: &str) -> u64 {
         self.entries
             .iter()
             .filter(|e| e.account == account && e.asset == asset)
             .filter(|e| !e.released)
-            .map(|e| e.quanta)
-            .sum()
+            .fold(0u64, |total, e| total.saturating_add(e.quanta))
     }
     pub fn reserve(
         &mut self,
