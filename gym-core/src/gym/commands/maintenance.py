@@ -81,6 +81,32 @@ def restore_research_cmd(args) -> int:
     return 0
 
 
+def release_cmd(args) -> int:
+    """Executor update signing: keygen and sign prompt for the key passphrase; verify needs none."""
+    import getpass
+
+    from ..services import release_signing
+    if args.cmd == "release-verify":
+        signature = Path(args.signature) if args.signature else Path(args.manifest + ".sig")
+        ok = release_signing.verify(Path(args.manifest), signature, Path(args.public_key))
+        print("VALID" if ok else "INVALID")
+        return 0 if ok else 1
+    if not sys.stdin.isatty():
+        raise ValueError(f"{args.cmd} requires an interactive console for the signing-key passphrase")
+    phrase = getpass.getpass("Signing-key passphrase: ")
+    try:
+        if args.cmd == "release-keygen":
+            if getpass.getpass("Repeat passphrase: ") != phrase:
+                raise ValueError("passphrases differ")
+            public = release_signing.keygen(Path(args.private), Path(args.public), phrase)
+            print(json.dumps({"public_key": args.public, **public}, indent=2))
+        else:
+            print(release_signing.sign(Path(args.manifest), Path(args.key), phrase))
+    finally:
+        del phrase
+    return 0
+
+
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose

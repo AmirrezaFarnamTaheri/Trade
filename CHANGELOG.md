@@ -29,6 +29,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Simulator: seeded property tests over 4,000 random market orders (cash conservation, no overspend, precision,
   never better than the touch, no fill before latency, non-fills move nothing); `market_order` split into sizing,
   modeled-cost, price-guard and settlement helpers, complexity 40 to under 20 and enforced in CI [E-1].
+- Signed executor updates: `gymctl release-keygen|sign|verify` (ECDSA P-256); the elevated update script verifies
+  natively against a pinned key and keeps the manifest, and helpers are re-hashed against it before launch [S-6, S-11].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

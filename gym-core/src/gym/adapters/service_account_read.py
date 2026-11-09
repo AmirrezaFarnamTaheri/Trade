@@ -63,7 +63,29 @@ def _helper_path(name="gym-account-read.exe") -> Path:
             raise ReadUncertain("protected Executor helper unavailable")
     except OSError:
         raise ReadUncertain("protected Executor helper unavailable") from None
+    _check_bundle(path)
     return path
+
+
+def _check_bundle(path: Path) -> None:
+    """Refuse a helper whose bytes differ from the manifest the update script kept beside the code.
+
+    Installs from before the manifest was kept have none; then the folder's administrator-only ACL is the guard.
+    """
+    import hashlib
+    import re
+    manifest = path.parent / "bundle.sha256"
+    if not manifest.is_file():
+        return
+    try:
+        pinned = {name: digest.lower() for digest, name in
+                  re.findall(r"^([0-9a-fA-F]{64})  ([a-z-]+\.exe)$", manifest.read_text("ascii"), re.MULTILINE)}
+        with open(path, "rb") as f:
+            actual = hashlib.file_digest(f, "sha256").hexdigest()
+    except (OSError, UnicodeDecodeError):
+        raise ReadUncertain("protected helper integrity could not be checked") from None
+    if pinned.get(path.name) != actual:
+        raise ReadUncertain("protected helper does not match the installed bundle manifest")
 
 
 def _payload(raw: bytes, resource: str, client_id=None, page=None, per_page=None) -> tuple[object, dict | None]:
