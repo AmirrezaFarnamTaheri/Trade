@@ -39,6 +39,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   [O-1, M-1, U-3].
 - Evidence index: every `.pi/` receipt the docs cite has a SHA-256 in the tracked `evidence/INDEX.json`,
   with a verifier and a docs test [G-6].
+- Architecture decision records: authority split and fail-closed money path (accepted), reservation model and
+  bounded startup replay (proposed) [G-5, A-5, A-6].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

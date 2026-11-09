@@ -47,5 +47,5 @@ cd gym-core; uv sync --locked --group dev; uvx ruff==0.16.9 check src tests; uv 
 cd ../model-gateway; npm ci --ignore-scripts; npm test
 ```
 
-Further reading: [architecture](gym-core/docs/architecture.md), [capabilities](gym-core/docs/capabilities.md),
+Further reading: [decisions](docs/adr/README.md), [disaster recovery](gym-core/docs/disaster-recovery.md), [architecture](gym-core/docs/architecture.md), [capabilities](gym-core/docs/capabilities.md),
 [storage](gym-core/docs/storage.md), [design](DESIGN.md).
