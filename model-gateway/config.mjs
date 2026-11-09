@@ -14,11 +14,12 @@ export function exact(obj, keys) {
 function text(v, max = 200) { return typeof v === 'string' && v.length > 0 && v.length <= max && !/[\x00-\x1f\x7f]/.test(v); }
 function id(v) { return typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$/.test(v); }
 function integer(v, min, max) { return Number.isInteger(v) && v >= min && v <= max; }
+export const LOOPBACK_HOSTS = ['127.0.0.1', '[::1]', 'localhost'];
 export function endpoint(value, allowLoopback = false) {
   check(text(value, 2048));
   let u; try { u = new URL(value); } catch { throw new GatewayError('invalid_config'); }
   check(!u.username && !u.password && !value.includes('?') && !value.includes('#') && !value.split('/')[2]?.includes('@'));
-  check(u.protocol === 'https:' || (allowLoopback && u.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(u.hostname)));
+  check(u.protocol === 'https:' || (allowLoopback && u.protocol === 'http:' && LOOPBACK_HOSTS.includes(u.hostname)));
   return u.href.replace(/\/$/, '');
 }
 export function validate(input, { allowLoopback = false } = {}) {
@@ -45,8 +46,11 @@ export function validate(input, { allowLoopback = false } = {}) {
     check((c.protocol === undefined && c.baseURL === undefined) || (typeof c.protocol === 'string' && c.protocol.length > 0 && typeof c.baseURL === 'string'));
     if (c.protocol) {
       check(['openai-completions', 'openai-responses', 'anthropic-messages'].includes(c.protocol));
-      c.baseURL = endpoint(c.baseURL, allowLoopback);
-      check(!hosts?.length || hosts.includes(new URL(c.baseURL).hostname), 'host_not_allowed');
+      // A `local` connection is a model server on this machine: plain http on loopback, never anywhere else.
+      const local = c.auth?.type === 'local';
+      c.baseURL = endpoint(c.baseURL, allowLoopback || local);
+      if (local) check(LOOPBACK_HOSTS.includes(new URL(c.baseURL).hostname), 'local_requires_loopback');
+      else check(!hosts?.length || hosts.includes(new URL(c.baseURL).hostname), 'host_not_allowed');
     } else check(!!catalog.getProvider(c.provider));
     exact(c.auth, ['type', 'env', 'stored']);
     if (c.auth.type === 'api_key') {
@@ -54,6 +58,9 @@ export function validate(input, { allowLoopback = false } = {}) {
       check(Array.isArray(c.auth.env) && c.auth.env.length >= (c.auth.stored ? 0 : 1) && c.auth.env.length <= 100);
       check(c.auth.env.every(n => typeof n === 'string' && /^[A-Z_][A-Z0-9_]{0,127}$/.test(n)) && new Set(c.auth.env).size === c.auth.env.length);
       check(!!c.protocol || !!catalog.getProvider(c.provider)?.auth.apiKey);
+    } else if (c.auth.type === 'local') {
+      // No key exists to protect or leak; the endpoint check above pins it to this machine.
+      check(Object.keys(c.auth).length === 1 && !!c.protocol, 'local_requires_loopback');
     } else {
       check(c.auth.type === 'oauth' && Object.keys(c.auth).length === 1 && !c.protocol && !!catalog.getProvider(c.provider)?.auth.oauth);
     }

@@ -93,9 +93,11 @@ export async function complete(state, config, presetId, input, { signal: externa
   const scope = createHash('sha256').update(JSON.stringify([c.id, c.provider, model.id, model.api, model.baseUrl])).digest('hex');
   let keys = [], fingerprints = [], models;
   try {
-    if (c.auth.type === 'api_key') {
+    if (c.auth.type === 'api_key' || c.auth.type === 'local') {
+      // A loopback model server needs no key; the SDK still wants one, so a fixed placeholder goes to 127.0.0.1 only.
       const stored = c.auth.stored ? await state.apiKeys(c, undefined, options) : [];
-      keys = [...new Set([...stored, ...c.auth.env.map(n => env[n]).filter(v => typeof v === 'string' && v.trim().length > 0)])];
+      keys = c.auth.type === 'local' ? ['local-no-key']
+        : [...new Set([...stored, ...c.auth.env.map(n => env[n]).filter(v => typeof v === 'string' && v.trim().length > 0)])];
       check(keys.every(k => Buffer.byteLength(k) <= 16384 && !/[\r\n\x00]/.test(k)), 'invalid_environment_key');
       fingerprints = await state.fingerprints(keys, options);
       await state.pool(scope, fingerprints, () => {}, options);
@@ -107,7 +109,7 @@ export async function complete(state, config, presetId, input, { signal: externa
     for (let attempt = 0; attempt < config.policy.maxAttempts; attempt++) {
       signal.throwIfAborted();
       let fp, key;
-      if (c.auth.type === 'api_key') {
+      if (c.auth.type === 'api_key' || c.auth.type === 'local') {
         const i = await state.pool(scope, fingerprints, pool => {
           for (let n = 0; n < fingerprints.length; n++) {
             const i = (pool.cursor + n) % fingerprints.length;
@@ -171,7 +173,7 @@ export async function complete(state, config, presetId, input, { signal: externa
         };
       }
       const kind = !sent || responseError || (info?.status >= 200 && info?.status < 400) ? 'fatal' : failure(info);
-      if (c.auth.type === 'api_key' && (kind === 'auth' || kind === 'cooldown')) {
+      if ((c.auth.type === 'api_key' || c.auth.type === 'local') && (kind === 'auth' || kind === 'cooldown')) {
         await state.pool(scope, fingerprints, pool => { const h = pool.health[fp]; h.invalid = kind === 'auth'; h.until = kind === 'cooldown' ? Date.now() + info.wait : 0; }, options);
       }
       if (kind === 'fatal') throw new GatewayError('provider_rejected');

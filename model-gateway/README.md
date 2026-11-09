@@ -120,6 +120,8 @@ SQLite `BEGIN IMMEDIATE` spans the entire async credential refresh callback; rol
 
 401/auth-invalid evicts a value; 429 or explicitly quota-coded 403 cools it. Permission 403 and other permanent 4xx are fatal. Retry-After/reset headers are honored when exposed, otherwise cooldown is 60 seconds; all-cooling pools fail without early reuse. 5xx/network errors use bounded backoff. No account/provider/model/endpoint fallback occurs. SDK retries are set to zero; a fetch guard permits one HTTP request per gateway attempt, redirects are refused, and all attempts share cancellation/deadline. Stream errors discard buffered partial text and are not replayed. Response streams are capped at 2 MiB and returned text at 1 MiB.
 
+A model server on this machine (for example llama.cpp's OpenAI-compatible server) uses `"auth": {"type": "local"}` with a `protocol` and an `http://127.0.0.1:<port>` (or `[::1]`, `localhost`) `baseURL`. It needs no key and no switch; any non-loopback URL is refused for it, and redirects are refused for every connection.
+
 For local tests only, `GYM_MODEL_ALLOW_LOOPBACK_HTTP=1` admits explicit HTTP URLs on localhost, 127.0.0.1 or ::1. Never use that switch to weaken a production endpoint policy.
 
 ## Verification and limits

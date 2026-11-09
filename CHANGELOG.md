@@ -33,6 +33,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   natively against a pinned key and keeps the manifest, and helpers are re-hashed against it before launch [S-6, S-11].
 - Research-assistant runs carry provenance outside the run identity (model, prompt and reply hashes, bounded reply
   text, rationale), shown on the run page [L-3 partial, L-5].
+- Model gateway: a first-class `local` connection for loopback model servers, keyless and pinned to 127.0.0.1,
+  ::1 or localhost, without the test-only HTTP switch [L-1].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
