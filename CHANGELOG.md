@@ -23,6 +23,7 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - UI: a ratchet test stops inline Persian copy from growing outside the shared vocabulary [U-7, partial].
 - Conformance vectors for the ticket quote envelope (`contracts/v1/fixtures/ticket-envelopes.json`): Rust and
   Python accept and refuse the same 16 tickets at the same rounding boundary [A-1 step 1, partial].
+- Model gateway: optional `policy.allowedHosts` pins custom endpoints to approved hosts [S-7].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

@@ -29,10 +29,15 @@ export function validate(input, { allowLoopback = false } = {}) {
   const result = structuredClone(input);
   result.enabled ??= false;
   result.policy ??= {};
-  exact(result.policy, ['maxAttempts', 'timeoutMs']);
+  exact(result.policy, ['maxAttempts', 'timeoutMs', 'allowedHosts']);
   result.policy.maxAttempts ??= 3;
   result.policy.timeoutMs ??= 30000;
   check(integer(result.policy.maxAttempts, 1, 3) && integer(result.policy.timeoutMs, 100, 120000));
+  // Optional pin: when set, a custom endpoint may only name one of these hosts, so editing the configuration
+  // alone cannot redirect a stored key to a host the operator never approved.
+  const hosts = result.policy.allowedHosts;
+  check(hosts === undefined || (Array.isArray(hosts) && hosts.length <= 100 && new Set(hosts).size === hosts.length
+    && hosts.every(h => typeof h === 'string' && /^(?:[a-z0-9-]{1,63}\.)*[a-z0-9-]{1,63}$|^\[::1\]$/.test(h) && h.length <= 253)));
   const connections = new Map();
   for (const c of result.connections) {
     exact(c, ['id', 'provider', 'protocol', 'baseURL', 'auth']);
@@ -41,6 +46,7 @@ export function validate(input, { allowLoopback = false } = {}) {
     if (c.protocol) {
       check(['openai-completions', 'openai-responses', 'anthropic-messages'].includes(c.protocol));
       c.baseURL = endpoint(c.baseURL, allowLoopback);
+      check(!hosts?.length || hosts.includes(new URL(c.baseURL).hostname), 'host_not_allowed');
     } else check(!!catalog.getProvider(c.provider));
     exact(c.auth, ['type', 'env', 'stored']);
     if (c.auth.type === 'api_key') {

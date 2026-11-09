@@ -101,3 +101,16 @@ test('stdio host correlates bounded control requests without exposing provider e
   assert.equal(replies[1].result.enabled, false);
   child.stdin.end();
 });
+
+test('policy.allowedHosts pins custom endpoints to approved hosts', () => {
+  const connection = host => ({ id: 'custom', provider: 'test', protocol: 'openai-completions', baseURL: `https://${host}/v1`, auth: { type: 'api_key', env: ['KEY_A'] } });
+  const config = (host, allowedHosts) => ({ ...emptyConfig(), policy: { maxAttempts: 3, timeoutMs: 30000, allowedHosts }, connections: [connection(host)] });
+  assert.equal(validate(config('api.example.com', ['api.example.com'])).connections[0].baseURL, 'https://api.example.com/v1');
+  assert.throws(() => validate(config('attacker.example.net', ['api.example.com'])), { code: 'host_not_allowed' });
+  // No list, or an empty one, keeps today's behaviour: any https host.
+  assert.ok(validate(config('attacker.example.net', undefined)));
+  assert.ok(validate(config('attacker.example.net', [])));
+  for (const bad of [['API.EXAMPLE.COM'], ['https://api.example.com'], ['a', 'a'], 'api.example.com', [7]]) {
+    assert.throws(() => validate(config('api.example.com', bad)), { code: 'invalid_config' });
+  }
+});
