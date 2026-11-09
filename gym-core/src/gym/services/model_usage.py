@@ -24,7 +24,7 @@ class ModelUsage:
 
     def limits(self) -> dict:
         stored = dict(self.conn.execute("SELECT name, value FROM limits").fetchall())
-        return {name: (stored[name] if name in stored else default) for name, default in DEFAULT_LIMITS.items()}
+        return {name: stored.get(name, default) for name, default in DEFAULT_LIMITS.items()}
 
     def set_limits(self, value: dict) -> dict:
         """Replace named caps; null removes a cap. Call caps are whole numbers, cost caps exact decimals."""
