@@ -28,15 +28,28 @@ def prompt(symbol: str, resolution: str, history: list[dict], budget: int) -> st
             '{"strategy": <id>, "params": {...}, "rationale": <one sentence>}. Prefer configurations unlike the tested ones.')
 
 
+REPAIR = ("Your previous reply did not contain a valid JSON array. Reply again with ONLY the JSON array, "
+          "no prose and no code fences.")
+
+
+def extract_array(text: str) -> list | None:
+    """The first complete JSON array in the reply, wherever it starts; brackets in surrounding prose do not break it."""
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\[", text):
+        try:
+            value, _ = decoder.raw_decode(text, match.start())
+        except ValueError:
+            continue
+        if isinstance(value, list):
+            return value
+    return None
+
+
 def parse_proposals(text: str, budget: int, tried: frozenset) -> list[dict]:
     """First JSON array in the reply; invalid, duplicate and already-tried configurations are dropped."""
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    try:
-        items = json.loads(match.group(0)) if match else []
-    except ValueError:
-        items = []
+    items = extract_array(text) or []
     proposals, seen = [], set(tried)
-    for item in items if isinstance(items, list) else []:
+    for item in items:
         if not isinstance(item, dict) or not isinstance(item.get("params", {}), dict):
             continue
         try:
@@ -60,10 +73,20 @@ async def assist(complete, db, runs, symbol: str, start: datetime, end: datetime
         raise ValueError(f"budget must be 2..{MAX_BUDGET} configurations")
     history = [{"strategy": row["inputs"].get("strategy"), "params": row["inputs"].get("params"), "net": (row.get("end") or {}).get("net")}
                for row in list_runs(runs, limit=200, symbol=symbol) if row["inputs"].get("resolution") == resolution]
-    reply = await complete("complete", {"preset": preset, "prompt": prompt(symbol, resolution, history, budget)})
-    proposals = parse_proposals(str(reply.get("text", "")), budget, tried_before(runs, symbol, resolution))
+    request = prompt(symbol, resolution, history, budget)
+    reply = await complete("complete", {"preset": preset, "prompt": request})
+    usage, attempts = [reply.get("usage")], 1
+    if extract_array(str(reply.get("text", ""))) is None:  # one repair retry, then give up and say why
+        reply = await complete("complete", {"preset": preset, "prompt": request + "\n\n" + REPAIR})
+        usage.append(reply.get("usage"))
+        attempts = 2
+    text = str(reply.get("text", ""))
+    proposals = parse_proposals(text, budget, tried_before(runs, symbol, resolution))
     report = {"mode": "PAPER_ONLY", "symbol": symbol, "budget": budget, "proposals": proposals,
-              "usage": reply.get("usage"), "model": reply.get("model")}
+              "usage": usage[0] if attempts == 1 else usage, "model": reply.get("model"),
+              "reply_attempts": attempts, "reply_valid": extract_array(text) is not None}
+    if not report["reply_valid"]:
+        return {**report, "status": "INVALID_MODEL_REPLY"}
     if len(proposals) < 2:
         return {**report, "status": "TOO_FEW_NEW_PROPOSALS"}
     result = compare(db, symbol, start, end, [{"strategy": p["strategy"], "params": p["params"]} for p in proposals],

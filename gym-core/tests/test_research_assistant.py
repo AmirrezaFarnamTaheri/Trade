@@ -41,3 +41,18 @@ def test_assistant_tests_proposals_and_they_count_as_trials(tmp_path):
     assert len(list_runs(runs)) == 2 and len(tried_before(runs, "BTCUSDT", "1min")) == 2 and "BTCUSDT" in prompts[0]
     again = asyncio.run(assist(complete, db, runs, "BTCUSDT", START, START + timedelta(hours=1), preset="p", budget=2, resolution="1min"))
     assert again["status"] == "TOO_FEW_NEW_PROPOSALS"  # the model repeated itself; nothing is re-run
+
+
+def test_brackets_in_prose_do_not_hide_the_array_and_invalid_replies_get_one_repair(tmp_path):
+    reply = 'Options [a] and [b] considered. ' + json.dumps([{"strategy": "ema-trend", "params": {"fast": 3, "slow": 9}}]) + ' [end]'
+    assert [p["params"] for p in parse_proposals(reply, 2, frozenset())] == [{"fast": 3, "slow": 9}]
+    db = market_db(tmp_path, quote_history(n=50))
+    calls = []
+
+    async def garbled(action, value):
+        calls.append(value["prompt"])
+        return {"text": "I think [ema-trend with fast=3", "usage": {"input": 1, "output": 1}, "model": None}
+    report = asyncio.run(assist(garbled, db, tmp_path / "runs", "BTCUSDT", START, START + timedelta(hours=1),
+                                preset="p", budget=2, resolution="1min"))
+    assert report["status"] == "INVALID_MODEL_REPLY" and report["reply_attempts"] == 2 and len(calls) == 2
+    assert "did not contain a valid JSON array" in calls[1] and len(report["usage"]) == 2
