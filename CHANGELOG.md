@@ -19,6 +19,7 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   checked before a request reaches the gateway; set them with the `usage_limits` control [L-4].
 - Research assistant extracts the first complete JSON array, retries once with a repair prompt, and reports
   `INVALID_MODEL_REPLY` instead of silently testing nothing [L-2].
+- UI: first visit follows the system colour scheme; Windows forced-colours mode keeps borders and focus visible [U-6].
 - Launcher requires a real TradingGYM `/api/ready` answer and warns when market data is blocked [O-3].
 - CI actions pinned by commit SHA, Rust pinned to 1.96.0, Dependabot and CODEOWNERS added [S-4].
 - Docs: root README with the current state, strategy count corrected to sixteen and guarded by a test, excluded

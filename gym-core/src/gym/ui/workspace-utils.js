@@ -7,7 +7,12 @@ function saved(key, fallback, allowed) {
 /** Persist a non-secret workspace preference when browser storage is available. */
 function remember(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Storage is optional. */ } }
 let lang = saved("lang", "en", ["en", "fa"]);
-let theme = saved("theme", "light", ["light", "dark"]);
+/** First visit follows the operating system; an explicit toggle is remembered and wins afterwards. */
+function systemTheme() {
+  try { return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (_) { return "light"; }
+}
+let theme = saved("theme", systemTheme(), ["light", "dark"]);
 const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [], runCount: 50, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
   researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };

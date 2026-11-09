@@ -330,6 +330,13 @@ svg.tracking .chart-cursor { opacity: .7; }
   .button-small, .segmented button, .sidebar .button-quiet { min-height: 44px; }
   .workspace-footer { padding-inline: 15px; }
 }
+/* Windows high contrast: system colours replace ours, so state must not depend on colour alone. */
+@media (forced-colors: active) {
+  .button, .chip, .input, .panel, .banner, .segmented, .tabs [role="tab"], .authority-indicator, .safety-callout { border: 1px solid CanvasText; }
+  .tabs [role="tab"][aria-selected="true"], .button-primary { border-width: 2px; }
+  :focus-visible, .sidebar :focus-visible { outline: 2px solid Highlight; outline-offset: 3px; }
+  .dot, .chart-line, .chart-marker { forced-color-adjust: none; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
 .workspace-table { overflow-x: auto; max-height: 32rem; overflow-y: auto; }
 #research-workspace input, #research-workspace select, #research-workspace textarea { max-width: 100%; box-sizing: border-box; }
