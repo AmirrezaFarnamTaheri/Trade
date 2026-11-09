@@ -5,7 +5,7 @@ balance, fee, known-client-order and explicit open-order/history page observatio
 in the protected custody ledger before replying.
 The account helper, Python adapter, CLI and GUI retain their existing read-only
 contracts and now expose optional receipt references through the
-[v2 account delivery contract](../../contracts/account-read-v2.md). No caller-supplied JSON, balance, unit precision or permission flag can
+[v2 account delivery contract](../../contracts/v2/account-read-v2.md). No caller-supplied JSON, balance, unit precision or permission flag can
 enter this service path. Order-detail identity must match the requested client
 ID. Page identities come from the service's validated request; original response
 digests remain bound to the received bytes. Page rows are bounded/sanitized and

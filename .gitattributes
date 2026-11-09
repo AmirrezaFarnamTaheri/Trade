@@ -1,6 +1,6 @@
 # Keep text portable without changing exact wire fixtures or binary artifacts.
 * text=auto eol=lf
-contracts/v1/fixtures/* -text
+contracts/*/fixtures/* -text
 *.png -text
 *.jpg -text
 *.jpeg -text

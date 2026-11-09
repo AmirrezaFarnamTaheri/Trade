@@ -569,3 +569,20 @@ fn hash_valid_but_illegal_receipts_fail_replay() {
     drop(source);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn fill_timestamps_follow_the_shared_contract_fixture() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../contracts/v1/fixtures/fill-timestamps.json"
+    ))
+    .unwrap();
+    for (key, expected) in [("accept", true), ("reject", false)] {
+        for value in fixture[key].as_array().unwrap() {
+            assert_eq!(
+                exec_svc::account_observation::fill_timestamp(value),
+                expected,
+                "{key}: {value}"
+            );
+        }
+    }
+}

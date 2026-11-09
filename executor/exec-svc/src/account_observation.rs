@@ -241,6 +241,86 @@ fn order_text<'a>(row: &'a Value, field: &str, max: usize) -> Result<&'a str, &'
         .filter(|s| !s.is_empty() && s.len() <= max && s.is_ascii())
         .ok_or("invalid order text")
 }
+/// The shared fill-timestamp profile in `contracts/v1/fixtures/fill-timestamps.json`:
+/// an epoch integer in range, or RFC 3339 with seconds, optional 1..=9 fraction
+/// digits, `Z` or `±HH:MM`, and a real calendar date and time.
+pub fn fill_timestamp(value: &Value) -> bool {
+    if let Some(n) = value.as_u64() {
+        return (946_684_800..=4_102_444_800_000).contains(&n);
+    }
+    let Some(text) = value.as_str() else {
+        return false;
+    };
+    let b = text.as_bytes();
+    let digits = |range: std::ops::Range<usize>| -> Option<u32> {
+        let part = b.get(range)?;
+        part.iter().all(u8::is_ascii_digit).then(|| {
+            part.iter()
+                .fold(0u32, |acc, d| acc * 10 + u32::from(d - b'0'))
+        })
+    };
+    if b.len() < 20
+        || b[4] != b'-'
+        || b[7] != b'-'
+        || b[10] != b'T'
+        || b[13] != b':'
+        || b[16] != b':'
+    {
+        return false;
+    }
+    let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second)) = (
+        digits(0..4),
+        digits(5..7),
+        digits(8..10),
+        digits(11..13),
+        digits(14..16),
+        digits(17..19),
+    ) else {
+        return false;
+    };
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    let month_days = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    if !(1..=12).contains(&month)
+        || day == 0
+        || day > month_days[month as usize - 1]
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return false;
+    }
+    let mut rest = &b[19..];
+    if let Some(fraction) = rest.strip_prefix(b".") {
+        let count = fraction.iter().take_while(|c| c.is_ascii_digit()).count();
+        if !(1..=9).contains(&count) {
+            return false;
+        }
+        rest = &fraction[count..];
+    }
+    match rest {
+        [b'Z'] => true,
+        [sign, h1, h2, b':', m1, m2] if b"+-".contains(sign) => {
+            [h1, h2, m1, m2].iter().all(|c| c.is_ascii_digit())
+                && (h1 - b'0') * 10 + (h2 - b'0') <= 23
+                && (m1 - b'0') * 10 + (m2 - b'0') <= 59
+        }
+        _ => false,
+    }
+}
+
 fn normalized_order(row: &Value) -> Result<Value, &'static str> {
     let id = order_text(row, "clientOrderId", 96)?;
     exec_ipc::provision::AccountResource::KnownClientOrder(id.into()).path()?;
@@ -284,22 +364,7 @@ fn normalized_order(row: &Value) -> Result<Value, &'static str> {
                 return Err("invalid fill fee asset");
             }
             let timestamp = fill.get("timestamp").ok_or("missing fill timestamp")?;
-            let epoch = timestamp
-                .as_u64()
-                .is_some_and(|n| (946_684_800..=4_102_444_800_000).contains(&n));
-            // Venue timestamps stay literal observations; Python validates ISO dates before projection.
-            let iso = timestamp.as_str().is_some_and(|text| {
-                (20..=40).contains(&text.len())
-                    && text
-                        .bytes()
-                        .all(|b| b.is_ascii_digit() || b"-+:TtZ. ".contains(&b))
-                    && (text.ends_with('Z')
-                        || text
-                            .as_bytes()
-                            .get(text.len() - 6)
-                            .is_some_and(|b| b"+-".contains(b)))
-            });
-            if !epoch && !iso {
+            if !fill_timestamp(timestamp) {
                 return Err("invalid fill timestamp");
             }
             let mut carry = 0;

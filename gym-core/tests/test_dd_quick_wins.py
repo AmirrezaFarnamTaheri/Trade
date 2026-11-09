@@ -157,3 +157,16 @@ def test_doctor_reports_each_check_and_fails_on_a_tampered_segment(tmp_path, cap
     seg.write_bytes(b"tampered")
     assert main(["--data", str(tmp_path), "doctor", "--full"]) == 1
     assert "FAIL  raw_segments" in capsys.readouterr().out
+
+
+def test_fill_timestamps_follow_the_shared_contract_fixture():
+    import json as _json
+    from pathlib import Path
+
+    from gym.adapters.wallex_order_evidence import InvalidOrderEvidence, _timestamp
+    fixture = _json.loads((Path(__file__).resolve().parents[2] / "contracts/v1/fixtures/fill-timestamps.json").read_text("utf-8"))
+    for value in fixture["accept"]:
+        assert _timestamp(value) == value, value
+    for value in fixture["reject"]:
+        with pytest.raises(InvalidOrderEvidence):
+            _timestamp(value)

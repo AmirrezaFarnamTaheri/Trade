@@ -342,3 +342,16 @@ def test_api_requires_session_and_origin_preserves_uncertainty_and_never_auto_re
             assert len(calls) == 2
 
     asyncio.run(check())
+
+
+def test_v2_golden_frames_share_the_v1_layout_and_are_refused_by_the_v1_codec():
+    """contracts/v2/operator-review-v2.md: identical layout apart from the magic; v1 must reject v2."""
+    lines = (FIXTURE.parents[2] / "v2/fixtures/operator-review-v2.hex").read_text("ascii").splitlines()
+    v2_request, v2_reply = (bytes.fromhex(line) for line in lines)
+    request = {"action": "approve", "ticket": {**ticket(), "client_id": "New_01"}}
+    correlation = bytes([4]) * 16
+    assert v2_request[:8] == b"TGREVW02" and v2_reply[:8] == b"TGREPLY2"
+    assert v2_request[8:] == encode_request(request, correlation)[8:]
+    assert v2_reply[8:] == reply(request)[8:]
+    with pytest.raises(ValueError):
+        decode_reply(v2_reply, correlation, request)
