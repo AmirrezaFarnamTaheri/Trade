@@ -26,6 +26,9 @@ The current Python/aiohttp application runs on loopback and serves a dependency-
 - Account observations and external orders are unverified, and do not establish spendable balances or settlement.
 - Demo observations are synthetic and must remain labelled. Paper results cannot authorize real capital.
 - Existing rule import, preset, disable, and export operations remain available.
+- Excluded strategy families: grid, martingale and averaging-down. They add exposure as a position loses, so a
+  small or negative edge becomes a tail loss, and closed-bar paper fills cannot show the gap and liquidity risk that
+  decides their outcome. Do not re-explore them without a written reason that addresses this.
 
 ## Brand Commitments
 

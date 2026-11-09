@@ -1,4 +1,4 @@
-"""Regressions for the Phase B CodeRabbit findings and research-only safety gates."""
+"""Regressions in Phase B market models: profile validation, risk parity, impact volatility and research-only gates."""
 import asyncio
 from datetime import timedelta
 from decimal import Decimal

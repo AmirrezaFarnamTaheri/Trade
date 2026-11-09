@@ -1,4 +1,4 @@
-"""Regression coverage for CodeRabbit review findings in Phase A."""
+"""Regressions in Phase A honest measurement: fee provenance, calibration choice and trial-ledger safety."""
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta

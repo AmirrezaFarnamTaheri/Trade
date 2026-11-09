@@ -1,4 +1,4 @@
-"""Regression examples for Phase E's CodeRabbit review boundary conditions."""
+"""Regressions at Phase E execution-gate boundaries: post-fill costs, TWAP completion and fair-price freshness."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
