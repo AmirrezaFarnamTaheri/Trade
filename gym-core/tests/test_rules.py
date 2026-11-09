@@ -129,3 +129,21 @@ def test_bad_stored_rule_is_quarantined_not_fatal(tmp_path):
     _, rules, quarantined = RuleService(db).load()
     assert rules == [] and quarantined[0]["id"] == "x"
     assert RuleService(db).check(BTCT, "BUY", "ENTRY", START)["allowed"] is True
+
+
+def test_cached_vintage_matches_the_fold_and_sees_new_events(tmp_path):
+    db = MarketDB(tmp_path / "m.db")
+    svc = RuleService(db)
+    t0 = datetime(2026, 10, 30, 10, tzinfo=UTC)
+    d = {"id": "s", "family": "PairSuspension", "class": "VENUE", "action": "BLOCK_ENTRY", "scope": {"symbols": ["BTCTMN"]},
+         "effective_from": "2026-01-01T00:00:00Z", "source": "operator", "status": "VERIFIED"}
+    svc.put(d, t0)
+    svc.put({**d, "id": "late"}, t0 + timedelta(hours=2))
+    svc.put({**d, "id": "backdated"}, t0 + timedelta(hours=1))  # recorded after "late" but stamped earlier
+    for at in (None, t0 - timedelta(hours=1), t0, t0 + timedelta(minutes=90), t0 + timedelta(hours=3)):
+        version, docs = db.rules_as_of(at)
+        assert db.rules_version_as_of(at) == version
+        assert [r.id for r in svc.load(at)[1]] == list(docs)
+    assert len(svc.load()[1]) == 3
+    svc.disable("s", t0 + timedelta(hours=4))  # an append after the cache was filled is seen on the next call
+    assert next(r for r in svc.load()[1] if r.id == "s").disabled

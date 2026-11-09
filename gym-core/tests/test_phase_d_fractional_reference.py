@@ -72,7 +72,8 @@ def test_fractional_receipt_normalizes_deeply_nested_json_to_value_error(tmp_pat
     folder.mkdir(parents=True)
     report_id = "a" * 16
     (folder / (report_id + ".json")).write_text("[" * 1500 + "0" + "]" * 1500, "utf-8")
-    with pytest.raises(ValueError, match="invalid or unavailable fractional sizing receipt"):
+    # Python 3.11 raises RecursionError (normalized); 3.13 parses it and fails the wrapper check.
+    with pytest.raises(ValueError, match="invalid (or unavailable fractional sizing receipt|fractional report wrapper)"):
         load_fractional_report(tmp_path, report_id, store="demo",
                                as_of=START + timedelta(hours=2), strategy="ema-trend",
                                params={"fast": 2, "slow": 3}, resolution="1min",

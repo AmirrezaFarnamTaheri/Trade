@@ -39,10 +39,12 @@ from .commands.maintenance import (
     verify_segments_cmd,
 )
 from .commands.research import (
+    allocate_cmd,
     assistant_cmd,
     calibrate_cmd,
     candles_cmd,
     evidence_cmd,
+    history_cmd,
     market_statistics_cmd,
     paper_research_cmd,
     replay_cmd,
@@ -181,6 +183,19 @@ def main(argv=None):
     candles.add_argument("--fill-gaps", action="store_true", help="fetch venue 1min candles only for quote gaps over 120 s and log each backfill")
     candles.add_argument("--record", action="store_true", help="write CROSS_FEED_DIVERGENCE quality events")
     candles.add_argument("--json", action="store_true")
+    hist = sub.add_parser("history", help="backfill long public venue candles (1h or 1d) for slow-strategy research")
+    hist.add_argument("symbols", nargs="+", help="markets such as BTCUSDT ETHUSDT USDTTMN BTCTMN")
+    hist.add_argument("--resolution", choices=["1h", "1d"], default="1h")
+    hist.add_argument("--from", dest="start", required=True, help="oldest time to fetch, e.g. 2020-01-01T00:00:00Z")
+    hist.add_argument("--to", dest="end", help="default: now")
+    hist.add_argument("--demo", action="store_true")
+    alloc = sub.add_parser("allocate", help="daily trend allocation paper journal: one decision per completed daily candle")
+    alloc.add_argument("symbols", nargs="+", help="markets such as BTCUSDT ETHUSDT")
+    alloc.add_argument("--cash", default="1000", help="starting paper cash per market, in its quote currency")
+    alloc.add_argument("--lookback", type=int, default=50, help="days in the moving average")
+    alloc.add_argument("--vol-target", type=float, default=0.4, help="annualised volatility the position is sized to")
+    alloc.add_argument("--band", type=float, default=0.2, help="skip exposure changes smaller than this")
+    alloc.add_argument("--demo", action="store_true")
     bk = sub.add_parser("backup-once", help="manual offline encrypted ledger backup on a separate mounted volume")
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
     bk.add_argument("destination", help="pre-existing independent-volume backup directory")
@@ -299,7 +314,7 @@ def main(argv=None):
 
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd,
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd,
                 "assistant": assistant_cmd, "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:

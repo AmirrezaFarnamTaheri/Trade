@@ -38,7 +38,7 @@ def parse_channel(ch: str) -> tuple[str, str, str] | None:
     return None
 
 
-UDF_RESOLUTIONS = {"1min": "1", "1h": "60"}  # "D" answered no_data (probed 2026-10-31); the documented daily code is "1D", unprobed
+UDF_RESOLUTIONS = {"1min": "1", "1h": "60", "1d": "1D"}  # "D" answered no_data (probed 2026-10-31); "1D" is the documented daily code
 
 
 def parse_udf(text: str) -> list[dict]:

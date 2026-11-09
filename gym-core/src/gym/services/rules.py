@@ -14,16 +14,20 @@ CHECKS = (("entry", "BUY", "ENTRY"), ("exit", "SELL", "EXIT"))
 class RuleService:
     def __init__(self, db: MarketDB):
         self.db = db
+        self._vintage = None  # (version, rules, quarantined): replays ask once per quote, vintages change rarely
 
     def load(self, at: datetime | None = None):
-        version, docs = self.db.rules_as_of(at)
-        rules, quarantined = [], []
-        for d in docs.values():
-            try:
-                rules.append(parse_rule(d))
-            except ValueError as e:
-                quarantined.append({"id": d.get("id"), "error": str(e), "body": d})
-        return version, rules, quarantined
+        if self._vintage is None or self._vintage[0] != self.db.rules_version_as_of(at):
+            version, docs = self.db.rules_as_of(at)
+            rules, quarantined = [], []
+            for d in docs.values():
+                try:
+                    rules.append(parse_rule(d))
+                except ValueError as e:
+                    quarantined.append({"id": d.get("id"), "error": str(e), "body": d})
+            self._vintage = version, rules, quarantined
+        version, rules, quarantined = self._vintage
+        return version, list(rules), list(quarantined)
 
     def put(self, d: dict, now: datetime, op: str = "edit", actor: str = "operator") -> int:
         parse_rule(d)  # reject invalid edits outright; only imports may land in quarantine

@@ -262,6 +262,66 @@ def candles_cmd(args) -> int:
     return 0
 
 
+HISTORY_STEP = {"1h": 3600, "1d": 86400}
+HISTORY_PAGE_BARS = 1000  # shortcut: assumed per-request bar limit (undocumented); smaller pages only cost requests
+
+
+def history_cmd(args) -> int:
+    """Backfill long public venue candles so slow strategies can be studied on years, not days, of history."""
+    from datetime import timedelta
+
+    import aiohttp
+
+    if args.demo:
+        raise ValueError("demo data has no venue history; backfill the live store")
+    start, end = parse_ts(args.start), parse_ts(args.end) if args.end else now_utc()
+    if not start < end:
+        raise ValueError("--from must be before --to")
+    page = timedelta(seconds=HISTORY_STEP[args.resolution] * HISTORY_PAGE_BARS)
+    symbols = [s.upper() for s in args.symbols]
+    db = MarketDB(store_root(args) / "market.db")
+
+    async def fetch():
+        """Page backwards from --to; stop at --from or after three empty pages (before the market listed)."""
+        seg = SegmentWriter(store_root(args) / "raw", db)
+        totals = {}
+        try:
+            async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
+                collector = Collector(db, seg, symbols)
+                for symbol in symbols:
+                    total, empty, hi = 0, 0, end
+                    while hi > start and empty < 3:
+                        lo = max(start, hi - page)
+                        got = await collector.fetch_candles(session, symbol, args.resolution, lo, hi)
+                        total, empty, hi = total + got, 0 if got else empty + 1, lo
+                    totals[symbol] = total
+                    print(f"{symbol} {args.resolution}: {total} candles", file=sys.stderr)
+        finally:
+            seg.close()
+        return totals
+
+    try:
+        totals = asyncio.run(fetch())
+    finally:
+        db.c.close()
+    print(json.dumps({"resolution": args.resolution, "from": iso(start), "to": iso(end), "candles": totals}))
+    return 0
+
+
+def allocate_cmd(args) -> int:
+    """Append today's daily-trend allocation decisions and paper fills to the allocation journal."""
+    from ..services.allocation import run_day
+
+    db = open_db(args)
+    try:
+        entries = run_day(db, store_root(args), [s.upper() for s in args.symbols], now_utc(),
+                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band)
+    finally:
+        db.c.close()
+    print(json.dumps(entries, indent=2))
+    return 0
+
+
 def calibrate_cmd(args) -> int:
     """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta
