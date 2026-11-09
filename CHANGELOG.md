@@ -26,6 +26,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Model gateway: optional `policy.allowedHosts` pins custom endpoints to approved hosts [S-7].
 - Executor-ledger head anchors in the backup folder: each verified backup records (sequence, head hash); a
   truncated or rebuilt ledger is refused before older bundles are rotated, and the restore drill checks the same [R-3].
+- Simulator: seeded property tests over 4,000 random market orders (cash conservation, no overspend, precision,
+  never better than the touch, no fill before latency, non-fills move nothing); `market_order` split into sizing,
+  modeled-cost, price-guard and settlement helpers, complexity 40 to under 20 and enforced in CI [E-1].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
