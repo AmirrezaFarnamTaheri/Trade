@@ -143,6 +143,14 @@ class MarketDB:
             version, cur[e["rule_id"]] = e["seq"], e["body"]
         return version, cur
 
+    def rules_version_as_of(self, at: datetime | None = None) -> int:
+        """The last seq rules_as_of(at) folds. Events are append-only, so it identifies that vintage exactly."""
+        if at is None:
+            return self.c.execute("select coalesce(max(seq), 0) from regime_events").fetchone()[0]
+        return self.c.execute(
+            "select coalesce(max(seq), 0) from regime_events where seq < "
+            "coalesce((select min(seq) from regime_events where ts > ?), 9223372036854775807)", (iso(at),)).fetchone()[0]
+
     def add_segment(self, seg_id, path, seq_from, seq_to, sha, nbytes, now):
         self.c.execute("insert or replace into segments values(?,?,?,?,?,?,?)", (seg_id, str(path), seq_from, seq_to, sha, nbytes, iso(now)))
 

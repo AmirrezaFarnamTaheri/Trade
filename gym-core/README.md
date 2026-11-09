@@ -56,6 +56,30 @@ eligible spot market; it does not restrict the universe to those examples.
 Missing history stays missing. Synthetic DEMO observations and modeled fills
 are labeled and cannot authorize capital.
 
+## Long-history research and the daily allocation journal
+
+Studies on Binance public data (checksum-verified monthly files) with Wallex costs, each split into
+train (ranking only), validation (a gate against buy-and-hold) and test (scored once):
+
+```bash
+uv run --no-sync python scripts/long_history_study.py fetch BTCUSDT ETHUSDT --interval 1d
+uv run --no-sync python scripts/long_history_study.py study BTCUSDT ETHUSDT --margin BTCUSDT,ETHUSDT
+uv run --no-sync python scripts/long_history_study.py fetch BTCUSDT ETHUSDT --interval 1m --from 2025-11
+uv run --no-sync python scripts/horizon_study.py BTCUSDT ETHUSDT --margin BTCUSDT,ETHUSDT
+```
+
+The only rule that held up out of sample is the daily trend allocation (close above its 50-day
+average, sized to 40% annual volatility, 0.2 rebalance band). Run it forward on Wallex prices once a
+day after the UTC close, with the collector running; it appends to `data/live/allocation/journal.jsonl`:
+
+```bash
+uv run --no-sync gymctl history BTCUSDT ETHUSDT --resolution 1d --from 2025-01-01T00:00:00Z
+uv run --no-sync gymctl allocate BTCUSDT ETHUSDT
+```
+
+Paper only: decisions use completed daily candles fetched before the run, fills use the freshest
+qualified quote and the venue rules in force, and a missing quote records NO_QUOTE instead of a fill.
+
 ## Documentation and checks
 
 - [Current system status](docs/system-status.md) and [acceptance gates](docs/acceptance-status.md)
