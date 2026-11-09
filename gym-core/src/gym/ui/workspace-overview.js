@@ -45,6 +45,9 @@ function renderFeed() {
   const ready = list(readiness?.markets).filter(row => row.state === "READY").length;
   setHTML("feed-status", `<span class="dot${state.apiError || health?.fatal || !health?.connected || readiness?.ready !== true ? " dot-warn" : ""}" aria-hidden="true"></span><span>${esc(t(key))}${readiness ? ` · ${esc(t("publicReadiness"))}: ${label(readiness.status)} · ${digits(ready)}/${digits(list(readiness.markets).length)}` : ""}</span>`);
   $("connection-error").hidden = !state.apiError;
+  const detail = $("connection-error-detail");
+  if (detail) detail.textContent = state.apiError ? ` ${t("failedSources")}: ${(state.apiErrorSources ?? []).join(", ")}` +
+    (state.lastGoodRefresh ? ` · ${t("lastCompleteRefresh")} ${when(state.lastGoodRefresh.toISOString())}` : "") : "";
 }
 /** Render the wall clock in Tehran time using the active locale. */
 function updateClock() {

@@ -223,6 +223,7 @@ const vocabulary = {
   rulesEmpty: ["No venue rules configured", "قاعده‌ای برای صرافی پیکربندی نشده است"],
   rulesEmptyHelp: ["An empty rule set is not permission to trade. Import reviewed rules or inspect the dated preset before loading it.", "خالی بودن قواعد مجوز معامله نیست. قواعد بررسی‌شده را وارد کنید یا پیش از بارگذاری، الگوی تاریخ‌دار را بررسی کنید."],
   disable: ["Disable", "غیرفعال کردن"], cancelAction: ["Cancel", "انصراف"],
+  failedSources: ["Failed", "ناموفق"], lastCompleteRefresh: ["last complete refresh", "آخرین به‌روزرسانی کامل"],
   disableConfirm: ["Disable this rule? This changes the local rule ledger and subsequent eligibility checks:", "این قاعده غیرفعال شود؟ این کار دفتر قواعد محلی و بررسی‌های بعدی را تغییر می‌دهد:"],
   presetConfirm: ["Load the October 2026 USDT/TMN preset? It writes a historical preset to the local ledger and replaces rules with matching IDs. Review its dates and evidence before relying on it.", "الگوی اکتبر ۲۰۲۶ تتر/تومان بارگذاری شود؟ این الگوی تاریخی در دفتر محلی نوشته می‌شود و قواعد هم‌شناسه را جایگزین می‌کند. پیش از اتکا، تاریخ‌ها و شواهد آن را بررسی کنید."],
   ruleSaved: ["Rule disabled in the local ledger.", "قاعده در دفتر محلی غیرفعال شد."], presetSaved: ["Dated preset loaded. Review its effective dates and evidence.", "الگوی تاریخ‌دار بارگذاری شد. تاریخ اعتبار و شواهد آن را بررسی کنید."],

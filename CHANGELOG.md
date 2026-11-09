@@ -18,6 +18,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   ledger; a second look is withheld unless `--rescore-holdout`, and then the deflated Sharpe counts the
   configurations tried across every look [R-1].
 - Research workers log their deadline use (`research_worker` in events.jsonl) and warn above 75% of it [P-2].
+- UI: the refresh banner names the failing sources and the last complete refresh, and polling backs off to
+  30 s while the service keeps failing; covered by the real-browser smoke test [U-8, P-3].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

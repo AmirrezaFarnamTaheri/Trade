@@ -42,7 +42,7 @@
     <main id="main" tabindex="-1">
       <div id="demo-banner" class="banner banner-warn" hidden><strong data-t="demoLabel">Demo workspace</strong><span data-t="demoBanner">Synthetic market data. Research results cannot justify real capital.</span></div>
       <div id="session-key-missing" class="banner banner-error" role="alert" hidden><span data-t="sessionKeyMissing">This tab has no session key. Open the link printed by gymctl run.</span></div>
-      <div id="connection-error" class="banner banner-error" role="alert" hidden><span data-t="connectionError">Data could not be refreshed. Previously loaded values may be out of date.</span><button type="button" id="retry" class="button button-small" data-t="retry">Retry</button></div>
+      <div id="connection-error" class="banner banner-error" role="alert" hidden><span data-t="connectionError">Data could not be refreshed. Previously loaded values may be out of date.</span><span id="connection-error-detail" dir="auto"></span><button type="button" id="retry" class="button button-small" data-t="retry">Retry</button></div>
 
       <section id="v-overview" class="view" aria-labelledby="overview-title" hidden>
         <header class="view-header"><div><h1 id="overview-title" data-t="overviewTitle">Operator workspace</h1><p class="lead" data-t="overviewLead">Follow your agent from market observation to research and preparation.</p></div><span class="observation-label" data-t="noCapital">No capital authority</span></header>

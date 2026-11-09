@@ -189,9 +189,16 @@ function stop(child) {
   await evaluate('document.activeElement.click()');
   await until(() => evaluate('!document.querySelector("dialog.confirm-dialog") && document.activeElement?.id === "load-preset"'), 'dialog closed and focus returned');
   assert.equal(await evaluate('window.__posts'), 0, 'cancelled preset must not POST');
+  // A failing source is named in the banner, and the banner clears once the source answers again.
+  await evaluate(`(() => { const original = window.fetch; window.__restoreFetch = () => { window.fetch = original; };
+    window.fetch = (url, init) => String(url).includes('/api/markets') ? Promise.reject(new TypeError('offline')) : original(url, init); return true; })()`);
+  await evaluate('document.querySelector("nav [data-view=overview]").click()');
+  await until(() => evaluate('!document.querySelector("#connection-error").hidden && document.querySelector("#connection-error-detail").textContent.includes("markets")'), 'named failing source');
+  await evaluate('window.__restoreFetch(); document.querySelector("#retry").click()');
+  await until(() => evaluate('document.querySelector("#connection-error").hidden'), 'banner clears after recovery');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
-    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'confirmation dialog cancel', 'no JavaScript exceptions'] };
+    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {
