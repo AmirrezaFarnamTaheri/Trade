@@ -18,6 +18,12 @@ def install(app: web.Application, usage_path=None):
             raise ValueError("invalid model control request")
         if body["action"] == "usage":
             return web.json_response(usage.summary() if usage else {"by_model": [], "note": "usage ledger not configured"})
+        if body["action"] == "usage_limits":
+            if usage is None:
+                raise ValueError("usage ledger not configured")
+            return web.json_response({"limits": usage.set_limits(body.get("value"))})
+        if usage and body["action"] == "complete":
+            usage.check()  # refuse before anything reaches the gateway or a provider
         result = await gateway.request(body["action"], body.get("value"))
         if usage and body["action"] == "complete" and isinstance(result, dict):
             usage.record(result)

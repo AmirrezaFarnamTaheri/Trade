@@ -15,6 +15,10 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   keep overflow checks; SID files resolve through the Program Files known folder [S-3, E-7, S-9].
 - `gymctl doctor`: one read-only check of market.db, raw segments, journals, free space, backup receipts and key
   expiry, with a JSON receipt (`--json`) and exit 1 on any failure [O-4].
+- Model usage ledger enforces daily and monthly call caps (200 and 2,000 by default) and optional cost caps,
+  checked before a request reaches the gateway; set them with the `usage_limits` control [L-4].
+- Research assistant extracts the first complete JSON array, retries once with a repair prompt, and reports
+  `INVALID_MODEL_REPLY` instead of silently testing nothing [L-2].
 - Launcher requires a real TradingGYM `/api/ready` answer and warns when market data is blocked [O-3].
 - CI actions pinned by commit SHA, Rust pinned to 1.96.0, Dependabot and CODEOWNERS added [S-4].
 - Docs: root README with the current state, strategy count corrected to sixteen and guarded by a test, excluded

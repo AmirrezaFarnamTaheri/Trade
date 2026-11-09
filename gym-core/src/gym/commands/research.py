@@ -353,6 +353,7 @@ def assistant_cmd(args) -> int:
 
     async def complete(action, value):
         """Return a bounded advisory result while recording model usage."""
+        usage.check()
         result = await gateway.request(action, value)
         usage.record(result)
         return result
