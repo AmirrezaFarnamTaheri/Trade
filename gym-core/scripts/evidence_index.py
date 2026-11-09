@@ -63,8 +63,8 @@ def main(argv=None) -> int:
         print("OK" if not bad else "MISMATCH: " + ", ".join(bad))
         return 1 if bad else 0
     INDEX.parent.mkdir(exist_ok=True)
-    INDEX.write_text(json.dumps({"schema": "evidence-index/1", "entries": current}, indent=2, sort_keys=True) + "\n",
-                     "utf-8")
+    with open(INDEX, "w", encoding="utf-8", newline="\n") as out:
+        out.write(json.dumps({"schema": "evidence-index/1", "entries": current}, indent=2, sort_keys=True) + "\n")
     missing = [k for k, v in current.items() if v["kind"] == "missing"]
     print(f"{len(current)} citations indexed" + (f"; missing: {', '.join(missing)}" if missing else ""))
     return 1 if missing else 0
