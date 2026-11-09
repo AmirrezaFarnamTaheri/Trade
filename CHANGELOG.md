@@ -4,6 +4,10 @@
 
 Hardening from the 2026-11-09 technical due-diligence review (finding IDs in brackets).
 
+- Seeded property tests for every exec-ipc frame codec: mutated frames never panic a decoder, and every
+  accepted frame re-encodes byte-for-byte [E-9].
+- Shared fill-timestamp profile (`contracts/v1/fixtures/fill-timestamps.json`) enforced identically by the
+  executor and gym-core; v2 operator-review golden frames checked from Rust and Python [E-8, A-4].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
