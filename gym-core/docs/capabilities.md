@@ -22,4 +22,4 @@ the supported product boundary.
 | Protected executor | Native custody, operator intent, preparation, journals and emergency-stop foundations | Installed evidence is dated; funded admission and transport remain open |
 | Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or second-host recovery |
 
-Predictive ML/RL training, unrelated donor runtimes and automatic paid requests are outside accepted scope.
+Predictive ML/RL training is paper-only and gated (300 verified closed trades, every fit counted as a trial; see PRODUCT.md). Unrelated donor runtimes and automatic paid requests are outside accepted scope.

@@ -72,6 +72,9 @@ The current [implementation plan](gym-core/docs/implementation-plan.md),
   explicitly authorized. Physical-host and elapsed-time evidence remain actual
   acceptance requirements; neither can be replaced by simulated success.
 
-Predictive ML/RL training remains outside the accepted delivery scope. Current
+Predictive ML/RL training is paper-only and gated: nothing is fitted until the existing gate of 300 verified
+closed trades is met, every model fit counts as a trial in the trial ledger and the deflated Sharpe, and a
+first model is one pre-registered meta-labeling trial with a consume-once evaluation. A model never places or
+sizes an order, and it abstains on a corrupt, expired or incompatible artifact. Current
 rule-based and statistical work remains visible in the plan. Unrelated runtimes
 do not expand authority.

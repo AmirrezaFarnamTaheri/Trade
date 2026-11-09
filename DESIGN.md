@@ -257,7 +257,7 @@ The single humanist family supports long records and Persian fallback without a 
 - **Body:** primary reading. Leads have a maximum width of (72ch).
 - **Label and control:** field labels, buttons, and table data. Help text uses (12px); functional metadata and compact states have an (11px) floor.
 - **Metric:** summary values; research metrics use (19px), and mobile summary values use (21px).
-- **Chart:** equity axes use (17px) and waterfall labels use (16px) in the fixed SVG viewBox; exact values remain available as text outside chart geometry.
+- **Chart:** charts draw stretched SVG geometry only; axis text, waterfall labels and read-outs are HTML overlays (see `ui/charts.js`), so text never scales with the viewBox and exact values remain available as text.
 - **Mono:** JSON disclosures and commands retain left-to-right reading even in Persian.
 
 The literal font-size ramp is (11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 25, 30px). This includes the brand's responsive sizes, FX values, and compact headings rather than only the primary page roles. Body text remains (14px).
