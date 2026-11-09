@@ -179,9 +179,19 @@ function stop(child) {
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   assert(await evaluate('getComputedStyle(document.activeElement).outlineStyle !== "none"'), 'keyboard focus outline');
+  // Destructive rule actions open a labelled dialog: Cancel has focus, cancelling sends nothing and refocuses the trigger.
+  await evaluate('document.querySelector("nav [data-view=rules]").click()');
+  await until(() => evaluate('document.querySelector("#v-rules")?.hidden === false'), 'rules view');
+  await evaluate(`(() => { window.__posts = 0; const original = window.fetch; window.fetch = (url, init) => { if ((init?.method || "GET") === "POST") window.__posts += 1; return original(url, init); }; return true; })()`);
+  await evaluate('document.querySelector("#load-preset").click()');
+  await until(() => evaluate('document.querySelector("dialog.confirm-dialog")?.open === true'), 'confirmation dialog');
+  assert(await evaluate('document.activeElement?.value === "cancel" && document.querySelector("dialog.confirm-dialog").getAttribute("aria-labelledby") === "confirm-dialog-text"'), 'dialog focus and label');
+  await evaluate('document.activeElement.click()');
+  await until(() => evaluate('!document.querySelector("dialog.confirm-dialog") && document.activeElement?.id === "load-preset"'), 'dialog closed and focus returned');
+  assert.equal(await evaluate('window.__posts'), 0, 'cancelled preset must not POST');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
-    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'no JavaScript exceptions'] };
+    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'confirmation dialog cancel', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {

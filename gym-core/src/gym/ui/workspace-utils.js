@@ -4,6 +4,25 @@ function saved(key, fallback, allowed) {
   try { const value = localStorage.getItem(key); return allowed.includes(value) ? value : fallback; }
   catch (_) { return fallback; }
 }
+/** Labelled, bilingual confirmation with the consequence in view; focus returns to the trigger. Falls back to confirm(). */
+function confirmAction(message, actionLabel, trigger) {
+  if (typeof document.createElement !== "function" || typeof HTMLDialogElement === "undefined") return Promise.resolve(confirm(message));
+  return new Promise(resolve => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "confirm-dialog";
+    dialog.setAttribute("aria-labelledby", "confirm-dialog-text");
+    dialog.innerHTML = `<p id="confirm-dialog-text"></p><div class="toolbar"><button type="button" class="button" value="cancel"></button><button type="button" class="button button-primary" value="ok"></button></div>`;
+    dialog.querySelector("p").textContent = message;
+    const [cancel, ok] = dialog.querySelectorAll("button");
+    cancel.textContent = t("cancelAction"); ok.textContent = actionLabel;
+    const finish = answer => { dialog.close(); dialog.remove(); trigger?.focus?.(); resolve(answer); };
+    cancel.onclick = () => finish(false); ok.onclick = () => finish(true);
+    dialog.addEventListener("cancel", event => { event.preventDefault(); finish(false); });
+    document.body.append(dialog);
+    dialog.showModal();
+    cancel.focus();  // the safe choice has focus; Enter does not confirm by accident
+  });
+}
 /** Persist a non-secret workspace preference when browser storage is available. */
 function remember(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Storage is optional. */ } }
 let lang = saved("lang", "en", ["en", "fa"]);

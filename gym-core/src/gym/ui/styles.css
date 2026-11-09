@@ -330,6 +330,9 @@ svg.tracking .chart-cursor { opacity: .7; }
   .button-small, .segmented button, .sidebar .button-quiet { min-height: 44px; }
   .workspace-footer { padding-inline: 15px; }
 }
+.confirm-dialog { max-width: min(520px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 10px; padding: 20px; background: var(--surface); color: inherit; }
+.confirm-dialog p { margin: 0 0 16px; white-space: pre-line; }
+.confirm-dialog::backdrop { background: rgb(0 0 0 / 0.4); }
 /* Windows high contrast: system colours replace ours, so state must not depend on colour alone. */
 @media (forced-colors: active) {
   .button, .chip, .input, .panel, .banner, .segmented, .tabs [role="tab"], .authority-indicator, .safety-callout { border: 1px solid CanvasText; }
