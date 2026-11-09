@@ -86,8 +86,16 @@ class MarketDB:
         last = self.c.execute("select spec from instrument_specs where instrument_id=? and valid_to is null", (iid,)).fetchone()
         if last and last[0] == body:
             return
-        self.c.execute("update instrument_specs set valid_to=? where instrument_id=? and valid_to is null", (iso(now), iid))
-        self.c.execute("insert into instrument_specs values(?,?,?,?,?)", (iid, iso(now), None, body, source))
+        # Close and successor in one savepoint: a crash between them must not leave the instrument with no open spec.
+        self.c.execute("SAVEPOINT instrument_spec")
+        try:
+            self.c.execute("update instrument_specs set valid_to=? where instrument_id=? and valid_to is null", (iso(now), iid))
+            self.c.execute("insert into instrument_specs values(?,?,?,?,?)", (iid, iso(now), None, body, source))
+            self.c.execute("RELEASE instrument_spec")
+        except BaseException:
+            self.c.execute("ROLLBACK TO instrument_spec")
+            self.c.execute("RELEASE instrument_spec")
+            raise
 
     def add_trade(self, t: TradeTick, seg_ref: str):
         self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"wallex:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),

@@ -18,6 +18,14 @@ PUBLIC_READS = frozenset({"/api/markets", "/api/health", "/api/ready", "/api/cap
                           "/api/runs", "/api/check", "/api/rules", "/api/rules/export", "/api/chaos-report"})
 
 
+def token_matches(supplied: str, expected: str) -> bool:
+    """Constant-time comparison that treats a non-ASCII header as a bad token instead of a server error."""
+    try:
+        return hmac.compare_digest(supplied.encode("ascii"), expected.encode("ascii"))
+    except UnicodeEncodeError:
+        return False
+
+
 def guard(token: str):
     key = [token]  # replaced by POST /api/session/rotate; every other tab and printed link stops working
 
@@ -27,7 +35,7 @@ def guard(token: str):
         if (req.host or "").rsplit(":", 1)[0] not in LOOPBACK:
             return web.json_response({"error": "loopback only"}, status=403)
         public = req.method == "GET" and (req.path in PUBLIC_READS or req.path.startswith("/api/runs/") and req.path.count("/") == 3)
-        if req.path.startswith("/api/") and not public and not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), key[0]):
+        if req.path.startswith("/api/") and not public and not token_matches(req.headers.get("X-Gym-Token", ""), key[0]):
             return web.json_response({"error": "missing or bad X-Gym-Token"}, status=403)
         if req.method == "POST" and req.path == "/api/session/rotate":
             key[0] = secrets.token_urlsafe(24)
