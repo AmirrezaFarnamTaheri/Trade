@@ -19,8 +19,9 @@ in Git history and local qualification artifacts.
 | Protective exits/automation | Unfinished | Qualified native protection, disjoint quantities, reopening/restart and hard loss/installation caps through the real money path |
 | Measured execution costs | Unqualified | Independently reconcile observed fills/fees/depth/latency; a separately bounded authorization and budget before funded probes |
 | Independent final evaluation | Local consume-once controls delivered; independent custody open | Separate access/custody and an untouched prospective evaluation window |
-| Physical-host recovery | Blocked: no second physical machine available | Restore on another host, reprovision host-bound credentials and verify DISARMED; same-machine WSL does not satisfy this |
-| Current browser appearance/accessibility | Not rechecked in a real browser | Current-build desktop/mobile, EN/FA/RTL, focus, contrast and interaction checks |
+| Host-instance recovery | Open; can be rehearsed now | Rebuild the executor from a signed bundle on a clean disposable Windows VM, reprovision custody, restore the ledger and verify DISARMED, timed in CI |
+| Physical-hardware recovery | Blocked: no second physical machine available | Restore on another physical host, reprovision host-bound credentials and verify DISARMED; same-machine WSL does not satisfy this |
+| Current browser appearance/accessibility | Real-browser smoke passed 2026-11-09 (Edge: ten views, paired replay, EN/FA RTL, desktop/mobile overflow, keyboard focus, confirmation dialog); axe-core scan not run locally | An axe-core scan in CI and a contrast check of hover, selected, chart and disabled states |
 
 ## Retained installed-host evidence
 
