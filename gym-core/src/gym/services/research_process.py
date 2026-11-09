@@ -7,12 +7,14 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
+DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing
 MAX_OUTPUT = 2 * 1024 * 1024
 HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
                            "replay-checkpoint", "replay-resume", "final-run", "comparison", "validation", "news-fetch",
@@ -43,6 +45,7 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
     if len(payload) > 70 * 1024:
         raise ValueError("supervised research input exceeds limit")
     process, terminated, temporary = None, False, None
+    started = time.monotonic()
     try:
         temporary = tempfile.TemporaryDirectory(prefix="tradinggym-research-")
         environment = {k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "WINDIR", "SYSTEMDRIVE")}
@@ -79,8 +82,10 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
                 raise ResearchProcessFailure("paper result exceeds delivery bound; inspect saved state" if reply["kind"] == "DELIVERY"
                                              else "paper store unavailable; inspect saved state", terminated=True,
                                              status=413 if reply["kind"] == "DELIVERY" else 503)
+            _timing(action, started, timeout_seconds, "completed")
             return reply["result"]
     except TimeoutError:
+        _timing(action, started, timeout_seconds, "deadline_exceeded")
         raise ResearchProcessFailure("paper calculation deadline exceeded; inspect saved state before retry", terminated=True, status=504) from None
     except OSError:
         raise ResearchProcessFailure("paper worker unavailable", terminated=process is None) from None
@@ -95,6 +100,17 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
             await asyncio.wait_for(process.wait(), 5)
         if temporary is not None:
             temporary.cleanup()
+
+
+def _timing(action, started, deadline, outcome):
+    """Deadline use per worker run in the event log, so a limit that is getting close shows before it fails."""
+    from .event_log import event, log
+    seconds = time.monotonic() - started
+    share = seconds / deadline
+    event("research_worker", action=action, outcome=outcome, seconds=round(seconds, 2),
+          deadline_seconds=deadline, deadline_used=round(share, 3))
+    if share > DEADLINE_WARN:
+        log.warning("research_worker_near_deadline", extra={"fields": {"action": action, "deadline_used": round(share, 3)}})
 
 
 def main():

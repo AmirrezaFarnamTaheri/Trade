@@ -90,3 +90,23 @@ def test_cancelled_supervisor_reaps_child_before_database_is_unlocked(tmp_path):
         blocker.close()
     with ResearchLedger(tmp_path / "research.sqlite3", readonly=True) as ledger:
         assert ledger.conn.execute("SELECT count(*) FROM reports").fetchone()[0] == 0
+
+
+def test_worker_deadline_use_is_logged_for_completed_and_expired_runs(tmp_path, caplog):
+    import logging
+    prepare(tmp_path)
+    with caplog.at_level(logging.INFO, logger="gym"):
+        asyncio.run(calculate(tmp_path, "tick", at=iso(START + timedelta(minutes=30))))
+        blocker = sqlite3.connect(tmp_path / "research.sqlite3", isolation_level=None)
+        blocker.execute("BEGIN IMMEDIATE")
+        try:
+            with pytest.raises(ResearchProcessFailure):
+                asyncio.run(calculate(tmp_path, "tick", at=iso(START + timedelta(minutes=30)), timeout_seconds=1))
+        finally:
+            blocker.rollback()
+            blocker.close()
+    timings = [r.fields for r in caplog.records if r.getMessage() == "research_worker"]
+    assert [t["outcome"] for t in timings] == ["completed", "deadline_exceeded"]
+    assert timings[0]["deadline_seconds"] == 120 and 0 < timings[0]["deadline_used"] < 1
+    assert timings[1]["deadline_used"] >= 1
+    assert any(r.getMessage() == "research_worker_near_deadline" for r in caplog.records)
