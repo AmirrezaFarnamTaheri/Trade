@@ -170,3 +170,16 @@ def test_fill_timestamps_follow_the_shared_contract_fixture():
     for value in fixture["reject"]:
         with pytest.raises(InvalidOrderEvidence):
             _timestamp(value)
+
+
+def test_every_cited_evidence_path_has_a_digest_in_the_tracked_index():
+    """Receipts stay out of git, but each .pi/ citation in the docs must resolve to a digest in evidence/INDEX.json."""
+    import json as _json
+    import re
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[2]
+    index = _json.loads((repo / "evidence" / "INDEX.json").read_text("utf-8"))["entries"]
+    cited = {raw.rstrip("./") for doc in (repo / "gym-core" / "docs").glob("*.md")
+             for raw in re.findall(r"\.pi/([A-Za-z0-9_./-]+)", doc.read_text("utf-8"))}
+    missing = sorted(c for c in cited if index.get(c, {}).get("kind") in (None, "missing"))
+    assert not missing, f"cite evidence only after running scripts/evidence_index.py: {missing}"

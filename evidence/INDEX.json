@@ -1,0 +1,71 @@
+{
+  "entries": {
+    "benchmarks/portfolio-throughput": {
+      "bytes": 42487878,
+      "files": 11,
+      "kind": "folder",
+      "sha256": "75b000adbf7d7f29c474f298a62ad7c572a494a0fe2338bea0d73073508b13e4"
+    },
+    "compound-study/20261106T184523Z/plan.json": {
+      "bytes": 1030023,
+      "files": 1,
+      "kind": "file",
+      "sha256": "6004186cec63f699364206215e672dcd86da17e90f8013033c4e0eb4a28209bc"
+    },
+    "compound-study/20261106T203309Z/plan.json": {
+      "bytes": 1030177,
+      "files": 1,
+      "kind": "file",
+      "sha256": "25726636835b0e37b60e7b2e5e7e1556d904f2d1155f713e7ee1b86634ce208b"
+    },
+    "compound-study/20261106T205324Z/outcomes.json": {
+      "bytes": 4509,
+      "files": 1,
+      "kind": "file",
+      "sha256": "af0e22842aa83e04b94c819ed4cf35dffbdc65407108c24d41e9c8bc68c25761"
+    },
+    "compound-study/20261106T205324Z/plan.json": {
+      "bytes": 1030182,
+      "files": 1,
+      "kind": "file",
+      "sha256": "e050260a8ba1c0b75710771217d2625094a245e40e4579c024f7eb4e252e95c8"
+    },
+    "margin-qualification.json": {
+      "bytes": 15588,
+      "files": 1,
+      "kind": "file",
+      "sha256": "93966209f87c8f05703028bb377be15905e745aef5376907245d9b411d813661"
+    },
+    "market-campaign/20261106": {
+      "bytes": 996146474,
+      "files": 2626,
+      "kind": "folder",
+      "sha256": "fa9b0b946482e1b53ef7512a03a423b440f6bc084096ad6ea979ec4ec1b69d3d"
+    },
+    "market-campaign/20261106/plan.json": {
+      "bytes": 21049669,
+      "files": 1,
+      "kind": "file",
+      "sha256": "b51dceddbb72b92b5e1207b35580122be884ecdabb8ea03f3ae5e188fe2f65cf"
+    },
+    "paper-campaign/20261106T102617Z": {
+      "bytes": 558304063,
+      "files": 651,
+      "kind": "folder",
+      "sha256": "956843c54b0d81a0ae09b2ac4a55d9b1b8097fb5531b637ef7dd3eeaa55ada58"
+    },
+    "qualification/20261106T1139159526512": {
+      "bytes": 6334,
+      "files": 4,
+      "kind": "folder",
+      "sha256": "98a23f4831abe5a8f91e7d68bacf790d5c20aa9f6db2900d9de7a4789f3d93f8"
+    },
+    "qualification/workspace-20261107T184509Z/receipt.json": {
+      "bytes": 311,
+      "files": 1,
+      "kind": "file",
+      "sha256": "18d1a425c7c823f18365a11832626344d96149ed5204230ac9195205f7b0e7af"
+    }
+  },
+  "schema": "evidence-index/1"
+}
