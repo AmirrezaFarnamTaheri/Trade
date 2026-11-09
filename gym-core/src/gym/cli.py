@@ -30,11 +30,14 @@ from .commands.common import (
 from .commands.daemon import demo_seed, serve
 from .commands.maintenance import (
     backup_once_cmd,
+    backup_research_cmd,
     compact_cmd,
     doctor_cmd,
     raw_move_cmd,
+    research_restore_drill_cmd,
     restore_backup_cmd,
     restore_drill_cmd,
+    restore_research_cmd,
     update_check_cmd,
     verify_backup_manifest_cmd,
     verify_segments_cmd,
@@ -295,6 +298,19 @@ def main(argv=None):
     asst.add_argument("--to", dest="end")
     asst.add_argument("--cash")
     asst.add_argument("--demo", action="store_true")
+    rbk = sub.add_parser("backup-research", help="encrypted snapshot of market.db, other stores, runs and new raw segments")
+    rbk.add_argument("destination", help="existing folder on another drive (or a cloud-synced folder with --allow-same-device)")
+    rbk.add_argument("--keep", type=int, default=7, help="snapshots to keep (segments are never pruned)")
+    rbk.add_argument("--allow-same-device", action="store_true", help="for a cloud-synced folder that leaves the machine by sync")
+    rbk.add_argument("--stored-passphrase", action="store_true", help="use the passphrase sealed with `key set-backup`")
+    rbk.add_argument("--demo", action="store_true")
+    rrd = sub.add_parser("research-restore-drill", help="decrypt and verify the newest research snapshot in a temporary folder")
+    rrd.add_argument("destination")
+    rrd.add_argument("--segments", type=int, default=24, help="newest raw segments to decrypt and verify")
+    rrd.add_argument("--stored-passphrase", action="store_true")
+    rrs = sub.add_parser("restore-research", help="rebuild a data root from the newest research snapshot into an empty folder")
+    rrs.add_argument("destination")
+    rrs.add_argument("--to", required=True, help="new or empty folder; never overwrites")
     dr = sub.add_parser("doctor", help="read-only workspace integrity check: stores, raw segments, journals, disk, backups, keys")
     dr.add_argument("--full", action="store_true", help="re-hash every raw segment, not only yesterday's and today's")
     dr.add_argument("--archive", action="append", default=[], help="also look in this archive folder (repeatable)")
@@ -320,7 +336,7 @@ def main(argv=None):
 
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd,
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
                 "assistant": assistant_cmd, "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:

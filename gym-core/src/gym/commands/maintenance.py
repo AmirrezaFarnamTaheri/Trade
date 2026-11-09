@@ -36,6 +36,51 @@ def verify_segments_cmd(args) -> int:
     return 1 if report["mismatched"] else 0
 
 
+def _research_passphrase(args, prompt):
+    import getpass
+    if getattr(args, "stored_passphrase", False):
+        from ..adapters.secret_store import load_backup_passphrase
+        return load_backup_passphrase()
+    if not sys.stdin.isatty():
+        raise ValueError("needs an interactive console or --stored-passphrase")
+    return getpass.getpass(prompt)
+
+
+def backup_research_cmd(args) -> int:
+    """Encrypted research-store snapshot plus new raw segments; never prints the passphrase."""
+    from ..services.research_backup import backup_research
+    phrase = _research_passphrase(args, "Research backup passphrase: ")
+    try:
+        report = backup_research(store_root(args), Path(args.destination), passphrase=phrase, keep=args.keep,
+                                 allow_same_device=args.allow_same_device)
+    finally:
+        del phrase
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 1 if report["segments_refused"] else 0
+
+
+def research_restore_drill_cmd(args) -> int:
+    from ..services.research_backup import drill
+    phrase = _research_passphrase(args, "Research backup passphrase: ")
+    try:
+        report = drill(Path(args.destination), passphrase=phrase, segment_sample=args.segments)
+    finally:
+        del phrase
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def restore_research_cmd(args) -> int:
+    from ..services.research_backup import restore_research
+    phrase = _research_passphrase(args, "Research backup passphrase: ")
+    try:
+        report = restore_research(Path(args.destination), Path(args.to), passphrase=phrase)
+    finally:
+        del phrase
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose

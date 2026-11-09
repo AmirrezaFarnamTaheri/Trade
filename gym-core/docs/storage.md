@@ -63,3 +63,21 @@ the disk. Move finished days elsewhere with
 `gymctl raw-move --before YYYYMMDD --to <other-drive-folder>`; it never moves the
 current UTC day and refuses if a destination day already exists. Segment files are
 created exclusively, so two writers in the same hour can never share one file.
+
+### Research backup
+
+The executor-ledger backup does not cover research data. `gymctl backup-research <folder>`
+takes one encrypted snapshot of every SQLite store in the data root (SQLite backup API, one
+read transaction, safe while the collector writes), packs the other files (runs, studies,
+journals; never `*.dpapi` key files or SQLite side files) into an encrypted archive, and
+copies each closed raw segment once, after re-checking it against its manifest hash. A
+corrupted segment is reported and not copied. Containers are scrypt + AES-256-GCM with the
+name and plaintext hash in the authenticated header, so a swapped or edited file fails.
+
+`gymctl research-restore-drill <folder>` decrypts and verifies the newest snapshot and the
+newest segments in a temporary folder; `gymctl restore-research <folder> --to <empty>`
+rebuilds a data root that `gymctl doctor` can check. The destination must be on another
+drive unless `--allow-same-device` is given for a cloud-synced folder.
+`scripts/windows/Install-ResearchBackupSchedule.ps1` schedules backup plus drill nightly
+with the passphrase sealed by `gymctl key set-backup`. Keep a copy of that passphrase off
+the machine: the sealed copy is lost with it.

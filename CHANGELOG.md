@@ -11,6 +11,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Executor account-observation freshness is checked per resource, so a fees read is no longer refused because
   a balances read was in flight; stale reads of the same resource are still refused [E-6, partial].
 - Weekly mutation testing now also covers the cash book, portfolio policy and margin math [E-10].
+- `gymctl backup-research`, `research-restore-drill`, `restore-research` and a nightly schedule script: encrypted
+  snapshots of every research store and the raw archive, with an authenticated restore that never overwrites;
+  `doctor` reports the age of the last snapshot [R-5, OD-4 groundwork].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

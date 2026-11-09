@@ -94,6 +94,17 @@ def _backup(root: Path, now: datetime):
                   f"last backup {hours:.1f} h ago (sequence {latest['sequence']}); off-machine copy not verified")
 
 
+def _research_backup(root: Path, now: datetime):
+    from .research_backup import status
+    last = status(root)
+    if last is None:
+        return _check("research_backup", WARN, "market data, runs and raw segments have no backup; run backup-research")
+    age = now - datetime.fromisoformat(last["at"])
+    where = "same drive (cloud-synced folder?)" if last.get("same_device") else "another drive"
+    return _check("research_backup", WARN if age > BACKUP_STALE else PASS,
+                  f"last snapshot {age.total_seconds() / 3600:.1f} h ago to {where}; {last.get('segments_total')} segments stored")
+
+
 def _keys(today):
     from ..adapters import secret_store
     out = []
@@ -117,6 +128,7 @@ def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Pa
     checks.append(_sqlite_only("external_journal", root / "external_journal.db"))
     checks.append(_sqlite_only("probe_budget", root / "probe_budget.db"))
     checks.append(_backup(root, now))
+    checks.append(_research_backup(root, now))
     checks += _keys(now.date())
     checks.append(_check("executor_ledger", SKIP, "owned by the protected service; verified by the executor at startup"))
     worst = FAIL if any(c["status"] == FAIL for c in checks) else WARN if any(c["status"] == WARN for c in checks) else PASS

@@ -8,7 +8,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Ledger,
     [Parameter(Mandatory = $true)][string]$Destination,
-    [string]$CoreDirectory = (Join-Path $PSScriptRoot '..\..\gym-core'),
+    [string]$CoreDirectory,
     [string]$At = '03:17',
     [ValidateRange(2, 365)][int]$Keep = 7,
     [string]$TaskName = 'TradingGYM Backup',
@@ -16,6 +16,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-core' }
 
 if ($Uninstall) {
     if ($PSCmdlet.ShouldProcess($TaskName, 'Unregister scheduled task')) { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false }
