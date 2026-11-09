@@ -8,6 +8,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   accepted frame re-encodes byte-for-byte [E-9].
 - Shared fill-timestamp profile (`contracts/v1/fixtures/fill-timestamps.json`) enforced identically by the
   executor and gym-core; v2 operator-review golden frames checked from Rust and Python [E-8, A-4].
+- Executor account-observation freshness is checked per resource, so a fees read is no longer refused because
+  a balances read was in flight; stale reads of the same resource are still refused [E-6, partial].
+- Weekly mutation testing now also covers the cash book, portfolio policy and margin math [E-10].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

@@ -593,11 +593,14 @@ fn check_account_observation(
     requests: &BTreeSet<[u8; 16]>,
     value: &AccountObservation,
 ) -> Result<(), RecoveryError> {
+    // Freshness is per resource: a read that started before the newest read of the same resource
+    // finished cannot replace it. Unrelated resources (balances versus fees, other pages) do not
+    // block each other. Every ledger written under the older all-resources rule also passes this.
     if credential.is_none_or(|key| key.generation != value.generation())
         || requests.contains(&value.request_id())
         || observations
-            .values()
-            .any(|old| value.started_at_ms() < old.received_at_ms())
+            .get(&value.key())
+            .is_some_and(|old| value.started_at_ms() < old.received_at_ms())
     {
         return Err(RecoveryError::InvalidIdentity);
     }
