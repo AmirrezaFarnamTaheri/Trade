@@ -39,6 +39,14 @@ def test_assistant_tests_proposals_and_they_count_as_trials(tmp_path):
                                 preset="p", budget=2, resolution="1min"))
     assert report["status"] == "TESTED" and len(report["results"]) == 2 and report["selection"]["trials"] == 2
     assert len(list_runs(runs)) == 2 and len(tried_before(runs, "BTCUSDT", "1min")) == 2 and "BTCUSDT" in prompts[0]
+    import hashlib
+
+    from gym.adapters.run_store import load_verified_run
+    saved = load_verified_run(runs, report["results"][0]["run_id"], store="live")  # identity still verifies
+    provenance = saved["provenance"]
+    assert provenance["origin"] == "research-assistant" and provenance["model"] == {"provider": "test", "id": "m"}
+    assert provenance["prompt_sha256"] == hashlib.sha256(prompts[0].encode()).hexdigest()
+    assert json.loads(provenance["reply_text"])[0]["strategy"] == "ema-trend"
     again = asyncio.run(assist(complete, db, runs, "BTCUSDT", START, START + timedelta(hours=1), preset="p", budget=2, resolution="1min"))
     assert again["status"] == "TOO_FEW_NEW_PROPOSALS"  # the model repeated itself; nothing is re-run
 
