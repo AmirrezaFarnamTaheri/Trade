@@ -94,6 +94,9 @@ jobs:
       - name: Coverage report
         run: |
           uv run --with coverage==7.6.10 coverage report --skip-covered --sort=cover | tail -40
+          # Ratchet: floors sit just under the 2026-11-09 measurement (domain 94%, whole package 87%); raise, never lower.
+          uv run --with coverage==7.6.10 coverage report --include="src/gym/domain/*" --fail-under=93 > /dev/null
+          uv run --with coverage==7.6.10 coverage report --fail-under=86 > /dev/null
           uv run --with coverage==7.6.10 coverage html -d "$RUNNER_TEMP/coverage"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

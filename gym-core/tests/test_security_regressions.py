@@ -72,8 +72,13 @@ def test_ci_checkout_tokens_are_nonpersistent_and_read_only():
     assert "permissions:\n  contents: read" in ci
     # CI may add safe no-secret runner jobs. Every checkout must opt out
     # of persisting credentials; do not hardcode the number of jobs.
-    assert ci.count("actions/checkout@v4") >= 3
-    assert ci.count("actions/checkout@v4") == ci.count("persist-credentials: false")
+    checkouts = ci.count("uses: actions/checkout@")
+    assert checkouts >= 3
+    assert checkouts == ci.count("persist-credentials: false")
+    # Third-party code runs with CI privileges: every action is pinned to a full commit SHA.
+    import re
+    uses = re.findall(r"uses: ([^\s#]+)", ci)
+    assert uses and all(re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", u) for u in uses), uses
 
 
 def test_windows_negative_probe_rejects_uac_filtered_admin_tokens():
