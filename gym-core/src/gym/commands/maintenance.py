@@ -36,6 +36,21 @@ def verify_segments_cmd(args) -> int:
     return 1 if report["mismatched"] else 0
 
 
+def doctor_cmd(args) -> int:
+    """Run every local verifier read-only; exit 1 when any check fails."""
+    from ..services.doctor import diagnose
+
+    report = diagnose(store_root(args), now_utc(), full=args.full, archives=[Path(p) for p in args.archive])
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        for c in report["checks"]:
+            print(f"{c['status']:<4}  {c['check']:<18} {c['detail']}")
+        print()
+        print(f"{report['status']}: {report['root']}")
+    return 1 if report["status"] == "FAIL" else 0
+
+
 def compact_cmd(args) -> int:
     from ..adapters.store import compact_quotes
 

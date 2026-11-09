@@ -43,6 +43,7 @@ uv run --no-sync gymctl --data ../data portfolio BTCUSDT,ETHUSDT --res 1min
 uv run --no-sync gymctl --data ../data rules list
 uv run --no-sync gymctl --data ../data spreads --output spreads.json
 uv run --no-sync gymctl --data ../data research list
+uv run --no-sync gymctl --data ../data doctor   # read-only integrity check; exit 1 on failure
 ```
 
 Paper research exposes comparisons, validation, saved runs, shared-cash

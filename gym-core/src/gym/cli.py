@@ -31,6 +31,7 @@ from .commands.daemon import demo_seed, serve
 from .commands.maintenance import (
     backup_once_cmd,
     compact_cmd,
+    doctor_cmd,
     raw_move_cmd,
     restore_backup_cmd,
     restore_drill_cmd,
@@ -294,6 +295,11 @@ def main(argv=None):
     asst.add_argument("--to", dest="end")
     asst.add_argument("--cash")
     asst.add_argument("--demo", action="store_true")
+    dr = sub.add_parser("doctor", help="read-only workspace integrity check: stores, raw segments, journals, disk, backups, keys")
+    dr.add_argument("--full", action="store_true", help="re-hash every raw segment, not only yesterday's and today's")
+    dr.add_argument("--archive", action="append", default=[], help="also look in this archive folder (repeatable)")
+    dr.add_argument("--json", action="store_true", help="print only the JSON receipt")
+    dr.add_argument("--demo", action="store_true")
     vs = sub.add_parser("verify-segments", help="re-hash every closed raw segment against the manifest")
     vs.add_argument("--archive", action="append", default=[], help="also look in this archive folder (repeatable)")
     vs.add_argument("--demo", action="store_true")
@@ -314,7 +320,7 @@ def main(argv=None):
 
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd,
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd,
                 "assistant": assistant_cmd, "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:

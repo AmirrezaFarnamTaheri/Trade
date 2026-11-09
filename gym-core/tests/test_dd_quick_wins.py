@@ -136,3 +136,24 @@ def test_daily_sweep_flags_crash_tails_but_not_the_live_segment(tmp_path):
     flags = [flag for flag, _ in col.verify_raw(START + timedelta(minutes=10))]
     assert flags == ["SEGMENT_UNCLOSED"]
     live.close()
+
+
+def test_doctor_reports_each_check_and_fails_on_a_tampered_segment(tmp_path, capsys):
+    from gym.adapters.store import MarketDB, SegmentWriter
+    from gym.cli import main
+    from gym.services.doctor import diagnose
+    root = tmp_path / "live"
+    db = MarketDB(root / "market.db")
+    writer = SegmentWriter(root / "raw", db)
+    writer.write("ws", "a", START)
+    writer.close()
+    db.c.close()
+    report = diagnose(root, START + timedelta(minutes=5))
+    status = {c["check"]: c["status"] for c in report["checks"]}
+    assert status["market_db"] == status["raw_segments"] == status["segment_manifest"] == "PASS"
+    assert status["venue_facts"] == "SKIP" and status["backup_receipts"] == "WARN" and report["read_only"]
+    assert not (root / "venue_facts.db").exists()  # a missing journal is reported, never created
+    [seg] = list((root / "raw").rglob("*.jsonl.zst"))
+    seg.write_bytes(b"tampered")
+    assert main(["--data", str(tmp_path), "doctor", "--full"]) == 1
+    assert "FAIL  raw_segments" in capsys.readouterr().out
