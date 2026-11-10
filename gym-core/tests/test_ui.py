@@ -119,3 +119,21 @@ def test_persian_copy_outside_the_vocabulary_does_not_grow():
             continue
         lines = sum(1 for line in path.read_text("utf-8").splitlines() if persian.search(line))
         assert lines <= allowed.get(path.name, 0), f"{path.name}: {lines} lines of inline Persian; move copy to workspace-config.js"
+
+
+def test_copy_review_extract_covers_the_ui(tmp_path):
+    """scripts/ui_copy_extract.py feeds the native-speaker review; lines it cannot pair must not grow (21 on 2026-11-10)."""
+    import csv
+    import importlib.util
+    import io
+    from contextlib import redirect_stdout
+    spec = importlib.util.spec_from_file_location("extract", Path(__file__).resolve().parents[1] / "scripts" / "ui_copy_extract.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    out = io.StringIO()
+    with redirect_stdout(out):
+        module.main(["--out", str(tmp_path / "copy.csv")])
+    rows = list(csv.reader((tmp_path / "copy.csv").open(encoding="utf-8-sig")))
+    assert rows[0][:5] == ["file", "line", "key", "english", "persian"] and len(rows) > 1000
+    unpaired = int(out.getvalue().split(";")[1].split()[0])
+    assert unpaired <= 21, out.getvalue()

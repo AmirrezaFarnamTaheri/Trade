@@ -44,6 +44,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Health alerts: `gymctl doctor --quick --notify [--webhook https://...]` plus a 30-minute schedule script;
   a Windows toast (and optional webhook) only when the set of failing checks changes, and on recovery. `doctor`
   now reports collector feed freshness [O-3].
+- UI copy review sheet: `scripts/ui_copy_extract.py` collects about 1,090 English/Persian pairs from every UI
+  file into one CSV for a native-speaker review, and lists the lines it cannot pair [U-7].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
