@@ -47,46 +47,9 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
 def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection):
     """Replay strictly prior market observations against a shared simulated cash book."""
-    if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
-        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
-    cost.assert_causal(t0)
-    if rules_mode not in ("point-in-time", "today"):
-        raise ValueError("rules_mode must be 'point-in-time' or 'today'")
-    if universe_selection is not None:
-        from .historical_universe import select_universe
-
-        actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
-                                 top_n=universe_selection["requested_top_n"],
-                                 lookback_hours=universe_selection["lookback_hours"])
-        if actual != universe_selection or actual["status"] != "AVAILABLE" or actual["symbols"] != symbols:
-            raise ValueError("historical universe selection evidence changed")
-    placeholders = ",".join("?" for _ in symbols)
-    tables = [("book_top", "ts_avail")]
-    if cost.order_type == "limit":
-        tables.append(("trades", "ts_event"))
-    for table, clock in tables:
-        count = db.c.execute(f"SELECT count(*) FROM (SELECT 1 FROM {table} WHERE instrument_id IN ({placeholders}) "
-                             f"AND {clock}>=? AND {clock}<? LIMIT ?)",
-                             (*("wallex:" + s for s in symbols), iso(t0), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
-        if count > MAX_OBSERVATIONS:
-            raise ValueError("portfolio observation budget exceeded; narrow the window")
-    portal, svc = DataPortal(db), RuleService(db)
-    today = svc.load()[1]
-    rule_evidence, rule_cache, rule_times = {}, {}, []
-    for (stamp,) in db.c.execute("SELECT ts FROM regime_events ORDER BY seq"):
-        at = parse_ts(stamp)
-        # Match the ledger's prefix fold even if a later event was backdated.
-        rule_times.append(max(at, rule_times[-1]) if rule_times else at)
-
-    def rules_for(at):
-        """Load the market rules known at the supplied historical decision time."""
-        version = "today" if rules_mode == "today" else bisect_right(rule_times, at)
-        if version not in rule_cache:
-            rules = today if rules_mode == "today" else svc.load(at)[1]
-            rule_cache[version] = rules
-            rule_evidence[str(version)] = {"known_from": None if version == "today" or not version else iso(rule_times[version - 1]),
-                                           "fingerprint": digest([asdict(rule) for rule in rules])}
-        return rule_cache[version]
+    _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection)
+    portal = DataPortal(db)
+    rules_for, rule_evidence = _rule_timeline(db, rules_mode)
     instruments = {s: portal.instrument(s) for s in symbols}
     quotes = {inst.quote for inst in instruments.values()}
     if len(quotes) != 1:
@@ -101,15 +64,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     controller = PortfolioPolicy({} if policy is None else policy, symbols)
     if controller.usdt_fx_risk and quote != "TMN":
         raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
-    if controller.usdt_fx_risk:
-        fx_count = db.c.execute(
-            "SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
-            "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
-            (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
-        if fx_count > MAX_OBSERVATIONS:
-            raise ValueError("portfolio FX risk observation budget exceeded; narrow the window")
-    fx_risk_tops = (portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
-                    if controller.usdt_fx_risk else [])
+    fx_risk_tops = _fx_tops(db, portal, t0, t1, "portfolio FX risk") if controller.usdt_fx_risk else []
     fx_risk_times = [top.ts_avail for top in fx_risk_tops]
 
     def fx_at_close(close):
@@ -198,33 +153,10 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
             delta = target - held
             band = controller.rates["rebalance_threshold"]
             if controller.cost_aware_rebalance and equity() > 0:
-                latest = sessions[symbol].last_quote
-                if (latest is None or not qualified(latest)
-                        or latest.ts_avail > controller.previous_at
-                        or controller.previous_at - latest.ts_avail > timedelta(seconds=120)):
-                    policy_events.append({"at": iso(controller.previous_at), "kind": "REBALANCE_BAND",
-                                          "symbol": symbol, "status": "COST_UNAVAILABLE",
-                                          "requested": False})
+                band = _cost_band(controller, cost, symbol, sessions[symbol].last_quote, delta, equity(), band,
+                                  policy_events)
+                if band is None:
                     return action, fraction, reasons
-                maker = cost.order_type == "limit"
-                size = abs(delta) / (latest.bid if delta < 0 else latest.ask)
-                measured = modeled_execution_cost(cost, symbol, controller.previous_at, size,
-                                                  latest.bid, latest.ask, maker=maker)
-                fee_rate = measured["fee_rate"] if measured is not None else (
-                    cost.maker_fee if maker else cost.fee_rate)
-                uplift = measured["uplift_bps"] / 10000 if measured is not None else Decimal(0)
-                modeled = 2 * fee_rate + (latest.ask - latest.bid) / latest.bid + uplift
-                band = max(band, modeled)
-                drift = abs(delta) / equity()
-                policy_events.append({
-                    "at": iso(controller.previous_at), "kind": "REBALANCE_BAND", "symbol": symbol,
-                    "status": "READY", "source_quote_time": iso(latest.ts_avail),
-                    "tracking_error_fraction": str(drift),
-                    "modeled_cost_fraction": str(modeled), "band_fraction": str(band),
-                    "estimated_turnover_quote": str(abs(delta)),
-                    "estimated_roundtrip_cost_quote": str(abs(delta) * modeled),
-                    "requested": drift > band, "cost_basis": "two fees, observed spread, optional dated uplift",
-                    "model": "causal-cost-aware-band/1"})
             if equity() > 0 and abs(delta) > equity() * band:
                 if delta > 0 and action != "BUY_REQUEST":
                     strategy = sessions[symbol].strategy
@@ -356,14 +288,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     metadata = {s: db.c.execute("SELECT valid_from, valid_to, spec, source FROM instrument_specs "
                                "WHERE instrument_id=? AND valid_from<? AND (valid_to IS NULL OR valid_to>?) "
                                "ORDER BY valid_from, rowid", ("wallex:" + s, iso(t1), iso(t0))).fetchall() for s in symbols}
-    fx_tops = []
-    if quote == "TMN":
-        count = db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
-                             "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
-                             (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
-        if count > MAX_OBSERVATIONS:
-            raise ValueError("portfolio FX observation budget exceeded; narrow the window")
-        fx_tops = portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
+    fx_tops = _fx_tops(db, portal, t0, t1, "portfolio FX") if quote == "TMN" else []
 
     valuation = curve_valuation(quote, curve, t0, t1, fx_tops, rules_for)
     first_fx, last_fx = valuation["start"], valuation["end"]
@@ -385,34 +310,12 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     if policy is not None:
         inputs["policy"] = controller.description
     if universe_selection is not None:
-        inputs["portfolio_version"] = 6
         inputs["universe_selection"] = universe_selection
-    if policy is not None and "portfolio_volatility_target" in controller.description:
-        # New explicit portfolio risk input changes how targets are scaled.
-        inputs["portfolio_version"] = 7
     if controller.usdt_fx_risk:
-        inputs["portfolio_version"] = 9 if controller.portfolio_volatility_target is not None else 8
         inputs["fx_risk_data"] = digest([(iso(top.ts_avail), top.bid, top.ask, sorted(top.flags))
                                          for top in fx_risk_tops])
-    if controller.expected_shortfall_limit is not None:
-        inputs["portfolio_version"] = 10
-    if controller.cost_aware_rebalance:
-        inputs["portfolio_version"] = 11
-    if cost.calibration is not None and "fractional_sizing_report_id" in cost.calibration:
-        inputs["portfolio_version"] = 12
-    if controller.description["method"] == "hierarchical-risk-parity":
-        inputs["portfolio_version"] = 13
-    markets = {}
-    for s, session in sessions.items():
-        orders = session.orders
-        ledger = trade_ledger(orders, instruments[s].base)
-        markets[s] = {"fills": sum(o["status"] == "FILLED" for o in orders), "orders": orders,
-                      "observations": len(tops[s]), "qualified": sum(qualified(top) for top in tops[s]),
-                      "running_at": iso(session.running_at), "session_state": session.state,
-                      "closed_trades": len(ledger["trades"]), "realized_pnl": str(sum((Decimal(t["pnl"]) for t in ledger["trades"]), Decimal(0))),
-                      "holding": str(book.get(instruments[s].base)), "last_bid": str(marks.get(s)) if s in marks else None,
-                      "mark_time": iso(mark_times.get(s)), "mark_age_seconds": (t1 - mark_times[s]).total_seconds() if s in mark_times else None,
-                      "mark_status": "UNAVAILABLE" if s not in mark_times else "STALE" if t1 - mark_times[s] > timedelta(seconds=120) else "CURRENT"}
+    inputs["portfolio_version"] = _portfolio_version(controller, cost, policy, universe_selection)
+    markets = _market_summaries(sessions, instruments, tops, book, marks, mark_times, t1)
     result = {"quote": quote, "start_cash": str(cash), "curve": curve, "orders": [], "markets": markets,
               "valuation": valuation,
               "balances": {k: str(v) for k, v in book.balances.items()},
@@ -429,3 +332,131 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
     out["performance"] = {k: v for k, v in performance(out, sampled_drawdown(out)).items() if k not in ("ledger", "trades")}
     out["outputs_digest"] = digest(result)[:16]
     return out
+
+
+def _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection):
+    """Refuse malformed or over-budget portfolio requests before any replay state exists."""
+    if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
+        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
+    cost.assert_causal(t0)
+    if rules_mode not in ("point-in-time", "today"):
+        raise ValueError("rules_mode must be 'point-in-time' or 'today'")
+    if universe_selection is not None:
+        from .historical_universe import select_universe
+
+        actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
+                                 top_n=universe_selection["requested_top_n"],
+                                 lookback_hours=universe_selection["lookback_hours"])
+        if actual != universe_selection or actual["status"] != "AVAILABLE" or actual["symbols"] != symbols:
+            raise ValueError("historical universe selection evidence changed")
+    placeholders = ",".join("?" for _ in symbols)
+    tables = [("book_top", "ts_avail")]
+    if cost.order_type == "limit":
+        tables.append(("trades", "ts_event"))
+    for table, clock in tables:
+        count = db.c.execute(f"SELECT count(*) FROM (SELECT 1 FROM {table} WHERE instrument_id IN ({placeholders}) "
+                             f"AND {clock}>=? AND {clock}<? LIMIT ?)",
+                             (*("wallex:" + s for s in symbols), iso(t0), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+        if count > MAX_OBSERVATIONS:
+            raise ValueError("portfolio observation budget exceeded; narrow the window")
+
+
+def _rule_timeline(db, rules_mode):
+    """Rules known at each historical decision time, plus the evidence of which versions were used."""
+    svc = RuleService(db)
+    today = svc.load()[1]
+    rule_evidence, rule_cache, rule_times = {}, {}, []
+    for (stamp,) in db.c.execute("SELECT ts FROM regime_events ORDER BY seq"):
+        at = parse_ts(stamp)
+        # Match the ledger's prefix fold even if a later event was backdated.
+        rule_times.append(max(at, rule_times[-1]) if rule_times else at)
+
+    def rules_for(at):
+        """Load the market rules known at the supplied historical decision time."""
+        version = "today" if rules_mode == "today" else bisect_right(rule_times, at)
+        if version not in rule_cache:
+            rules = today if rules_mode == "today" else svc.load(at)[1]
+            rule_cache[version] = rules
+            rule_evidence[str(version)] = {"known_from": None if version == "today" or not version else iso(rule_times[version - 1]),
+                                           "fingerprint": digest([asdict(rule) for rule in rules])}
+        return rule_cache[version]
+
+    return rules_for, rule_evidence
+
+
+def _fx_tops(db, portal, t0, t1, label):
+    """USDTTMN quotes from a day before the window, within the observation budget."""
+    count = db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
+                         "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
+                         (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+    if count > MAX_OBSERVATIONS:
+        raise ValueError(f"{label} observation budget exceeded; narrow the window")
+    return portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
+
+
+def _cost_band(controller, cost, symbol, latest, delta, equity_now, band, policy_events):
+    """Widen the rebalance band to the modeled round-trip cost; None when no fresh quote can price it."""
+    if (latest is None or not qualified(latest)
+            or latest.ts_avail > controller.previous_at
+            or controller.previous_at - latest.ts_avail > timedelta(seconds=120)):
+        policy_events.append({"at": iso(controller.previous_at), "kind": "REBALANCE_BAND",
+                              "symbol": symbol, "status": "COST_UNAVAILABLE",
+                              "requested": False})
+        return None
+    maker = cost.order_type == "limit"
+    size = abs(delta) / (latest.bid if delta < 0 else latest.ask)
+    measured = modeled_execution_cost(cost, symbol, controller.previous_at, size,
+                                      latest.bid, latest.ask, maker=maker)
+    fee_rate = measured["fee_rate"] if measured is not None else (
+        cost.maker_fee if maker else cost.fee_rate)
+    uplift = measured["uplift_bps"] / 10000 if measured is not None else Decimal(0)
+    modeled = 2 * fee_rate + (latest.ask - latest.bid) / latest.bid + uplift
+    band = max(band, modeled)
+    drift = abs(delta) / equity_now
+    policy_events.append({
+        "at": iso(controller.previous_at), "kind": "REBALANCE_BAND", "symbol": symbol,
+        "status": "READY", "source_quote_time": iso(latest.ts_avail),
+        "tracking_error_fraction": str(drift),
+        "modeled_cost_fraction": str(modeled), "band_fraction": str(band),
+        "estimated_turnover_quote": str(abs(delta)),
+        "estimated_roundtrip_cost_quote": str(abs(delta) * modeled),
+        "requested": drift > band, "cost_basis": "two fees, observed spread, optional dated uplift",
+        "model": "causal-cost-aware-band/1"})
+    return band
+
+
+def _portfolio_version(controller, cost, policy, universe_selection):
+    """Identity version: the newest input that changes how a portfolio replays (later versions win)."""
+    version = 5
+    if universe_selection is not None:
+        version = 6
+    if policy is not None and "portfolio_volatility_target" in controller.description:
+        # New explicit portfolio risk input changes how targets are scaled.
+        version = 7
+    if controller.usdt_fx_risk:
+        version = 9 if controller.portfolio_volatility_target is not None else 8
+    if controller.expected_shortfall_limit is not None:
+        version = 10
+    if controller.cost_aware_rebalance:
+        version = 11
+    if cost.calibration is not None and "fractional_sizing_report_id" in cost.calibration:
+        version = 12
+    if controller.description["method"] == "hierarchical-risk-parity":
+        version = 13
+    return version
+
+
+def _market_summaries(sessions, instruments, tops, book, marks, mark_times, t1):
+    """Per-market fills, trades, holdings and mark freshness at the end of the window."""
+    markets = {}
+    for s, session in sessions.items():
+        orders = session.orders
+        ledger = trade_ledger(orders, instruments[s].base)
+        markets[s] = {"fills": sum(o["status"] == "FILLED" for o in orders), "orders": orders,
+                      "observations": len(tops[s]), "qualified": sum(qualified(top) for top in tops[s]),
+                      "running_at": iso(session.running_at), "session_state": session.state,
+                      "closed_trades": len(ledger["trades"]), "realized_pnl": str(sum((Decimal(t["pnl"]) for t in ledger["trades"]), Decimal(0))),
+                      "holding": str(book.get(instruments[s].base)), "last_bid": str(marks.get(s)) if s in marks else None,
+                      "mark_time": iso(mark_times.get(s)), "mark_age_seconds": (t1 - mark_times[s]).total_seconds() if s in mark_times else None,
+                      "mark_status": "UNAVAILABLE" if s not in mark_times else "STALE" if t1 - mark_times[s] > timedelta(seconds=120) else "CURRENT"}
+    return markets

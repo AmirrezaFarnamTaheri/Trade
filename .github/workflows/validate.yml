@@ -91,6 +91,8 @@ jobs:
         run: uvx ruff==0.16.9 check src tests
       - name: Complexity ceiling on the simulator money core
         run: uvx ruff==0.16.9 check --isolated --select C901 --config "lint.mccabe.max-complexity=20" src/gym/domain/sim.py
+      - name: Complexity ratchet (no new function above 20; listed hotspots may only shrink)
+        run: python scripts/complexity_ratchet.py
       - name: Tests with line coverage
         run: uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q
       - name: Coverage report

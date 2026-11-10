@@ -78,6 +78,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Arm record and kill rules (`exec_core::arming`), verified-available rule across both vault journals
   (`exec_core::available`), tested privileged-fault supervision; ADR 0006; review-v2 and prepared reservation
   documented as test-only [OD-2, OD-5, A-6].
+- Complexity: `research_action` (101) and `make_app` (88) become handler registries, `weights` (38) splits into stages,
+  `_portfolio` 85 -> 65; a CI ratchet fails on any new function above 20 or any listed hotspot growing [E-1].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
