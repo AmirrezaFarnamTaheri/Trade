@@ -107,6 +107,32 @@ def release_cmd(args) -> int:
     return 0
 
 
+def drift_cmd(args) -> int:
+    """Population-stability drift for one market; read-only."""
+    from datetime import timedelta
+
+    from ..adapters.store import MarketDB
+    from ..services.data_portal import DataPortal
+    from ..services.drift import drift
+
+    symbol = args.symbol.upper()
+    db = MarketDB(store_root(args) / "market.db", readonly=True)
+    try:
+        if args.to:
+            end = parse_ts(args.to)
+        else:
+            newest = db.c.execute("SELECT max(ts_avail) FROM book_top WHERE instrument_id=?", (f"wallex:{symbol}",)).fetchone()[0]
+            if newest is None:
+                raise ValueError(f"no {symbol} quotes stored")
+            end = parse_ts(newest) + timedelta(seconds=1)
+        middle = end - timedelta(hours=args.recent_hours)
+        report = drift(DataPortal(db), symbol, (middle - timedelta(days=args.reference_days), middle), (middle, end))
+    finally:
+        db.c.close()
+    print(json.dumps(report, indent=2))
+    return 0
+
+
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose
