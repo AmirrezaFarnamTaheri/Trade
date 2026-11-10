@@ -146,3 +146,15 @@ def test_oauth_connections_are_opt_in_behind_the_terms_warning():
     assert gate in source
     assert source.index(gate) < source.index("await request('connection'")
     assert source.count("oauthWarn:") == 2 and "Claude Code and Claude.ai" in source
+
+
+def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
+    """S-13: geometry goes through the DOM style API; markup never carries a style attribute."""
+    import re
+
+    from gym.api import SECURITY_HEADERS
+    policy = SECURITY_HEADERS["Content-Security-Policy"]
+    assert "'unsafe-inline'" not in policy and "style-src 'self';" in policy
+    ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
+    for path in [*ui.glob("*.js"), ui / "index.html"]:
+        assert not re.search(r"style\s*=\s*[\"'`]", path.read_text(encoding="utf-8")), path.name

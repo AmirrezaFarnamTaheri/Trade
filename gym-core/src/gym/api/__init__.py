@@ -6,9 +6,9 @@ import secrets
 from aiohttp import web
 
 LOOPBACK = {"127.0.0.1", "localhost"}
-# Same-origin scripts only; inline style attributes are used for chart geometry.
+# Same-origin scripts and styles only; chart geometry is set through the DOM style API, never inline (S-13).
 SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                                "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",

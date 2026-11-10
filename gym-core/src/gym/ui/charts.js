@@ -34,7 +34,7 @@ function curveFigure(result) {
   const dy = value => worst === 0 ? 4 : 4 + value / worst * 52;
   const markers = list(result.orders).filter(order => order.status === "FILLED" && Number.isFinite(Date.parse(order.fill_time)) && last > first)
     .map(order => { const left = Math.min(100, Math.max(0, (Date.parse(order.fill_time) - first) / (last - first) * 100));
-      return `<span class="chart-marker ${order.side === "BUY" ? "buy" : "sell"}" style="left:${left.toFixed(2)}%" title="${esc(`${order.side} ${order.qty} @ ${order.price} · ${when(order.fill_time)}`)}"></span>`; }).join("");
+      return `<span class="chart-marker ${order.side === "BUY" ? "buy" : "sell"}" data-left="${left.toFixed(2)}" title="${esc(`${order.side} ${order.qty} @ ${order.price} · ${when(order.fill_time)}`)}"></span>`; }).join("");
   const from = when(points[0].t, true), to = when(points[points.length - 1].t, true);
   const title = `${t("equityCurve")} · ${result.quote || ""} · ${tick(lo)} – ${tick(hi)} · ${from} → ${to}`;
   return `<figure class="equity-figure"><div class="chart-frame" dir="ltr"><div class="chart-y" aria-hidden="true"><span>${esc(tick(hi))}</span><span>${esc(tick(lo))}</span></div>
@@ -132,6 +132,16 @@ function waterfallFigure(entries, quote) {
     <line class="chart-base" x1="0" y1="${y(0)}" x2="${width}" y2="${y(0)}"/>${steps.map((step, i) => {
     const top = Math.min(y(step.start), y(step.end)), height = Math.max(1, Math.abs(y(step.start) - y(step.end)));
     return `<rect x="${i * 100 + 18}" y="${top}" width="64" height="${height}" class="waterfall-bar ${step.value < 0 ? "neg" : "pos"}"/>`;
-  }).join("")}</svg><div class="waterfall-labels" dir="ltr" style="grid-template-columns:repeat(${steps.length},minmax(0,1fr))">${steps.map(step =>
+  }).join("")}</svg><div class="waterfall-labels" dir="ltr">${steps.map(step =>
     `<span><strong class="${step.value < 0 ? "neg" : "pos"}" dir="ltr">${esc(tick(step.value))}</strong><small>${label(step.key)}</small></span>`).join("")}</div></figure>`;
+}
+
+/* S-13: geometry is set through the DOM, never as a style attribute, so the CSP needs no 'unsafe-inline' styles. */
+function applyChartGeometry(root) {
+  if (!root || typeof root.querySelectorAll !== "function") return;
+  for (const marker of root.querySelectorAll("[data-left]")) marker.style.left = `${marker.dataset.left}%`;
+}
+if (typeof MutationObserver === "function" && typeof document !== "undefined" && document.body) {
+  new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) applyChartGeometry(node); })
+    .observe(document.body, { childList: true, subtree: true });
 }

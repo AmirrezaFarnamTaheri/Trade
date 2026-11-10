@@ -241,7 +241,7 @@ svg.tracking .chart-cursor { opacity: .7; }
 .chart-line.series-3, .chart-legend .series-3 { stroke: var(--chart-purple); color: var(--chart-purple); stroke-dasharray: 9 3 2 3; }
 .overview-grid .chart-frame { grid-template-rows: 120px auto auto; } .overview-grid .chart-frame .chart:not(.underwater) { height: 120px; }
 .overview-grid .chart-frame .chart.underwater { height: 36px; }
-.waterfall-labels { display: grid; text-align: center; font-size: 11px; margin-top: 8px; }
+.waterfall-labels { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); text-align: center; font-size: 11px; margin-top: 8px; }
 .waterfall-labels > span { display: grid; gap: 2px; min-width: 0; padding-inline: 2px; }
 .waterfall-labels strong { font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .waterfall-labels small { color: var(--text-muted); }
