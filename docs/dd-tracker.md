@@ -66,7 +66,7 @@ Operations (6)
 [x] O-3 · No push alerting, and the launcher's readiness check is shallow · Medium · Effort S
 [x] O-4 · There is no single integrity command, so "is my workspace intact?" has no one-step answer · Medium · Effort M
 [ ] O-5 · The single-host recovery gate bundles two different losses · Low · Effort M
-    Status: the gate is split into host-instance and hardware rows in the docs. The cold-image rebuild in CI is not scripted.
+    Status: implemented. The rows are split in acceptance-status; windows-vm-smoke now times a clean-VM build, install and start to a verified DISARMED state, and the b3 jobs restore the ledger. It runs on GitHub's hosted runners, so the first timed run happens on the next push.
 [x] O-6 · The collector and backup tasks assume an always-on, signed-in desktop · Medium · Effort S
 
 Product and UX (9)

@@ -124,6 +124,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   under 150 ms on the laptop; bounds asserted in CI; no writer thread needed [E-4].
 - Research deadline scales with the stored quotes a request replays (0.4 ms each, 2.5x headroom, 120..600 s); a
   preregistered window the archive volume cannot last through is refused at registration [P-2].
+- Host-instance recovery rehearsed in CI: the clean-VM job verifies a fresh instance reports DISARMED and records the
+  rebuild time in the job summary; acceptance rows updated [O-5].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

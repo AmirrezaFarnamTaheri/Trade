@@ -280,6 +280,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
         with:
           toolchain: 1.96.0
+      - name: Start the host-instance rebuild clock (O-5)
+        shell: pwsh
+        run: '"REBUILD_STARTED=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV'
       - name: Build read-only service and every protected helper using pinned dependencies
         run: cargo build --release --locked -p exec-svc --bins
       - name: Verify service identity, DACL and two non-admin OS principals
@@ -287,6 +290,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1 -BinaryPath ./target/release/gym-executor.exe
+      - name: Record the host-instance rebuild time (clean VM to verified DISARMED)
+        shell: pwsh
+        run: |
+          $seconds = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - [int64]$env:REBUILD_STARTED
+          "Host-instance rebuild: clean VM -> built -> installed -> started -> DISARMED verified in $seconds s" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
   b3-synthetic-produce:
     name: B3 encrypt synthetic ledger on Linux runner
