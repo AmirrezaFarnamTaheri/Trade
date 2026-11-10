@@ -44,6 +44,28 @@ PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "fina
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
 WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
+# One action table (finding U-4): `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
+# browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
+LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
+                  "mcp", "claim-check", "review")
+MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic")
+CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
+                                   *WORKSPACE_ACTIONS)))
+CLI_ONLY_ACTIONS = {
+    "tick": "scheduler step; the browser uses the dedicated research runner",
+    "start": "long-running scheduler process",
+    "mcp": "read-only MCP server over stdio",
+    "pause": "browser pauses jobs through /api/research/jobs/{id}/pause",
+    "resume": "browser resumes jobs through /api/research/jobs/{id}/resume",
+    "adaptive-twap-preview": "no browser form yet",
+    "fairprice-observe": "no browser form yet",
+    "fairprice-read": "no browser form yet",
+    "feed-divergence-lock": "no browser form yet",
+    "feed-divergence-screen": "no browser form yet",
+    "paper-promotion-screen": "no browser form yet",
+    "postfill-check": "no browser form yet",
+    "shadow-drift-screen": "no browser form yet",
+}
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
                            *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "prospective-status", "prospective-evaluate")]))
@@ -860,3 +882,10 @@ def convert_series(protocol, request):
     result.pop("report_id")
     result["report_id"] = digest(result)[:16]
     return result
+
+
+def action_catalog() -> list[dict]:
+    """Every research action with where it can be used (CLI, browser) and how it takes input."""
+    return [{"action": action, "cli": True, "browser": action not in CLI_ONLY_ACTIONS,
+             "browser_note": CLI_ONLY_ACTIONS.get(action), "object_input": action in OBJECT_ACTIONS}
+            for action in sorted(CLI_ACTIONS)]

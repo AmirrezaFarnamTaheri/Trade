@@ -80,6 +80,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   documented as test-only [OD-2, OD-5, A-6].
 - Complexity: `research_action` (101) and `make_app` (88) become handler registries, `weights` (38) splits into stages,
   `_portfolio` 85 -> 65; a CI ratchet fails on any new function above 20 or any listed hotspot growing [E-1].
+- One research action table (`CLI_ACTIONS`, `CLI_ONLY_ACTIONS`, `gymctl actions`) with a test that every action is a CLI
+  choice and has a browser form or a stated reason; `diagnostic`, `technicals`, `spreads` and `trade-flow` were
+  browser-only and are now CLI choices. Read-only operator timeline (`gymctl timeline`, `/api/timeline`) [U-4].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

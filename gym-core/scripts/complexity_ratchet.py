@@ -45,7 +45,7 @@ def main(argv: list[str]) -> int:
     problems = compare(found, baseline)
     if "--update" in argv:
         kept = {k: min(v, baseline.get(k, v)) for k, v in found.items() if k in baseline or not baseline}
-        BASELINE.write_text(json.dumps(dict(sorted(kept.items())), indent=2) + "\n", encoding="utf-8")
+        BASELINE.write_text(json.dumps(dict(sorted(kept.items())), indent=2) + "\n", encoding="utf-8", newline="\n")
     for line in problems:
         print("FAIL", line)
     for key in sorted(set(baseline) - set(found)):

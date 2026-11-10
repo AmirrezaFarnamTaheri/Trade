@@ -27,6 +27,7 @@ from ..services.collector import Collector, now_utc
 from ..services.external_journal import ExternalJournal
 from ..services.liquidity import liquidity_snapshot
 from ..services.offline_review_journal import OfflineReviewJournal
+from ..services.operator_timeline import timeline
 from ..services.portable_report import render_html
 from ..services.readiness import current_top, operational_readiness
 from ..services.reports import economic_report, paper_summary
@@ -458,6 +459,17 @@ class _WorkspaceApi:
             return web.json_response({"state": "UNREADABLE"}, status=503)
         return web.json_response({"state": "REPORTED", **report})
 
+    async def timeline_api(self, req):
+        if self.runs is None:
+            return web.json_response({"events": [], "sources": {}, "read_only": True})
+        try:
+            limit = int(req.query.get("limit", "100"))
+            sources = set(req.query["source"].split(",")) if req.query.get("source") else None
+            value = await asyncio.to_thread(timeline, self.runs.parent, limit=limit, sources=sources)
+        except ValueError as error:
+            return web.json_response({"error": str(error)}, status=400)
+        return web.json_response(value)
+
     async def backup_status_api(self, req):
         if self.runs is None:
             return web.json_response({"state": "NOT_CONFIGURED"})
@@ -482,7 +494,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/", api.index), *(web.get("/" + asset, api.browser_asset) for asset in UI_ASSETS),
         web.get("/api/markets", api.markets), web.get("/api/health", api.health), web.get("/api/ready", api.ready),
         web.get("/api/capabilities", api.capabilities),
-        web.get("/api/backup-status", api.backup_status_api),
+        web.get("/api/backup-status", api.backup_status_api), web.get("/api/timeline", api.timeline_api),
         web.get("/api/account-observations", api.account_observations),
         web.get("/api/external-order-events", api.external_events),
         web.get("/api/venue-facts", api.venue_facts_api), web.get("/api/chaos-report", api.chaos_report_api),

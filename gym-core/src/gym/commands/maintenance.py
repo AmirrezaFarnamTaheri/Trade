@@ -402,3 +402,32 @@ def verify_backup_manifest_cmd(args) -> int:
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
+
+
+def timeline_cmd(args) -> int:
+    """Newest-first operator activity; read-only."""
+    import json
+
+    from ..services.operator_timeline import timeline
+    report = timeline(store_root(args), limit=args.limit, sources=set(args.source) if args.source else None)
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+    for event in report["events"]:
+        print(f"{event['at'][:19]}  {event['source']:<20} {event['kind']:<22} {event['summary']}")
+    print("sources:", ", ".join(f"{k}={v}" for k, v in report["sources"].items()))
+    return 0
+
+
+def actions_cmd(args) -> int:
+    """The research action table: CLI and browser availability."""
+    import json
+
+    from ..services.research_actions import action_catalog
+    catalog = action_catalog()
+    if args.json:
+        print(json.dumps(catalog, indent=2))
+        return 0
+    for row in catalog:
+        print(f"{row['action']:<28} {'cli+browser' if row['browser'] else 'cli only':<12} {row['browser_note'] or ''}")
+    return 0
