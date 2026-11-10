@@ -183,6 +183,32 @@ jobs:
       - if: always()
         run: uv run --with mutmut==2.5.1 mutmut results
 
+  rust-kernel:
+    # ADR 0005 stage 3: the simulator on the exec-core Rust kernel must pass the whole suite and match the Python path.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
+        with:
+          toolchain: 1.96.0
+          components: rustfmt, clippy
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: cargo fmt --manifest-path ../executor/exec-kernel-py/Cargo.toml --check
+      - run: cargo clippy --locked --manifest-path ../executor/exec-kernel-py/Cargo.toml -- -D warnings
+      - run: uv sync --locked --group dev
+      - run: uvx --from "maturin>=1.7,<2" maturin build --release -m ../executor/exec-kernel-py/Cargo.toml -o dist
+      - run: uv pip install --no-deps dist/*.whl
+      - name: Whole suite on the Rust kernel
+        run: GYM_RUST_KERNEL=1 uv run --no-sync pytest -q
+
   model-gateway:
     name: Advisory model gateway (${{ matrix.os }})
     strategy:

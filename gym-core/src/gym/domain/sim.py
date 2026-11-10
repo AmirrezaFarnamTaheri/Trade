@@ -190,6 +190,10 @@ MARKET_PRICE_GUARD = Decimal("0.02")
 
 def _walk(levels, qty: Decimal) -> Decimal:
     """Quote notional of taking `qty` best-first from observed levels; qty never exceeds their total."""
+    if _KERNEL is not None:
+        notional = _exact(_KERNEL.walk, [(_plain(p), _plain(z)) for p, z in levels], _plain(qty))
+        if notional is not None:
+            return Decimal(notional)
     notional, left = Decimal(0), qty
     for price, size in levels:
         take = min(size, left)
@@ -212,8 +216,36 @@ def _budget_qty(levels, budget: Decimal) -> Decimal:
     return qty
 
 
+# ADR 0005 stage 3: the package root injects the exec-core Rust kernel (exec_kernel) when GYM_RUST_KERNEL=1; the
+# domain itself reads no environment. Off by default.
+_KERNEL = None
+
+
+def use_kernel(module) -> None:
+    """Route sellable_quantity, _walk and _trips_price_guard through the Rust kernel (None restores Python)."""
+    global _KERNEL
+    _KERNEL = module
+
+
+def _exact(call, *args):
+    """The kernel refuses to round; past its 38-digit exact range (unknown venue precision) use the Python path."""
+    try:
+        return call(*args)
+    except ValueError:
+        return None
+
+
+def _plain(value: Decimal | None) -> str | None:
+    return None if value is None else format(value, "f")
+
+
 def sellable_quantity(quantity: Decimal, bid: Decimal, spec: Spec) -> Decimal:
     """Executable lot under known venue precision/minimums; never discards the actual balance."""
+    if _KERNEL is not None:
+        lot = _exact(_KERNEL.sellable, _plain(quantity), spec.qty_decimals, _plain(spec.min_qty),
+                     _plain(spec.min_notional), _plain(bid))
+        if lot is not None:
+            return Decimal(lot)
     quantity = _floor(quantity,spec.qty_decimals)
     return quantity if quantity>0 and (spec.min_qty is None or quantity>=spec.min_qty) and (spec.min_notional is None or quantity*bid>=spec.min_notional) else Decimal(0)
 
@@ -285,6 +317,10 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
 def _trips_price_guard(levels, qty: Decimal) -> bool:
     """Wallex cancels a market order that would move the price 2% (developers.wallex.ir spot-types, 2026-11-08);
     the best observed level stands in for the venue's last-trade reference."""
+    if _KERNEL is not None:
+        trips = _exact(_KERNEL.trips_price_guard, [(_plain(p), _plain(z)) for p, z in levels], _plain(qty))
+        if trips is not None:
+            return trips
     taken, worst = Decimal(0), levels[0][0]
     for level_price, size in levels:
         if taken >= qty:

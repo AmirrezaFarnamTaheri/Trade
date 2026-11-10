@@ -10,3 +10,4 @@ node_modules/
 .statamcp/
 .impeccable/
 .ruff_cache/
+executor/exec-kernel-py/target/

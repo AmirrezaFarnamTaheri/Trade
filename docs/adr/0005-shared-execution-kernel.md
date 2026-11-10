@@ -1,6 +1,6 @@
 # ADR 0005: One execution kernel for research and the executor
 
-Status: Proposed; stages 1-2 started (finding A-1 step 2; a quarter-scale project)
+Status: Stages 1-3 implemented for three rules; stage 4 (default) pending (finding A-1 step 2)
 
 ## Context
 
@@ -44,3 +44,19 @@ cannot be shown to survive the executor's own arithmetic.
   `contracts/v1/fixtures/price-guard.json`.
 - Next: order sizing from cash or holdings, then the PyO3 bridge (stage 3), which adds a native build to the
   Python toolchain and needs its own CI wheel job.
+
+## Stage 3 done (2026-11-10)
+
+- `executor/exec-kernel-py` (PyO3, abi3 for Python 3.11+) exposes `sellable`, `walk` and `trips_price_guard`
+  to Python as decimal strings. It builds with maturin outside the main workspace, so the executor never links
+  Python, and the product's four runtime dependencies are unchanged (the kernel is optional).
+- `GYM_RUST_KERNEL=1` makes the package root inject it into `gym.domain.sim` (`sim.use_kernel`); the domain reads
+  no environment. With it, the whole Python suite passes, and `test_rust_kernel_gives_byte_identical_orders_to_the_python_path`
+  shows 4,000 random market orders byte-identical to the Python path wherever venue precision is known.
+- Where venue precision is unknown, Python rounds in its 28-digit context and the kernel stays exact (for example a
+  walked buy priced exactly at the ask instead of one unit below it). Past the kernel's 38-digit exact range the
+  simulator falls back to the Python path rather than round in Rust.
+- CI job `rust-kernel` builds the wheel and runs the whole suite on it.
+- Stage 4, making the kernel the default, needs the wheel in the normal install path (a build step in
+  `Start-Workspace.ps1` or a published wheel); recommended once the remaining money rules (cash and holdings
+  sizing, fee pricing with cost models) are in the kernel.

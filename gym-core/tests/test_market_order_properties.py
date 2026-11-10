@@ -145,3 +145,31 @@ def test_price_guard_matches_the_shared_fixture_with_the_rust_kernel():
     for case in fixture["cases"]:
         levels = [(Decimal(p), Decimal(s)) for p, s in case["levels"]]
         assert _trips_price_guard(levels, Decimal(case["quantity"])) is case["trips"], case
+
+
+def test_rust_kernel_gives_byte_identical_orders_to_the_python_path():
+    """ADR 0005 stage 3: with exec_kernel installed, 4,000 random orders match the Python path exactly wherever
+    amounts are exact (known venue precision); elsewhere the kernel is the exact one."""
+    import copy
+
+    from gym.domain import sim
+    kernel = pytest.importorskip("exec_kernel")
+    previous = sim._KERNEL
+    try:
+        for seed in range(4000):
+            book_py, side, fraction, tops, cost, spec = case(seed)
+            book_rs = copy.deepcopy(book_py)
+            quote = tops[0].ask if side == "BUY" else tops[0].bid
+            sim.use_kernel(None)
+            python = market_order(book_py, INST, side, fraction, START, quote, tops, 0, cost, spec, [], {}, "o")
+            sim.use_kernel(kernel)
+            rust = market_order(book_rs, INST, side, fraction, START, quote, tops, 0, cost, spec, [], {}, "o")
+            if spec.qty_decimals is not None:  # exact amounts: the two paths must agree byte for byte
+                assert repr(python) == repr(rust) and book_py.balances == book_rs.balances, f"seed {seed}"
+            elif rust["status"] == "FILLED" and side == "BUY":
+                # Unknown precision: Python rounds in its 28-digit context, the kernel stays exact, so the kernel
+                # never reports a buy below the ask (the artefact the property tests found in the Python path).
+                first = next(t for t in tops if t.ts_avail >= START + cost.latency)
+                assert Decimal(rust["price"]) >= first.ask, f"seed {seed}"
+    finally:
+        sim.use_kernel(previous)

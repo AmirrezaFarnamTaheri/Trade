@@ -100,3 +100,15 @@ Real-browser checks depend on an installed supported browser and are not implied
 by API or DOM contract tests. Installed-host security drills, funded-cost
 measurement, future evaluation windows and physical-host recovery have separate
 acceptance evidence.
+
+## Optional Rust money kernel
+
+The simulator can run its sizing, depth-walk and price-guard rules in the executor's Rust kernel (ADR 0005):
+
+```powershell
+uvx --from "maturin>=1.7,<2" maturin build --release -m ../executor/exec-kernel-py/Cargo.toml -o dist
+uv pip install --no-deps dist\exec_kernel-*.whl
+$env:GYM_RUST_KERNEL = "1"; uv run --no-sync gymctl ...
+```
+
+`uv run` without `--no-sync` removes the wheel again, because it is deliberately not a locked dependency.

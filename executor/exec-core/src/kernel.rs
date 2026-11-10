@@ -18,7 +18,7 @@ impl Exact {
             || !whole.bytes().all(|b| b.is_ascii_digit())
             || !fraction.bytes().all(|b| b.is_ascii_digit())
             || (text.contains('.') && fraction.is_empty())
-            || fraction.len() > 30
+            || whole.trim_start_matches('0').len() + fraction.len() > 38
         {
             return None;
         }
@@ -47,10 +47,14 @@ impl Exact {
         })
     }
 
-    /// Round toward zero to `decimals` places.
+    /// Round toward zero to exactly `decimals` places (padding a shorter value), as Python's
+    /// `Decimal.quantize(..., ROUND_DOWN)` does, so both print the same text.
     pub fn floor(self, decimals: u32) -> Option<Self> {
         if self.scale <= decimals {
-            return Some(self);
+            return Some(Self {
+                mantissa: self.rescale(decimals)?,
+                scale: decimals,
+            });
         }
         Some(Self {
             mantissa: self.mantissa / 10u128.checked_pow(self.scale - decimals)?,
@@ -129,10 +133,11 @@ pub fn walk(levels: &[(Exact, Exact)], quantity: Exact) -> Option<Exact> {
         if left.is_zero() {
             break;
         }
-        let take = if size.cmp_value(left)? == std::cmp::Ordering::Less {
-            size
-        } else {
+        // Python's min(size, left) returns `size` on a tie; matching it keeps the decimal exponent identical.
+        let take = if left.cmp_value(size)? == std::cmp::Ordering::Less {
             left
+        } else {
+            size
         };
         notional = notional.checked_add(take.checked_mul(price)?)?;
         left = left.checked_sub(take)?;
@@ -188,4 +193,18 @@ pub fn trips_price_guard(levels: &[(Exact, Exact)], quantity: Exact) -> Option<b
         scale: 0,
     };
     Some(distance.checked_mul(fifty)?.cmp_value(best)? == std::cmp::Ordering::Greater)
+}
+
+impl std::fmt::Display for Exact {
+    /// Plain decimal text with exactly `scale` fraction digits, as Python's Decimal prints a quantized value.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let digits = self.mantissa.to_string();
+        let scale = self.scale as usize;
+        if scale == 0 {
+            return f.write_str(&digits);
+        }
+        let padded = format!("{digits:0>width$}", width = scale + 1);
+        let (whole, fraction) = padded.split_at(padded.len() - scale);
+        write!(f, "{whole}.{fraction}")
+    }
 }
