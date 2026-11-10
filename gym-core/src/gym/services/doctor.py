@@ -8,6 +8,7 @@ from __future__ import annotations
 import shutil
 import sqlite3
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from pathlib import Path
 
 PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
@@ -28,7 +29,7 @@ def _market(root: Path, now: datetime, full: bool, archives: list[Path], quick: 
     try:
         # Newest quote by insertion order: O(1) even on a multi-gigabyte store.
         newest = db.c.execute("SELECT ts_avail FROM book_top ORDER BY rowid DESC LIMIT 1").fetchone()
-        out = [_freshness(newest[0] if newest else None, now)]
+        out = [_freshness(newest[0] if newest else None, now), _gaps(db, now)]
         if quick:  # alerting mode: no integrity scan or re-hashing every half hour
             return out
         check = db.c.execute("PRAGMA quick_check").fetchone()[0]
@@ -48,6 +49,25 @@ def _market(root: Path, now: datetime, full: bool, archives: list[Path], quick: 
     out.append(_check("segment_manifest", WARN if loose else PASS,
                       f"unclosed {report['unclosed'] or 'none'}; unregistered {report['unregistered'] or 'none'}"))
     return out
+
+
+GAP_LIMIT = timedelta(minutes=10)
+HEARTBEAT = "wallex:USDTTMN"  # the busiest TMN leg; the collector also writes heartbeats for quiet books
+
+
+def _gaps(db, now: datetime):
+    """O-6: the longest hole in the last 24 hours of collection, so a sleep, sign-out or crash is reported on return."""
+    since = (now - timedelta(days=1)).astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    rows = [r[0] for r in db.c.execute("SELECT ts_avail FROM book_top WHERE instrument_id=? AND ts_avail>=? "
+                                       "ORDER BY ts_avail", (HEARTBEAT, since))]
+    if len(rows) < 2:
+        return _check("collection_gaps", SKIP, "fewer than two heartbeat quotes in the last 24 hours")
+    stamps = [datetime.fromisoformat(r) for r in rows]
+    width, start = max(((b - a), a) for a, b in pairwise(stamps))
+    if width <= GAP_LIMIT:
+        return _check("collection_gaps", PASS, f"longest gap in 24 h {width.total_seconds() / 60:.1f} min")
+    return _check("collection_gaps", WARN, f"collection gap of {width.total_seconds() / 60:.0f} min from "
+                  f"{start.isoformat(timespec='seconds')} (sleep, sign-out, crash or venue outage)")
 
 
 def _freshness(newest: str | None, now: datetime):

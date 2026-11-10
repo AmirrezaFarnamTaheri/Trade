@@ -110,6 +110,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   skip redundant work with identical results; about 5x faster per run.
 - CSP drops `style-src 'unsafe-inline'`: chart markers are positioned through the DOM style API and the waterfall grid
   sizes itself in CSS; a test refuses any style attribute in the UI [S-13].
+- Collector task gains a 5-minute watchdog trigger (past the 999-restart cap) and an opt-in `-RunWhileSignedOut` (S4U);
+  backup tasks wake the laptop; `doctor` reports the longest collection gap in 24 h, so sleeps and sign-outs alert on
+  return [O-6].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

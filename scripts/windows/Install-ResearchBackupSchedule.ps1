@@ -35,7 +35,8 @@ $command = "& '$uv' run gymctl --data '$data' backup-research '$Destination' --k
            "& '$uv' run gymctl --data '$data' research-restore-drill '$Destination' --stored-passphrase; exit `$LASTEXITCODE"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -Command `"$command`"" -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 4) -MultipleInstances IgnoreNew
+# O-6: wake a sleeping laptop for the backup, and run a missed one as soon as the machine is next available.
+$settings = New-ScheduledTaskSettingsSet -WakeToRun -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 4) -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 if ($PSCmdlet.ShouldProcess($TaskName, "Register nightly research backup of $data to $Destination at $At")) {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null

@@ -244,3 +244,35 @@ def test_no_tracked_file_is_also_ignored():
     out = subprocess.run([git, "ls-files", "-ci", "--exclude-standard"], cwd=root, capture_output=True, text=True,
                          check=False)
     assert out.returncode != 0 or out.stdout.strip() == "", out.stdout
+
+
+def test_doctor_reports_a_collection_gap_on_return(tmp_path):
+    """O-6: a sleep or sign-out leaves a hole in the heartbeat market; quick doctor (the alert path) reports it."""
+    from datetime import UTC, datetime, timedelta
+    from decimal import Decimal
+
+    from gym.adapters.store import MarketDB
+    from gym.domain.model import BookTop
+    from gym.services.doctor import diagnose
+    now = datetime(2026, 11, 10, 12, tzinfo=UTC)
+    db = MarketDB(tmp_path / "market.db")
+    stamps = [now - timedelta(hours=5) + timedelta(minutes=m) for m in range(60)]
+    stamps += [now - timedelta(minutes=30) + timedelta(minutes=m) for m in range(30)]  # a 3.5-hour hole between
+    for t in stamps:
+        db.add_book_top(BookTop("USDTTMN", t, Decimal(260000), Decimal(260100), Decimal(1), Decimal(1), frozenset()), None)
+    db.c.close()
+    checks = {c["check"]: c for c in diagnose(tmp_path, now, quick=True)["checks"]}
+    assert checks["collection_gaps"]["status"] == "WARN" and "211 min" in checks["collection_gaps"]["detail"]
+
+
+def test_collector_and_backup_tasks_survive_sleep_sign_out_and_the_restart_cap():
+    """O-6: a watchdog trigger past the 999-restart cap, optional signed-out running, and backups that wake the laptop."""
+    from pathlib import Path
+    scripts = Path(__file__).resolve().parents[2] / "scripts/windows"
+    collector = (scripts / "Install-Collector.ps1").read_text(encoding="utf-8")
+    assert "-RepetitionInterval (New-TimeSpan -Minutes $WatchdogMinutes)" in collector
+    assert "$trigger = @($logon, $watchdog)" in collector and "-MultipleInstances IgnoreNew" in collector
+    assert "'S4U'" in collector and "[switch]$RunWhileSignedOut" in collector
+    for name in ("Install-BackupSchedule.ps1", "Install-ResearchBackupSchedule.ps1"):
+        text = (scripts / name).read_text(encoding="utf-8")
+        assert "-WakeToRun -StartWhenAvailable" in text, name
