@@ -142,3 +142,13 @@ access for every key/model. The accompanying suite passed 29 tests, with one
 Windows file-symlink test skipped because the required privilege was unavailable.
 
 Local execution was on Windows with Node v26.1.0 and Python 3.11.9. Node 22/Linux compatibility is targeted by the package engine and parent CI, not claimed as locally executed. Live OAuth login, provider refresh, subscription entitlement and paid requests remain untested. `--device` selects the SDK device flow only for legacy `openai-codex`; current `openai` ChatGPT OAuth is browser/manual-callback only in SDK 1.5.0. OAuth support does not assert compliance with subscription terms. Built-in catalogs and estimated prices can be stale; custom endpoint pricing remains unknown without an explicit provider-reported cost.
+
+## Dependency audit (2026-11-10)
+
+The one direct dependency, `@earendil-works/pi-ai` 1.5.0, declares the Anthropic, OpenAI, Google GenAI and AWS
+Bedrock SDKs as hard dependencies, which is why about 87 packages are installed. They cannot be dropped without
+forking the library. A review of its bundled code found no telemetry or unexpected outbound path:
+`pi-telemetry` holds type contracts only; the only non-provider hosts are a source comment, the default URL of a
+provider this gateway never configures, and attribution headers that are sent only when a caller sets an
+identity, which the gateway does not. Requests use `redirect: 'error'`, and the gateway runs with an
+allowlisted environment and optional `policy.allowedHosts`. Re-run this review when the dependency is upgraded.

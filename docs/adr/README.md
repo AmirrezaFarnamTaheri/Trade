@@ -6,5 +6,6 @@
 | [0002](0002-fail-closed-money-path.md) | The money path fails closed | Accepted (OD-5) |
 | [0003](0003-reservation-model.md) | Reservation model for funded orders | Implemented, not wired |
 | [0004](0004-bounded-startup-replay.md) | Bounded executor startup | Partly implemented |
+| [0005](0005-shared-execution-kernel.md) | One execution kernel for research and the executor | Proposed |
 
 A Proposed ADR changes money-path code and needs the pre-funding review before it is built.
