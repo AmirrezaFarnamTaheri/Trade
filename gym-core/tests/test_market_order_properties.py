@@ -133,3 +133,15 @@ def test_walk_and_settlement_match_the_shared_fixture_with_the_rust_kernel():
         assert Decimal(fill["fee"]) == Decimal(case["fee"]), case
         assert book.get("BTC") - before["BTC"] == Decimal(case["base_delta"]), case
         assert book.get("USDT") - before["USDT"] == Decimal(case["quote_delta"]), case
+
+
+def test_price_guard_matches_the_shared_fixture_with_the_rust_kernel():
+    """contracts/v1/fixtures/price-guard.json is also checked by exec-core kernel::trips_price_guard (ADR 0005)."""
+    import json
+    from pathlib import Path
+
+    from gym.domain.sim import _trips_price_guard
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "contracts/v1/fixtures/price-guard.json").read_text("utf-8"))
+    for case in fixture["cases"]:
+        levels = [(Decimal(p), Decimal(s)) for p, s in case["levels"]]
+        assert _trips_price_guard(levels, Decimal(case["quantity"])) is case["trips"], case

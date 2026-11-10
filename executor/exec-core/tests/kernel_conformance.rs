@@ -79,3 +79,22 @@ fn walk_and_settlement_match_the_shared_fixture() {
     let shallow = [(Exact::parse("100").unwrap(), Exact::parse("1").unwrap())];
     assert!(walk(&shallow, Exact::parse("1.5").unwrap()).is_none());
 }
+
+#[test]
+fn price_guard_matches_the_shared_fixture() {
+    use exec_core::kernel::trips_price_guard;
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../contracts/v1/fixtures/price-guard.json"
+    ))
+    .unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        let levels: Vec<(Exact, Exact)> = case["levels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| (exact(&l[0]).unwrap(), exact(&l[1]).unwrap()))
+            .collect();
+        let trips = trips_price_guard(&levels, exact(&case["quantity"]).unwrap()).unwrap();
+        assert_eq!(trips, case["trips"].as_bool().unwrap(), "{case}");
+    }
+}

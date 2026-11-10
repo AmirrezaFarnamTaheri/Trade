@@ -159,3 +159,33 @@ pub fn settle(
         Some((fee, (quantity, true), (notional.checked_sub(fee)?, false)))
     }
 }
+
+/// Wallex cancels a market order that would move the price more than 2% from the best level.
+/// Mirrors gym/domain/sim.py `_trips_price_guard`; exactly 2% does not trip.
+pub fn trips_price_guard(levels: &[(Exact, Exact)], quantity: Exact) -> Option<bool> {
+    let best = levels.first()?.0;
+    let (mut taken, mut worst) = (
+        Exact {
+            mantissa: 0,
+            scale: 0,
+        },
+        best,
+    );
+    for &(price, size) in levels {
+        if taken.cmp_value(quantity)? != std::cmp::Ordering::Less {
+            break;
+        }
+        taken = taken.checked_add(size)?;
+        worst = price;
+    }
+    let distance = if worst.cmp_value(best)? == std::cmp::Ordering::Less {
+        best.checked_sub(worst)?
+    } else {
+        worst.checked_sub(best)?
+    };
+    let fifty = Exact {
+        mantissa: 50,
+        scale: 0,
+    };
+    Some(distance.checked_mul(fifty)?.cmp_value(best)? == std::cmp::Ordering::Greater)
+}

@@ -40,4 +40,7 @@ cannot be shown to survive the executor's own arithmetic.
   `gym-core/tests/test_market_order_properties.py`).
 - `kernel::walk` (depth-walk notional) and `kernel::settle` (fee in the received asset, balance deltas) follow,
   pinned with the simulator's `_walk` and `_settle` by `contracts/v1/fixtures/fills.json`.
-- Next: the 2% venue price guard and minimum-notional rejection, then the PyO3 bridge (stage 3).
+- `kernel::trips_price_guard` (the 2% venue guard, exact at the boundary) is pinned with `_trips_price_guard` by
+  `contracts/v1/fixtures/price-guard.json`.
+- Next: order sizing from cash or holdings, then the PyO3 bridge (stage 3), which adds a native build to the
+  Python toolchain and needs its own CI wheel job.

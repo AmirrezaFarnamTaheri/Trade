@@ -1,0 +1,13 @@
+{
+  "rule": "Walking levels best-first until the quantity is covered, the order trips the venue guard when the last level reached is more than 2% from the best level (exactly 2% does not trip). Python gym/domain/sim.py _trips_price_guard, Rust exec-core kernel::trips_price_guard (ADR 0005).",
+  "cases": [
+    {"levels": [["100", "1"], ["101", "1"], ["103", "5"]], "quantity": "1", "trips": false},
+    {"levels": [["100", "1"], ["101", "1"], ["103", "5"]], "quantity": "1.5", "trips": false},
+    {"levels": [["100", "1"], ["101", "1"], ["103", "5"]], "quantity": "2.5", "trips": true},
+    {"levels": [["100", "1"], ["102", "1"]], "quantity": "1.5", "trips": false},
+    {"levels": [["100", "1"], ["102.01", "1"]], "quantity": "1.5", "trips": true},
+    {"levels": [["100", "1"], ["98", "1"]], "quantity": "2", "trips": false},
+    {"levels": [["100", "1"], ["97.99", "1"]], "quantity": "2", "trips": true},
+    {"levels": [["70000", "0.5"], ["70000.01", "10"]], "quantity": "3", "trips": false}
+  ]
+}
