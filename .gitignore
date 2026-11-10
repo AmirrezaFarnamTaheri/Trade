@@ -8,6 +8,7 @@ __pycache__/
 /target/
 node_modules/
 .statamcp/
-.impeccable/
+# .impeccable/ holds tracked design sources (tokens, surface notes, mocks); not ignored (finding G-3).
+.impeccable/comp/
 .ruff_cache/
 executor/exec-kernel-py/target/

@@ -229,3 +229,18 @@ def test_crash_tails_are_registered_with_their_readable_range_and_left_unchanged
     assert report["unregistered"] == [] and report["mismatched"] == [] and report["checked"] == 1
     assert path.read_bytes() == before
     assert db.quality(5)[0][2] == "SEGMENT_RECOVERED"
+
+
+def test_no_tracked_file_is_also_ignored():
+    """G-3: an ignore rule that matches tracked files means the rules are not enforced."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    git = shutil.which("git")
+    if git is None:
+        return
+    root = Path(__file__).resolve().parents[2]
+    out = subprocess.run([git, "ls-files", "-ci", "--exclude-standard"], cwd=root, capture_output=True, text=True,
+                         check=False)
+    assert out.returncode != 0 or out.stdout.strip() == "", out.stdout
