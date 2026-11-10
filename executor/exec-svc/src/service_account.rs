@@ -1,5 +1,5 @@
 //! Service-only, fixed-origin GET transport. A response is observation, never permission proof.
-use crate::credential_vault::{Secret, Vault};
+use crate::credential_vault::Secret;
 use exec_ipc::provision::{AccountResource, MAX_ACCOUNT_BODY};
 use std::{
     ffi::c_void,
@@ -80,10 +80,10 @@ fn finish_observation(body: Secret, key: &Secret, elapsed: Duration) -> io::Resu
     Ok(body)
 }
 
-pub fn read(vault: &Vault, resource: &AccountResource) -> io::Result<Secret> {
+/// One venue read with a key copied out of the vault, so the vault lock is not held across network I/O.
+pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
     let path = wide(&resource.path().map_err(|_| uncertain())?);
-    let key = vault.load_current_secret()?.ok_or_else(uncertain)?;
-    let header = key_header(&key)?;
+    let header = key_header(key)?;
     let started = Instant::now();
     unsafe {
         let session = Handle::checked(WinHttpOpen(
@@ -168,7 +168,7 @@ pub fn read(vault: &Vault, resource: &AccountResource) -> io::Result<Secret> {
             }
             body.0.extend_from_slice(&chunk.0[..count as usize]);
         }
-        finish_observation(body, &key, started.elapsed())
+        finish_observation(body, key, started.elapsed())
     }
 }
 

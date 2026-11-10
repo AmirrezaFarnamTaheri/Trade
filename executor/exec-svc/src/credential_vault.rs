@@ -267,6 +267,22 @@ pub struct Vault {
     limits: Option<DurableOrderJournal>,
     mode: exec_ipc::provision::StartupMode,
 }
+/// The key and generation copied out of the vault for one account read; the key is wiped on drop.
+pub struct AccountRead {
+    pub key: Secret,
+    generation: [u8; 16],
+    started_at_ms: u64,
+}
+
+fn now_ms() -> io::Result<u64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(io::Error::other)?
+        .as_millis()
+        .try_into()
+        .map_err(io::Error::other)
+}
+
 impl Vault {
     pub fn open(sid: &str) -> io::Result<Self> {
         Self::open_mode(sid, exec_ipc::provision::StartupMode::Normal)
@@ -579,16 +595,10 @@ impl Vault {
         Ok(reply)
     }
 
-    /// Only fixed-origin service bytes can enter the protected observation journal.
-    pub fn observe_account(
-        &mut self,
-        resource: &exec_ipc::provision::AccountResource,
-        request_id: [u8; 16],
-        runtime_epoch: u64,
-    ) -> io::Result<Option<(Secret, Option<exec_ipc::account::ObservationReceipt>)>> {
-        use exec_ipc::provision::AccountResource;
-        use exec_svc::account_observation::{AccountKind, AccountObservation};
-        use exec_svc::offline_recovery::RecoveryError;
+    /// Phase one of an account read, under the vault lock: check identity and mode, then copy out the current
+    /// key and its generation. The caller releases the lock for the venue read, so a slow venue cannot stall
+    /// every other privileged request (finding A-3).
+    pub fn begin_account_read(&self) -> io::Result<Option<AccountRead>> {
         require_service_identity()?;
         if !self.mode.allows_account_read() {
             return Ok(None);
@@ -597,20 +607,40 @@ impl Vault {
             return Ok(None);
         };
         let generation = metadata.generation;
-        let clock = || -> io::Result<u64> {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(io::Error::other)?
-                .as_millis()
-                .try_into()
-                .map_err(io::Error::other)
+        let Some(key) = self.load_current_secret()? else {
+            return Ok(None);
         };
-        let started_at_ms = clock()?;
-        let body = match crate::service_account::read(self, resource) {
-            Ok(body) => body,
-            Err(_) => return Ok(None),
+        Ok(Some(AccountRead {
+            key,
+            generation,
+            started_at_ms: now_ms()?,
+        }))
+    }
+
+    /// Phase two, under the lock again: only fixed-origin service bytes can enter the protected observation
+    /// journal. Mode and key generation are re-checked, because either may have changed during the read; a
+    /// rotated key fails the journal's generation check and nothing is recorded.
+    pub fn finish_account_read(
+        &mut self,
+        read: AccountRead,
+        resource: &exec_ipc::provision::AccountResource,
+        body: io::Result<Secret>,
+        request_id: [u8; 16],
+        runtime_epoch: u64,
+    ) -> io::Result<Option<(Secret, Option<exec_ipc::account::ObservationReceipt>)>> {
+        use exec_ipc::provision::AccountResource;
+        use exec_svc::account_observation::{AccountKind, AccountObservation};
+        use exec_svc::offline_recovery::RecoveryError;
+        require_service_identity()?;
+        let received_at_ms = now_ms()?;
+        let Ok(body) = body else {
+            return Ok(None);
         };
-        let received_at_ms = clock()?;
+        if !self.mode.allows_account_read() {
+            return Ok(None);
+        }
+        let (generation, started_at_ms) = (read.generation, read.started_at_ms);
+        drop(read);
         let observed = match resource {
             AccountResource::KnownClientOrder(client_id) => {
                 AccountObservation::from_order_response(

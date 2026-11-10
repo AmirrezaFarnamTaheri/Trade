@@ -172,16 +172,28 @@ pub async fn serve(
                             }
                         }
                         Request::Account(resource, correlation, receipts) => {
-                            // This T2 thread may block; independent authenticated T0 never waits on it.
-                            let observed = {
-                                let mut owner = vault
-                                    .lock()
-                                    .map_err(|_| io::Error::other("vault poisoned"))?;
-                                owner.observe_account(
-                                    &resource,
-                                    correlation,
-                                    operator.gate.runtime_epoch(),
-                                )?
+                            // The vault lock is held only to copy the key out and to record the result,
+                            // never across the venue read, so a slow venue cannot stall review or ceiling
+                            // requests. Independent authenticated T0 never waits on this thread at all.
+                            let plan = vault
+                                .lock()
+                                .map_err(|_| io::Error::other("vault poisoned"))?
+                                .begin_account_read()?;
+                            let observed = match plan {
+                                None => None,
+                                Some(plan) => {
+                                    let body = crate::service_account::read(&plan.key, &resource);
+                                    vault
+                                        .lock()
+                                        .map_err(|_| io::Error::other("vault poisoned"))?
+                                        .finish_account_read(
+                                            plan,
+                                            &resource,
+                                            body,
+                                            correlation,
+                                            operator.gate.runtime_epoch(),
+                                        )?
+                                }
                             };
                             if let Some((body, receipt)) = observed {
                                 let reply = if receipts {
