@@ -39,3 +39,13 @@ random interleavings of admissions, partial fills, tolerated and untolerated ove
 credits and observations: the venue balance never goes negative, and after settling and one fresh observation no
 hold or spend remains and the full balance is usable again. The same file records the current book's wedge on a
 one-quantum credit. Swapping the service over needs a journal migration plan and the review.
+
+## Decision taken for the authoritative book (2026-11-10)
+
+`ReservationBook` keeps its exact settlement identity by default, because an unexplained surplus can mask an
+unexplained debit (a lost-acknowledgement fill hidden by a coincidental deposit; see
+`durable_fake_execution.rs` `unexplained_credit_does_not_release_an_unknown_entry`). It now takes an explicit
+`credit_tolerance` (`ReservationBook::with_credit_tolerance`), zero by default, that a reviewed venue dust rule can
+set: a release may then carry at most that much unexplained surplus, and never a shortfall. With zero the
+behaviour and journal replay are unchanged. Overlapping orders against different snapshots remain the open part;
+`ActiveHoldBook` is the candidate when funded multi-order work starts.

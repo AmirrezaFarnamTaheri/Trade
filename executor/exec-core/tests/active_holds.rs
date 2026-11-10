@@ -158,37 +158,60 @@ fn untolerated_overspend_blocks_entries_until_a_newer_observation() {
     book.reserve("c", "main", "USDT", 749).unwrap();
 }
 
-/// Characterises the current book (still authoritative): a one-quantum external credit wedges its release.
+/// Default book: exact, a dust credit keeps the hold. With a declared tolerance the credit releases; a shortfall
+/// never does.
 #[test]
-fn current_reservation_book_wedges_on_a_one_quantum_credit() {
+fn reservation_book_tolerates_only_a_declared_dust_credit_and_never_a_shortfall() {
+    let settled = || {
+        let mut attempt = Attempt::new(100).unwrap();
+        for event in [
+            Event::BeginSend,
+            Event::Acknowledged,
+            Event::TerminalReported,
+            Event::CumulativeFilled(100),
+            Event::SettlementVerified,
+        ] {
+            attempt.apply(event).unwrap();
+        }
+        attempt
+    };
+    let reserve = |book: &mut ReservationBook| {
+        book.reserve(
+            "a",
+            "main",
+            "USDT",
+            100,
+            &BalanceSnapshot::new("main", "USDT", 1000, 1).unwrap(),
+            &Attempt::new(100).unwrap(),
+        )
+        .unwrap();
+    };
+    // Spent 100 and the venue credited one quantum of dust: available 901.
+    let credit = SettlementEvidence::new("main", "USDT", 2, true, 0, 100, 901).unwrap();
     let mut book = ReservationBook::default();
-    let mut attempt = Attempt::new(100).unwrap();
-    book.reserve(
-        "a",
-        "main",
-        "USDT",
-        100,
-        &BalanceSnapshot::new("main", "USDT", 1000, 1).unwrap(),
-        &attempt,
-    )
-    .unwrap();
-    for event in [
-        Event::BeginSend,
-        Event::Acknowledged,
-        Event::TerminalReported,
-        Event::CumulativeFilled(100),
-        Event::SettlementVerified,
-    ] {
-        attempt.apply(event).unwrap();
-    }
-    // The venue settled 100 and credited one quantum of dust: available 901, spent 100.
-    let evidence = SettlementEvidence::new("main", "USDT", 2, true, 0, 100, 901).unwrap();
+    reserve(&mut book);
     assert_eq!(
-        book.release_settled("a", &attempt, &evidence),
+        book.release_settled("a", &settled(), &credit),
         Err(ReservationError::BalanceMismatch)
     );
-    assert!(
-        book.is_reserved("a"),
-        "the hold stays: this is the wedge ADR 0003 removes"
+    let mut book = ReservationBook::with_credit_tolerance(1);
+    reserve(&mut book);
+    book.release_settled("a", &settled(), &credit).unwrap();
+    assert!(!book.is_reserved("a"));
+    let two = SettlementEvidence::new("main", "USDT", 2, true, 0, 100, 902).unwrap();
+    let mut book = ReservationBook::with_credit_tolerance(1);
+    reserve(&mut book);
+    assert_eq!(
+        book.release_settled("a", &settled(), &two),
+        Err(ReservationError::BalanceMismatch)
     );
+    // Spent 100 but available is 899: money is missing, refused whatever the tolerance.
+    let mut book = ReservationBook::with_credit_tolerance(5);
+    reserve(&mut book);
+    let short = SettlementEvidence::new("main", "USDT", 2, true, 0, 100, 899).unwrap();
+    assert_eq!(
+        book.release_settled("a", &settled(), &short),
+        Err(ReservationError::BalanceMismatch)
+    );
+    assert!(book.is_reserved("a"));
 }

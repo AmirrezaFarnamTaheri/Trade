@@ -70,6 +70,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Arming policy: three validated options (cost-probe, pilot, extended) in `contracts/arm-policy/`, a per-order cap
   and daily order limit in the schema, `gymctl arm-policy list|show|set`, and `docs/arming-policy.md`; cost-probe
   installed as the active policy (records limits only; nothing is armed) [OD-2].
+- `ReservationBook::with_credit_tolerance`: an explicit, default-zero allowance for venue dust credits on settled
+  release; a shortfall is never tolerated and replay is unchanged at zero [A-6].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
