@@ -49,8 +49,9 @@ WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research",
 LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
                   "mcp", "claim-check", "review")
 MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic")
+ADVISORY_ACTIONS = ("entailment-check",)  # L-8: local typed-decision model, advisory only
 CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
-                                   *WORKSPACE_ACTIONS)))
+                                   *ADVISORY_ACTIONS, *WORKSPACE_ACTIONS)))
 CLI_ONLY_ACTIONS = {
     "tick": "scheduler step; the browser uses the dedicated research runner",
     "start": "long-running scheduler process",
@@ -65,8 +66,9 @@ CLI_ONLY_ACTIONS = {
     "paper-promotion-screen": "no browser form yet",
     "postfill-check": "no browser form yet",
     "shadow-drift-screen": "no browser form yet",
+    "entailment-check": "advisory model pilot (L-8); CLI until the pilot passes its thresholds",
 }
-OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
+OBJECT_ACTIONS = frozenset(("entailment-check", "register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
                            *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "prospective-status", "prospective-evaluate")]))
 
@@ -620,7 +622,13 @@ def _research_action_protocol_actions(root, action, value, store, at):
     return _NEXT
 
 
+def _research_action_entailment_check(root, action, value, store, at):
+    from .typed_decision import entailment_check
+    return entailment_check(root, value)
+
+
 _RESEARCH_HANDLERS = (
+    (frozenset(("entailment-check",)), _research_action_entailment_check),
     (frozenset(('premium-research', 'lead-lag-research')), _research_action_premium_research),
     (frozenset(('twap-preview', 'execution-choice-preview', 'adaptive-twap-preview')), _research_action_twap_preview),
     (frozenset(('fairprice-observe', 'fairprice-read')), _research_action_fairprice_observe),

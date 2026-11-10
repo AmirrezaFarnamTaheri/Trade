@@ -100,6 +100,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   gate is bound into the evaluation identity [report 4.10 TS-3].
 - Romano-Wolf stepdown (`domain/multiple_testing.py`): family-wise adjusted p-values for several candidates against
   one benchmark with a shared circular block bootstrap [report 4.10].
+- Advisory typed-decision client (`gymctl research entailment-check`): loopback-only, pinned model hash, redirects and
+  malformed replies degrade to null, never sets semantic grounding; `docs/model-pilots.md` [L-8, L-6, L-7].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
