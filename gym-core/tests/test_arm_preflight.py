@@ -5,7 +5,8 @@ from datetime import timedelta
 from gym.services.arm_preflight import POLICY, preflight, validate_policy
 from tests.support import START, market_db, quote_history
 
-GOOD = {"schema": 1, "loss_cap_quote": "50", "quote_asset": "USDT", "venue": "wallex", "symbols": ["BTCUSDT"],
+GOOD = {"schema": 1, "loss_cap_quote": "50", "max_order_quote": "20", "max_orders_per_day": 20, "quote_asset": "USDT",
+        "venue": "wallex", "symbols": ["BTCUSDT"],
         "kill": {"max_loss_quote": "25", "stale_data_seconds": 30, "max_open_orders": 1}, "expires_days": 7}
 
 
@@ -16,6 +17,17 @@ def test_policy_validation_requires_a_coherent_loss_cap_and_kill_rules():
     assert validate_policy({**GOOD, "symbols": ["BTCTMN"]})  # wrong quote currency
     assert validate_policy({**GOOD, "expires_days": 0})
     assert validate_policy({**GOOD, "extra": 1})
+    assert validate_policy({**GOOD, "max_order_quote": "60"})  # an order above the whole loss cap
+    assert validate_policy({**GOOD, "max_orders_per_day": 0})
+
+
+def test_every_shipped_option_is_valid_and_tiers_increase():
+    from pathlib import Path
+    options = Path(__file__).resolve().parents[2] / "contracts" / "arm-policy"
+    tiers = [json.loads((options / f"{name}.json").read_text("utf-8")) for name in ("cost-probe", "pilot", "extended")]
+    assert all(validate_policy(t) == [] for t in tiers)
+    caps = [float(t["loss_cap_quote"]) for t in tiers]
+    assert caps == sorted(caps) and tiers[0]["kill"]["max_open_orders"] == 1
 
 
 def test_preflight_stays_blocked_and_never_arms(tmp_path):

@@ -1,0 +1,3 @@
+{"schema": 1, "venue": "wallex", "quote_asset": "USDT", "symbols": ["ETHUSDT", "BTCUSDT"],
+ "loss_cap_quote": "200", "max_order_quote": "50", "max_orders_per_day": 40,
+ "kill": {"max_loss_quote": "100", "stale_data_seconds": 20, "max_open_orders": 3}, "expires_days": 30}

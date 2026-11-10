@@ -5,10 +5,12 @@ the checklist that path will require, computed from evidence available today, so
 A READY result is not permission; only the future privileged approval can arm, and only against a policy file
 whose hash is bound into the arm record.
 
-Policy file (written by the owner, never by this code): <data root>/live/arm-policy.json
-    {"schema": 1, "loss_cap_quote": "<decimal>", "quote_asset": "USDT|TMN", "venue": "wallex",
-     "symbols": ["BTCUSDT", ...], "kill": {"max_loss_quote": "<decimal>", "stale_data_seconds": <int>,
-     "max_open_orders": <int>}, "expires_days": <int 1..30>}
+Policy file: <data root>/live/arm-policy.json, chosen by the owner from contracts/arm-policy/ with
+`gymctl arm-policy set <option>` (see docs/arming-policy.md):
+    {"schema": 1, "venue": "wallex", "quote_asset": "USDT|TMN", "symbols": ["ETHUSDT", ...],
+     "loss_cap_quote": "<decimal>", "max_order_quote": "<decimal>", "max_orders_per_day": <int>,
+     "kill": {"max_loss_quote": "<decimal>", "stale_data_seconds": <int>, "max_open_orders": <int>},
+     "expires_days": <int 1..30>}
 """
 from __future__ import annotations
 
@@ -42,7 +44,8 @@ def validate_policy(policy: object) -> list[str]:
     if not isinstance(policy, dict):
         return ["policy must be a JSON object"]
     problems = []
-    expected = {"schema", "loss_cap_quote", "quote_asset", "venue", "symbols", "kill", "expires_days"}
+    expected = {"schema", "loss_cap_quote", "max_order_quote", "max_orders_per_day", "quote_asset", "venue", "symbols",
+                "kill", "expires_days"}
     if set(policy) != expected:
         problems.append(f"policy keys must be exactly {sorted(expected)}")
         return problems
@@ -50,6 +53,10 @@ def validate_policy(policy: object) -> list[str]:
         problems.append("schema 1, venue wallex, quote_asset USDT or TMN")
     if not _positive(policy["loss_cap_quote"]):
         problems.append("loss_cap_quote must be a positive decimal string")
+    elif not _positive(policy["max_order_quote"]) or Decimal(policy["max_order_quote"]) > Decimal(policy["loss_cap_quote"]):
+        problems.append("max_order_quote must be positive and at most loss_cap_quote")
+    if type(policy["max_orders_per_day"]) is not int or not 1 <= policy["max_orders_per_day"] <= 100:
+        problems.append("max_orders_per_day must be 1..100")
     symbols = policy["symbols"]
     if not (isinstance(symbols, list) and 1 <= len(symbols) <= 20
             and all(isinstance(s, str) and re.fullmatch(r"[A-Z0-9]{2,24}", s) for s in symbols)):

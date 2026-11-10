@@ -147,6 +147,38 @@ def recover_segments_cmd(args) -> int:
     return 0
 
 
+def arm_policy_cmd(args) -> int:
+    """Owner policy options live in contracts/arm-policy/; `set` copies one, validated, into the data root."""
+    import hashlib
+
+    from ..services.arm_preflight import POLICY, validate_policy
+    options = Path(__file__).resolve().parents[4] / "contracts" / "arm-policy"
+    names = sorted(p.stem for p in options.glob("*.json"))
+    if args.action == "list":
+        for name in names:
+            policy = json.loads((options / f"{name}.json").read_text("utf-8"))
+            print(f"{name:<11} loss cap {policy['loss_cap_quote']} {policy['quote_asset']}, orders up to "
+                  f"{policy['max_order_quote']}, {policy['max_orders_per_day']}/day, kill at {policy['kill']['max_loss_quote']}, "
+                  f"expires in {policy['expires_days']} days")
+        current = store_root(args) / POLICY
+        print(f"\nactive: {current if current.is_file() else 'none'}")
+        return 0
+    if args.option not in names:
+        raise ValueError(f"choose one of: {', '.join(names)}")
+    raw = (options / f"{args.option}.json").read_bytes()
+    problems = validate_policy(json.loads(raw))
+    if problems:
+        raise ValueError("; ".join(problems))
+    if args.action == "show":
+        print(raw.decode("utf-8"))
+        return 0
+    target = store_root(args) / POLICY
+    target.write_bytes(raw)
+    print(f"installed {args.option} as {target} (sha256 {hashlib.sha256(raw).hexdigest()[:16]}). "
+          "This records your limits only: nothing is armed, and arm-preflight still lists every other gate.")
+    return 0
+
+
 def arm_preflight_cmd(args) -> int:
     """Checklist only; exit 0 when READY, 1 when BLOCKED. Never arms."""
     from ..services.arm_preflight import preflight
