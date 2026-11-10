@@ -175,26 +175,15 @@ pub async fn serve(
                             // The vault lock is held only to copy the key out and to record the result,
                             // never across the venue read, so a slow venue cannot stall review or ceiling
                             // requests. Independent authenticated T0 never waits on this thread at all.
-                            let plan = vault
-                                .lock()
-                                .map_err(|_| io::Error::other("vault poisoned"))?
-                                .begin_account_read()?;
-                            let observed = match plan {
-                                None => None,
-                                Some(plan) => {
-                                    let body = crate::service_account::read(&plan.key, &resource);
-                                    vault
-                                        .lock()
-                                        .map_err(|_| io::Error::other("vault poisoned"))?
-                                        .finish_account_read(
-                                            plan,
-                                            &resource,
-                                            body,
-                                            correlation,
-                                            operator.gate.runtime_epoch(),
-                                        )?
-                                }
-                            };
+                            let epoch = operator.gate.runtime_epoch();
+                            let observed = exec_svc::read_outside_lock(
+                                &vault,
+                                |v| v.begin_account_read(),
+                                |plan| crate::service_account::read(&plan.key, &resource),
+                                |v, plan, body| {
+                                    v.finish_account_read(plan, &resource, body, correlation, epoch)
+                                },
+                            )?;
                             if let Some((body, receipt)) = observed {
                                 let reply = if receipts {
                                     exec_ipc::account::encode_reply(

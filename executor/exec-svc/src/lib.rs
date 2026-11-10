@@ -163,6 +163,22 @@ pub fn stopped_exit(
     (win32, privileged_failed.then_some(phase))
 }
 
+/// A-3: run a venue read with the vault lock held only to copy the credential out (`begin`) and to record the result
+/// (`finish`), never across the read itself, so a stalled venue cannot hold the vault against other privileged work.
+pub fn read_outside_lock<V, P, B, R>(
+    vault: &std::sync::Mutex<V>,
+    begin: impl FnOnce(&mut V) -> std::io::Result<Option<P>>,
+    read: impl FnOnce(&P) -> B,
+    finish: impl FnOnce(&mut V, P, B) -> std::io::Result<Option<R>>,
+) -> std::io::Result<Option<R>> {
+    let poisoned = || std::io::Error::other("vault poisoned");
+    let Some(plan) = begin(&mut *vault.lock().map_err(|_| poisoned())?)? else {
+        return Ok(None);
+    };
+    let body = read(&plan); // no guard is alive here
+    finish(&mut *vault.lock().map_err(|_| poisoned())?, plan, body)
+}
+
 /// S-9: who may write a provisioned configuration file (the stop-logon and operator SID files decide who may stop
 /// the executor). Pure rule over the owner and the ACEs Windows reports, so it is testable on any OS.
 pub mod config_trust {

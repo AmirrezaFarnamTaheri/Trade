@@ -9,8 +9,7 @@ Architecture (6)
 [ ] A-1 · Research and executor share no execution semantics · High · Effort XL
     Status: step 1 done (golden fill vectors, cross-language conformance). Step 2 partly done: Rust kernel, PyO3 bridge, byte-identical under GYM_RUST_KERNEL=1, CI job. The kernel is not yet the default, and sizing and cost pricing are not moved.
 [x] A-2 · Single-venue dependency, and collection is currently blocked · High · Effort M
-[ ] A-3 · The serial privileged pipe holds the vault mutex across blocking venue reads · Medium · Effort M
-    Status: credentials are copied out under the lock and venue I/O runs outside it (begin_account_read / finish_account_read). The stalled-venue chaos test from the validation is missing.
+[x] A-3 · The serial privileged pipe holds the vault mutex across blocking venue reads · Medium · Effort M
 [x] A-4 · Golden fixtures cover the v1 contracts only · Low · Effort M
 [ ] A-5 · The T2 thread's fate is the whole service's fate, and its startup replays the entire ledger inside a 5 s window · Low (Medium before funding) · Effort M
     Status: startup progress is reported for up to 120 s; replay measured at 0.31 s per 200k rows; the fault decision is recorded (ADR 0006) and tested. Checkpointed suffix replay with background verification is not built.
