@@ -30,6 +30,7 @@ from .commands.common import (
 from .commands.daemon import demo_seed, serve
 from .commands.maintenance import (
     arm_preflight_cmd,
+    assistant_eval_cmd,
     backup_once_cmd,
     backup_research_cmd,
     compact_cmd,
@@ -336,6 +337,10 @@ def main(argv=None):
     rcv.add_argument("--demo", action="store_true")
     apf = sub.add_parser("arm-preflight", help="read-only READY/BLOCKED checklist for a future funded probe; never arms")
     apf.add_argument("--demo", action="store_true")
+    aev = sub.add_parser("assistant-eval", help="score a model's strategy proposals against a no-model baseline (offline)")
+    aev.add_argument("--preset", help="model gateway preset to evaluate; omit to print only the baseline")
+    aev.add_argument("--cases", type=int, default=30)
+    aev.add_argument("--demo", action="store_true")
     dr = sub.add_parser("doctor", help="read-only workspace integrity check: stores, raw segments, journals, disk, backups, keys")
     dr.add_argument("--full", action="store_true", help="re-hash every raw segment, not only yesterday's and today's")
     dr.add_argument("--archive", action="append", default=[], help="also look in this archive folder (repeatable)")
@@ -364,7 +369,7 @@ def main(argv=None):
 
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "arm-preflight": arm_preflight_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "assistant-eval": assistant_eval_cmd, "arm-preflight": arm_preflight_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
                 "assistant": assistant_cmd, "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:

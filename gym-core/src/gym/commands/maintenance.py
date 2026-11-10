@@ -158,6 +158,42 @@ def arm_preflight_cmd(args) -> int:
     return 0 if report["state"] == "READY" else 1
 
 
+def assistant_eval_cmd(args) -> int:
+    """Baseline always; with --preset, the model through the gateway under the usage caps."""
+    import asyncio
+
+    from ..services.assistant_eval import baseline, cases, evaluate, verdict
+    prompt_set = cases(args.cases)
+    base = baseline(prompt_set)
+    if not args.preset:
+        print(json.dumps({"baseline": base}, indent=2))
+        return 0
+    from ..services.model_gateway import ModelGateway
+    from ..services.model_usage import ModelUsage
+    gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
+
+    async def run():
+        loop = asyncio.get_running_loop()
+        replies = []
+        try:
+            for case in prompt_set:
+                usage.check()
+                result = await gateway.request("complete", {"preset": args.preset, "prompt": case["prompt"]})
+                usage.record(result)
+                replies.append((case["prompt"], str(result.get("text", "")), loop.time()))
+        finally:
+            await gateway.close()
+        return replies
+    try:
+        replies = {p: t for p, t, _ in asyncio.run(run())}
+    finally:
+        usage.close()
+    report = verdict(evaluate(lambda prompt: replies[prompt], prompt_set), base)
+    report["note"] = "Latency here is replay of stored replies; see the usage ledger for provider timings."
+    print(json.dumps(report, indent=2))
+    return 0 if report["adopt"] else 1
+
+
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose
