@@ -281,7 +281,26 @@ mod windows_host {
             }
             stop_t2.store(true, Ordering::SeqCst);
         });
-        match privileged_rx.recv_timeout(Duration::from_secs(5)) {
+        // Journal open replays and hash-checks the whole ledger, which grows with history. Wait for it as long
+        // as it keeps working (up to two minutes), telling the service manager we are still starting, instead
+        // of failing a long but healthy ledger after a fixed five seconds (finding A-5, ADR 0004).
+        let started = std::time::Instant::now();
+        let mut checkpoint = 0;
+        let ready = loop {
+            match privileged_rx.recv_timeout(Duration::from_secs(1)) {
+                Err(mpsc::RecvTimeoutError::Timeout)
+                    if started.elapsed() < Duration::from_secs(120) =>
+                {
+                    checkpoint += 1;
+                    let mut pending = status(ServiceState::StartPending, 0);
+                    pending.checkpoint = checkpoint;
+                    pending.wait_hint = Duration::from_secs(5);
+                    status_handle.set_service_status(pending)?;
+                }
+                other => break other,
+            }
+        };
+        match ready {
             Ok(Ok(())) if !privileged_failed.load(Ordering::SeqCst) => {}
             result => {
                 let failure = match result {

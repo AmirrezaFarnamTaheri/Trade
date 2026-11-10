@@ -1,6 +1,6 @@
 # ADR 0004: Bounded executor startup
 
-Status: Proposed (finding A-5)
+Status: Partly implemented (finding A-5)
 
 ## Context
 
@@ -25,3 +25,13 @@ ledger, so a long enough ledger makes the service fail to start with an error th
 - A synthetic ledger of 10^6 rows starts within a stated bound.
 - A checkpoint whose derived-state digest is wrong stops the service.
 - The ledger anchors kept beside the backups (R-3) still verify across a checkpoint.
+
+## Implementation status (2026-11-10)
+
+- Measured (`exec-store/tests/startup_scale.rs`): 200,000 ledger rows of 300 bytes open, verify and fully replay in
+  0.31 s in the shipped release build (3.95 s in a debug build). Journal decode adds to this, and the vault opens
+  two journals, so the fixed window was the real risk only for long ledgers.
+- Done: the service now waits up to two minutes for the privileged thread, reporting START_PENDING with an
+  advancing checkpoint every second, instead of failing after five seconds.
+- Still proposed: checkpoint events with a derived-state digest and suffix-only replay. Not needed at current
+  volumes; revisit when the startup measurement in the service log approaches the two-minute bound.
