@@ -24,7 +24,19 @@ function performancePanel(perf, quote) {
   return `<section class="panel"><h3 class="panel-title">${esc(t("perfTitle"))}</h3><div class="stats stats-4">${stat(t("totalReturn"), pct(perf.total_return_pct))}${stat(t("maxDrawdown"), pct(perf.max_drawdown_pct, false))}${stat(t("sharpePeriod"), ratio(r.sharpe_per_period, 3), `${t("psr")}: ${percent(r.probabilistic_sharpe)}`)}${stat(t("winRate"), percent(tr.win_rate, 0), `${digits(tr.closed_trades ?? 0)} ${t("closedTrades")}`)}</div>
     ${keyValues(rows)}<p class="field-help">${esc(t("perfNote"))}</p>
     <details class="disclosure" data-key="metric-glossary"><summary>${esc(t("glossaryTitle"))}</summary><ul class="glossary">${GLOSSARY.map(key => `<li>${esc(t(key))}</li>`).join("")}</ul></details></section>
-    <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("tradesTitle"))} <span class="muted">${esc(quote)}</span></h3>${trades.length ? `<button type="button" class="button button-small" data-csv="trades">${esc(t("downloadCsv"))}</button>` : ""}</div><div class="cards">${table(heads, trades.slice(0, 25), t("noTrades"), numeric)}</div>${trades.length > 25 ? `<details class="disclosure" data-key="trades-more"><summary>${esc(t("showMore"))} · ${digits(trades.length - 25)}</summary>${table(heads, trades.slice(25), "", numeric)}</details>` : ""}</section>`;
+    <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("tradesTitle"))} <span class="muted">${esc(quote)}</span></h3>${trades.length ? `<button type="button" class="button button-small" data-csv="trades">${esc(t("downloadCsv"))}</button>` : ""}</div><div class="cards">${table(heads, trades.slice(0, 25), t("noTrades"), numeric)}</div>${trades.length > 25 ? `<details class="disclosure" data-key="trades-more"><summary>${esc(t("showMore"))} · ${digits(trades.length - 25)}</summary>${table(heads, trades.slice(25), "", numeric)}</details>` : ""}</section>${attributionPanel(perf, quote)}`;
+}
+/** U-2: closed trades by the signal that opened and the one that closed them (Freqtrade's entry/exit tag analysis). */
+function attributionPanel(perf, quote) {
+  const rows = list(perf.attribution);
+  if (!rows.length) return "";
+  const body = rows.map(row => `<tr><td>${esc(row.entry)}</td><td>${esc(row.exit)}</td><td class="numeric">${num(row.trades)}</td>
+    <td class="numeric">${num(row.wins)}</td><td class="numeric"><span class="${signed(row.pnl)}">${money(row.pnl)}</span></td>
+    <td class="numeric">${percent(row.average_return, 2)}</td></tr>`).join("");
+  return `<section class="panel"><h3 class="panel-title">${esc(t("attributionTitle"))} <span class="muted">${esc(quote)}</span></h3>
+    <div class="table-wrap" tabindex="0"><table><thead><tr><th>${esc(t("entrySignal"))}</th><th>${esc(t("exitSignal"))}</th>
+    <th class="numeric">${esc(t("attributionTrades"))}</th><th class="numeric">${esc(t("attributionWins"))}</th>
+    <th class="numeric">${esc(t("pnl"))}</th><th class="numeric">${esc(t("attributionAvgReturn"))}</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
 }
 function valuationPanel(result) {
   const valuation = result.valuation;

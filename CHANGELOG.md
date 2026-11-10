@@ -128,6 +128,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   rebuild time in the job summary; acceptance rows updated [O-5].
 - First learned component: advisory feed-anomaly classifier (logistic, pure Python, JSON artifact, fits counted as
   trials, ABSTAIN on a bad artifact); held-out AUROC 0.995 against 0.959 for the rule baseline on real data [M-2 step 2].
+- Per-signal attribution: closed trades grouped by entry and exit decision reasons in the performance report and a
+  bilingual run-view table [U-2].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

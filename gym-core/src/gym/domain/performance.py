@@ -333,6 +333,35 @@ def _sharpe_block(returns: list[float], periods_per_year: float | None, *, enhan
     return result
 
 
+def signal_attribution(result: dict) -> list[dict]:
+    """U-2: closed trades grouped by the reasons of the decision that opened them and of the one that closed them."""
+    def at(text):
+        try:
+            return iso(parse_ts(text)) if text else None
+        except ValueError:
+            return text
+
+    reasons = {at(d.get("t")): d.get("reasons") or [] for d in result.get("decisions", [])}
+    fills = {(o.get("side"), at(o.get("fill_time"))): o for o in result.get("orders", []) if o.get("status") == "FILLED"}
+
+    def tag(order):
+        if order is None:
+            return "unknown"
+        return "; ".join(reasons.get(at(order.get("decision_time")), [])) or "untagged"
+
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for trade in trade_ledger(result.get("orders", []), result.get("base") or "")["trades"]:
+        key = (tag(fills.get(("BUY", at(trade["opened_at"])))), tag(fills.get(("SELL", at(trade["closed_at"])))))
+        groups.setdefault(key, []).append(trade)
+    rows = []
+    for (entry, exit_), trades in groups.items():
+        pnls = [Decimal(t["pnl"]) for t in trades]
+        rows.append({"entry": entry, "exit": exit_, "trades": len(trades), "wins": sum(p > 0 for p in pnls),
+                     "pnl": str(sum(pnls, Decimal(0))),
+                     "average_return": round(fmean(float(t["return"]) for t in trades), 6)})
+    return sorted(rows, key=lambda r: (-r["trades"], r["entry"], r["exit"]))
+
+
 def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = False) -> dict:
     """Risk, return and trade statistics for one saved paper run."""
     result, inputs = record["result"], record["inputs"]
@@ -403,6 +432,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         win_rate, payoff = len(wins) / len(trades), float(gross_win / len(wins)) / float(gross_loss / len(losses))
         stats["kelly_fraction"] = round(max(0.0, win_rate - (1 - win_rate) / payoff), 4)
     out["trades"] = stats
+    out["attribution"] = signal_attribution(result)
     out["ledger"] = trades
     return out
 

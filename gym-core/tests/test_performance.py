@@ -148,3 +148,21 @@ def test_bootstrap_range_and_benchmark_against_holding_the_base():
     bench = perf["benchmark"]
     assert bench["name"] == "hold BTC" and bench["beta"] == pytest.approx(1) and bench["alpha_per_period"] == pytest.approx(0, abs=1e-12)
     assert bench["correlation"] == pytest.approx(1)
+
+
+def test_signal_attribution_groups_trades_by_entry_and_exit_reasons():
+    """U-2: per-signal attribution joins each closed trade to the decisions that opened and closed it."""
+    from gym.domain.performance import signal_attribution
+    t = [f"2026-11-01T00:0{i}:00Z" for i in range(8)]
+    decisions = [{"t": t[0], "reasons": ["cross up"]}, {"t": t[2], "reasons": ["cross down"]},
+                 {"t": t[4], "reasons": ["breakout"]}, {"t": t[6], "reasons": []}]
+
+    def order(side, decided, filled, price):
+        return {"side": side, "status": "FILLED", "decision_time": decided, "fill_time": filled, "qty": "1",
+                "price": price, "fee": "0", "fee_ccy": "USDT", "ref": filled}
+    result = {"base": "BTC", "decisions": decisions, "orders": [
+        order("BUY", t[0], t[1], "100"), order("SELL", t[2], t[3], "110"),
+        order("BUY", t[4], t[5], "100"), order("SELL", t[6], t[7], "90")]}
+    rows = {(r["entry"], r["exit"]): r for r in signal_attribution(result)}
+    assert rows[("cross up", "cross down")]["wins"] == 1 and rows[("cross up", "cross down")]["pnl"] == "10"
+    assert rows[("breakout", "untagged")]["trades"] == 1 and rows[("breakout", "untagged")]["wins"] == 0
