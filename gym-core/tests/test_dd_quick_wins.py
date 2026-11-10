@@ -196,3 +196,36 @@ def test_quick_doctor_reports_feed_freshness_without_scanning(tmp_path):
     assert fresh["collector_feed"] == "PASS" and "raw_segments" not in fresh and "market_db" not in fresh
     stale = {c["check"]: c for c in diagnose(root, newest + timedelta(hours=2), quick=True)["checks"]}
     assert stale["collector_feed"]["status"] == "WARN" and "collector stopped" in stale["collector_feed"]["detail"]
+
+
+def test_crash_tails_are_registered_with_their_readable_range_and_left_unchanged(tmp_path):
+    import os
+
+    from gym.adapters.store import (
+        MarketDB,
+        SegmentWriter,
+        recover_segments,
+        verify_segments,
+    )
+    db = MarketDB(tmp_path / "market.db")
+    writer = SegmentWriter(tmp_path / "raw", db)
+    for i in range(50):
+        writer.write("ws", f"frame {i} " + "x" * 200, START + timedelta(seconds=i))
+    writer.close()
+    [(seg_id,)] = db.c.execute("select seg_id from segments").fetchall()
+    path = tmp_path / "raw" / seg_id
+    db.c.execute("delete from segments")  # as if the manifest row had never been written
+    path.write_bytes(path.read_bytes()[: path.stat().st_size * 2 // 3])  # hard kill mid-frame
+    old = path.stat().st_mtime - 3600
+    os.utime(path, (old, old))
+    before = path.read_bytes()
+    from datetime import UTC, datetime
+    now = datetime.now(UTC)
+    [dry] = recover_segments(db, tmp_path / "raw", now)
+    assert not dry["complete"] and 0 < dry["records"] < 50 and dry["seq_from"] == 1
+    assert verify_segments(db, [tmp_path / "raw"])["unregistered"] == [seg_id]  # dry run wrote nothing
+    recover_segments(db, tmp_path / "raw", now, apply=True)
+    report = verify_segments(db, [tmp_path / "raw"])
+    assert report["unregistered"] == [] and report["mismatched"] == [] and report["checked"] == 1
+    assert path.read_bytes() == before
+    assert db.quality(5)[0][2] == "SEGMENT_RECOVERED"

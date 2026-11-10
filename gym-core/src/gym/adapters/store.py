@@ -311,3 +311,59 @@ def read_segment(path: Path) -> list[dict]:
     with open(path, "rb") as f:
         text = io.TextIOWrapper(zstd.ZstdDecompressor().stream_reader(f, read_across_frames=True), "utf-8")
         return [json.loads(line) for line in text if line.strip()]
+
+
+def readable_prefix(path: Path) -> tuple[int, int | None, int | None, bool]:
+    """(records, first seq, last seq, complete) for the records a crash left readable, stopping at the first bad one.
+
+    The collector writes one zstd frame per file and ends it only on close, so a crash tail is a frame that
+    never reaches its end; `complete` is the decompressor's end-of-frame flag plus a terminated last record.
+    """
+    count, first, last = 0, None, None
+    inflate = zstd.ZstdDecompressor().decompressobj()
+    buffer, broken = b"", False
+    with open(path, "rb") as f:
+        while (chunk := f.read(1 << 20)) and not broken:
+            try:
+                buffer += inflate.decompress(chunk)
+            except zstd.ZstdError:
+                broken = True
+            *lines, buffer = buffer.split(b"\n")
+            for line in lines:
+                if not line.strip():
+                    continue
+                try:
+                    seq = json.loads(line)["seq"]
+                except (ValueError, KeyError):
+                    broken = True
+                    break
+                first = seq if first is None else first
+                last, count = seq, count + 1
+    return count, first, last, inflate.eof and not broken and not buffer.strip()
+
+
+def recover_segments(db: MarketDB, root: Path, now: datetime, *, apply: bool = False) -> list[dict]:
+    """Register segment files that have no manifest row (crash tails); the files themselves are never changed.
+
+    Each gets its real hash and the sequence range of its readable records, plus a SEGMENT_RECOVERED quality
+    event saying how much was readable. Run only while no collector is writing to `root`.
+    """
+    report = verify_segments(db, [root])
+    out = []
+    for seg_id in report["unregistered"] + report["unclosed"]:
+        path = root / seg_id
+        # A file touched in the last ten minutes may belong to a running collector: never register it.
+        if not path.is_file() or now.timestamp() - path.stat().st_mtime < 600:
+            continue
+        count, first, last, complete = readable_prefix(path)
+        with open(path, "rb") as f:
+            sha = hashlib.file_digest(f, "sha256").hexdigest()
+        row = {"seg_id": seg_id, "records": count, "seq_from": first, "seq_to": last, "complete": complete,
+               "bytes": path.stat().st_size, "sha256": sha}
+        if apply:
+            db.add_segment(seg_id, path, first or 0, last or 0, sha, row["bytes"], now)
+            db.add_quality(now, None, "SEGMENT_RECOVERED",
+                           f"{seg_id}: {count} readable records, seq {first}..{last}, "
+                           f"{'complete' if complete else 'truncated tail kept as is'}")
+        out.append(row)
+    return out

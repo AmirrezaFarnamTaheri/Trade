@@ -48,6 +48,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   file into one CSV for a native-speaker review, and lists the lines it cannot pair [U-7].
 - `gymctl drift SYMBOL`: population-stability index of spread and 1-minute returns, recent window against a
   reference window, with conventional STABLE / MODERATE / SHIFTED bands (4.10 drift monitor).
+- `gymctl recover-segments [--apply]`: registers crash-tail raw segments with their real hash and readable
+  sequence range plus a SEGMENT_RECOVERED event; files are never changed and recently written ones are skipped.
+  Applied to the live store on 2026-11-10: 33 crash tails, about 4.66 million readable records [R-4 follow-up].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

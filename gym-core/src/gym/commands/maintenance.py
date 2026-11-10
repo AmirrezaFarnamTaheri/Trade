@@ -133,6 +133,20 @@ def drift_cmd(args) -> int:
     return 0
 
 
+def recover_segments_cmd(args) -> int:
+    """Register crash tails in the manifest; files are never modified. Dry run unless --apply."""
+    from ..adapters.store import MarketDB, recover_segments
+
+    root = store_root(args)
+    db = MarketDB(root / "market.db")
+    try:
+        rows = recover_segments(db, root / "raw", now_utc(), apply=args.apply)
+    finally:
+        db.c.close()
+    print(json.dumps({"applied": args.apply, "segments": rows}, indent=2))
+    return 0
+
+
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose
