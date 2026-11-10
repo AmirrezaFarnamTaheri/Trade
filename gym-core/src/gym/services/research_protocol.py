@@ -108,6 +108,8 @@ class ResearchProtocol:
         spec = BarSpec(request["resolution"])
         if request["resolution"] == "session" or start - selected < spec.step:
             raise ValueError("final evaluation requires fixed bars and at least one-period purge")
+        from .storage_runway import ensure_runway
+        ensure_runway(self.root, end, now)  # P-2: the archive must last through the window
         decimal(request["cash"], "cash", positive=True)
         fee = rate(request["fee_rate"], "fee_rate")
         cost = None

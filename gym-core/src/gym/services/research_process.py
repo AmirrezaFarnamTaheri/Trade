@@ -14,6 +14,10 @@ from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
+MAX_DEADLINE_SECONDS = 600
+# P-2: 500 markets and 200,000 observations replayed in 79.8 s (system-status); about 0.4 ms per observation.
+SECONDS_PER_OBSERVATION = 0.0004
+DEADLINE_HEADROOM = 2.5
 DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing
 MAX_OUTPUT = 2 * 1024 * 1024
 HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
@@ -32,10 +36,45 @@ class ResearchProcessFailure(RuntimeError):
         super().__init__(reason)
 
 
-async def calculate(root, action, value=None, *, store="live", at=None, timeout_seconds=DEADLINE_SECONDS):
+def work_estimate(root, value) -> int | None:
+    """Stored quotes a request will replay (capped), from its symbols and window; None when it names neither."""
+    if not isinstance(value, dict):
+        return None
+    symbols = value.get("symbols") or ([value["symbol"]] if isinstance(value.get("symbol"), str) else None)
+    start, end = value.get("from"), value.get("to")
+    if not (isinstance(symbols, list) and 0 < len(symbols) <= 2000 and all(isinstance(s, str) for s in symbols)
+            and isinstance(start, str) and isinstance(end, str)):
+        return None
+    path = Path(root) / "market.db"
+    if not path.is_file():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        try:
+            marks = ",".join("?" for _ in symbols)
+            return conn.execute(f"SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id IN ({marks}) "
+                                "AND ts_avail>=? AND ts_avail<? LIMIT 5000000)",
+                                (*(f"wallex:{s}" for s in symbols), start, end)).fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def deadline_for(observations: int | None) -> float:
+    """P-2: the deadline scales with the work, with headroom, between the old constant and a stated maximum."""
+    if not observations:
+        return DEADLINE_SECONDS
+    return float(min(MAX_DEADLINE_SECONDS,
+                     max(DEADLINE_SECONDS, observations * SECONDS_PER_OBSERVATION * DEADLINE_HEADROOM)))
+
+
+async def calculate(root, action, value=None, *, store="live", at=None, timeout_seconds=None):
     """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
         raise ValueError("unsupported supervised paper calculation")
+    if timeout_seconds is None:
+        timeout_seconds = deadline_for(await asyncio.to_thread(work_estimate, root, value))
     if at is not None and action != "tick":
         raise ValueError("only scheduled ticks accept an explicit clock")
     if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= 600:

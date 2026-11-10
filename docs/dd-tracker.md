@@ -56,8 +56,7 @@ Reliability (5)
 Performance (3)
 [ ] P-1 · One exact SQLite store serves both collection and analysis · Low · Effort L
     Status: not started. A columnar tier would add a dependency to a four-dependency product.
-[ ] P-2 · The replay deadline is a constant with about a third of headroom, and the disk floor stops collection · Medium · Effort M
-    Status: worker seconds and deadline use are logged, with a warning at 75%; free space is alerted. Not yet done: scaling the deadline with the work, and refusing a campaign whose projected growth exceeds free space.
+[x] P-2 · The replay deadline is a constant with about a third of headroom, and the disk floor stops collection · Medium · Effort M
 [x] P-3 · The browser polls every two seconds · Low · Effort S
 
 Operations (6)
