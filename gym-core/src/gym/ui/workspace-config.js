@@ -858,7 +858,12 @@ Object.assign(vocabulary, {
   tehranCity: ["Tehran", "تهران"],
 });
 Object.assign(vocabulary, {
-  zoneShowUtc: ["Times: show UTC", "زمان: نمایش UTC"], zoneShowTehran: ["Times: show Tehran", "زمان: نمایش تهران"],
+  zoneShowUtc: ["UTC", "UTC"], zoneShowTehran: ["Tehran", "تهران"],
+  zoneToggleLabel: ["Show times in another zone", "نمایش زمان‌ها در منطقهٔ زمانی دیگر"],
+});
+Object.assign(vocabulary, {  // U-3: five navigation workspaces
+  navGroupObserve: ["Observe", "مشاهده"], navGroupResearch: ["Research", "پژوهش"], navGroupPrepare: ["Prepare", "آماده‌سازی"],
+  navGroupSafety: ["Safety & health", "ایمنی و سلامت"], navGroupSetup: ["Setup", "پیکربندی"],
 });
 const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,

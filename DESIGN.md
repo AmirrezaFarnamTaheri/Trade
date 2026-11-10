@@ -59,13 +59,13 @@ typography:
     letterSpacing: "-0.025em"
   headline:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "19px"
+    fontSize: "17px"
     fontWeight: 650
     lineHeight: 1.55
     letterSpacing: "-0.015em"
   title:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "16px"
+    fontSize: "17px"
     fontWeight: 650
     lineHeight: 1.55
   body:
@@ -85,7 +85,7 @@ typography:
     lineHeight: 1.55
   metric:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "25px"
+    fontSize: "21px"
     fontWeight: 700
     lineHeight: 1.4
     letterSpacing: "-0.02em"
@@ -106,12 +106,12 @@ typography:
     lineHeight: 1.55
   subheading:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "13px"
+    fontSize: "12px"
     fontWeight: 600
     lineHeight: 1.55
   nested-heading:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "15px"
+    fontSize: "14px"
     fontWeight: 650
     lineHeight: 1.55
   brand:
@@ -122,19 +122,19 @@ typography:
     letterSpacing: "-0.7px"
   brand-compact:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "18px"
+    fontSize: "17px"
     fontWeight: 750
     lineHeight: 1.3
     letterSpacing: "-0.7px"
   brand-mobile:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "20px"
+    fontSize: "21px"
     fontWeight: 750
     lineHeight: 1.3
     letterSpacing: "-0.7px"
   fx-metric:
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", Tahoma, sans-serif'
-    fontSize: "23px"
+    fontSize: "21px"
     fontWeight: 700
     lineHeight: 1.4
     letterSpacing: "-0.02em"
@@ -144,25 +144,25 @@ typography:
     fontWeight: 400
   waterfall:
     fontFamily: '"Segoe UI", sans-serif'
-    fontSize: "16px"
+    fontSize: "17px"
     fontWeight: 400
 rounded:
   track: "2px"
   badge: "4px"
-  control: "5px"
+  control: "4px"
   navigation: "6px"
-  banner: "7px"
+  banner: "6px"
   panel: "10px"
   round: "50%"
 spacing:
-  tight: "5px"
-  control-gap: "10px"
+  tight: "4px"
+  control-gap: "8px"
   row: "12px"
-  group: "14px"
+  group: "16px"
   section: "20px"
-  panel: "21px"
-  view: "22px"
-  workspace-inline: "30px"
+  panel: "20px"
+  view: "24px"
+  workspace-inline: "32px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"

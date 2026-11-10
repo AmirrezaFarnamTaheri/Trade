@@ -11,6 +11,7 @@ function applyLang() {
   $("language-toggle").setAttribute("lang", lang === "fa" ? "en" : "fa");
   $("theme-toggle").textContent = t(theme === "light" ? "darkTheme" : "lightTheme");
   $("zone-toggle").textContent = t(zone === "UTC" ? "zoneShowTehran" : "zoneShowUtc");
+  $("zone-toggle").setAttribute("aria-label", `${t("zoneToggleLabel")}: ${t(zone === "UTC" ? "zoneShowTehran" : "zoneShowUtc")}`);
   $("current-view").textContent = t(viewKeys[state.view]);
   renderMarkets(); renderRunList();
   if (state.record) renderRun(state.record);

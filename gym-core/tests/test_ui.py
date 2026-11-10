@@ -176,4 +176,4 @@ def test_timestamps_carry_the_iso_instant_and_follow_the_zone_preference():
         text = text.replace("stamp = (v, d) => esc(when(v, d))", "")  # injected-helper fallback in component mounts
         assert "esc(when(" not in text, path.name
     assert 'id="zone-toggle"' in (ui / "index.html").read_text(encoding="utf-8")
-    assert re.search(r'zoneShowUtc: \["Times: show UTC", "[^"]+"\]', (ui / "workspace-config.js").read_text(encoding="utf-8"))
+    assert 'zoneToggleLabel: ["Show times in another zone"' in (ui / "workspace-config.js").read_text(encoding="utf-8")

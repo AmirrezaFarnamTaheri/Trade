@@ -40,3 +40,20 @@ def test_theme_colours_match_design_colours():
             assert colours[f"dark-{name}"].lower() == value.lower(), ("dark", name, value)
             checked += 1
     assert checked >= 25
+
+
+def test_scales_stay_collapsed():
+    """U-3: six type steps, four radius steps (plus round), spacing on a 4 px grid (sub-4 px hairlines allowed)."""
+    sizes = {int(x) for x in re.findall(r"font-size:\s*(\d+)px", CSS)}
+    assert len(sizes) <= 6, sorted(sizes)
+    radii = {int(x) for x in re.findall(r"border-radius:\s*(\d+)px", CSS)}
+    assert len(radii) <= 4, sorted(radii)
+    for prop, value in re.findall(r"((?:padding|margin|gap|row-gap|column-gap)(?:-[a-z-]+)?):\s*([^;}]+)", CSS):
+        for px in re.findall(r"(\d+)px", value):
+            assert int(px) < 4 or int(px) % 4 == 0, f"{prop}: {value}"
+
+
+def test_navigation_has_five_labelled_workspaces():
+    html = (ROOT / "gym-core/src/gym/ui/index.html").read_text(encoding="utf-8")
+    nav = html[html.index('<nav class="nav"'):html.index("</nav>")]
+    assert len(re.findall(r'class="nav-label"', nav)) == 5 and len(re.findall(r"data-view=", nav)) == 10

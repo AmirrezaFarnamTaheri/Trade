@@ -133,6 +133,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - All Persian copy now lives in the vocabulary (about 390 pairs moved from research, margin, portfolio, models and
   others; the ratchet allows none elsewhere); every rendered timestamp carries its ISO instant as a tooltip; the time
   zone (Tehran or UTC) is a stored preference with a sidebar toggle [U-7].
+- Design tokens collapsed: six type steps (11, 12, 14, 17, 21, 30 px), four radii, spacing on a 4 px grid, mirrored
+  in DESIGN.md and enforced by tests; navigation grouped into five workspaces; compact zone toggle [U-3].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

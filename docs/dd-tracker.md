@@ -72,8 +72,7 @@ Operations (6)
 Product and UX (9)
 [x] U-1 · The pitch is ahead of the evidence · Medium · Effort S
 [x] U-2 · Features worth porting from peers · Low · Effort M
-[ ] U-3 · The UI's design tokens have drifted, and several external UI claims did not survive a check against the code · Low · Effort M
-    Status: DESIGN.md chart line fixed; a token-drift test is in place. Not yet done: collapsing the type, radius and spacing scales, and grouping the ten destinations.
+[x] U-3 · The UI's design tokens have drifted, and several external UI claims did not survive a check against the code · Low · Effort M
 [x] U-4 · An operator activity timeline and one action registry would close the CLI-versus-UI gap · Low · Effort M
 [x] U-5 · Accessibility and output-safety basics are in place; what is missing is automated proof in a real rendering engine · — · Effort M
 [x] U-6 · The theme ignores the operating system preference and there is no forced-colours support · — · Effort S
