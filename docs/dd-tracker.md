@@ -17,8 +17,7 @@ Architecture (6)
     Status: model decided (ADR 0003), ActiveHoldBook with property tests, explicit dust tolerance, paths documented as test-only. Not wired.
 
 Engineering (10)
-[ ] E-1 · Five functions are extreme complexity hotspots · Medium · Effort M
-    Status: market_order, research_action, make_app and weights are below 20; _portfolio is at 65; a CI ratchet blocks growth.
+[x] E-1 · Five functions are extreme complexity hotspots · Medium · Effort M
 [x] E-2 · Candle parsing breaks the exact-decimal chain · Medium · Effort S
 [x] E-3 · Non-ASCII auth header returns a 500 · Low · Effort S
 [x] E-4 · Collector SQLite writes run on the event loop at 373 markets · Low · Effort M

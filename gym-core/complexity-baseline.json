@@ -9,7 +9,6 @@
   "src/gym/services/external_journal.py::_sanitize_snapshot": 22,
   "src/gym/services/liquidity.py::audit_depth": 22,
   "src/gym/services/paper_twap.py::simulate_twap": 28,
-  "src/gym/services/portfolio.py::_portfolio": 65,
   "src/gym/services/portfolio_research.py::portfolio_action": 27,
   "src/gym/services/premium_lead_lag.py::analyze_lead_lag": 24,
   "src/gym/services/research_market.py::screen_markets": 21,

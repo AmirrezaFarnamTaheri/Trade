@@ -15,4 +15,4 @@ def test_new_or_growing_functions_fail_and_the_four_split_hotspots_stay_out():
     shipped = json.loads(ratchet.BASELINE.read_text(encoding="utf-8"))
     for name in ("research_action", "make_app", "weights", "market_order"):
         assert not any(key.endswith("::" + name) for key in shipped), name
-    assert shipped["src/gym/services/portfolio.py::_portfolio"] <= 65
+    assert not any(key.endswith("::_portfolio") for key in shipped)  # E-1: the replay is now a class
