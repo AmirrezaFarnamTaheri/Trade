@@ -8,6 +8,8 @@ from .model import UTC
 
 
 def instant(t: datetime) -> datetime:
+    if type(t) is datetime and t.tzinfo is UTC:
+        return t  # already a UTC instant; astimezone(UTC) would return the same value (hot path in replays)
     if not isinstance(t, datetime) or t.tzinfo is None or t.utcoffset() is None:
         raise ValueError("timestamp must be an aware instant")
     return t.astimezone(UTC)

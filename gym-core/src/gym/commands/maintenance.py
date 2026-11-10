@@ -431,3 +431,47 @@ def actions_cmd(args) -> int:
     for row in catalog:
         print(f"{row['action']:<28} {'cli+browser' if row['browser'] else 'cli only':<12} {row['browser_note'] or ''}")
     return 0
+
+
+def paper_sweep_cmd(args) -> int:
+    """Bulk paper sweep with compact rows; any row reproduces in full with `gymctl paper`."""
+    from decimal import Decimal
+
+    from ..services.paper_sweep import RESOLUTIONS, sweep
+
+    start, end = parse_ts(args.start), parse_ts(args.end)
+    root = store_root(args)
+    out = Path(args.out) if args.out else root / "sweeps" / f"{iso(start)[:16].replace(':', '')}_{iso(end)[:16].replace(':', '')}.sqlite3"
+    if args.report:
+        return _sweep_report(out)
+    split = lambda text: tuple(x.strip() for x in text.split(",") if x.strip()) if text else None
+    summary = sweep(root, out, start, end, symbols=split(args.symbols), resolutions=split(args.res) or RESOLUTIONS,
+                    strategies=split(args.strategies), workers=args.workers, fee=Decimal(args.fee),
+                    progress=lambda line: print(line, flush=True))
+    print(f"{summary['runs']} runs ({summary['ok']} completed) over {summary['markets']} markets in "
+          f"{summary['seconds'] / 60:.1f} min -> {summary['output']}")
+    return _sweep_report(out)
+
+
+def _sweep_report(out: Path) -> int:
+    conn = sqlite3.connect(f"file:{out.as_posix()}?mode=ro", uri=True)
+    try:
+        total, ok = conn.execute("SELECT count(*), sum(status='OK') FROM runs").fetchone()
+        print(f"\n{out}: {total} runs, {ok} completed")
+        for status, n in conn.execute("SELECT status, count(*) FROM runs GROUP BY status"):
+            print(f"  {status:<9} {n}")
+        query = ("SELECT symbol, resolution, strategy, CAST(net_usdt_eq AS REAL) AS eq, CAST(hold_net_usdt_eq AS REAL), "
+                 "fills, closed_trades, max_drawdown_pct FROM runs WHERE status='OK' AND net_usdt_eq IS NOT NULL ")
+        positive = conn.execute("SELECT count(*) FROM runs WHERE status='OK' AND CAST(net_usdt_eq AS REAL) > 0").fetchone()[0]
+        beat = conn.execute("SELECT count(*) FROM runs WHERE status='OK' AND CAST(net_usdt_eq AS REAL) > "
+                            "CAST(hold_net_usdt_eq AS REAL)").fetchone()[0]
+        print(f"  positive net (USDT-eq): {positive}; beat hold-the-base: {beat}")
+        for title, order in (("best", "DESC"), ("worst", "ASC")):
+            print(f"\n{title} 10 by USDT-equivalent net (start 1000 USDT or 300M TMN):")
+            for row in conn.execute(query + f"ORDER BY eq {order} LIMIT 10"):
+                print(f"  {row[0]:<12} {row[1]:<7} {row[2]:<22} net {row[3]:>9.2f}  hold {row[4] or 0:>9.2f}  "
+                      f"fills {row[5]:>4}  trades {row[6] or 0:>3}  maxDD {row[7] or 0:>6.2f}%")
+        print("\nPAPER ONLY. Every configuration is a recorded trial; a best row out of thousands is expected luck.")
+    finally:
+        conn.close()
+    return 0
