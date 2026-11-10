@@ -185,6 +185,37 @@ jobs:
       - if: always()
         run: uv run --with mutmut==2.5.1 mutmut results
 
+  sbom:
+    # G-5: CycloneDX 1.5 SBOMs for the three ecosystems, built from the lockfiles on every run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
+        with:
+          toolchain: 1.96.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: mkdir -p sbom
+      - run: uv export --project gym-core --locked --format cyclonedx1.5 --no-dev -o sbom/python.cdx.json
+      - run: npm sbom --prefix model-gateway --sbom-format cyclonedx --omit dev > sbom/node.cdx.json
+      - run: python3 scripts/cargo_sbom.py -o sbom/rust.cdx.json
+      - name: Every SBOM is CycloneDX and non-empty
+        run: >-
+          python3 -c "import json,glob; files=sorted(glob.glob('sbom/*.json')); assert len(files)==3, files;
+          [print(f, len(json.load(open(f))['components'])) or None for f in files];
+          assert all(json.load(open(f))['bomFormat']=='CycloneDX' and json.load(open(f))['components'] for f in files)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom/
+
   rust-kernel:
     # ADR 0005 stage 3: the simulator on the exec-core Rust kernel must pass the whole suite and match the Python path.
     runs-on: ubuntu-latest
