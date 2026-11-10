@@ -115,6 +115,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   return [O-6].
 - Gateway credentials off Windows are sealed with AES-256-GCM under a user-held passphrase, or refused unless
   plaintext is explicitly accepted [S-1].
+- Provisioned SID files: owner and DACL verified before parsing (only SYSTEM, Administrators or TrustedInstaller may own
+  or write them), with the rule tested on any OS and a Windows test refusing a user-created file; rebinding runbook
+  `docs/operator-rebinding.md` [S-9].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

@@ -117,6 +117,8 @@ mod windows_host {
                 "untrusted stop SID configuration",
             ));
         }
+        // S-9: only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
+        exec_svc::windows_identity::verify_trusted_config_file(&file)?;
         let text = std::fs::read_to_string(file)?;
         let sid = text.trim();
         let components: Vec<&str> = sid.split('-').collect();
@@ -148,6 +150,8 @@ mod windows_host {
                 "untrusted operator user SID configuration",
             ));
         }
+        // S-9: only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
+        exec_svc::windows_identity::verify_trusted_config_file(&file)?;
         let value = std::fs::read_to_string(file)?;
         let sid = value.trim();
         let components: Vec<&str> = sid.split('-').collect();

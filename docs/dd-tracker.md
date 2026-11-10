@@ -41,8 +41,7 @@ Security (13)
 [x] S-6 · Executor updates are verified by hash only, with no signature or provenance · Low · Effort M
 [x] S-7 · Provider keys follow whatever HTTPS host the gateway config names · Low · Effort S
 [x] S-8 · Saved run results are readable without the token · Low · Effort S
-[ ] S-9 · The provisioned SID files are checked by type and size only, from an environment-derived path, and one error message is wrong · Low · Effort S
-    Status: known-folder path; the wrong message is gone. Not yet done: an owner and DACL check before parsing, and a rebinding runbook.
+[x] S-9 · The provisioned SID files are checked by type and size only, from an environment-derived path, and one error message is wrong · Low · Effort S
 [x] S-10 · The Node gateway inherits the whole parent environment · Low · Effort S
 [x] S-11 · The Python-to-Rust helper binaries are located safely but not integrity-checked at run time · Low · Effort S
 [x] S-12 · Secret zeroization is partial, and the Python key store has no path hardening · Low · Effort S

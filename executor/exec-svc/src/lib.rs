@@ -163,6 +163,68 @@ pub fn stopped_exit(
     (win32, privileged_failed.then_some(phase))
 }
 
+/// S-9: who may write a provisioned configuration file (the stop-logon and operator SID files decide who may stop
+/// the executor). Pure rule over the owner and the ACEs Windows reports, so it is testable on any OS.
+pub mod config_trust {
+    pub const SYSTEM: &str = "S-1-5-18";
+    pub const ADMINISTRATORS: &str = "S-1-5-32-544";
+    pub const TRUSTED_INSTALLER: &str =
+        "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
+    /// Rights that change the file's content, attributes, owner or permissions, or delete it.
+    pub const WRITE_RIGHTS: u32 = 0x0002
+        | 0x0004
+        | 0x0010
+        | 0x0100
+        | 0x0001_0000
+        | 0x0004_0000
+        | 0x0008_0000
+        | 0x1000_0000
+        | 0x4000_0000;
+    pub const ACCESS_ALLOWED: u8 = 0;
+    pub const ACCESS_DENIED: u8 = 1;
+    pub const INHERIT_ONLY: u8 = 0x08;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Ace {
+        pub kind: u8,
+        pub flags: u8,
+        pub mask: u32,
+        pub sid: String,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum Untrusted {
+        NullDacl,
+        Owner(String),
+        Writer(String),
+        UnknownAce(u8),
+    }
+
+    fn trusted(sid: &str) -> bool {
+        sid == SYSTEM || sid == ADMINISTRATORS || sid == TRUSTED_INSTALLER
+    }
+
+    /// Owner must be SYSTEM, Administrators or TrustedInstaller, and only they may hold any write right.
+    pub fn check(owner: &str, dacl: Option<&[Ace]>) -> Result<(), Untrusted> {
+        if !trusted(owner) {
+            return Err(Untrusted::Owner(owner.to_string()));
+        }
+        let aces = dacl.ok_or(Untrusted::NullDacl)?;
+        for ace in aces {
+            if ace.flags & INHERIT_ONLY != 0 || ace.kind == ACCESS_DENIED {
+                continue;
+            }
+            if ace.kind != ACCESS_ALLOWED {
+                return Err(Untrusted::UnknownAce(ace.kind));
+            }
+            if ace.mask & WRITE_RIGHTS != 0 && !trusted(&ace.sid) {
+                return Err(Untrusted::Writer(ace.sid.clone()));
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct StopGate {
     runtime_epoch: u64,
     mode: AtomicU8,
