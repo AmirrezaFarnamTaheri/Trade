@@ -181,6 +181,7 @@ class _WorkspaceApi:
                         "last_frame_age_s": None if s["last_frame"] is None else round((now_utc() - s["last_frame"]).total_seconds(), 1)}
                        for shard, s in sorted(st["shard_stats"].items())],
             "archived": st["archived"], "integrity": st["integrity"], "clock_paused": bool(st.get("clock_paused")),
+            "event_loop_lag": self.col.loop_lag.report() if hasattr(self.col, "loop_lag") else None,
         })
 
     async def ready(self, _):

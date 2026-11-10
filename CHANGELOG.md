@@ -93,6 +93,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   writes a protected single-user DACL before any ciphertext and refuses a key file owned by another account [S-12].
 - Adding a browser sign-in (OAuth) model connection now requires accepting a bilingual provider-terms warning; API
   keys stay the default [S-2].
+- Collector event-loop lag sampler (p50, p99, max over a rolling window) in `/api/health`, so the real host decides
+  whether trade writes need a writer thread [E-4].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

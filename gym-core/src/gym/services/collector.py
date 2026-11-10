@@ -169,6 +169,8 @@ class Collector:
         self.seeding: set[str] = set()
         self.connected_shards: set[int] = set()
         self.units = UnitWatch()
+        from .loop_lag import LoopLag
+        self.loop_lag = LoopLag()  # E-4: how late the event loop wakes, i.e. time spent in synchronous work
         self.status = {"connected": False, "shards": 0, "last_frame": None, "reconnects": 0, "fatal": None,
                        "errors": deque(maxlen=20), "shard_stats": {}, "archived": None, "integrity": None}
         self.data_quality: dict[str, dict] = {}  # refreshed every 10 minutes from the last day of stored quotes
@@ -583,6 +585,7 @@ class Collector:
         if self.demo:
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(self._housekeeping())
+                tasks.create_task(self.loop_lag.run())
                 tasks.create_task(self._demo())
             return
         async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
@@ -599,6 +602,7 @@ class Collector:
             shards = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(self._housekeeping())
+                tasks.create_task(self.loop_lag.run())
                 tasks.create_task(self._refresh_rest(session))
                 for i, batch in enumerate(shards):
                     tasks.create_task(self._ws_loop(session, batch, i + 1))
