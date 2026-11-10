@@ -38,6 +38,21 @@ Use the TradingGYM name and the visual, language and accessibility contracts in 
 
 Source contracts in gym-core/src/gym/api/server.py and domain/services modules; existing local demo/live stores; deterministic tests under gym-core/tests. There are no customer claims, testimonials, or qualified live-trading results to add.
 
+## 90-day checkpoint (written 2026-11-10, review on 2027-02-08)
+
+A pre-committed stop rule, so funded-execution work is earned by evidence rather than momentum. On the review date,
+if either holds, funded-execution work pauses and the observatory remains the product:
+
+- Feed quality is still blocked: `gymctl doctor` or the collector-feed alert has failed on more than 10% of days
+  in the preceding 30, or the archive has a gap longer than 24 hours in that period.
+- No plausible net edge: no strategy has passed validation and an independently consumed holdout
+  (`gymctl research final-run`, the holdout ledger) with a deflated Sharpe probability of at least 0.95 after
+  modelled costs.
+
+Continuing past the checkpoint needs both conditions clear and the pre-funding independent review of the
+executor's authority and admission code (ADR 0006) under way. The decision and its evidence are recorded in
+`evidence/`.
+
 ## Product Principles
 
 - Put actual agent readiness and restrictions within view.
