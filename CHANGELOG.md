@@ -95,6 +95,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   keys stay the default [S-2].
 - Collector event-loop lag sampler (p50, p99, max over a rolling window) in `/api/health`, so the real host decides
   whether trade writes need a writer thread [E-4].
+- Optional `cost_declaration` on `final-register` (trades per month, round-trip cost, expected gross edge): an
+  arithmetically dead strategy, or a cost below two venue fees, is refused before any window is spent; a declared
+  gate is bound into the evaluation identity [report 4.10 TS-3].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

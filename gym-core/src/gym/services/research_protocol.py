@@ -5,7 +5,7 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import timedelta
-from decimal import localcontext
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 from ..adapters.run_store import save_run
@@ -92,6 +92,9 @@ class ResearchProtocol:
             raise
 
     def register(self, request):
+        declared = request.get("cost_declaration") if isinstance(request, dict) else None
+        if isinstance(request, dict) and "cost_declaration" in request:
+            request = {k: v for k, v in request.items() if k != "cost_declaration"}
         fields(request, "symbol strategy params selection_end test_from test_to resolution cash fee_rate")
         strategy = create_strategy(request["strategy"], request["params"])
         if type(request["symbol"]) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", request["symbol"]):
@@ -106,8 +109,12 @@ class ResearchProtocol:
         if request["resolution"] == "session" or start - selected < spec.step:
             raise ValueError("final evaluation requires fixed bars and at least one-period purge")
         decimal(request["cash"], "cash", positive=True)
-        rate(request["fee_rate"], "fee_rate")
-        body = {**request, "params": strategy.params, "config_hash": strategy.config_hash,
+        fee = rate(request["fee_rate"], "fee_rate")
+        cost = None
+        if declared is not None:
+            from ..domain.cost_gate import cost_gate
+            cost = cost_gate(declared, Decimal(fee))
+        body = {**request, **({"cost_declaration": cost} if cost else {}), "params": strategy.params, "config_hash": strategy.config_hash,
                 "selection_end": iso(selected), "test_from": iso(start), "test_to": iso(end),
                 "engine_digest": _engine_digest(), "store": self.store}
         key = digest(body)
@@ -136,7 +143,9 @@ class ResearchProtocol:
         body, registered, state, result = row
         if digest(json.loads(body)) != key or json.loads(body)["store"] != self.store:
             raise ValueError("evaluation identity mismatch")
-        return {"evaluation_id": key, "registered_at": registered, "state": state, "configuration": json.loads(body),
+        configuration = json.loads(body)
+        return {"evaluation_id": key, "registered_at": registered, "state": state, "configuration": configuration,
+                "cost_gate": "DECLARED" if "cost_declaration" in configuration else "NOT_DECLARED",
                 "result": json.loads(result) if result else None, "authority": "PAPER_ONLY", "funded_authority": False,
                 "independent_final_evidence": False,
                 "limitation": "Enforces one attempt through this ledger. It cannot prevent direct access to raw data, "

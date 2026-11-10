@@ -11,7 +11,7 @@ window.gymResearch = (() => {
     'claim-check': ['Check numeric claims', 'بررسی ادعاهای عددی', 'claims'],
     'outcome-add': ['Record run outcome', 'ثبت نتیجهٔ اجرا', 'Run ID'],
     outcomes: ['Available outcome memory', 'حافظهٔ نتایج قابل استفاده', ''],
-    'final-register': ['Preregister future evaluation', 'پیش‌ثبت ارزیابی آینده', 'symbol, strategy, params, selection_end, test_from, test_to, resolution, cash, fee_rate'],
+    'final-register': ['Preregister future evaluation', 'پیش‌ثبت ارزیابی آینده', 'symbol, strategy, params, selection_end, test_from, test_to, resolution, cash, fee_rate, cost_declaration (optional: trades_per_month, roundtrip_cost_bps, expected_gross_edge_bps)'],
     'final-status': ['Inspect evaluation', 'بررسی ارزیابی', 'Evaluation ID'],
     'final-run': ['Consume evaluation once', 'اجرای یک‌بارهٔ ارزیابی', 'Evaluation ID'],
     'observe-import': ['Import observation vintages', 'ثبت نسخه‌های مشاهدات', 'observations'],
