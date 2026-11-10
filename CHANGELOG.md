@@ -51,6 +51,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - `gymctl recover-segments [--apply]`: registers crash-tail raw segments with their real hash and readable
   sequence range plus a SEGMENT_RECOVERED event; files are never changed and recently written ones are skipped.
   Applied to the live store on 2026-11-10: 33 crash tails, about 4.66 million readable records [R-4 follow-up].
+- Proposed reservation model `ActiveHoldBook` (ADR 0003) implemented and property-tested against a simulated venue;
+  not wired, `ReservationBook` stays authoritative. The current book's dust-credit wedge is recorded in a test [A-6].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

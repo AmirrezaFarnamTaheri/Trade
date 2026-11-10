@@ -79,6 +79,7 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
     )
 }
 
+pub mod holds;
 pub mod orders;
 
 /// Seeded B2 Fake Venue chaos suite (pure; no I/O).
