@@ -57,6 +57,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   after five seconds; replay cost measured at 0.31 s per 200k rows in release builds [A-5].
 - Executor account reads no longer hold the vault lock across the venue request; mode and key generation are
   re-checked before recording [A-3].
+- `gymctl arm-preflight`: read-only READY / BLOCKED checklist for a future funded probe (owner policy with loss cap
+  and kill rules, executor running, STOP gate, credentials, fresh account observation, reconciliation, feed,
+  backup, no failing check); it never arms and READY is not permission [OD-2 groundwork].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

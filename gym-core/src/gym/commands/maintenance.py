@@ -147,6 +147,17 @@ def recover_segments_cmd(args) -> int:
     return 0
 
 
+def arm_preflight_cmd(args) -> int:
+    """Checklist only; exit 0 when READY, 1 when BLOCKED. Never arms."""
+    from ..services.arm_preflight import preflight
+    report = preflight(store_root(args), now_utc())
+    for item in report["items"]:
+        print(f"{'ok ' if item['ok'] else 'NO '} {item['item']:<26} {item['detail']}")
+    print()
+    print(f"{report['state']}: {report['note']}")
+    return 0 if report["state"] == "READY" else 1
+
+
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose
