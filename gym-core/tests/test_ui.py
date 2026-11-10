@@ -163,7 +163,6 @@ def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
 
 def test_timestamps_carry_the_iso_instant_and_follow_the_zone_preference():
     """U-7: every rendered timestamp has an ISO tooltip; the zone is a stored preference (Tehran or UTC)."""
-    import re
     ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
     utils = (ui / "workspace-utils.js").read_text(encoding="utf-8")
     assert 'let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);' in utils
