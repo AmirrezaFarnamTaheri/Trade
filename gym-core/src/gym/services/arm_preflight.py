@@ -147,3 +147,13 @@ def preflight(root: Path, now: datetime) -> dict:
     return {"as_of": now.isoformat(), "state": "BLOCKED" if blocked else "READY", "blocked_by": blocked,
             "items": items, "policy_sha256": policy_digest, "arms": False, "funded_authority": False,
             "note": "READY is a checklist result, not permission. Arming needs the privileged path and an owner click."}
+
+
+def arm_record(policy_bytes: bytes, approver: str, runtime_epoch: int, armed_at_ms: int, expires_days: int) -> dict:
+    """The arm record the privileged path will issue (exec_core::arming): canonical text and its SHA-256 digest.
+    Shown on the approval screen so the owner sees exactly which policy file and window an approval binds."""
+    expires_at_ms = armed_at_ms + expires_days * 86_400_000
+    canonical = (f"TGARM1\npolicy_sha256={hashlib.sha256(policy_bytes).hexdigest()}\napprover={approver}\n"
+                 f"runtime_epoch={runtime_epoch}\narmed_at_ms={armed_at_ms}\nexpires_at_ms={expires_at_ms}\n")
+    return {"canonical": canonical, "digest": hashlib.sha256(canonical.encode()).hexdigest(),
+            "expires_at_ms": expires_at_ms}

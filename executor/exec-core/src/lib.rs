@@ -79,6 +79,7 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
     )
 }
 
+pub mod arming;
 pub mod holds;
 pub mod kernel;
 pub mod orders;

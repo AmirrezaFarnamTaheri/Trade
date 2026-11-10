@@ -41,3 +41,18 @@ def test_preflight_stays_blocked_and_never_arms(tmp_path):
     report = preflight(root, START + timedelta(seconds=120))
     assert "owner_policy" not in report["blocked_by"] and report["policy_sha256"]
     assert report["state"] == "BLOCKED"  # the privileged items cannot be satisfied from the workspace
+
+
+def test_arm_record_digest_matches_the_rust_fixture():
+    import hashlib
+    from pathlib import Path
+
+    from gym.services.arm_preflight import arm_record
+    root = Path(__file__).resolve().parents[2]
+    fx = json.loads((root / "contracts/v1/fixtures/arm-record.json").read_text(encoding="utf-8"))
+    policy = (root / fx["policy_file"]).read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(policy).hexdigest() == fx["policy_sha256"]
+    record = arm_record(policy, fx["approver"], fx["runtime_epoch"], fx["armed_at_ms"], fx["expires_days"])
+    assert record == {"canonical": fx["canonical"], "digest": fx["digest"], "expires_at_ms": fx["expires_at_ms"]}
+    raised = policy.replace(b'"loss_cap_quote": "10"', b'"loss_cap_quote": "11"')
+    assert arm_record(raised, "owner", 3, fx["armed_at_ms"], 7)["digest"] != fx["digest"]
