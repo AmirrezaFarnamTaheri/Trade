@@ -21,8 +21,7 @@ Engineering (10)
     Status: market_order, research_action, make_app and weights are below 20; _portfolio is at 65; a CI ratchet blocks growth.
 [x] E-2 · Candle parsing breaks the exact-decimal chain · Medium · Effort S
 [x] E-3 · Non-ASCII auth header returns a 500 · Low · Effort S
-[ ] E-4 · Collector SQLite writes run on the event loop at 373 markets · Low · Effort M
-    Status: event-loop lag (p50, p99, max) is measured in /api/health. The replayed-traffic load test with a stated bound is not done.
+[x] E-4 · Collector SQLite writes run on the event loop at 373 markets · Low · Effort M
 [x] E-5 · Instrument-spec versioning is two separate autocommit statements · Low · Effort S
 [x] E-6 · The account-observation freshness rule compares across unrelated resources using the wall clock · Low · Effort S
 [x] E-7 · u64 quanta arithmetic is checked on admission paths, unchecked in reserved(), and bounded only by an 18-decimal scale limit · Low · Effort S

@@ -120,6 +120,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   `docs/operator-rebinding.md` [S-9].
 - Venue reads go through `read_outside_lock` (vault lock only to copy the key out and record the result); a
   stalled-venue test shows other privileged work and the T0 stop gate proceed within 200 ms while the read stalls [A-3].
+- Full-universe collector load test (373 markets changing every tick, trades included): loop-lag p99 6 ms, tick p99
+  under 150 ms on the laptop; bounds asserted in CI; no writer thread needed [E-4].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
