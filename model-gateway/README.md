@@ -152,3 +152,11 @@ forking the library. A review of its bundled code found no telemetry or unexpect
 provider this gateway never configures, and attribution headers that are sent only when a caller sets an
 identity, which the gateway does not. Requests use `redirect: 'error'`, and the gateway runs with an
 allowlisted environment and optional `policy.allowedHosts`. Re-run this review when the dependency is upgraded.
+
+## Credential protection off Windows
+
+On Windows, credentials are sealed with current-user DPAPI. Elsewhere they are sealed with AES-256-GCM under a key
+derived (scrypt) from `GYM_GATEWAY_PASSPHRASE` (12 characters or more), which is held by the user and never written
+to disk. Without it, storing a credential is refused (`credential_protection_unavailable`) unless
+`GYM_GATEWAY_PLAINTEXT=1` explicitly accepts a plaintext 0600 file. Plaintext blobs from older versions stay
+readable and are sealed on the next write.

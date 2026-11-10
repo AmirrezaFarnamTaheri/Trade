@@ -113,6 +113,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Collector task gains a 5-minute watchdog trigger (past the 999-restart cap) and an opt-in `-RunWhileSignedOut` (S4U);
   backup tasks wake the laptop; `doctor` reports the longest collection gap in 24 h, so sleeps and sign-outs alert on
   return [O-6].
+- Gateway credentials off Windows are sealed with AES-256-GCM under a user-held passphrase, or refused unless
+  plaintext is explicitly accepted [S-1].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
