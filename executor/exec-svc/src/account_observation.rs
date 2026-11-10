@@ -94,10 +94,37 @@ pub fn reject_credential_echo(raw: &[u8], key: &[u8]) -> Result<(), &'static str
             _ => false,
         }
     }
-    if key.is_empty() || contains(&parse(raw)?, key) {
+    let mut decoded = parse(raw)?;
+    let echoed = key.is_empty() || contains(&decoded, key);
+    // The decoded tree may hold an unescaped copy of the key; wipe it before it is freed (finding S-12).
+    wipe(&mut decoded);
+    if echoed {
         return Err("credential echo refused");
     }
     Ok(())
+}
+
+fn wipe_string(text: &mut String) {
+    // SAFETY: zero bytes are valid UTF-8, so the String stays well formed; volatile writes keep the compiler from
+    // eliding stores to memory that is about to be freed.
+    for byte in unsafe { text.as_mut_vec() }.iter_mut() {
+        unsafe { std::ptr::write_volatile(byte, 0) };
+    }
+}
+
+/// Overwrite every string (object keys included) in a decoded JSON tree.
+pub(crate) fn wipe(value: &mut Value) {
+    match value {
+        Value::String(text) => wipe_string(text),
+        Value::Array(items) => items.iter_mut().for_each(wipe),
+        Value::Object(items) => {
+            for (mut name, mut item) in std::mem::take(items) {
+                wipe_string(&mut name);
+                wipe(&mut item);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn amount(value: Option<&Value>, fee: bool) -> Result<&str, &'static str> {
@@ -598,5 +625,37 @@ impl AccountObservation {
             return Err("noncanonical account receipt");
         }
         Ok(observation)
+    }
+}
+
+#[cfg(test)]
+mod wipe_tests {
+    use super::*;
+
+    #[test]
+    fn wipe_zeroes_every_string_and_key_in_place() {
+        let mut value = json!({"api-key": "123|abc", "nested": [{"k": "secret"}], "n": 1});
+        let mut text = String::from("123|abc");
+        let before = text.as_ptr();
+        wipe_string(&mut text);
+        assert_eq!(text.as_ptr(), before);
+        assert!(text.bytes().all(|b| b == 0));
+        wipe(&mut value);
+        assert_eq!(value, json!({}));
+        let mut list = json!(["123|abc", ["x"]]);
+        wipe(&mut list);
+        assert_eq!(list, json!(["       ", [" "]]));
+    }
+
+    #[test]
+    fn echo_is_still_refused_after_wiping() {
+        assert_eq!(
+            reject_credential_echo(br#"{"x":"pre123|abcpost"}"#, b"123|abc"),
+            Err("credential echo refused")
+        );
+        assert_eq!(
+            reject_credential_echo(br#"{"x":"fine"}"#, b"123|abc"),
+            Ok(())
+        );
     }
 }

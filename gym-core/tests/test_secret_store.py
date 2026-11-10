@@ -50,3 +50,17 @@ def test_linked_key_paths_are_refused(tmp_path):
         pytest.skip("symlink creation needs Developer Mode or admin rights")
     with pytest.raises(ValueError, match="linked"):
         secret_store.save("read", "12345|abcdefghijABCDEFGHIJ0123456789", link)
+
+
+def test_key_file_gets_a_protected_single_user_dacl_and_a_foreign_owner_is_refused(tmp_path, monkeypatch):
+    import subprocess
+
+    path = secret_store.save("read", "123|" + "a" * 32, tmp_path)
+    acl = subprocess.run(["icacls", str(path)], capture_output=True, text=True, check=True).stdout
+    entries = [line.split(":", 1)[-1].strip() for line in acl.splitlines()[:-2] if line.strip()]
+    assert len([e for e in entries if "(F)" in e or "(M)" in e or "(R" in e]) == 1, acl  # one ACE: this user
+    assert "(I)" not in acl  # nothing inherited from the folder
+    assert secret_store.load("read", tmp_path) == "123|" + "a" * 32
+    monkeypatch.setattr(secret_store, "_owner", lambda _path: "S-1-5-18")  # e.g. planted by SYSTEM
+    with pytest.raises(ValueError, match="owned by another account"):
+        secret_store.load("read", tmp_path)

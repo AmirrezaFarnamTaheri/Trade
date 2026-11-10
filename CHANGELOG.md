@@ -89,6 +89,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - `tasks.ps1` mirrors the CI jobs (rust, python, node, browser, sbom, kernel); CycloneDX SBOMs for Python, Node and
   Rust (`scripts/cargo_sbom.py`) built in a CI job; `docs/onboarding.md` with the schema-migration rule; the public
   read set recorded as a threat-model decision in SECURITY.md [G-5, S-8].
+- Secrets: the executor wipes the decoded copy of every venue reply after the key-echo check; the Python key store
+  writes a protected single-user DACL before any ciphertext and refuses a key file owned by another account [S-12].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
