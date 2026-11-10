@@ -4,7 +4,8 @@ window.gymModels = (() => {
   const $ = id => document.getElementById(id);
   const words = {
     en: { title: 'AI connections', help: 'Connect a provider for advisory prompts. Model access never authorizes trading. Provider subscriptions and API billing may differ.',
-      refresh: 'Refresh connections', add: 'Add connection', id: 'Connection name', provider: 'Provider', auth: 'Authentication', key: 'API key', oauth: 'Browser sign-in',
+      refresh: 'Refresh connections', add: 'Add connection', id: 'Connection name', provider: 'Provider', auth: 'Authentication', key: 'API key', oauth: 'Browser sign-in', oauthAccept: 'I have read the terms; add it',
+      oauthWarn: 'Browser sign-in uses a consumer subscription. Some providers limit such tokens to their own apps (Anthropic said in February 2026 that Claude Free, Pro and Max tokens are for Claude Code and Claude.ai only). It may stop working or put the account at risk. API keys are the recommended default. Read the provider’s current terms before continuing.',
       saved: 'Saved locally.', failed: 'Request failed. Check the connection and retry.', unavailable: 'Gateway unavailable. Install the model-gateway dependencies and restart the workspace.',
       storage: 'Credential storage', connections: 'Connections', none: 'No connections configured.', signIn: 'Sign in', signOut: 'Sign out', sync: 'Sync model presets',
       keys: 'Replace stored key pool', keyHelp: 'Saving this key replaces the stored key pool. Environment keys remain separate.', clear: 'Delete stored keys',
@@ -15,7 +16,7 @@ window.gymModels = (() => {
       plaintext: 'This platform stores credentials in private files without encryption.',
       usage: 'Usage and cost', calls: 'Calls', tokensIn: 'Input tokens', tokensOut: 'Output tokens', cost: 'Cost', unknownCost: 'without cost data', noUsage: 'No completions recorded yet.' },
     fa: { title: 'اتصال‌های هوش مصنوعی', help: 'ارائه‌دهنده را برای مشاوره متصل کنید. دسترسی مدل مجوز معامله نیست. اشتراک و هزینهٔ API ممکن است متفاوت باشند.',
-      refresh: 'بازخوانی اتصال‌ها', add: 'افزودن اتصال', id: 'نام اتصال', provider: 'ارائه‌دهنده', auth: 'روش ورود', key: 'کلید API', oauth: 'ورود در مرورگر',
+      refresh: 'بازخوانی اتصال‌ها', add: 'افزودن اتصال', id: 'نام اتصال', provider: 'ارائه‌دهنده', auth: 'روش ورود', key: 'کلید API', oauth: 'ورود در مرورگر', oauthAccept: 'شرایط را خواندم؛ افزوده شود', oauthWarn: 'ورود در مرورگر از اشتراک شخصی استفاده می‌کند. برخی ارائه‌دهندگان این توکن‌ها را فقط برای برنامه‌های خود مجاز می‌دانند (Anthropic در فوریهٔ ۲۰۲۶ اعلام کرد توکن‌های Claude Free، Pro و Max فقط برای Claude Code و Claude.ai است). ممکن است از کار بیفتد یا حساب را به خطر بیندازد. کلید API گزینهٔ پیشنهادی است. پیش از ادامه، شرایط فعلی ارائه‌دهنده را بخوانید.',
       saved: 'به‌صورت محلی ذخیره شد.', failed: 'درخواست ناموفق بود. اتصال را بررسی و دوباره تلاش کنید.', unavailable: 'درگاه در دسترس نیست. وابستگی‌های model-gateway را نصب و برنامه را بازراه‌اندازی کنید.',
       storage: 'محل نگهداری اعتبارنامه', connections: 'اتصال‌ها', none: 'اتصالی تنظیم نشده است.', signIn: 'ورود', signOut: 'خروج', sync: 'همگام‌سازی مدل‌ها',
       keys: 'جایگزینی کلیدهای ذخیره‌شده', keyHelp: 'ذخیرهٔ این کلید، کلیدهای ذخیره‌شده را جایگزین می‌کند. کلیدهای محیطی جدا باقی می‌مانند.', clear: 'حذف کلیدهای ذخیره‌شده',
@@ -73,6 +74,8 @@ window.gymModels = (() => {
     $('models-refresh').onclick = () => act(reload);
     $('models-enabled').onchange = () => act(async () => { await request('enabled', $('models-enabled').checked); await reload(); });
     $('models-add').onsubmit = event => { event.preventDefault(); act(async () => {
+      // S-2: consumer-subscription OAuth is opt-in, behind the provider-terms warning.
+      if ($('models-auth').value === 'oauth' && !await confirmAction(w('oauthWarn'), w('oauthAccept'), event.submitter)) return;
       await request('connection', { id: $('models-id').value, provider: $('models-provider').value,
         auth: $('models-auth').value === 'oauth' ? { type: 'oauth' } : { type: 'api_key', env: [], stored: true } });
       $('models-id').value = ''; await reload();

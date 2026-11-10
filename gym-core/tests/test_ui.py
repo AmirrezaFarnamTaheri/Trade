@@ -137,3 +137,12 @@ def test_copy_review_extract_covers_the_ui(tmp_path):
     assert rows[0][:5] == ["file", "line", "key", "english", "persian"] and len(rows) > 1000
     unpaired = int(out.getvalue().split(";")[1].split()[0])
     assert unpaired <= 21, out.getvalue()
+
+
+def test_oauth_connections_are_opt_in_behind_the_terms_warning():
+    """S-2: adding a browser sign-in connection asks for explicit acceptance; API keys need no extra step."""
+    source = (Path(__file__).resolve().parents[1] / "src/gym/ui/models.js").read_text(encoding="utf-8")
+    gate = "if ($('models-auth').value === 'oauth' && !await confirmAction(w('oauthWarn'), w('oauthAccept')"
+    assert gate in source
+    assert source.index(gate) < source.index("await request('connection'")
+    assert source.count("oauthWarn:") == 2 and "Claude Code and Claude.ai" in source

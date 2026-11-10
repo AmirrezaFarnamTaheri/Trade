@@ -91,6 +91,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   read set recorded as a threat-model decision in SECURITY.md [G-5, S-8].
 - Secrets: the executor wipes the decoded copy of every venue reply after the key-echo check; the Python key store
   writes a protected single-user DACL before any ciphertext and refuses a key file owned by another account [S-12].
+- Adding a browser sign-in (OAuth) model connection now requires accepting a bilingual provider-terms warning; API
+  keys stay the default [S-2].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
