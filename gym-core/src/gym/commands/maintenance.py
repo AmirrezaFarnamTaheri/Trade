@@ -111,7 +111,11 @@ def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose
 
-    report = diagnose(store_root(args), now_utc(), full=args.full, archives=[Path(p) for p in args.archive])
+    report = diagnose(store_root(args), now_utc(), full=args.full, archives=[Path(p) for p in args.archive],
+                      quick=args.quick)
+    if args.notify or args.webhook:
+        from ..services.alerts import notify
+        report["notification"] = notify(report, store_root(args), webhook_url=args.webhook, use_toast=args.notify)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:

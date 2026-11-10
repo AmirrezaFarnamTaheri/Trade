@@ -11,6 +11,7 @@ with it, what brings it back, and how to prove the backups work before they are 
 | Executor ledger backup | `gymctl backup-once` nightly via `scripts/windows/Install-BackupSchedule.ps1` | Backups page receipt; `ledger-anchors.jsonl` grows in the backup folder |
 | Backup passphrase | `gymctl key set-backup` seals it on this machine | A copy kept **off** this machine (password manager or paper) |
 | Update signing key | `gymctl release-keygen` on another machine | Private key and passphrase kept offline |
+| Health alerts | `scripts/windows/Install-HealthAlerts.ps1` (toast; `-Webhook https://ntfy.sh/<topic>` for a phone) | A toast when the feed stalls, disk runs low or a backup is older than 36 h |
 | Wallex API keys | Not backed up by design | Re-create on Wallex after a loss; they expire within 90 days anyway |
 
 The backup folder must be on another drive or a cloud-synced folder. A copy on the same disk does not survive

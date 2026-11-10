@@ -183,3 +183,16 @@ def test_every_cited_evidence_path_has_a_digest_in_the_tracked_index():
              for raw in re.findall(r"\.pi/([A-Za-z0-9_./-]+)", doc.read_text("utf-8"))}
     missing = sorted(c for c in cited if index.get(c, {}).get("kind") in (None, "missing"))
     assert not missing, f"cite evidence only after running scripts/evidence_index.py: {missing}"
+
+
+def test_quick_doctor_reports_feed_freshness_without_scanning(tmp_path):
+    from gym.services.doctor import diagnose
+    from tests.support import market_db, quote_history
+    root = tmp_path / "live"
+    root.mkdir()
+    market_db(root, quote_history(n=10)).c.close()
+    newest = START + timedelta(seconds=90)
+    fresh = {c["check"]: c["status"] for c in diagnose(root, newest + timedelta(minutes=2), quick=True)["checks"]}
+    assert fresh["collector_feed"] == "PASS" and "raw_segments" not in fresh and "market_db" not in fresh
+    stale = {c["check"]: c for c in diagnose(root, newest + timedelta(hours=2), quick=True)["checks"]}
+    assert stale["collector_feed"]["status"] == "WARN" and "collector stopped" in stale["collector_feed"]["detail"]

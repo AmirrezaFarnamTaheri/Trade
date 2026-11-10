@@ -12,21 +12,27 @@ from pathlib import Path
 
 PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
 BACKUP_STALE = timedelta(hours=36)
+FEED_STALE = timedelta(minutes=10)  # the collector writes quotes every few seconds while the venue is reachable
 
 
 def _check(name, status, detail):
     return {"check": name, "status": status, "detail": detail}
 
 
-def _market(root: Path, now: datetime, full: bool, archives: list[Path]):
+def _market(root: Path, now: datetime, full: bool, archives: list[Path], quick: bool = False):
     from ..adapters.store import MarketDB, verify_segments
     path = root / "market.db"
     if not path.is_file():
         return [_check("market_db", FAIL, f"{path} not found")]
     db = MarketDB(path, readonly=True)
     try:
-        quick = db.c.execute("PRAGMA quick_check").fetchone()[0]
-        out = [_check("market_db", PASS if quick == "ok" else FAIL, f"SQLite quick_check: {quick}")]
+        # Newest quote by insertion order: O(1) even on a multi-gigabyte store.
+        newest = db.c.execute("SELECT ts_avail FROM book_top ORDER BY rowid DESC LIMIT 1").fetchone()
+        out = [_freshness(newest[0] if newest else None, now)]
+        if quick:  # alerting mode: no integrity scan or re-hashing every half hour
+            return out
+        check = db.c.execute("PRAGMA quick_check").fetchone()[0]
+        out.insert(0, _check("market_db", PASS if check == "ok" else FAIL, f"SQLite quick_check: {check}"))
         since = "" if full else (now - timedelta(days=1)).strftime("%Y%m%d")
         report = verify_segments(db, [root / "raw", *archives], since)
     finally:
@@ -42,6 +48,15 @@ def _market(root: Path, now: datetime, full: bool, archives: list[Path]):
     out.append(_check("segment_manifest", WARN if loose else PASS,
                       f"unclosed {report['unclosed'] or 'none'}; unregistered {report['unregistered'] or 'none'}"))
     return out
+
+
+def _freshness(newest: str | None, now: datetime):
+    if newest is None:
+        return _check("collector_feed", WARN, "no quotes stored yet")
+    age = now - datetime.fromisoformat(newest)
+    minutes = age.total_seconds() / 60
+    return _check("collector_feed", WARN if age > FEED_STALE else PASS,
+                  f"newest quote {minutes:.0f} min old" + ("; collector stopped or venue unreachable" if age > FEED_STALE else ""))
 
 
 def _disk(root: Path):
@@ -117,12 +132,17 @@ def _keys(today):
     return out
 
 
-def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Path] | None = None) -> dict:
+def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Path] | None = None,
+             quick: bool = False) -> dict:
     from .offline_review_journal import OfflineReviewJournal
     from .venue_facts import VenueFactsJournal
     checks = []
-    checks += _market(root, now, full, archives or [])
+    checks += _market(root, now, full, archives or [], quick)
     checks.append(_disk(root))
+    if quick:
+        checks.append(_backup(root, now))
+        checks.append(_research_backup(root, now))
+        return _summary(root, now, checks)
     checks.append(_journal("venue_facts", root / "venue_facts.db", VenueFactsJournal))
     checks.append(_journal("offline_reviews", root / "offline_reviews.db", OfflineReviewJournal))
     checks.append(_sqlite_only("external_journal", root / "external_journal.db"))
@@ -131,6 +151,10 @@ def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Pa
     checks.append(_research_backup(root, now))
     checks += _keys(now.date())
     checks.append(_check("executor_ledger", SKIP, "owned by the protected service; verified by the executor at startup"))
+    return _summary(root, now, checks)
+
+
+def _summary(root: Path, now: datetime, checks: list[dict]) -> dict:
     worst = FAIL if any(c["status"] == FAIL for c in checks) else WARN if any(c["status"] == WARN for c in checks) else PASS
     return {"as_of": now.isoformat(), "root": str(root), "status": worst, "checks": checks,
             "read_only": True, "funded_authority": False}
