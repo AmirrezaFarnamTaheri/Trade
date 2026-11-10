@@ -2,31 +2,7 @@
 window.gymModels = (() => {
   let context, language, status, login, poll;
   const $ = id => document.getElementById(id);
-  const words = {
-    en: { title: 'AI connections', help: 'Connect a provider for advisory prompts. Model access never authorizes trading. Provider subscriptions and API billing may differ.',
-      refresh: 'Refresh connections', add: 'Add connection', id: 'Connection name', provider: 'Provider', auth: 'Authentication', key: 'API key', oauth: 'Browser sign-in', oauthAccept: 'I have read the terms; add it',
-      oauthWarn: 'Browser sign-in uses a consumer subscription. Some providers limit such tokens to their own apps (Anthropic said in February 2026 that Claude Free, Pro and Max tokens are for Claude Code and Claude.ai only). It may stop working or put the account at risk. API keys are the recommended default. Read the provider’s current terms before continuing.',
-      saved: 'Saved locally.', failed: 'Request failed. Check the connection and retry.', unavailable: 'Gateway unavailable. Install the model-gateway dependencies and restart the workspace.',
-      storage: 'Credential storage', connections: 'Connections', none: 'No connections configured.', signIn: 'Sign in', signOut: 'Sign out', sync: 'Sync model presets',
-      keys: 'Replace stored key pool', keyHelp: 'Saving this key replaces the stored key pool. Environment keys remain separate.', clear: 'Delete stored keys',
-      enabled: 'Enable advisory model requests', prompt: 'Prompt', send: 'Send to provider · may incur charges', preset: 'Model preset',
-      advanced: 'Portable configuration', import: 'Merge configuration', export: 'Export configuration', config: 'Configuration JSON (no secrets)',
-      pending: 'Sign-in pending', cancel: 'Cancel sign-in', reply: 'Continue sign-in', code: 'Authorization code or callback URL', link: 'Open provider sign-in',
-      connected: 'OAuth credential stored', disconnected: 'Not signed in', configured: 'configured keys', choose: 'Choose a sign-in method', result: 'Result',
-      plaintext: 'This platform stores credentials in private files without encryption.',
-      usage: 'Usage and cost', calls: 'Calls', tokensIn: 'Input tokens', tokensOut: 'Output tokens', cost: 'Cost', unknownCost: 'without cost data', noUsage: 'No completions recorded yet.' },
-    fa: { title: 'اتصال‌های هوش مصنوعی', help: 'ارائه‌دهنده را برای مشاوره متصل کنید. دسترسی مدل مجوز معامله نیست. اشتراک و هزینهٔ API ممکن است متفاوت باشند.',
-      refresh: 'بازخوانی اتصال‌ها', add: 'افزودن اتصال', id: 'نام اتصال', provider: 'ارائه‌دهنده', auth: 'روش ورود', key: 'کلید API', oauth: 'ورود در مرورگر', oauthAccept: 'شرایط را خواندم؛ افزوده شود', oauthWarn: 'ورود در مرورگر از اشتراک شخصی استفاده می‌کند. برخی ارائه‌دهندگان این توکن‌ها را فقط برای برنامه‌های خود مجاز می‌دانند (Anthropic در فوریهٔ ۲۰۲۶ اعلام کرد توکن‌های Claude Free، Pro و Max فقط برای Claude Code و Claude.ai است). ممکن است از کار بیفتد یا حساب را به خطر بیندازد. کلید API گزینهٔ پیشنهادی است. پیش از ادامه، شرایط فعلی ارائه‌دهنده را بخوانید.',
-      saved: 'به‌صورت محلی ذخیره شد.', failed: 'درخواست ناموفق بود. اتصال را بررسی و دوباره تلاش کنید.', unavailable: 'درگاه در دسترس نیست. وابستگی‌های model-gateway را نصب و برنامه را بازراه‌اندازی کنید.',
-      storage: 'محل نگهداری اعتبارنامه', connections: 'اتصال‌ها', none: 'اتصالی تنظیم نشده است.', signIn: 'ورود', signOut: 'خروج', sync: 'همگام‌سازی مدل‌ها',
-      keys: 'جایگزینی کلیدهای ذخیره‌شده', keyHelp: 'ذخیرهٔ این کلید، کلیدهای ذخیره‌شده را جایگزین می‌کند. کلیدهای محیطی جدا باقی می‌مانند.', clear: 'حذف کلیدهای ذخیره‌شده',
-      enabled: 'فعال‌سازی درخواست مشاوره از مدل', prompt: 'متن درخواست', send: 'ارسال به ارائه‌دهنده · ممکن است هزینه داشته باشد', preset: 'مدل',
-      advanced: 'پیکربندی قابل انتقال', import: 'ادغام پیکربندی', export: 'دریافت پیکربندی', config: 'پیکربندی JSON بدون اطلاعات محرمانه',
-      pending: 'در انتظار ورود', cancel: 'لغو ورود', reply: 'ادامهٔ ورود', code: 'کد مجوز یا نشانی بازگشت', link: 'باز کردن صفحهٔ ورود ارائه‌دهنده',
-      connected: 'اعتبارنامهٔ ورود ذخیره شده', disconnected: 'وارد نشده', configured: 'کلید تنظیم‌شده', choose: 'روش ورود را انتخاب کنید', result: 'نتیجه',
-      plaintext: 'در این سیستم اعتبارنامه‌ها در فایل خصوصی و بدون رمزنگاری ذخیره می‌شوند.',
-      usage: 'مصرف و هزینه', calls: 'تعداد درخواست', tokensIn: 'توکن ورودی', tokensOut: 'توکن خروجی', cost: 'هزینه', unknownCost: 'بدون دادهٔ هزینه', noUsage: 'هنوز درخواستی ثبت نشده است.' },
-  };
+  const words = Object.fromEntries(['en', 'fa'].map(l => [l, Object.fromEntries(["add", "advanced", "auth", "calls", "cancel", "choose", "clear", "code", "config", "configured", "connected", "connections", "cost", "disconnected", "enabled", "export", "failed", "help", "id", "import", "key", "keyHelp", "keys", "link", "noUsage", "none", "oauth", "oauthAccept", "oauthWarn", "pending", "plaintext", "preset", "prompt", "provider", "refresh", "reply", "result", "saved", "send", "signIn", "signOut", "storage", "sync", "title", "tokensIn", "tokensOut", "unavailable", "unknownCost", "usage"].map(k => [k, T[l]['models' + k[0].toUpperCase() + k.slice(1)]]))]));
   const w = key => words[language][key];
   const esc = value => context.esc(String(value));
   const request = (action, value) => context.api('/api/models', { method: 'POST', body: JSON.stringify({ action, value }) }, 145000);

@@ -21,7 +21,7 @@ function page(api, demo = false) {
     get innerHTML() {return this._html;}
   }
   nodes.set('margin-workbench',new Node('margin-workbench'));
-  const context = {window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
+  const context = {T: require('./vocabulary.cjs').T, window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../src/gym/ui/margin.js'),'utf8'),context);
   const options = {api,esc,demo,when:esc,amount:esc,keyValues:rows=>rows.flat().join('|'),table:(headings,rows)=>headings.concat(rows.flat()).join('|')};
   context.window.gymMargin.mount(options);

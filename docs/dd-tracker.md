@@ -77,8 +77,7 @@ Product and UX (9)
 [x] U-4 · An operator activity timeline and one action registry would close the CLI-versus-UI gap · Low · Effort M
 [x] U-5 · Accessibility and output-safety basics are in place; what is missing is automated proof in a real rendering engine · — · Effort M
 [x] U-6 · The theme ignores the operating system preference and there is no forced-colours support · — · Effort S
-[ ] U-7 · Translation lives in two mechanisms, and timestamps use a fixed time zone and a locale whose default calendar may differ from the exports · — · Effort M
-    Status: a Persian-literal ratchet test and the review-sheet tool exist. Not yet done: moving the inline pairs into the vocabulary, the ISO tooltip on timestamps, and a stored zone preference.
+[x] U-7 · Translation lives in two mechanisms, and timestamps use a fixed time zone and a locale whose default calendar may differ from the exports · — · Effort M
 [x] U-8 · Any failed request becomes one generic banner, and the slowest request sets the refresh pace · — · Effort M
 [x] U-9 · Destructive actions use the browser's native confirm dialog · — · Effort S
 

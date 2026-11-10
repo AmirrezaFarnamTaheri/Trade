@@ -15,7 +15,7 @@ function page(api, strategyFields) {
     querySelectorAll(){return [];}
   }
   nodes.set('portfolio-workbench', new Node('portfolio-workbench'));
-  const context = {window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
+  const context = {T: require('./vocabulary.cjs').T, window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../src/gym/ui/portfolio.js'),'utf8'),context);
   const options={api,esc,strategyFields,amount:esc,when:esc,table:(heads,rows)=>heads.concat(rows.flat()).join('|'),keyValues:rows=>rows.flat().join('|'),curveFigure:()=>'<svg></svg>'};
   context.window.gymPortfolio.mount(options);

@@ -18,7 +18,7 @@ function performancePanel(perf, quote) {
     [t("returnRange"), `${percent(boot.total_return[0], 2)} … ${percent(boot.total_return[1], 2)}`]);
   if (bench) rows.push([`${t("beta")} ${bench.name}`, ratio(bench.beta)], [t("alphaPeriod"), percent(bench.alpha_per_period, 3)],
     [t("infoRatio"), ratio(bench.information_ratio_per_period, 3)], [t("correlation"), ratio(bench.correlation)]);
-  const trades = list(perf.ledger).map(trade => [esc(when(trade.opened_at)), esc(when(trade.closed_at)), ratio(trade.holding_seconds / 3600, 1),
+  const trades = list(perf.ledger).map(trade => [stampHtml(trade.opened_at), stampHtml(trade.closed_at), ratio(trade.holding_seconds / 3600, 1),
     money(trade.quantity, 8), money(trade.cost), money(trade.proceeds), `<span class="${signed(trade.pnl)}">${money(trade.pnl)}</span>`, percent(trade.return, 2)]);
   const heads = [t("opened"), t("closed"), t("holding"), t("quantity"), t("cost"), t("proceeds"), t("pnl"), t("tradeReturn")], numeric = [2, 3, 4, 5, 6, 7];
   return `<section class="panel"><h3 class="panel-title">${esc(t("perfTitle"))}</h3><div class="stats stats-4">${stat(t("totalReturn"), pct(perf.total_return_pct))}${stat(t("maxDrawdown"), pct(perf.max_drawdown_pct, false))}${stat(t("sharpePeriod"), ratio(r.sharpe_per_period, 3), `${t("psr")}: ${percent(r.probabilistic_sharpe)}`)}${stat(t("winRate"), percent(tr.win_rate, 0), `${digits(tr.closed_trades ?? 0)} ${t("closedTrades")}`)}</div>
@@ -49,7 +49,7 @@ function valuationPanel(result) {
       ? curveFigure({curve: curve.map(row => [row.at, row.equity_usdt_eq]), quote: "USDT equivalent"}) : ""}
     <p class="field-help">${esc(t("fxCurveNote"))}</p>
     ${table([t("time"), t("usdtEquivalent"), t("fxState"), t("fxAge")], curve.slice(-25).map(row =>
-      [esc(when(row.at)), amount(row.equity_usdt_eq), label(row.fx?.status), num(row.fx?.age_seconds)]), t("noCurve"), [1, 3])}</section>`;
+      [stampHtml(row.at), amount(row.equity_usdt_eq), label(row.fx?.status), num(row.fx?.age_seconds)]), t("noCurve"), [1, 3])}</section>`;
 }
 function renderRun(record) {
   if (!record) return;
@@ -63,13 +63,13 @@ function renderRun(record) {
   const orders = new Map(list(result.orders).map(order => [order.ref, order]));
   const decisions = list(result.decisions).slice(-100).reverse();
   const decisionRow = decision => { const order = orders.get(decision.order);
-    return [esc(when(decision.t)), `<strong>${esc(decision.action)}</strong>`, esc(list(decision.reasons).join("; ")), order ? `${label(order.status)}${order.price ? ` · ${amount(order.price)}` : ""}${order.reason ? `<span class="sub">${esc(order.reason)}</span>` : ""}` : ""]; };
+    return [stampHtml(decision.t), `<strong>${esc(decision.action)}</strong>`, esc(list(decision.reasons).join("; ")), order ? `${label(order.status)}${order.price ? ` · ${amount(order.price)}` : ""}${order.reason ? `<span class="sub">${esc(order.reason)}</span>` : ""}` : ""]; };
   const decisionHeads = [t("time"), t("decisionAction"), t("reasons"), t("status")];
-  setHTML("run-detail", `<header class="run-heading"><div><h2>${code(result.symbol || inputs.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h2><p class="field-help">${esc(when(inputs.from))} → ${esc(when(inputs.to))} · ${code(inputs.resolution)} · ${code(result.session?.state || record.mode || "PAPER")} · ${esc(inputs.store === "demo" ? t("synthetic") : t("paperOnly"))}</p></div>${chip(t("noCapital"))}</header>
+  setHTML("run-detail", `<header class="run-heading"><div><h2>${code(result.symbol || inputs.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h2><p class="field-help">${stampHtml(inputs.from)} → ${stampHtml(inputs.to)} · ${code(inputs.resolution)} · ${code(result.session?.state || record.mode || "PAPER")} · ${esc(inputs.store === "demo" ? t("synthetic") : t("paperOnly"))}</p></div>${chip(t("noCapital"))}</header>
     <div class="stats stats-4">${stat(t("equity"), `${money(end.equity)} <small>${esc(quote)}</small>`)}${stat(t("net"), `<span class="${signed(end.net)}">${money(end.net)}</span> <small>${esc(quote)}</small>`)}${stat(t("fills"), num(result.fills))}${stat(t("observations"), `${num(result.qualified)} <small>/ ${num(result.observations)}</small>`)}</div>
     <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
     ${valuationPanel(result)}${performancePanel(evidence?.performance, quote)}
-    <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${esc(when(end.mark_time))}</p></section>
+    <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${stampHtml(end.mark_time)}</p></section>
     <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3><p class="field-help">${esc(t("baselineNote"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines, "", [1, 2, 3])}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), money(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"), [2, 3])}
       ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), money(row.net_quote), money(row.net_usdt_eq)]), "", [1, 2])}` : ""}</section>
@@ -84,11 +84,11 @@ function renderComparison() {
   const data = state.comparison;
   if (!data) return;
   if (["TEMPORAL_VALIDATION", "MULTI_WINDOW_VALIDATION"].includes(data.mode)) {
-    const windowText = window => `${esc(when(window.from))} → ${esc(when(window.to))}`;
+    const windowText = window => `${stampHtml(window.from)} → ${stampHtml(window.to)}`;
     const windows = data.mode === "MULTI_WINDOW_VALIDATION" ? list(data.folds) : [data];
     setHTML("compare-result", `<section class="ticket-result"><h3>${esc(t("validationTitle"))} · ${code(data.validation_id)}</h3>${keyValues([
       [t("status"), label(data.status)], [t("validationWindows"), num(windows.length)],
-    ])}<p class="field-help">${esc(t("validationNote"))}</p>${table([t("validationWindow"), t("status"), t("selectionWindow"), t("holdoutWindow"), t("selectedCandidate")], windows.map((fold, index) => [num(index + 1), label(fold.status), windowText(fold.windows.selection), windowText(fold.windows.holdout), code(fold.selected?.strategy)]))}${table([t("strategy"), t("time"), t("net"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), esc(when(record.inputs.to)), money(record.result.end?.net), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}${disclosure(t("runInputs"), { folds: windows, trial_count: data.trial_count, limitation: data.limitation }, "validation-inputs")}</section>`);
+    ])}<p class="field-help">${esc(t("validationNote"))}</p>${table([t("validationWindow"), t("status"), t("selectionWindow"), t("holdoutWindow"), t("selectedCandidate")], windows.map((fold, index) => [num(index + 1), label(fold.status), windowText(fold.windows.selection), windowText(fold.windows.holdout), code(fold.selected?.strategy)]))}${table([t("strategy"), t("time"), t("net"), t("inspectRun")], list(data.runs).map(record => [code(record.inputs.strategy), stampHtml(record.inputs.to), money(record.result.end?.net), `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]))}${disclosure(t("runInputs"), { folds: windows, trial_count: data.trial_count, limitation: data.limitation }, "validation-inputs")}</section>`);
     return;
   }
   const quote = data.runs[0]?.result?.quote || "", selection = data.selection;
@@ -116,7 +116,7 @@ async function loadOverlay(data) {
 function renderSavedComparison(records) {
   state.savedComparison = records;
   const rows = records.map(record => { const perf = record.evidence?.performance || {}, r = perf.returns || {}, end = record.result?.end || {};
-    return [`${code(record.inputs?.symbol)} <span class="sub">${esc(record.inputs?.strategy || "")}</span>`, `${esc(when(record.inputs?.from, true))} → ${esc(when(record.inputs?.to, true))}`,
+    return [`${code(record.inputs?.symbol)} <span class="sub">${esc(record.inputs?.strategy || "")}</span>`, `${stampHtml(record.inputs?.from, true)} → ${stampHtml(record.inputs?.to, true)}`,
       `<span class="${signed(end.net)}">${money(end.net)}</span> ${code(record.result?.quote)}`, pct(perf.total_return_pct), pct(perf.max_drawdown_pct, false),
       ratio(r.sharpe_per_period, 3), percent(r.probabilistic_sharpe), num(record.result?.fills),
       `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]; });
@@ -146,5 +146,5 @@ function exportCsv(kind, record) {
 function renderRunList() {
   $("compare-picked").hidden = state.pickedRuns.size < 2;
   $("compare-picked").textContent = `${t("comparePicked")} · ${digits(state.pickedRuns.size)}`;
-  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(run.inputs?.strategy || "")} · ${code(run.inputs?.resolution)}</span><span>${esc(when(run.inputs?.from))} → ${esc(when(run.inputs?.to))}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
+  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(run.inputs?.strategy || "")} · ${code(run.inputs?.resolution)}</span><span>${stampHtml(run.inputs?.from)} → ${stampHtml(run.inputs?.to)}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
 }

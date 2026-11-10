@@ -68,7 +68,7 @@ function overlayFigure(series) {
     <svg class="chart" data-chart="${id}" tabindex="0" viewBox="0 0 640 176" preserveAspectRatio="none" role="img" aria-label="${esc(t("overlayTitle") + " · " + usable.map(item => item.name).join(", ") + ' · ' + t('chartKeys'))}">
     <line class="chart-base" x1="0" y1="${y(0)}" x2="640" y2="${y(0)}"/>${usable.map((item, i) => `<polyline class="chart-line series-${i % 4}" points="${polyline(item.points, y)}" fill="none"/>`).join("")}<line class="chart-cursor" x1="0" y1="0" x2="0" y2="176"/></svg>
     <div class="chart-overlay"><output class="chart-tip" hidden></output></div>
-    <div class="chart-x" aria-hidden="true"><span>${esc(when(new Date(first).toISOString(), true))}</span><span>${esc(when(new Date(last).toISOString(), true))}</span></div></div>
+    <div class="chart-x" aria-hidden="true"><span>${stampHtml(new Date(first).toISOString(), true)}</span><span>${stampHtml(new Date(last).toISOString(), true)}</span></div></div>
     <figcaption class="chart-legend">${usable.map((item, i) => `<span class="series-${i % 4}">${esc(item.name)}</span>`).join("")}</figcaption><p class="field-help">${esc(t('overlayInspectionNote'))}</p></figure>`;
 }
 function showCursor(svg, index) {

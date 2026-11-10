@@ -23,7 +23,7 @@ function renderCandidate(slot) {
 function renderCoverage() {
   const data = state.researchSetup?.coverage;
   if (!data) return;
-  setHTML("paper-coverage", `<p><strong>${esc(t("coverageTitle"))} · ${code(data.symbol)}</strong> ${esc(when(data.from))} → ${esc(when(data.to))}</p><p>${esc(t("recordedObservations"))}: ${num(data.observations)} · ${esc(t("coverageGaps"))}: ${num(data.gaps_over_120s)}</p><p>${esc(t("coverageNote"))}</p>`);
+  setHTML("paper-coverage", `<p><strong>${esc(t("coverageTitle"))} · ${code(data.symbol)}</strong> ${stampHtml(data.from)} → ${stampHtml(data.to)}</p><p>${esc(t("recordedObservations"))}: ${num(data.observations)} · ${esc(t("coverageGaps"))}: ${num(data.gaps_over_120s)}</p><p>${esc(t("coverageNote"))}</p>`);
 }
 async function setupResearch(symbol = "") {
   $("comparison-fields").disabled = true;
@@ -136,10 +136,10 @@ function renderResearchJobs(data) {
   setHTML("research-jobs", table([t("strategy"), t("symbol"), t("status"), t("nextResearchRun"), t("lastResearchRun"), t("researchRetry"), t("actions")], jobs.map(job => {
     const hypothesis = hypotheses.get(job.hypothesis_id), action = job.enabled ? "pause" : "resume";
     return [code(hypothesis?.strategy), code(hypothesis?.symbol), esc(t(job.enabled ? "researchEnabled" : "researchPaused")),
-      esc(when(job.next_at)), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : label(job.last_report?.error_code ?? job.last_report?.status), esc(when(job.last_report?.retry_at)),
+      stampHtml(job.next_at), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : label(job.last_report?.error_code ?? job.last_report?.status), stampHtml(job.last_report?.retry_at),
       `<button type="button" class="button button-small" data-research-action="${action}" data-job="${esc(job.id)}" data-focus="research-${esc(job.id)}"${state.researchBusy ? " disabled" : ""}>${esc(t(action === "pause" ? "researchPause" : "researchResume"))}</button>`];
   }), t("noResearchJobs")));
-  setHTML("research-alerts", table([t("time"), t("status"), t("researchRetry")], list(data.alerts).slice(0, 20).map(alert => [esc(when(alert.due_at)), label(alert.kind), esc(when(alert.retry_at))]), t("noResearchAlerts")));
+  setHTML("research-alerts", table([t("time"), t("status"), t("researchRetry")], list(data.alerts).slice(0, 20).map(alert => [stampHtml(alert.due_at), label(alert.kind), stampHtml(alert.retry_at)]), t("noResearchAlerts")));
 }
 async function researchJobs() {
   try {

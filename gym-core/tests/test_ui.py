@@ -111,8 +111,8 @@ def test_persian_copy_outside_the_vocabulary_does_not_grow():
     the table down); adding inline Persian anywhere else fails here.
     """
     import re
-    allowed = {"margin.js": 39, "models.js": 11, "native-review.js": 2, "portfolio.js": 52, "replay-chart.js": 4,
-               "research.js": 188, "workspace-overview.js": 2, "workspace-utils.js": 1, "index.html": 2}
+    # U-7: all Persian copy lives in workspace-config.js; index.html keeps its initial toggle label and <noscript>.
+    allowed = {"index.html": 2}
     persian = re.compile("[\u0600-\u06ff]")
     for path in [*sorted(UI.with_name("app.js").parent.glob("*.js")), UI.with_name("index.html")]:
         if path.name == "workspace-config.js":
@@ -145,7 +145,8 @@ def test_oauth_connections_are_opt_in_behind_the_terms_warning():
     gate = "if ($('models-auth').value === 'oauth' && !await confirmAction(w('oauthWarn'), w('oauthAccept')"
     assert gate in source
     assert source.index(gate) < source.index("await request('connection'")
-    assert source.count("oauthWarn:") == 2 and "Claude Code and Claude.ai" in source
+    vocabulary = (Path(__file__).resolve().parents[1] / "src/gym/ui/workspace-config.js").read_text(encoding="utf-8")
+    assert "modelsOauthWarn:" in vocabulary and "Claude Code and Claude.ai" in vocabulary
 
 
 def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
@@ -158,3 +159,21 @@ def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
     ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
     for path in [*ui.glob("*.js"), ui / "index.html"]:
         assert not re.search(r"style\s*=\s*[\"'`]", path.read_text(encoding="utf-8")), path.name
+
+
+def test_timestamps_carry_the_iso_instant_and_follow_the_zone_preference():
+    """U-7: every rendered timestamp has an ISO tooltip; the zone is a stored preference (Tehran or UTC)."""
+    import re
+    ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
+    utils = (ui / "workspace-utils.js").read_text(encoding="utf-8")
+    assert 'let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);' in utils
+    assert '<time datetime="${exact}" title="${exact}">' in utils
+    assert "function when(value, dateOnly = false, timeZone = zone)" in utils
+    for path in ui.glob("*.js"):
+        text = path.read_text(encoding="utf-8")
+        if path.name == "workspace-utils.js":  # stampHtml itself formats through esc(when(...)) once
+            text = text.replace("const label = esc(when(value, dateOnly, timeZone));", "")
+        text = text.replace("stamp = (v, d) => esc(when(v, d))", "")  # injected-helper fallback in component mounts
+        assert "esc(when(" not in text, path.name
+    assert 'id="zone-toggle"' in (ui / "index.html").read_text(encoding="utf-8")
+    assert re.search(r'zoneShowUtc: \["Times: show UTC", "[^"]+"\]', (ui / "workspace-config.js").read_text(encoding="utf-8"))

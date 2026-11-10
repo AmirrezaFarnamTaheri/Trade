@@ -2,77 +2,77 @@
 window.gymResearch = (() => {
   let language;
   const actions = {
-    register: ['Register hypothesis', 'ثبت فرضیه', 'symbol, strategy, params'],
-    'shadow-open': ['Open paper shadow', 'بازکردن موقعیت سایه', 'position_id, hypothesis_id, quote, gross_quantity, fee_rate'],
-    'shadow-close': ['Close paper shadow', 'بستن موقعیت سایه', 'position_id, quote'],
-    schedule: ['Schedule hypothesis', 'زمان‌بندی فرضیه', 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate'],
-    list: ['Research ledger', 'دفتر پژوهش', ''],
-    review: ['Review saved runs', 'بررسی اجراهای ذخیره‌شده', 'run_ids'],
-    'claim-check': ['Check numeric claims', 'بررسی ادعاهای عددی', 'claims'],
-    'outcome-add': ['Record run outcome', 'ثبت نتیجهٔ اجرا', 'Run ID'],
-    outcomes: ['Available outcome memory', 'حافظهٔ نتایج قابل استفاده', ''],
-    'final-register': ['Preregister future evaluation', 'پیش‌ثبت ارزیابی آینده', 'symbol, strategy, params, selection_end, test_from, test_to, resolution, cash, fee_rate, cost_declaration (optional: trades_per_month, roundtrip_cost_bps, expected_gross_edge_bps)'],
-    'final-status': ['Inspect evaluation', 'بررسی ارزیابی', 'Evaluation ID'],
-    'final-run': ['Consume evaluation once', 'اجرای یک‌بارهٔ ارزیابی', 'Evaluation ID'],
-    'observe-import': ['Import observation vintages', 'ثبت نسخه‌های مشاهدات', 'observations'],
-    screen: ['Screen supplied observations', 'غربال مشاهدات ورودی', 'source_id, series, kind, unit, as_of, descending, limit, max_age_seconds'],
-    derived: ['Aligned ratios and spreads', 'نسبت‌ها و اختلاف‌های هم‌زمان', 'left, right, operation, as_of, max_age_seconds, max_skew_seconds'],
-    diagnostic: ['Evaluate accounting or market model', 'ارزیابی مدل بازار یا حسابداری', 'model, parameters'],
-    technicals: ['Closed-bar technical timeframes', 'تحلیل بازه‌های شمع بسته', 'symbol, from, to, resolutions'],
-    spreads: ['Observed spread report', 'گزارش فاصلهٔ قیمت مشاهده‌شده', 'symbol, from, to'],
-    'trade-flow': ['Recorded trade flow', 'جریان معاملات ثبت‌شده', 'symbol, from, to'],
-    candles: ['Point-in-time candle crosscheck', 'تطبیق شمع با زمان آگاهی', 'symbol, from, to, as_of, tolerance_bps'],
-    'market-screen': ['Rank recorded markets', 'رتبه‌بندی بازارهای ثبت‌شده', 'symbols, reference, quote_currency, from, to, resolution, metric'],
-    rebalance: ['Preview target rebalance', 'پیش‌نمایش توازن سبد', 'quote_currency, cash, reserved_cash, fee_rate, positions: [{symbol, held, reserved, target_weight, bid, ask, quantity_step, minimum_quote}]'],
-    'execution-quality': ['Compare supplied fills', 'مقایسه اجرای ورودی', 'run_id, observations: [{fill_id, order_ref, side, quantity, price, fee, fee_currency, filled_at, observed_at}]'],
-    'experiment-run': ['Run experiment and stress scenarios', 'اجرای آزمایش و سناریوهای تنش', 'hypothesis, symbol, strategy, trials: [params], windows: [{from, to}], resolution, cash, scenarios: [{fee_rate, latency_ms, outages: [{from, to}]}], final_evaluation_id (null or saved ID)'],
-    'experiment-list': ['Experiment registry', 'دفتر آزمایش‌ها', ''],
-    'experiment-status': ['Inspect saved experiment or note', 'بررسی آزمایش یا یادداشت', 'Saved registry ID'],
-    'research-packet': ['Prepare AI evidence packet', 'آماده‌سازی شواهد برای هوش مصنوعی', 'run_ids'],
-    'research-notes': ['Validate and save analyst notes', 'بررسی و ذخیره یادداشت تحلیلگر', 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
+    register: [T.en.rsRegisterHypothesis, T.fa.rsRegisterHypothesis, 'symbol, strategy, params'],
+    'shadow-open': [T.en.rsOpenPaperShadow, T.fa.rsOpenPaperShadow, 'position_id, hypothesis_id, quote, gross_quantity, fee_rate'],
+    'shadow-close': [T.en.rsClosePaperShadow, T.fa.rsClosePaperShadow, 'position_id, quote'],
+    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate'],
+    list: [T.en.rsResearchLedger, T.fa.rsResearchLedger, ''],
+    review: [T.en.rsReviewSavedRuns, T.fa.rsReviewSavedRuns, 'run_ids'],
+    'claim-check': [T.en.rsCheckNumericClaims, T.fa.rsCheckNumericClaims, 'claims'],
+    'outcome-add': [T.en.rsRecordRunOutcome, T.fa.rsRecordRunOutcome, 'Run ID'],
+    outcomes: [T.en.rsAvailableOutcomeMemory, T.fa.rsAvailableOutcomeMemory, ''],
+    'final-register': [T.en.rsPreregisterFutureEvaluation, T.fa.rsPreregisterFutureEvaluation, 'symbol, strategy, params, selection_end, test_from, test_to, resolution, cash, fee_rate, cost_declaration (optional: trades_per_month, roundtrip_cost_bps, expected_gross_edge_bps)'],
+    'final-status': [T.en.rsInspectEvaluation, T.fa.rsInspectEvaluation, 'Evaluation ID'],
+    'final-run': [T.en.rsConsumeEvaluationOnce, T.fa.rsConsumeEvaluationOnce, 'Evaluation ID'],
+    'observe-import': [T.en.rsImportObservationVintages, T.fa.rsImportObservationVintages, 'observations'],
+    screen: [T.en.rsScreenSuppliedObservations, T.fa.rsScreenSuppliedObservations, 'source_id, series, kind, unit, as_of, descending, limit, max_age_seconds'],
+    derived: [T.en.rsAlignedRatiosAndSpreads, T.fa.rsAlignedRatiosAndSpreads, 'left, right, operation, as_of, max_age_seconds, max_skew_seconds'],
+    diagnostic: [T.en.rsEvaluateAccountingOrMarketModel, T.fa.rsEvaluateAccountingOrMarketModel, 'model, parameters'],
+    technicals: [T.en.rsClosedBarTechnicalTimeframes, T.fa.rsClosedBarTechnicalTimeframes, 'symbol, from, to, resolutions'],
+    spreads: [T.en.rsObservedSpreadReport, T.fa.rsObservedSpreadReport, 'symbol, from, to'],
+    'trade-flow': [T.en.rsRecordedTradeFlow, T.fa.rsRecordedTradeFlow, 'symbol, from, to'],
+    candles: [T.en.rsPointInTimeCandleCrosscheck, T.fa.rsPointInTimeCandleCrosscheck, 'symbol, from, to, as_of, tolerance_bps'],
+    'market-screen': [T.en.rsRankRecordedMarkets, T.fa.rsRankRecordedMarkets, 'symbols, reference, quote_currency, from, to, resolution, metric'],
+    rebalance: [T.en.rsPreviewTargetRebalance, T.fa.rsPreviewTargetRebalance, 'quote_currency, cash, reserved_cash, fee_rate, positions: [{symbol, held, reserved, target_weight, bid, ask, quantity_step, minimum_quote}]'],
+    'execution-quality': [T.en.rsCompareSuppliedFills, T.fa.rsCompareSuppliedFills, 'run_id, observations: [{fill_id, order_ref, side, quantity, price, fee, fee_currency, filled_at, observed_at}]'],
+    'experiment-run': [T.en.rsRunExperimentAndStressScenarios, T.fa.rsRunExperimentAndStressScenarios, 'hypothesis, symbol, strategy, trials: [params], windows: [{from, to}], resolution, cash, scenarios: [{fee_rate, latency_ms, outages: [{from, to}]}], final_evaluation_id (null or saved ID)'],
+    'experiment-list': [T.en.rsExperimentRegistry, T.fa.rsExperimentRegistry, ''],
+    'experiment-status': [T.en.rsInspectSavedExperimentOrNote, T.fa.rsInspectSavedExperimentOrNote, 'Saved registry ID'],
+    'research-packet': [T.en.rsPrepareAiEvidencePacket, T.fa.rsPrepareAiEvidencePacket, 'run_ids'],
+    'research-notes': [T.en.rsValidateAndSaveAnalystNotes, T.fa.rsValidateAndSaveAnalystNotes, 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status', 'prospective-status', 'prospective-evaluate']);
-  actions['premium-research'] = ['Analyze TMN conversion premium', 'بررسی صرف تبدیل تومان', 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
-  actions['combine-oos'] = ['Combine matched historical OOS paper curves', 'ترکیب گذشته‌نگر منحنی‌های برون‌نمونه', 'run_ids (2..4 verified matched native prospective sessions), lookback (3..100), rebalance_cost_bps (or null); prior-only weights; no live allocation'];
-  actions['strategy-retirement-screen'] = ['Audit baseline underperformance before review', 'بررسی ضعف در برابر مبنای تصادفی', 'run_ids (3..100 verified matched live sessions), universe (same frozen markets); evidence-only, no catalog auto-hide'];
-  actions['meta-label-eligibility'] = ['Check deferred meta-label evidence threshold', 'آستانهٔ شواهد برچسب‌گذاری ثانویه', 'closed_trades (verified integer count; >=300 only research eligible, no model trained)'];
-  actions['margin-pairs-replay'] = ['Simulate a matched long/short margin pair', 'بازپخش آزمایشی جفت خرید و فروش اعتباری', 'long_preview_id, short_preview_id, from, to, exit_fee_rate, holding_seconds, max_skew_seconds (0..120); public archived quotes only, USDT scorecard if both USDT and settled; never venue orders'];
-  actions['lead-lag-research'] = ['Test causal lead-lag alignment', 'بررسی تقدم و تأخر علّی', 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
-  actions['twap-preview'] = ['Preview paper TWAP child fills', 'پیش‌نمایش برش‌های آزمایشی TWAP', 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
-  actions['execution-choice-preview'] = ['Compare historical immediate vs TWAP costs', 'مقایسهٔ تاریخی اجرای فوری و برش‌های TWAP', 'symbol, from, to, side, quantity, slices (2..100), participation, fee_rate, available_quote, available_base, max_delay_seconds; optional dated cost_models. Retrospective only; not live execution advice.'];
-  actions['prospective-register'] = ['Freeze future strategy comparison', 'ثبت ثابت مقایسهٔ آینده', 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
-  actions['prospective-status'] = ['Inspect frozen comparison', 'بررسی مقایسهٔ ثبت‌شده', 'Saved 64-character registry ID'];
-  actions['prospective-evaluate'] = ['Consume future comparison once', 'اجرای یک‌بارهٔ مقایسهٔ آینده', 'Saved 64-character registry ID; failures are consumed'];
-  actions['market-products'] = ['Inspect observed market products and credit grids', 'بررسی محصولات بازار و گام اعتبار', 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
-  actions['campaign-status'] = ['Inspect campaign progress and verified samples', 'پیشرفت مطالعه و نمونه‌های بررسی‌شده', 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
-  actions['walk-forward'] = ['Expanding walk-forward search', 'جست‌وجوی پیش‌رونده با آموزش افزایشی', 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
-  actions['execution-calibration'] = ['Inspect execution assumption evidence', 'بررسی شواهد فرض‌های اجرا', 'symbol (null for all markets), from, to, max_age_seconds; public feed timing only, no automatic cost defaults'];
-  actions['execution-model-calibrate'] = ['Fit causal public impact and hourly cost models', 'برازش علّی اثر قیمت و هزینهٔ ساعتی', 'symbol, from, to; bounded historical public prints, quotes, and local read-only fee receipts; paper-only, opt in explicitly'];
-  actions['robustness'] = ['Inspect selection and path robustness', 'بررسی پایداری انتخاب و مسیر', 'run_ids, partitions (4/6/8/10), seed, simulations, mean_block_length, max_gap_seconds; comparable verified historical runs only'];
-  actions['strategy-audit'] = ['Check causality and warm-up', 'بررسی علیت و دورهٔ آماده‌سازی', 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
-  actions['return-bootstrap'] = ['Explore saved return uncertainty', 'بررسی عدم‌قطعیت بازده ثبت‌شده', 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
-  actions['fractional-sizing'] = ['Analyze capped fractional Kelly sizing', 'تحلیل اندازه‌گذاری محدود کلی', 'evaluation_id (completed preregistered evaluation), fraction (0..0.5 multiplier), cap (0..0.25), seed, simulations (100..500), block_length (1..50); no allocation changes automatically'];
-  actions['experiment-scorecard'] = ['Experiment scorecard and parameter heatmap', 'کارنامهٔ آزمایش و نقشهٔ پارامترها', 'experiment_id, shadow_run_ids: up to four matched native prospective session IDs, or []'];
-  actions['job-interrupt'] = ['Release an interrupted paper attempt', 'آزادسازی تلاش متوقف‌شدهٔ آزمایشی', 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];
-  actions['return-correlations'] = ['Compare aligned market returns', 'مقایسهٔ بازده هم‌زمان بازارها', 'symbols: [market], quote_currency, from, to, resolution, min_overlap'];
-  actions['registry-page'] = ['Browse a registry snapshot', 'مرور نسخهٔ ثابت دفتر پژوهش', 'kind (null or event kind), parent (null or saved ID), after, through (null for first page), limit'];
-  actions['annotation-add'] = ['Save replay annotation', 'ثبت یادداشت مرور', 'run_id, outputs_digest, decision_index, request_id (32 hex characters), text'];
-  actions['annotation-list'] = ['Read replay annotations', 'خواندن یادداشت‌های مرور', 'run_id, outputs_digest, after, through, limit'];
-  actions['replay-checkpoint'] = ['Save verified replay checkpoint', 'ثبت نقطهٔ بازیابی مرور', 'run_id, quote_count'];
-  actions['replay-resume'] = ['Resume and verify saved replay', 'ادامه و بررسی مرور ثبت‌شده', 'checkpoint_id'];
-  actions['entry-lock-add'] = ['Record paper entry lock', 'ثبت محدودیت ورود آزمایشی', 'run_id, scope (PAIR/GLOBAL), reason (COOLDOWN/DRAWDOWN), duration_seconds, threshold_percent (null for cooldown)'];
-  actions['entry-locks'] = ['Inspect paper entry locks', 'بررسی محدودیت‌های ورود آزمایشی', ''];
-  actions['conversion-report'] = ['Evaluate modeled conversion', 'ارزیابی تبدیل شبیه‌سازی‌شده', 'instruction, fills, mark_price, observed_at (offline modeled fills only)'];
-  actions['probe-stage'] = ['Stage offline probe budget', 'ثبت بودجهٔ بررسی آفلاین', 'total_loss_limit, quote_asset, probe: {probe_id, kind, symbol, worst_case_total_loss, venue_minimum_quote} (no permission to trade)'];
-  actions['external-import'] = ['Import manual account observations', 'ثبت مشاهدات دستی حساب', 'account_id, observed_at, balances, orders, exposure (sanitized observations only; no credentials)'];
-  actions['venue-fact-import'] = ['Import sanitized venue evidence', 'ثبت شواهد پالایش‌شدهٔ بازار', 'evidence_id, observed_at, source, kind, endpoint, state, account_scope, response_version, evidence_sha256'];
-  actions['evidence-report'] = ['Inspect saved economic evidence', 'بررسی شواهد اقتصادی ثبت‌شده', 'run_id'];
-  actions['evidence-decision'] = ['Record offline evidence decision', 'ثبت تصمیم آفلاین دربارهٔ شواهد', 'run_id, claim (NONE/EXPERIMENTAL), cap (decimal string), currency (USDT/TMN), note; record only'];
-  actions['depth-audit'] = ['Validate supplied depth sequence', 'بررسی توالی عمق ورودی', 'source_id, as_of, max_age_seconds, max_levels, frames: [{kind, sequence, previous_sequence, event_at, observed_at, bids: [[price, quantity]], asks: [[price, quantity]]}]'];
-  actions['unit-convert'] = ['Convert explicit observation epochs', 'تبدیل دوره‌های واحد مشاهده', 'value, factor (exact observation references), from_epoch, to_epoch, target_unit, as_of, max_age_seconds, max_skew_seconds'];
-  actions['market-breadth'] = ['Compare market group breadth', 'مقایسهٔ گسترهٔ گروه‌های بازار', 'groups: [{name, symbols}], quote_currency, from, to, resolution'];
-  actions['order-page-import'] = ['Import observed order page', 'ثبت صفحهٔ سفارش‌های مشاهده‌شده', 'account_id, observed_at, kind (OPEN/HISTORY), page, per_page, payload (documented map of order arrays; origin and completeness remain unverified)'];
-  actions['news-fetch'] = ['Fetch public Federal Reserve headlines', 'دریافت خبرهای عمومی فدرال رزرو', 'source: "FED_PRESS", max_items: 1..20 (explicit internet read; saves actual receipt times, no historical backfill or trading signal)'];
+  actions['premium-research'] = [T.en.rsAnalyzeTmnConversionPremium, T.fa.rsAnalyzeTmnConversionPremium, 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
+  actions['combine-oos'] = [T.en.rsCombineMatchedHistoricalOosPaperCurves, T.fa.rsCombineMatchedHistoricalOosPaperCurves, 'run_ids (2..4 verified matched native prospective sessions), lookback (3..100), rebalance_cost_bps (or null); prior-only weights; no live allocation'];
+  actions['strategy-retirement-screen'] = [T.en.rsAuditBaselineUnderperformanceBeforeReview, T.fa.rsAuditBaselineUnderperformanceBeforeReview, 'run_ids (3..100 verified matched live sessions), universe (same frozen markets); evidence-only, no catalog auto-hide'];
+  actions['meta-label-eligibility'] = [T.en.rsCheckDeferredMetaLabelEvidenceThreshold, T.fa.rsCheckDeferredMetaLabelEvidenceThreshold, 'closed_trades (verified integer count; >=300 only research eligible, no model trained)'];
+  actions['margin-pairs-replay'] = [T.en.rsSimulateAMatchedLongShortMargin, T.fa.rsSimulateAMatchedLongShortMargin, 'long_preview_id, short_preview_id, from, to, exit_fee_rate, holding_seconds, max_skew_seconds (0..120); public archived quotes only, USDT scorecard if both USDT and settled; never venue orders'];
+  actions['lead-lag-research'] = [T.en.rsTestCausalLeadLagAlignment, T.fa.rsTestCausalLeadLagAlignment, 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
+  actions['twap-preview'] = [T.en.rsPreviewPaperTwapChildFills, T.fa.rsPreviewPaperTwapChildFills, 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
+  actions['execution-choice-preview'] = [T.en.rsCompareHistoricalImmediateVsTwapCosts, T.fa.rsCompareHistoricalImmediateVsTwapCosts, 'symbol, from, to, side, quantity, slices (2..100), participation, fee_rate, available_quote, available_base, max_delay_seconds; optional dated cost_models. Retrospective only; not live execution advice.'];
+  actions['prospective-register'] = [T.en.rsFreezeFutureStrategyComparison, T.fa.rsFreezeFutureStrategyComparison, 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
+  actions['prospective-status'] = [T.en.rsInspectFrozenComparison, T.fa.rsInspectFrozenComparison, 'Saved 64-character registry ID'];
+  actions['prospective-evaluate'] = [T.en.rsConsumeFutureComparisonOnce, T.fa.rsConsumeFutureComparisonOnce, 'Saved 64-character registry ID; failures are consumed'];
+  actions['market-products'] = [T.en.rsInspectObservedMarketProductsAndCredit, T.fa.rsInspectObservedMarketProductsAndCredit, 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
+  actions['campaign-status'] = [T.en.rsInspectCampaignProgressAndVerifiedSamples, T.fa.rsInspectCampaignProgressAndVerifiedSamples, 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
+  actions['walk-forward'] = [T.en.rsExpandingWalkForwardSearch, T.fa.rsExpandingWalkForwardSearch, 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
+  actions['execution-calibration'] = [T.en.rsInspectExecutionAssumptionEvidence, T.fa.rsInspectExecutionAssumptionEvidence, 'symbol (null for all markets), from, to, max_age_seconds; public feed timing only, no automatic cost defaults'];
+  actions['execution-model-calibrate'] = [T.en.rsFitCausalPublicImpactAndHourly, T.fa.rsFitCausalPublicImpactAndHourly, 'symbol, from, to; bounded historical public prints, quotes, and local read-only fee receipts; paper-only, opt in explicitly'];
+  actions['robustness'] = [T.en.rsInspectSelectionAndPathRobustness, T.fa.rsInspectSelectionAndPathRobustness, 'run_ids, partitions (4/6/8/10), seed, simulations, mean_block_length, max_gap_seconds; comparable verified historical runs only'];
+  actions['strategy-audit'] = [T.en.rsCheckCausalityAndWarmUp, T.fa.rsCheckCausalityAndWarmUp, 'symbol, strategy, params, from, to, resolution, cash, fee_rate, latency_ms, checkpoints: [time], history_starts: [time]'];
+  actions['return-bootstrap'] = [T.en.rsExploreSavedReturnUncertainty, T.fa.rsExploreSavedReturnUncertainty, 'run_id, seed, simulations, mean_block_length, max_gap_seconds'];
+  actions['fractional-sizing'] = [T.en.rsAnalyzeCappedFractionalKellySizing, T.fa.rsAnalyzeCappedFractionalKellySizing, 'evaluation_id (completed preregistered evaluation), fraction (0..0.5 multiplier), cap (0..0.25), seed, simulations (100..500), block_length (1..50); no allocation changes automatically'];
+  actions['experiment-scorecard'] = [T.en.rsExperimentScorecardAndParameterHeatmap, T.fa.rsExperimentScorecardAndParameterHeatmap, 'experiment_id, shadow_run_ids: up to four matched native prospective session IDs, or []'];
+  actions['job-interrupt'] = [T.en.rsReleaseAnInterruptedPaperAttempt, T.fa.rsReleaseAnInterruptedPaperAttempt, 'job_id, expected_due, expected_claim, reason (fences publication; does not terminate a process)'];
+  actions['return-correlations'] = [T.en.rsCompareAlignedMarketReturns, T.fa.rsCompareAlignedMarketReturns, 'symbols: [market], quote_currency, from, to, resolution, min_overlap'];
+  actions['registry-page'] = [T.en.rsBrowseARegistrySnapshot, T.fa.rsBrowseARegistrySnapshot, 'kind (null or event kind), parent (null or saved ID), after, through (null for first page), limit'];
+  actions['annotation-add'] = [T.en.rsSaveReplayAnnotation, T.fa.rsSaveReplayAnnotation, 'run_id, outputs_digest, decision_index, request_id (32 hex characters), text'];
+  actions['annotation-list'] = [T.en.rsReadReplayAnnotations, T.fa.rsReadReplayAnnotations, 'run_id, outputs_digest, after, through, limit'];
+  actions['replay-checkpoint'] = [T.en.rsSaveVerifiedReplayCheckpoint, T.fa.rsSaveVerifiedReplayCheckpoint, 'run_id, quote_count'];
+  actions['replay-resume'] = [T.en.rsResumeAndVerifySavedReplay, T.fa.rsResumeAndVerifySavedReplay, 'checkpoint_id'];
+  actions['entry-lock-add'] = [T.en.rsRecordPaperEntryLock, T.fa.rsRecordPaperEntryLock, 'run_id, scope (PAIR/GLOBAL), reason (COOLDOWN/DRAWDOWN), duration_seconds, threshold_percent (null for cooldown)'];
+  actions['entry-locks'] = [T.en.rsInspectPaperEntryLocks, T.fa.rsInspectPaperEntryLocks, ''];
+  actions['conversion-report'] = [T.en.rsEvaluateModeledConversion, T.fa.rsEvaluateModeledConversion, 'instruction, fills, mark_price, observed_at (offline modeled fills only)'];
+  actions['probe-stage'] = [T.en.rsStageOfflineProbeBudget, T.fa.rsStageOfflineProbeBudget, 'total_loss_limit, quote_asset, probe: {probe_id, kind, symbol, worst_case_total_loss, venue_minimum_quote} (no permission to trade)'];
+  actions['external-import'] = [T.en.rsImportManualAccountObservations, T.fa.rsImportManualAccountObservations, 'account_id, observed_at, balances, orders, exposure (sanitized observations only; no credentials)'];
+  actions['venue-fact-import'] = [T.en.rsImportSanitizedVenueEvidence, T.fa.rsImportSanitizedVenueEvidence, 'evidence_id, observed_at, source, kind, endpoint, state, account_scope, response_version, evidence_sha256'];
+  actions['evidence-report'] = [T.en.rsInspectSavedEconomicEvidence, T.fa.rsInspectSavedEconomicEvidence, 'run_id'];
+  actions['evidence-decision'] = [T.en.rsRecordOfflineEvidenceDecision, T.fa.rsRecordOfflineEvidenceDecision, 'run_id, claim (NONE/EXPERIMENTAL), cap (decimal string), currency (USDT/TMN), note; record only'];
+  actions['depth-audit'] = [T.en.rsValidateSuppliedDepthSequence, T.fa.rsValidateSuppliedDepthSequence, 'source_id, as_of, max_age_seconds, max_levels, frames: [{kind, sequence, previous_sequence, event_at, observed_at, bids: [[price, quantity]], asks: [[price, quantity]]}]'];
+  actions['unit-convert'] = [T.en.rsConvertExplicitObservationEpochs, T.fa.rsConvertExplicitObservationEpochs, 'value, factor (exact observation references), from_epoch, to_epoch, target_unit, as_of, max_age_seconds, max_skew_seconds'];
+  actions['market-breadth'] = [T.en.rsCompareMarketGroupBreadth, T.fa.rsCompareMarketGroupBreadth, 'groups: [{name, symbols}], quote_currency, from, to, resolution'];
+  actions['order-page-import'] = [T.en.rsImportObservedOrderPage, T.fa.rsImportObservedOrderPage, 'account_id, observed_at, kind (OPEN/HISTORY), page, per_page, payload (documented map of order arrays; origin and completeness remain unverified)'];
+  actions['news-fetch'] = [T.en.rsFetchPublicFederalReserveHeadlines, T.fa.rsFetchPublicFederalReserveHeadlines, 'source: "FED_PRESS", max_items: 1..20 (explicit internet read; saves actual receipt times, no historical backfill or trading signal)'];
   const $ = id => document.getElementById(id);
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
@@ -80,14 +80,14 @@ window.gymResearch = (() => {
     language = next;
     const fa = language === 'fa';
     workspace(api, esc, fa);
-    $('research-workbench').innerHTML = `<h2>${fa ? 'کارگاه پیشرفتهٔ پژوهش' : 'Advanced research workbench'}</h2><p class="field-help">${fa ? 'ورودی‌های محلی و نتایج آزمایشی؛ هیچ سفارشی ارسال نمی‌شود. ارزیابی آینده فقط یک‌بار مصرف می‌شود، حتی اگر اجرا شکست بخورد.' : 'Local inputs and paper results. No orders are sent. A future evaluation is consumed once, including when execution fails.'}</p><form id="research-action-form"><label for="research-action">${fa ? 'عملیات' : 'Workflow'}</label><select id="research-action">${Object.entries(actions).map(([id, labels]) => `<option value="${id}">${esc(labels[fa ? 1 : 0])}</option>`).join('')}</select><label for="research-action-input">${fa ? 'ورودی JSON یا شناسه' : 'Input JSON or saved ID'}</label><textarea id="research-action-input" rows="5" dir="ltr" spellcheck="false" aria-describedby="research-action-fields"></textarea><p id="research-action-fields" class="field-help" dir="ltr"></p><button class="button" type="submit">${fa ? 'اجرای عملیات' : 'Run workflow'}</button></form><p id="research-action-status" role="status"></p><pre id="research-action-result" class="output" dir="ltr"></pre>`;
+    $('research-workbench').innerHTML = `<h2>${fa ? T.fa.rsAdvancedResearchWorkbench : T.en.rsAdvancedResearchWorkbench}</h2><p class="field-help">${fa ? T.fa.rsLocalInputsAndPaperResultsNo : T.en.rsLocalInputsAndPaperResultsNo}</p><form id="research-action-form"><label for="research-action">${fa ? T.fa.rsWorkflow : T.en.rsWorkflow}</label><select id="research-action">${Object.entries(actions).map(([id, labels]) => `<option value="${id}">${esc(labels[fa ? 1 : 0])}</option>`).join('')}</select><label for="research-action-input">${fa ? T.fa.rsInputJsonOrSavedId : T.en.rsInputJsonOrSavedId}</label><textarea id="research-action-input" rows="5" dir="ltr" spellcheck="false" aria-describedby="research-action-fields"></textarea><p id="research-action-fields" class="field-help" dir="ltr"></p><button class="button" type="submit">${fa ? T.fa.rsRunWorkflow : T.en.rsRunWorkflow}</button></form><p id="research-action-status" role="status"></p><pre id="research-action-result" class="output" dir="ltr"></pre>`;
     $('research-action-input').className = 'input code';
     const groups = [
-      ['Schedules and recovery', 'زمان‌بندی و بازیابی', /^(schedule|job-|campaign-status$|list$)/],
-      ['Experiments and replay', 'آزمایش‌ها و بازپخش', /^(register$|review$|experiment-|registry-|annotation-|replay)/],
-      ['Markets and observations', 'بازارها و مشاهدات', /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-|news-)/],
-      ['Research evidence and evaluation', 'شواهد پژوهش و ارزیابی', /^(research-|prospective-|claim-check$|outcome|final-)/],
-      ['Account and execution diagnostics', 'حساب و تشخیص اجرا', /./],
+      [T.en.rsSchedulesAndRecovery, T.fa.rsSchedulesAndRecovery, /^(schedule|job-|campaign-status$|list$)/],
+      [T.en.rsExperimentsAndReplay, T.fa.rsExperimentsAndReplay, /^(register$|review$|experiment-|registry-|annotation-|replay)/],
+      [T.en.rsMarketsAndObservations, T.fa.rsMarketsAndObservations, /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-|news-)/],
+      [T.en.rsResearchEvidenceAndEvaluation, T.fa.rsResearchEvidenceAndEvaluation, /^(research-|prospective-|claim-check$|outcome|final-)/],
+      [T.en.rsAccountAndExecutionDiagnostics, T.fa.rsAccountAndExecutionDiagnostics, /./],
     ];
     $('research-action').innerHTML = groups.map(([en, persian], index) => `<optgroup label="${esc(fa ? persian : en)}">${Object.entries(actions)
       .filter(([id]) => groups.findIndex(group => group[2].test(id)) === index)
@@ -102,7 +102,7 @@ window.gymResearch = (() => {
     $('research-action-form').onsubmit = async event => {
       event.preventDefault();
       const submit = event.target.querySelector('button'); submit.disabled = true;
-      $('research-action-status').textContent = fa ? 'در حال اجرا…' : 'Working…';
+      $('research-action-status').textContent = fa ? T.fa.rsWorking : T.en.rsWorking;
       $('research-action-result').textContent = '';
       try {
         const action = $('research-action').value;
@@ -112,13 +112,13 @@ window.gymResearch = (() => {
         $('research-action-result').textContent = JSON.stringify(result, null, 2);
         document.getElementById('experiment-scorecard')?.remove();
         if (action === 'experiment-scorecard') scorecard(result, esc, fa);
-        $('research-action-status').textContent = fa ? 'درخواست انجام شد.' : 'Request completed.';
+        $('research-action-status').textContent = fa ? T.fa.rsRequestCompleted : T.en.rsRequestCompleted;
         if (action === 'research-packet') {
           $('research-packet-prompt').value = result.prompt;
           $('research-packet-id').textContent = result.packet.id;
           $('research-packet-send').disabled = false;
         }
-      } catch { $('research-action-status').textContent = fa ? 'نتیجه دریافت نشد. ممکن است عملیات ثبت شده باشد؛ پیش از تکرار، ورودی و وضعیت ذخیره‌شده را بررسی کنید. ارزیابی مصرف‌شده را تکرار نکنید.' : 'Result was not delivered. The operation may have committed; inspect the input and saved state before retrying. Do not repeat a consumed evaluation.'; }
+      } catch { $('research-action-status').textContent = fa ? T.fa.rsResultWasNotDeliveredTheOperation : T.en.rsResultWasNotDeliveredTheOperation; }
       finally { submit.disabled = false; }
     };
   }
@@ -126,26 +126,26 @@ window.gymResearch = (() => {
     const text = (en, persian) => fa ? persian : en;
     const host = document.createElement('section'); host.id = 'experiment-scorecard'; host.className = 'panel';
     const definitions = report.definition;
-    host.innerHTML = `<h3>${text('Every registered trial', 'تمام تلاش‌های ثبت‌شده')}</h3><p>${esc(report.registered_trials)} ${text('parameter trials', 'ترکیب پارامتر')} · ${esc(report.registered_attempts)} ${text('attempts including failures', 'تلاش با احتساب شکست‌ها')}</p>
-      <div class="table-wrap" tabindex="0"><table class="data"><caption>${text('Net result in quote currency · unready or stale cells stay neutral', 'نتیجهٔ خالص در ارز مظنه · سلول‌های ناآماده یا قدیمی خنثی می‌مانند')}</caption><thead><tr><th>${text('Window / cost', 'دوره / هزینه')}</th>${definitions.trials.map((params, i) => `<th scope="col">${i + 1}<br><code>${esc(JSON.stringify(params))}</code></th>`).join('')}</tr></thead><tbody>${definitions.windows.flatMap((period, w) => definitions.scenarios.map((cost, s) => `<tr><th scope="row"><time dir="ltr">${esc(period.from)} → ${esc(period.to)}</time><br><code>${esc(JSON.stringify(cost))}</code></th>${definitions.trials.map((_, trial) => {
+    host.innerHTML = `<h3>${text(T.en.rsEveryRegisteredTrial, T.fa.rsEveryRegisteredTrial)}</h3><p>${esc(report.registered_trials)} ${text(T.en.rsParameterTrials, T.fa.rsParameterTrials)} · ${esc(report.registered_attempts)} ${text(T.en.rsAttemptsIncludingFailures, T.fa.rsAttemptsIncludingFailures)}</p>
+      <div class="table-wrap" tabindex="0"><table class="data"><caption>${text(T.en.rsNetResultInQuoteCurrencyUnready, T.fa.rsNetResultInQuoteCurrencyUnready)}</caption><thead><tr><th>${text(T.en.rsWindowCost, T.fa.rsWindowCost)}</th>${definitions.trials.map((params, i) => `<th scope="col">${i + 1}<br><code>${esc(JSON.stringify(params))}</code></th>`).join('')}</tr></thead><tbody>${definitions.windows.flatMap((period, w) => definitions.scenarios.map((cost, s) => `<tr><th scope="row"><time dir="ltr">${esc(period.from)} → ${esc(period.to)}</time><br><code>${esc(JSON.stringify(cost))}</code></th>${definitions.trials.map((_, trial) => {
         const row = report.rows.find(r => r.trial === trial && r.window === w && r.scenario === s), run = row?.run;
         const valid = run?.ready && run.valuation.status === 'CURRENT' && run.net_quote != null;
         const tone = valid && Number(run.net_quote) !== 0 ? Number(run.net_quote) > 0 ? 'positive' : 'negative' : 'neutral';
         const capacity = row?.capacity ?? run?.capacity;
         const capacityLabel = capacity?.capacity_usdt != null
-          ? `${text('Modeled capacity', 'ظرفیت برآوردی')}: ${capacity.capacity_usdt} USDT`
-          : `${text('Capacity unavailable', 'ظرفیت ناموجود')}: ${capacity?.reason ?? 'NO_VERIFIED_RUN'}`;
+          ? `${text(T.en.rsModeledCapacity, T.fa.rsModeledCapacity)}: ${capacity.capacity_usdt} USDT`
+          : `${text(T.en.rsCapacityUnavailable, T.fa.rsCapacityUnavailable)}: ${capacity?.reason ?? 'NO_VERIFIED_RUN'}`;
         return `<td class="heat-${tone}">${esc(run?.net_quote ?? row?.verification ?? row?.state ?? 'RESULT_PENDING')} ${esc(run?.quote ?? '')}<br>${esc(row?.verification ?? row?.state ?? '')}<br>${esc(run ? `${run.ready ? 'READY' : 'NOT_READY'} · ${run.valuation.status} · ${run.fills} fills` : row?.reason ?? '')}<br><small>${esc(capacityLabel)}</small></td>`;
       }).join('')}</tr>`)).join('')}</tbody></table></div><p class="field-help">${report.limits.map(esc).join(' ')}</p>
-      <form id="scorecard-overlay-form"><fieldset><legend>${text('Choose two to four recorded paths to overlay', 'دو تا چهار مسیر ثبت‌شده را برای مقایسه انتخاب کنید')}</legend></fieldset><button class="button" type="submit">${text('Compare selected paths', 'مقایسهٔ مسیرهای انتخاب‌شده')}</button></form><p id="scorecard-overlay-status" role="status"></p><div id="scorecard-overlay"></div>`;
+      <form id="scorecard-overlay-form"><fieldset><legend>${text(T.en.rsChooseTwoToFourRecordedPaths, T.fa.rsChooseTwoToFourRecordedPaths)}</legend></fieldset><button class="button" type="submit">${text(T.en.rsCompareSelectedPaths, T.fa.rsCompareSelectedPaths)}</button></form><p id="scorecard-overlay-status" role="status"></p><div id="scorecard-overlay"></div>`;
     $('research-action-result').before(host);
     const runs = [...new Map([...report.rows.filter(r => r.run).map(r => r.run), ...report.shadows].map(run => [run.run_id, run])).values()];
     host.querySelector('fieldset').insertAdjacentHTML('beforeend', runs.map(run => `<label class="check"><input type="checkbox" name="path" value="${esc(run.run_id)}">${esc(`${run.kind} · ${run.run_id} · ${run.valuation.status}`)}</label>`).join(''));
     $('scorecard-overlay-form').onsubmit = event => {
       event.preventDefault();
       const ids = [...host.querySelectorAll('input[name="path"]:checked')].map(input => input.value);
-      if (ids.length < 2 || ids.length > 4) { $('scorecard-overlay-status').textContent = text('Choose two to four paths.', 'دو تا چهار مسیر انتخاب کنید.'); return; }
-      $('scorecard-overlay-status').textContent = text('Recorded times; each path starts at its own initial cash. No calendar alignment or interpolation.', 'زمان‌های ثبت‌شده؛ هر مسیر از وجه نقد آغازین خود شروع می‌شود. هم‌ترازی تقویمی یا درون‌یابی انجام نمی‌شود.');
+      if (ids.length < 2 || ids.length > 4) { $('scorecard-overlay-status').textContent = text(T.en.rsChooseTwoToFourPaths, T.fa.rsChooseTwoToFourPaths); return; }
+      $('scorecard-overlay-status').textContent = text(T.en.rsRecordedTimesEachPathStartsAt, T.fa.rsRecordedTimesEachPathStartsAt);
       $('scorecard-overlay').innerHTML = overlayFigure(runs.filter(run => ids.includes(run.run_id)).map(run => ({name:`${run.kind} · ${run.run_id}`, curve:run.curve})));
     };
   }
@@ -164,95 +164,95 @@ window.gymResearch = (() => {
       ['rsi-rebound', 'RSI rebound'], ['macd-cross', 'MACD crossover'],
     ];
     const prospectiveOptions = (selected, optional = false) =>
-      (optional ? '<option value="">' + text('Not selected', 'انتخاب نشده') + '</option>' : '') +
+      (optional ? '<option value="">' + text(T.en.rsNotSelected, T.fa.rsNotSelected) + '</option>' : '') +
       prospectiveStrategies.map(([id, label]) => '<option value="' + esc(id) + '"' +
         (selected === id ? ' selected' : '') + '>' + esc(label) + '</option>').join('');
-    host.innerHTML = `<h2>${text('Research workspace', 'فضای پژوهش')}</h2>
-      <p>${text('Recorded observations and paper decisions. Supplied account inputs remain unverified.', 'مشاهدات ثبت‌شده و تصمیمات آزمایشی؛ اطلاعات حساب ورودی تأییدشده نیست.')}</p>
-      <details open><summary>${text('Guided paper research', 'پژوهش آزمایشی مرحله‌ای')}</summary>
-        <p class="field-help">${text('Recorded quotes only. All outcomes remain hypothetical and disarmed. Future evaluation attempts consume their local registration once.', 'فقط قیمت‌های ثبت‌شده؛ همه نتایج فرضی و غیرفعال‌اند. تلاش ارزیابی آینده فقط یک بار از ثبت محلی استفاده می‌کند.')}</p>
+    host.innerHTML = `<h2>${text(T.en.rsResearchWorkspace, T.fa.rsResearchWorkspace)}</h2>
+      <p>${text(T.en.rsRecordedObservationsAndPaperDecisionsSupplied, T.fa.rsRecordedObservationsAndPaperDecisionsSupplied)}</p>
+      <details open><summary>${text(T.en.rsGuidedPaperResearch, T.fa.rsGuidedPaperResearch)}</summary>
+        <p class="field-help">${text(T.en.rsRecordedQuotesOnlyAllOutcomesRemain, T.fa.rsRecordedQuotesOnlyAllOutcomesRemain)}</p>
         <form id="guided-research-form" class="ticket-fields">
-          <label>${text('Research model', 'مدل پژوهش')}<select id="guided-model">
-            <option value="premium-research">${text('TMN premium', 'صرف تومان')}</option><option value="lead-lag-research">${text('Lead / lag', 'تقدم / تأخر')}</option>
-            <option value="twap-preview">${text('TWAP child preview', 'پیش‌نمایش TWAP')}</option>
-            <option value="execution-choice-preview">${text('Immediate vs TWAP paper costs', 'مقایسهٔ هزینهٔ اجرای فوری و TWAP')}</option></select></label>
-          <label>${text('Primary symbol or base (premium: BTC)', 'نماد یا دارایی پایه (صرف: BTC)')}<input id="guided-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
-          <label>${text('Leader symbol (lag only)', 'نماد پیشرو (فقط تقدم)')}<input id="guided-leader" value="ETHUSDT" pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
-          <label>${text('From · UTC', 'از · UTC')}<input id="guided-from" type="datetime-local" required></label>
-          <label>${text('To · UTC', 'تا · UTC')}<input id="guided-to" type="datetime-local" required></label>
-          <label>${text('Fixed bar', 'بازهٔ ثابت')}<select id="guided-resolution">${resolutions.filter(x => x !== 'session').map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
-          <label>${text('Max quote age (seconds)', 'حداکثر سن قیمت (ثانیه)')}<input id="guided-age" type="number" min="1" max="3600" value="120" required></label>
-          <label>${text('Max alignment skew (seconds)', 'حداکثر اختلاف زمانی (ثانیه)')}<input id="guided-skew" type="number" min="0" max="3600" value="10" required></label>
-          <label>${text('Fee fraction', 'نرخ کارمزد')}<input id="guided-fee" value="0.001" inputmode="decimal" required></label>
+          <label>${text(T.en.rsResearchModel, T.fa.rsResearchModel)}<select id="guided-model">
+            <option value="premium-research">${text(T.en.rsTmnPremium, T.fa.rsTmnPremium)}</option><option value="lead-lag-research">${text(T.en.rsLeadLag, T.fa.rsLeadLag)}</option>
+            <option value="twap-preview">${text(T.en.rsTwapChildPreview, T.fa.rsTwapChildPreview)}</option>
+            <option value="execution-choice-preview">${text(T.en.rsImmediateVsTwapPaperCosts, T.fa.rsImmediateVsTwapPaperCosts)}</option></select></label>
+          <label>${text(T.en.rsPrimarySymbolOrBasePremiumBtc, T.fa.rsPrimarySymbolOrBasePremiumBtc)}<input id="guided-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
+          <label>${text(T.en.rsLeaderSymbolLagOnly, T.fa.rsLeaderSymbolLagOnly)}<input id="guided-leader" value="ETHUSDT" pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
+          <label>${text(T.en.windowFrom, T.fa.windowFrom)}<input id="guided-from" type="datetime-local" required></label>
+          <label>${text(T.en.rsToUtc, T.fa.rsToUtc)}<input id="guided-to" type="datetime-local" required></label>
+          <label>${text(T.en.rsFixedBar, T.fa.rsFixedBar)}<select id="guided-resolution">${resolutions.filter(x => x !== 'session').map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
+          <label>${text(T.en.rsMaxQuoteAgeSeconds, T.fa.rsMaxQuoteAgeSeconds)}<input id="guided-age" type="number" min="1" max="3600" value="120" required></label>
+          <label>${text(T.en.rsMaxAlignmentSkewSeconds, T.fa.rsMaxAlignmentSkewSeconds)}<input id="guided-skew" type="number" min="0" max="3600" value="10" required></label>
+          <label>${text(T.en.rsFeeFraction, T.fa.rsFeeFraction)}<input id="guided-fee" value="0.001" inputmode="decimal" required></label>
           <div id="guided-twap-fields" class="ticket-fields" hidden>
-            <label>${text('Side', 'جهت')}<select id="guided-side"><option>BUY</option><option>SELL</option></select></label>
-            <label>${text('Base quantity', 'مقدار پایه')}<input id="guided-quantity" value="1" inputmode="decimal"></label>
-            <label>${text('Child slices', 'تعداد برش')}<input id="guided-slices" type="number" min="1" max="100" value="4"></label>
-            <label>${text('Participation', 'سهم از عمق')}<input id="guided-participation" value="0.5" inputmode="decimal"></label>
-            <label>${text('Available quote', 'موجودی ارز مظنه')}<input id="guided-cash" value="1000" inputmode="decimal"></label>
-            <label>${text('Available base', 'موجودی دارایی پایه')}<input id="guided-base" value="0" inputmode="decimal"></label>
-            <label>${text('Max delay (seconds)', 'حداکثر تأخیر (ثانیه)')}<input id="guided-delay" type="number" min="0" max="3600" value="10"></label>
+            <label>${text(T.en.side, T.fa.side)}<select id="guided-side"><option>BUY</option><option>SELL</option></select></label>
+            <label>${text(T.en.rsBaseQuantity, T.fa.rsBaseQuantity)}<input id="guided-quantity" value="1" inputmode="decimal"></label>
+            <label>${text(T.en.rsChildSlices, T.fa.rsChildSlices)}<input id="guided-slices" type="number" min="1" max="100" value="4"></label>
+            <label>${text(T.en.rsParticipation, T.fa.rsParticipation)}<input id="guided-participation" value="0.5" inputmode="decimal"></label>
+            <label>${text(T.en.rsAvailableQuote, T.fa.rsAvailableQuote)}<input id="guided-cash" value="1000" inputmode="decimal"></label>
+            <label>${text(T.en.rsAvailableBase, T.fa.rsAvailableBase)}<input id="guided-base" value="0" inputmode="decimal"></label>
+            <label>${text(T.en.rsMaxDelaySeconds, T.fa.rsMaxDelaySeconds)}<input id="guided-delay" type="number" min="0" max="3600" value="10"></label>
           </div>
-          <button class="button" type="submit">${text('Run paper diagnostic', 'اجرای بررسی آزمایشی')}</button>
+          <button class="button" type="submit">${text(T.en.rsRunPaperDiagnostic, T.fa.rsRunPaperDiagnostic)}</button>
         </form>
         <div id="guided-result" role="status" aria-live="polite"></div>
       </details>
-      <details><summary>${text('Frozen prospective comparison · paper only', 'مقایسهٔ آیندهٔ ثبت‌شده · فقط آزمایشی')}</summary>
-        <p class="field-help">${text('Freeze two to four strategy configurations before collecting future data. The window must start in the future. Registration cannot authorize capital or establish a profitable edge.', 'دو تا چهار پیکربندی راهبرد را پیش از جمع‌آوری داده‌های آینده ثبت ثابت کنید. بازه باید در آینده آغاز شود. این ثبت اجازهٔ سرمایه یا اثبات سودآوری نیست.')}</p>
+      <details><summary>${text(T.en.rsFrozenProspectiveComparisonPaperOnly, T.fa.rsFrozenProspectiveComparisonPaperOnly)}</summary>
+        <p class="field-help">${text(T.en.rsFreezeTwoToFourStrategyConfigurations, T.fa.rsFreezeTwoToFourStrategyConfigurations)}</p>
         <form id="prospective-register-form" class="ticket-fields">
-          <label>${text('Market symbol', 'نماد بازار')}<input id="prospective-symbol" pattern="[A-Z0-9]{2,24}" autocomplete="off" required dir="ltr" placeholder="BTCUSDT"></label>
-          <label>${text('Selection cutoff · UTC', 'پایان انتخاب · UTC')}<input id="prospective-selection-end" type="datetime-local" step="60" required dir="ltr"></label>
-          <label>${text('Future evaluation start · UTC', 'شروع ارزیابی آینده · UTC')}<input id="prospective-test-from" type="datetime-local" step="60" required dir="ltr"></label>
-          <label>${text('Evaluation end · UTC (exclusive)', 'پایان ارزیابی · UTC (غیرشامل)')}<input id="prospective-test-to" type="datetime-local" step="60" required dir="ltr"></label>
-          <label>${text('Fixed close resolution', 'بازهٔ بسته‌شدن ثابت')}<select id="prospective-resolution" required dir="ltr">${resolutions.filter(x => x !== 'session').map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
-          <label>${text('Starting quote cash · exact decimal', 'موجودی آغازین ارز مظنه · اعشاری دقیق')}<input id="prospective-cash" value="1000" inputmode="decimal" required dir="ltr"></label>
-          <label>${text('Fee fraction · exact decimal', 'نرخ کارمزد · اعشاری دقیق')}<input id="prospective-fee" value="0.001" inputmode="decimal" required dir="ltr"></label>
-          <label>${text('Candidate A', 'گزینهٔ الف')}<select id="prospective-strategy-first" required>${prospectiveOptions('ema-trend')}</select></label>
-          <label>${text('Candidate B', 'گزینهٔ ب')}<select id="prospective-strategy-second" required>${prospectiveOptions('sma-cross')}</select></label>
-          <label>${text('Candidate C · optional', 'گزینهٔ پ · اختیاری')}<select id="prospective-strategy-third">${prospectiveOptions('', true)}</select></label>
-          <label>${text('Candidate D · optional', 'گزینهٔ ت · اختیاری')}<select id="prospective-strategy-fourth">${prospectiveOptions('', true)}</select></label>
-          <details><summary>${text('Optional strategy parameter overrides · JSON', 'تغییر اختیاری پارامترهای راهبرد · JSON')}</summary>
-            <p class="field-help">${text('Leave blank to freeze native defaults. This advanced section is optional.', 'برای ثبت پیش‌فرض‌های اصلی خالی بگذارید. این بخش پیشرفته اختیاری است.')}</p>
-            <label>${text('Candidate A parameters', 'پارامترهای گزینهٔ الف')}<textarea id="prospective-params-first" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
-            <label>${text('Candidate B parameters', 'پارامترهای گزینهٔ ب')}<textarea id="prospective-params-second" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
-            <label>${text('Candidate C parameters', 'پارامترهای گزینهٔ پ')}<textarea id="prospective-params-third" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
-            <label>${text('Candidate D parameters', 'پارامترهای گزینهٔ ت')}<textarea id="prospective-params-fourth" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+          <label>${text(T.en.rsMarketSymbol, T.fa.rsMarketSymbol)}<input id="prospective-symbol" pattern="[A-Z0-9]{2,24}" autocomplete="off" required dir="ltr" placeholder="BTCUSDT"></label>
+          <label>${text(T.en.rsSelectionCutoffUtc, T.fa.rsSelectionCutoffUtc)}<input id="prospective-selection-end" type="datetime-local" step="60" required dir="ltr"></label>
+          <label>${text(T.en.rsFutureEvaluationStartUtc, T.fa.rsFutureEvaluationStartUtc)}<input id="prospective-test-from" type="datetime-local" step="60" required dir="ltr"></label>
+          <label>${text(T.en.rsEvaluationEndUtcExclusive, T.fa.rsEvaluationEndUtcExclusive)}<input id="prospective-test-to" type="datetime-local" step="60" required dir="ltr"></label>
+          <label>${text(T.en.rsFixedCloseResolution, T.fa.rsFixedCloseResolution)}<select id="prospective-resolution" required dir="ltr">${resolutions.filter(x => x !== 'session').map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
+          <label>${text(T.en.rsStartingQuoteCashExactDecimal, T.fa.rsStartingQuoteCashExactDecimal)}<input id="prospective-cash" value="1000" inputmode="decimal" required dir="ltr"></label>
+          <label>${text(T.en.rsFeeFractionExactDecimal, T.fa.rsFeeFractionExactDecimal)}<input id="prospective-fee" value="0.001" inputmode="decimal" required dir="ltr"></label>
+          <label>${text(T.en.rsCandidateA, T.fa.rsCandidateA)}<select id="prospective-strategy-first" required>${prospectiveOptions('ema-trend')}</select></label>
+          <label>${text(T.en.rsCandidateB, T.fa.rsCandidateB)}<select id="prospective-strategy-second" required>${prospectiveOptions('sma-cross')}</select></label>
+          <label>${text(T.en.rsCandidateCOptional, T.fa.rsCandidateCOptional)}<select id="prospective-strategy-third">${prospectiveOptions('', true)}</select></label>
+          <label>${text(T.en.rsCandidateDOptional, T.fa.rsCandidateDOptional)}<select id="prospective-strategy-fourth">${prospectiveOptions('', true)}</select></label>
+          <details><summary>${text(T.en.rsOptionalStrategyParameterOverridesJson, T.fa.rsOptionalStrategyParameterOverridesJson)}</summary>
+            <p class="field-help">${text(T.en.rsLeaveBlankToFreezeNativeDefaults, T.fa.rsLeaveBlankToFreezeNativeDefaults)}</p>
+            <label>${text(T.en.rsCandidateAParameters, T.fa.rsCandidateAParameters)}<textarea id="prospective-params-first" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+            <label>${text(T.en.rsCandidateBParameters, T.fa.rsCandidateBParameters)}<textarea id="prospective-params-second" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+            <label>${text(T.en.rsCandidateCParameters, T.fa.rsCandidateCParameters)}<textarea id="prospective-params-third" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
+            <label>${text(T.en.rsCandidateDParameters, T.fa.rsCandidateDParameters)}<textarea id="prospective-params-fourth" rows="2" dir="ltr" spellcheck="false" placeholder="{}"></textarea></label>
           </details>
-          <button class="button" type="submit">${text('Freeze future paper comparison', 'ثبت ثابت مقایسهٔ آزمایشی آینده')}</button>
+          <button class="button" type="submit">${text(T.en.rsFreezeFuturePaperComparison, T.fa.rsFreezeFuturePaperComparison)}</button>
         </form>
         <form id="prospective-evaluate-form" class="ticket-fields">
-          <label>${text('Frozen registration ID · 64 hex characters', 'شناسهٔ ثبت ثابت · ۶۴ نویسهٔ شانزده‌شانزدهی')}<input id="prospective-id" pattern="[0-9a-f]{64}" maxlength="64" autocomplete="off" spellcheck="false" required dir="ltr"></label>
-          <button id="prospective-inspect" type="button" class="button">${text('Inspect saved status · read only', 'بررسی وضعیت ثبت‌شده · فقط خواندنی')}</button>
-          <label class="check"><input id="prospective-ack" type="checkbox">${text('I understand an evaluation attempt is consumed once, even if it fails. Inspect status before retrying anything.', 'می‌دانم تلاش ارزیابی حتی در صورت شکست فقط یک‌بار مصرف می‌شود. پیش از هر تکرار وضعیت را بررسی می‌کنم.')}</label>
-          <button type="submit" class="button">${text('Consume one paper evaluation · no orders', 'اجرای یک‌بارهٔ ارزیابی آزمایشی · بدون سفارش')}</button>
+          <label>${text(T.en.rsFrozenRegistrationId64HexCharacters, T.fa.rsFrozenRegistrationId64HexCharacters)}<input id="prospective-id" pattern="[0-9a-f]{64}" maxlength="64" autocomplete="off" spellcheck="false" required dir="ltr"></label>
+          <button id="prospective-inspect" type="button" class="button">${text(T.en.rsInspectSavedStatusReadOnly, T.fa.rsInspectSavedStatusReadOnly)}</button>
+          <label class="check"><input id="prospective-ack" type="checkbox">${text(T.en.rsIUnderstandAnEvaluationAttemptIs, T.fa.rsIUnderstandAnEvaluationAttemptIs)}</label>
+          <button type="submit" class="button">${text(T.en.rsConsumeOnePaperEvaluationNoOrders, T.fa.rsConsumeOnePaperEvaluationNoOrders)}</button>
         </form>
         <div id="prospective-result" role="status" aria-live="polite"></div>
       </details>
-      <details open><summary>${text('Coverage timeline', 'خط زمانی پوشش داده')}</summary>
+      <details open><summary>${text(T.en.rsCoverageTimeline, T.fa.rsCoverageTimeline)}</summary>
         <form id="coverage-form" class="ticket-fields">
-          <label>${text('Symbol', 'نماد')}<input id="coverage-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
-          <label>${text('From · UTC', 'از · UTC')}<input id="coverage-from" type="datetime-local" required></label>
-          <label>${text('To · UTC', 'تا · UTC')}<input id="coverage-to" type="datetime-local" required></label>
-          <label>${text('Resolution', 'بازه')}<select id="coverage-resolution">${resolutions.map(value => `<option>${esc(value)}</option>`).join('')}</select></label>
-          <button class="button" type="submit">${text('Inspect coverage', 'بررسی پوشش')}</button></form><div id="coverage-timeline"></div></details>
-      <details><summary>${text('Failed jobs and recovery', 'کارهای ناموفق و بازیابی')}</summary>
-        <button id="recovery-refresh" class="button" type="button">${text('Load jobs', 'نمایش کارها')}</button>
-        <label>${text('Recovery reason', 'دلیل بازیابی')}<input id="recovery-reason" maxlength="256"></label><div id="recovery-jobs"></div></details>
-      <details><summary>${text('Decision replay', 'مرور تصمیمات')}</summary><form id="replay-form">
-        <label>${text('Saved run ID', 'شناسه اجرای ذخیره‌شده')}<input id="replay-run" required pattern="[0-9a-f]{16}" dir="ltr"></label>
-        <button class="button" type="submit">${text('Open replay', 'نمایش تصمیمات')}</button></form>
-        <div class="actions"><button id="replay-previous" type="button" class="button" disabled>${text('Previous', 'قبلی')}</button><button id="replay-next" type="button" class="button" disabled>${text('Next', 'بعدی')}</button></div><div id="replay-decision"></div></details>
-      <details><summary>${text('Evidence-linked AI research', 'پژوهش هوش مصنوعی با ارجاع به شواهد')}</summary>
-        <p>${text('Prepare an evidence packet in the workbench below, inspect it here, then explicitly send it using a configured preset. Interpretations stay unverified. Validate and save returned notes with the workbench.', 'بسته شواهد را در کارگاه پایین آماده و اینجا بررسی کنید؛ ارسال فقط با انتخاب شما و الگوی تنظیم‌شده انجام می‌شود. تفسیرها تأییدشده نیستند. یادداشت خروجی را در کارگاه بررسی و ذخیره کنید.')}</p>
-        <p id="research-packet-id" dir="ltr"></p><label>${text('Evidence prompt', 'متن شواهد')}<textarea id="research-packet-prompt" rows="5" readonly dir="ltr"></textarea></label>
-        <label>${text('Configured AI preset ID', 'شناسه الگوی هوش مصنوعی')}<input id="research-packet-preset" maxlength="128" dir="ltr"></label>
-        <button id="research-packet-send" class="button" type="button" disabled>${text('Send to AI · may incur charges', 'ارسال به هوش مصنوعی · ممکن است هزینه داشته باشد')}</button><pre id="research-packet-response" class="output" dir="auto"></pre></details>
+          <label>${text(T.en.symbol, T.fa.symbol)}<input id="coverage-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
+          <label>${text(T.en.windowFrom, T.fa.windowFrom)}<input id="coverage-from" type="datetime-local" required></label>
+          <label>${text(T.en.rsToUtc, T.fa.rsToUtc)}<input id="coverage-to" type="datetime-local" required></label>
+          <label>${text(T.en.rsResolution, T.fa.rsResolution)}<select id="coverage-resolution">${resolutions.map(value => `<option>${esc(value)}</option>`).join('')}</select></label>
+          <button class="button" type="submit">${text(T.en.rsInspectCoverage, T.fa.rsInspectCoverage)}</button></form><div id="coverage-timeline"></div></details>
+      <details><summary>${text(T.en.rsFailedJobsAndRecovery, T.fa.rsFailedJobsAndRecovery)}</summary>
+        <button id="recovery-refresh" class="button" type="button">${text(T.en.rsLoadJobs, T.fa.rsLoadJobs)}</button>
+        <label>${text(T.en.rsRecoveryReason, T.fa.rsRecoveryReason)}<input id="recovery-reason" maxlength="256"></label><div id="recovery-jobs"></div></details>
+      <details><summary>${text(T.en.rsDecisionReplay, T.fa.rsDecisionReplay)}</summary><form id="replay-form">
+        <label>${text(T.en.rsSavedRunId, T.fa.rsSavedRunId)}<input id="replay-run" required pattern="[0-9a-f]{16}" dir="ltr"></label>
+        <button class="button" type="submit">${text(T.en.rsOpenReplay, T.fa.rsOpenReplay)}</button></form>
+        <div class="actions"><button id="replay-previous" type="button" class="button" disabled>${text(T.en.rsPrevious, T.fa.rsPrevious)}</button><button id="replay-next" type="button" class="button" disabled>${text(T.en.rsNext, T.fa.rsNext)}</button></div><div id="replay-decision"></div></details>
+      <details><summary>${text(T.en.rsEvidenceLinkedAiResearch, T.fa.rsEvidenceLinkedAiResearch)}</summary>
+        <p>${text(T.en.rsPrepareAnEvidencePacketInThe, T.fa.rsPrepareAnEvidencePacketInThe)}</p>
+        <p id="research-packet-id" dir="ltr"></p><label>${text(T.en.rsEvidencePrompt, T.fa.rsEvidencePrompt)}<textarea id="research-packet-prompt" rows="5" readonly dir="ltr"></textarea></label>
+        <label>${text(T.en.rsConfiguredAiPresetId, T.fa.rsConfiguredAiPresetId)}<input id="research-packet-preset" maxlength="128" dir="ltr"></label>
+        <button id="research-packet-send" class="button" type="button" disabled>${text(T.en.rsSendToAiMayIncurCharges, T.fa.rsSendToAiMayIncurCharges)}</button><pre id="research-packet-response" class="output" dir="auto"></pre></details>
       <p id="research-workspace-status" role="status"></p>`;
     const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     async function act(button, fn) {
-      button.disabled = true; $('research-workspace-status').textContent = text('Working…', 'در حال اجرا…');
-      try { await fn(); if ($('research-workspace-status').textContent === text('Working…', 'در حال اجرا…')) $('research-workspace-status').textContent = text('Request completed.', 'درخواست انجام شد.'); }
-      catch { $('research-workspace-status').textContent = text('Request failed. Refresh the saved state before retrying a mutation.', 'درخواست ناموفق بود. پیش از تکرار، وضعیت ذخیره‌شده را بازخوانی کنید.'); }
+      button.disabled = true; $('research-workspace-status').textContent = text(T.en.rsWorking, T.fa.rsWorking);
+      try { await fn(); if ($('research-workspace-status').textContent === text(T.en.rsWorking, T.fa.rsWorking)) $('research-workspace-status').textContent = text(T.en.rsRequestCompleted, T.fa.rsRequestCompleted); }
+      catch { $('research-workspace-status').textContent = text(T.en.rsRequestFailedRefreshTheSavedState, T.fa.rsRequestFailedRefreshTheSavedState); }
       finally { button.disabled = button.id === 'replay-previous' ? offset === 0 : button.id === 'replay-next' ? offset + 1 >= total : false; }
     }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;
@@ -295,7 +295,7 @@ window.gymResearch = (() => {
           ? {status: report.status, lowerHistoricalCost: report.retrospective_lower_cost,
              twapAdvantageBps: report.twap_advantage_bps, reason: report.reason}
           : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
-      $('guided-result').innerHTML = `<p><strong>${text('Paper only · no order submitted', 'فقط آزمایشی · هیچ سفارشی ثبت نشده')}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text('Inspect exact evidence', 'بررسی شواهد دقیق')}</summary>${json(report)}</details>`;
+      $('guided-result').innerHTML = `<p><strong>${text(T.en.rsPaperOnlyNoOrderSubmitted, T.fa.rsPaperOnlyNoOrderSubmitted)}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text(T.en.rsInspectExactEvidence, T.fa.rsInspectExactEvidence)}</summary>${json(report)}</details>`;
     }); };
     let prospectiveBusy = false;
     const prospectiveIdPattern = /^[0-9a-f]{64}$/;
@@ -306,52 +306,50 @@ window.gymResearch = (() => {
     };
     const prospectiveUtc = id => {
       const raw = $(id).value;
-      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) throw new Error(text('Enter valid UTC dates.', 'تاریخ‌های UTC معتبر وارد کنید.'));
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) throw new Error(text(T.en.rsEnterValidUtcDates, T.fa.rsEnterValidUtcDates));
       const stamp = raw + ':00Z';
-      if (!Number.isFinite(Date.parse(stamp))) throw new Error(text('Invalid UTC date.', 'تاریخ UTC نامعتبر است.'));
+      if (!Number.isFinite(Date.parse(stamp))) throw new Error(text(T.en.rsInvalidUtcDate, T.fa.rsInvalidUtcDate));
       return stamp;
     };
     const prospectiveParams = id => {
       const raw = $(id).value.trim();
       if (!raw) return {};
       const params = JSON.parse(raw);
-      if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error(text('Parameters must be a JSON object.', 'پارامترها باید شیء JSON باشند.'));
+      if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error(text(T.en.rsParametersMustBeAJsonObject, T.fa.rsParametersMustBeAJsonObject));
       return params;
     };
     const prospectiveEvidence = value => '<details><summary>' +
-      text('Inspect exact saved evidence', 'بررسی شواهد دقیق ذخیره‌شده') + '</summary>' + json(value) + '</details>';
+      text(T.en.rsInspectExactSavedEvidence, T.fa.rsInspectExactSavedEvidence) + '</summary>' + json(value) + '</details>';
     const prospectiveShow = (action, result) => {
       if (action === 'prospective-register') {
         if (!prospectiveIdPattern.test(result.id || '')) throw new Error('Invalid registration receipt');
         $('prospective-id').value = result.id;
         $('prospective-result').innerHTML = '<p><strong>' +
-          text('FROZEN · paper only · no funded authority', 'ثبت ثابت · فقط آزمایشی · بدون مجوز سرمایه') +
+          text(T.en.rsFrozenPaperOnlyNoFundedAuthority, T.fa.rsFrozenPaperOnlyNoFundedAuthority) +
           '</strong></p><p dir="ltr"><code>' + esc(result.id) + '</code></p>' + prospectiveEvidence(result);
       } else if (action === 'prospective-status') {
         const consumed = (result.events || []).some(event => event.kind === 'PROSPECTIVE_ATTEMPT');
         $('prospective-result').innerHTML = '<p><strong>' +
-          text(consumed ? 'Attempt already consumed · cannot retry' : 'Not yet consumed · inspect future window before evaluating',
-               consumed ? 'تلاش مصرف شده است · تکرار نکنید' : 'هنوز مصرف نشده · پیش از ارزیابی بازهٔ آینده را بررسی کنید') +
+          (k => text(T.en[k], T.fa[k]))(consumed ? 'rsAttemptConsumed' : 'rsAttemptNotConsumed') +
           '</strong></p><p>' + esc(result.kind || 'UNKNOWN') + ' · ' + esc(result.id || '') +
           '</p>' + prospectiveEvidence(result);
       } else {
         const report = result.report || {};
         const candidates = report.configuration?.candidates || [];
         const rows = Array.isArray(report.rows) ? report.rows : [];
-        const headings = [text('Candidate', 'گزینه'), text('Fills', 'پرشدن‌ها'),
-          text('Net in quote currency', 'خالص به ارز مظنه'), text('Trade / coverage', 'معامله / پوشش')];
+        const headings = [text(T.en.rsCandidate, T.fa.rsCandidate), text(T.en.rsFills, T.fa.rsFills),
+          text(T.en.rsNetInQuoteCurrency, T.fa.rsNetInQuoteCurrency), text(T.en.rsTradeCoverage, T.fa.rsTradeCoverage)];
         const body = rows.map((row, index) => {
-          const net = row.net_available && row.net != null ? esc(String(row.net)) : text('UNAVAILABLE', 'ناموجود');
-          const trade = row.no_trade ? text('NO TRADE', 'بدون معامله') : text('Modeled trades', 'معاملات شبیه‌سازی‌شده');
+          const net = row.net_available && row.net != null ? esc(String(row.net)) : text(T.en.rsUnavailable, T.fa.rsUnavailable);
+          const trade = row.no_trade ? text(T.en.rsNoTrade, T.fa.rsNoTrade) : text(T.en.rsModeledTrades, T.fa.rsModeledTrades);
           const coverage = String(row.qualified ?? 'UNKNOWN') + '/' + String(row.observations ?? 'UNKNOWN');
           return '<tr><td>' + esc(candidates[index]?.strategy || row.config_hash || 'UNKNOWN') +
             '</td><td>' + esc(String(row.fills ?? 'UNKNOWN')) + '</td><td dir="ltr">' + net +
             '</td><td>' + trade + ' · ' + esc(coverage) + '</td></tr>';
         }).join('');
         $('prospective-result').innerHTML = '<p><strong>' +
-          text('One-time attempt recorded · paper only · no order submitted', 'تلاش یک‌باره ثبت شد · فقط آزمایشی · بدون سفارش') +
-          '</strong></p><p>' + text(report.comparable ? 'Modeled comparisons available' : 'Incomplete coverage: not comparable',
-          report.comparable ? 'مقایسه‌های شبیه‌سازی‌شده موجودند' : 'پوشش ناکامل: غیرقابل مقایسه') +
+          text(T.en.rsOneTimeAttemptRecordedPaperOnly, T.fa.rsOneTimeAttemptRecordedPaperOnly) +
+          '</strong></p><p>' + (k => text(T.en[k], T.fa[k]))(report.comparable ? 'rsComparisonsAvailable' : 'rsComparisonsIncomplete') +
           '</p><div class="workspace-table"><table><thead><tr>' + headings.map(label => '<th>' + esc(label) + '</th>').join('') +
           '</tr></thead><tbody>' + body + '</tbody></table></div>' + prospectiveEvidence(result);
       }
@@ -359,24 +357,21 @@ window.gymResearch = (() => {
     const prospectiveCall = async (button, action, value) => {
       if (prospectiveBusy) return;
       prospectiveBusy = true; button.disabled = true;
-      $('prospective-result').textContent = text('Reading or saving local paper evidence…', 'در حال خواندن یا ثبت شواهد آزمایشی محلی…');
+      $('prospective-result').textContent = text(T.en.rsReadingOrSavingLocalPaperEvidence, T.fa.rsReadingOrSavingLocalPaperEvidence);
       try {
         const result = await call(action, value);
         prospectiveShow(action, result);
-        $('research-workspace-status').textContent = text('Paper workflow completed.', 'گردش‌کار آزمایشی انجام شد.');
+        $('research-workspace-status').textContent = text(T.en.rsPaperWorkflowCompleted, T.fa.rsPaperWorkflowCompleted);
       } catch (error) {
         // The shared API exposes bounded 4xx server validation text as error.detail,
         // not error.message. Do not display 5xx bodies or automatically retry.
         const detail = typeof error?.detail === 'string' && error.detail.trim()
           ? error.detail.slice(0, 240) : '';
         const guidance = action === 'prospective-evaluate'
-          ? text('Outcome not confirmed. Inspect the saved ID before any further mutation; do not retry a consumed evaluation.',
-            'نتیجه تأیید نشد. پیش از هر تغییر دیگر شناسه ثبت‌شده را بررسی کنید و ارزیابی مصرف‌شده را تکرار نکنید.')
+          ? text(T.en.rsOutcomeNotConfirmedInspectTheSaved, T.fa.rsOutcomeNotConfirmedInspectTheSaved)
           : action === 'prospective-register'
-            ? text('Registration was not confirmed. Correct the inputs; if a previous ID exists, inspect it before retrying.',
-              'ثبت تأیید نشد. ورودی‌ها را اصلاح کنید؛ اگر شناسهٔ قبلی دارید، پیش از تلاش دوباره آن را بررسی کنید.')
-            : text('Could not read registration status. Verify the saved ID and retry this read-only inspection.',
-              'وضعیت ثبت خوانده نشد. شناسهٔ ذخیره‌شده را بررسی کرده و این مشاهدهٔ فقط‌خواندنی را تکرار کنید.');
+            ? text(T.en.rsRegistrationWasNotConfirmedCorrectThe, T.fa.rsRegistrationWasNotConfirmedCorrectThe)
+            : text(T.en.rsCouldNotReadRegistrationStatusVerify, T.fa.rsCouldNotReadRegistrationStatusVerify);
         prospectiveError(guidance + (detail ? ' · ' + detail : ''));
       } finally {
         prospectiveBusy = false; button.disabled = false;
@@ -390,34 +385,31 @@ window.gymResearch = (() => {
         const test_to = prospectiveUtc('prospective-test-to');
         const selected = Date.parse(selection_end), from = Date.parse(test_from), to = Date.parse(test_to);
         if (!(selected <= Date.now() && Date.now() < from && from < to && to - from <= 31 * 86400000))
-          throw new Error(text('Selection cutoff must be past; evaluation must be a disjoint future window of at most 31 days.',
-            'پایان انتخاب باید در گذشته باشد و ارزیابی در بازه‌ای جدا در آینده با حداکثر ۳۱ روز انجام شود.'));
+          throw new Error(text(T.en.rsSelectionCutoffMustBePastEvaluation, T.fa.rsSelectionCutoffMustBePastEvaluation));
         const resolution = $('prospective-resolution').value;
         const units = /^([1-9][0-9]*)(min|h|day)$/.exec(resolution);
         const stepMs = units ? Number(units[1]) * {min: 60000, h: 3600000, day: 86400000}[units[2]] : NaN;
         if (!Number.isFinite(stepMs) || from - selected < stepMs || (to - from) / stepMs > 1440)
-          throw new Error(text('Purge at least one fixed bar after selection; use at most 1440 evaluation closes.',
-            'پس از انتخاب دست‌کم یک بازهٔ ثابت فاصله دهید؛ ارزیابی حداکثر ۱۴۴۰ بسته‌شدن دارد.'));
+          throw new Error(text(T.en.rsPurgeAtLeastOneFixedBar, T.fa.rsPurgeAtLeastOneFixedBar));
         const cash = $('prospective-cash').value.trim(), fee_rate = $('prospective-fee').value.trim();
         if (!prospectiveNumberPattern.test(cash) || /^0(?:\.0+)?$/.test(cash) || !prospectiveNumberPattern.test(fee_rate))
-          throw new Error(text('Cash and fees must be nonnegative exact decimal strings; cash must be positive.',
-            'موجودی و کارمزد باید رشته‌های اعشاری دقیق و نامنفی باشند؛ موجودی باید مثبت باشد.'));
+          throw new Error(text(T.en.rsCashAndFeesMustBeNonnegative, T.fa.rsCashAndFeesMustBeNonnegative));
         const candidates = [];
         for (const slot of ['first', 'second', 'third', 'fourth']) {
           const strategy = $('prospective-strategy-' + slot).value;
           if (strategy) candidates.push({strategy, params: prospectiveParams('prospective-params-' + slot)});
         }
         if (candidates.length < 2 || candidates.length > 4 || new Set(candidates.map(c => JSON.stringify(c))).size !== candidates.length)
-          throw new Error(text('Select two to four distinct candidate configurations.', 'دو تا چهار پیکربندی متفاوت انتخاب کنید.'));
+          throw new Error(text(T.en.rsSelectTwoToFourDistinctCandidate, T.fa.rsSelectTwoToFourDistinctCandidate));
         const symbol = $('prospective-symbol').value.trim();
-        if (!/^[A-Z0-9]{2,24}$/.test(symbol)) throw new Error(text('Enter a valid uppercase market symbol.', 'یک نماد بازار معتبر با حروف بزرگ وارد کنید.'));
+        if (!/^[A-Z0-9]{2,24}$/.test(symbol)) throw new Error(text(T.en.rsEnterAValidUppercaseMarketSymbol, T.fa.rsEnterAValidUppercaseMarketSymbol));
         prospectiveCall(event.target.querySelector('button'), 'prospective-register',
           {symbol, candidates, selection_end, test_from, test_to, resolution, cash, fee_rate});
-      } catch (error) { prospectiveError(error.message || text('Invalid registration.', 'ثبت نامعتبر است.')); }
+      } catch (error) { prospectiveError(error.message || text(T.en.rsInvalidRegistration, T.fa.rsInvalidRegistration)); }
     };
     const prospectiveSavedId = () => {
       const id = $('prospective-id').value.trim();
-      if (!prospectiveIdPattern.test(id)) throw new Error(text('Enter a saved 64-character registration ID.', 'یک شناسهٔ ذخیره‌شدهٔ ۶۴ نویسه‌ای وارد کنید.'));
+      if (!prospectiveIdPattern.test(id)) throw new Error(text(T.en.rsEnterASaved64CharacterRegistration, T.fa.rsEnterASaved64CharacterRegistration));
       return id;
     };
     $('prospective-inspect').onclick = event => {
@@ -430,25 +422,24 @@ window.gymResearch = (() => {
       if (prospectiveBusy || event.target.reportValidity?.() === false) return;
       try {
         const id = prospectiveSavedId();
-        if (!$('prospective-ack').checked) throw new Error(text('Explicit one-time evaluation acknowledgment is required.',
-          'تأیید آگاهانهٔ ارزیابی یک‌باره الزامی است.'));
+        if (!$('prospective-ack').checked) throw new Error(text(T.en.rsExplicitOneTimeEvaluationAcknowledgmentIs, T.fa.rsExplicitOneTimeEvaluationAcknowledgmentIs));
         $('prospective-ack').checked = false;
         prospectiveCall(event.target.querySelector('button[type="submit"]'), 'prospective-evaluate', id);
       } catch (error) { prospectiveError(error.message); }
     };
     $('coverage-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
       const result = await call('coverage', {symbol: $('coverage-symbol').value, from: $('coverage-from').value + ':00Z', to: $('coverage-to').value + ':00Z', resolution: $('coverage-resolution').value});
-      $('coverage-timeline').innerHTML = `<p>${esc(result.report_id)} · ${esc(JSON.stringify(result.counts))}</p><p>${esc(result.limitation)}</p><div class="workspace-table"><table><thead><tr>${['UTC', text('State', 'وضعیت'), text('Quotes', 'قیمت‌ها'), text('Late trades', 'معاملات دیررس'), text('Quote age (s)', 'عمر قیمت (ثانیه)'), text('Indicators', 'شاخص‌ها')].map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${result.buckets.map(row => `<tr><td dir="ltr">${esc(row.from)}</td><td>${esc(row.status)}</td><td>${esc(row.quotes)}</td><td>${esc(row.late_trade_receipts)}</td><td>${esc(row.last_known_qualified_quote_age_seconds ?? 'UNKNOWN')} ${row.quote_stale ? text('(STALE)', '(کهنه)') : ''}</td><td><details><summary>${text('Readiness', 'آمادگی')}</summary>${json(row.indicator_readiness)}</details></td></tr>`).join('')}</tbody></table></div>`;
+      $('coverage-timeline').innerHTML = `<p>${esc(result.report_id)} · ${esc(JSON.stringify(result.counts))}</p><p>${esc(result.limitation)}</p><div class="workspace-table"><table><thead><tr>${['UTC', text(T.en.rsState, T.fa.rsState), text(T.en.rsQuotes, T.fa.rsQuotes), text(T.en.rsLateTrades, T.fa.rsLateTrades), text(T.en.rsQuoteAgeS, T.fa.rsQuoteAgeS), text(T.en.rsIndicators, T.fa.rsIndicators)].map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${result.buckets.map(row => `<tr><td dir="ltr">${esc(row.from)}</td><td>${esc(row.status)}</td><td>${esc(row.quotes)}</td><td>${esc(row.late_trade_receipts)}</td><td>${esc(row.last_known_qualified_quote_age_seconds ?? 'UNKNOWN')} ${row.quote_stale ? text(T.en.rsStale, T.fa.rsStale) : ''}</td><td><details><summary>${text(T.en.rsReadiness, T.fa.rsReadiness)}</summary>${json(row.indicator_readiness)}</details></td></tr>`).join('')}</tbody></table></div>`;
     }); };
     async function jobs() {
       const result = await call('list', null);
-      $('recovery-jobs').innerHTML = result.jobs.map((job, i) => `<article class="panel"><p dir="ltr">${esc(job.id)}</p><p>${esc(job.next_at)} · ${esc(job.last_report?.status ?? 'WAITING')}</p><div class="actions"><button type="button" class="button" data-job-index="${i}" data-recover="RETRY" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text('Allow retry', 'اجازه تلاش مجدد')}</button><button type="button" class="button" data-job-index="${i}" data-recover="SKIP" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text('Record skip of this window', 'ثبت صرف‌نظر از این بازه')}</button><button type="button" class="button" data-job-index="${i}" data-recover="CATCHUP" ${job.enabled ? '' : 'disabled'}>${text('Run up to 10 due windows', 'اجرای حداکثر ۱۰ بازه سررسیدشده')}</button></div></article>`).join('') || text('No scheduled jobs.', 'کاری زمان‌بندی نشده است.');
+      $('recovery-jobs').innerHTML = result.jobs.map((job, i) => `<article class="panel"><p dir="ltr">${esc(job.id)}</p><p>${esc(job.next_at)} · ${esc(job.last_report?.status ?? 'WAITING')}</p><div class="actions"><button type="button" class="button" data-job-index="${i}" data-recover="RETRY" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text(T.en.rsAllowRetry, T.fa.rsAllowRetry)}</button><button type="button" class="button" data-job-index="${i}" data-recover="SKIP" ${job.last_report?.status === 'FAILED' ? '' : 'disabled'}>${text(T.en.rsRecordSkipOfThisWindow, T.fa.rsRecordSkipOfThisWindow)}</button><button type="button" class="button" data-job-index="${i}" data-recover="CATCHUP" ${job.enabled ? '' : 'disabled'}>${text(T.en.rsRunUpTo10DueWindows, T.fa.rsRunUpTo10DueWindows)}</button></div></article>`).join('') || text(T.en.rsNoScheduledJobs, T.fa.rsNoScheduledJobs);
       $('recovery-jobs').querySelectorAll('article').forEach((panel, i) => {
         const report = result.jobs[i].last_report;
         if (report?.error_code) {
           const reason = document.createElement('p');
           reason.textContent = report.error_code === 'HYPOTHESIS_VERSION_UNAVAILABLE'
-            ? text('This job requires an unavailable engine or strategy revision. Pause it and register a new version, or restore its original revision before retrying.', 'این کار به نسخه‌ای از موتور یا راهبرد نیاز دارد که در دسترس نیست. آن را متوقف و نسخه جدیدی ثبت کنید، یا پیش از تلاش مجدد نسخه اصلی را بازیابی کنید.')
+            ? text(T.en.rsThisJobRequiresAnUnavailableEngine, T.fa.rsThisJobRequiresAnUnavailableEngine)
             : report.message;
           panel.append(reason);
         }
@@ -456,7 +447,7 @@ window.gymResearch = (() => {
         panel.insertAdjacentHTML('beforeend', json(report));
         const release = document.createElement('button');
         release.type = 'button'; release.className = 'button'; release.dataset.jobIndex = i; release.dataset.recover = 'INTERRUPT';
-        release.textContent = text('Release this attempt · does not stop its process', 'آزادسازی این تلاش · فرایند آن متوقف نمی‌شود');
+        release.textContent = text(T.en.rsReleaseThisAttemptDoesNotStop, T.fa.rsReleaseThisAttemptDoesNotStop);
         panel.append(release);
       });
       $('recovery-jobs').querySelectorAll('button').forEach(button => { button.onclick = () => act(button, async () => {
@@ -478,7 +469,7 @@ window.gymResearch = (() => {
       const start = Math.max(0, offset - 149);
       const result = await call('replay', {run_id: runId, offset: start, limit: offset - start + 1}); total = result.total;
       const row = result.decisions.at(-1);
-      $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text('Known at decision', 'اطلاعات هنگام تصمیم')}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text('Bid / Ask', 'خرید / فروش')}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text('Holdings before decision', 'دارایی پیش از تصمیم')}</h3><p>${esc(row.balance_status)}</p>${json(row.balances_before)}<details><summary>${text('Indicator values and readiness', 'مقدار و آمادگی شاخص‌ها')}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text('Recorded rules', 'قواعد ثبت‌شده')}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text('Bar and reference observations', 'مشاهدات شمع و مرجع')}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text('Later modeled order outcome · not known at decision', 'نتیجه بعدی سفارش شبیه‌سازی‌شده · هنگام تصمیم معلوم نبود')}</summary>${json(row.subsequent_modeled_order)}</details>` : text('No recorded decisions.', 'تصمیمی ثبت نشده است.');
+      $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text(T.en.rsKnownAtDecision, T.fa.rsKnownAtDecision)}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text(T.en.rsBidAsk, T.fa.rsBidAsk)}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text(T.en.rsHoldingsBeforeDecision, T.fa.rsHoldingsBeforeDecision)}</h3><p>${esc(row.balance_status)}</p>${json(row.balances_before)}<details><summary>${text(T.en.rsIndicatorValuesAndReadiness, T.fa.rsIndicatorValuesAndReadiness)}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text(T.en.rsRecordedRules, T.fa.rsRecordedRules)}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text(T.en.rsBarAndReferenceObservations, T.fa.rsBarAndReferenceObservations)}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text(T.en.rsLaterModeledOrderOutcomeNotKnown, T.fa.rsLaterModeledOrderOutcomeNotKnown)}</summary>${json(row.subsequent_modeled_order)}</details>` : text(T.en.rsNoRecordedDecisions, T.fa.rsNoRecordedDecisions);
       $('replay-decision').insertAdjacentHTML('afterbegin', window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa));
       if (row) {
         const features = Object.keys(row.known_at_decision.feature_values ?? {}).filter(key => {
@@ -486,8 +477,8 @@ window.gymResearch = (() => {
           return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
         });
         if (!features.includes(feature)) feature = features[0] ?? '';
-        $('replay-decision').insertAdjacentHTML('beforeend', `<details><summary>${text('Linked equity and indicator panes', 'نمودارهای مرتبط ارزش و شاخص')}</summary>${window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, 'equity')}<label>${text('Recorded indicator', 'شاخص ثبت‌شده')}<select id="replay-feature">${features.map(key => `<option ${key === feature ? 'selected' : ''} value="${esc(key)}">${esc(key)}</option>`).join('')}</select></label><div id="replay-feature-chart"></div></details><details><summary>${text('Operator annotations · separate from decision evidence', 'یادداشت‌های کاربر · جدا از شواهد تصمیم')}</summary><form id="replay-annotation-form"><label>${text('Note on this decision', 'یادداشت این تصمیم')}<textarea id="replay-annotation-text" maxlength="2000" required></textarea></label><button class="button" type="submit">${text('Save annotation', 'ثبت یادداشت')}</button></form><div id="replay-annotations"></div><button id="replay-annotations-more" class="button" type="button" disabled>${text('More annotations', 'یادداشت‌های بیشتر')}</button></details>`);
-        const featureChart = () => { $('replay-feature-chart').innerHTML = feature ? window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, feature) : text('No numeric indicator trace.', 'ردپای عددی شاخص موجود نیست.'); };
+        $('replay-decision').insertAdjacentHTML('beforeend', `<details><summary>${text(T.en.rsLinkedEquityAndIndicatorPanes, T.fa.rsLinkedEquityAndIndicatorPanes)}</summary>${window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, 'equity')}<label>${text(T.en.rsRecordedIndicator, T.fa.rsRecordedIndicator)}<select id="replay-feature">${features.map(key => `<option ${key === feature ? 'selected' : ''} value="${esc(key)}">${esc(key)}</option>`).join('')}</select></label><div id="replay-feature-chart"></div></details><details><summary>${text(T.en.rsOperatorAnnotationsSeparateFromDecisionEvidence, T.fa.rsOperatorAnnotationsSeparateFromDecisionEvidence)}</summary><form id="replay-annotation-form"><label>${text(T.en.rsNoteOnThisDecision, T.fa.rsNoteOnThisDecision)}<textarea id="replay-annotation-text" maxlength="2000" required></textarea></label><button class="button" type="submit">${text(T.en.rsSaveAnnotation, T.fa.rsSaveAnnotation)}</button></form><div id="replay-annotations"></div><button id="replay-annotations-more" class="button" type="button" disabled>${text(T.en.rsMoreAnnotations, T.fa.rsMoreAnnotations)}</button></details>`);
+        const featureChart = () => { $('replay-feature-chart').innerHTML = feature ? window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, feature) : text(T.en.rsNoNumericIndicatorTrace, T.fa.rsNoNumericIndicatorTrace); };
         $('replay-feature').onchange = event => { feature = event.target.value; featureChart(); }; featureChart();
         $('replay-feature').closest('details').open = linkedOpen;
         $('replay-annotation-form').closest('details').open = notesOpen;

@@ -13,7 +13,7 @@ async function collectView(name, healthTask) {
       const value = await api("/api/backup-status");
       setHTML("backup-operation-status", `<p>${code(value.state)}</p><p>${esc(t("backupReceiptScope"))}</p>` + (value.state === 'NO_RECEIPTS'
         ? `<p>${esc(t("noBackupReceipts"))}</p>` : Object.entries(value.latest ?? {}).filter(([, row]) => row).map(([kind, row]) =>
-          `<article><h3>${esc(t(kind === 'BACKUP' ? 'backupWorkflow' : 'restoreWorkflow'))}</h3><p>${esc(when(row.recorded_at))}</p><pre class="output" dir="ltr">${esc(JSON.stringify(row, null, 2))}</pre></article>`).join('')));
+          `<article><h3>${esc(t(kind === 'BACKUP' ? 'backupWorkflow' : 'restoreWorkflow'))}</h3><p>${stampHtml(row.recorded_at)}</p><pre class="output" dir="ltr">${esc(JSON.stringify(row, null, 2))}</pre></article>`).join('')));
     } catch (error) { setHTML("backup-operation-status", `<p>${esc(t("requestError"))}</p>`); throw error; }
   }
   if (name === "models") await window.gymModels?.mount(api, esc);
@@ -26,7 +26,7 @@ async function collectView(name, healthTask) {
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
   if (name === "research") {
     window.gymResearch?.mount(api, esc);
-    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, curveFigure, strategyFields});
+    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, stamp: stampHtml, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, stamp: stampHtml, curveFigure, strategyFields});
     await settled([["research", research()], ["research jobs", researchJobs()]]);
   }
   if (name === "account") {

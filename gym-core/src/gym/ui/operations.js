@@ -55,7 +55,7 @@ async function accountJournal() {
 async function externalJournal() {
   try {
     const data = await api("/api/external-order-events");
-    setHTML("external-order-events", `<p class="field-help">${esc(t("externalNote"))}</p>${table([t("time"), t("account"), t("clientId"), t("rawStatus"), t("settlement")], list(data.events).slice(-100).reverse().map(row => [esc(when(row.observed_at)), code(row.account_id), code(row.client_id), esc(row.raw_status), chip(t(row.settlement || "UNKNOWN"))]), t("externalEmpty"))}`);
+    setHTML("external-order-events", `<p class="field-help">${esc(t("externalNote"))}</p>${table([t("time"), t("account"), t("clientId"), t("rawStatus"), t("settlement")], list(data.events).slice(-100).reverse().map(row => [stampHtml(row.observed_at), code(row.account_id), code(row.client_id), esc(row.raw_status), chip(t(row.settlement || "UNKNOWN"))]), t("externalEmpty"))}`);
   } catch (_) { setHTML("external-order-events", empty(t("externalReadError"))); throw new Error(t("requestError")); }
 }
 async function offlineReviews() {
@@ -132,7 +132,7 @@ async function previewTicket() {
       [t("pair"), code(preview.symbol)], [t("quantity"), amount(preview.quantity)],
       [t("expectedGross"), amount(preview.estimated_gross_quote)], [t("worstGross"), amount(preview.worst_gross_quote)],
       [t("worstFee"), amount(preview.worst_fee_quote)], [t(preview.side === "SELL" ? "worstProceeds" : "worstSpend"), amount(preview.worst_total_quote)],
-      [t("breakEven"), amount(preview.break_even_bid)], [t("effective"), `${esc(when(preview.observed_at))} → ${esc(when(preview.expires_at))}`],
+      [t("breakEven"), amount(preview.break_even_bid)], [t("effective"), `${stampHtml(preview.observed_at)} → ${stampHtml(preview.expires_at)}`],
     ])}<button type="button" class="button" id="save-preview">${esc(t("savePreview"))}</button>${disclosure(t("fullRecord"), preview, "ticket-preview")}</div>`);
   } catch (_) {
     if (ticketRevision !== revision || input.value !== raw) return;
@@ -148,7 +148,7 @@ function renderRules(data) {
     + rules.map(row => {
       const rule = row.body || {};
       return `<article class="panel rule-card"><div class="panel-heading"><div><h2 class="panel-title">${esc(rule.name || rule.id)}</h2><p class="field-help">${code(rule.id)} · ${code(rule.family)} · ${code(rule.action)}</p></div><div class="actions">${chip(t(row.state), row.state === "active" ? "ok" : "warn")}${row.state !== "disabled" ? `<button type="button" class="button button-small" data-disable="${esc(rule.id)}" data-focus="disable-${esc(rule.id)}"${state.savingRules ? " disabled" : ""}>${esc(t("disable"))}</button>` : ""}</div></div>
-        ${rule.note ? `<p>${esc(rule.note)}</p>` : ""}${keyValues([[t("classification"), code(rule.class)], [t("status"), label(rule.status)], [t("source"), esc(rule.source)], [t("effective"), `${esc(when(rule.effective_from))} → ${rule.effective_until ? esc(when(rule.effective_until)) : "∞"}`], [t("blocksNow"), list(row.blocks_now).length ? row.blocks_now.map(code).join(", ") : esc(t("nothing"))]])}
+        ${rule.note ? `<p>${esc(rule.note)}</p>` : ""}${keyValues([[t("classification"), code(rule.class)], [t("status"), label(rule.status)], [t("source"), esc(rule.source)], [t("effective"), `${stampHtml(rule.effective_from)} → ${rule.effective_until ? stampHtml(rule.effective_until) : "∞"}`], [t("blocksNow"), list(row.blocks_now).length ? row.blocks_now.map(code).join(", ") : esc(t("nothing"))]])}
         ${disclosure(t("history"), { rule, history: row.history || [] }, "rule-" + rule.id)}</article>`;
     }).join("") + quarantined.map(row => `<article class="panel rule-card"><div class="panel-heading"><h2 class="panel-title">${code(row.id)}</h2>${chip(t("quarantineNote"), "bad")}</div><p>${esc(row.error)}</p>${disclosure(t("fullRecord"), row.body || row, "quarantine-" + row.id)}</article>`).join(""));
 }
@@ -167,13 +167,13 @@ function renderHealth(data) {
     + stat(t("reconnects"), num(data.reconnects)));
   const events = [...(data.fatal ? [data.fatal] : []), ...list(data.errors)];
   setHTML("health-errors", events.length ? `<ul class="event-list">${events.map(event => `<li>${typeof event === "string" ? esc(event) : json(event)}</li>`).join("")}</ul>` : empty(t("noCollectorEvents")));
-  setHTML("health-quality", table([t("time"), t("instrument"), t("flag"), t("detail")], list(data.quality).map(row => [esc(when(row.ts)), code(row.instrument), label(row.flag), esc(row.detail)]), t("noQualityEvents")));
+  setHTML("health-quality", table([t("time"), t("instrument"), t("flag"), t("detail")], list(data.quality).map(row => [stampHtml(row.ts), code(row.instrument), label(row.flag), esc(row.detail)]), t("noQualityEvents")));
   const storage = data.storage, gib = bytes => bytes == null ? t("none") : digits((bytes / 2 ** 30).toFixed(1)) + " GiB";
   setHTML("health-storage", storage ? keyValues([[t("freeSpace"), esc(gib(storage.free_bytes))], [t("stopFloor"), esc(gib(storage.floor_bytes))],
     [t("growthPerHour"), esc(storage.growth_bytes_per_hour == null ? t("none") : digits((storage.growth_bytes_per_hour / 2 ** 20).toFixed(0)) + " MiB")],
     [t("hoursToFloor"), storage.hours_to_floor == null ? esc(t("none")) : `<span class="${storage.hours_to_floor < 48 ? "neg" : ""}">${num(storage.hours_to_floor)}</span>`],
-    [t("lastArchive"), data.archived ? `${esc(when(data.archived.at))} · ${num(data.archived.days.length)}` : esc(t("none"))],
-    [t("integritySweep"), data.integrity ? `${esc(when(data.integrity.at))} · ${num(data.integrity.checked)} ✓ · ${num(data.integrity.missing)} / ${num(data.integrity.mismatched)} ✗` : esc(t("none"))]])
+    [t("lastArchive"), data.archived ? `${stampHtml(data.archived.at)} · ${num(data.archived.days.length)}` : esc(t("none"))],
+    [t("integritySweep"), data.integrity ? `${stampHtml(data.integrity.at)} · ${num(data.integrity.checked)} ✓ · ${num(data.integrity.missing)} / ${num(data.integrity.mismatched)} ✗` : esc(t("none"))]])
     + table([t("shard"), t("markets"), t("status"), t("reconnects"), t("frameAge")], list(data.shards).map(row => [num(row.shard), num(row.markets),
       chip(t(row.connected ? "connectedValue" : "disconnectedValue"), row.connected ? "ok" : "bad"), num(row.reconnects), num(row.last_frame_age_s)]), t("noShards"), [0, 1, 3, 4])
     : empty(t("unavailable")));
@@ -187,7 +187,7 @@ async function venueFacts() {
     const report = await api("/api/venue-facts");
     if (report.state === "NOT_CONFIGURED") { setHTML("venue-facts", empty(t("venueFactsEmpty"))); return; }
     setHTML("venue-facts", `<p class="field-help">${esc(t("venueFactsInfo"))}</p>${table([t("capability"), t("state")], Object.entries(report.capabilities || {}).map(([name, value]) => [esc(name), label(value.state)]))}
-      ${table([t("time"), t("status"), t("source"), t("evidenceId")], list(report.facts).slice(0, 20).map(fact => [esc(when(fact.observed_at)), `${esc(fact.kind)} · ${esc(fact.state)}`, esc(fact.source), code(fact.evidence_id)]))}`);
+      ${table([t("time"), t("status"), t("source"), t("evidenceId")], list(report.facts).slice(0, 20).map(fact => [stampHtml(fact.observed_at), `${esc(fact.kind)} · ${esc(fact.state)}`, esc(fact.source), code(fact.evidence_id)]))}`);
   } catch (_) { setHTML("venue-facts", empty(t("venueFactsError"))); throw new Error(t("requestError")); }
 }
 async function chaos() {

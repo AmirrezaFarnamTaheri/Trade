@@ -32,13 +32,15 @@ function systemTheme() {
   catch (_) { return "light"; }
 }
 let theme = saved("theme", systemTheme(), ["light", "dark"]);
+/** U-7: timestamps follow a stored zone preference (Tehran, the venue's calendar, or UTC, as exports use). */
+let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);
 const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [], runCount: 50, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
   researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };
 let comparisonRevision = 0;
 const t = key => T[lang][key] ?? key;
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const digits = value => lang === "fa" ? String(value).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]) : String(value);
+const digits = value => lang === "fa" ? String(value).replace(/\d/g, d => PERSIAN_DIGITS[d]) : String(value);
 // Keep API money as decimal strings; floating point is used only for chart geometry.
 /** Display exact decimal-string money with locale digits and no floating-point conversion. */
 function num(value) {
@@ -48,7 +50,7 @@ function num(value) {
   return digits(match[1] + match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (match[3] ? "." + match[3] : ""));
 }
 /** Format a timestamp in the selected UI language and requested time zone. */
-function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
+function when(value, dateOnly = false, timeZone = zone) {
   if (!value) return t("none");
   const stamp = new Date(value);
   if (!Number.isFinite(stamp.getTime())) return t("unknown");
@@ -56,6 +58,14 @@ function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
     timeZone, year: "numeric", month: "short", day: "numeric",
     ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
   }).format(stamp);
+}
+/** A rendered timestamp whose tooltip and datetime carry the exact ISO instant used by run ids and exports. */
+function stampHtml(value, dateOnly = false, timeZone = zone) {
+  const stamp = value ? new Date(value) : null;
+  const label = esc(when(value, dateOnly, timeZone));
+  if (!stamp || !Number.isFinite(stamp.getTime())) return label;
+  const exact = stamp.toISOString();
+  return `<time datetime="${exact}" title="${exact}">${label}</time>`;
 }
 // Round a decimal string half-up for display only; the exact value stays in the tooltip.
 /** Round a decimal string for display only; never alter stored precision. */
