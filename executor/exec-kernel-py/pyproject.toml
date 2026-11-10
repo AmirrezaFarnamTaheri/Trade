@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "exec-kernel"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.11"
 description = "exec-core reference money rules for the TradingGYM simulator (optional)"
 

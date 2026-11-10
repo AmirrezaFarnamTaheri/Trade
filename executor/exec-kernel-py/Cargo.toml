@@ -1,6 +1,6 @@
 [package]
 name = "exec-kernel-py"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 description = "Python bindings for the exec-core reference money rules (ADR 0005); optional, research only"

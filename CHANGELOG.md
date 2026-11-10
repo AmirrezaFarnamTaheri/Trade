@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-10
+
 Hardening from the 2026-11-09 technical due-diligence review (finding IDs in brackets).
 
 - Seeded property tests for every exec-ipc frame codec: mutated frames never panic a decoder, and every

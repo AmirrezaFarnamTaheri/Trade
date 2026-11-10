@@ -286,3 +286,19 @@ def test_status_docs_agree_on_the_portfolio_revision():
     accept = re.findall(r"Revision (\d+) accounting", (docs / "acceptance-status.md").read_text(encoding="utf-8"))
     system = re.findall(r"Portfolio revision (\d+)", (docs / "system-status.md").read_text(encoding="utf-8"))
     assert accept and system and set(accept) == set(system), (accept, system)
+
+
+def test_release_versions_agree_across_manifests_and_changelog():
+    """G-5: every manifest carries the newest dated CHANGELOG release."""
+    import json
+    import re
+    import tomllib
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    toml = lambda rel: tomllib.loads((root / rel).read_text(encoding="utf-8"))
+    versions = {"gym-core": toml("gym-core/pyproject.toml")["project"]["version"],
+                "model-gateway": json.loads((root / "model-gateway/package.json").read_text(encoding="utf-8"))["version"]}
+    for crate in ("exec-core", "exec-ipc", "exec-store", "exec-svc", "exec-kernel-py"):
+        versions[crate] = toml(f"executor/{crate}/Cargo.toml")["package"]["version"]
+    release = re.search(r"^## (\d+\.\d+\.\d+) - \d{4}-\d{2}-\d{2}$", (root / "CHANGELOG.md").read_text(encoding="utf-8"), re.MULTILINE)
+    assert release and set(versions.values()) == {release.group(1)}, versions

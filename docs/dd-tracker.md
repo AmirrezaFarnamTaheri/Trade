@@ -86,7 +86,7 @@ Governance (6)
 [x] G-3 · No coverage floor, and a gitignore contradiction · Low · Effort S
 [x] G-4 · Documentation drift on counts and on the "no order code" statement · Low · Effort S
 [ ] G-5 · Release and transfer artefacts are missing · Medium · Effort M
-    Status: SECURITY, CHANGELOG, CODEOWNERS, ADRs, task runner, SBOM job, signed manifests and onboarding are done. Not yet done: semantic version tags, manifest version and licence metadata, and branch protection (needs the hosted repository).
+    Status: Done: manifests at 0.2.0 matching the dated CHANGELOG release (test-enforced) and `scripts/github/protect-branches.sh`. Needs the owner: push the `v0.2.0` tag and run the protection script with admin rights.
 [x] G-6 · The acceptance evidence is cited in the docs but deliberately kept out of the repository · Medium · Effort S
 
 Gated opportunity (2)
