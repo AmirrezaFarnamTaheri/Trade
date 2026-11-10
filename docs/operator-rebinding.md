@@ -14,7 +14,8 @@ T0 refuses your stop requests. That is by design: a stale binding must not keep 
 ## Rebind (elevated PowerShell, signed in as the operator)
 
 1. Stop nothing; the service keeps running DISARMED while you rebind.
-2. Run `scripts\windows\Bind-ExecutorOperator.ps1` from an elevated prompt in your own interactive session. It
+2. Run `scripts\windows\Bind-ExecutorOperator.ps1 -OperatorAccount <DOMAIN\you>` from an elevated prompt in your
+   own interactive session. It
    first invalidates the stored binding, so an interrupted run cannot reuse the old logon, then records the current
    logon SID and operator SID, removes the previous operator's helper grants, and seals both files: owner
    Administrators, full control for SYSTEM and Administrators, read for the service SID, inheritance removed.
