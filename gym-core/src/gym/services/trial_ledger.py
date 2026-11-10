@@ -15,7 +15,8 @@ from uuid import uuid4
 from ..domain.model import iso, parse_ts
 from ..domain.strategy import digest
 
-_ALLOWED_SOURCES = frozenset(("paper", "portfolio", "compare", "validate", "experiment", "walk-forward", "prospective"))
+_ALLOWED_SOURCES = frozenset(("paper", "portfolio", "compare", "validate", "experiment", "walk-forward", "prospective",
+                              "model-fit"))  # M-2: every model fit counts as a trial
 
 
 def _stamp(value: datetime | str) -> str:

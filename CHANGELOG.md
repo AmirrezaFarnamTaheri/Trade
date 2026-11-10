@@ -83,6 +83,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - One research action table (`CLI_ACTIONS`, `CLI_ONLY_ACTIONS`, `gymctl actions`) with a test that every action is a CLI
   choice and has a browser form or a stated reason; `diagnostic`, `technicals`, `spreads` and `trade-flow` were
   browser-only and are now CLI choices. Read-only operator timeline (`gymctl timeline`, `/api/timeline`) [U-4].
+- Model artifact registry (`services/model_artifacts.py`): content-addressed JSON artifacts, registration only after
+  the fit is a `model-fit` trial (so fits raise the deflated-Sharpe N), schema and cost digests bound into run
+  identity, ABSTAIN on missing, corrupt, expired or incompatible artifacts [M-2 step 1].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded
