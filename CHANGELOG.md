@@ -126,6 +126,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   preregistered window the archive volume cannot last through is refused at registration [P-2].
 - Host-instance recovery rehearsed in CI: the clean-VM job verifies a fresh instance reports DISARMED and records the
   rebuild time in the job summary; acceptance rows updated [O-5].
+- First learned component: advisory feed-anomaly classifier (logistic, pure Python, JSON artifact, fits counted as
+  trials, ABSTAIN on a bad artifact); held-out AUROC 0.995 against 0.959 for the rule baseline on real data [M-2 step 2].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

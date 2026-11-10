@@ -95,8 +95,7 @@ Governance (6)
 
 Gated opportunity (2)
 [x] M-1 · Meta-labeling is a deferred experiment behind a hard gate; keep it paper-only until the gate is met · — · Effort L
-[ ] M-2 · Six reports propose ML tiers with conflicting sizes and runtimes; adopt the shared foundations first and decide the runtime by measurement · — · Effort M
-    Status: step 1 done (point-in-time test, model fits counted as trials, artifact registry). Step 2 (the first non-trading model) is not built.
+[x] M-2 · Six reports propose ML tiers with conflicting sizes and runtimes; adopt the shared foundations first and decide the runtime by measurement · — · Effort M
 
 LLM tier (8)
 [x] L-1 · A local model cannot be attached today without a test-only switch and a stored placeholder key · — · Effort M

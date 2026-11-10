@@ -475,3 +475,27 @@ def _sweep_report(out: Path) -> int:
     finally:
         conn.close()
     return 0
+
+
+def feed_anomaly_cmd(args) -> int:
+    """Advisory only: the classifier never trades, sizes or edits stored data."""
+    from ..adapters.store import MarketDB
+    from ..services import feed_anomaly
+
+    start, end = parse_ts(args.start), parse_ts(args.end)
+    root = store_root(args)
+    db = MarketDB(root / "market.db", readonly=True)
+    try:
+        if args.mode == "train":
+            busiest = [r[0][7:] for r in db.c.execute(
+                "SELECT instrument_id FROM book_top WHERE ts_avail>=? AND ts_avail<? GROUP BY instrument_id "
+                "ORDER BY count(*) DESC LIMIT ?", (iso(start), iso(end), args.markets))]
+            out = feed_anomaly.train(root, db, busiest, start, end, now=now_utc())
+        else:
+            if not (args.symbol and args.artifact):
+                raise ValueError("scan needs --symbol and --artifact")
+            out = feed_anomaly.scan(root, db, args.symbol.upper(), start, end, args.artifact, now=now_utc())
+    finally:
+        db.c.close()
+    print(json.dumps(out, indent=2, default=str))
+    return 0

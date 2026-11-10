@@ -31,3 +31,22 @@ off the order path.
 
 Pilot only after L-8, through the loopback connection with a pinned GGUF on a llama.cpp server, using the L-6 set
 against the no-model baseline. Persian is unsupported until the pilot shows otherwise.
+
+## Feed-anomaly classifier v1 (M-2 step 2): built and evaluated
+
+`gymctl feed-anomaly train|scan` (`services/feed_anomaly.py`). A logistic regression over five point-in-time features
+(spread, return size, time gap, depth change, order-of-magnitude jump), trained in pure Python on faults injected
+into real clean quotes plus rows the collector already flagged. It is advisory: it never trades, sizes or edits data,
+and no order, sizing or strategy module imports it. Each fit is recorded as a `model-fit` trial before the artifact is
+registered; scanning ABSTAINs on a missing, corrupt, expired or incompatible artifact.
+
+First fit, 2026-11-10, 20 busiest markets on 2026-11-08 (first 70% of the day to train, last 30% held out):
+
+| | AUROC | Precision | Recall |
+|---|---|---|---|
+| Model (artifact `bc0eebaa…cce0cb`) | 0.995 | 0.972 | 0.967 |
+| No-model rule baseline | 0.959 | 0.695 | 0.997 |
+
+Held-out rows: 74,600, of which 11,480 anomalies. Scanning USDTTMN on 2026-11-10 flagged 9 of 3,827 quotes, all in a
+real dislocation at 15:59 UTC (bid 200,000 against ask 218,900). The meta-labeller (the second model) still waits for
+300 verified closed trades.

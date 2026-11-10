@@ -39,6 +39,7 @@ from .commands.maintenance import (
     compact_cmd,
     doctor_cmd,
     drift_cmd,
+    feed_anomaly_cmd,
     paper_sweep_cmd,
     raw_move_cmd,
     recover_segments_cmd,
@@ -367,6 +368,13 @@ def main(argv=None):
     sw.add_argument("--fee", default="0.001", help="fee rate per side")
     sw.add_argument("--out", help="results SQLite file (default: <data>/live/sweeps/<from>_<to>.sqlite3)")
     sw.add_argument("--report", action="store_true", help="print the best and worst rows of an existing sweep")
+    fa = sub.add_parser("feed-anomaly", help="advisory feed-anomaly classifier: train on injected faults, scan a market")
+    fa.add_argument("mode", choices=("train", "scan"))
+    fa.add_argument("--from", dest="start", required=True)
+    fa.add_argument("--to", dest="end", required=True)
+    fa.add_argument("--markets", type=int, default=40, help="train: the busiest N markets in the window")
+    fa.add_argument("--symbol", help="scan: one market")
+    fa.add_argument("--artifact", help="scan: registered artifact SHA-256")
     tl = sub.add_parser("timeline", help="read-only operator activity timeline across the workspace journals")
     tl.add_argument("--limit", type=int, default=50)
     tl.add_argument("--source", action="append", help="restrict to a source (repeatable)")
@@ -393,7 +401,7 @@ def main(argv=None):
 
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "assistant-eval": assistant_eval_cmd, "arm-preflight": arm_preflight_cmd, "timeline": timeline_cmd, "paper-sweep": paper_sweep_cmd, "actions": actions_cmd, "arm-policy": arm_policy_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "assistant-eval": assistant_eval_cmd, "arm-preflight": arm_preflight_cmd, "timeline": timeline_cmd, "feed-anomaly": feed_anomaly_cmd, "paper-sweep": paper_sweep_cmd, "actions": actions_cmd, "arm-policy": arm_policy_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
                 "assistant": assistant_cmd, "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:
