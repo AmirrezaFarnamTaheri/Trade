@@ -112,3 +112,24 @@ def test_sellable_quantity_matches_the_shared_fixture_with_the_rust_kernel():
     for case in fixture["cases"]:
         spec = Spec(qty_decimals=case["qty_decimals"], min_qty=dec(case["min_qty"]), min_notional=dec(case["min_notional"]))
         assert sellable_quantity(Decimal(case["quantity"]), Decimal(case["bid"]), spec) == Decimal(case["sellable"]), case
+
+
+def test_walk_and_settlement_match_the_shared_fixture_with_the_rust_kernel():
+    """contracts/v1/fixtures/fills.json is also checked by exec-core kernel::walk and kernel::settle (ADR 0005)."""
+    import json
+    from pathlib import Path
+
+    from gym.domain.sim import _settle, _walk
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "contracts/v1/fixtures/fills.json").read_text("utf-8"))
+    for case in fixture["cases"]:
+        levels = [(Decimal(p), Decimal(s)) for p, s in case["levels"]]
+        qty = Decimal(case["quantity"])
+        notional = _walk(levels, qty)
+        assert notional == Decimal(case["notional"]), case
+        book = CashBook({"USDT": Decimal(10**6), "BTC": Decimal(100)})
+        before = dict(book.balances)
+        fill = _settle(book, INST, case["side"], {}, START, "o", qty, notional / qty, notional, Decimal(case["fee_rate"]),
+                       mid=levels[0][0], best=levels[0][0], decision_quote=levels[0][0], rules=[], quota_used={}, day=None)
+        assert Decimal(fill["fee"]) == Decimal(case["fee"]), case
+        assert book.get("BTC") - before["BTC"] == Decimal(case["base_delta"]), case
+        assert book.get("USDT") - before["USDT"] == Decimal(case["quote_delta"]), case

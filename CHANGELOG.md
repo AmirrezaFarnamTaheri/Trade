@@ -65,7 +65,8 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Gateway dependency audit recorded (no telemetry or unexpected outbound path; heavy SDKs are hard dependencies);
   ADR 0005 stages a shared execution kernel [S-5, A-1 step 2].
 - First shared execution-kernel rule: `exec-core` `kernel::sellable` in exact integer arithmetic and the simulator's
-  `sellable_quantity` agree on `contracts/v1/fixtures/sizing.json` [A-1 step 2, ADR 0005 stage 1-2].
+  `sellable_quantity` agree on `contracts/v1/fixtures/sizing.json`; `kernel::walk` and `kernel::settle` agree with
+  `_walk` and `_settle` on `fills.json` [A-1 step 2, ADR 0005 stage 1-2].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

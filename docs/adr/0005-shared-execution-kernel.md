@@ -38,4 +38,6 @@ cannot be shown to survive the executor's own arithmetic.
   quantity, minimum notional), in exact integer arithmetic. `contracts/v1/fixtures/sizing.json` pins it and
   `gym/domain/sim.py` `sellable_quantity` to the same 12 cases (`exec-core/tests/kernel_conformance.rs`,
   `gym-core/tests/test_market_order_properties.py`).
-- Next rules for the kernel, in order: fee in the received asset, depth-walk notional, the 2% venue price guard.
+- `kernel::walk` (depth-walk notional) and `kernel::settle` (fee in the received asset, balance deltas) follow,
+  pinned with the simulator's `_walk` and `_settle` by `contracts/v1/fixtures/fills.json`.
+- Next: the 2% venue price guard and minimum-notional rejection, then the PyO3 bridge (stage 3).

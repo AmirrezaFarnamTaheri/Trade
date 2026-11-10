@@ -96,3 +96,66 @@ pub fn sellable(
     }
     Some(lot)
 }
+
+impl Exact {
+    pub fn checked_add(self, other: Self) -> Option<Self> {
+        let scale = self.scale.max(other.scale);
+        Some(Self {
+            mantissa: self.rescale(scale)?.checked_add(other.rescale(scale)?)?,
+            scale,
+        })
+    }
+
+    pub fn checked_sub(self, other: Self) -> Option<Self> {
+        let scale = self.scale.max(other.scale);
+        Some(Self {
+            mantissa: self.rescale(scale)?.checked_sub(other.rescale(scale)?)?,
+            scale,
+        })
+    }
+}
+
+/// Quote notional of taking `quantity` best-first from `levels` (price, size); None when depth is short.
+/// Mirrors gym/domain/sim.py `_walk`.
+pub fn walk(levels: &[(Exact, Exact)], quantity: Exact) -> Option<Exact> {
+    let (mut left, mut notional) = (
+        quantity,
+        Exact {
+            mantissa: 0,
+            scale: 0,
+        },
+    );
+    for &(price, size) in levels {
+        if left.is_zero() {
+            break;
+        }
+        let take = if size.cmp_value(left)? == std::cmp::Ordering::Less {
+            size
+        } else {
+            left
+        };
+        notional = notional.checked_add(take.checked_mul(price)?)?;
+        left = left.checked_sub(take)?;
+    }
+    left.is_zero().then_some(notional)
+}
+
+/// A balance change: (amount, true when it is a decrease).
+pub type Delta = (Exact, bool);
+
+/// (fee, base delta, quote delta) of one fill with the fee in the received asset.
+/// Mirrors gym/domain/sim.py `_settle`.
+pub fn settle(
+    buy: bool,
+    quantity: Exact,
+    notional: Exact,
+    fee_rate: Exact,
+) -> Option<(Exact, Delta, Delta)> {
+    if buy {
+        let fee = quantity.checked_mul(fee_rate)?;
+        Some((fee, (quantity.checked_sub(fee)?, false), (notional, true)))
+    } else {
+        let fee = notional.checked_mul(fee_rate)?;
+        Some((fee, (quantity, true), (notional.checked_sub(fee)?, false)))
+    }
+}

@@ -1,0 +1,10 @@
+{
+  "rule": "notional = quantity taken best-first from the observed levels (each level at its price); BUY pays the fee in the received base asset (fee = quantity * fee_rate; base += quantity - fee, quote -= notional); SELL pays it in the received quote (fee = notional * fee_rate; base -= quantity, quote += notional - fee). Python gym/domain/sim.py _walk and _settle, Rust exec-core kernel::walk and kernel::settle (ADR 0005).",
+  "cases": [
+    {"side": "BUY", "levels": [["100", "1"]], "quantity": "0.5", "fee_rate": "0.001", "notional": "50", "fee": "0.0005", "base_delta": "0.4995", "quote_delta": "-50"},
+    {"side": "BUY", "levels": [["100", "1"], ["101", "2"]], "quantity": "2.5", "fee_rate": "0.001", "notional": "251.5", "fee": "0.0025", "base_delta": "2.4975", "quote_delta": "-251.5"},
+    {"side": "SELL", "levels": [["99", "1"], ["98.5", "1"]], "quantity": "1.5", "fee_rate": "0.002", "notional": "148.25", "fee": "0.2965", "base_delta": "-1.5", "quote_delta": "147.9535"},
+    {"side": "BUY", "levels": [["70000.12", "0.00012345"], ["70001", "3"]], "quantity": "0.001", "fee_rate": "0.0025", "notional": "70.000891364", "fee": "0.0000025", "base_delta": "0.0009975", "quote_delta": "-70.000891364"},
+    {"side": "SELL", "levels": [["50", "10"]], "quantity": "3", "fee_rate": "0", "notional": "150", "fee": "0", "base_delta": "-3", "quote_delta": "150"}
+  ]
+}
