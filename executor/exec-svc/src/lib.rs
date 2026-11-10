@@ -131,6 +131,38 @@ pub mod windows_pipe;
 #[cfg(windows)]
 pub mod windows_control;
 
+/// Runs the privileged (T2) thread body and applies the fail-closed rule (OD-5): a panic or an error marks the
+/// service failed, and any return stops the whole service, T0 included. Only an orderly credential-recovery run
+/// ends without the failure flag. A restart builds a fresh `StopGate`, which is always `Disarmed`.
+pub fn supervise_privileged<F>(
+    credential_recovery: bool,
+    failed: &std::sync::atomic::AtomicBool,
+    stop: &std::sync::atomic::AtomicBool,
+    run: F,
+) where
+    F: FnOnce() -> std::io::Result<()>,
+{
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run));
+    if !credential_recovery || !matches!(result, Ok(Ok(()))) {
+        failed.store(true, Ordering::SeqCst);
+    }
+    stop.store(true, Ordering::SeqCst);
+}
+
+/// Exit codes reported to the service manager on stop: (Win32 code, service-specific phase code when T2 failed).
+pub fn stopped_exit(
+    listener_failed: bool,
+    privileged_failed: bool,
+    phase: u32,
+) -> (u32, Option<u32>) {
+    let win32 = if listener_failed || privileged_failed {
+        5
+    } else {
+        0
+    };
+    (win32, privileged_failed.then_some(phase))
+}
+
 pub struct StopGate {
     runtime_epoch: u64,
     mode: AtomicU8,

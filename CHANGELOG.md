@@ -75,6 +75,9 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
 - Rust kernel bridge (PyO3, `executor/exec-kernel-py`): with `GYM_RUST_KERNEL=1` the simulator runs sellable, walk
   and price-guard rules in exec-core; the whole suite passes and 4,000 random orders are byte-identical to the Python
   path where venue precision is known; a CI job builds the wheel and runs the suite on it [A-1 step 2, ADR 0005 stage 3].
+- Arm record and kill rules (`exec_core::arming`), verified-available rule across both vault journals
+  (`exec_core::available`), tested privileged-fault supervision; ADR 0006; review-v2 and prepared reservation
+  documented as test-only [OD-2, OD-5, A-6].
 - Bias harness (`gym.services.bias_harness`, `tests/test_bias_harness.py`): every registered strategy is
   replayed with truncation at two cuts, with every observation after each cut repriced (decisions up to the cut
   must stay byte-identical), and with a longer prehistory (positions must agree once settled). Three seeded

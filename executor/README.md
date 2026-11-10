@@ -53,3 +53,9 @@ boundaries and installed-host/venue gates, and
    `Update-ReadOnlyExecutor.ps1 -BinaryDirectory <dir> -HashManifest <dir>\bundle.sha256 -Signature <dir>\bundle.sha256.sig`.
    The script verifies with .NET's ECDSA only (no user-writable code) and keeps the manifest as `bundle.sha256`, against
    which the Python adapters re-hash `gym-account-read.exe` and `gym-review.exe` before every launch.
+
+## Test-only and unwired paths
+
+`exec_ipc::review_v2` (TGREVW02), `offline_recovery::reserve_prepared_intent`, `exec_core::holds`,
+`exec_core::arming` and `exec_core::available` are exported and tested but not mounted by the service. They
+belong to the funded flow, which stays absent until the pre-funding review; see ADRs 0003 and 0006.

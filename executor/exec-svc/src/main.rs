@@ -259,27 +259,26 @@ mod windows_host {
             phase: privileged_phase.clone(),
         };
         thread::spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(std::io::Error::other)
-                    .and_then(|rt| {
-                        rt.block_on(crate::privileged_pipe::serve(
-                            &privileged_sid,
-                            privileged_tx,
-                            mode,
-                            failure_phase,
-                            operator_context,
-                        ))
-                    })
-            }));
-            if mode != exec_ipc::provision::StartupMode::CredentialRecovery
-                || !matches!(result, Ok(Ok(())))
-            {
-                failed_t2.store(true, Ordering::SeqCst);
-            }
-            stop_t2.store(true, Ordering::SeqCst);
+            exec_svc::supervise_privileged(
+                mode == exec_ipc::provision::StartupMode::CredentialRecovery,
+                &failed_t2,
+                &stop_t2,
+                || {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map_err(std::io::Error::other)
+                        .and_then(|rt| {
+                            rt.block_on(crate::privileged_pipe::serve(
+                                &privileged_sid,
+                                privileged_tx,
+                                mode,
+                                failure_phase,
+                                operator_context,
+                            ))
+                        })
+                },
+            );
         });
         // Journal open replays and hash-checks the whole ledger, which grows with history. Wait for it as long
         // as it keeps working (up to two minutes), telling the service manager we are still starting, instead
@@ -356,17 +355,14 @@ mod windows_host {
         while !should_stop.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(50));
         }
-        let mut stopped = status(
-            ServiceState::Stopped,
-            if listener_failed.load(Ordering::SeqCst) || privileged_failed.load(Ordering::SeqCst) {
-                5
-            } else {
-                0
-            },
+        let (win32, specific) = exec_svc::stopped_exit(
+            listener_failed.load(Ordering::SeqCst),
+            privileged_failed.load(Ordering::SeqCst),
+            privileged_phase.load(Ordering::SeqCst),
         );
-        if privileged_failed.load(Ordering::SeqCst) {
-            stopped.exit_code =
-                ServiceExitCode::ServiceSpecific(privileged_phase.load(Ordering::SeqCst));
+        let mut stopped = status(ServiceState::Stopped, win32);
+        if let Some(phase) = specific {
+            stopped.exit_code = ServiceExitCode::ServiceSpecific(phase);
         }
         status_handle.set_service_status(stopped)?;
         Ok(())
