@@ -276,3 +276,13 @@ def test_collector_and_backup_tasks_survive_sleep_sign_out_and_the_restart_cap()
     for name in ("Install-BackupSchedule.ps1", "Install-ResearchBackupSchedule.ps1"):
         text = (scripts / name).read_text(encoding="utf-8")
         assert "-WakeToRun -StartWhenAvailable" in text, name
+
+
+def test_status_docs_agree_on_the_portfolio_revision():
+    """G-4: acceptance-status and system-status name the same portfolio engine revision."""
+    import re
+    from pathlib import Path
+    docs = Path(__file__).resolve().parents[1] / "docs"
+    accept = re.findall(r"Revision (\d+) accounting", (docs / "acceptance-status.md").read_text(encoding="utf-8"))
+    system = re.findall(r"Portfolio revision (\d+)", (docs / "system-status.md").read_text(encoding="utf-8"))
+    assert accept and system and set(accept) == set(system), (accept, system)
