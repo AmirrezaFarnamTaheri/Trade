@@ -1,0 +1,17 @@
+{
+  "rule": "sellable quantity = quantity floored to qty_decimals; zero unless it is positive, at least min_qty (when known) and its value at bid is at least min_notional (when known). Python gym/domain/sim.py sellable_quantity and Rust exec-core kernel::sellable must agree (ADR 0005).",
+  "cases": [
+    {"quantity": "1.23456789", "qty_decimals": 4, "min_qty": null, "min_notional": null, "bid": "100", "sellable": "1.2345"},
+    {"quantity": "1.23456789", "qty_decimals": 0, "min_qty": null, "min_notional": null, "bid": "100", "sellable": "1"},
+    {"quantity": "0.99999999", "qty_decimals": 0, "min_qty": null, "min_notional": null, "bid": "100", "sellable": "0"},
+    {"quantity": "5", "qty_decimals": 8, "min_qty": null, "min_notional": null, "bid": "100", "sellable": "5"},
+    {"quantity": "0.00012", "qty_decimals": 5, "min_qty": "0.0002", "min_notional": null, "bid": "100", "sellable": "0"},
+    {"quantity": "0.0002", "qty_decimals": 5, "min_qty": "0.0002", "min_notional": null, "bid": "100", "sellable": "0.0002"},
+    {"quantity": "0.09", "qty_decimals": 2, "min_qty": null, "min_notional": "10", "bid": "100", "sellable": "0"},
+    {"quantity": "0.1", "qty_decimals": 2, "min_qty": null, "min_notional": "10", "bid": "100", "sellable": "0.1"},
+    {"quantity": "0.10999", "qty_decimals": 2, "min_qty": null, "min_notional": "10", "bid": "99.99", "sellable": "0"},
+    {"quantity": "123456789.123456789", "qty_decimals": 6, "min_qty": "1", "min_notional": "5", "bid": "0.00000005", "sellable": "123456789.123456"},
+    {"quantity": "0", "qty_decimals": 8, "min_qty": null, "min_notional": null, "bid": "100", "sellable": "0"},
+    {"quantity": "70000.5", "qty_decimals": null, "min_qty": null, "min_notional": "1", "bid": "0.5", "sellable": "70000.5"}
+  ]
+}

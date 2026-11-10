@@ -99,3 +99,16 @@ def test_market_order_invariants_hold_on_random_orders(block):
             assert price <= first.bid or (not exact and close(price, first.bid)), f"seed {seed}: sold above the bid"
         assert out["costs"]["spread"] >= 0, f"seed {seed}: negative spread cost"
     assert filled >= 100, f"only {filled} fills in this block; the generator no longer exercises fills"
+
+
+def test_sellable_quantity_matches_the_shared_fixture_with_the_rust_kernel():
+    """contracts/v1/fixtures/sizing.json is also checked by exec-core kernel::sellable (ADR 0005)."""
+    import json
+    from pathlib import Path
+
+    from gym.domain.sim import sellable_quantity
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "contracts/v1/fixtures/sizing.json").read_text("utf-8"))
+    dec = lambda value: None if value is None else Decimal(value)
+    for case in fixture["cases"]:
+        spec = Spec(qty_decimals=case["qty_decimals"], min_qty=dec(case["min_qty"]), min_notional=dec(case["min_notional"]))
+        assert sellable_quantity(Decimal(case["quantity"]), Decimal(case["bid"]), spec) == Decimal(case["sellable"]), case

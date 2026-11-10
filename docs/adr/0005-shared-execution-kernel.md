@@ -1,6 +1,6 @@
 # ADR 0005: One execution kernel for research and the executor
 
-Status: Proposed (finding A-1 step 2; a quarter-scale project)
+Status: Proposed; stages 1-2 started (finding A-1 step 2; a quarter-scale project)
 
 ## Context
 
@@ -31,3 +31,11 @@ cannot be shown to survive the executor's own arithmetic.
   property tests (unknown venue precision) disappear because the kernel requires a known precision.
 - Benefit: a paper fill and a live fill come from the same code, which is what turns research into a credible
   path to execution.
+
+## Progress (2026-11-10)
+
+- `exec-core/src/kernel.rs` holds the first reference rule, `sellable` (floor to venue precision, minimum
+  quantity, minimum notional), in exact integer arithmetic. `contracts/v1/fixtures/sizing.json` pins it and
+  `gym/domain/sim.py` `sellable_quantity` to the same 12 cases (`exec-core/tests/kernel_conformance.rs`,
+  `gym-core/tests/test_market_order_properties.py`).
+- Next rules for the kernel, in order: fee in the received asset, depth-walk notional, the 2% venue price guard.
