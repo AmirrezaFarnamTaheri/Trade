@@ -1,6 +1,6 @@
 /* Model settings use the gateway API; secrets never enter browser storage or URLs. */
 window.gymModels = (() => {
-  let context, language, status, login, poll;
+  let context, language, status, login, poll, providers, completing = false;
   const $ = id => document.getElementById(id);
   const words = Object.fromEntries(['en', 'fa'].map(l => [l, Object.fromEntries(["add", "advanced", "auth", "calls", "cancel", "choose", "clear", "code", "config", "configured", "connected", "connections", "cost", "disconnected", "enabled", "export", "failed", "help", "id", "import", "key", "keyHelp", "keys", "link", "noUsage", "none", "oauth", "oauthAccept", "oauthWarn", "pending", "plaintext", "preset", "prompt", "provider", "refresh", "reply", "result", "saved", "send", "signIn", "signOut", "storage", "sync", "title", "tokensIn", "tokensOut", "unavailable", "unknownCost", "usage"].map(k => [k, T[l]['models' + k[0].toUpperCase() + k.slice(1)]]))]));
   const w = key => words[language][key];
@@ -23,7 +23,7 @@ window.gymModels = (() => {
     const selected = $('models-preset').value;
     $('models-preset').innerHTML = status.presets.map(p => `<option value="${esc(p.id)}">${esc(p.connection)} / ${esc(p.name || p.model)}</option>`).join('');
     if (status.presets.some(p => p.id === selected)) $('models-preset').value = selected;
-    $('models-send').disabled = !status.enabled || !status.presets.length;
+    $('models-send').disabled = completing || !status.enabled || !status.presets.length;
   }
   async function reload() { status = await request('status'); renderStatus(); renderUsage(await request('usage').catch(() => null)); }
   function renderUsage(data) {
@@ -49,6 +49,9 @@ window.gymModels = (() => {
     context = { api, esc: escape };
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (language === next) return;
+    const draft = language ? Object.fromEntries(['id', 'provider', 'auth', 'preset', 'prompt'].map(key => [key, $('models-' + key).value])) : {};
+    const result = language ? $('models-result').textContent : '';
+    if (language) $('models-content').querySelectorAll('input[type="password"]').forEach(input => { input.value = ''; });
     language = next;
     $('models-content').innerHTML = `<p class="lead">${esc(w('help'))}</p><div class="actions"><button id="models-refresh" class="button" type="button">${esc(w('refresh'))}</button><label><input id="models-enabled" type="checkbox"> ${esc(w('enabled'))}</label></div><p id="models-storage" class="field-help"></p><p id="models-message" role="status"></p><section class="panel"><h2>${esc(w('add'))}</h2><form id="models-add"><div class="ticket-fields"><label>${esc(w('id'))}<input id="models-id" pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}" maxlength="100" required dir="ltr"></label><label>${esc(w('provider'))}<select id="models-provider"></select></label><label>${esc(w('auth'))}<select id="models-auth"></select></label></div><button class="button" type="submit">${esc(w('add'))}</button></form></section><h2>${esc(w('connections'))}</h2><div id="models-connections"></div><section id="models-login" class="panel" role="status" aria-live="polite"></section><section class="panel"><h2>${esc(w('prompt'))}</h2><form id="models-complete"><label>${esc(w('preset'))}<select id="models-preset"></select></label><label>${esc(w('prompt'))}<textarea id="models-prompt" maxlength="32000" required></textarea></label><button id="models-send" class="button" type="submit" disabled>${esc(w('send'))}</button></form><h3>${esc(w('result'))}</h3><pre id="models-result" class="output" dir="auto"></pre></section><section class="panel"><h2>${esc(w('usage'))}</h2><div id="models-usage"></div></section><details class="panel"><summary>${esc(w('advanced'))}</summary><label>${esc(w('config'))}<textarea id="models-config" rows="8" spellcheck="false" dir="ltr"></textarea></label><div class="actions"><button id="models-import" type="button" class="button">${esc(w('import'))}</button><button id="models-export" type="button" class="button">${esc(w('export'))}</button></div></details>`;
     $('models-refresh').onclick = () => act(reload);
@@ -80,10 +83,17 @@ window.gymModels = (() => {
       const input = $('models-answer'), answer = input.value; input.value = '';
       await request('reply', { id: login, prompt: $('models-login').dataset.prompt, answer }); await pollLogin();
     }); };
-    $('models-complete').onsubmit = event => { event.preventDefault(); act(async () => {
+    $('models-result').textContent = result;
+    for (const key of ['id', 'prompt']) if (key in draft) $('models-' + key).value = draft[key];
+    if (status) renderStatus();
+    if (draft.preset) $('models-preset').value = draft.preset;
+    $('models-complete').onsubmit = event => { event.preventDefault(); if (completing) return; completing = true; return act(async () => {
       $('models-send').disabled = true;
-      try { $('models-result').textContent = JSON.stringify(await request('complete', { preset: $('models-preset').value, prompt: $('models-prompt').value }), null, 2); }
-      finally { renderStatus(); renderUsage(await request('usage').catch(() => null)); }
+      try {
+        const response = await request('complete', { preset: $('models-preset').value, prompt: $('models-prompt').value });
+        $('models-result').textContent = JSON.stringify(response, null, 2);
+      }
+      finally { renderUsage(await request('usage').catch(() => null)); completing = false; renderStatus(); }
     }); };
     $('models-import').onclick = () => act(async () => { await request('import', JSON.parse($('models-config').value)); await reload(); });
     $('models-export').onclick = () => {
@@ -92,13 +102,20 @@ window.gymModels = (() => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' }));
       const a = document.createElement('a'); a.href = url; a.download = 'model-connections.json'; a.click(); URL.revokeObjectURL(url);
     };
+    const view = $('models-complete');
     try {
-      const providers = (await request('providers')).filter(p => p.completionSupported);
+      providers ||= (await request('providers')).filter(p => p.completionSupported);
+      if (view !== $('models-complete')) return;
       $('models-provider').innerHTML = providers.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
       if (providers.some(p => p.id === 'openai')) $('models-provider').value = 'openai';
       const authOptions = () => { const p = providers.find(p => p.id === $('models-provider').value); $('models-auth').innerHTML = (p.api_key ? `<option value="api_key">${esc(w('key'))}</option>` : '') + (p.oauth ? `<option value="oauth">${esc(w('oauth'))}</option>` : ''); };
-      $('models-provider').onchange = authOptions; authOptions(); await reload();
-    } catch { $('models-message').textContent = w('unavailable'); language = undefined; }
+      if (draft.provider) $('models-provider').value = draft.provider;
+      $('models-provider').onchange = authOptions; authOptions();
+      if (draft.auth) $('models-auth').value = draft.auth;
+      await reload();
+      if (view !== $('models-complete')) return;
+      if (login) { $('models-login').dataset.prompt = 'new'; await pollLogin(); }
+    } catch { if (view === $('models-complete')) { $('models-message').textContent = w('unavailable'); language = undefined; } }
   }
   return { mount };
 })();

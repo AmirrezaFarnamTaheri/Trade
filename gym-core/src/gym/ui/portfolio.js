@@ -1,11 +1,11 @@
 /* Shared cash replay uses native records, separately from independent comparisons. */
 window.gymPortfolio = (() => {
-  let language, setup, record, checkpoint, busy = false;
+  let language, setup, record, checkpoint, runs, refresh, busy = false;
   const $ = id => document.getElementById(id);
   const inputs = ['portfolio-symbols', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold'];
   function mount({api, esc, table, keyValues, amount, when, stamp = (v, d) => esc(when(v, d)), curveFigure, strategyFields}) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
-    if (next === language || busy) return;
+    if (next === language || busy) { refresh?.(); return; }
     const saved = language ? Object.fromEntries(inputs.map(id => [id, $(id).value])) : {};
     language = next;
     const fa = next === 'fa', text = (en, persian) => fa ? persian : en;
@@ -77,8 +77,11 @@ window.gymPortfolio = (() => {
       } catch { renderParameters(); }
     };
     async function savedRuns() {
-      const data = await call('portfolio-list');
-      $('portfolio-saved').innerHTML = `<p class="field-help">${text(T.en.pfSavedReferencesOpenARecordTo, T.fa.pfSavedReferencesOpenARecordTo)}</p>` + table([text(T.en.pfSavedPortfoliosLatest100, T.fa.pfSavedPortfoliosLatest100), text(T.en.strategy, T.fa.strategy), text(T.en.navMarkets, T.fa.navMarkets), text(T.en.pfWindowTehran, T.fa.pfWindowTehran)], data.runs.map(row => [
+      runs = await call('portfolio-list'); renderSaved();
+    }
+    function renderSaved() {
+      if (!runs) return;
+      $('portfolio-saved').innerHTML = `<p class="field-help">${text(T.en.pfSavedReferencesOpenARecordTo, T.fa.pfSavedReferencesOpenARecordTo)}</p>` + table([text(T.en.pfSavedPortfoliosLatest100, T.fa.pfSavedPortfoliosLatest100), text(T.en.strategy, T.fa.strategy), text(T.en.navMarkets, T.fa.navMarkets), text(T.en.pfWindowTehran, T.fa.pfWindowTehran)], runs.runs.map(row => [
         `<button type="button" class="button button-small" data-portfolio="${esc(row.run_id)}">${esc(row.run_id)}</button>`, `${esc(row.inputs.strategy)} · ${esc(row.inputs.resolution)}`,
         `<details><summary>${esc(row.inputs.symbols.length)} · ${esc(row.inputs.symbols[0]?.endsWith('USDT') ? 'USDT' : 'TMN')}</summary><p dir="ltr">${esc(row.inputs.symbols.join(', '))}</p></details>`, `${stamp(row.inputs.from)} → ${stamp(row.inputs.to)}`]));
       $('portfolio-saved').querySelectorAll('[data-portfolio]').forEach(button => { button.onclick = () => act(async () => { record = await call('portfolio-read', {run_id: button.dataset.portfolio}); checkpoint = null; $('portfolio-recovery-status').textContent = ''; render(); }); });
@@ -147,7 +150,8 @@ window.gymPortfolio = (() => {
       $('portfolio-recovery-status').textContent = `${result.run_id} · ${result.status}`;
     });
     renderParameters();
-    controls(); render();
+    refresh = () => { renderSaved(); render(); };
+    controls(); refresh();
   }
   return {mount};
 })();

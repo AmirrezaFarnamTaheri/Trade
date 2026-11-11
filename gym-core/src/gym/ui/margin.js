@@ -1,11 +1,11 @@
 /* Public Wallex terms and local paper replay share the CLI research actions. */
 window.gymMargin = (() => {
-  let language, catalogue, preview, busy = false;
+  let language, catalogue, preview, result, refresh, busy = false;
   const $ = id => document.getElementById(id);
   const inputIds = ['margin-market', 'margin-side', 'margin-collateral', 'margin-risk', 'margin-price', 'margin-stop', 'margin-target', 'margin-from', 'margin-to', 'margin-exit-fee', 'margin-holding'];
   function mount({api, esc, keyValues, table, amount, when, stamp = (v, d) => esc(when(v, d)), demo = false}) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
-    if (language === next || busy) return;
+    if (language === next || busy) { refresh?.(); return; }
     // A language change preserves the operator's exact decimal inputs and receipt.
     const saved = language ? Object.fromEntries(inputIds.map(id => [id, $(id).value])) : {};
     language = next;
@@ -54,7 +54,6 @@ window.gymMargin = (() => {
     }
     function renderRules() {
       if (!catalogue) return;
-      $('margin-market').innerHTML = catalogue.markets.map(row => `<option>${esc(row.symbol)}</option>`).join('');
       $('margin-rules').innerHTML = `<p>${text(T.en.receiptReceived, T.fa.receiptReceived)} · ${stamp(catalogue.received_at)}</p><details><summary>${text(T.en.mgPerMarketRules, T.fa.mgPerMarketRules)} · ${catalogue.markets.length}</summary>` + table(
         [text(T.en.pair, T.fa.pair), text(T.en.mgMinimumCredit, T.fa.mgMinimumCredit), text(T.en.mgMaximumCredit, T.fa.mgMaximumCredit), text(T.en.mgStep, T.fa.mgStep), text(T.en.mgLiquidationMarginFraction, T.fa.mgLiquidationMarginFraction), text(T.en.mgMaxAgeSeconds, T.fa.mgMaxAgeSeconds)],
         catalogue.markets.map(row => [esc(row.symbol), amount(row.min_risk_coef), amount(row.max_risk_coef), amount(row.risk_coef_step), amount(row.liquidity_margin), esc(row.max_age)])) + '</details>';
@@ -79,8 +78,9 @@ window.gymMargin = (() => {
         [text(T.en.mgMaxAgeSeconds, T.fa.mgMaxAgeSeconds), esc(terms.max_age)],
       ]) + raw(preview);
     }
-    function invalidate() { preview = null; $('margin-preview').textContent = ''; $('margin-result').textContent = ''; controls(); }
-    $('margin-load').onclick = () => act(async () => { invalidate(); catalogue = null; $('margin-rules').textContent = ''; catalogue = receipt(await call('margin-markets', null), 'MARKETS'); renderRules(); bounds(); });
+    function fillMarkets() { if (catalogue) $('margin-market').innerHTML = catalogue.markets.map(row => `<option>${esc(row.symbol)}</option>`).join(''); }
+    function invalidate() { preview = null; result = null; $('margin-preview').textContent = ''; $('margin-result').textContent = ''; controls(); }
+    $('margin-load').onclick = () => act(async () => { invalidate(); catalogue = null; $('margin-rules').textContent = ''; catalogue = receipt(await call('margin-markets', null), 'MARKETS'); fillMarkets(); renderRules(); bounds(); });
     $('margin-market').onchange = () => { invalidate(); $('margin-risk').value = ''; bounds(); };
     $('margin-preview-form').oninput = invalidate;
     $('margin-observed-price').onclick = () => act(async () => {
@@ -105,7 +105,11 @@ window.gymMargin = (() => {
     }); };
     $('margin-cutoff').onclick = () => { $('margin-to').value = new Date().toISOString().slice(0, 19); };
     $('margin-replay-form').onsubmit = event => { event.preventDefault(); return act(async () => {
-      const result = await call('margin-replay', {preview_id: preview.run_id, from: $('margin-from').value + 'Z', to: $('margin-to').value + 'Z', exit_fee_rate: $('margin-exit-fee').value, holding_seconds: $('margin-holding').value ? Number($('margin-holding').value) : null});
+      result = await call('margin-replay', {preview_id: preview.run_id, from: $('margin-from').value + 'Z', to: $('margin-to').value + 'Z', exit_fee_rate: $('margin-exit-fee').value, holding_seconds: $('margin-holding').value ? Number($('margin-holding').value) : null});
+      renderResult();
+    }); };
+    function renderResult() {
+      if (!result) return;
       const row = result.result;
       $('margin-result').innerHTML = keyValues([
         [text(T.en.mgPaperState, T.fa.mgPaperState), esc(row.state)], [text(T.en.mgCashQuote, T.fa.mgCashQuote), amount(row.cash_quote)],
@@ -113,11 +117,12 @@ window.gymMargin = (() => {
         [text(T.en.mgBaseDebt, T.fa.mgBaseDebt), amount(row.debt_base)], [text(T.en.mgMarkedEquityQuote, T.fa.mgMarkedEquityQuote), amount(row.equity_quote)],
         [text(T.en.mgQuoteStatus, T.fa.mgQuoteStatus), esc(row.mark.status)],
       ]) + table([text(T.en.mgFeeCurrency, T.fa.mgFeeCurrency), text(T.en.mgRecognizedCosts, T.fa.mgRecognizedCosts)], Object.entries(row.fees_by_currency || {}).map(([currency, value]) => [esc(currency), amount(value)]))
-        + table([text(T.en.mgTimeUtc, T.fa.mgTimeUtc), text(T.en.mgPaperEvent, T.fa.mgPaperEvent), text(T.en.mgObservedSidePrice, T.fa.mgObservedSidePrice)], row.events.map(row => [esc(row.at), esc(row.action), amount(row.price)])) + raw(result);
-    }); };
-    renderRules();
+        + table([text(T.en.mgTimeSelectedZone, T.fa.mgTimeSelectedZone), text(T.en.mgPaperEvent, T.fa.mgPaperEvent), text(T.en.mgObservedSidePrice, T.fa.mgObservedSidePrice)], row.events.map(row => [stamp(row.at), esc(row.action), amount(row.price)])) + raw(result);
+    }
+    fillMarkets();
     for (const [id, value] of Object.entries(saved)) $(id).value = value;
-    bounds(); renderPreview(); controls();
+    refresh = () => { renderRules(); renderPreview(); renderResult(); };
+    bounds(); refresh(); controls();
   }
   return {mount, catalogueId: () => catalogue?.run_id || null};
 })();

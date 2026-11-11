@@ -89,6 +89,9 @@ function stop(child) {
   };
   diagnostic = async () => ({ errors, page: await evaluate(`({
     title:document.title, hash:location.hash, ready:document.readyState,
+    focus:{id:document.activeElement?.id,html:document.activeElement?.outerHTML.slice(0,1000),
+      visible:document.activeElement?.matches(':focus-visible'),documentFocused:document.hasFocus(),
+      outlineStyle:getComputedStyle(document.activeElement).outlineStyle},
     formValid:document.querySelector('#compare-form')?.checkValidity(),
     button:document.querySelector('#compare-submit')?.outerHTML,
     fieldsDisabled:document.querySelector('#comparison-fields')?.disabled,
@@ -189,7 +192,7 @@ function stop(child) {
           await evaluate(`document.querySelector('nav [data-view="${route}"]').click()`);
           await until(() => evaluate(`document.querySelector('#v-${route}')?.hidden === false`), `mobile navigation ${route}`);
           const geometry = await evaluate(`(() => {
-            const controls = [...document.querySelectorAll('.button, .segmented button, .tabs [role="tab"]')]
+            const controls = [...document.querySelectorAll('.button, .segmented button, .tabs [role="tab"], .symbol-button')]
               .filter(node => node.getClientRects().length)
               .map(node => ({ id: node.id || node.textContent.trim(), height: node.getBoundingClientRect().height }));
             return { overflow: document.documentElement.scrollWidth > innerWidth + 1, controls };
@@ -197,7 +200,7 @@ function stop(child) {
           assert.equal(geometry.overflow, false, `${width}px ${language} ${selectedTheme} ${route}: horizontal overflow`);
           assert(geometry.controls.length > 0, `${route}: no visible action controls checked`);
           assert.deepEqual(geometry.controls.filter(control => control.height < 43.99), [],
-            `${width}px ${language} ${selectedTheme} ${route}: action and tab targets below 44px`);
+            `${width}px ${language} ${selectedTheme} ${route}: action, tab and market-selection targets below 44px`);
           mobileTargets.push({ width, language, theme: selectedTheme, route,
             controls: geometry.controls.length, minimumHeight: Math.min(...geometry.controls.map(control => control.height)) });
         }
@@ -206,9 +209,15 @@ function stop(child) {
   }
   if (await evaluate('document.documentElement.lang') !== 'en')
     await evaluate('document.querySelector("#language-toggle").click()');
+  await send('Page.bringToFront');
+  await evaluate('document.querySelector("#theme-toggle").focus()');
+  assert(await evaluate('document.hasFocus() && document.activeElement?.id === "theme-toggle"'), 'keyboard focus start');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
-  assert(await evaluate('getComputedStyle(document.activeElement).outlineStyle !== "none"'), 'keyboard focus outline');
+  const keyboardFocus = (await diagnostic()).page.focus;
+  console.log('Keyboard focus:', JSON.stringify(keyboardFocus));
+  assert.equal(keyboardFocus.id, 'zone-toggle', 'Tab advances from theme to zone control');
+  assert(keyboardFocus.documentFocused && keyboardFocus.visible && keyboardFocus.outlineStyle !== 'none', 'keyboard focus outline');
   // Destructive rule actions open a labelled dialog: Cancel has focus, cancelling sends nothing and refocuses the trigger.
   await evaluate('document.querySelector("nav [data-view=rules]").click()');
   await until(() => evaluate('document.querySelector("#v-rules")?.hidden === false'), 'rules view');
@@ -228,8 +237,8 @@ function stop(child) {
   await until(() => evaluate('document.querySelector("#connection-error").hidden'), 'banner clears after recovery');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
-    accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets,
-    checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action and tab targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
+    accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus,
+    checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action, tab and market-selection targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {

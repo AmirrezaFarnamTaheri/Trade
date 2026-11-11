@@ -105,7 +105,7 @@ def test_shell_stays_routing_only_and_view_assets_load_in_order():
 
 
 def test_persian_copy_outside_the_vocabulary_does_not_grow():
-    """Copy kept in workspace-config.js gets one native-speaker review; inline pairs elsewhere are missed.
+    """Copy kept in workspace-config.js gets one vocabulary review; inline pairs elsewhere are missed.
 
     The counts are the lines holding Persian on 2026-11-09. Moving copy into the vocabulary lowers them (update
     the table down); adding inline Persian anywhere else fails here.
@@ -122,7 +122,7 @@ def test_persian_copy_outside_the_vocabulary_does_not_grow():
 
 
 def test_copy_review_extract_covers_the_ui(tmp_path):
-    """scripts/ui_copy_extract.py feeds the native-speaker review; lines it cannot pair must not grow (21 on 2026-11-10)."""
+    """scripts/ui_copy_extract.py feeds the vocabulary review; lines it cannot pair must not grow (21 on 2026-11-10)."""
     import csv
     import importlib.util
     import io

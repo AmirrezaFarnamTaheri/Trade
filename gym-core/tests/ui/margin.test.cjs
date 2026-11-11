@@ -8,7 +8,7 @@ const catalogue = {schema:'wallex-margin/1',kind:'MARKETS',funded_authority:fals
 const money = (currency,value) => ({currency,value});
 const preview = {schema:'wallex-margin/1',kind:'PREVIEW',funded_authority:false,order_submitted:false,run_id:'b'.repeat(16),received_at:'2026-11-06T00:00:00.123456Z',collateral_limits:{min:'50',max:'850'},terms:{loan:money('BTC','0.002'),collateral:money('USDT','100'),open_fee:money('BTC','0.0000004'),extend_fee:money('BTC','0.0000004'),trade_fee:money('USDT','0.5'),extend_time:14400,max_age:1814400,call_price:'102000',liquidity_price:'107000'}};
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-function page(api, demo = false) {
+function page(api, demo = false, stamp) {
   const nodes = new Map();
   class Node {
     constructor(id) {this.id=id;this.value=id==='margin-side'?'long':'';this.disabled=false;this.attributes={};this._html='';this.textContent='';}
@@ -23,7 +23,7 @@ function page(api, demo = false) {
   nodes.set('margin-workbench',new Node('margin-workbench'));
   const context = {T: require('./vocabulary.cjs').T, window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../src/gym/ui/margin.js'),'utf8'),context);
-  const options = {api,esc,demo,when:esc,amount:esc,keyValues:rows=>rows.flat().join('|'),table:(headings,rows)=>headings.concat(rows.flat()).join('|')};
+  const options = {api,esc,demo,stamp,when:esc,amount:esc,keyValues:rows=>rows.flat().join('|'),table:(headings,rows)=>headings.concat(rows.flat()).join('|')};
   context.window.gymMargin.mount(options);
   return {node:id=>nodes.get(id),context,options};
 }
@@ -98,4 +98,35 @@ test('collateral rejection displays actual limits and keeps replay unavailable',
   await p.node('margin-preview-form').onsubmit({preventDefault(){}});
   assert.match(p.node('margin-preview').innerHTML,/50 – 850 USDT/);
   assert.equal(p.node('margin-replay-fields').disabled,true);
+});
+
+test('zone and language refresh receipts and replay events while preserving drafts and one pending replay',async()=>{
+  let zone='Tehran', resolve, replays=0;
+  const p=page(async (_url,options)=>{
+    const {action}=JSON.parse(options.body);
+    if(action==='margin-markets')return catalogue;
+    if(action==='margin-preview')return preview;
+    replays++;if(replays===2)await new Promise(done=>{resolve=done;});
+    return {result:{state:'OPEN',mark:{status:'FRESH'},events:[{at:catalogue.received_at,action:'OPEN',price:'10'}]}};
+  },false,value=>`${zone}:${value}`);
+  await p.node('margin-load').onclick();
+  p.node('margin-collateral').value='123.456';
+  await p.node('margin-preview-form').onsubmit({preventDefault(){}});
+  await p.node('margin-replay-form').onsubmit({preventDefault(){}});
+  zone='UTC';p.context.window.gymMargin.mount(p.options);
+  assert.match(p.node('margin-rules').innerHTML,/UTC:2026/);
+  assert.match(p.node('margin-result').innerHTML,/UTC:2026/);
+  assert.match(p.node('margin-result').innerHTML,/Time · selected zone/);
+  assert.equal(p.node('margin-collateral').value,'123.456');assert.equal(replays,1);
+  const pending=p.node('margin-replay-form').onsubmit({preventDefault(){}});
+  zone='Tehran';p.context.window.gymMargin.mount(p.options);
+  assert.match(p.node('margin-rules').innerHTML,/Tehran:2026/);
+  assert.doesNotMatch(p.node('margin-result').innerHTML,/Time · UTC/);
+  assert.equal(p.node('margin-replay-fields').disabled,true);
+  p.context.document.documentElement.lang='fa';p.context.window.gymMargin.mount(p.options);
+  resolve();await pending;
+  p.context.document.documentElement.lang='fa';p.context.window.gymMargin.mount(p.options);
+  assert.match(p.node('margin-result').innerHTML,/Tehran:2026/);
+  assert.ok(p.node('margin-result').innerHTML.includes(require('./vocabulary.cjs').T.fa.mgTimeSelectedZone));
+  assert.equal(p.node('margin-collateral').value,'123.456');assert.equal(replays,2);
 });

@@ -69,18 +69,56 @@ test('language toggles retain the prompt, chosen preset and paid response while 
   const result = p.node('models-result').textContent;
   assert.match(result, /<paid response>/);
   p.node('models-prompt').value = 'Unsent next prompt';
+  p.node('models-id').value = 'draft-connection';
+  p.node('models-config').value = '{"secret":"discard this import draft"}';
   const key = p.node('secret-key'); key.value = 'unsaved-secret';
   const answer = new p.Node('models-answer', 'password'); answer.value = 'login-code'; p.nodes.set(answer.id, answer);
   await p.mount('fa');
   assert.equal(p.node('models-prompt').value, 'Unsent next prompt');
   assert.equal(p.node('models-preset').value, 'second');
   assert.equal(p.node('models-result').textContent, result);
+  assert.equal(p.node('models-id').value, 'draft-connection');
+  assert.equal(p.node('models-config').value, '');
   assert.equal(key.value, ''); assert.equal(answer.value, '');
   assert.equal(p.node('secret-key').value, '');
   await p.mount('en');
   assert.equal(p.node('models-prompt').value, 'Unsent next prompt');
   assert.equal(p.node('models-result').textContent, result);
   assert.equal(p.calls.filter(call => call.action === 'complete').length, 1);
+});
+
+test('a failed completion releases single request ownership after a language change', async () => {
+  let reject;
+  const p = await page(() => new Promise((_, fail) => { reject = fail; }));
+  p.node('models-prompt').value = 'Keep my draft';
+  const pending = p.node('models-complete').onsubmit(event());
+  await p.mount('fa');
+  reject(new Error('private provider detail')); await pending;
+  assert.equal(p.node('models-send').disabled, false);
+  assert.equal(p.node('models-prompt').value, 'Keep my draft');
+  assert.doesNotMatch(p.node('models-message').textContent, /private provider detail/);
+});
+
+test('overlapping language remounts retain the current nonsecret draft and preset', async () => {
+  const p = await page();
+  p.node('models-prompt').value = 'original unsent prompt';
+  p.node('models-preset').value = 'second';
+  p.node('models-id').value = 'unsaved-connection';
+  const key = p.node('secret-key'); key.value = 'discard-secret';
+  const a = p.mount('fa');
+  const b = p.mount('en');
+  await Promise.all([a, b]);
+  assert.equal(p.node('models-prompt').value, 'original unsent prompt');
+  assert.equal(p.node('models-preset').value, 'second');
+  assert.equal(p.node('models-id').value, 'unsaved-connection');
+  assert.equal(key.value, '');
+  assert.equal(p.calls.filter(call => call.action === 'complete').length, 0);
+  const c = p.mount('fa');
+  p.node('models-prompt').value = 'newer unsent edit';
+  p.node('models-preset').value = 'first';
+  await c;
+  assert.equal(p.node('models-prompt').value, 'newer unsent edit');
+  assert.equal(p.node('models-preset').value, 'first');
 });
 
 test('a language toggle during completion keeps one paid request and renders its response in the current view', async () => {
