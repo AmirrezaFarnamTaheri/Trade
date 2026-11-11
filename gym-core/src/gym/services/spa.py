@@ -1,6 +1,7 @@
 """Conservative stationary-bootstrap SPA-style familywise comparison against buy-and-hold."""
 import math
 from itertools import pairwise
+from operator import itemgetter
 from random import Random
 from statistics import fmean
 
@@ -26,7 +27,9 @@ def stationary_spa(excess: dict[str, list[float]], *, simulations: int = 199, se
         for _ in range(n):
             indices.append(index)
             index = rng.randrange(n) if rng.random() < 1 / block else (index + 1) % n
-        bootstrap.append([fmean(values[j] for j in indices) - avg for values, avg in zip(arrays, means)])
+        # Gather each candidate's numeric vector in C; keep fmean's exact reduction order.
+        gather = itemgetter(*indices)
+        bootstrap.append([fmean(gather(values)) - avg for values, avg in zip(arrays, means)])
     omega = []
     for col in range(len(arrays)):
         avg = fmean(row[col] for row in bootstrap)

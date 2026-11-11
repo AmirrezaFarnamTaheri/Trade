@@ -82,6 +82,34 @@ to retain the active SDK are recorded in its README.
 
 What this repo does: TradingGYM collects Wallex spot observations and runs local paper research. Python owns collection, exact SQLite storage, the simulator and EN/FA workspace. Rust owns a separately protected executor boundary; Node offers optional advisory model calls. Assumed load is one local operator with concurrent collector/research/browser activity.
 
+The numerical vectorization pass replaced SPA's interpreted per-element resampling
+with a native vector gather, reusing each simulation's time indices across candidate
+return columns. Candidate ordering, seeded block sampling and exact `fmean`
+reductions remain unchanged. Complete result dictionaries matched the original.
+Five alternating local CPython 3.11.9 measurements gave these medians:
+
+| Periods × candidates × simulations | Original | Vector gather | Speedup |
+|---|---:|---:|---:|
+| 100 × 4 × 199 | 13.686 ms | 7.350 ms | 1.86× |
+| 2,000 × 8 × 199 | 396.685 ms | 141.911 ms | 2.80× |
+| 10,000 × 8 × 100 | 2,078.590 ms | 772.451 ms | 2.69× |
+
+An evaluated NumPy matrix gather retaining the exact reduction was slower than
+the native gather. Array mean was faster but changed floating-point rounding,
+which can change bootstrap threshold ties; it was not adopted. No dependency or
+backend option was added. Expanded validation passed 113 tests covering SPA,
+scorecards, indicators, portfolio policy, covariance shrinkage and risk parity.
+At the largest tested workload, traced peak allocation rose from 1,113,692 to
+1,580,796 bytes (about 456 KiB); sampled vectors remain bounded by 10,000 periods.
+
+Price/return covariance owners already use aligned Decimal columns and symmetric
+dot products. Keep exact money, causal timestamps, validity masks and market IDs
+at their existing boundaries. Descriptive metadata remains keyed by identity;
+turning mixed records into object tensors would add conversion without a numeric
+operation. Historical indicator batching retains intermediate Decimal validation
+and trap behavior. This pass does not claim SIMD arithmetic or a whole-repository
+tensor migration.
+
 Entry paths are `gym-core/src/gym/cli.py` to command modules, `commands/daemon.py` to collector/API composition, `model-gateway/host.mjs` to the correlated advisory runtime, and Rust service/helper binaries under `executor/exec-svc`. Shared wire contracts/golden fixtures live in `contracts/`. The Node result has no funded order authority.
 
 Use the existing README setup/check commands. Local verification used the existing locked Python environment and installed Rust/Node toolchains. No commit, push, hosted CI dispatch, provider/account mutation or funded execution was performed. Local success does not certify hosted deployment, real settlement, venue stops or strategy edge.
