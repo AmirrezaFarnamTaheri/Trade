@@ -234,11 +234,11 @@
     },
     {
       "file": "executor/exec-store/src/lib.rs",
-      "nodes": 26
+      "nodes": 28
     },
     {
       "file": "executor/exec-store/tests/durable_ledger.rs",
-      "nodes": 11
+      "nodes": 13
     },
     {
       "file": "executor/exec-store/tests/hash_chain.rs",
@@ -746,7 +746,7 @@
     },
     {
       "file": "gym-core/src/gym/services/bias_harness.py",
-      "nodes": 12
+      "nodes": 11
     },
     {
       "file": "gym-core/src/gym/services/capabilities.py",
@@ -1118,7 +1118,7 @@
     },
     {
       "file": "gym-core/src/gym/ui/margin.js",
-      "nodes": 9
+      "nodes": 11
     },
     {
       "file": "gym-core/src/gym/ui/markets-events.js",
@@ -1146,7 +1146,7 @@
     },
     {
       "file": "gym-core/src/gym/ui/portfolio.js",
-      "nodes": 7
+      "nodes": 8
     },
     {
       "file": "gym-core/src/gym/ui/replay-chart.js",
@@ -1218,7 +1218,7 @@
     },
     {
       "file": "gym-core/tests/test_action_registry.py",
-      "nodes": 8
+      "nodes": 9
     },
     {
       "file": "gym-core/tests/test_alerts.py",
@@ -1226,7 +1226,7 @@
     },
     {
       "file": "gym-core/tests/test_allocation.py",
-      "nodes": 7
+      "nodes": 19
     },
     {
       "file": "gym-core/tests/test_api.py",
@@ -1318,7 +1318,7 @@
     },
     {
       "file": "gym-core/tests/test_collector_load.py",
-      "nodes": 4
+      "nodes": 6
     },
     {
       "file": "gym-core/tests/test_collector_maintenance.py",
@@ -1331,6 +1331,10 @@
     {
       "file": "gym-core/tests/test_collector_startup.py",
       "nodes": 4
+    },
+    {
+      "file": "gym-core/tests/test_collector_websocket.py",
+      "nodes": 25
     },
     {
       "file": "gym-core/tests/test_complexity_ratchet.py",
@@ -2085,6 +2089,10 @@
       "nodes": 13
     },
     {
+      "file": "gym-core/tests/ui/mobile-controls.test.cjs",
+      "nodes": 5
+    },
+    {
       "file": "gym-core/tests/ui/models-storage.test.cjs",
       "nodes": 7
     },
@@ -2274,11 +2282,11 @@
     },
     {
       "file": "CHANGELOG.md",
-      "nodes": 12
+      "nodes": 9
     },
     {
       "file": "DESIGN.md",
-      "nodes": 11
+      "nodes": 9
     },
     {
       "file": "PRODUCT.md",
@@ -2334,11 +2342,11 @@
     },
     {
       "file": "docs/adr/0006-arming-and-fail-closed-custody.md",
-      "nodes": 9
+      "nodes": 6
     },
     {
       "file": "docs/adr/README.md",
-      "nodes": 1
+      "nodes": 7
     },
     {
       "file": "docs/arming-policy.md",
@@ -2346,27 +2354,27 @@
     },
     {
       "file": "docs/audit-2026-11-11.md",
-      "nodes": 38
+      "nodes": 9
     },
     {
       "file": "docs/audit-skill-coverage-2026-11-11.md",
-      "nodes": 34
+      "nodes": 7
     },
     {
       "file": "docs/dd-report-status.md",
-      "nodes": 8
+      "nodes": 7
     },
     {
       "file": "docs/dd-tracker.md",
-      "nodes": 17
+      "nodes": 7
     },
     {
       "file": "docs/model-pilots.md",
-      "nodes": 13
+      "nodes": 7
     },
     {
       "file": "docs/onboarding.md",
-      "nodes": 8
+      "nodes": 6
     },
     {
       "file": "docs/operator-rebinding.md",
@@ -2378,7 +2386,7 @@
     },
     {
       "file": "executor/README.md",
-      "nodes": 9
+      "nodes": 7
     },
     {
       "file": "executor/docs/account-observations.md",
@@ -2394,7 +2402,7 @@
     },
     {
       "file": "executor/docs/service-security-status.md",
-      "nodes": 10
+      "nodes": 7
     },
     {
       "file": "executor/docs/windows-hosted-vm-integration.md",
@@ -2406,7 +2414,7 @@
     },
     {
       "file": "gym-core/README.md",
-      "nodes": 7
+      "nodes": 5
     },
     {
       "file": "gym-core/docs/README.md",
@@ -2414,7 +2422,7 @@
     },
     {
       "file": "gym-core/docs/acceptance-status.md",
-      "nodes": 12
+      "nodes": 7
     },
     {
       "file": "gym-core/docs/architecture.md",
@@ -2422,7 +2430,7 @@
     },
     {
       "file": "gym-core/docs/capabilities.md",
-      "nodes": 7
+      "nodes": 5
     },
     {
       "file": "gym-core/docs/compound-strategies.md",
@@ -2434,7 +2442,7 @@
     },
     {
       "file": "gym-core/docs/disaster-recovery.md",
-      "nodes": 7
+      "nodes": 6
     },
     {
       "file": "gym-core/docs/execution-choice.md",
@@ -2446,7 +2454,7 @@
     },
     {
       "file": "gym-core/docs/implementation-plan.md",
-      "nodes": 15
+      "nodes": 7
     },
     {
       "file": "gym-core/docs/interface-review.md",
@@ -2466,7 +2474,7 @@
     },
     {
       "file": "gym-core/docs/offline-recovery-runbook.md",
-      "nodes": 7
+      "nodes": 6
     },
     {
       "file": "gym-core/docs/paper-qualification.md",
@@ -2474,7 +2482,7 @@
     },
     {
       "file": "gym-core/docs/portfolio-replay.md",
-      "nodes": 9
+      "nodes": 7
     },
     {
       "file": "gym-core/docs/portfolio-risk.md",
@@ -2490,11 +2498,11 @@
     },
     {
       "file": "gym-core/docs/research-workspace.md",
-      "nodes": 38
+      "nodes": 16
     },
     {
       "file": "gym-core/docs/storage.md",
-      "nodes": 16
+      "nodes": 7
     },
     {
       "file": "gym-core/docs/strategy-research.md",
@@ -2502,7 +2510,7 @@
     },
     {
       "file": "gym-core/docs/system-status.md",
-      "nodes": 10
+      "nodes": 8
     },
     {
       "file": "gym-core/docs/wallex-api.md",
@@ -2526,7 +2534,7 @@
     },
     {
       "file": "model-gateway/README.md",
-      "nodes": 15
+      "nodes": 9
     },
     {
       "file": ".impeccable/mocks/market-register.png",
@@ -2593,10 +2601,14 @@
   "excluded": [
     "D:\\GitHub\\Trade\\.pi\\",
     "D:\\GitHub\\Trade\\.statamcp\\",
+    "D:\\GitHub\\Trade\\.superpowers\\sdd\\.gitignore",
+    "D:\\GitHub\\Trade\\.superpowers\\sdd\\plan\\",
     "D:\\GitHub\\Trade\\data\\",
     "D:\\GitHub\\Trade\\gym-core\\.pi\\",
     "D:\\GitHub\\Trade\\gym-core\\.unipi\\",
-    "D:\\GitHub\\Trade\\gym-core\\data\\"
+    "D:\\GitHub\\Trade\\gym-core\\data\\",
+    "D:\\GitHub\\Trade\\tasks\\plan.md",
+    "D:\\GitHub\\Trade\\tasks\\todo.md"
   ],
   "noise": [
     "D:\\GitHub\\Trade\\.git\\",

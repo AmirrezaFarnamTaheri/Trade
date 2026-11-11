@@ -20,6 +20,6 @@ the supported product boundary.
 | Margin paper | Public rules/previews and recorded LONG/SHORT positions using venue credit grids | No real loan, position or protective order is submitted |
 | Account observations | Sanitized journal and separately protected read-only transport contracts | Observation is not completeness, spendability or settlement |
 | Protected executor | Native custody, operator intent, preparation, journals and emergency-stop foundations | Installed evidence is dated; funded admission and transport remain open |
-| Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or second-host recovery |
+| Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or runtime readiness |
 
 Predictive ML/RL training is paper-only and gated (300 verified closed trades, every fit counted as a trial; see PRODUCT.md). Unrelated donor runtimes and automatic paid requests are outside accepted scope.

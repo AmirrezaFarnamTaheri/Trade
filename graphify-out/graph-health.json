@@ -1,13 +1,13 @@
 {
-  "nodes": 7594,
-  "relationships": 21753,
-  "communities": 367,
-  "files": 647,
+  "nodes": 7505,
+  "relationships": 21790,
+  "communities": 355,
+  "files": 649,
   "dangling_endpoints": 0,
   "stale_source_nodes": 0,
   "exact_duplicate_extraction_edges_removed": 21,
-  "self_loops": 7,
+  "self_loops": 8,
   "file_only": [],
-  "previous_nodes": 7590,
-  "previous_relationships": 21765
+  "previous_nodes": 7594,
+  "previous_relationships": 21753
 }
