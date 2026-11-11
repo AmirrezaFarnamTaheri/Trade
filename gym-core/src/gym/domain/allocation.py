@@ -16,6 +16,10 @@ def daily_target(closes, held, *, lookback=LOOKBACK, vol_days=VOL_DAYS, vol_targ
 
     Returns the decision with every input it used, so a journal can show why it acted.
     """
+    if type(lookback) is not int or not 1 <= lookback <= 400:
+        raise ValueError("lookback must be an integer in [1, 400]")
+    if type(vol_days) is not int or not 1 <= vol_days <= 399:
+        raise ValueError("vol_days must be an integer in [1, 399]")
     if not 0 < vol_target <= 5 or not 0 <= band < 1 or not 0 <= held <= 1:
         raise ValueError("vol_target must be in (0, 5], band in [0, 1), held in [0, 1]")
     need = max(lookback, vol_days + 1)

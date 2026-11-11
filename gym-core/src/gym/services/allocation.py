@@ -6,11 +6,12 @@ append-only JSONL journal, so the forward record cannot be re-decided after the 
 """
 import json
 from datetime import timedelta
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 
 from ..domain.allocation import daily_target
 from ..domain.bars import qualified
-from ..domain.model import iso
+from ..domain.model import UTC, iso
+from ..domain.sim import sellable_quantity
 from .data_portal import DataPortal
 from .rules import RuleService
 
@@ -29,16 +30,18 @@ def journal(root):
 def run_day(db, root, symbols, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"),
             max_quote_age=timedelta(minutes=5), **rule):
     """Decide and paper-fill each market once for its latest completed daily candle; return new entries."""
+    daily_target([], 0, **rule)  # validate even when no market has candles
     portal, rules = DataPortal(db), RuleService(db)
     past = journal(root)
     path = root / JOURNAL
     path.parent.mkdir(parents=True, exist_ok=True)
     out = []
-    for symbol in symbols:
+    history_start = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - 400 * DAY
+    for symbol in dict.fromkeys(symbols):
         mine = [e for e in past if e["symbol"] == symbol]
         holdings = mine[-1]["holdings"] if mine else {"base": "0", "quote": str(cash)}
         base, quote_cash = Decimal(holdings["base"]), Decimal(holdings["quote"])
-        candles = [k for k in portal.venue_candles(symbol, "1d", now - 400 * DAY, now, as_of=now) if k["t"] + DAY <= now]
+        candles = [k for k in portal.venue_candles(symbol, "1d", history_start, now, as_of=now) if k["t"] + DAY <= now]
         if not candles:
             out.append({"symbol": symbol, "status": "NO_CANDLES", "at": iso(now),
                         "hint": f"run: gymctl history {symbol} --resolution 1d --from 2025-01-01T00:00:00Z"})
@@ -63,17 +66,19 @@ def run_day(db, root, symbols, now, *, cash=Decimal(1000), fee_rate=Decimal("0.0
                 entry["status"] = "NO_QUOTE"  # never invent a fill; the collector must be running
             elif not check["allowed"]:
                 entry["status"], entry["blockers"] = "BLOCKED", check["blockers"]
-            elif side == "BUY":
-                spend = min(change, quote_cash / (1 + fee_rate))
-                qty = (spend / top.ask).quantize(Decimal("1e-8"), ROUND_DOWN)
-                fee = qty * top.ask * fee_rate
-                base, quote_cash = base + qty, quote_cash - qty * top.ask - fee
-                entry["fill"] = {"side": side, "qty": str(qty), "price": str(top.ask), "fee": str(fee)}
             else:
-                qty = min(base, (-change / top.bid).quantize(Decimal("1e-8"), ROUND_DOWN))
-                fee = qty * top.bid * fee_rate
-                base, quote_cash = base - qty, quote_cash + qty * top.bid - fee
-                entry["fill"] = {"side": side, "qty": str(qty), "price": str(top.bid), "fee": str(fee)}
+                price = top.ask if side == "BUY" else top.bid
+                with localcontext() as ctx:
+                    ctx.rounding = ROUND_DOWN
+                    qty = min(change, quote_cash / (1 + fee_rate)) / price if side == "BUY" else min(base, -change / price)
+                    qty = sellable_quantity(qty, price, portal.spec_at(symbol, now))
+                if qty <= 0:
+                    entry["status"], entry["blockers"] = "BLOCKED", ["BELOW_MIN_NOTIONAL"]
+                else:
+                    fee = qty * price * fee_rate
+                    sign = 1 if side == "BUY" else -1
+                    base, quote_cash = base + sign * qty, quote_cash - sign * qty * price - fee
+                    entry["fill"] = {"side": side, "qty": str(qty), "price": str(price), "fee": str(fee)}
         entry["holdings"] = {"base": str(base), "quote": str(quote_cash)}
         entry["equity"] = str(quote_cash + base * mark)
         # shortcut: one writer assumed (a daily scheduled run); two concurrent runs could both append a day.
