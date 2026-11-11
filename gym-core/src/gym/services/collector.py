@@ -425,14 +425,10 @@ class Collector:
 
     async def _ws_once(self, session, symbols: list[str], shard: int) -> int | None:
         async with session.ws_connect(wallex.WS, heartbeat=None, receive_timeout=60, max_msg_size=wallex.MAX_BODY) as ws:
-            for cmd in wallex.connect_cmds(wallex.channels(symbols)):
-                await ws.send_str(cmd)
-            self.connected_shards.add(shard)
+            connect, *subscriptions = wallex.connect_cmds(wallex.channels(symbols))
+            await ws.send_str(connect)
             stats = self.status["shard_stats"].setdefault(shard, {"markets": len(symbols), "reconnects": 0, "last_frame": None})
-            stats["connected_at"] = now_utc()
-            self.status["connected"] = True
-            self.status["shards"] = len(self.connected_shards)
-            seed = asyncio.create_task(self.seed(session, symbols))
+            seed = None
             try:
                 async for msg in ws:  # 60 s of total silence (pings come every 25 s) raises TimeoutError
                     if msg.type == aiohttp.WSMsgType.TEXT:
@@ -440,6 +436,22 @@ class Collector:
                             await ws.send_str("{}")  # pong within 8 s or the server closes with 3012
                         stats["last_frame"] = now_utc()
                         self.handle_frame(msg.data, stats["last_frame"])
+                        if seed is None:
+                            for line in msg.data.split("\n"):
+                                try:
+                                    reply = loads(line)
+                                except ValueError:
+                                    continue  # handle_frame already records malformed input.
+                                if (isinstance(reply, dict) and reply.get("id") == 1
+                                        and isinstance(reply.get("connect"), dict) and "error" not in reply):
+                                    for cmd in subscriptions:
+                                        await ws.send_str(cmd)
+                                    self.connected_shards.add(shard)
+                                    stats["connected_at"] = now_utc()
+                                    self.status["connected"] = True
+                                    self.status["shards"] = len(self.connected_shards)
+                                    seed = asyncio.create_task(self.seed(session, symbols))
+                                    break
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         break
                 return ws.close_code
@@ -447,9 +459,10 @@ class Collector:
                 self.connected_shards.discard(shard)
                 self.status["connected"] = bool(self.connected_shards)
                 self.status["shards"] = len(self.connected_shards)
-                if not seed.done():
-                    seed.cancel()
-                await asyncio.gather(seed, return_exceptions=True)
+                if seed is not None:
+                    if not seed.done():
+                        seed.cancel()
+                    await asyncio.gather(seed, return_exceptions=True)
 
     async def _ws_loop(self, session, symbols: list[str], shard: int):
         backoff = 1
