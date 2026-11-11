@@ -80,9 +80,6 @@ def _market_db(root):
     return MarketDB(path, readonly=True)
 
 
-_NEXT = object()  # a handler that falls through lets later handlers try
-
-
 def _research_action_premium_research(root, action, value, store, at):
     from .premium_lead_lag import analyze_lead_lag, analyze_quotes
     from .research_market import _read_quotes, _symbol, _window
@@ -118,7 +115,6 @@ def _research_action_premium_research(root, action, value, store, at):
                                     max_delay_bars=value.get("max_delay_bars", 1))
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_twap_preview(root, action, value, store, at):
@@ -214,14 +210,12 @@ def _research_action_twap_preview(root, action, value, store, at):
     finally:
         db.c.rollback()
         db.c.close()
-    return _NEXT
 
 
 def _research_action_fairprice_observe(root, action, value, store, at):
     from .fair_price import fairprice_action
 
     return fairprice_action(root, action, value, received_at=now_utc())
-    return _NEXT
 
 
 def _research_action_feed_divergence_screen(root, action, value, store, at):
@@ -250,14 +244,12 @@ def _research_action_feed_divergence_screen(root, action, value, store, at):
         return {**result, **receipt}
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_paper_promotion_screen(root, action, value, store, at):
     from .promotion_gates import promotion_screen
 
     return promotion_screen(value)
-    return _NEXT
 
 
 def _research_action_shadow_drift_screen(root, action, value, store, at):
@@ -268,7 +260,6 @@ def _research_action_shadow_drift_screen(root, action, value, store, at):
     historical = load_verified_run(root / "runs", value["historical_run_id"], store=store)
     shadow = load_verified_run(root / "runs", value["shadow_run_id"], store=store)
     return shadow_drift(historical, shadow, observed_at=now_utc())
-    return _NEXT
 
 
 def _research_action_postfill_check(root, action, value, store, at):
@@ -306,7 +297,6 @@ def _research_action_postfill_check(root, action, value, store, at):
     finally:
         db.c.rollback()
         db.c.close()
-    return _NEXT
 
 
 def _research_action_prospective_register(root, action, value, store, at):
@@ -321,12 +311,10 @@ def _research_action_prospective_register(root, action, value, store, at):
             return evaluate_comparison(registry, value, db, now=now_utc())
         finally:
             db.c.close()
-    return _NEXT
 
 
 def _research_action_operator_actions(root, action, value, store, at):
     return operator_action(root, action, value, store=store)
-    return _NEXT
 
 
 def _research_action_fractional_sizing(root, action, value, store, at):
@@ -339,14 +327,12 @@ def _research_action_fractional_sizing(root, action, value, store, at):
     save_run({"run_id": report["report_id"], "report": report},
              root / "runs" / "fractional_sizing")
     return report
-    return _NEXT
 
 
 def _research_action_experiment_scorecard(root, action, value, store, at):
     from .experiment_scorecard import experiment_scorecard
     with ExperimentRegistry(root, store=store) as registry:
         return experiment_scorecard(registry, value)
-    return _NEXT
 
 
 def _research_action_market_products(root, action, value, store, at):
@@ -356,7 +342,6 @@ def _research_action_market_products(root, action, value, store, at):
         return market_products(root, db, value, store=store)
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_execution_model_calibrate(root, action, value, store, at):
@@ -367,7 +352,6 @@ def _research_action_execution_model_calibrate(root, action, value, store, at):
         return market_execution_model_report(root, db, value, store=store)
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_execution_calibration(root, action, value, store, at):
@@ -377,7 +361,6 @@ def _research_action_execution_calibration(root, action, value, store, at):
         return calibration_report(db, value, store=store)
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_walk_forward(root, action, value, store, at):
@@ -388,27 +371,23 @@ def _research_action_walk_forward(root, action, value, store, at):
             return walk_forward(registry, db, value)
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_portfolio_replay(root, action, value, store, at):
     from .portfolio_research import portfolio_action
     return portfolio_action(root, action, value, store=store)
-    return _NEXT
 
 
 def _research_action_combine_oos(root, action, value, store, at):
     from .oos_combination import combine_verified_oos
 
     return combine_verified_oos(root, value, store=store)
-    return _NEXT
 
 
 def _research_action_strategy_retirement_screen(root, action, value, store, at):
     from .strategy_retirement import screen_verified_retirement
 
     return screen_verified_retirement(root, value, store=store)
-    return _NEXT
 
 
 def _research_action_meta_label_eligibility(root, action, value, store, at):
@@ -416,57 +395,47 @@ def _research_action_meta_label_eligibility(root, action, value, store, at):
 
     fields(value, "closed_trades")
     return meta_label_eligibility(value["closed_trades"])
-    return _NEXT
 
 
 def _research_action_margin_pairs_replay(root, action, value, store, at):
     from .margin_pairs import margin_pairs_research
 
     return margin_pairs_research(root, value, store=store)
-    return _NEXT
 
 
 def _research_action_margin_markets(root, action, value, store, at):
     from .margin import margin_action
     return margin_action(root, action, value, store=store)
-    return _NEXT
 
 
 def _research_action_news_fetch(root, action, value, store, at):
     from .news_feed import fetch_news
     return fetch_news(root, value, store=store)
-    return _NEXT
 
 
 def _research_action_depth_audit(root, action, value, store, at):
     return audit_depth(value)
-    return _NEXT
 
 
 def _research_action_diagnostic(root, action, value, store, at):
     return evaluate_artifact(value)
-    return _NEXT
 
 
 def _research_action_robustness(root, action, value, store, at):
     from .robustness import robustness
     return robustness(root / "runs", value, store=store)
-    return _NEXT
 
 
 def _research_action_return_bootstrap(root, action, value, store, at):
     return return_bootstrap(root / "runs", value, store=store)
-    return _NEXT
 
 
 def _research_action_replay(root, action, value, store, at):
     return (replay_decisions if action == "replay" else execution_quality)(root / "runs", value, store=store)
-    return _NEXT
 
 
 def _research_action_rebalance(root, action, value, store, at):
     return rebalance_preview(value)
-    return _NEXT
 
 
 def _research_action_entry_lock_add(root, action, value, store, at):
@@ -481,7 +450,6 @@ def _research_action_entry_lock_add(root, action, value, store, at):
                 "funded_authority": False}
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_replay_checkpoint(root, action, value, store, at):
@@ -491,7 +459,6 @@ def _research_action_replay_checkpoint(root, action, value, store, at):
             return checkpoint_replay(registry, db, value, resume=action == "replay-resume")
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_coverage(root, action, value, store, at):
@@ -509,7 +476,6 @@ def _research_action_coverage(root, action, value, store, at):
             return registry.run(db, value)
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_campaign_status(root, action, value, store, at):
@@ -525,7 +491,6 @@ def _research_action_campaign_status(root, action, value, store, at):
         if action == "experiment-status":
             return registry.read(value)
         return (prepare_packet if action == "research-packet" else save_notes)(registry, value)
-    return _NEXT
 
 
 def _research_action_job_recover(root, action, value, store, at):
@@ -542,7 +507,6 @@ def _research_action_job_recover(root, action, value, store, at):
             return ledger.run_due(db, iso(now_utc()), store=store, limit=value["limit"], job_id=value["job_id"])
         finally:
             db.c.close()
-    return _NEXT
 
 
 def _research_action_technicals(root, action, value, store, at):
@@ -576,18 +540,15 @@ def _research_action_technicals(root, action, value, store, at):
         return (trade_flow_report if action == "trade-flow" else spread_report)(db, start, end, symbol=value["symbol"], store=store)
     finally:
         db.c.close()
-    return _NEXT
 
 
 def _research_action_claim_check(root, action, value, store, at):
     return check_claims(root / "runs", value, store=store)
-    return _NEXT
 
 
 def _research_action_review(root, action, value, store, at):
     fields(value, "run_ids")
     return review_runs(root / "runs", value["run_ids"], as_of=parse_ts(at) if at else now_utc(), store=store)
-    return _NEXT
 
 
 def _research_action_protocol_actions(root, action, value, store, at):
@@ -618,7 +579,6 @@ def _research_action_protocol_actions(root, action, value, store, at):
             return protocol.consume(value, db)
         finally:
             db.c.close()
-    return _NEXT
 
 
 def _research_action_entailment_check(root, action, value, store, at):
@@ -679,9 +639,7 @@ def research_action(root, action, value=None, *, store="live", at=None):
         raise ValueError("protocol mutations use the actual clock, without --at overrides")
     for names, handler in _RESEARCH_HANDLERS:
         if action in names:
-            result = handler(root, action, value, store, at)
-            if result is not _NEXT:
-                return result
+            return handler(root, action, value, store, at)
     actions = {"register": "register", "shadow-open": "open_shadow", "shadow-close": "settle_shadow",
                "schedule": "schedule", "pause": "pause", "resume": "resume", "list": "overview"}
     if action not in actions and action != "tick":

@@ -19,7 +19,6 @@ from decimal import Decimal
 from pathlib import Path
 
 from ..adapters.store import MarketDB
-from ..domain.bars import BarSpec
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from .data_portal import DataPortal
@@ -100,7 +99,3 @@ def check(db: MarketDB, db_after: dict[datetime, MarketDB], strategy_id: str, pa
 def _holding(decisions, base: str) -> list[bool | None]:
     """Actual position before each decision, from the recorded balances; None when the run has no such decision."""
     return [None if "balances_before" not in d else Decimal(d["balances_before"].get(base, "0")) > 0 for d in decisions]
-
-
-def bar_step(resolution: str) -> timedelta:
-    return BarSpec(resolution).step

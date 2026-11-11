@@ -52,3 +52,8 @@ def test_catalog_and_the_cli_parser_agree(capsys):
         main(["research", "no-such-action"])
     offered = re.search(r"choose from (.*)\)", capsys.readouterr().err, re.DOTALL).group(1)
     assert set(re.findall(r"[a-z]+(?:-[a-z]+)*", offered)) == set(ra.CLI_ACTIONS)
+
+
+def test_each_registered_action_has_exactly_one_handler():
+    names = [action for actions, _ in ra._RESEARCH_HANDLERS for action in actions]
+    assert len(names) == len(set(names))
