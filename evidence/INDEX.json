@@ -60,6 +60,12 @@
       "kind": "folder",
       "sha256": "98a23f4831abe5a8f91e7d68bacf790d5c20aa9f6db2900d9de7a4789f3d93f8"
     },
+    "qualification/cloud-transport-20261111": {
+      "bytes": 531,
+      "files": 1,
+      "kind": "folder",
+      "sha256": "77083230644a8c2b50aee5b09b5a00a96f1b428ac454318070c4de9248697f9d"
+    },
     "qualification/workspace-20261107T184509Z/receipt.json": {
       "bytes": 311,
       "files": 1,
