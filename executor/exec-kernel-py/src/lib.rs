@@ -52,10 +52,59 @@ fn trips_price_guard(levels_: Vec<(String, String)>, quantity: &str) -> PyResult
     kernel::trips_price_guard(&levels(levels_)?, exact(quantity)?).ok_or_else(overflow)
 }
 
+#[pyfunction]
+fn cash_quantity(
+    cash: &str,
+    fraction: &str,
+    price: &str,
+    levels_: Vec<(String, String)>,
+    qty_decimals: u32,
+) -> PyResult<String> {
+    kernel::cash_quantity(
+        exact(cash)?,
+        exact(fraction)?,
+        exact(price)?,
+        &levels(levels_)?,
+        qty_decimals,
+    )
+    .map(|v| v.to_string())
+    .ok_or_else(overflow)
+}
+
+#[pyfunction]
+fn holdings_quantity(holdings: &str, fraction: &str, qty_decimals: u32) -> PyResult<String> {
+    kernel::holdings_quantity(exact(holdings)?, exact(fraction)?, qty_decimals)
+        .map(|v| v.to_string())
+        .ok_or_else(overflow)
+}
+
+#[pyfunction]
+fn settle(
+    buy: bool,
+    quantity: &str,
+    notional: &str,
+    fee_rate: &str,
+) -> PyResult<(String, String, String)> {
+    let (fee, base, quote) =
+        kernel::settle(buy, exact(quantity)?, exact(notional)?, exact(fee_rate)?)
+            .ok_or_else(overflow)?;
+    let signed = |(value, negative): kernel::Delta| {
+        if negative {
+            format!("-{value}")
+        } else {
+            value.to_string()
+        }
+    };
+    Ok((fee.to_string(), signed(base), signed(quote)))
+}
+
 #[pymodule]
 fn exec_kernel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sellable, m)?)?;
     m.add_function(wrap_pyfunction!(walk, m)?)?;
     m.add_function(wrap_pyfunction!(trips_price_guard, m)?)?;
+    m.add_function(wrap_pyfunction!(cash_quantity, m)?)?;
+    m.add_function(wrap_pyfunction!(holdings_quantity, m)?)?;
+    m.add_function(wrap_pyfunction!(settle, m)?)?;
     Ok(())
 }

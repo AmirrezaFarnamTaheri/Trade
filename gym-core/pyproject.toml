@@ -5,6 +5,12 @@ description = "TradingGYM gym-core daemon, Workstream A1: collector, venue rules
 requires-python = ">=3.11"
 dependencies = ["aiohttp>=3.9", "cryptography>=44", "zstandard>=0.22", "tzdata"]
 
+[project.optional-dependencies]
+kernel = ["exec-kernel==0.2.0"]
+
+[tool.uv.sources]
+exec-kernel = { path = "../executor/exec-kernel-py" }
+
 [project.scripts]
 gymctl = "gym.cli:main"
 

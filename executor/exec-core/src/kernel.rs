@@ -47,6 +47,32 @@ impl Exact {
         })
     }
 
+    /// Divide at an explicit output precision, rounding down; zero divisors and overflow are refused.
+    pub fn div_floor(self, other: Self, decimals: u32) -> Option<Self> {
+        if other.is_zero() || decimals > 38 {
+            return None;
+        }
+        let exponent = i64::from(other.scale) + i64::from(decimals) - i64::from(self.scale);
+        let (numerator, denominator) = if exponent >= 0 {
+            (
+                self.mantissa
+                    .checked_mul(10u128.checked_pow(exponent.try_into().ok()?)?)?,
+                other.mantissa,
+            )
+        } else {
+            (
+                self.mantissa,
+                other
+                    .mantissa
+                    .checked_mul(10u128.checked_pow((-exponent).try_into().ok()?)?)?,
+            )
+        };
+        Some(Self {
+            mantissa: numerator / denominator,
+            scale: decimals,
+        })
+    }
+
     /// Round toward zero to exactly `decimals` places (padding a shorter value), as Python's
     /// `Decimal.quantize(..., ROUND_DOWN)` does, so both print the same text.
     pub fn floor(self, decimals: u32) -> Option<Self> {
@@ -65,6 +91,63 @@ impl Exact {
     pub fn is_zero(self) -> bool {
         self.mantissa == 0
     }
+}
+
+fn valid_fraction(fraction: Exact) -> Option<()> {
+    (fraction.cmp_value(Exact {
+        mantissa: 1,
+        scale: 0,
+    })? != std::cmp::Ordering::Greater)
+        .then_some(())
+}
+
+/// Known-precision entry quantity, bounded by cash fraction and observed depth.
+/// Empty levels mean a single unrestricted quote at `price`.
+pub fn cash_quantity(
+    cash: Exact,
+    fraction: Exact,
+    price: Exact,
+    levels: &[(Exact, Exact)],
+    decimals: u32,
+) -> Option<Exact> {
+    valid_fraction(fraction)?;
+    if decimals > 38 || price.is_zero() {
+        return None;
+    }
+    let mut budget = cash.checked_mul(fraction)?;
+    if levels.is_empty() {
+        return budget.div_floor(price, decimals);
+    }
+    let mut quantity = Exact {
+        mantissa: 0,
+        scale: 0,
+    };
+    for &(price, size) in levels {
+        if price.is_zero() {
+            return None;
+        }
+        let notional = size.checked_mul(price)?;
+        if notional.cmp_value(budget)? == std::cmp::Ordering::Greater {
+            // Keep the fractional remainder of completed levels until the final lot flooring.
+            let part = budget.div_floor(price, decimals.max(quantity.scale))?;
+            return quantity.checked_add(part)?.floor(decimals);
+        }
+        quantity = quantity.checked_add(size)?;
+        budget = budget.checked_sub(notional)?;
+        if budget.is_zero() {
+            break;
+        }
+    }
+    quantity.floor(decimals)
+}
+
+/// Known-precision exit quantity, bounded by the actual holding fraction.
+pub fn holdings_quantity(holdings: Exact, fraction: Exact, decimals: u32) -> Option<Exact> {
+    valid_fraction(fraction)?;
+    if decimals > 38 {
+        return None;
+    }
+    holdings.checked_mul(fraction)?.floor(decimals)
 }
 
 /// The executable lot of a holding under known venue precision and minimums; zero when it cannot be sold.
@@ -156,6 +239,13 @@ pub fn settle(
     notional: Exact,
     fee_rate: Exact,
 ) -> Option<(Exact, Delta, Delta)> {
+    if fee_rate.cmp_value(Exact {
+        mantissa: 1,
+        scale: 0,
+    })? != std::cmp::Ordering::Less
+    {
+        return None;
+    }
     if buy {
         let fee = quantity.checked_mul(fee_rate)?;
         Some((fee, (quantity.checked_sub(fee)?, false), (notional, true)))

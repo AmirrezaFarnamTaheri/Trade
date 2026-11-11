@@ -222,7 +222,7 @@ _KERNEL = None
 
 
 def use_kernel(module) -> None:
-    """Route sellable_quantity, _walk and _trips_price_guard through the Rust kernel (None restores Python)."""
+    """Route exact money rules through the optional Rust kernel (None restores Python)."""
     global _KERNEL
     _KERNEL = module
 
@@ -408,8 +408,11 @@ def _settle(book: CashBook, inst: InstrumentId, side: str, out: dict, t: datetim
             price: Decimal, notional: Decimal, fee_rate: Decimal, *, mid: Decimal, best: Decimal,
             decision_quote: Decimal, rules: list[Rule], quota_used: dict, day) -> dict:
     """Post one fill to the cash book (fee in the received asset) and describe its costs."""
+    native = None if _KERNEL is None else _exact(_KERNEL.settle, side == "BUY", _plain(qty),
+                                                _plain(notional), _plain(fee_rate))
+    # Posting order and the active Decimal context are part of historical run identities.
+    fee = +Decimal(native[0]) if native is not None else (qty if side == "BUY" else notional) * fee_rate
     if side == "BUY":
-        fee = qty * fee_rate
         if (book.get(inst.base) + qty) - fee <= book.get(inst.base):
             return {**out, "fill_time": iso(t), "reason": "NET_BASE_ROUNDS_TO_ZERO"}
         book.post(t, inst.quote, -notional, "buy", ref)
@@ -420,7 +423,6 @@ def _settle(book: CashBook, inst: InstrumentId, side: str, out: dict, t: datetim
         if inst.base in {r.params.get("asset") for r in rules if r.family == "VenueQuota"}:
             quota_used[day] = quota_used.get(day, Decimal(0)) + qty
     else:
-        fee = notional * fee_rate
         book.post(t, inst.base, -qty, "sell", ref)
         book.post(t, inst.quote, notional, "sell", ref)
         book.post(t, inst.quote, -fee, "fee", ref)

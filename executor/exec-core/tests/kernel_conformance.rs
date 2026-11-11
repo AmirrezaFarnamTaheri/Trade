@@ -37,6 +37,50 @@ fn malformed_decimals_are_refused() {
 }
 
 #[test]
+fn cash_and_holdings_sizing_match_shared_vectors() {
+    use exec_core::kernel::{cash_quantity, holdings_quantity};
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../contracts/v1/fixtures/order-sizing.json"
+    ))
+    .unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        let levels: Vec<(Exact, Exact)> = case["levels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| (exact(&l[0]).unwrap(), exact(&l[1]).unwrap()))
+            .collect();
+        let fraction = exact(&case["fraction"]).unwrap();
+        let decimals = case["qty_decimals"].as_u64().unwrap() as u32;
+        assert_eq!(
+            cash_quantity(
+                exact(&case["cash"]).unwrap(),
+                fraction,
+                exact(&case["price"]).unwrap(),
+                &levels,
+                decimals
+            )
+            .unwrap()
+            .to_string(),
+            case["buy"].as_str().unwrap(),
+            "{case}"
+        );
+        assert_eq!(
+            holdings_quantity(exact(&case["holdings"]).unwrap(), fraction, decimals)
+                .unwrap()
+                .to_string(),
+            case["sell"].as_str().unwrap(),
+            "{case}"
+        );
+    }
+    let one = Exact::parse("1").unwrap();
+    let zero = Exact::parse("0").unwrap();
+    assert!(cash_quantity(one, one, zero, &[], 8).is_none());
+    assert!(cash_quantity(one, one, one, &[], 39).is_none());
+    assert!(holdings_quantity(one, Exact::parse("1.1").unwrap(), 8).is_none());
+}
+
+#[test]
 fn walk_and_settlement_match_the_shared_fixture() {
     use exec_core::kernel::{settle, walk};
     let fixture: serde_json::Value =
