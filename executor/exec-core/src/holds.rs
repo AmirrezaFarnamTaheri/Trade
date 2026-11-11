@@ -4,7 +4,7 @@
 //! Per account and asset it keeps the newest verified venue observation, the active holds of orders that are
 //! not yet settled, and settled spends the newest observation does not yet reflect. Admission requires
 //!
-//!     active holds + unobserved settled spends + request <= newest observed available
+//! `active holds + unobserved settled spends + request <= newest observed available`
 //!
 //! There is no shared snapshot anchor, so overlapping orders admitted against different observations are fine,
 //! and no exact-equality release, so a venue credit (dust, rebate) can never wedge a hold. A settled spend above
