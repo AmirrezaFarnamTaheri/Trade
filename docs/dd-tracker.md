@@ -28,7 +28,7 @@ Engineering (10)
 [x] E-8 · Rust and Python accept different fill-timestamp grammars · Low · Effort S
 [x] E-9 · Hand-rolled binary codecs have golden fixtures but no fuzzing or property tests · Low · Effort M
 [ ] E-10 · Mutation testing is advisory and covers two files · Low · Effort M
-    Status: seven actionable survivor gaps now have independently reviewed regression tests. The expanded weekly assessment fails visibly. A 49-mutant critical cohort is implemented but its timing-suspicious result was rejected; no passing baseline or full five-file qualification is claimed.
+    Status: seven actionable survivor gaps now have independently reviewed regression tests. The expanded weekly assessment fails visibly. After rejecting timing-suspicious evidence, one fresh complete critical cohort under unchanged rules recorded 48 killed and one proved-equivalent Decimal mutation. Its exact-fingerprint baseline is locally qualified; hosted execution and full five-file qualification remain open.
 
 Security (13)
 [x] S-1 · Credential protection is strong only on a Windows service host · Medium · Effort M

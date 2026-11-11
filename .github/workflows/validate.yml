@@ -166,11 +166,10 @@ jobs:
         working-directory: model-gateway
         run: npm audit --omit=dev --audit-level=high
 
-  mutation:
-    name: Mutation check of money and statistics code (weekly, advisory)
-    if: github.event_name == 'schedule'
+  mutation-critical:
+    name: Mutation regression gate (critical cohort)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: gym-core
@@ -180,12 +179,62 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked --group dev
-      # Surviving mutants in these files are untested behavior in money, fills and statistics.
-      # Scope covers the simulator, statistics, the shared cash book and margin math. Make the job blocking once a
-      # run reports zero surviving mutants for this set.
-      - run: uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate src/gym/domain/performance.py,src/gym/domain/sim.py,src/gym/domain/portfolio.py,src/gym/domain/portfolio_policy.py,src/gym/domain/margin.py --tests-dir tests --runner "python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py tests/test_portfolio.py tests/test_portfolio_policy.py tests/test_margin.py tests/test_margin_depth_valuation.py"
-      - if: always()
-        run: uv run --with mutmut==2.5.1 mutmut results
+      - run: uv run --with 'mutmut[patch]==2.5.1' python scripts/mutation_gate.py --output "$RUNNER_TEMP/mutation-critical"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-critical-evidence
+          path: ${{ runner.temp }}/mutation-critical/
+          if-no-files-found: error
+
+  mutation:
+    name: Extended mutation assessment of money and statistics (weekly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv sync --locked --group dev
+      # This broader five-file assessment is not the critical-cohort baseline; failures remain visible.
+      - name: Record weekly source, test, configuration and tool identities
+        run: |
+          mkdir -p "$RUNNER_TEMP/mutation-weekly"
+          git rev-parse HEAD > "$RUNNER_TEMP/mutation-weekly/source-commit.txt"
+          sha256sum src/gym/domain/*.py tests/*.py pyproject.toml uv.lock > "$RUNNER_TEMP/mutation-weekly/input-sha256.txt"
+          uv run --with mutmut==2.5.1 python -c 'import mutmut,sys; from pathlib import Path; from importlib.metadata import version; from hashlib import sha256; print(sys.version); print("mutmut",version("mutmut")); p=Path(mutmut.__file__).parent; [print(name,sha256((p/name).read_bytes()).hexdigest()) for name in ("__init__.py","__main__.py","cache.py")]' > "$RUNNER_TEMP/mutation-weekly/tool-identity.txt"
+      - name: Run complete weekly assessment and preserve its original exit
+        run: |
+          paths="src/gym/domain/performance.py,src/gym/domain/sim.py,src/gym/domain/portfolio.py,src/gym/domain/portfolio_policy.py,src/gym/domain/margin.py"
+          runner="python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py tests/test_portfolio.py tests/test_portfolio_policy.py tests/test_margin.py tests/test_margin_depth_valuation.py tests/test_honest_sharpe.py tests/test_open_time_annualization.py tests/test_research_diagnostics.py tests/test_paper_sweep.py tests/test_mutation_contracts.py"
+          printf '%s\n' "mutmut==2.5.1" "paths=$paths" "tests-dir=tests" "runner=$runner" > "$RUNNER_TEMP/mutation-weekly/configuration.txt"
+          set +e
+          uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate "$paths" --tests-dir tests --runner "$runner" > "$RUNNER_TEMP/mutation-weekly/mutmut.log" 2>&1
+          result=$?
+          printf '{"exit_code":%s}\n' "$result" > "$RUNNER_TEMP/mutation-weekly/exit.json"
+          cat "$RUNNER_TEMP/mutation-weekly/mutmut.log"
+          exit "$result"
+      - name: Preserve weekly cache and rendered results
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/mutation-weekly"
+          for cache in .mutmut-cache .mutmut-cache-wal .mutmut-cache-shm .mutmut-cache-journal; do
+            if [ -f "$cache" ]; then cp "$cache" "$RUNNER_TEMP/mutation-weekly/$cache"; fi
+          done
+          if [ -f .mutmut-cache ]; then
+            uv run --with mutmut==2.5.1 mutmut results > "$RUNNER_TEMP/mutation-weekly/results.txt" 2>&1
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-weekly-evidence
+          path: ${{ runner.temp }}/mutation-weekly/
+          include-hidden-files: true
+          if-no-files-found: error
 
   sbom:
     # G-5: CycloneDX 1.5 SBOMs for the three ecosystems, built from the lockfiles on every run.

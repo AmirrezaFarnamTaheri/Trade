@@ -1,0 +1,242 @@
+{
+  "schema": 1,
+  "mutmut": "2.5.1",
+  "tool_sha256": {
+    "__init__.py": "c2526eb266eebea2bf8bd96ed8da58f6e5949867f2a4090a3d51c584eb383b12",
+    "__main__.py": "77f46c709687687175633f673cf902746fbad7563e18cdc1028ebf3f3eedf61d",
+    "cache.py": "4828dacba315c3226f36763246b20927be3094691b672536fb899688509aec31"
+  },
+  "patch_parser": "0.0.6",
+  "scope": {
+    "src/gym/domain/sim.py": [
+      "CashBook",
+      "_floor"
+    ],
+    "src/gym/contracts/stop_wire.py": [
+      "verify_reply_for"
+    ],
+    "src/gym/domain/performance.py": [
+      "expected_max_sharpe"
+    ]
+  },
+  "runner": "python -B -m pytest -x -q -p no:cacheprovider tests/test_simulation.py tests/test_stop_wire_contract.py tests/test_honest_sharpe.py tests/test_mutation_contracts.py",
+  "runner_sha256": "5d88df632cd04ff15523bd93a4ab064d5c1e87510666c1299a4418dd79e02729",
+  "timing": {
+    "test_time_base": 2.0,
+    "test_time_multiplier": 2.0
+  },
+  "source_sha256": {
+    "src/gym/domain/sim.py": "701f855d84f202775dae54dd575ee327a34aae9797887ec912a5232fc260bacb",
+    "src/gym/contracts/stop_wire.py": "a3d6729cecb83dcaaa4b27dccc06ab98fc21ee667756e89607903e93b1d7b07b",
+    "src/gym/domain/performance.py": "817fb15b4ac36a4871b7691cbe98e80849f0488a81bf40862c8023273cbb1d43"
+  },
+  "test_sha256": {
+    "tests/test_simulation.py": "cb9533c345d15cbd0d69e5d18f2720c52f3eeb507eeb28de60075ecbafed9e7f",
+    "tests/test_stop_wire_contract.py": "173b8801954e719ac195061f54125a2c87dcb93c5a610a5bb7c0466cba7b57b4",
+    "tests/test_honest_sharpe.py": "c080d3db6612968aa0b2401c03851b05a8e1547abd6f074f77ef53b2876fb336",
+    "tests/test_mutation_contracts.py": "ee31681731e6285dbb7e241c28dd750a7ee1d60b33f59686e87fbbf082fef819"
+  },
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "win32",
+  "mutants": {
+    "src/gym/domain/sim.py:61eff53a761b3a85c97819a393ac9300b9c762542451c19e64ad30406b79396d": {
+      "diff": " class CashBook:\n     \"\"\"Balances per actual currency. IRT and USDT are never netted; every change is a posting.\"\"\"\n     balances: dict[str, Decimal]\n-    postings: list[dict] = field(default_factory=list)\n+    postings: list[dict] = None\n \n     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:6472a43a22f925a4dc46f79081c2e4150316c13ca1182055bc9bd79954bcb6e0": {
+      "diff": "     postings: list[dict] = field(default_factory=list)\n \n     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n-        self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n+        self.balances[ccy] = self.balances.get(ccy, Decimal(1)) + amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:4175378d289a0fa61870040d168ea3e47c051bf8a804fb3c74b94ff9a6ceedfd": {
+      "diff": "     postings: list[dict] = field(default_factory=list)\n \n     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n-        self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n+        self.balances[ccy] = self.balances.get(ccy, Decimal(0)) - amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:b9964fb48083a01a2fbd46e04910ae1e1666ebfae330efa6be766ac6df383313": {
+      "diff": "     postings: list[dict] = field(default_factory=list)\n \n     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n-        self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n+        self.balances[ccy] = None\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:fe574419ba59f7ab4c10ab2b1d292a60903f59d148cde006dc197b89342fe97a": {
+      "diff": " \n     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n-        if self.balances[ccy] < 0:\n+        if self.balances[ccy] <= 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:1eada834c061d917c7bd04b805d6ba03ebdaa3b3106aedd3fa303125a1d6b5d0": {
+      "diff": " \n     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n-        if self.balances[ccy] < 0:\n+        if self.balances[ccy] < 1:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:ea1a34ddd4fbca71385482e872b66d9701777f2ad8ed0654defcb459a9a48681": {
+      "diff": "     def post(self, t: datetime, ccy: str, amount: Decimal, kind: str, ref: str):\n         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n         if self.balances[ccy] < 0:\n-            raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n+            raise ArithmeticError(f\"XX{ccy} balance would go negative ({kind} {ref})XX\")\n         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:270d5a2839d3e96f01f9ad89101505c76327a138201ffe1662ea2805843319a7": {
+      "diff": "         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n-        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n+        self.postings.append({\"XXtXX\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n         return self.balances.get(ccy, Decimal(0))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:816e594782a9975224c949247e78fe949df3875aa20f341678c4e0d189625515": {
+      "diff": "         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n-        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n+        self.postings.append({\"t\": iso(t), \"XXccyXX\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n         return self.balances.get(ccy, Decimal(0))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:c037ceee56256c60fe3cfc96bca93bb67dc1f3b9c9a77178730d58d01c0cf99c": {
+      "diff": "         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n-        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n+        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"XXamountXX\": str(amount), \"kind\": kind, \"ref\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n         return self.balances.get(ccy, Decimal(0))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:3f7a4fa06babb658aa44b7d9d817d675ada09d4937d15791ee4af58d0a1bf472": {
+      "diff": "         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n-        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n+        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"XXkindXX\": kind, \"ref\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n         return self.balances.get(ccy, Decimal(0))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:2b2f994a5cbace5b7e4f2ba0aeb7c0b5de19cc3af13e12a7100a1521b75b8ac7": {
+      "diff": "         self.balances[ccy] = self.balances.get(ccy, Decimal(0)) + amount\n         if self.balances[ccy] < 0:\n             raise ArithmeticError(f\"{ccy} balance would go negative ({kind} {ref})\")\n-        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n+        self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"XXrefXX\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n         return self.balances.get(ccy, Decimal(0))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:bc1fc2c09df2ae14a323ba5687ef6cc94005bbbd8a5d80fe98fe86e739f758de": {
+      "diff": "         self.postings.append({\"t\": iso(t), \"ccy\": ccy, \"amount\": str(amount), \"kind\": kind, \"ref\": ref})\n \n     def get(self, ccy: str) -> Decimal:\n-        return self.balances.get(ccy, Decimal(0))\n+        return self.balances.get(ccy, Decimal(1))\n \n     def equity(self, inst: InstrumentId, bid: Decimal) -> Decimal:\n         \"\"\"Mark-to-venue-bid in the quote currency.\"\"\"\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:fc96f98fbcdfb26ebb6875b21b957b2376a7a1d5da82bf9e19b4d83556be3b44": {
+      "diff": " \n     def equity(self, inst: InstrumentId, bid: Decimal) -> Decimal:\n         \"\"\"Mark-to-venue-bid in the quote currency.\"\"\"\n-        return self.get(inst.quote) + self.get(inst.base) * bid\n+        return self.get(inst.quote) - self.get(inst.base) * bid\n \n \n def _floor(x: Decimal, decimals: int | None) -> Decimal:\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:28b051752d91e0ddb0b3211687a0542e667cab86e933e7b118bdc60b509cb4cd": {
+      "diff": " \n     def equity(self, inst: InstrumentId, bid: Decimal) -> Decimal:\n         \"\"\"Mark-to-venue-bid in the quote currency.\"\"\"\n-        return self.get(inst.quote) + self.get(inst.base) * bid\n+        return self.get(inst.quote) + self.get(inst.base) / bid\n \n \n def _floor(x: Decimal, decimals: int | None) -> Decimal:\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:c502a91e568b8bf24f800818133952c0a565d6dbc30d85f7f71b7cd02e97fc08": {
+      "diff": " \n \n def _floor(x: Decimal, decimals: int | None) -> Decimal:\n-    return x if decimals is None else x.quantize(Decimal(1).scaleb(-decimals), ROUND_DOWN)\n+    return x if decimals is not None else x.quantize(Decimal(1).scaleb(-decimals), ROUND_DOWN)\n \n \n MARKET_PRICE_GUARD = Decimal(\"0.02\")\n",
+      "status": "killed"
+    },
+    "src/gym/domain/sim.py:c9b561c369a2ee1e28287d8a164facd280023a58c4cbff7d54487e6f6022dcb8": {
+      "diff": " \n \n def _floor(x: Decimal, decimals: int | None) -> Decimal:\n-    return x if decimals is None else x.quantize(Decimal(1).scaleb(-decimals), ROUND_DOWN)\n+    return x if decimals is None else x.quantize(Decimal(2).scaleb(-decimals), ROUND_DOWN)\n \n \n MARKET_PRICE_GUARD = Decimal(\"0.02\")\n",
+      "status": "equivalent",
+      "observed_status": "survived",
+      "reason": "Decimal.quantize uses only the target exponent, not its nonzero coefficient; Decimal(1).scaleb(-places) and Decimal(2).scaleb(-places) supply the same exponent. None branch is unchanged. Confirmed by 10560 paired cases including positive/negative/zero, exponent bounds, five precisions, eight rounding modes, traps on/off and every signal flag; see tests/test_mutation_contracts.py::test_floor_quantum_coefficient_mutation_is_equivalent_under_decimal_contexts and https://docs.python.org/3.11/library/decimal.html#decimal.Decimal.quantize"
+    },
+    "src/gym/domain/sim.py:86b0356fa044508849a1654b18efec5c5fefede22b7d63d0b461610ba80aa5ec": {
+      "diff": " \n \n def _floor(x: Decimal, decimals: int | None) -> Decimal:\n-    return x if decimals is None else x.quantize(Decimal(1).scaleb(-decimals), ROUND_DOWN)\n+    return x if decimals is None else x.quantize(Decimal(1).scaleb(+decimals), ROUND_DOWN)\n \n \n MARKET_PRICE_GUARD = Decimal(\"0.02\")\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:b7c63ef77ee61965fc91b56d5d0b72f12fe3730d8a8c6f4cdf55eb60b2276566": {
+      "diff": "     Pipe peer authorization belongs to the OS; absent acknowledgment is never\n     success, and callers must display REQUESTED until verification completes.\n     \"\"\"\n-    command, epoch, correlation = decode_request(request)\n+    command, epoch, correlation = None\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:c7284f1b8f6618e12df3368e2a6449a36a8ee4b063f1e351a7642531edea96a8": {
+      "diff": "     success, and callers must display REQUESTED until verification completes.\n     \"\"\"\n     command, epoch, correlation = decode_request(request)\n-    result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n+    result, mode, changed, reply_epoch, reply_id = None\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n     required = {\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:eba356adb86b2aa0a6ad86b06d32e46b9f38eb4f2221499d2fd346e01d77c5ca": {
+      "diff": "     \"\"\"\n     command, epoch, correlation = decode_request(request)\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n-    if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n+    if reply_id == correlation or result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n     required = {\n         StopCommand.STATUS: StopMode.DISARMED,\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:f552d7c3de079fc863f078ca78e4ecbae92cecb2f6f91013c4499569ecdd4728": {
+      "diff": "     \"\"\"\n     command, epoch, correlation = decode_request(request)\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n-    if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n+    if reply_id != correlation or result == StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n     required = {\n         StopCommand.STATUS: StopMode.DISARMED,\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:3f53740a416db63416d7bdd28f749cc51d31ac757132961034ada09428ec588f": {
+      "diff": "     \"\"\"\n     command, epoch, correlation = decode_request(request)\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n-    if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n+    if reply_id != correlation or result != StopResult.ACK or reply_epoch == epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n     required = {\n         StopCommand.STATUS: StopMode.DISARMED,\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:32b83d56a6482d64b00b8c17d80958c7b380002537f41070f4c0270d3a5d5499": {
+      "diff": "     \"\"\"\n     command, epoch, correlation = decode_request(request)\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n-    if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n+    if reply_id != correlation and result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n     required = {\n         StopCommand.STATUS: StopMode.DISARMED,\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:3211d14346abce7b8aefa2e4892f8122994bbb5bbd9ff3e0dcd58cad65cdde4e": {
+      "diff": "     command, epoch, correlation = decode_request(request)\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n-        raise ValueError(\"stop has not been acknowledged for this request\")\n+        raise ValueError(\"XXstop has not been acknowledged for this requestXX\")\n     required = {\n         StopCommand.STATUS: StopMode.DISARMED,\n         StopCommand.PAUSE_ENTRIES: StopMode.PAUSED,\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:6f0859da4691a7afe5a9bbc952f198bed4292cf91eb7a5efb5ecf7fda15da2ac": {
+      "diff": "     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n-    required = {\n-        StopCommand.STATUS: StopMode.DISARMED,\n-        StopCommand.PAUSE_ENTRIES: StopMode.PAUSED,\n-        StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,\n-        StopCommand.HALT: StopMode.HALTED,\n-    }[command]\n+    required = None\n     if mode < required:\n         raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n     return mode, changed\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:3757c7adc55f96ae51f05e48e398102fdaa6082e0cb94afa4e4478719891a256": {
+      "diff": "         StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,\n         StopCommand.HALT: StopMode.HALTED,\n     }[command]\n-    if mode < required:\n+    if mode <= required:\n         raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n     return mode, changed\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:26164d88a178b0e49310d2511d171a7b78511b1c1f4fa68e20bc7d766c4ca289": {
+      "diff": "         StopCommand.HALT: StopMode.HALTED,\n     }[command]\n     if mode < required:\n-        raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n+        raise ValueError(\"XXacknowledgment does not confirm the requested stop levelXX\")\n     return mode, changed\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:bcc7e64a3833b06a04bb8fab9bb623d5e26ccdf5322a9245ed5363c375f88d0e": {
+      "diff": " \n def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n-    if trials < 2 or sharpe_variance <= 0:\n+    if trials <= 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:be1cbb50b9c0b64f77db135369739bbb0914a0b3c099cd5b94a096b6392f7188": {
+      "diff": " \n def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n-    if trials < 2 or sharpe_variance <= 0:\n+    if trials < 3 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:d2e86a58e6bf5e02dbd35fe6fc1c17b3e5603dae7e6d7b57a4f108c56cdd0ef7": {
+      "diff": " \n def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n-    if trials < 2 or sharpe_variance <= 0:\n+    if trials < 2 or sharpe_variance < 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:ae029b8001608c18315a22353761faa008dd3707c692962776a1ba92c04d691e": {
+      "diff": " \n def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n-    if trials < 2 or sharpe_variance <= 0:\n+    if trials < 2 or sharpe_variance <= 1:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:7d5eb74d61d6f9af343dce21c0fa7247cb6673b8785db5f3229097312f5c3f7a": {
+      "diff": " \n def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n-    if trials < 2 or sharpe_variance <= 0:\n+    if trials < 2 and sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:fe09a283e800a4245f965e1b6657fffd1156f5284fddb1f782703c0eecef1539": {
+      "diff": " def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n-        return 0.0\n+        return 1.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:46e678bc3f97be70daa647c219c4ffecc5fdd7f253fb6407bcc901c3c33f36e7": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) / ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:17d00371aeddcdfb0eb400e11f5f988b84ccc9363ca0ac90ae88720c475cd967": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((2 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:757004a821251d83d3f2637a3be0262468843588321d223eb41b30ebb7809555": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((1 + EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:06b39f37308e6d4d937829fc46e5022d81fac9d4098728fd31fbcae7544574c9": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((1 - EULER) / _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:817e6ae48d068e93c492a1e8120cebc3df92ad2b1a9f0c0fdd1fda257ce65eb4": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(2 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:275ae40441e8028b6ae3d086243dce0da4c2aab06fa5f85bb2e101e69f9806c9": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 + 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:81a9a29aebb7da4717ca37b8e902406b6db7d1c15b7940aac1321da0e05ef1b9": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 2 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:8a327e2df8feb1a01a391b6cd1f25e6fda3fb6e0ee7cf99ecabf109eee766f83": {
+      "diff": "     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n-    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n+    return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 * trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:8a581eb3181cafc4443c0c824734131e53d2ff775acbcb68147a899da45fcbde": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         - EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:11596f86359103829d4bc536727ab70dc4e21fa8246d663fb833f6ec4cbd20ab": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER / _N.inv_cdf(1 - 1 / (trials * math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:961e6a80fb4634b01e801d243a3d82c49bdbeab9732deed4a68955fe209adcaf": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER * _N.inv_cdf(2 - 1 / (trials * math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:e5bb91dd3eb24dc03ef33831595520eb4d0eb60c95183333354780b3242cdf04": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER * _N.inv_cdf(1 + 1 / (trials * math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:551425b0844d521b27e26966b19418fe3367849e33cd5551f64dd357d961289e": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER * _N.inv_cdf(1 - 2 / (trials * math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:ffb776a91b20e09453c3ec21ea3f40df651f5949a0d4839773ff5994f7ab5ca7": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER * _N.inv_cdf(1 - 1 * (trials * math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/domain/performance.py:690437eb100504f1bb4cb3c8e301799f503836c6adfb124da6446fdf3b6257fb": {
+      "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER * _N.inv_cdf(1 - 1 / (trials / math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    }
+  },
+  "qualification": "COMPLETE"
+}

@@ -28,7 +28,7 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | E-7 | Done | Saturating `reserved()`, release `overflow-checks`. |
 | E-8 | Done | `fill-timestamps.json` shared fixture. |
 | E-9 | Done | `codec_properties.rs`. |
-| E-10 | Partial; qualification red | The expanded five-file weekly job now fails visibly. The historical 24/971 assessment found seven actionable survivors; all seven are now killed by individually verified regression oracles. The separate complete 49-mutant critical cohort recorded 47 killed, one proved-equivalent candidate and one timing-suspicious result; that run was rejected. No passing baseline or full five-file qualification is claimed. |
+| E-10 | Scoped local qualification; broader assessment open | The expanded five-file weekly job now fails visibly. All seven actionable survivors from the historical 24/971 assessment have individually verified regression oracles. After rejecting the timing-suspicious run, one fresh complete 49-mutant critical cohort under unchanged timing rules recorded 48 killed and only the proved-equivalent Decimal quantum-coefficient survivor. The exact-fingerprint baseline requires complete results and rejects new survivors. Hosted execution and full five-file qualification remain open. |
 
 ## Security
 
