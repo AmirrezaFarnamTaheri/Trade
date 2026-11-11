@@ -1,7 +1,7 @@
 [project]
 name = "gym-core"
 version = "0.2.0"
-description = "TradingGYM gym-core daemon, Workstream A1: collector, venue rules, local API, Markets UI"
+description = "TradingGYM public market collection and local paper-research workspace"
 requires-python = ">=3.11"
 dependencies = ["aiohttp>=3.9", "cryptography>=44", "zstandard>=0.22", "tzdata"]
 

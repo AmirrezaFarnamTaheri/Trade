@@ -1,4 +1,4 @@
-# Workstream B1 — service security status (2026-11-06)
+# Executor service security status (2026-11-06)
 
 **IN PROGRESS. DISARMED. NOT CERTIFIED. NOT protective or money-enabled.**
 A compiled service, successful GET or acknowledged STOP does not establish certified venue exits.
