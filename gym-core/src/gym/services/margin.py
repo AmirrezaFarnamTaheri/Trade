@@ -8,10 +8,9 @@ from ..adapters.store import MarketDB
 from ..adapters.wallex_margin import LOAN, MARKETS, ORIGIN, PREVIEW, public_margin
 from ..domain.margin import margin_request, market_rule, preview_terms, replay_margin
 from ..domain.market_models import decimal
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.rules import is_closed
 from ..domain.strategy import digest
-from .collector import now_utc
 from .data_portal import DataPortal
 from .rules import RuleService
 

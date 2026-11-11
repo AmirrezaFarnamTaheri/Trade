@@ -8,8 +8,7 @@ import sys
 from datetime import date, timedelta
 from decimal import Decimal
 
-from ..domain.model import TEHRAN, iso
-from ..services.collector import now_utc
+from ..domain.model import TEHRAN, iso, now_utc
 from .common import (
     _strict_offline_json,
     store_root,

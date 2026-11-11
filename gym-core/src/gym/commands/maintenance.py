@@ -7,8 +7,7 @@ import sys
 from datetime import UTC
 from pathlib import Path
 
-from ..domain.model import iso, parse_ts
-from ..services.collector import now_utc
+from ..domain.model import iso, now_utc, parse_ts
 from .common import (
     open_db,
     store_root,

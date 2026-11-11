@@ -5,8 +5,7 @@ import os
 from pathlib import Path
 
 from ..adapters.store import MarketDB
-from ..domain.model import strict_loads
-from ..services.collector import now_utc
+from ..domain.model import now_utc, strict_loads
 from ..services.rules import RuleService
 
 DEFAULT_WATCH = "USDTTMN,BTCTMN,BTCUSDT,ETHTMN,ETHUSDT"

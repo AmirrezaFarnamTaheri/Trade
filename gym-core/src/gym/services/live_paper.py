@@ -3,11 +3,10 @@ import asyncio
 from datetime import timedelta
 
 from ..adapters.run_store import save_run
-from ..domain.model import iso
+from ..domain.model import iso, now_utc
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from .collector import now_utc
 from .data_portal import DataPortal
 from .paper import session_result
 from .rules import RuleService

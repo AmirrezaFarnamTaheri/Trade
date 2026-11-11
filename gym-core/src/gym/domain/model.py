@@ -12,6 +12,10 @@ TEHRAN = ZoneInfo("Asia/Tehran")
 QUOTES = ("TMN", "USDT")
 
 
+def now_utc() -> datetime:
+    return datetime.now(UTC)
+
+
 def loads(text: str):
     """JSON with every number parsed exactly from its raw text, never through float."""
     return json.loads(text, parse_float=Decimal, parse_int=Decimal)

@@ -7,8 +7,8 @@ from aiohttp.test_utils import TestClient, TestServer
 from gym.adapters.run_store import save_run
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
-from gym.domain.model import iso
-from gym.services.collector import Collector, now_utc
+from gym.domain.model import iso, now_utc
+from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history

@@ -69,8 +69,8 @@ from .commands.research import (
     technical_report_cmd,
 )
 from .domain.bars import FIXED_RESOLUTIONS, RESOLUTIONS
-from .domain.model import InstrumentId, parse_ts
-from .services.collector import now_utc, parse_asset_count
+from .domain.model import InstrumentId, now_utc, parse_ts
+from .services.collector import parse_asset_count
 from .services.rules import RuleService
 
 

@@ -16,7 +16,7 @@ def saved_comparison(root, request, *, store, validation=False):
     from ..adapters.run_store import save_run
     from ..adapters.store import MarketDB
     from ..domain.market_models import decimal, fields, instant, rate
-    from .collector import now_utc
+    from ..domain.model import now_utc
     from .temporal_validation import validate
     from .trial_ledger import TrialLedger
 

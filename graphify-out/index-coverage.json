@@ -646,7 +646,7 @@
     },
     {
       "file": "gym-core/src/gym/domain/model.py",
-      "nodes": 24
+      "nodes": 25
     },
     {
       "file": "gym-core/src/gym/domain/multiple_testing.py",
@@ -754,7 +754,7 @@
     },
     {
       "file": "gym-core/src/gym/services/collector.py",
-      "nodes": 52
+      "nodes": 51
     },
     {
       "file": "gym-core/src/gym/services/cost_defaults.py",
@@ -878,7 +878,7 @@
     },
     {
       "file": "gym-core/src/gym/services/model_artifacts.py",
-      "nodes": 13
+      "nodes": 12
     },
     {
       "file": "gym-core/src/gym/services/model_gateway.py",
@@ -1102,7 +1102,7 @@
     },
     {
       "file": "gym-core/src/gym/services/venue_facts.py",
-      "nodes": 19
+      "nodes": 17
     },
     {
       "file": "gym-core/src/gym/services/walk_forward.py",
@@ -1242,7 +1242,7 @@
     },
     {
       "file": "gym-core/tests/test_architecture.py",
-      "nodes": 3
+      "nodes": 4
     },
     {
       "file": "gym-core/tests/test_arm_preflight.py",
@@ -2346,7 +2346,7 @@
     },
     {
       "file": "docs/audit-2026-11-11.md",
-      "nodes": 33
+      "nodes": 38
     },
     {
       "file": "docs/audit-skill-coverage-2026-11-11.md",
@@ -2418,7 +2418,7 @@
     },
     {
       "file": "gym-core/docs/architecture.md",
-      "nodes": 28
+      "nodes": 29
     },
     {
       "file": "gym-core/docs/capabilities.md",
@@ -2600,9 +2600,21 @@
   ],
   "noise": [
     "D:\\GitHub\\Trade\\.git\\",
+    "D:\\GitHub\\Trade\\.ruff_cache\\",
     "D:\\GitHub\\Trade\\executor\\exec-kernel-py\\target\\",
     "D:\\GitHub\\Trade\\graphify-out\\",
+    "D:\\GitHub\\Trade\\gym-core\\.pytest_cache\\",
+    "D:\\GitHub\\Trade\\gym-core\\.ruff_cache\\",
     "D:\\GitHub\\Trade\\gym-core\\.venv\\",
+    "D:\\GitHub\\Trade\\gym-core\\scripts\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\adapters\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\api\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\commands\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\contracts\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\domain\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\services\\__pycache__\\",
+    "D:\\GitHub\\Trade\\gym-core\\tests\\__pycache__\\",
     "D:\\GitHub\\Trade\\model-gateway\\node_modules\\",
     "D:\\GitHub\\Trade\\target\\"
   ]

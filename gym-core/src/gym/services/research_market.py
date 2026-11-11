@@ -8,10 +8,9 @@ from decimal import Decimal, localcontext
 
 from ..domain.bars import BarSpec, qualified
 from ..domain.market_models import fields
-from ..domain.model import QualityLimits, iso, parse_ts
+from ..domain.model import QualityLimits, iso, now_utc, parse_ts
 from ..domain.strategy import digest
 from ..domain.technical_features import TechnicalFeatures
-from .collector import now_utc
 from .data_portal import DataPortal
 from .technical_analysis import _report_from_quotes, closed_quote_bars
 

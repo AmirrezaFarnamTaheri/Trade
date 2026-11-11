@@ -17,7 +17,6 @@ from ..adapters import wallex
 from ..adapters.store import MarketDB, SegmentWriter, move_raw_days
 from ..domain.bars import qualified
 from ..domain.model import (
-    UTC,
     BookSide,
     InstrumentId,
     QualityLimits,
@@ -26,6 +25,7 @@ from ..domain.model import (
     iso,
     levels,
     loads,
+    now_utc,
     parse_ts,
 )
 from ..domain.units import UnitWatch, unit_freeze_rule
@@ -40,10 +40,6 @@ RESEED_BATCH = 5
 REST_REQUESTS_PER_SECOND = 4
 MIN_ASSETS = 1
 MAX_ASSETS = 500
-
-
-def now_utc() -> datetime:
-    return datetime.now(UTC)
 
 
 def _value(m: dict, snake: str, camel: str | None = None):

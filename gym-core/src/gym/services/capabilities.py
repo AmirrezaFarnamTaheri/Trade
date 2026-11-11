@@ -5,8 +5,8 @@ from ..adapters.wallex import MAX_CHANNELS, UDF_RESOLUTIONS
 from ..domain.bars import FIXED_RESOLUTIONS
 from ..domain.margin import market_rule
 from ..domain.market_models import fields
-from ..domain.model import iso, parse_ts
-from .collector import MAX_ASSETS, REST_REQUESTS_PER_SECOND, _value, now_utc
+from ..domain.model import iso, now_utc, parse_ts
+from .collector import MAX_ASSETS, REST_REQUESTS_PER_SECOND, _value
 from .data_portal import DataPortal
 from .margin import MARKETS, ORIGIN, load_receipt
 

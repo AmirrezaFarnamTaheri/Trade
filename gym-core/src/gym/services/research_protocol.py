@@ -12,12 +12,11 @@ from ..adapters.run_store import save_run
 from ..adapters.sqlite_migrations import enable_wal, execute_schema
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, rate
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.periods import instant
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from .collector import now_utc
 from .paper import paper
 from .reports import economic_report
 from .research_grounding import MetricUnavailable, _number, resolve_run_metric

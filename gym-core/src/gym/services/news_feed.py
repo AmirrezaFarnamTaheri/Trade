@@ -7,8 +7,7 @@ from email.utils import parsedate_to_datetime
 from hashlib import sha256
 
 from ..domain.market_models import fields
-from ..domain.model import iso
-from .collector import now_utc
+from ..domain.model import iso, now_utc
 from .research_protocol import ResearchProtocol
 
 FEED_URL = "https://www.federalreserve.gov/feeds/press_all.xml"

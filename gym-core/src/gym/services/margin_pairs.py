@@ -12,10 +12,9 @@ from ..domain.bars import qualified
 from ..domain.cross_market_models import ar1_half_life
 from ..domain.margin import replay_margin
 from ..domain.market_models import decimal, fields
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.rules import is_closed
 from ..domain.strategy import digest
-from .collector import now_utc
 from .data_portal import DataPortal
 from .margin import _save, load_receipt
 from .rules import RuleService

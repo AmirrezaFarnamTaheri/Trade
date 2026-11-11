@@ -23,10 +23,6 @@ MAX_ARTIFACT_BYTES = 512 * 1024  # A 300 KB tree dump is the target; this is the
 KINDS = frozenset(("logistic", "tree-dump"))
 
 
-def schema_digest(feature_schema: dict) -> str:
-    return digest(feature_schema)
-
-
 class ArtifactRegistry:
     def __init__(self, root: Path | str):
         self.root = Path(root)
@@ -70,7 +66,7 @@ class ArtifactRegistry:
             tmp.write_bytes(raw)
             tmp.replace(target)
         self.conn.execute("INSERT OR IGNORE INTO artifacts VALUES (?,?,?,?,?,?,?)",
-                          (sha, kind, schema_digest(feature_schema), cost_digest, trial_attempt, iso(now),
+                          (sha, kind, digest(feature_schema), cost_digest, trial_attempt, iso(now),
                            iso(expires_at)))
         return sha
 
@@ -89,7 +85,7 @@ class ArtifactRegistry:
             return {"status": "ABSTAIN", "reason": "corrupt"}
         if now >= parse_ts(expires):
             return {"status": "ABSTAIN", "reason": "expired"}
-        if schema != schema_digest(feature_schema):
+        if schema != digest(feature_schema):
             return {"status": "ABSTAIN", "reason": "incompatible feature schema"}
         if cost != cost_digest:
             return {"status": "ABSTAIN", "reason": "incompatible cost model"}

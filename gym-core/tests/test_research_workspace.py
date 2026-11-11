@@ -12,9 +12,9 @@ from gym.adapters.run_store import save_run
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
 from gym.cli import main
-from gym.domain.model import iso
+from gym.domain.model import iso, now_utc
 from gym.domain.portfolio import rebalance_preview
-from gym.services.collector import Collector, now_utc
+from gym.services.collector import Collector
 from gym.services.experiment_registry import ExperimentRegistry
 from gym.services.paper import paper
 from gym.services.replay_debugger import execution_quality, replay_decisions

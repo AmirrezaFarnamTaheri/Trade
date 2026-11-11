@@ -117,7 +117,7 @@ class TrialLedger:
             attempt_id = uuid4().hex
         if type(attempt_id) is not str or not re.fullmatch(r"[A-Za-z0-9_./:-]{1,128}", attempt_id):
             raise ValueError("invalid attempt identifier")
-        from .collector import now_utc
+        from ..domain.model import now_utc
 
         self.conn.execute("BEGIN IMMEDIATE")
         try:

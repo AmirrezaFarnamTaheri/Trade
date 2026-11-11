@@ -8,6 +8,7 @@ combine these authorities.
 | Layer | Owner | Contract |
 | --- | --- | --- |
 | Domain calculations | `domain/` | Exact decimals, bounded inputs, no filesystem or provider calls. `technical_features.py` is the shared streaming indicator engine; batch diagnostics, four indicator strategies and two compound strategies use it. |
+| Timestamp primitives | `domain/model.py` | Shared UTC clock, timestamp parsing and formatting. Local ownership, usage accounting and research import these directly without loading the collector or network stack; workflow clocks remain injectable. |
 | CLI composition | `cli.py`, `commands/` | One parser and dispatch entry point; command bodies grouped under research, account, maintenance and daemon owners. Common store selection and bounded offline JSON parsing have one owner. |
 | Durable observations and artifacts | `adapters/` | Market storage, raw segments, run identities and protected credential helpers. DEMO and observed stores remain distinct. |
 | Capability projections | `services/capabilities.py` | Runtime workspace settings, observed market scope and saved public margin grids share one owner. Listings and previews grant no account or execution permission. |

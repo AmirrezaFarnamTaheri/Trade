@@ -67,7 +67,7 @@ class VenueFactsUnsafe(ValueError):
     """Unsafe, ambiguous or unsupported C1 evidence, or ledger corruption."""
 
 
-def _validate(value: dict) -> dict:
+def validate_venue_fact(value: dict) -> dict:
     if not isinstance(value, dict) or set(value) != _FIELDS:
         raise VenueFactsUnsafe("VenueFacts require exactly the sanitized evidence fields")
     if not isinstance(value["evidence_id"], str) or not _NAME.fullmatch(value["evidence_id"]):
@@ -101,11 +101,6 @@ def _validate(value: dict) -> dict:
     # The value is a safe, primitive-only envelope; never store a raw response,
     # arbitrary notes, headers, a session, API key, cookies or order payload.
     return {key: value[key] for key in _COLUMNS}
-
-
-def validate_venue_fact(value: dict) -> dict:
-    """Public validation for an offline, allowlisted C1 evidence envelope."""
-    return _validate(value)
 
 
 def _payload(record: dict) -> bytes:
@@ -165,7 +160,7 @@ class VenueFactsJournal:
             seq = row[0]
             record = dict(zip(_COLUMNS, row[1:1 + len(_COLUMNS)]))
             try:
-                _validate(record)
+                validate_venue_fact(record)
             except (VenueFactsUnsafe, ValueError, TypeError):
                 raise VenueFactsUnsafe("VenueFacts integrity: invalid stored observation") from None
             prior, claimed_hash = row[-2:]
@@ -175,7 +170,7 @@ class VenueFactsJournal:
         return sequence, previous
 
     def record(self, raw: dict) -> int:
-        record = _validate(raw)
+        record = validate_venue_fact(raw)
         body = _payload(record)
         self.conn.execute("BEGIN IMMEDIATE")
         try:

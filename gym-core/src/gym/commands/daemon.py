@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 from ..adapters.store import SegmentWriter
-from ..domain.model import InstrumentId
-from ..services.collector import Collector, now_utc
+from ..domain.model import InstrumentId, now_utc
+from ..services.collector import Collector
 from ..services.rules import RuleService
 from .common import (
     DEFAULT_WATCH,

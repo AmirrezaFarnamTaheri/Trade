@@ -7,11 +7,10 @@ from pathlib import Path
 
 from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, evaluate_artifact, fields
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.periods import instant
 from ..domain.portfolio import rebalance_preview
 from ..domain.strategy import digest
-from .collector import now_utc
 from .data_portal import DataPortal
 from .entry_locks import add_entry_lock
 from .experiment_registry import ExperimentRegistry

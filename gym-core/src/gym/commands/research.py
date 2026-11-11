@@ -10,8 +10,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from ..adapters.store import MarketDB, SegmentWriter
-from ..domain.model import iso, parse_ts
-from ..services.collector import Collector, now_utc
+from ..domain.model import iso, now_utc, parse_ts
+from ..services.collector import Collector
 from ..services.process_owner import ProcessOwner
 from ..services.research_process import ResearchProcessFailure, calculate
 from .common import (
@@ -213,7 +213,6 @@ def candles_cmd(args) -> int:
 
     import aiohttp
 
-    from ..services.collector import now_utc
     from ..services.data_portal import DataPortal
     from ..services.feed_crosscheck import candle_crosscheck
 

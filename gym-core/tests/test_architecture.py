@@ -1,11 +1,27 @@
 """Imports point inward; the domain never depends on I/O libraries."""
 import ast
+import json
+import subprocess
+import sys
 from importlib.util import resolve_name
 from pathlib import Path
 
 import pytest
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "gym"
+
+
+def test_local_ownership_and_usage_do_not_load_the_collector_network_stack():
+    code = (
+        "import json,sys; sys.path=json.loads(sys.argv[1]); "
+        "import gym.services.process_owner, gym.services.model_usage; "
+        "assert 'gym.services.collector' not in sys.modules; "
+        "assert 'aiohttp' not in sys.modules"
+    )
+    subprocess.run(
+        [getattr(sys, "_base_executable", sys.executable), "-I", "-c", code, json.dumps(sys.path)],
+        check=True, capture_output=True, text=True,
+    )
 
 
 @pytest.mark.parametrize(("layer", "forbidden"), [

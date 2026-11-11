@@ -3,8 +3,7 @@ import sqlite3
 from decimal import Decimal
 from pathlib import Path
 
-from ..domain.model import iso
-from .collector import now_utc
+from ..domain.model import iso, now_utc
 
 # A runaway loop or a misconfigured preset stops here, before the provider's own limit. Cost caps start unset
 # because many completions report no cost; set them once a paid preset is in use.
