@@ -4,10 +4,16 @@ from math import isclose
 
 from gym.domain.performance import (
     _sharpe_block,
+    expected_max_sharpe,
     lo_annualized_sharpe,
     minimum_track_record_length,
     probabilistic_sharpe,
 )
+
+
+def test_expected_max_sharpe_matches_independent_numerical_example():
+    # 60-digit normal-CDF integration/bisection, 100 trials and Sharpe variance 0.01.
+    assert isclose(expected_max_sharpe(100, 0.01), 0.2530602893201682, rel_tol=0, abs_tol=1e-12)
 
 
 def test_lo_annualization_matches_weighted_autocorrelation_example():

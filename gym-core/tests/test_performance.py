@@ -10,11 +10,35 @@ from gym.domain.performance import (
     expected_max_sharpe,
     performance,
     probabilistic_sharpe,
+    sampled_drawdown,
     selection_check,
     trade_ledger,
 )
 from gym.services.reports import economic_report
 from tests.support import START
+
+
+@pytest.mark.parametrize("result", [{}, {"start_cash": "1", "curve": []}])
+def test_unavailable_drawdown_retains_the_complete_provenance_schema(result):
+    assert sampled_drawdown({"result": result}) == {
+        "status": "UNAVAILABLE", "basis": "RECORDED_MARK_TO_BID"}
+
+
+def test_drawdown_rejects_zero_starting_equity_with_a_positive_recorded_mark():
+    out = {"inputs": {"from": iso(START), "to": iso(START + timedelta(minutes=1))},
+           "result": {"start_cash": "0", "curve": [(iso(START + timedelta(minutes=1)), "1")]}}
+    with pytest.raises(ValueError, match="invalid starting equity"):
+        sampled_drawdown(out)
+
+
+def test_drawdown_accepts_one_unit_of_starting_equity():
+    out = {"inputs": {"from": iso(START), "to": iso(START + timedelta(minutes=1))},
+           "result": {"start_cash": "1", "curve": [(iso(START + timedelta(minutes=1)), "0.75")]}}
+    assert sampled_drawdown(out) == {
+        "status": "AVAILABLE", "basis": "RECORDED_MARK_TO_BID", "samples": 1,
+        "maximum_percent": "25.00000000", "peak_at": iso(START),
+        "trough_at": iso(START + timedelta(minutes=1)), "peak_to_trough_seconds": 60,
+        "continuous_path_verified": False}
 
 
 def fill(side, qty, price, fee, minutes, ref=None):
