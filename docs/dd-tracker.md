@@ -60,7 +60,7 @@ Performance (3)
 
 Operations (6)
 [ ] O-1 · The operating model assumes one Windows host · Medium · Effort M
-    Status: disaster-recovery runbook written. The timed clean-machine restore drill needs a second machine.
+    Status: disaster-recovery runbook written. Available-host clean-folder restore and timed VM checks remain the qualification targets.
 [x] O-2 · Evidence of runtime health is dated, not continuous · Medium · Effort S
 [x] O-3 · No push alerting, and the launcher's readiness check is shallow · Medium · Effort S
 [x] O-4 · There is no single integrity command, so "is my workspace intact?" has no one-step answer · Medium · Effort M
@@ -81,7 +81,7 @@ Product and UX (9)
 
 Governance (6)
 [ ] G-1 · Bus factor of one at extreme velocity · High · Effort L
-    Status: ADRs 0001-0006 and docs/onboarding.md are written. A second maintainer and an independent review need people.
+    Status: ADRs 0001-0006 and docs/onboarding.md are written. Automated contract/security review and operator verification govern delivery.
 [x] G-2 · The repository root has no README (the licence is dropped, OD-3) · Medium · Effort S
 [x] G-3 · No coverage floor, and a gitignore contradiction · Low · Effort S
 [x] G-4 · Documentation drift on counts and on the "no order code" statement · Low · Effort S
@@ -103,7 +103,7 @@ LLM tier (8)
 [ ] L-7 · MNN-Pocket-0.3B: defer adoption; run a bounded offline pilot only after L-1 and L-2 · — · Effort S
     Status: not run. It comes after the L-8 pilot (docs/model-pilots.md).
 [ ] L-8 · Typed decision models (the Jev family) fit the System-1 role better than a small generative model; pilot one behind a decision adapter, advisory only · — · Effort M
-    Status: the client is built (research entailment-check). The pilot needs owner-labelled pairs and a local model.
+    Status: the client is built (research entailment-check). The pilot needs a versioned synthetic fixture set and a pinned local model.
 
 Owner decisions (5)
 [x] OD-1 · One venue only: no second venue or source

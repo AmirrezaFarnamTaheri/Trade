@@ -311,7 +311,7 @@ Panels group independent evidence or workflows. Table headers use raised surface
 
 Compact chips pair semantic color with text. Render real loading, empty, error, stale, unavailable, unknown, and unverified states. A failed private account refresh removes old balances; a failed general refresh leaves a visible stale-data warning. Ticket edits invalidate the prior result, and pending previews expose busy state. Never populate empty panels with mock metrics.
 
-Paper equity uses a labelled SVG line with currency and date context; cost bars retain exact textual values. Neither chart implies forecasting or validated performance. Shared-cash portfolios show native quote values and separately labeled causal USDT equivalents with FX freshness. Missing FX is unavailable, without a graph joining across unknown marks. Backups displays sanitized recorded backup/restore receipts; it does not infer current archive presence or physical-host recovery.
+Paper equity uses a labelled SVG line with currency and date context; cost bars retain exact textual values. Neither chart implies forecasting or validated performance. Shared-cash portfolios show native quote values and separately labeled causal USDT equivalents with FX freshness. Missing FX is unavailable, without a graph joining across unknown marks. Backups displays sanitized recorded backup/restore receipts; it does not infer current archive presence or runtime recovery.
 
 ### Accessibility and motion
 

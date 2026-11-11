@@ -15,7 +15,7 @@ def test_restore_backup_cli_publishes_verified_new_ledger(tmp_path, monkeypatch,
     create_backup(source, bundle, passphrase=PHRASE)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("getpass.getpass", lambda prompt="": PHRASE)
-    dest = tmp_path / "second-machine" / "exec_ledger.db"
+    dest = tmp_path / "restore-target" / "exec_ledger.db"
     assert main(["restore-backup", str(bundle), str(dest)]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["head_hash"] == head and out["mode_after"] == "DISARMED" and dest.is_file()

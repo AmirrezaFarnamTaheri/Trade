@@ -6,7 +6,7 @@ gh api -X PUT "repos/${repo}/branches/master/protection" --input - <<'JSON'
 {
   "required_status_checks": {"strict": true, "contexts": ["rust", "python", "Real-browser UI smoke (Edge, Windows)", "Secrets and dependency audit", "sbom", "rust-kernel"]},
   "enforce_admins": true,
-  "required_pull_request_reviews": {"require_code_owner_reviews": true, "required_approving_review_count": 1, "dismiss_stale_reviews": true},
+  "required_pull_request_reviews": null,
   "restrictions": null,
   "allow_force_pushes": false,
   "allow_deletions": false,

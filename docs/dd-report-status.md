@@ -74,9 +74,9 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | U-4 | Done | One action table (`CLI_ACTIONS`, `CLI_ONLY_ACTIONS`, `gymctl actions`), `gymctl timeline`, `/api/timeline`. |
 | U-5 | Done | Browser smoke with axe in CI. |
 | U-6, U-9 | Done | System theme, forced colours, labelled confirm dialog. |
-| U-7 | Done (review tooling) | Persian ratchet test, `ui_copy_extract.py`. Needs a native-speaker review. |
+| U-7 | Done (review tooling) | Persian ratchet test, `ui_copy_extract.py`. Automated vocabulary and rendering checks govern delivery. |
 | U-8 | Done | Per-source banner, backoff. |
-| G-1 | Blocked | Needs a second person; `docs/onboarding.md` is the checklist they follow. |
+| G-1 | Decided | Single-operator delivery; `docs/onboarding.md` and automated contract/security checks govern changes. |
 | G-2 | Done | Root README (licence dropped, OD-3). |
 | G-3 | Done | Coverage floors; `.impeccable/` is tracked design source and no longer ignored, with a test that no tracked file matches an ignore rule. |
 | G-4 | Done | Strategy count guarded by a test. |
@@ -86,14 +86,14 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | M-2 | Done (step 1) | Bias harness point-in-time test; `model_artifacts.py`; fits are `model-fit` trials. Steps 2-3 wait for 300 closed trades. |
 | L-1 to L-6 | Done | Local connection, strict parser, provenance, usage caps, `assistant-eval`. |
 | L-7 | Deferred | After L-8 (`docs/model-pilots.md`). |
-| L-8 | Done (client); pilot is the owner's | `gymctl research entailment-check`; the owner labels the pilot set. |
+| L-8 | Done (client); pilot is the owner's | `gymctl research entailment-check`; the pilot uses a versioned synthetic fixture set. |
 
 ## Owner decisions
 
 | ID | Status |
 |---|---|
 | OD-1 | One venue; recorded. |
-| OD-2 | Policy options and `arm-policy set` (cost-probe installed); `arm-preflight`; arm record and kill rules in `exec_core::arming` with a shared digest fixture. The privileged arm request, armed mode and approval screen are not wired: they need the pre-funding review (ADR 0006). |
+| OD-2 | Policy options and `arm-policy set` (cost-probe installed); `arm-preflight`; arm record and kill rules in `exec_core::arming` with a shared digest fixture. The privileged arm request, armed mode and approval screen are not wired: they need passing automated pre-funding checks (ADR 0006). |
 | OD-3 | Licence dropped. |
 | OD-4 | Postponed by the owner (cloud backup). |
 | OD-5 | Fault stops the service and restart is disarmed (tested); `verified_available` blocks on stale data and disarms on journal disagreement (pure rule, not wired). |

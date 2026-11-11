@@ -28,7 +28,7 @@ and the local evidence folders. This page describes the current delivery.
   strategy identities. Actual fill cost/time, dust and maker/taker fee assumptions
   remain explicit. Rebuilt single-market and portfolio checkpoints verify saved
   history, pending orders, reservations, targets and latches without deserializing
-  mutable state. This is replay reconstruction, not physical-host restoration.
+  mutable state. This is replay reconstruction, not runtime restoration.
 - Default-off `entry_risk_bps` reuses native exact portfolio sizing against an
   explicit fixed stop. Shared held exposure and pending reservations reduce the
   remaining budget; market and maker partials recheck capacity and current venue
@@ -184,7 +184,7 @@ profitability, and observation gaps still prevented readiness in many markets.
 
 A separate disposable-process rebuild of the 187-market Donchian portfolio
 34d52bf013d84b33 verified a 500-observation prefix and returned EXACT_MATCH against
-the saved full result. This does not establish physical-host recovery.
+the saved full result. This does not establish runtime recovery.
 
 At the 19:07 UTC API check, all 373 observed product rows had UNKNOWN margin
 availability without a newly selected public receipt. The saved journal had

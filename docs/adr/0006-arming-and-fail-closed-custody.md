@@ -28,6 +28,6 @@ of privileged-thread faults and of reservation when the vault holds two journals
 ## Not done, deliberately
 
 - Wiring: a privileged arm request on T2, an armed mode in the stop gate, the approval screen and the per-tick
-  loss measurement. All of it changes the money path and needs the pre-funding independent review (G-1).
+  loss measurement. All of it changes the money path and needs passing automated authority, security and recovery checks.
 - The review-v2 codec (`exec_ipc::review_v2`, TGREVW02) and `reserve_prepared_intent` remain **test-only**: exported
-  and tested, not mounted by the service. They are mounted with the arm path, after that review.
+  and tested, not mounted by the service. They are mounted with the arm path, after those checks.

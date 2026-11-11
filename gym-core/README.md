@@ -98,7 +98,7 @@ uv run --no-sync python scripts/check.py test  # focused mode when browser check
 
 Real-browser checks depend on an installed supported browser and are not implied
 by API or DOM contract tests. Installed-host security drills, funded-cost
-measurement, future evaluation windows and physical-host recovery have separate
+measurement, future evaluation windows and runtime recovery have separate
 acceptance evidence.
 
 ## Optional Rust money kernel

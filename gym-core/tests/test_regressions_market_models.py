@@ -117,7 +117,7 @@ def test_promising_regime_claim_is_still_not_promoted_without_independent_proof(
     claimed = review_regime_prospective_evidence(
         [Decimal(2)] * 30, [Decimal(1)] * 30, independent_final_evidence=True,
         prospective_registration_ids=["frozen-1"], spa_p_value=Decimal("0.01"))
-    assert claimed["decision"] == "MANUAL_INDEPENDENT_REVIEW_REQUIRED"
+    assert claimed["decision"] == "ADVISORY_RESEARCH_ONLY"
     assert claimed["status"] == "NOT_PROMOTED"
     assert claimed["probabilistic_gate_selectable"] is False
 

@@ -2,8 +2,8 @@
 
 It scores each stored quote for "looks corrupt" from point-in-time features of that quote and the previous quote
 of the same market only (no later data). Labels come from faults injected into real clean quotes (price spikes,
-decimal shifts, stale gaps, spread blowouts) plus rows the collector already flagged, so no human labelling is
-needed. The model is a logistic regression fitted in pure Python (no dependency), evaluated on a later time split
+decimal shifts, stale gaps, spread blowouts) plus rows the collector already flagged.
+The model is a logistic regression fitted in pure Python (no dependency), evaluated on a later time split
 against a no-model rule baseline, stored as a JSON artifact in the content-addressed registry, and every fit is
 recorded first as a `model-fit` trial. Scoring ABSTAINs when the artifact is missing, corrupt, expired or built for
 a different feature schema.

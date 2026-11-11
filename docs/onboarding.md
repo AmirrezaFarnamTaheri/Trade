@@ -1,6 +1,6 @@
 # Onboarding: build, verify and change TradingGYM from the docs alone
 
-This page is the checklist a second maintainer follows unaided (findings G-1 and G-5). Each step names the
+This page is the operator build and verification checklist (findings G-1 and G-5). Each step names the
 command and what a pass looks like. Nothing here arms the executor or starts the collector.
 
 ## 1. Tools
@@ -52,7 +52,7 @@ uv run gymctl --data ..\data arm-preflight     # READY/BLOCKED checklist; never 
   and Rust tests load the same file).
 - No new function above complexity 20; the ratchet (`gym-core/scripts/complexity_ratchet.py`) fails CI if a
   listed hotspot grows. Lower its baseline when you split one.
-- Executor changes that touch admission, custody, reservation or arming need the pre-funding independent review
+- Executor changes that touch admission, custody, reservation or arming need passing automated contract, security and recovery checks
   before they are wired (ADR 0006).
 - Add a line to `CHANGELOG.md`.
 
@@ -67,6 +67,6 @@ back.
 ## 7. Releases
 
 Versions follow semantic versioning in `CHANGELOG.md`. An executor bundle ships with `bundle.sha256` and a manifest
-signed by the off-host release key (`gymctl release-sign`); `Update-ReadOnlyExecutor.ps1 -Signature` refuses an
+signed by the offline release key (`gymctl release-sign`); `Update-ReadOnlyExecutor.ps1 -Signature` refuses an
 unsigned or mismatched manifest. Attach the three SBOMs from the CI `sbom` artifact to a release. Acceptance
 evidence goes into `evidence/` as sanitised derivatives listed in `evidence/INDEX.json`.

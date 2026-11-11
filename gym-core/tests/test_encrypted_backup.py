@@ -40,7 +40,7 @@ def make_ledger(path: Path, events=(b"one", b"two")):
 def test_backup_is_portable_authenticated_and_restores_to_new_machine_path(tmp_path):
     source = tmp_path / "exec_ledger.db"
     bundle = tmp_path / "portable.tgbak"
-    destination = tmp_path / "second-machine" / "exec_ledger.db"
+    destination = tmp_path / "restore-target" / "exec_ledger.db"
     expected_head = make_ledger(source)
     (tmp_path / "secrets.dat").write_bytes(b"VENUE SECRET MUST NEVER BE BACKED UP")
     manifest = create_backup(source, bundle, passphrase="correct horse battery staple")

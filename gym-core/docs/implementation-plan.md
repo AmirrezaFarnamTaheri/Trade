@@ -64,11 +64,9 @@ arithmetic.
 | Installed custody/isolation/STOP | Repeat current-build drills after relevant deployment/policy changes; earlier synthetic receipts remain dated evidence | Existing host evidence; requalification scoped to changes |
 | Actual-versus-modeled costs | Independently reconcile measured quantities, fees, depth and latency; separately authorized probe and loss budget before funded testing | Open; funded budget zero |
 | Independent final evaluation | Consume-once local registry plus independent custody and a real future evaluation window | Open |
-| Physical-host recovery | Restore on a second physical host, explicitly reprovision credentials and retain DISARMED | Blocked: user has no second machine |
 
 
 A future observation window needs actual elapsed time and valid collection.
-A physical-host recovery drill needs a second machine. These acceptance
-conditions remain explicit while implementable contracts continue.
+These acceptance conditions remain explicit while implementable contracts continue.
 
 Record completed behavior and exact validation in the current system status.

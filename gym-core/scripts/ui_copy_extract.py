@@ -1,4 +1,4 @@
-"""Collect every English/Persian UI string pair into one sheet for a native-speaker review.
+"""Collect every English/Persian UI string pair into one sheet for a vocabulary review.
 
 The UI keeps copy in several shapes: the shared vocabulary (key: ["en", "fa"]), self-contained modules that call
 text('en', 'fa'), inline `fa ? 'fa' : 'en'` choices, and models.js's own en/fa dictionaries. This finds each

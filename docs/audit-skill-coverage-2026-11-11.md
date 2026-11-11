@@ -34,9 +34,9 @@ Current execution ledger. Findings, verification and performance measurements ar
 | trend-researcher | Inspected live Dribbble web/mobile examples and screenshots; recorded bounded observations | No redesign imposed and no market-wide popularity claim |
 | checking-frontend-quality | Real-browser ten-route, three-width, EN/FA, two-theme checks; source UI tests | Formal Ring handoff absent; axe/cross-browser/Lighthouse/CWV not claimed |
 | code-review-and-quality | Financial/authority/caller/contract/test review and post-fix check | No fictional project standards or blanket green status |
-| review-agent | Independent defect-first review of actual Python fix and guide JavaScript | No introduced defect found in that bounded change scope |
+| review-agent | Automated defect-first review of actual Python fix and guide JavaScript | No introduced defect found in that bounded change scope |
 | dev-review | Holistic design/caller/failure/rollback review | No configured devkit feature lifecycle, remote lint install or push |
-| audit-project | Context collector, ten applicable perspectives, structured queue, high-priority repair, verification and independent rereview | Collector missed nested SQLite/plain-JS UI; actual source corrected scope; ordinary issues retained |
+| audit-project | Context collector, ten applicable perspectives, structured queue, high-priority repair, verification and automated rereview | Collector missed nested SQLite/plain-JS UI; actual source corrected scope; ordinary issues retained |
 | systematic-debugging | Failure-before-fix regression and shared-root correction; separate source, host and browser limits | No speculative fix or paid reproduction |
 | perf-baseline-manager | Used bundled storage/readback/comparison utilities for one versioned synthetic benchmark record | No prior same-version baseline; observational timing under concurrent workload, no speedup claim |
 | codebase-documenter | Refreshed source-grounded ownership, startup/check commands and qualification limits in the reports/guide | Reused current docs; no competing documentation scaffold |

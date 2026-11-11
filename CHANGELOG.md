@@ -47,7 +47,7 @@ Hardening from the 2026-11-09 technical due-diligence review (finding IDs in bra
   a Windows toast (and optional webhook) only when the set of failing checks changes, and on recovery. `doctor`
   now reports collector feed freshness [O-3].
 - UI copy review sheet: `scripts/ui_copy_extract.py` collects about 1,090 English/Persian pairs from every UI
-  file into one CSV for a native-speaker review, and lists the lines it cannot pair [U-7].
+  file into one CSV for a vocabulary review, and lists the lines it cannot pair [U-7].
 - `gymctl drift SYMBOL`: population-stability index of spread and 1-minute returns, recent window against a
   reference window, with conventional STABLE / MODERATE / SHIFTED bands (4.10 drift monitor).
 - `gymctl recover-segments [--apply]`: registers crash-tail raw segments with their real hash and readable

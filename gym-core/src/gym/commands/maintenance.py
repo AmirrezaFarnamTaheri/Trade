@@ -289,7 +289,7 @@ def backup_once_cmd(args) -> int:
 
 
 def restore_backup_cmd(args) -> int:
-    """Restore an encrypted offline backup into a new ledger file (B3 second-machine restore).
+    """Restore an encrypted offline backup into a new ledger file (B3 isolated restore).
 
     Passphrase only from an interactive console. Never overwrites; restored ledger
     is DISARMED evidence until the Executor reconciles it.

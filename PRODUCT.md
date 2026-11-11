@@ -49,8 +49,8 @@ if either holds, funded-execution work pauses and the observatory remains the pr
   (`gymctl research final-run`, the holdout ledger) with a deflated Sharpe probability of at least 0.95 after
   modelled costs.
 
-Continuing past the checkpoint needs both conditions clear and the pre-funding independent review of the
-executor's authority and admission code (ADR 0006) under way. The decision and its evidence are recorded in
+Continuing past the checkpoint needs both conditions clear and automated authority/admission
+checks (ADR 0006) passing. The decision and its evidence are recorded in
 `evidence/`.
 
 ## Product Principles
@@ -84,8 +84,8 @@ The current [implementation plan](gym-core/docs/implementation-plan.md),
 - Preserve separate Windows principals, custody, exact operator intent, durable
   uncertain outcomes and emergency stop for the protected execution boundary.
 - Enforce the existing zero funded-loss budget until a separate funded probe is
-  explicitly authorized. Physical-host and elapsed-time evidence remain actual
-  acceptance requirements; neither can be replaced by simulated success.
+  explicitly authorized. Restore verification and elapsed-time evidence remain actual
+  acceptance requirements; neither can be replaced by an untested claim.
 
 Predictive ML/RL training is paper-only and gated: nothing is fitted until the existing gate of 300 verified
 closed trades is met, every model fit counts as a trial in the trial ledger and the deflated Sharpe, and a

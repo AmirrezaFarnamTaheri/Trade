@@ -43,7 +43,7 @@ prevent a fill. Recovery uses verified history reconstruction: save a quote-coun
 checkpoint, then rebuild its exact prefix in a new worker and compare the full
 saved output. Prefix observations, pending orders, reservations, targets and risk
 latches are fingerprinted; changed engines or evidence are rejected. This is not
-a restore of a running process or qualification on another physical host.
+a restore of a running process or live runtime qualification.
 
 ## Strategy controls
 

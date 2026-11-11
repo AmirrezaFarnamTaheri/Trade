@@ -19,12 +19,13 @@ off the order path.
    `{"probability": p}`.
 2. Pin the weights: write `data/live/typed-decision.json` with the URL, the SHA-256 of the weights file, and a
    timeout.
-3. The owner labels 100 to 300 claim and passage pairs from saved evidence packets, including an adversarial
-   subset whose passage contains an instruction, and Persian pairs. Hold out a calibration split.
+3. Prepare a versioned synthetic claim/passage fixture set with deterministic truth labels, including adversarial
+   instructions and Persian pairs. Hold out an evaluation split. Report these results as fixture reliability,
+   not empirical language accuracy or calibrated real-world probabilities.
 4. Write the thresholds down before the run: minimum AUROC, maximum calibration error after temperature fitting,
    and the largest acceptable accuracy drop on the adversarial subset.
 5. Run `entailment-check` over the set, save the report with the prompt-set hash and model hash, and compare.
-   Adopt for the advisory role only if every threshold passes. `semantic_grounding_verified` stays false either
+   Enable the advisory role only if every threshold passes on the declared fixture scope. `semantic_grounding_verified` stays false either
    way.
 
 ## L-7 (MNN-Pocket-0.3B): deferred
