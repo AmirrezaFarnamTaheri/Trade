@@ -43,6 +43,43 @@ Current execution ledger. Findings, verification and performance measurements ar
 
 ## Onboarding and operating boundaries
 
+### Requested repository-wide simplification follow-up
+
+The six explicitly requested skills were read and applied together: AI DevKit
+`simplify-implementation`, Fable `fable-simplify`, both engineering-suite
+`code-simplification` variants, `ponytail`, and `ponytail-audit`. Their common
+contract is to trace real consumers, preserve behavior, and verify each small
+transformation after an affected green baseline. The audit skill supplied findings;
+implementation followed the separate simplification workflows.
+
+The static inventory covered all 660 tracked paths, including 526 code files,
+with graph-led targeted source, registry and dynamic-consumer inspection. It did
+not independently review every source line. The concrete candidates were an
+unreachable dispatcher fallback, an unused internal helper, and duplicated batch
+indicator calculations. Real process, authority, transaction, frozen-engine and
+language-binding boundaries were retained.
+
+Indicator consolidation was rejected after exact output comparison and timing:
+for 10,000 deterministic Decimal closes, three-run medians were 0.086299 seconds
+for the batch implementation and 0.764286 seconds for a streaming projection
+(8.86 times slower). These are local synthetic measurements; preserving the
+faster batch path is preferable to removing its small numerical implementation.
+
+The reviewed dispatcher/helper cleanup removed 42 net lines while preserving all
+83 actions in 38 registered handlers. Its focused suite passed 62 tests; automated
+review separately passed 24 registry/bias tests and found no behavior drift.
+No dependency was removed or added.
+
+A bounded exact SQLite read benchmark populated an isolated store whose main
+database file was 43,986,944 bytes (WAL sidecars excluded)
+with 373 symbols and 600 quote rows per symbol (223,800 rows). Reading every
+symbol through DataPortal.tops took 1.692 seconds median over three runs;
+EXPLAIN used book_top_avail with no temporary sort. Longer histories, concurrent
+writes and storage contention remain unqualified. Retain the existing store
+until a representative workload demonstrates a deadline failure that warrants
+another storage tier. Gateway import/dependency measurements and the decision
+to retain the active SDK are recorded in its README.
+
 What this repo does: TradingGYM collects Wallex spot observations and runs local paper research. Python owns collection, exact SQLite storage, the simulator and EN/FA workspace. Rust owns a separately protected executor boundary; Node offers optional advisory model calls. Assumed load is one local operator with concurrent collector/research/browser activity.
 
 Entry paths are `gym-core/src/gym/cli.py` to command modules, `commands/daemon.py` to collector/API composition, `model-gateway/host.mjs` to the correlated advisory runtime, and Rust service/helper binaries under `executor/exec-svc`. Shared wire contracts/golden fixtures live in `contracts/`. The Node result has no funded order authority.

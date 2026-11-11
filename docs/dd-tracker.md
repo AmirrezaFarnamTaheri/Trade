@@ -34,7 +34,7 @@ Security (13)
 [x] S-3 · Large unsafe surface in the executor with no crate-level guard · Medium · Effort S
 [x] S-4 · CI supply-chain hygiene · Medium · Effort S
 [ ] S-5 · The gateway's dependency tree is much larger than its job · Low · Effort M
-    Status: the dependency audit is recorded in the gateway README. The SDK tree is not replaced or trimmed.
+    Status: audit and measured decision recorded in the gateway README. Retain the active SDK: 87 locked packages, 68.8 MB installed files, 283 ms median fresh-process runtime import. Replacement remains deferred; no speculative fork or protocol rewrite.
 [x] S-6 · Executor updates are verified by hash only, with no signature or provenance · Low · Effort M
 [x] S-7 · Provider keys follow whatever HTTPS host the gateway config names · Low · Effort S
 [x] S-8 · Saved run results are readable without the token · Low · Effort S
@@ -54,7 +54,7 @@ Reliability (5)
 
 Performance (3)
 [ ] P-1 · One exact SQLite store serves both collection and analysis · Low · Effort L
-    Status: not started. A columnar tier would add a dependency to a four-dependency product.
+    Status: measured decision to retain indexed SQLite for now. A synthetic 373-market/223,800-row exact DataPortal read took 1.692 s median over three runs and used book_top_avail without a temporary sort. This does not qualify longer-history/concurrent workloads. Revisit a columnar tier when a representative measured query misses its deadline; no additional storage dependency is justified by this bounded result.
 [x] P-2 · The replay deadline is a constant with about a third of headroom, and the disk floor stops collection · Medium · Effort M
 [x] P-3 · The browser polls every two seconds · Low · Effort S
 

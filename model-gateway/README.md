@@ -153,6 +153,19 @@ provider this gateway never configures, and attribution headers that are sent on
 identity, which the gateway does not. Requests use `redirect: 'error'`, and the gateway runs with an
 allowlisted environment and optional `policy.allowedHosts`. Re-run this review when the dependency is upgraded.
 
+## Measured dependency decision (2026-11-11)
+
+Repository simplification follow-up (2026-11-11): the lock still contains 87
+packages. Installed package files total 68,797,502 bytes (file bytes, excluding
+filesystem allocation overhead). Five fresh Node processes imported runtime.mjs
+in 254–284 ms, median 282.974 ms, with median process RSS 75,390,976 bytes. This
+imports the actual adapter and catalog without making provider requests; it is
+not completion latency. The production npm audit reported zero vulnerabilities.
+The existing provider/authentication/streaming contracts have active consumers,
+so these measurements do not justify replacing the SDK or maintaining a fork.
+Revisit when startup/import cost exceeds an explicit product requirement, or a
+dependency update changes the security/support assessment.
+
 ## Credential protection off Windows
 
 On Windows, credentials are sealed with current-user DPAPI. Elsewhere they are sealed with AES-256-GCM under a key

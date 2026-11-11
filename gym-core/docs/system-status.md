@@ -204,4 +204,21 @@ The [implementation plan](implementation-plan.md) lists remaining implementation
 and acceptance work. Operational journals and saved paper evidence retain their
 existing owners.
 See [acceptance gates](acceptance-status.md) for protected account/execution,
-independent evaluation, cost calibration and physical-machine recovery requirements.
+evaluation, cost calibration and recovery requirements.
+
+## November 11 follow-up verification
+
+Allocation input windows now reject invalid bounds before journal writes; repeated
+symbols are deduplicated, and both fill directions apply recorded venue sizing
+rules. The focused allocation/specification checks passed 85 tests.
+
+Model drafts and responses survive language changes without retaining credential
+fields or allowing duplicate in-flight submissions. Portfolio and margin receipts
+refresh selected-zone timestamps without repeating replay. The UI checks passed
+28 Node tests and 11 Python wrappers. Edge headless smoke passed 80 mobile
+route/language/theme/width combinations, including market-selection targets and
+visible keyboard focus. This is bounded synthetic browser evidence, not a complete
+accessibility or provider qualification.
+
+The fresh locked Python and production Node dependency audits reported no known
+vulnerabilities. Native/service and hosted checks remain separately dated evidence.
