@@ -15,7 +15,7 @@ exec-kernel = { path = "../executor/exec-kernel-py" }
 gymctl = "gym.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff==0.16.9"]
+dev = ["pytest>=8", "ruff==0.17.4"]
 
 [tool.uv.build-backend]
 module-name = "gym"
