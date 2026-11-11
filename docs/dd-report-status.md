@@ -28,7 +28,7 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | E-7 | Done | Saturating `reserved()`, release `overflow-checks`. |
 | E-8 | Done | `fill-timestamps.json` shared fixture. |
 | E-9 | Done | `codec_properties.rs`. |
-| E-10 | Partial | Five-file scope exists, but its weekly job is still advisory. An isolated expanded-runner assessment evaluated only 24 of 971 performance mutants: 17 killed, seven actionable survivors. Independent oracles and a complete evaluated ratchet remain in progress; partial counts are not a passing baseline. |
+| E-10 | Partial; qualification red | The expanded five-file weekly job now fails visibly. The historical 24/971 assessment found seven actionable survivors; all seven are now killed by individually verified regression oracles. The separate complete 49-mutant critical cohort recorded 47 killed, one proved-equivalent candidate and one timing-suspicious result; that run was rejected. No passing baseline or full five-file qualification is claimed. |
 
 ## Security
 
@@ -46,6 +46,7 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | S-10 | Done | Gateway environment allowlist. |
 | S-11 | Done | Helpers re-hashed against the kept manifest before launch. |
 | S-12 | Done | Decoded venue replies wiped; Python key store protected DACL and owner check. |
+| S-13 | Done | Browser CSP uses `style-src 'self'` without `unsafe-inline`; `tests/test_ui.py` asserts the policy. |
 
 ## Reliability, performance, operations
 
@@ -59,7 +60,7 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | P-1 | Measured decision: retain SQLite | A 373-market/223,800-row exact DataPortal read took 1.692 s median and used the existing index without a temporary sort. Longer histories/concurrent writes remain unqualified; add a storage tier only when a representative deadline failure justifies it. |
 | P-2 | Done | Worker deadline logging. |
 | P-3 | Done | Banner names sources; backoff. |
-| O-1 | Done | `gym-core/docs/disaster-recovery.md`. |
+| O-1 | Runbook implemented; qualification open | `gym-core/docs/disaster-recovery.md` exists. Current-build clean-folder and timed recovery evidence remains incomplete; a runbook alone does not qualify recovery. |
 | O-2, O-3 | Done | `/api/ready` in the launcher; `services/alerts.py`, `Install-HealthAlerts.ps1` (owner runs it). |
 | O-4 | Done | `gymctl doctor`. |
 | O-5 | Available-host checks | Synthetic downloaded-archive restoration passed. Current-build operational recovery remains bounded by its actual restore and runtime evidence. |
@@ -85,8 +86,8 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | M-1 | Done | Scope amended to paper-only and gated ML. |
 | M-2 | Done (step 1) | Bias harness point-in-time test; `model_artifacts.py`; fits are `model-fit` trials. Steps 2-3 wait for 300 closed trades. |
 | L-1 to L-6 | Done | Local connection, strict parser, provenance, usage caps, `assistant-eval`. |
-| L-7 | Deferred | After L-8 (`docs/model-pilots.md`). |
-| L-8 | Client implemented; pilot open | `gymctl research entailment-check` exists. A pinned local runtime/model and versioned synthetic pilot still need execution and measured results. |
+| L-7 | Runtime blocked; adoption refused | Pinned official weights loaded, but original case 00 exceeded the 60-second budget (64.94 s, one token). Full 30-case evaluation remains incomplete. Separate gateway initialization failed its Windows ACL check before inference; see `docs/model-pilots.md`. |
+| L-8 | Synthetic pilot evaluated; enablement refused | Pinned local model and unchanged client ran the held-out EN/FA fixture. Persian adversarial accuracy drop 0.125 exceeded the predeclared 0.05 limit. Advisory role remains off and semantic grounding unverified; see `docs/model-pilots.md`. |
 
 ## Owner decisions
 

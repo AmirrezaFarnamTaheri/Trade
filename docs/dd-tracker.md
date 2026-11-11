@@ -1,4 +1,4 @@
-# Appendix B · Findings tracker (status as of 2026-11-10)
+# Appendix B · Findings tracker (status as of 2026-11-11)
 
 This mirrors the report's Appendix B line for line: the same 68 findings and 5 owner decisions, with the report's
 titles, ratings and effort. A box is ticked only when the finding's recommendation is fully met. An unticked item
@@ -7,12 +7,12 @@ carries a status note saying what exists and what remains. Evidence for each tic
 
 Architecture (6)
 [ ] A-1 · Research and executor share no execution semantics · High · Effort XL
-    Status: step 1 done (golden fill vectors, cross-language conformance). Step 2 partly done: Rust kernel, PyO3 bridge, byte-identical under GYM_RUST_KERNEL=1, CI job. The kernel is not yet the default, and sizing and cost pricing are not moved.
+    Status: step 1 done (golden fill vectors, cross-language conformance). Step 2 partly done: native exact standalone sizing, settlement bridge and locked optional installation are available. Contextual simulator sizing and impact-cost resizing retain the Python implementation; native default activation remains unqualified.
 [x] A-2 · Single-venue dependency, and collection is currently blocked · High · Effort M
 [x] A-3 · The serial privileged pipe holds the vault mutex across blocking venue reads · Medium · Effort M
 [x] A-4 · Golden fixtures cover the v1 contracts only · Low · Effort M
 [ ] A-5 · The T2 thread's fate is the whole service's fate, and its startup replays the entire ledger inside a 5 s window · Low (Medium before funding) · Effort M
-    Status: startup progress is reported for up to 120 s; replay measured at 0.31 s per 200k rows; the fault decision is recorded (ADR 0006) and tested. Checkpointed suffix replay with background verification is not built.
+    Status: startup progress is reported for up to 120 s. Actual service startup now verifies and recovers in one pass: 200k rows measured 2.369 s versus 4.159 s before, under the unchanged 20 s bound. Later verification still rechecks the chain. Persistent checkpoints and larger live histories remain unqualified.
 [ ] A-6 · The reservation book is a single-anchor batch, and the funded reservation and review-v2 paths are not wired to the service · Low · Effort L
     Status: model decided (ADR 0003), ActiveHoldBook with property tests, explicit dust tolerance, paths documented as test-only. Not wired.
 
@@ -20,13 +20,15 @@ Engineering (10)
 [x] E-1 · Five functions are extreme complexity hotspots · Medium · Effort M
 [x] E-2 · Candle parsing breaks the exact-decimal chain · Medium · Effort S
 [x] E-3 · Non-ASCII auth header returns a 500 · Low · Effort S
-[x] E-4 · Collector SQLite writes run on the event loop at 373 markets · Low · Effort M
+[ ] E-4 · Collector SQLite writes run on the event loop at 373 markets · Low · Effort M
+    Status: subscription acknowledgment gating is repaired and all 18 shards connected. A live 3.312 s lag spike coincided with high host CPU, but its owner is unproved; latency qualification remains open. Isolated rotation did not justify a writer rewrite.
 [x] E-5 · Instrument-spec versioning is two separate autocommit statements · Low · Effort S
 [x] E-6 · The account-observation freshness rule compares across unrelated resources using the wall clock · Low · Effort S
 [x] E-7 · u64 quanta arithmetic is checked on admission paths, unchecked in reserved(), and bounded only by an 18-decimal scale limit · Low · Effort S
 [x] E-8 · Rust and Python accept different fill-timestamp grammars · Low · Effort S
 [x] E-9 · Hand-rolled binary codecs have golden fixtures but no fuzzing or property tests · Low · Effort M
-[x] E-10 · Mutation testing is advisory and covers two files · Low · Effort M
+[ ] E-10 · Mutation testing is advisory and covers two files · Low · Effort M
+    Status: seven actionable survivor gaps now have independently reviewed regression tests. The expanded weekly assessment fails visibly. A 49-mutant critical cohort is implemented but its timing-suspicious result was rejected; no passing baseline or full five-file qualification is claimed.
 
 Security (13)
 [x] S-1 · Credential protection is strong only on a Windows service host · Medium · Effort M
@@ -47,10 +49,11 @@ Security (13)
 Reliability (5)
 [x] R-1 · The "scored once" test window can be reused · Medium · Effort M
 [x] R-2 · No differential bias harness, only partial diagnostics · Medium · Effort M
-[x] R-3 · Tamper-evident ledger exists but is anchored only on the host · Low · Effort M
+[ ] R-3 · Tamper-evident ledger exists but is anchored only on the host · Low · Effort M
+    Status: local signed anchors exist. Independent remote custody is not established by local storage or same-account transport.
 [x] R-4 · An open raw segment is not in the manifest until it closes · Medium · Effort S
 [ ] R-5 · Backups cover the executor ledger only, to a local independent volume · Medium · Effort M
-    Status: encrypted research backup (market database, runs, closed segments) and restore drill work locally. The cloud destination from OD-4 is not done (postponed by the owner).
+    Status: encrypted research backup (market database, runs, closed segments) and restore drill work locally. Real Drive transport of a synthetic encrypted ledger matched all 8,677 bytes and restored two events. Live backup, retention and unattended scheduling remain open.
 
 Performance (3)
 [ ] P-1 · One exact SQLite store serves both collection and analysis · Low · Effort L
@@ -70,7 +73,8 @@ Operations (6)
 
 Product and UX (9)
 [x] U-1 · The pitch is ahead of the evidence · Medium · Effort S
-[x] U-2 · Features worth porting from peers · Low · Effort M
+[ ] U-2 · Features worth porting from peers · Low · Effort M
+    Status: cost, fill and latency identity exists. Per-signal attribution views remain open.
 [x] U-3 · The UI's design tokens have drifted, and several external UI claims did not survive a check against the code · Low · Effort M
 [x] U-4 · An operator activity timeline and one action registry would close the CLI-versus-UI gap · Low · Effort M
 [x] U-5 · Accessibility and output-safety basics are in place; what is missing is automated proof in a real rendering engine · — · Effort M
@@ -101,9 +105,9 @@ LLM tier (8)
 [x] L-5 · The assistant's prompts and raw replies are not shown or kept for audit in the UI · — · Effort M
 [x] L-6 · Define a System-1 and System-2 split, and a baseline, before adding any model · — · Effort M
 [ ] L-7 · MNN-Pocket-0.3B: defer adoption; run a bounded offline pilot only after L-1 and L-2 · — · Effort S
-    Status: not run. It comes after the L-8 pilot (docs/model-pilots.md).
+    Status: pinned checkpoint loaded; original case 00 timed out at 64.94 s with one token. Full 30-case evaluation and actual gateway connection remain unqualified (docs/model-pilots.md).
 [ ] L-8 · Typed decision models (the Jev family) fit the System-1 role better than a small generative model; pilot one behind a decision adapter, advisory only · — · Effort M
-    Status: the client is built (research entailment-check). The pilot needs a versioned synthetic fixture set and a pinned local model.
+    Status: client and pinned-model synthetic pilot executed. Persian adversarial accuracy drop 0.125 failed the predeclared 0.05 limit. Advisory enablement remains off (docs/model-pilots.md).
 
 Owner decisions (5)
 [x] OD-1 · One venue only: no second venue or source
@@ -111,8 +115,8 @@ Owner decisions (5)
     Status: policy options (cost-probe installed), arm-preflight, arm record and code-enforced kill rules (exec_core::arming) are done. The privileged arm request, armed mode and approval screen are not wired.
 [x] OD-3 · Licence dropped
 [ ] OD-4 · Scheduled cloud backup, Google Drive first
-    Status: postponed by the owner.
+    Status: approved and in progress. Synthetic Drive transport/restore passed; live backup, retention and unattended scheduling remain open.
 [ ] OD-5 · Fail closed on a privileged-thread fault and on reservation
     Status: the fault stops the service and a restart is disarmed (tested). verified_available (stale data blocks; journal disagreement blocks and disarms) is built but not wired.
 
-Totals: 47 of 68 findings ticked, 21 open; 2 of 5 owner decisions ticked.
+Totals: 52 of 68 findings ticked, 16 open; 2 of 5 owner decisions ticked.
