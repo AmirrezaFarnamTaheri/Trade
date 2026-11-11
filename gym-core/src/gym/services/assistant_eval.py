@@ -1,4 +1,4 @@
-"""Offline evaluation of the research assistant's model against a no-model baseline (finding L-6).
+"""Offline evaluation of the research assistant's model against a no-model baseline.
 
 A model earns a place in the assistant only if it beats random sampling from the strategy catalogue on a fixed
 prompt set. The set is deterministic (markets x resolutions x earlier-test histories) and uses the assistant's

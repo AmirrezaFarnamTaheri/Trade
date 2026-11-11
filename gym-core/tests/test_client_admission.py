@@ -1,4 +1,4 @@
-"""Phase E item 46: safe client-id and pacing contract without venue writes."""
+"""Safe client-id and pacing contract without venue writes."""
 from datetime import timedelta
 
 import pytest

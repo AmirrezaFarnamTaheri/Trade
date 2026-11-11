@@ -1,4 +1,4 @@
-//! Startup cost at scale (finding A-5): how long open + verify + full replay take for a long ledger.
+//! Startup cost at scale: how long open + verify + full replay take for a long ledger.
 //! The executor's privileged thread must open its journal within the service's startup wait.
 use exec_store::{hash_event, Ledger};
 use std::time::Instant;

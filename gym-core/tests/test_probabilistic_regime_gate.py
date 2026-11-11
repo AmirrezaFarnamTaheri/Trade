@@ -1,4 +1,4 @@
-"""Phase B 24: fail-closed probabilistic regime *research*, never a live gate."""
+"""Fail-closed probabilistic regime *research*, never a live gate."""
 from datetime import timedelta
 from decimal import Decimal
 

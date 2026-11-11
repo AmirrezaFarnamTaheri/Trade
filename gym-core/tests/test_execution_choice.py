@@ -1,4 +1,4 @@
-"""Phase C item 25: matched historical spread-aware execution-choice diagnostics."""
+"""Matched historical spread-aware execution-choice diagnostics."""
 import asyncio
 from datetime import timedelta
 from decimal import Decimal

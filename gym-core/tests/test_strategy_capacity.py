@@ -1,4 +1,4 @@
-"""Phase B 23: conservative strategy capacity in USDT, from verified cost evidence."""
+"""Conservative strategy capacity in USDT, from verified cost evidence."""
 from datetime import timedelta
 from decimal import Decimal
 

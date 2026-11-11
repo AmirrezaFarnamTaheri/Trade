@@ -7,7 +7,7 @@ from gym.domain.model import iso
 from gym.domain.sim import CostModel
 from gym.services.portfolio_research import portfolio_action
 from tests.support import START, quote_history
-from tests.test_phase_d_fractional_reference import _report, _source
+from tests.test_fractional_sizing_reference import _report, _source
 
 
 def test_prior_fraction_is_consumed_by_portfolio_action_and_saved_with_provenance(tmp_path):

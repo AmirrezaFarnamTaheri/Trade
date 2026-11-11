@@ -183,7 +183,7 @@ jobs:
       # Surviving mutants in these files are untested behavior in money, fills and statistics.
       # Scope covers the simulator, statistics, the shared cash book and margin math. Make the job blocking once a
       # run reports zero surviving mutants for this set.
-      - run: uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate src/gym/domain/performance.py,src/gym/domain/sim.py,src/gym/domain/portfolio.py,src/gym/domain/portfolio_policy.py,src/gym/domain/margin.py --tests-dir tests --runner "python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py tests/test_portfolio.py tests/test_portfolio_policy.py tests/test_margin.py tests/test_phase_d_margin_depth.py"
+      - run: uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate src/gym/domain/performance.py,src/gym/domain/sim.py,src/gym/domain/portfolio.py,src/gym/domain/portfolio_policy.py,src/gym/domain/margin.py --tests-dir tests --runner "python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py tests/test_portfolio.py tests/test_portfolio_policy.py tests/test_margin.py tests/test_margin_depth_valuation.py"
       - if: always()
         run: uv run --with mutmut==2.5.1 mutmut results
 

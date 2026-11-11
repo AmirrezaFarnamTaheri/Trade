@@ -1,4 +1,4 @@
-"""Phase E item 42: feed disagreement must block new paper entries."""
+"""Feed disagreement must block new paper entries."""
 from datetime import timedelta
 from decimal import Decimal
 

@@ -1,4 +1,4 @@
-"""Phase B 21/22: independent impact fits and opt-in hourly cost assumptions."""
+"""Independent impact fits and opt-in hourly cost assumptions."""
 from datetime import timedelta
 from decimal import Decimal, localcontext
 

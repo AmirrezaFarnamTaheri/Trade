@@ -490,7 +490,7 @@ pub struct ReservationBook {
     credit_tolerance: u64,
 }
 impl ReservationBook {
-    /// A book that accepts a settled release carrying up to `quanta` of unexplained surplus (finding A-6).
+    /// A book that accepts a settled release carrying up to `quanta` of unexplained surplus.
     /// Money missing is never tolerated. Set it only from a reviewed venue dust rule.
     pub fn with_credit_tolerance(quanta: u64) -> Self {
         Self {

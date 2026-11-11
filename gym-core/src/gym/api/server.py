@@ -45,8 +45,8 @@ from .research import install as install_research
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
 
 
-def s(x):
-    return None if x is None else str(x)
+def _decimal_text(value):
+    return None if value is None else str(value)
 
 
 # Served next to index.html, each with a content-hash query so a browser never runs a stale copy.
@@ -55,7 +55,7 @@ UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "c
              "markets-events.js", "research-events.js", "operator-events.js", "shell-events.js", "styles.css")
 
 class _WorkspaceApi:
-    """Route handlers of `make_app`, one method each (finding E-1)."""
+    """Route handlers of `make_app`, one method each."""
 
     def __init__(self, col: Collector, rules: RuleService, token: str, runs: Path | None = None,
                  account_observation: dict | None = None,
@@ -100,13 +100,16 @@ class _WorkspaceApi:
             last = self.col.trades[sym][0] if self.col.trades[sym] else None
             rows.append({
                 "symbol": sym, "base": inst.base, "quote": inst.quote, "names": self.col.names[sym],
-                "bid": s(t and t.bid), "ask": s(t and t.ask), "bid_qty": s(t and t.bid_qty), "ask_qty": s(t and t.ask_qty),
-                "spread": s(t and t.spread), "spread_bps": s(t and t.spread_bps), "flags": sorted(t.flags) if t else ["STALE"],
+                "bid": _decimal_text(t and t.bid), "ask": _decimal_text(t and t.ask),
+                "bid_qty": _decimal_text(t and t.bid_qty), "ask_qty": _decimal_text(t and t.ask_qty),
+                "spread": _decimal_text(t and t.spread), "spread_bps": _decimal_text(t and t.spread_bps),
+                "flags": sorted(t.flags) if t else ["STALE"],
                 "qualified": bool(t and qualified(t)),
                 "liquidity": liquidity_snapshot(self.col.books[sym], now, self.col.lim),
                 "book_age_s": max((now - side.ts).total_seconds() for side in self.col.books[sym].values())
                               if all(self.col.books[sym].values()) else None,
-                "last_trade": last and {"price": s(last.price), "qty": s(last.qty), "aggressor": last.aggressor, "ts": iso(last.ts_event)},
+                "last_trade": last and {"price": _decimal_text(last.price), "qty": _decimal_text(last.qty),
+                                       "aggressor": last.aggressor, "ts": iso(last.ts_event)},
                 "unit": {"code": TOMAN.code, "epoch": TOMAN.unit_epoch} if inst.quote == "TMN" else None,
                 "act": self.rules.act(inst, now),
                 "data_quality": self.col.data_quality.get(sym),
@@ -126,7 +129,7 @@ class _WorkspaceApi:
             status = "STALE_CLOSED"
         else:
             status = "LIVE" if mid else "UNAVAILABLE"
-        return {"pair": "USDTTMN", "mid": s(mid or None), "status": status}
+        return {"pair": "USDTTMN", "mid": _decimal_text(mid or None), "status": status}
 
     async def rule_list(self, _):
         return web.json_response(self.rules.listing(now_utc(), list(self.col.insts.values())))
@@ -416,16 +419,19 @@ class _WorkspaceApi:
                 return web.json_response(error.report, status=error.status)
         return web.json_response(value)
 
-    async def run_summary(self, req):
-        return await asyncio.to_thread(self.run_summary_response, req.match_info["id"], req.path.endswith("/summary.html"))
-
-    def run_summary_response(self, run_id, as_html):
+    def _load_run(self, run_id):
         if self.runs is None:
             raise web.HTTPNotFound()
         try:
-            record = load_run(self.runs, run_id)
+            return load_run(self.runs, run_id)
         except FileNotFoundError:
             raise web.HTTPNotFound() from None
+
+    async def run_summary(self, req):
+        return await asyncio.to_thread(self._run_summary_response, req.match_info["id"], req.path.endswith("/summary.html"))
+
+    def _run_summary_response(self, run_id, as_html):
+        record = self._load_run(run_id)
         if record["run_id"] != run_id:
             raise ValueError("run identity mismatch")
         if as_html:
@@ -437,15 +443,10 @@ class _WorkspaceApi:
             "Content-Disposition": 'attachment; filename="paper-' + record["run_id"] + '.json"'})
 
     async def run_detail(self, req):
-        return await asyncio.to_thread(self.run_detail_response, req.match_info["id"])
+        return await asyncio.to_thread(self._run_detail_response, req.match_info["id"])
 
-    def run_detail_response(self, run_id):
-        if self.runs is None:
-            raise web.HTTPNotFound()
-        try:
-            record = load_run(self.runs, run_id)
-        except FileNotFoundError:
-            raise web.HTTPNotFound() from None
+    def _run_detail_response(self, run_id):
+        record = self._load_run(run_id)
         if record["evidence"] is None:
             record["evidence"] = economic_report(record)
         return web.json_response(record)

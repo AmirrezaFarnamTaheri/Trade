@@ -1,7 +1,7 @@
-# Phase E — execution and the path to live (November improvement plan, 38–46)
+# Paper execution gates (improvement plan items 38–46)
 
 **This is a paper-only implementation ledger, not trading authorization.**
-Phase E cannot make real orders possible by implication. The funded loss budget
+These diagnostics cannot make real orders possible by implication. The funded loss budget
 remains zero, and dependency E43 (protected executor submit/cancel/recovery and
 external operator approval) is outside this workstream.
 
@@ -42,9 +42,9 @@ out-of-sample test.
 
 ## Verification / status
 
-No Phase E mechanism is accepted solely from synthetic tests. End-to-end
+No mechanism here is accepted solely from synthetic tests. End-to-end
 browser/CLI and Windows/Linux CI plus independent real-data qualification are
-required before declaring the phase complete. Each new contract must remain
+required before declaring qualification complete. Each new contract must remain
 opt-in so older run IDs and research receipts retain their meaning.
 
 
@@ -89,5 +89,5 @@ opt-in so older run IDs and research receipts retain their meaning.
 
 All of these contracts require separate authenticated venue observations,
 prospective stress windows, integrated scheduler/executor controls and
-operator sign-off before a live Phase E completion claim. CI green only
+operator sign-off before a live execution qualification claim. CI green only
 establishes the paper-side regression contract, not those external gates.

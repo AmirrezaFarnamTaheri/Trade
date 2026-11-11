@@ -1,4 +1,4 @@
-"""Phase B item 19: one strictly causal high-low Parkinson variance."""
+"""One strictly causal high-low Parkinson variance."""
 from decimal import Decimal, localcontext
 
 import pytest

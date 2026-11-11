@@ -1,4 +1,4 @@
-"""Phase E item 39: observed post-fill price moves and causal cost feedback."""
+"""Observed post-fill price moves and causal cost feedback."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal

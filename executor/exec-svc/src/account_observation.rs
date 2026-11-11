@@ -96,7 +96,7 @@ pub fn reject_credential_echo(raw: &[u8], key: &[u8]) -> Result<(), &'static str
     }
     let mut decoded = parse(raw)?;
     let echoed = key.is_empty() || contains(&decoded, key);
-    // The decoded tree may hold an unescaped copy of the key; wipe it before it is freed (finding S-12).
+    // The decoded tree may hold an unescaped copy of the key; wipe it before it is freed.
     wipe(&mut decoded);
     if echoed {
         return Err("credential echo refused");

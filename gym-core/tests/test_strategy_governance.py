@@ -1,4 +1,4 @@
-"""Phase C items 28-30: past-only combination and evidence-gated catalog governance."""
+"""Past-only combination and evidence-gated catalog governance."""
 from datetime import timedelta
 from decimal import Decimal
 

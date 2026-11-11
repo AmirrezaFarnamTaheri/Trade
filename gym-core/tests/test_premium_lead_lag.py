@@ -1,4 +1,4 @@
-"""Phase C items 25-26: point-in-time premium and lead-lag contract tests."""
+"""Point-in-time premium and lead-lag contract tests."""
 from datetime import timedelta
 from decimal import Decimal
 

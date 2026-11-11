@@ -597,7 +597,7 @@ impl Vault {
 
     /// Phase one of an account read, under the vault lock: check identity and mode, then copy out the current
     /// key and its generation. The caller releases the lock for the venue read, so a slow venue cannot stall
-    /// every other privileged request (finding A-3).
+    /// every other privileged request.
     pub fn begin_account_read(&self) -> io::Result<Option<AccountRead>> {
         require_service_identity()?;
         if !self.mode.allows_account_read() {

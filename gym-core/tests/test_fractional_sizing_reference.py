@@ -1,4 +1,4 @@
-"""Phase D item 35: saved empirical paper fractions are opt-in and never funded."""
+"""Saved empirical paper fractions are opt-in and never funded."""
 from datetime import timedelta
 
 import pytest

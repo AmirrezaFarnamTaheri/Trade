@@ -1,9 +1,9 @@
-# Phase C (items 25–30) — cautious strategy research
+# Strategy research contracts (improvement plan items 25–30)
 
-This phase is the **strategy research** section of the November 2026
+These contracts cover the **strategy research** section of the November 2026
 46-item TradingGYM improvement plan. It is distinct from the controlled
 integration engineering runbook ("Workstream C", private venue/Executor
-acceptance). Nothing in this phase grants money authority, permission to
+acceptance). These contracts grant no money authority, permission to
 borrow, exchange API access, a live strategy recommendation, or a funded
 order path. The funded loss budget remains zero.
 
@@ -100,7 +100,7 @@ model, broker permissions, independently authenticated actual fees,
 cash reservations, protection/reopening behavior and venue settlement
 remain in their existing distinct ownership, with no new order path.
 The live-session collection failure and absence of independent final
-evaluation prevent empirical Phase C sign-off. The status must remain
+evaluation prevent empirical strategy qualification. The status must remain
 open until genuine future prospective, accessible market and account
 evidence can be collected.
 

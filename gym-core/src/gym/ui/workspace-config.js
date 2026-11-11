@@ -457,7 +457,7 @@ Object.assign(vocabulary, {
   fxAge: ["Rate age · seconds", "عمر نرخ · ثانیه"],
   fxCurveNote: ["Latest 25 marks. Old rates remain STALE or STALE_CLOSED. Missing rates stay unavailable and prevent a joined curve. Conversion cannot make stale holdings current or certify an executable price.", "۲۵ ارزش‌گذاری آخر؛ نرخ قدیمی STALE یا STALE_CLOSED می‌ماند. نرخ ناموجود خالی است و نمودار پیوسته رسم نمی‌شود. تبدیل، دارایی کهنه را تازه نمی‌کند و قیمت قابل‌اجرا را تأیید نمی‌کند."],
 });
-Object.assign(vocabulary, {  // U-7: copy moved here from the component scripts
+Object.assign(vocabulary, {
   rsRegisterHypothesis: ["Register hypothesis", "ثبت فرضیه"],
   rsOpenPaperShadow: ["Open paper shadow", "بازکردن موقعیت سایه"],
   rsClosePaperShadow: ["Close paper shadow", "بستن موقعیت سایه"],
@@ -865,7 +865,7 @@ Object.assign(vocabulary, {
   zoneShowUtc: ["UTC", "UTC"], zoneShowTehran: ["Tehran", "تهران"],
   zoneToggleLabel: ["Show times in another zone", "نمایش زمان‌ها در منطقهٔ زمانی دیگر"],
 });
-Object.assign(vocabulary, {  // U-3: five navigation workspaces
+Object.assign(vocabulary, {
   navGroupObserve: ["Observe", "مشاهده"], navGroupResearch: ["Research", "پژوهش"], navGroupPrepare: ["Prepare", "آماده‌سازی"],
   navGroupSafety: ["Safety & health", "ایمنی و سلامت"], navGroupSetup: ["Setup", "پیکربندی"],
 });

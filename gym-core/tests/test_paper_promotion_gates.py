@@ -1,4 +1,4 @@
-"""Phase E items 40–41: causal shadow drift and bounded paper promotion screens."""
+"""Causal shadow drift and bounded paper promotion screens."""
 from datetime import timedelta
 from decimal import Decimal
 

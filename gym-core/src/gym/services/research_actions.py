@@ -44,12 +44,12 @@ PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "fina
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
 WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "news-fetch", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "research-packet", "research-notes", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
-# One action table (finding U-4): `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
+# One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
 LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
                   "mcp", "claim-check", "review")
 MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic")
-ADVISORY_ACTIONS = ("entailment-check",)  # L-8: local typed-decision model, advisory only
+ADVISORY_ACTIONS = ("entailment-check",)  # Local typed-decision model, advisory only
 CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
                                    *ADVISORY_ACTIONS, *WORKSPACE_ACTIONS)))
 CLI_ONLY_ACTIONS = {
@@ -351,7 +351,7 @@ def _research_action_experiment_scorecard(root, action, value, store, at):
 
 
 def _research_action_market_products(root, action, value, store, at):
-    from .product_capabilities import market_products
+    from .capabilities import market_products
     db = _market_db(root)
     try:
         return market_products(root, db, value, store=store)

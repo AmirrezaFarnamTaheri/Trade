@@ -1,4 +1,4 @@
-"""Causal Decimal research statistics for Phase C premium and paired-spread models.
+"""Causal Decimal research statistics for premium and paired-spread models.
 
 The AR(1) fit is descriptive and fitted from historical observations only.
 It is not a forecast calibration, transferable arbitrage proof or execution authority.

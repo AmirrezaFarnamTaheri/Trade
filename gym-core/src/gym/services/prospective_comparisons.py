@@ -43,7 +43,7 @@ def register_comparison(registry, request, *, now):
             start - selected < spec.step or end - start > timedelta(days=31)):
         raise ValueError("future comparison needs a disjoint complete fixed-bar window and purge")
     from .storage_runway import ensure_runway
-    ensure_runway(registry.root, end, now)  # P-2: the archive must last through the window
+    ensure_runway(registry.root, end, now)  # The archive must last through the window
     cash, fee = decimal(request["cash"], "cash", positive=True), rate(request["fee_rate"], "fee_rate")
     if (end - start) // spec.step > 1440:
         raise ValueError("prospective window exceeds 1440 fixed-bar decisions")

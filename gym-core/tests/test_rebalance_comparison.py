@@ -1,4 +1,4 @@
-"""Phase D item 34: same-data evidence for a cost-aware paper rebalance band."""
+"""Same-data evidence for a cost-aware paper rebalance band."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal

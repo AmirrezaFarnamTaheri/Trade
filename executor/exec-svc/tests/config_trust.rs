@@ -1,4 +1,4 @@
-//! S-9: provisioned SID files are trusted only when SYSTEM, Administrators or TrustedInstaller own and solely write them.
+//! Provisioned SID files are trusted only when SYSTEM, Administrators or TrustedInstaller own and solely write them.
 use exec_svc::config_trust::{check, Ace, Untrusted, ADMINISTRATORS, SYSTEM, TRUSTED_INSTALLER};
 
 fn ace(kind: u8, flags: u8, mask: u32, sid: &str) -> Ace {

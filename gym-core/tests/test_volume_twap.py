@@ -1,4 +1,4 @@
-"""Phase E item 38: point-in-time volume-aware paper execution proposals."""
+"""Point-in-time volume-aware paper execution proposals."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
@@ -87,7 +87,7 @@ def test_adaptive_twap_research_action_reads_causal_public_prints(tmp_path):
     db = market_db(tmp_path, [top(-1), top(1), top(59), top(61), top(119)])
     try:
         for t in (trade(-30, "4"), trade(50, "2")):
-            db.add_trade(t, "synthetic-phase-e")
+            db.add_trade(t, "synthetic-volume-twap")
     finally:
         db.c.close()
     request = {

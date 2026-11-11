@@ -54,7 +54,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
 
 
 class _Replay:
-    """One portfolio replay: shared cash book, per-market paper sessions and the portfolio policy (finding E-1).
+    """One portfolio replay: shared cash book, per-market paper sessions and the portfolio policy.
 
     The former closure state lives on the instance; each stage is a method small enough to review on its own.
     """

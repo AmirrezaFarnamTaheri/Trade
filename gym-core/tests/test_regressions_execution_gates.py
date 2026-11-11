@@ -1,4 +1,4 @@
-"""Regressions at Phase E execution-gate boundaries: post-fill costs, TWAP completion and fair-price freshness."""
+"""Regressions at execution-gate boundaries: post-fill costs, TWAP completion and fair-price freshness."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
@@ -14,7 +14,7 @@ from gym.services.feed_divergence import evaluate_divergence, persist_paper_feed
 from gym.services.postfill import post_fill_checks
 from gym.services.shadow_drift import shadow_drift
 from tests.support import START, quote
-from tests.test_phase_e_promotion import source
+from tests.test_paper_promotion_gates import source
 
 PROFILE = {"schema": "postfill-adverse/1", "symbol": "BTCUSDT",
            "trained_until": iso(START), "penalty_bps": "12",

@@ -1,4 +1,4 @@
-"""Read-only operator activity timeline across the workspace journals (finding U-4).
+"""Read-only operator activity timeline across the workspace journals.
 
 One merged, newest-first view over the research ledger, experiment registry, research protocol, backup receipts,
 offline ticket reviews, external order events and venue facts. Every store is opened read-only and queried with

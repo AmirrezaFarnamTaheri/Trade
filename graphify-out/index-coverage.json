@@ -518,7 +518,7 @@
     },
     {
       "file": "gym-core/src/gym/api/server.py",
-      "nodes": 48
+      "nodes": 49
     },
     {
       "file": "gym-core/src/gym/cli.py",
@@ -750,7 +750,7 @@
     },
     {
       "file": "gym-core/src/gym/services/capabilities.py",
-      "nodes": 4
+      "nodes": 5
     },
     {
       "file": "gym-core/src/gym/services/collector.py",
@@ -955,10 +955,6 @@
     {
       "file": "gym-core/src/gym/services/process_owner.py",
       "nodes": 10
-    },
-    {
-      "file": "gym-core/src/gym/services/product_capabilities.py",
-      "nodes": 3
     },
     {
       "file": "gym-core/src/gym/services/promotion_gates.py",
@@ -1309,6 +1305,10 @@
       "nodes": 3
     },
     {
+      "file": "gym-core/tests/test_client_admission.py",
+      "nodes": 7
+    },
+    {
       "file": "gym-core/tests/test_close_subscriptions.py",
       "nodes": 3
     },
@@ -1353,6 +1353,10 @@
       "nodes": 9
     },
     {
+      "file": "gym-core/tests/test_covariance_shrinkage.py",
+      "nodes": 7
+    },
+    {
       "file": "gym-core/tests/test_cross_market_strategies.py",
       "nodes": 7
     },
@@ -1363,10 +1367,6 @@
     {
       "file": "gym-core/tests/test_data_validation.py",
       "nodes": 8
-    },
-    {
-      "file": "gym-core/tests/test_dd_quick_wins.py",
-      "nodes": 31
     },
     {
       "file": "gym-core/tests/test_deadline_and_runway.py",
@@ -1409,6 +1409,10 @@
       "nodes": 6
     },
     {
+      "file": "gym-core/tests/test_execution_choice.py",
+      "nodes": 13
+    },
+    {
       "file": "gym-core/tests/test_executor_ledger_contract.py",
       "nodes": 4
     },
@@ -1437,12 +1441,20 @@
       "nodes": 6
     },
     {
+      "file": "gym-core/tests/test_fair_price_observations.py",
+      "nodes": 7
+    },
+    {
       "file": "gym-core/tests/test_feed_anomaly.py",
       "nodes": 7
     },
     {
       "file": "gym-core/tests/test_feed_crosscheck.py",
       "nodes": 11
+    },
+    {
+      "file": "gym-core/tests/test_feed_divergence.py",
+      "nodes": 12
     },
     {
       "file": "gym-core/tests/test_forecast_evaluation.py",
@@ -1453,11 +1465,27 @@
       "nodes": 9
     },
     {
+      "file": "gym-core/tests/test_fractional_sizing_action.py",
+      "nodes": 4
+    },
+    {
+      "file": "gym-core/tests/test_fractional_sizing_reference.py",
+      "nodes": 9
+    },
+    {
       "file": "gym-core/tests/test_global_trial_ledger.py",
       "nodes": 10
     },
     {
       "file": "gym-core/tests/test_hard_stop.py",
+      "nodes": 4
+    },
+    {
+      "file": "gym-core/tests/test_hierarchical_risk_parity.py",
+      "nodes": 11
+    },
+    {
+      "file": "gym-core/tests/test_hierarchical_risk_parity_reference.py",
       "nodes": 4
     },
     {
@@ -1479,6 +1507,10 @@
     {
       "file": "gym-core/tests/test_horizon_study.py",
       "nodes": 9
+    },
+    {
+      "file": "gym-core/tests/test_impact_cost_models.py",
+      "nodes": 10
     },
     {
       "file": "gym-core/tests/test_indicator_parameters.py",
@@ -1505,6 +1537,14 @@
       "nodes": 18
     },
     {
+      "file": "gym-core/tests/test_margin_depth_valuation.py",
+      "nodes": 10
+    },
+    {
+      "file": "gym-core/tests/test_margin_pairs_replay.py",
+      "nodes": 14
+    },
+    {
       "file": "gym-core/tests/test_margin_service.py",
       "nodes": 20
     },
@@ -1515,6 +1555,10 @@
     {
       "file": "gym-core/tests/test_market_campaign.py",
       "nodes": 23
+    },
+    {
+      "file": "gym-core/tests/test_market_cost_actions.py",
+      "nodes": 6
     },
     {
       "file": "gym-core/tests/test_market_data.py",
@@ -1569,6 +1613,10 @@
       "nodes": 8
     },
     {
+      "file": "gym-core/tests/test_observed_fee_coefficients.py",
+      "nodes": 7
+    },
+    {
       "file": "gym-core/tests/test_offline_review_api.py",
       "nodes": 4
     },
@@ -1621,6 +1669,10 @@
       "nodes": 3
     },
     {
+      "file": "gym-core/tests/test_paper_promotion_gates.py",
+      "nodes": 13
+    },
+    {
       "file": "gym-core/tests/test_paper_sessions.py",
       "nodes": 15
     },
@@ -1631,6 +1683,10 @@
     {
       "file": "gym-core/tests/test_parameter_plateau.py",
       "nodes": 5
+    },
+    {
+      "file": "gym-core/tests/test_parkinson_volatility.py",
+      "nodes": 6
     },
     {
       "file": "gym-core/tests/test_performance.py",
@@ -1645,106 +1701,6 @@
       "nodes": 22
     },
     {
-      "file": "gym-core/tests/test_phase_b_capacity.py",
-      "nodes": 6
-    },
-    {
-      "file": "gym-core/tests/test_phase_b_impact_costs.py",
-      "nodes": 10
-    },
-    {
-      "file": "gym-core/tests/test_phase_b_market_cost_action.py",
-      "nodes": 6
-    },
-    {
-      "file": "gym-core/tests/test_phase_b_model_consumers.py",
-      "nodes": 5
-    },
-    {
-      "file": "gym-core/tests/test_phase_b_probabilistic_gate.py",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/tests/test_phase_b_shrinkage.py",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/tests/test_phase_b_volatility.py",
-      "nodes": 6
-    },
-    {
-      "file": "gym-core/tests/test_phase_c_combination_retirement.py",
-      "nodes": 13
-    },
-    {
-      "file": "gym-core/tests/test_phase_c_execution_choice.py",
-      "nodes": 13
-    },
-    {
-      "file": "gym-core/tests/test_phase_c_margin_pairs.py",
-      "nodes": 14
-    },
-    {
-      "file": "gym-core/tests/test_phase_c_premium_leadlag.py",
-      "nodes": 16
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_fractional_action.py",
-      "nodes": 4
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_fractional_reference.py",
-      "nodes": 9
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_fx_risk.py",
-      "nodes": 12
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_hrp.py",
-      "nodes": 11
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_hrp_handworked.py",
-      "nodes": 4
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_margin_depth.py",
-      "nodes": 10
-    },
-    {
-      "file": "gym-core/tests/test_phase_d_rebalance_comparison.py",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_client_admission.py",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_fairprice.py",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_fee_coefficients.py",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_feed_divergence.py",
-      "nodes": 12
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_postfill.py",
-      "nodes": 12
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_promotion.py",
-      "nodes": 13
-    },
-    {
-      "file": "gym-core/tests/test_phase_e_volume_twap.py",
-      "nodes": 16
-    },
-    {
       "file": "gym-core/tests/test_portability_cli.py",
       "nodes": 4
     },
@@ -1755,6 +1711,10 @@
     {
       "file": "gym-core/tests/test_portfolio.py",
       "nodes": 13
+    },
+    {
+      "file": "gym-core/tests/test_portfolio_fx_risk.py",
+      "nodes": 12
     },
     {
       "file": "gym-core/tests/test_portfolio_policy.py",
@@ -1781,11 +1741,23 @@
       "nodes": 9
     },
     {
+      "file": "gym-core/tests/test_postfill_costs.py",
+      "nodes": 12
+    },
+    {
+      "file": "gym-core/tests/test_premium_lead_lag.py",
+      "nodes": 16
+    },
+    {
       "file": "gym-core/tests/test_premium_twap_prospective.py",
       "nodes": 12
     },
     {
       "file": "gym-core/tests/test_price_band_and_reopening.py",
+      "nodes": 7
+    },
+    {
+      "file": "gym-core/tests/test_probabilistic_regime_gate.py",
       "nodes": 7
     },
     {
@@ -1821,6 +1793,10 @@
       "nodes": 8
     },
     {
+      "file": "gym-core/tests/test_rebalance_comparison.py",
+      "nodes": 7
+    },
+    {
       "file": "gym-core/tests/test_recorded_coverage.py",
       "nodes": 4
     },
@@ -1835,6 +1811,10 @@
     {
       "file": "gym-core/tests/test_regressions_measurement_provenance.py",
       "nodes": 12
+    },
+    {
+      "file": "gym-core/tests/test_regressions_safety_boundaries.py",
+      "nodes": 31
     },
     {
       "file": "gym-core/tests/test_release_signing.py",
@@ -1997,6 +1977,14 @@
       "nodes": 10
     },
     {
+      "file": "gym-core/tests/test_strategy_capacity.py",
+      "nodes": 6
+    },
+    {
+      "file": "gym-core/tests/test_strategy_governance.py",
+      "nodes": 13
+    },
+    {
       "file": "gym-core/tests/test_strategy_research.py",
       "nodes": 10
     },
@@ -2053,8 +2041,16 @@
       "nodes": 10
     },
     {
+      "file": "gym-core/tests/test_volatility_model_consumers.py",
+      "nodes": 5
+    },
+    {
       "file": "gym-core/tests/test_volatility_strategy.py",
       "nodes": 7
+    },
+    {
+      "file": "gym-core/tests/test_volume_twap.py",
+      "nodes": 16
     },
     {
       "file": "gym-core/tests/test_walk_forward.py",
@@ -2270,7 +2266,7 @@
     },
     {
       "file": ".forge/tech-debt-registry.md",
-      "nodes": 8
+      "nodes": 7
     },
     {
       "file": ".impeccable/surfaces/operator-workspace.md",
@@ -2350,7 +2346,7 @@
     },
     {
       "file": "docs/audit-2026-11-11.md",
-      "nodes": 50
+      "nodes": 33
     },
     {
       "file": "docs/audit-skill-coverage-2026-11-11.md",
@@ -2378,7 +2374,7 @@
     },
     {
       "file": "evidence/README.md",
-      "nodes": 3
+      "nodes": 4
     },
     {
       "file": "executor/README.md",
@@ -2414,7 +2410,7 @@
     },
     {
       "file": "gym-core/docs/README.md",
-      "nodes": 1
+      "nodes": 5
     },
     {
       "file": "gym-core/docs/acceptance-status.md",
@@ -2422,7 +2418,7 @@
     },
     {
       "file": "gym-core/docs/architecture.md",
-      "nodes": 22
+      "nodes": 28
     },
     {
       "file": "gym-core/docs/capabilities.md",
@@ -2434,19 +2430,35 @@
     },
     {
       "file": "gym-core/docs/controlled-integration-runbook.md",
-      "nodes": 8
+      "nodes": 15
     },
     {
       "file": "gym-core/docs/disaster-recovery.md",
       "nodes": 7
     },
     {
+      "file": "gym-core/docs/execution-choice.md",
+      "nodes": 14
+    },
+    {
+      "file": "gym-core/docs/execution-gates.md",
+      "nodes": 19
+    },
+    {
       "file": "gym-core/docs/implementation-plan.md",
-      "nodes": 8
+      "nodes": 15
     },
     {
       "file": "gym-core/docs/interface-review.md",
       "nodes": 7
+    },
+    {
+      "file": "gym-core/docs/market-models.md",
+      "nodes": 17
+    },
+    {
+      "file": "gym-core/docs/measurement-methods.md",
+      "nodes": 18
     },
     {
       "file": "gym-core/docs/metrics.md",
@@ -2461,32 +2473,12 @@
       "nodes": 8
     },
     {
-      "file": "gym-core/docs/phase-a-honest-measurement.md",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/docs/phase-b-market-models.md",
-      "nodes": 8
-    },
-    {
-      "file": "gym-core/docs/phase-c-execution-choice.md",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/docs/phase-c-strategies.md",
-      "nodes": 7
-    },
-    {
-      "file": "gym-core/docs/phase-d-portfolio-risk.md",
-      "nodes": 8
-    },
-    {
-      "file": "gym-core/docs/phase-e-execution-gates.md",
-      "nodes": 9
-    },
-    {
       "file": "gym-core/docs/portfolio-replay.md",
       "nodes": 9
+    },
+    {
+      "file": "gym-core/docs/portfolio-risk.md",
+      "nodes": 17
     },
     {
       "file": "gym-core/docs/readonly-venue-validation.md",
@@ -2503,6 +2495,10 @@
     {
       "file": "gym-core/docs/storage.md",
       "nodes": 16
+    },
+    {
+      "file": "gym-core/docs/strategy-research.md",
+      "nodes": 17
     },
     {
       "file": "gym-core/docs/system-status.md",
@@ -2526,7 +2522,7 @@
     },
     {
       "file": "gym-core/tests/README.md",
-      "nodes": 5
+      "nodes": 6
     },
     {
       "file": "model-gateway/README.md",
@@ -2604,21 +2600,9 @@
   ],
   "noise": [
     "D:\\GitHub\\Trade\\.git\\",
-    "D:\\GitHub\\Trade\\.ruff_cache\\",
     "D:\\GitHub\\Trade\\executor\\exec-kernel-py\\target\\",
     "D:\\GitHub\\Trade\\graphify-out\\",
-    "D:\\GitHub\\Trade\\gym-core\\.pytest_cache\\",
-    "D:\\GitHub\\Trade\\gym-core\\.ruff_cache\\",
     "D:\\GitHub\\Trade\\gym-core\\.venv\\",
-    "D:\\GitHub\\Trade\\gym-core\\scripts\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\adapters\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\api\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\commands\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\contracts\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\domain\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\src\\gym\\services\\__pycache__\\",
-    "D:\\GitHub\\Trade\\gym-core\\tests\\__pycache__\\",
     "D:\\GitHub\\Trade\\model-gateway\\node_modules\\",
     "D:\\GitHub\\Trade\\target\\"
   ]

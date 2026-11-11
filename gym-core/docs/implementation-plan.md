@@ -22,16 +22,16 @@ No push, paid provider request or credential change is implied.
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
 | 18 | Toman premium and lead-lag hypotheses | Causal quote-time aligned exploratory diagnostics and historical paper strategy classes exist; held-out validation, transfer/closure costs and real costs remain required | Offline implementation; empirical qualification open |
-| 25 | TWAP and spread-aware execution choice | Exact-decimal bounded paper child preview and supervised retrospective immediate-vs-TWAP comparison use the same quote snapshot and optional dated cost models. Compare effective prices only for two complete, equal-quantity fills. Real child placement/cancel/reconciliation, venue reservation and timing remain unverified | Paper preview and historical comparison implemented; protected integration open; see phase-c-execution-choice.md |
+| 25 | TWAP and spread-aware execution choice | Exact-decimal bounded paper child preview and supervised retrospective immediate-vs-TWAP comparison use the same quote snapshot and optional dated cost models. Compare effective prices only for two complete, equal-quantity fills. Real child placement/cancel/reconciliation, venue reservation and timing remain unverified | Paper preview and historical comparison implemented; protected integration open; see [execution choice](execution-choice.md) |
 | 30 | Prospective shadow comparison | Locally frozen future configurations, disjoint windows, consume-before-read and matched simulated accounts; still needs real future collection, daily drift reports, independent custody and empirical evidence | Local preregistration implemented; future validation open |
 | UI | Complete the source-audited interface refinements and rendered checks | Guided EN/FA premium, lag, TWAP and prospective freeze/inspect/evaluate forms added; remaining destinations, real-browser mobile/RTL/screen-reader checks, report freshness segmentation and other refinements still need current-build verification; see interface-review.md | Partial; not signed off |
 
-## Phase C — strategy research (November improvement plan items 25–30)
+## Strategy research (November improvement plan items 25–30)
 
-This Phase C is distinct from the *controlled-integration Workstream C* and
+Strategy research is distinct from the *controlled-integration Workstream C* and
 does not waive its protected-account or Executor release gates. The exact
 research mechanics and remaining empirical prerequisites are recorded in
-[Phase C strategy research](phase-c-strategies.md).
+[strategy research contracts](strategy-research.md).
 
 | ID | Research implementation | Remaining empirical acceptance |
 | --- | --- | --- |

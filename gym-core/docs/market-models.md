@@ -1,6 +1,6 @@
-# Phase B — causal market models, paper research only
+# Causal market models, paper research only
 
-Phase B items 19–23 add opt-in paper research models. Item 24 deliberately
+Improvement plan items 19–23 define opt-in paper research models. Item 24 deliberately
 remains an unpromoted experiment unless separately verified preregistered OOS
 evidence beats the **existing fixed ADX regime gate**. A model implementation
 does not establish an edge, funded authority, or executable venue capacity.
@@ -101,7 +101,7 @@ three-tercile trend/volatility Gaussian probabilities (`DOWN_TREND`,
 predictive outcomes. The model is **not in `create_strategy` or `catalog`**.
 The promotion review is fail-closed; it refuses to select a regime gate based
 on locally supplied scores, claimed IDs, unregistered tests, or circular
-paper performance. Without independently attested Phase A prospective
+paper performance. Without independently attested prospective
 evidence and multiple-comparison-adjusted results beating fixed ADX,
 the required outcome is `NOT_PROMOTED` /
 `REMOVE_EXPERIMENTAL_GATE`. No favorable true OOS evidence was available

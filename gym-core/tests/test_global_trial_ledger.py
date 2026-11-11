@@ -1,4 +1,4 @@
-"""Phase A trial accounting must include one-off exploratory paper runs."""
+"""Trial accounting must include one-off exploratory paper runs."""
 
 import json
 import sqlite3

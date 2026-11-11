@@ -1,4 +1,4 @@
-"""Complexity ratchet (finding E-1): no new function above 20, and no listed function may grow.
+"""Complexity ratchet: no new function above 20, and no listed function may grow.
 
 The baseline lists the functions still above the ceiling with their current complexity. Lower a number (or drop
 the entry) when a function is split; `--update` rewrites the file from the current tree but never raises a

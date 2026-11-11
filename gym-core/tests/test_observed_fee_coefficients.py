@@ -1,4 +1,4 @@
-"""Phase E item 44: read-only observed Wallex fill fee coefficients."""
+"""Read-only observed Wallex fill fee coefficients."""
 import pytest
 
 from gym.adapters.wallex_order_evidence import (

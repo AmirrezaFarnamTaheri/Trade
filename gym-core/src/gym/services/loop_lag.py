@@ -1,4 +1,4 @@
-"""Event-loop lag sampler for the collector (finding E-4: measure before moving writes off the loop).
+"""Event-loop lag sampler for the collector (measure before moving writes off the loop).
 
 Every `interval` seconds the sampler asks to wake up; how late it actually wakes is the time the loop spent on
 other work, including the synchronous SQLite writes. A rolling window gives p50, p99 and max, shown in

@@ -1,4 +1,4 @@
-"""Regressions in Phase B market models: profile validation, risk parity, impact volatility and research-only gates."""
+"""Regressions in market models: profile validation, risk parity, impact volatility and research-only gates."""
 import asyncio
 from datetime import timedelta
 from decimal import Decimal
@@ -17,7 +17,7 @@ from gym.services.experimental_probabilistic_regime import (
 from gym.services.paper_twap import simulate_twap
 from gym.services.research_process import HEAVY_ACTIONS, calculate
 from tests.support import START, market_db, quote_history
-from tests.test_phase_b_impact_costs import hourly_profile, impact_profile
+from tests.test_impact_cost_models import hourly_profile, impact_profile
 
 
 def test_cli_rejects_ignored_explicit_high_low_volatility_without_target(tmp_path, capsys):

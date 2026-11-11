@@ -1,4 +1,4 @@
-"""Phase B 20: causal Ledoit-Wolf constant-correlation shrinkage, off by default."""
+"""Causal Ledoit-Wolf constant-correlation shrinkage, off by default."""
 from decimal import Decimal, localcontext
 
 import pytest

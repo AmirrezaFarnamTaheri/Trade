@@ -1,4 +1,4 @@
-"""Regressions in Phase A honest measurement: fee provenance, calibration choice and trial-ledger safety."""
+"""Regressions in honest measurement: fee provenance, calibration choice and trial-ledger safety."""
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta

@@ -1,4 +1,4 @@
-"""Phase D item 36: deterministic Decimal hierarchical risk parity."""
+"""Deterministic Decimal hierarchical risk parity."""
 from decimal import Decimal
 
 import pytest

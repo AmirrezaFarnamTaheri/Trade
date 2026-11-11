@@ -14,7 +14,7 @@ No speculative rewrite, dependency removal or dead-code deletion is scheduled. T
 
 ## Current refresh
 
-See [skill execution](../docs/audit-2026-11-11.md), [research findings](../docs/audit-2026-11-11.md) and [rendered interface findings](../docs/audit-2026-11-11.md).
+See the [current audit](../docs/audit-2026-11-11.md) for skill execution, research findings and rendered interface evidence.
 
 - DEBT-001 is repaired in the current working tree; storage-mode and legacy-warning regressions pass.
 - DEBT-002 remains reproduced in two Node regressions and the actual DEMO browser.

@@ -37,7 +37,7 @@ def extract(path: Path):
     english_dict = {}
     if path.name == "models.js":  # en: {...} then fa: {...} with the same keys
         text = path.read_text("utf-8")
-        en_block = re.search(r"\ben:\s*\{(.*?)\},?\s*\n\s*fa:", text, re.S)
+        en_block = re.search(r"\ben:\s*\{(.*?)\},?\s*\n\s*fa:", text, re.DOTALL)
         if en_block:
             english_dict = {m.group(1): literal(m, 1) for m in DICT_ENTRY.finditer(en_block.group(1))}
     for number, line in enumerate(lines, 1):

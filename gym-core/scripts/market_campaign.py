@@ -4,16 +4,11 @@ No credentials, account calls or funded endpoints. Run with the project's Python
 """
 import argparse
 import asyncio
-from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-import hashlib
 import csv
+import hashlib
 import html
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -21,6 +16,11 @@ import sysconfig
 import tempfile
 import threading
 import time
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from pathlib import Path
 
 
 def write(path, value, *, exclusive=False):
@@ -52,13 +52,17 @@ def read(path):
 
 
 def utc():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def prepare(args):
-    from gym.services.paper_campaign import historical_groups, market_universe, prospective_cases
-    from gym.services.research_protocol import _engine_digest
     import gym
+    from gym.services.paper_campaign import (
+        historical_groups,
+        market_universe,
+        prospective_cases,
+    )
+    from gym.services.research_protocol import _engine_digest
 
     rows = read(args.catalogue)["result"]["markets"]
     universe = market_universe(rows)
@@ -117,9 +121,9 @@ def inspect(out):
 def history_worker(folder, symbol):
     from gym.adapters.run_store import load_verified_run
     from gym.adapters.store import MarketDB
+    from gym.domain.model import InstrumentId
     from gym.services.experiment_registry import ExperimentRegistry
     from gym.services.research_protocol import _engine_digest
-    from gym.domain.model import InstrumentId
     if type(symbol) is not str or InstrumentId.wallex(symbol).symbol != symbol or not symbol.isalnum():
         raise ValueError("invalid campaign market identity")
     plan = read(folder / "plan.json")
@@ -180,7 +184,7 @@ async def watch_worker(folder, shard, shards):
             finally:
                 deadline.cancel()
             receipt.update(inspect(out),state=out["result"]["session"]["state"])
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - retain each failed market while other workers finish
             receipt.update(state="FAILED",error_type=type(error).__name__)
         finally:
             db.c.close()
@@ -276,7 +280,7 @@ def margin_prepare(args):
         write(path,receipt,exclusive=True)
         try:
             time.sleep(max(0,next_request-time.monotonic()))
-            if catalogue is None or datetime.now(timezone.utc)-parse_ts(catalogue["received_at"]) > timedelta(minutes=4):
+            if catalogue is None or datetime.now(UTC)-parse_ts(catalogue["received_at"]) > timedelta(minutes=4):
                 catalogue = margin_action(Path(plan["data"]),"margin-markets",None,store="live")
             rule = next((row for row in catalogue["markets"] if row["symbol"] == case["symbol"]),None)
             if rule is None:
@@ -284,7 +288,7 @@ def margin_prepare(args):
                 continue
             db = MarketDB(Path(plan["data"])/"market.db",readonly=True)
             try:
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 quotes = DataPortal(db).tops(case["symbol"],now-timedelta(seconds=120),now)
             finally:
                 db.c.close()
@@ -309,7 +313,7 @@ def margin_prepare(args):
                 write(path,receipt)
                 out = margin_action(Path(plan["data"]),"margin-preview",{"catalogue_id":catalogue["run_id"],"request":request},store="live")
             receipt.update(state=out["kind"],receipt_id=out["run_id"],received_at=out["received_at"],request=out.get("request"))
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - save an unavailable preview and continue the bounded campaign
             receipt.update(state="PREVIEW_UNAVAILABLE",error_type=type(error).__name__,reason=str(error)[:300])
         finally:
             receipt["ended_at"] = utc()
@@ -320,11 +324,11 @@ def margin_prepare(args):
 
 
 def margin_replay(args):
-    from gym.services.margin import load_receipt, margin_action
     from gym.domain.model import parse_ts
+    from gym.services.margin import load_receipt, margin_action
     folder = args.output.resolve()
     plan = read(folder/"plan.json")
-    end = datetime.now(timezone.utc)-timedelta(seconds=1)
+    end = datetime.now(UTC)-timedelta(seconds=1)
     cases = [{"preview":read(path),"holding_seconds":seconds,"exit_fee_rate":fee}
         for path in sorted((folder/"margin-previews").glob("*.json"))
         for seconds in (120,900,3600) for fee in ("0.001","0.002")]
@@ -342,7 +346,7 @@ def margin_replay(args):
             try:
                 out = margin_action(Path(plan["data"]),"margin-replay",request,store="live")
                 row.update(state=out["result"]["state"],run_id=out["run_id"],observations=out["observations"])
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - retain failed replay evidence without discarding other cases
                 row.update(state="REPLAY_UNAVAILABLE",reason=str(error)[:300],error_type=type(error).__name__)
         rows.append(row)
         write(folder/"margin-replay-progress.json",{"rows":rows,"planned":len(cases),"funded_authority":False})

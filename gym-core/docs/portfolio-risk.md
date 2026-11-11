@@ -1,4 +1,4 @@
-# Phase D portfolio risk: implementation ledger
+# Portfolio risk contracts (improvement plan items 31–37)
 
 Paper-only and causally evaluated. Nothing here submits venue orders or
 authorizes funded trading. New options are opt-in. Unverified performance
@@ -102,5 +102,5 @@ risk control or evidence of a stable volatility target.
   actual account borrow eligibility and live settlement remain unverified.
 
 Every remaining item requires its own regression tests and full Python,
-Ruff, browser, Windows, Rust and security gates. No phase-complete
+Ruff, browser, Windows, Rust and security gates. No empirical qualification
 claim is justified until all seven items and empirical acceptance pass.

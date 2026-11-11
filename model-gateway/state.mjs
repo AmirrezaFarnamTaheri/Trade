@@ -66,7 +66,7 @@ async function dpapi(mode, bytes) {
     child.stdin.end(bytes);
   });
 }
-// S-1: off Windows there is no DPAPI. Credentials are sealed with AES-256-GCM under a key derived (scrypt) from a
+// Off Windows there is no DPAPI. Credentials are sealed with AES-256-GCM under a key derived (scrypt) from a
 // user-held passphrase in GYM_GATEWAY_PASSPHRASE, never stored on disk. Without it, storing a credential is refused
 // unless GYM_GATEWAY_PLAINTEXT=1 explicitly accepts plaintext (0600 file in a 0700 folder). Blobs written before
 // this change carry no magic and are read as legacy plaintext, then sealed on the next write.

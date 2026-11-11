@@ -1,4 +1,4 @@
-"""CycloneDX 1.5 SBOM for the Rust workspace from `cargo metadata --locked` (finding G-5).
+"""CycloneDX 1.5 SBOM for the Rust workspace from `cargo metadata --locked`.
 
 Covers every package in Cargo.lock that the workspace resolves (normal, build and dev dependencies, all targets),
 with a purl and the registry checksum where Cargo.lock has one. No extra tool to install, so CI and a Windows

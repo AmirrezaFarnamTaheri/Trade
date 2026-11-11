@@ -483,7 +483,7 @@ pub fn impersonated_thread_logon_sid() -> io::Result<String> {
     Ok(sid)
 }
 
-/// S-9: read a file's owner and DACL and apply `config_trust::check` before its contents are trusted.
+/// Read a file's owner and DACL and apply `config_trust::check` before its contents are trusted.
 pub fn verify_trusted_config_file(path: &std::path::Path) -> io::Result<()> {
     use crate::config_trust::{check, Ace};
     use std::os::windows::ffi::OsStrExt;

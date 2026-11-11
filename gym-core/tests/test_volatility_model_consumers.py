@@ -1,4 +1,4 @@
-"""Phase B: the high-low estimator is shared by optional exits and regimes."""
+"""The high-low estimator is shared by optional exits and regimes."""
 from decimal import Decimal
 
 import pytest

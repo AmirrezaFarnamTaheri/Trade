@@ -1,4 +1,4 @@
-"""Phase B: market-hour quote cost tables and causal public-impact calibration."""
+"""Market-hour quote cost tables and causal public-impact calibration."""
 from datetime import timedelta
 
 import pytest

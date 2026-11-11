@@ -1,4 +1,4 @@
-# Workstream C — item 25: retrospective execution-choice research
+# Historical execution-choice research (improvement plan item 25)
 
 **Status:** paper-only implementation. This does **not** complete Workstream C
 controlled integration, grant funded authority, or establish an executable
@@ -29,7 +29,7 @@ The offline Research Workbench exposes `execution-choice-preview` alongside
 ```
 
 An optional `cost_models` object can contain exactly the explicit dated
-`impact_models` and `hourly_costs` supported in Phase B. Every profile must
+`impact_models` and `hourly_costs` described in [market models](market-models.md). Every profile must
 have been trained *before* the replay start. No observed fee or cost is assumed
 known unless its dated evidence is eligible.
 
@@ -78,7 +78,7 @@ connects to a trade credential or protected executor.
 ```sh
 cd gym-core
 uvx ruff==0.16.9 check src tests
-uv run pytest -q tests/test_phase_c_execution_choice.py tests/test_premium_twap_prospective.py
+uv run pytest -q tests/test_execution_choice.py tests/test_premium_twap_prospective.py
 uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q
 ```
 

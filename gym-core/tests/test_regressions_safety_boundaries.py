@@ -1,4 +1,4 @@
-"""Regressions for the due-diligence quick wins: token guard, exact candle parsing, atomic spec versioning."""
+"""API and storage boundary regressions: token guard, exact candle parsing, atomic spec versioning."""
 import asyncio
 from datetime import timedelta
 from decimal import Decimal

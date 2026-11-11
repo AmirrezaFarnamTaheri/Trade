@@ -1,4 +1,4 @@
-"""Phase D item 37: paper margin liquidation respects observed executable depth."""
+"""Paper margin liquidation respects observed executable depth."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal

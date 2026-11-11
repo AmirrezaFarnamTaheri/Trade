@@ -62,8 +62,8 @@ class DiskLow(RuntimeError):
     """The archive volume is nearly full. Collection stops; it is never retried."""
 
 
-def s(x) -> str | None:
-    return None if x is None else str(x)
+def _decimal_text(value) -> str | None:
+    return None if value is None else str(value)
 
 
 class MarketDB:
@@ -119,7 +119,8 @@ class MarketDB:
 
     def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None):
         self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
-                       s(b.bid), s(b.ask), s(b.bid_qty), s(b.ask_qty), depth_ref, ",".join(sorted(b.flags)), depth))
+                       _decimal_text(b.bid), _decimal_text(b.ask), _decimal_text(b.bid_qty), _decimal_text(b.ask_qty),
+                       depth_ref, ",".join(sorted(b.flags)), depth))
 
     def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
         """Retain each fetch; latest projection may advance but cannot erase older knowledge."""

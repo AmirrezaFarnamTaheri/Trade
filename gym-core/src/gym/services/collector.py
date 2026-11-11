@@ -170,7 +170,7 @@ class Collector:
         self.connected_shards: set[int] = set()
         self.units = UnitWatch()
         from .loop_lag import LoopLag
-        self.loop_lag = LoopLag()  # E-4: how late the event loop wakes, i.e. time spent in synchronous work
+        self.loop_lag = LoopLag()  # How late the event loop wakes, i.e. time spent in synchronous work
         self.status = {"connected": False, "shards": 0, "last_frame": None, "reconnects": 0, "fatal": None,
                        "errors": deque(maxlen=20), "shard_stats": {}, "archived": None, "integrity": None}
         self.data_quality: dict[str, dict] = {}  # refreshed every 10 minutes from the last day of stored quotes

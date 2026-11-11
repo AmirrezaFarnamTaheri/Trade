@@ -1,4 +1,4 @@
-"""Advisory typed-decision client (finding L-8): an entailment read from a local model, never an authority.
+"""Advisory typed-decision client: an entailment read from a local model, never an authority.
 
 A typed-decision model answers "does this passage support this claim?" with a probability and generates no text.
 This client talks only to a loopback server named in `<data root>/typed-decision.json`:

@@ -21,6 +21,15 @@ and the [implementation plan](implementation-plan.md).
 - [Paper campaign definitions](paper-qualification.md)
 - [Verification](../tests/README.md)
 
+## Research methods and models
+
+- [Measurement methods and evidence limits](measurement-methods.md)
+- [Causal market models](market-models.md)
+- [Strategy research contracts](strategy-research.md)
+- [Historical execution choice](execution-choice.md)
+- [Portfolio risk contracts](portfolio-risk.md)
+- [Paper execution gates](execution-gates.md)
+
 ## Operations and authority
 
 - [Controlled integration](controlled-integration-runbook.md)

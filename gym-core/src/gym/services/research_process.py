@@ -15,7 +15,7 @@ from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
 MAX_DEADLINE_SECONDS = 600
-# P-2: 500 markets and 200,000 observations replayed in 79.8 s (system-status); about 0.4 ms per observation.
+# 500 markets and 200,000 observations replayed in 79.8 s (system-status); about 0.4 ms per observation.
 SECONDS_PER_OBSERVATION = 0.0004
 DEADLINE_HEADROOM = 2.5
 DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing

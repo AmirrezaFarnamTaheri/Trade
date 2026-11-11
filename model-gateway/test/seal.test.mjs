@@ -1,4 +1,4 @@
-// S-1: off Windows, credentials are sealed under a user-held passphrase, or refused; never silently plaintext.
+// Off Windows, credentials are sealed under a user-held passphrase, or refused; never silently plaintext.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { passphraseSeal, passphraseUnseal } from '../state.mjs';

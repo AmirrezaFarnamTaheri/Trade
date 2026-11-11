@@ -1,4 +1,4 @@
-"""Phase C item 27: paired long/short margin paper replay, not venue orders."""
+"""Paired long/short margin paper replay, not venue orders."""
 from datetime import timedelta
 from decimal import Decimal, localcontext
 

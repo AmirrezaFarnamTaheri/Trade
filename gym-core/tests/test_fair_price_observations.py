@@ -1,4 +1,4 @@
-"""Phase E item 45: non-executable public fair-price observations."""
+"""Non-executable public fair-price observations."""
 from datetime import timedelta
 
 import pytest

@@ -4,7 +4,7 @@
 //! available" amount as an input. This is the one rule that produces it: the newest observation for the account and
 //! asset by venue sequence, across every journal, refused when it is older than the freshness bound, and refused
 //! (and the arm record disarmed) when two journals report different amounts for the same sequence. Ages use
-//! the receiving host's clock only as an annotation of staleness; ordering is by venue sequence (finding E-6).
+//! the receiving host's clock only as an annotation of staleness; ordering is by venue sequence.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Journal {

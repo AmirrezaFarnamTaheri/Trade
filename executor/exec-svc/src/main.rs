@@ -117,7 +117,7 @@ mod windows_host {
                 "untrusted stop SID configuration",
             ));
         }
-        // S-9: only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
+        // Only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
         exec_svc::windows_identity::verify_trusted_config_file(&file)?;
         let text = std::fs::read_to_string(file)?;
         let sid = text.trim();
@@ -150,7 +150,7 @@ mod windows_host {
                 "untrusted operator user SID configuration",
             ));
         }
-        // S-9: only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
+        // Only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
         exec_svc::windows_identity::verify_trusted_config_file(&file)?;
         let value = std::fs::read_to_string(file)?;
         let sid = value.trim();
@@ -286,7 +286,7 @@ mod windows_host {
         });
         // Journal open replays and hash-checks the whole ledger, which grows with history. Wait for it as long
         // as it keeps working (up to two minutes), telling the service manager we are still starting, instead
-        // of failing a long but healthy ledger after a fixed five seconds (finding A-5, ADR 0004).
+        // of failing a long but healthy ledger after a fixed five seconds (ADR 0004).
         let started = std::time::Instant::now();
         let mut checkpoint = 0;
         let ready = loop {

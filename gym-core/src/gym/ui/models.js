@@ -54,7 +54,7 @@ window.gymModels = (() => {
     $('models-refresh').onclick = () => act(reload);
     $('models-enabled').onchange = () => act(async () => { await request('enabled', $('models-enabled').checked); await reload(); });
     $('models-add').onsubmit = event => { event.preventDefault(); act(async () => {
-      // S-2: consumer-subscription OAuth is opt-in, behind the provider-terms warning.
+      // Consumer-subscription OAuth is opt-in, behind the provider-terms warning.
       if ($('models-auth').value === 'oauth' && !await confirmAction(w('oauthWarn'), w('oauthAccept'), event.submitter)) return;
       await request('connection', { id: $('models-id').value, provider: $('models-provider').value,
         auth: $('models-auth').value === 'oauth' ? { type: 'oauth' } : { type: 'api_key', env: [], stored: true } });

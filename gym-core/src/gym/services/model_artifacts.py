@@ -1,4 +1,4 @@
-"""Content-addressed model artifact registry (finding M-2 step 1). No model exists yet; this is the foundation.
+"""Content-addressed model artifacts bound to recorded trials and schemas.
 
 - Every fit is a trial: `register` requires a trial-ledger attempt recorded with source "model-fit" for the same
   question, so the fit raises that question's trial count and the deflated-Sharpe N.
@@ -19,7 +19,7 @@ from pathlib import Path
 from ..domain.model import iso, parse_ts
 from ..domain.strategy import digest
 
-MAX_ARTIFACT_BYTES = 512 * 1024  # M-2: a 300 KB tree dump is the target; this is the hard ceiling
+MAX_ARTIFACT_BYTES = 512 * 1024  # A 300 KB tree dump is the target; this is the hard ceiling
 KINDS = frozenset(("logistic", "tree-dump"))
 
 

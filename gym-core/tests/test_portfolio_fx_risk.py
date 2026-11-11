@@ -1,4 +1,4 @@
-"""Phase D item 32: TMN assets must account for the causal USDT/TMN risk factor."""
+"""TMN assets must account for the causal USDT/TMN risk factor."""
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
