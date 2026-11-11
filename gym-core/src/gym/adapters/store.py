@@ -13,6 +13,7 @@ from pathlib import Path
 import zstandard as zstd
 
 from ..domain.model import UTC, BookTop, TradeTick, iso
+from .sqlite_migrations import enable_wal, execute_schema
 
 # Forward-only migrations; index = schema version - 1.
 MIGRATIONS = [
@@ -61,22 +62,37 @@ class DiskLow(RuntimeError):
     """The archive volume is nearly full. Collection stops; it is never retried."""
 
 
-def s(x) -> str | None:
-    return None if x is None else str(x)
+def _decimal_text(value) -> str | None:
+    return None if value is None else str(value)
 
 
 class MarketDB:
     def __init__(self, path: Path, *, readonly=False):
         if readonly:
             self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None)
-            return
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self.c = sqlite3.connect(path, isolation_level=None)
-        self.c.execute("pragma journal_mode=WAL")
-        self.c.execute("pragma synchronous=NORMAL")
-        v = self.c.execute("pragma user_version").fetchone()[0]
-        for i, sql in enumerate(MIGRATIONS[v:], v + 1):
-            self.c.executescript(f"begin; {sql}; pragma user_version={i}; commit;")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.c = sqlite3.connect(path, isolation_level=None)
+        try:
+            v = self.c.execute("pragma user_version").fetchone()[0]
+            if not readonly and v <= len(MIGRATIONS):
+                enable_wal(self.c)
+                self.c.execute("pragma synchronous=NORMAL")
+                self.c.execute("BEGIN IMMEDIATE")
+                # Reject future layouts before journal mutation; recheck under the migration lock.
+                v = self.c.execute("pragma user_version").fetchone()[0]
+            if v > len(MIGRATIONS) or (readonly and v != len(MIGRATIONS)):
+                raise ValueError(f"unsupported market schema {v}; expected {len(MIGRATIONS)}. "
+                                 "Older stores require a writable open to migrate before read-only use.")
+            if not readonly:
+                for i, sql in enumerate(MIGRATIONS[v:], v + 1):
+                    execute_schema(self.c, sql)
+                    self.c.execute(f"pragma user_version={i}")
+                self.c.commit()
+        except BaseException:
+            self.c.rollback()
+            self.c.close()
+            raise
 
     def upsert_instrument(self, inst, names: dict, spec: dict, source: str, now: datetime):
         iid = f"{inst.venue}:{inst.symbol}"
@@ -86,8 +102,16 @@ class MarketDB:
         last = self.c.execute("select spec from instrument_specs where instrument_id=? and valid_to is null", (iid,)).fetchone()
         if last and last[0] == body:
             return
-        self.c.execute("update instrument_specs set valid_to=? where instrument_id=? and valid_to is null", (iso(now), iid))
-        self.c.execute("insert into instrument_specs values(?,?,?,?,?)", (iid, iso(now), None, body, source))
+        # Close and successor in one savepoint: a crash between them must not leave the instrument with no open spec.
+        self.c.execute("SAVEPOINT instrument_spec")
+        try:
+            self.c.execute("update instrument_specs set valid_to=? where instrument_id=? and valid_to is null", (iso(now), iid))
+            self.c.execute("insert into instrument_specs values(?,?,?,?,?)", (iid, iso(now), None, body, source))
+            self.c.execute("RELEASE instrument_spec")
+        except BaseException:
+            self.c.execute("ROLLBACK TO instrument_spec")
+            self.c.execute("RELEASE instrument_spec")
+            raise
 
     def add_trade(self, t: TradeTick, seg_ref: str):
         self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"wallex:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),
@@ -95,7 +119,8 @@ class MarketDB:
 
     def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None):
         self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
-                       s(b.bid), s(b.ask), s(b.bid_qty), s(b.ask_qty), depth_ref, ",".join(sorted(b.flags)), depth))
+                       _decimal_text(b.bid), _decimal_text(b.ask), _decimal_text(b.bid_qty), _decimal_text(b.ask_qty),
+                       depth_ref, ",".join(sorted(b.flags)), depth))
 
     def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
         """Retain each fetch; latest projection may advance but cannot erase older knowledge."""
@@ -156,7 +181,11 @@ class MarketDB:
 
 
 class SegmentWriter:
-    """Raw frames, append-only, one Zstd file per UTC hour; manifest row on rotate/close."""
+    """Raw frames, append-only, one Zstd file per UTC hour.
+
+    The manifest row is written when a file opens (sha256 NULL) and completed on rotate/close, so a hard kill
+    leaves a visible unclosed row instead of an unlisted file.
+    """
 
     def __init__(self, root: Path, db: MarketDB, flush_s: float = 2.0):
         self.root, self.db, self.flush_s = root, db, flush_s
@@ -181,6 +210,8 @@ class SegmentWriter:
                 n += 1
         self.path, self.hour, self.seq_from = p, hour, self.seq + 1
         self.w = zstd.ZstdCompressor(level=3).stream_writer(self.f, closefd=False)
+        self.db.c.execute("insert into segments values(?,?,?,?,?,?,?)",
+                          (p.relative_to(self.root).as_posix(), str(p), self.seq_from, None, None, None, None))
 
     def write(self, src: str, raw: str, now: datetime) -> str:
         hour = now.astimezone(UTC).strftime("%Y%m%d%H")
@@ -252,9 +283,23 @@ def compact_quotes(db: MarketDB, before: datetime, bucket: str, now: datetime) -
 
 
 def verify_segments(db: MarketDB, roots: list[Path], since: str = "") -> dict:
-    """Re-hash closed raw segments against the manifest; `roots` are the raw folder and any archive folders."""
-    report = {"checked": 0, "missing": [], "mismatched": []}
-    for seg_id, sha, size in db.c.execute("SELECT seg_id, sha256, bytes FROM segments WHERE seg_id >= ? ORDER BY seg_id", (since,)).fetchall():
+    """Re-hash closed raw segments against the manifest; `roots` are the raw folder and any archive folders.
+
+    `unclosed` lists rows opened but never completed (the live file, or a crash tail with no hash yet);
+    `unregistered` lists segment files on disk that have no manifest row at all.
+    """
+    import re
+    report = {"checked": 0, "missing": [], "mismatched": [], "unclosed": [], "unregistered": []}
+    rows = db.c.execute("SELECT seg_id, sha256, bytes FROM segments WHERE seg_id >= ? ORDER BY seg_id", (since,)).fetchall()
+    known = {row[0] for row in rows}
+    for root in roots:
+        days = (d for d in root.iterdir() if d.is_dir() and re.fullmatch(r"[0-9]{8}", d.name) and d.name >= since[:8])             if root.is_dir() else ()
+        report["unregistered"] += sorted(f"{d.name}/{f.name}" for d in days for f in d.glob("*.jsonl.zst")
+                                         if f"{d.name}/{f.name}" not in known)
+    for seg_id, sha, size in rows:
+        if sha is None:
+            report["unclosed"].append(seg_id)
+            continue
         path = next((root / seg_id for root in roots if (root / seg_id).is_file()), None)
         if path is None:
             report["missing"].append(seg_id)
@@ -283,3 +328,59 @@ def read_segment(path: Path) -> list[dict]:
     with open(path, "rb") as f:
         text = io.TextIOWrapper(zstd.ZstdDecompressor().stream_reader(f, read_across_frames=True), "utf-8")
         return [json.loads(line) for line in text if line.strip()]
+
+
+def readable_prefix(path: Path) -> tuple[int, int | None, int | None, bool]:
+    """(records, first seq, last seq, complete) for the records a crash left readable, stopping at the first bad one.
+
+    The collector writes one zstd frame per file and ends it only on close, so a crash tail is a frame that
+    never reaches its end; `complete` is the decompressor's end-of-frame flag plus a terminated last record.
+    """
+    count, first, last = 0, None, None
+    inflate = zstd.ZstdDecompressor().decompressobj()
+    buffer, broken = b"", False
+    with open(path, "rb") as f:
+        while (chunk := f.read(1 << 20)) and not broken:
+            try:
+                buffer += inflate.decompress(chunk)
+            except zstd.ZstdError:
+                broken = True
+            *lines, buffer = buffer.split(b"\n")
+            for line in lines:
+                if not line.strip():
+                    continue
+                try:
+                    seq = json.loads(line)["seq"]
+                except (ValueError, KeyError):
+                    broken = True
+                    break
+                first = seq if first is None else first
+                last, count = seq, count + 1
+    return count, first, last, inflate.eof and not broken and not buffer.strip()
+
+
+def recover_segments(db: MarketDB, root: Path, now: datetime, *, apply: bool = False) -> list[dict]:
+    """Register segment files that have no manifest row (crash tails); the files themselves are never changed.
+
+    Each gets its real hash and the sequence range of its readable records, plus a SEGMENT_RECOVERED quality
+    event saying how much was readable. Run only while no collector is writing to `root`.
+    """
+    report = verify_segments(db, [root])
+    out = []
+    for seg_id in report["unregistered"] + report["unclosed"]:
+        path = root / seg_id
+        # A file touched in the last ten minutes may belong to a running collector: never register it.
+        if not path.is_file() or now.timestamp() - path.stat().st_mtime < 600:
+            continue
+        count, first, last, complete = readable_prefix(path)
+        with open(path, "rb") as f:
+            sha = hashlib.file_digest(f, "sha256").hexdigest()
+        row = {"seg_id": seg_id, "records": count, "seq_from": first, "seq_to": last, "complete": complete,
+               "bytes": path.stat().st_size, "sha256": sha}
+        if apply:
+            db.add_segment(seg_id, path, first or 0, last or 0, sha, row["bytes"], now)
+            db.add_quality(now, None, "SEGMENT_RECOVERED",
+                           f"{seg_id}: {count} readable records, seq {first}..{last}, "
+                           f"{'complete' if complete else 'truncated tail kept as is'}")
+        out.append(row)
+    return out

@@ -3,7 +3,7 @@ const {readFileSync} = require('node:fs');
 const {runInNewContext} = require('node:vm');
 const {test} = require('node:test');
 const window = {};
-runInNewContext(readFileSync('src/gym/ui/replay-chart.js', 'utf8'), {window});
+runInNewContext(readFileSync('src/gym/ui/replay-chart.js', 'utf8'), {window, T: require('./vocabulary.cjs').T});
 const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const row = (index, minute, start, end) => ({index, known_at_decision: {t: `2026-10-29T09:${minute}:00Z`, close: '70000', action: '<unsafe>', bar_known: {start, end}}});
 

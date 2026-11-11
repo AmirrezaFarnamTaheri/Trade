@@ -190,6 +190,10 @@ MARKET_PRICE_GUARD = Decimal("0.02")
 
 def _walk(levels, qty: Decimal) -> Decimal:
     """Quote notional of taking `qty` best-first from observed levels; qty never exceeds their total."""
+    if _KERNEL is not None:
+        notional = _exact(_KERNEL.walk, [(_plain(p), _plain(z)) for p, z in levels], _plain(qty))
+        if notional is not None:
+            return Decimal(notional)
     notional, left = Decimal(0), qty
     for price, size in levels:
         take = min(size, left)
@@ -212,8 +216,36 @@ def _budget_qty(levels, budget: Decimal) -> Decimal:
     return qty
 
 
+# ADR 0005 stage 3: the package root injects the exec-core Rust kernel (exec_kernel) when GYM_RUST_KERNEL=1; the
+# domain itself reads no environment. Off by default.
+_KERNEL = None
+
+
+def use_kernel(module) -> None:
+    """Route exact money rules through the optional Rust kernel (None restores Python)."""
+    global _KERNEL
+    _KERNEL = module
+
+
+def _exact(call, *args):
+    """The kernel refuses to round; past its 38-digit exact range (unknown venue precision) use the Python path."""
+    try:
+        return call(*args)
+    except ValueError:
+        return None
+
+
+def _plain(value: Decimal | None) -> str | None:
+    return None if value is None else format(value, "f")
+
+
 def sellable_quantity(quantity: Decimal, bid: Decimal, spec: Spec) -> Decimal:
     """Executable lot under known venue precision/minimums; never discards the actual balance."""
+    if _KERNEL is not None:
+        lot = _exact(_KERNEL.sellable, _plain(quantity), spec.qty_decimals, _plain(spec.min_qty),
+                     _plain(spec.min_notional), _plain(bid))
+        if lot is not None:
+            return Decimal(lot)
     quantity = _floor(quantity,spec.qty_decimals)
     return quantity if quantity>0 and (spec.min_qty is None or quantity>=spec.min_qty) and (spec.min_notional is None or quantity*bid>=spec.min_notional) else Decimal(0)
 
@@ -224,11 +256,7 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
                  *, execution_limits=None, max_qty: Decimal | None = None, limit_price: Decimal | None = None) -> dict:
     """Fill at the first qualified quote at or after decision + latency, or record a nonfill with its reason."""
     out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL"}
-    if execution_limits is not None and (
-            type(execution_limits) is not dict or set(execution_limits) != {"max_spread_bps", "participation_bps"}
-            or type(execution_limits["max_spread_bps"]) is not int or not 1 <= execution_limits["max_spread_bps"] <= 1000
-            or type(execution_limits["participation_bps"]) is not int or not 1 <= execution_limits["participation_bps"] <= 10000):
-        raise ValueError("invalid paper execution limits")
+    _check_execution_limits(execution_limits)
     earliest, deadline = decision_time + cost.latency, decision_time + cost.max_wait
     top = next((x for x in tops[start:] if x.ts_avail >= earliest and qualified(x)), None)
     if top is None or top.ts_avail > deadline:
@@ -254,75 +282,20 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         levels = top.depth[1] if side == "BUY" else top.depth[0]
     if execution_limits is not None and side == "BUY" and top.spread_bps > execution_limits["max_spread_bps"]:
         return {**out,"fill_time":iso(t),"reason":"ENTRY_SPREAD_LIMIT"}
-    if side == "BUY":
-        with localcontext() as ctx:
-            ctx.rounding = ROUND_DOWN  # 28-digit division must never round the quantity up past the cash
-            budget = book.get(inst.quote) * fraction
-            qty = _floor(_budget_qty(levels, budget) if levels else budget / price, spec.qty_decimals)
-        if v.quota_remaining is not None and qty > v.quota_remaining:
-            qty = _floor(v.quota_remaining, spec.qty_decimals)  # resize the excess, never exceed the cap
-            out["resized"] = "VenueQuota"
-    else:
-        qty = _floor(book.get(inst.base) * fraction, spec.qty_decimals)
-    requested = qty
-    if levels is not None:
-        depth_total = sum((size for _, size in levels), Decimal(0))
-        if qty > depth_total:
-            qty, out["resized"] = _floor(depth_total, spec.qty_decimals), "ObservedDepth"
-    if cost.max_participation is not None:
-        shown = depth_total if levels is not None else top.ask_qty if side == "BUY" else top.bid_qty
-        if shown is None or not shown.is_finite() or shown <= 0:
-            return {**out, "fill_time": iso(t), "reason": "DISPLAYED_CAPACITY_UNAVAILABLE"}
-        cap = _floor(shown * cost.max_participation, spec.qty_decimals)
-        if qty > cap:
-            qty, out["resized"] = cap, "DisplayedCapacity"
-    if max_qty is not None and qty > max_qty:
-        qty = _floor(max_qty, spec.qty_decimals)  # the unfilled rest of a resized order
-    if qty < requested and out.get("resized") in ("ObservedDepth", "DisplayedCapacity"):
-        out["requested_qty"] = str(requested if max_qty is None else min(requested, max_qty))
-    if levels and qty > 0:
-        taken, worst = Decimal(0), levels[0][0]
-        for level_price, size in levels:
-            if taken >= qty:
-                break
-            taken, worst = taken + size, level_price
-        # Wallex cancels a market order that would move the price 2% (developers.wallex.ir spot-types, 2026-11-08);
-        # the best observed level stands in for the venue's last-trade reference.
-        if abs(worst / levels[0][0] - 1) > MARKET_PRICE_GUARD:
-            return {**out, "fill_time": iso(t), "reason": "VENUE_PRICE_GUARD"}
+    qty = _order_size(book, inst, side, fraction, price, levels, top, cost, spec, v.quota_remaining, max_qty, out)
+    if qty is None:
+        return {**out, "fill_time": iso(t), "reason": "DISPLAYED_CAPACITY_UNAVAILABLE"}
+    if levels and qty > 0 and _trips_price_guard(levels, qty):
+        return {**out, "fill_time": iso(t), "reason": "VENUE_PRICE_GUARD"}
     notional = _walk(levels, qty) if levels and qty > 0 else qty * price
     if levels and qty > 0:
         price = notional / qty  # volume-weighted across the levels taken
     if cost.impact_models is not None or cost.hourly_costs is not None or cost.postfill_costs is not None:
-        # Public bid/ask already carries the observed half-spread. Add only the
-        # model's excess; for buys, recompute size to conserve cash including uplift.
-        def estimate(quantity):
-            return modeled_execution_cost(
-                cost, inst.symbol, t, quantity, top.bid, top.ask,
-                maker=limit_price is not None)
-
-        modeled = estimate(qty)
-        if modeled is not None:
-            fee_rate = modeled["fee_rate"]
-            if modeled["uplift_bps"] > 200:
-                return {**out, "fill_time": iso(t), "reason": "MODELED_IMPACT_PRICE_GUARD"}
-            if limit_price is None and qty > 0 and modeled["uplift_bps"] > 0:
-                uplift = mid * modeled["uplift_bps"] / 10000
-                if side == "BUY":
-                    budget = book.get(inst.quote) * fraction
-                    gross = notional + qty * uplift
-                    if gross > budget:
-                        qty = _floor(qty * budget / gross, spec.qty_decimals)
-                        out["resized"] = "ModeledImpactBudget"
-                        if qty > 0:
-                            notional = _walk(levels, qty) if levels else qty * best
-                            price = notional / qty
-                            modeled = estimate(qty)
-                            uplift = mid * modeled["uplift_bps"] / 10000
-                if qty > 0:
-                    price = price + uplift if side == "BUY" else price - uplift
-                    notional = qty * price
-            out["pricing"] = modeled["pricing"]
+        modeled = _apply_modeled_cost(cost, inst, side, out, t, top, mid, best, levels, book, fraction, spec,
+                                      limit_price, qty, price, notional, fee_rate)
+        if modeled is None:
+            return {**out, "fill_time": iso(t), "reason": "MODELED_IMPACT_PRICE_GUARD"}
+        qty, price, notional, fee_rate = modeled
     if qty <= 0 or price <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
         return {**out, "fill_time": iso(t), "reason": "BELOW_MIN_NOTIONAL"}
     if side == "BUY" and notional > book.get(inst.quote):
@@ -337,8 +310,109 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
             return {**out,"fill_time":iso(t),"reason":"DISPLAYED_CAPACITY_LIMIT"}
         if side == "BUY" and sellable_quantity(book.get(inst.base)+qty*(1-cost.fee_rate),top.bid,spec) == 0:
             return {**out,"fill_time":iso(t),"reason":"NET_HOLDING_BELOW_EXIT_MINIMUM"}
+    return _settle(book, inst, side, out, t, ref, qty, price, notional, fee_rate,
+                   mid=mid, best=best, decision_quote=decision_quote, rules=rules, quota_used=quota_used, day=day)
+
+
+def _trips_price_guard(levels, qty: Decimal) -> bool:
+    """Wallex cancels a market order that would move the price 2% (developers.wallex.ir spot-types, 2026-11-08);
+    the best observed level stands in for the venue's last-trade reference."""
+    if _KERNEL is not None:
+        trips = _exact(_KERNEL.trips_price_guard, [(_plain(p), _plain(z)) for p, z in levels], _plain(qty))
+        if trips is not None:
+            return trips
+    taken, worst = Decimal(0), levels[0][0]
+    for level_price, size in levels:
+        if taken >= qty:
+            break
+        taken, worst = taken + size, level_price
+    return abs(worst / levels[0][0] - 1) > MARKET_PRICE_GUARD
+
+
+def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quota_remaining, max_qty, out):
+    """Quantity after cash or holdings, venue quota, observed depth, displayed capacity and any remainder cap.
+
+    Records the binding resize in `out`; returns None when displayed capacity is required but unknown.
+    """
     if side == "BUY":
-        fee = qty * fee_rate
+        with localcontext() as ctx:
+            ctx.rounding = ROUND_DOWN  # 28-digit division must never round the quantity up past the cash
+            budget = book.get(inst.quote) * fraction
+            qty = _floor(_budget_qty(levels, budget) if levels else budget / price, spec.qty_decimals)
+        if quota_remaining is not None and qty > quota_remaining:
+            qty = _floor(quota_remaining, spec.qty_decimals)  # resize the excess, never exceed the cap
+            out["resized"] = "VenueQuota"
+    else:
+        qty = _floor(book.get(inst.base) * fraction, spec.qty_decimals)
+    requested = qty
+    if levels is not None:
+        depth_total = sum((size for _, size in levels), Decimal(0))
+        if qty > depth_total:
+            qty, out["resized"] = _floor(depth_total, spec.qty_decimals), "ObservedDepth"
+    if cost.max_participation is not None:
+        shown = depth_total if levels is not None else top.ask_qty if side == "BUY" else top.bid_qty
+        if shown is None or not shown.is_finite() or shown <= 0:
+            return None
+        cap = _floor(shown * cost.max_participation, spec.qty_decimals)
+        if qty > cap:
+            qty, out["resized"] = cap, "DisplayedCapacity"
+    if max_qty is not None and qty > max_qty:
+        qty = _floor(max_qty, spec.qty_decimals)  # the unfilled rest of a resized order
+    if qty < requested and out.get("resized") in ("ObservedDepth", "DisplayedCapacity"):
+        out["requested_qty"] = str(requested if max_qty is None else min(requested, max_qty))
+    return qty
+
+
+def _apply_modeled_cost(cost, inst, side, out, t, top, mid, best, levels, book, fraction, spec, limit_price,
+                        qty, price, notional, fee_rate):
+    """Add a cost model's excess over the observed half-spread; returns (qty, price, notional, fee_rate) or None
+    when the modeled impact trips the price guard. For buys the size is recomputed to conserve cash."""
+    def estimate(quantity):
+        return modeled_execution_cost(cost, inst.symbol, t, quantity, top.bid, top.ask, maker=limit_price is not None)
+
+    modeled = estimate(qty)
+    if modeled is None:
+        return qty, price, notional, fee_rate
+    fee_rate = modeled["fee_rate"]
+    if modeled["uplift_bps"] > 200:
+        return None
+    if limit_price is None and qty > 0 and modeled["uplift_bps"] > 0:
+        uplift = mid * modeled["uplift_bps"] / 10000
+        if side == "BUY":
+            budget = book.get(inst.quote) * fraction
+            gross = notional + qty * uplift
+            if gross > budget:
+                qty = _floor(qty * budget / gross, spec.qty_decimals)
+                out["resized"] = "ModeledImpactBudget"
+                if qty > 0:
+                    notional = _walk(levels, qty) if levels else qty * best
+                    price = notional / qty
+                    modeled = estimate(qty)
+                    uplift = mid * modeled["uplift_bps"] / 10000
+        if qty > 0:
+            price = price + uplift if side == "BUY" else price - uplift
+            notional = qty * price
+    out["pricing"] = modeled["pricing"]
+    return qty, price, notional, fee_rate
+
+
+def _check_execution_limits(execution_limits) -> None:
+    if execution_limits is not None and (
+            type(execution_limits) is not dict or set(execution_limits) != {"max_spread_bps", "participation_bps"}
+            or type(execution_limits["max_spread_bps"]) is not int or not 1 <= execution_limits["max_spread_bps"] <= 1000
+            or type(execution_limits["participation_bps"]) is not int or not 1 <= execution_limits["participation_bps"] <= 10000):
+        raise ValueError("invalid paper execution limits")
+
+
+def _settle(book: CashBook, inst: InstrumentId, side: str, out: dict, t: datetime, ref: str, qty: Decimal,
+            price: Decimal, notional: Decimal, fee_rate: Decimal, *, mid: Decimal, best: Decimal,
+            decision_quote: Decimal, rules: list[Rule], quota_used: dict, day) -> dict:
+    """Post one fill to the cash book (fee in the received asset) and describe its costs."""
+    native = None if _KERNEL is None else _exact(_KERNEL.settle, side == "BUY", _plain(qty),
+                                                _plain(notional), _plain(fee_rate))
+    # Posting order and the active Decimal context are part of historical run identities.
+    fee = +Decimal(native[0]) if native is not None else (qty if side == "BUY" else notional) * fee_rate
+    if side == "BUY":
         if (book.get(inst.base) + qty) - fee <= book.get(inst.base):
             return {**out, "fill_time": iso(t), "reason": "NET_BASE_ROUNDS_TO_ZERO"}
         book.post(t, inst.quote, -notional, "buy", ref)
@@ -349,7 +423,6 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         if inst.base in {r.params.get("asset") for r in rules if r.family == "VenueQuota"}:
             quota_used[day] = quota_used.get(day, Decimal(0)) + qty
     else:
-        fee = notional * fee_rate
         book.post(t, inst.base, -qty, "sell", ref)
         book.post(t, inst.quote, notional, "sell", ref)
         book.post(t, inst.quote, -fee, "fee", ref)

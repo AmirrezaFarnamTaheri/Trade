@@ -102,3 +102,77 @@ def test_shell_stays_routing_only_and_view_assets_load_in_order():
     assert len(shell.splitlines()) < 150
     assert "function route(" in shell and "async function showView(" in shell
     assert "function renderOverview(" not in shell
+
+
+def test_persian_copy_outside_the_vocabulary_does_not_grow():
+    """Copy kept in workspace-config.js gets one vocabulary review; inline pairs elsewhere are missed.
+
+    The counts are the lines holding Persian on 2026-11-09. Moving copy into the vocabulary lowers them (update
+    the table down); adding inline Persian anywhere else fails here.
+    """
+    import re
+    # U-7: all Persian copy lives in workspace-config.js; index.html keeps its initial toggle label and <noscript>.
+    allowed = {"index.html": 2}
+    persian = re.compile("[\u0600-\u06ff]")
+    for path in [*sorted(UI.with_name("app.js").parent.glob("*.js")), UI.with_name("index.html")]:
+        if path.name == "workspace-config.js":
+            continue
+        lines = sum(1 for line in path.read_text("utf-8").splitlines() if persian.search(line))
+        assert lines <= allowed.get(path.name, 0), f"{path.name}: {lines} lines of inline Persian; move copy to workspace-config.js"
+
+
+def test_copy_review_extract_covers_the_ui(tmp_path):
+    """scripts/ui_copy_extract.py feeds the vocabulary review; lines it cannot pair must not grow (21 on 2026-11-10)."""
+    import csv
+    import importlib.util
+    import io
+    from contextlib import redirect_stdout
+    spec = importlib.util.spec_from_file_location("extract", Path(__file__).resolve().parents[1] / "scripts" / "ui_copy_extract.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    out = io.StringIO()
+    with redirect_stdout(out):
+        module.main(["--out", str(tmp_path / "copy.csv")])
+    rows = list(csv.reader((tmp_path / "copy.csv").open(encoding="utf-8-sig")))
+    assert rows[0][:5] == ["file", "line", "key", "english", "persian"] and len(rows) > 1000
+    unpaired = int(out.getvalue().split(";")[1].split()[0])
+    assert unpaired <= 21, out.getvalue()
+
+
+def test_oauth_connections_are_opt_in_behind_the_terms_warning():
+    """S-2: adding a browser sign-in connection asks for explicit acceptance; API keys need no extra step."""
+    source = (Path(__file__).resolve().parents[1] / "src/gym/ui/models.js").read_text(encoding="utf-8")
+    gate = "if ($('models-auth').value === 'oauth' && !await confirmAction(w('oauthWarn'), w('oauthAccept')"
+    assert gate in source
+    assert source.index(gate) < source.index("await request('connection'")
+    vocabulary = (Path(__file__).resolve().parents[1] / "src/gym/ui/workspace-config.js").read_text(encoding="utf-8")
+    assert "modelsOauthWarn:" in vocabulary and "Claude Code and Claude.ai" in vocabulary
+
+
+def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
+    """S-13: geometry goes through the DOM style API; markup never carries a style attribute."""
+    import re
+
+    from gym.api import SECURITY_HEADERS
+    policy = SECURITY_HEADERS["Content-Security-Policy"]
+    assert "'unsafe-inline'" not in policy and "style-src 'self';" in policy
+    ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
+    for path in [*ui.glob("*.js"), ui / "index.html"]:
+        assert not re.search(r"style\s*=\s*[\"'`]", path.read_text(encoding="utf-8")), path.name
+
+
+def test_timestamps_carry_the_iso_instant_and_follow_the_zone_preference():
+    """U-7: every rendered timestamp has an ISO tooltip; the zone is a stored preference (Tehran or UTC)."""
+    ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
+    utils = (ui / "workspace-utils.js").read_text(encoding="utf-8")
+    assert 'let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);' in utils
+    assert '<time datetime="${exact}" title="${exact}">' in utils
+    assert "function when(value, dateOnly = false, timeZone = zone)" in utils
+    for path in ui.glob("*.js"):
+        text = path.read_text(encoding="utf-8")
+        if path.name == "workspace-utils.js":  # stampHtml itself formats through esc(when(...)) once
+            text = text.replace("const label = esc(when(value, dateOnly, timeZone));", "")
+        text = text.replace("stamp = (v, d) => esc(when(v, d))", "")  # injected-helper fallback in component mounts
+        assert "esc(when(" not in text, path.name
+    assert 'id="zone-toggle"' in (ui / "index.html").read_text(encoding="utf-8")
+    assert 'zoneToggleLabel: ["Show times in another zone"' in (ui / "workspace-config.js").read_text(encoding="utf-8")

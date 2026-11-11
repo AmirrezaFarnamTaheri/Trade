@@ -10,11 +10,35 @@ from gym.domain.performance import (
     expected_max_sharpe,
     performance,
     probabilistic_sharpe,
+    sampled_drawdown,
     selection_check,
     trade_ledger,
 )
 from gym.services.reports import economic_report
 from tests.support import START
+
+
+@pytest.mark.parametrize("result", [{}, {"start_cash": "1", "curve": []}])
+def test_unavailable_drawdown_retains_the_complete_provenance_schema(result):
+    assert sampled_drawdown({"result": result}) == {
+        "status": "UNAVAILABLE", "basis": "RECORDED_MARK_TO_BID"}
+
+
+def test_drawdown_rejects_zero_starting_equity_with_a_positive_recorded_mark():
+    out = {"inputs": {"from": iso(START), "to": iso(START + timedelta(minutes=1))},
+           "result": {"start_cash": "0", "curve": [(iso(START + timedelta(minutes=1)), "1")]}}
+    with pytest.raises(ValueError, match="invalid starting equity"):
+        sampled_drawdown(out)
+
+
+def test_drawdown_accepts_one_unit_of_starting_equity():
+    out = {"inputs": {"from": iso(START), "to": iso(START + timedelta(minutes=1))},
+           "result": {"start_cash": "1", "curve": [(iso(START + timedelta(minutes=1)), "0.75")]}}
+    assert sampled_drawdown(out) == {
+        "status": "AVAILABLE", "basis": "RECORDED_MARK_TO_BID", "samples": 1,
+        "maximum_percent": "25.00000000", "peak_at": iso(START),
+        "trough_at": iso(START + timedelta(minutes=1)), "peak_to_trough_seconds": 60,
+        "continuous_path_verified": False}
 
 
 def fill(side, qty, price, fee, minutes, ref=None):
@@ -89,6 +113,28 @@ def test_equity_path_statistics_and_annualization_guard():
     assert 0 <= perf["returns"]["probabilistic_sharpe"] <= 1
 
 
+@pytest.mark.parametrize("receipt_age_minutes", [0, 1, 10])
+def test_final_equity_replaces_cutoff_sample_without_a_backward_return(receipt_age_minutes):
+    from gym.services.reports import run_valuation
+
+    cutoff = START + timedelta(minutes=30)
+    final = {"mark_time": iso(cutoff - timedelta(minutes=receipt_age_minutes)), "equity": "1010"}
+    out = {"inputs": {"from": iso(START), "to": iso(cutoff)},
+           "result": {"quote": "USDT", "base": "BTC", "start_cash": "1000", "orders": [],
+                      "curve": [(iso(START + timedelta(minutes=10 * i)), value)
+                                for i, value in enumerate(("1100", "990", "1000"), 1)],
+                      "end": final}}
+    expected = performance({"inputs": out["inputs"], "result": {
+        **out["result"], "curve": out["result"]["curve"][:-1],
+        "end": {"mark_time": iso(cutoff), "equity": "1010"}}})
+    actual = performance(out)
+    assert actual["returns"]["periods"] == 3
+    assert actual["returns"] == expected["returns"]
+    assert actual["total_return_pct"] == "1.0000"
+    assert out["result"]["end"] == final
+    assert run_valuation(out)["status"] == ("STALE" if receipt_age_minutes > 2 else "CURRENT")
+
+
 def test_luck_threshold_grows_with_trials_and_deflates_the_best_result():
     assert expected_max_sharpe(1, 0.01) == 0
     assert expected_max_sharpe(100, 0.01) > expected_max_sharpe(10, 0.01) > 0
@@ -103,6 +149,22 @@ def test_selection_check_names_the_best_candidate():
     check = selection_check({"A": block(0.05), "B": block(0.15), "C": block(-0.02)})
     assert check["best"] == "B" and check["trials"] == 3 and 0 <= check["deflated_sharpe"] <= 1
     assert selection_check({"A": block(0.1)}) is None
+
+
+def test_selection_dispersion_averages_candidates_once(monkeypatch):
+    import gym.domain.performance as metrics
+
+    original, sizes = metrics.fmean, []
+
+    def measured(values):
+        sizes.append(len(values))
+        return original(values)
+
+    monkeypatch.setattr(metrics, "fmean", measured)
+    candidates = {str(i): {"returns": {"sharpe_per_period": i / 1000, "periods": 100,
+                                      "skew": 0.0, "kurtosis": 3.0}} for i in range(256)}
+    assert metrics.selection_check(candidates)["best"] == "255"
+    assert sum(sizes) <= len(candidates)
 
 
 def test_selection_counts_earlier_trials_and_raises_the_luck_threshold():
@@ -148,3 +210,51 @@ def test_bootstrap_range_and_benchmark_against_holding_the_base():
     bench = perf["benchmark"]
     assert bench["name"] == "hold BTC" and bench["beta"] == pytest.approx(1) and bench["alpha_per_period"] == pytest.approx(0, abs=1e-12)
     assert bench["correlation"] == pytest.approx(1)
+
+
+def test_benchmark_tracking_error_does_linear_mean_work(monkeypatch):
+    import statistics
+
+    from gym.domain import performance as metrics
+
+    count = 128
+    equity = [1000 + i + (i % 5) * 2 for i in range(count)]
+    bids = [100 + i / 10 + (i % 7) / 10 for i in range(count)]
+    out = {"result": {
+        "base": "BTC",
+        "curve": [(str(i), str(value)) for i, value in enumerate(equity)],
+        "decisions": [{"t": str(i), "bid": str(value)} for i, value in enumerate(bids)],
+    }}
+    active = [equity[i] / equity[i - 1] - bids[i] / bids[i - 1] for i in range(1, count)]
+    mean_work = 0
+    original = metrics.fmean
+
+    def measured_mean(values):
+        nonlocal mean_work
+        values = tuple(values)
+        mean_work += len(values)
+        return original(values)
+
+    monkeypatch.setattr(metrics, "fmean", measured_mean)
+    result = metrics._benchmark(out, None)
+    assert result["tracking_error_per_period"] == pytest.approx(statistics.stdev(active))
+    assert result["information_ratio_per_period"] == pytest.approx(statistics.fmean(active) / statistics.stdev(active))
+    assert mean_work <= 3 * count
+
+
+def test_signal_attribution_groups_trades_by_entry_and_exit_reasons():
+    """U-2: per-signal attribution joins each closed trade to the decisions that opened and closed it."""
+    from gym.domain.performance import signal_attribution
+    t = [f"2026-11-01T00:0{i}:00Z" for i in range(8)]
+    decisions = [{"t": t[0], "reasons": ["cross up"]}, {"t": t[2], "reasons": ["cross down"]},
+                 {"t": t[4], "reasons": ["breakout"]}, {"t": t[6], "reasons": []}]
+
+    def order(side, decided, filled, price):
+        return {"side": side, "status": "FILLED", "decision_time": decided, "fill_time": filled, "qty": "1",
+                "price": price, "fee": "0", "fee_ccy": "USDT", "ref": filled}
+    result = {"base": "BTC", "decisions": decisions, "orders": [
+        order("BUY", t[0], t[1], "100"), order("SELL", t[2], t[3], "110"),
+        order("BUY", t[4], t[5], "100"), order("SELL", t[6], t[7], "90")]}
+    rows = {(r["entry"], r["exit"]): r for r in signal_attribution(result)}
+    assert rows[("cross up", "cross down")]["wins"] == 1 and rows[("cross up", "cross down")]["pnl"] == "10"
+    assert rows[("breakout", "untagged")]["trades"] == 1 and rows[("breakout", "untagged")]["wins"] == 0

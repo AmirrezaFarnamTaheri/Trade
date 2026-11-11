@@ -4,11 +4,10 @@ from datetime import timedelta
 
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, instant, rate
-from ..domain.model import iso
+from ..domain.model import iso, now_utc
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from .collector import now_utc
 from .data_portal import DataPortal
 from .paper import run
 from .rules import RuleService

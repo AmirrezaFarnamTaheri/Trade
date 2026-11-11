@@ -43,7 +43,7 @@ The read-only account boundary permits balances, fees, client-ID order status,
 open-order and order-history reads. Account identity, response identity, pagination,
 observed fills/fees and settlement completeness remain separate checks. Failure
 or an empty page does not prove that an order is absent or a balance is spendable.
-See [account contract](../../contracts/account-read-v2.md) and
+See [account contract](../../contracts/v2/account-read-v2.md) and
 [service observations](../../executor/docs/account-observations.md).
 
 Funded submission, cancellation, borrowing, sub-account transfers and protective

@@ -4,17 +4,43 @@ function saved(key, fallback, allowed) {
   try { const value = localStorage.getItem(key); return allowed.includes(value) ? value : fallback; }
   catch (_) { return fallback; }
 }
+/** Labelled, bilingual confirmation with the consequence in view; focus returns to the trigger. Falls back to confirm(). */
+function confirmAction(message, actionLabel, trigger) {
+  if (typeof document.createElement !== "function" || typeof HTMLDialogElement === "undefined") return Promise.resolve(confirm(message));
+  return new Promise(resolve => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "confirm-dialog";
+    dialog.setAttribute("aria-labelledby", "confirm-dialog-text");
+    dialog.innerHTML = `<p id="confirm-dialog-text"></p><div class="toolbar"><button type="button" class="button" value="cancel"></button><button type="button" class="button button-primary" value="ok"></button></div>`;
+    dialog.querySelector("p").textContent = message;
+    const [cancel, ok] = dialog.querySelectorAll("button");
+    cancel.textContent = t("cancelAction"); ok.textContent = actionLabel;
+    const finish = answer => { dialog.close(); dialog.remove(); trigger?.focus?.(); resolve(answer); };
+    cancel.onclick = () => finish(false); ok.onclick = () => finish(true);
+    dialog.addEventListener("cancel", event => { event.preventDefault(); finish(false); });
+    document.body.append(dialog);
+    dialog.showModal();
+    cancel.focus();  // the safe choice has focus; Enter does not confirm by accident
+  });
+}
 /** Persist a non-secret workspace preference when browser storage is available. */
 function remember(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Storage is optional. */ } }
 let lang = saved("lang", "en", ["en", "fa"]);
-let theme = saved("theme", "light", ["light", "dark"]);
+/** First visit follows the operating system; an explicit toggle is remembered and wins afterwards. */
+function systemTheme() {
+  try { return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (_) { return "light"; }
+}
+let theme = saved("theme", systemTheme(), ["light", "dark"]);
+/** U-7: timestamps follow a stored zone preference (Tehran, the venue's calendar, or UTC, as exports use). */
+let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);
 const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [], runCount: 50, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
   researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };
 let comparisonRevision = 0;
 const t = key => T[lang][key] ?? key;
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const digits = value => lang === "fa" ? String(value).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]) : String(value);
+const digits = value => lang === "fa" ? String(value).replace(/\d/g, d => PERSIAN_DIGITS[d]) : String(value);
 // Keep API money as decimal strings; floating point is used only for chart geometry.
 /** Display exact decimal-string money with locale digits and no floating-point conversion. */
 function num(value) {
@@ -24,7 +50,7 @@ function num(value) {
   return digits(match[1] + match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (match[3] ? "." + match[3] : ""));
 }
 /** Format a timestamp in the selected UI language and requested time zone. */
-function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
+function when(value, dateOnly = false, timeZone = zone) {
   if (!value) return t("none");
   const stamp = new Date(value);
   if (!Number.isFinite(stamp.getTime())) return t("unknown");
@@ -32,6 +58,14 @@ function when(value, dateOnly = false, timeZone = "Asia/Tehran") {
     timeZone, year: "numeric", month: "short", day: "numeric",
     ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
   }).format(stamp);
+}
+/** A rendered timestamp whose tooltip and datetime carry the exact ISO instant used by run ids and exports. */
+function stampHtml(value, dateOnly = false, timeZone = zone) {
+  const stamp = value ? new Date(value) : null;
+  const label = esc(when(value, dateOnly, timeZone));
+  if (!stamp || !Number.isFinite(stamp.getTime())) return label;
+  const exact = stamp.toISOString();
+  return `<time datetime="${exact}" title="${exact}">${label}</time>`;
 }
 // Round a decimal string half-up for display only; the exact value stays in the tooltip.
 /** Round a decimal string for display only; never alter stored precision. */

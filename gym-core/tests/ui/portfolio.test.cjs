@@ -6,7 +6,7 @@ const path = require('node:path');
 const esc = v => String(v ?? '').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const setup = {portfolio_replay:true,symbols:['BTCUSDT','ETHUSDT','XRPUSDT'],resolutions:['1min','15min'],strategies:[{id:'ema-trend', parameters:{properties:{fast:{type:'integer',default:8},slow:{type:'integer',default:21}}}}],defaults:{resolution:'15min',fee_rate:'0.001'}};
 const record = {run_id:'a'.repeat(16),inputs:{symbols:['BTCUSDT','ETHUSDT'],to:'2026-10-29T09:30:00Z'},result:{quote:'USDT',end:{equity:'999',net:'-1'},markets:{BTCUSDT:{fills:2,closed_trades:1,realized_pnl:'-1',holding:'0',last_bid:'70000'}},balances:{USDT:'999'},curve:[]},performance:{total_return_pct:'-0.1'}};
-function page(api, strategyFields) {
+function page(api, strategyFields, stamp) {
   const nodes = new Map();
   class Node {
     constructor(id) {this.id=id;this.value='';this.disabled=false;this._html='';this.textContent='';}
@@ -15,9 +15,9 @@ function page(api, strategyFields) {
     querySelectorAll(){return [];}
   }
   nodes.set('portfolio-workbench', new Node('portfolio-workbench'));
-  const context = {window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
+  const context = {T: require('./vocabulary.cjs').T, window:{},document:{documentElement:{lang:'en'},getElementById:id=>nodes.get(id)}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../src/gym/ui/portfolio.js'),'utf8'),context);
-  const options={api,esc,strategyFields,amount:esc,when:esc,table:(heads,rows)=>heads.concat(rows.flat()).join('|'),keyValues:rows=>rows.flat().join('|'),curveFigure:()=>'<svg></svg>'};
+  const options={api,esc,strategyFields,stamp,amount:esc,when:esc,table:(heads,rows)=>heads.concat(rows.flat()).join('|'),keyValues:rows=>rows.flat().join('|'),curveFigure:()=>'<svg></svg>'};
   context.window.gymPortfolio.mount(options);
   return {node:id=>nodes.get(id),context,options};
 }
@@ -139,4 +139,31 @@ test('missing FX stays unavailable and stale FX is visible beside valuation',asy
   assert.match(p.node('portfolio-result').innerHTML,/UNAVAILABLE \/ STALE_CLOSED/);
   assert.match(p.node('portfolio-result').innerHTML,/Unavailable/);
   assert.match(p.node('portfolio-result').innerHTML,/not executable/);
+});
+
+test('zone refreshes recorded timestamps and saved runs without inputs or replay requests changing, even while busy', async()=>{
+  let zone='Tehran', resolve, replays=0;
+  const dated=structuredClone(record); dated.result.markets.BTCUSDT.mark_time='2026-10-29T09:30:00Z';
+  const p=page(async (_url,options)=>{
+    if(!options)return setup;
+    const {action}=JSON.parse(options.body);
+    if(action==='portfolio-list')return {runs:[{...dated,inputs:{...dated.inputs,from:dated.inputs.to}}]};
+    if(action==='portfolio-replay'){replays++;if(replays===2)await new Promise(done=>{resolve=done;});return {run_id:dated.run_id};}
+    return dated;
+  },undefined,value=>`${zone}:${value}`);
+  await p.node('portfolio-load').onclick();
+  p.node('portfolio-params').value='{}';p.node('portfolio-cash').value='123.456';
+  await p.node('portfolio-form').onsubmit({preventDefault(){}});
+  zone='UTC';p.context.window.gymPortfolio.mount(p.options);
+  assert.match(p.node('portfolio-result').innerHTML,/UTC:2026/);
+  assert.match(p.node('portfolio-saved').innerHTML,/UTC:2026/);
+  assert.equal(p.node('portfolio-cash').value,'123.456');assert.equal(replays,1);
+  const pending=p.node('portfolio-form').onsubmit({preventDefault(){}});
+  zone='Tehran';p.context.window.gymPortfolio.mount(p.options);
+  assert.match(p.node('portfolio-result').innerHTML,/Tehran:2026/);
+  assert.equal(p.node('portfolio-fields').disabled,true);
+  p.context.document.documentElement.lang='fa';p.context.window.gymPortfolio.mount(p.options);
+  resolve();await pending;assert.equal(replays,2);
+  assert.equal(p.node('portfolio-cash').value,'123.456');
+  assert.match(p.node('portfolio-result').innerHTML,/Tehran:2026/);
 });

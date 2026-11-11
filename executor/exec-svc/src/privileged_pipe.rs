@@ -172,17 +172,18 @@ pub async fn serve(
                             }
                         }
                         Request::Account(resource, correlation, receipts) => {
-                            // This T2 thread may block; independent authenticated T0 never waits on it.
-                            let observed = {
-                                let mut owner = vault
-                                    .lock()
-                                    .map_err(|_| io::Error::other("vault poisoned"))?;
-                                owner.observe_account(
-                                    &resource,
-                                    correlation,
-                                    operator.gate.runtime_epoch(),
-                                )?
-                            };
+                            // The vault lock is held only to copy the key out and to record the result,
+                            // never across the venue read, so a slow venue cannot stall review or ceiling
+                            // requests. Independent authenticated T0 never waits on this thread at all.
+                            let epoch = operator.gate.runtime_epoch();
+                            let observed = exec_svc::read_outside_lock(
+                                &vault,
+                                |v| v.begin_account_read(),
+                                |plan| crate::service_account::read(&plan.key, &resource),
+                                |v, plan, body| {
+                                    v.finish_account_read(plan, &resource, body, correlation, epoch)
+                                },
+                            )?;
                             if let Some((body, receipt)) = observed {
                                 let reply = if receipts {
                                     exec_ipc::account::encode_reply(

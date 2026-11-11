@@ -483,6 +483,79 @@ pub fn impersonated_thread_logon_sid() -> io::Result<String> {
     Ok(sid)
 }
 
+/// Read a file's owner and DACL and apply `config_trust::check` before its contents are trusted.
+pub fn verify_trusted_config_file(path: &std::path::Path) -> io::Result<()> {
+    use crate::config_trust::{check, Ace};
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Security::Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT};
+    use windows_sys::Win32::Security::{
+        GetAce, ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, DACL_SECURITY_INFORMATION,
+        OWNER_SECURITY_INFORMATION,
+    };
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let (mut owner, mut dacl, mut sd) = (ptr::null_mut(), ptr::null_mut::<ACL>(), ptr::null_mut());
+    // SAFETY: NUL-terminated path; out-pointers are valid; `sd` is freed with LocalFree below.
+    let code = unsafe {
+        GetNamedSecurityInfoW(
+            wide.as_ptr(),
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            &mut owner,
+            ptr::null_mut(),
+            &mut dacl,
+            ptr::null_mut(),
+            &mut sd,
+        )
+    };
+    if code != 0 {
+        return Err(io::Error::from_raw_os_error(code as i32));
+    }
+    let result = (|| {
+        let owner_text = sid_text(owner)?;
+        let aces = if dacl.is_null() {
+            None
+        } else {
+            let mut list = Vec::new();
+            // SAFETY: `dacl` points into `sd`, which stays alive until LocalFree below.
+            let count = unsafe { (*dacl).AceCount };
+            for i in 0..u32::from(count) {
+                let mut ace = ptr::null_mut();
+                // SAFETY: index below AceCount; GetAce returns a pointer inside the ACL.
+                if unsafe { GetAce(dacl, i, &mut ace) } == 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                // SAFETY: every ACE starts with ACE_HEADER; allowed and denied ACEs share ACCESS_ALLOWED_ACE layout.
+                let header = unsafe { &*ace.cast::<ACE_HEADER>() };
+                let (mask, sid) = if header.AceType <= 1 {
+                    let body = unsafe { &*ace.cast::<ACCESS_ALLOWED_ACE>() };
+                    (
+                        body.Mask,
+                        sid_text(ptr::addr_of!(body.SidStart).cast_mut().cast())?,
+                    )
+                } else {
+                    (0, String::new())
+                };
+                list.push(Ace {
+                    kind: header.AceType,
+                    flags: header.AceFlags,
+                    mask,
+                    sid,
+                });
+            }
+            Some(list)
+        };
+        check(&owner_text, aces.as_deref()).map_err(|why| {
+            io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("untrusted configuration file: {why:?}"),
+            )
+        })
+    })();
+    // SAFETY: allocated by GetNamedSecurityInfoW.
+    unsafe { LocalFree(sd) };
+    result
+}
+
 #[cfg(test)]
 mod elevation_tests {
     #[test]

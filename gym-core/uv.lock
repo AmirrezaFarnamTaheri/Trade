@@ -370,6 +370,11 @@ wheels = [
 ]
 
 [[package]]
+name = "exec-kernel"
+version = "0.2.0"
+source = { directory = "../executor/exec-kernel-py" }
+
+[[package]]
 name = "frozenlist"
 version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -476,13 +481,18 @@ wheels = [
 
 [[package]]
 name = "gym-core"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "cryptography" },
     { name = "tzdata" },
     { name = "zstandard" },
+]
+
+[package.optional-dependencies]
+kernel = [
+    { name = "exec-kernel" },
 ]
 
 [package.dev-dependencies]
@@ -495,9 +505,11 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.9" },
     { name = "cryptography", specifier = ">=44" },
+    { name = "exec-kernel", marker = "extra == 'kernel'", directory = "../executor/exec-kernel-py" },
     { name = "tzdata" },
     { name = "zstandard", specifier = ">=0.22" },
 ]
+provides-extras = ["kernel"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -7,8 +7,7 @@ import sys
 from datetime import UTC
 from pathlib import Path
 
-from ..domain.model import iso, parse_ts
-from ..services.collector import now_utc
+from ..domain.model import iso, now_utc, parse_ts
 from .common import (
     open_db,
     store_root,
@@ -34,6 +33,215 @@ def verify_segments_cmd(args) -> int:
         db.c.close()
     print(json.dumps(report, indent=2))
     return 1 if report["mismatched"] else 0
+
+
+def _research_passphrase(args, prompt):
+    import getpass
+    if getattr(args, "stored_passphrase", False):
+        from ..adapters.secret_store import load_backup_passphrase
+        return load_backup_passphrase()
+    if not sys.stdin.isatty():
+        raise ValueError("needs an interactive console or --stored-passphrase")
+    return getpass.getpass(prompt)
+
+
+def backup_research_cmd(args) -> int:
+    """Encrypted research-store snapshot plus new raw segments; never prints the passphrase."""
+    from ..services.research_backup import backup_research
+    phrase = _research_passphrase(args, "Research backup passphrase: ")
+    try:
+        report = backup_research(store_root(args), Path(args.destination), passphrase=phrase, keep=args.keep,
+                                 allow_same_device=args.allow_same_device)
+    finally:
+        del phrase
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 1 if report["segments_refused"] else 0
+
+
+def research_restore_drill_cmd(args) -> int:
+    from ..services.research_backup import drill
+    phrase = _research_passphrase(args, "Research backup passphrase: ")
+    try:
+        report = drill(Path(args.destination), passphrase=phrase, segment_sample=args.segments)
+    finally:
+        del phrase
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def restore_research_cmd(args) -> int:
+    from ..services.research_backup import restore_research
+    phrase = _research_passphrase(args, "Research backup passphrase: ")
+    try:
+        report = restore_research(Path(args.destination), Path(args.to), passphrase=phrase)
+    finally:
+        del phrase
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def release_cmd(args) -> int:
+    """Executor update signing: keygen and sign prompt for the key passphrase; verify needs none."""
+    import getpass
+
+    from ..services import release_signing
+    if args.cmd == "release-verify":
+        signature = Path(args.signature) if args.signature else Path(args.manifest + ".sig")
+        ok = release_signing.verify(Path(args.manifest), signature, Path(args.public_key))
+        print("VALID" if ok else "INVALID")
+        return 0 if ok else 1
+    if not sys.stdin.isatty():
+        raise ValueError(f"{args.cmd} requires an interactive console for the signing-key passphrase")
+    phrase = getpass.getpass("Signing-key passphrase: ")
+    try:
+        if args.cmd == "release-keygen":
+            if getpass.getpass("Repeat passphrase: ") != phrase:
+                raise ValueError("passphrases differ")
+            public = release_signing.keygen(Path(args.private), Path(args.public), phrase)
+            print(json.dumps({"public_key": args.public, **public}, indent=2))
+        else:
+            print(release_signing.sign(Path(args.manifest), Path(args.key), phrase))
+    finally:
+        del phrase
+    return 0
+
+
+def drift_cmd(args) -> int:
+    """Population-stability drift for one market; read-only."""
+    from datetime import timedelta
+
+    from ..adapters.store import MarketDB
+    from ..services.data_portal import DataPortal
+    from ..services.drift import drift
+
+    symbol = args.symbol.upper()
+    db = MarketDB(store_root(args) / "market.db", readonly=True)
+    try:
+        if args.to:
+            end = parse_ts(args.to)
+        else:
+            newest = db.c.execute("SELECT max(ts_avail) FROM book_top WHERE instrument_id=?", (f"wallex:{symbol}",)).fetchone()[0]
+            if newest is None:
+                raise ValueError(f"no {symbol} quotes stored")
+            end = parse_ts(newest) + timedelta(seconds=1)
+        middle = end - timedelta(hours=args.recent_hours)
+        report = drift(DataPortal(db), symbol, (middle - timedelta(days=args.reference_days), middle), (middle, end))
+    finally:
+        db.c.close()
+    print(json.dumps(report, indent=2))
+    return 0
+
+
+def recover_segments_cmd(args) -> int:
+    """Register crash tails in the manifest; files are never modified. Dry run unless --apply."""
+    from ..adapters.store import MarketDB, recover_segments
+
+    root = store_root(args)
+    db = MarketDB(root / "market.db")
+    try:
+        rows = recover_segments(db, root / "raw", now_utc(), apply=args.apply)
+    finally:
+        db.c.close()
+    print(json.dumps({"applied": args.apply, "segments": rows}, indent=2))
+    return 0
+
+
+def arm_policy_cmd(args) -> int:
+    """Owner policy options live in contracts/arm-policy/; `set` copies one, validated, into the data root."""
+    import hashlib
+
+    from ..services.arm_preflight import POLICY, validate_policy
+    options = Path(__file__).resolve().parents[4] / "contracts" / "arm-policy"
+    names = sorted(p.stem for p in options.glob("*.json"))
+    if args.action == "list":
+        for name in names:
+            policy = json.loads((options / f"{name}.json").read_text("utf-8"))
+            print(f"{name:<11} loss cap {policy['loss_cap_quote']} {policy['quote_asset']}, orders up to "
+                  f"{policy['max_order_quote']}, {policy['max_orders_per_day']}/day, kill at {policy['kill']['max_loss_quote']}, "
+                  f"expires in {policy['expires_days']} days")
+        current = store_root(args) / POLICY
+        print(f"\nactive: {current if current.is_file() else 'none'}")
+        return 0
+    if args.option not in names:
+        raise ValueError(f"choose one of: {', '.join(names)}")
+    raw = (options / f"{args.option}.json").read_bytes()
+    problems = validate_policy(json.loads(raw))
+    if problems:
+        raise ValueError("; ".join(problems))
+    if args.action == "show":
+        print(raw.decode("utf-8"))
+        return 0
+    target = store_root(args) / POLICY
+    target.write_bytes(raw)
+    print(f"installed {args.option} as {target} (sha256 {hashlib.sha256(raw).hexdigest()[:16]}). "
+          "This records your limits only: nothing is armed, and arm-preflight still lists every other gate.")
+    return 0
+
+
+def arm_preflight_cmd(args) -> int:
+    """Checklist only; exit 0 when READY, 1 when BLOCKED. Never arms."""
+    from ..services.arm_preflight import preflight
+    report = preflight(store_root(args), now_utc())
+    for item in report["items"]:
+        print(f"{'ok ' if item['ok'] else 'NO '} {item['item']:<26} {item['detail']}")
+    print()
+    print(f"{report['state']}: {report['note']}")
+    return 0 if report["state"] == "READY" else 1
+
+
+def assistant_eval_cmd(args) -> int:
+    """Baseline always; with --preset, the model through the gateway under the usage caps."""
+    import asyncio
+
+    from ..services.assistant_eval import baseline, cases, evaluate, verdict
+    prompt_set = cases(args.cases)
+    base = baseline(prompt_set)
+    if not args.preset:
+        print(json.dumps({"baseline": base}, indent=2))
+        return 0
+    from ..services.model_gateway import ModelGateway
+    from ..services.model_usage import ModelUsage
+    gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
+
+    async def run():
+        loop = asyncio.get_running_loop()
+        replies = []
+        try:
+            for case in prompt_set:
+                usage.check()
+                result = await gateway.request("complete", {"preset": args.preset, "prompt": case["prompt"]})
+                usage.record(result)
+                replies.append((case["prompt"], str(result.get("text", "")), loop.time()))
+        finally:
+            await gateway.close()
+        return replies
+    try:
+        replies = {p: t for p, t, _ in asyncio.run(run())}
+    finally:
+        usage.close()
+    report = verdict(evaluate(lambda prompt: replies[prompt], prompt_set), base)
+    report["note"] = "Latency here is replay of stored replies; see the usage ledger for provider timings."
+    print(json.dumps(report, indent=2))
+    return 0 if report["adopt"] else 1
+
+
+def doctor_cmd(args) -> int:
+    """Run every local verifier read-only; exit 1 when any check fails."""
+    from ..services.doctor import diagnose
+
+    report = diagnose(store_root(args), now_utc(), full=args.full, archives=[Path(p) for p in args.archive],
+                      quick=args.quick)
+    if args.notify or args.webhook:
+        from ..services.alerts import notify
+        report["notification"] = notify(report, store_root(args), webhook_url=args.webhook, use_toast=args.notify)
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        for c in report["checks"]:
+            print(f"{c['status']:<4}  {c['check']:<18} {c['detail']}")
+        print()
+        print(f"{report['status']}: {report['root']}")
+    return 1 if report["status"] == "FAIL" else 0
 
 
 def compact_cmd(args) -> int:
@@ -81,7 +289,7 @@ def backup_once_cmd(args) -> int:
 
 
 def restore_backup_cmd(args) -> int:
-    """Restore an encrypted offline backup into a new ledger file (B3 second-machine restore).
+    """Restore an encrypted offline backup into a new ledger file (B3 isolated restore).
 
     Passphrase only from an interactive console. Never overwrites; restored ledger
     is DISARMED evidence until the Executor reconciles it.
@@ -127,6 +335,8 @@ def restore_drill_cmd(args) -> int:
             report = restore_backup(bundles[-1], Path(scratch) / "ledger.db", passphrase=phrase)
         finally:
             del phrase
+        from ..services.ledger_anchors import verify
+        report["anchors_checked"] = verify(Path(args.folder), Path(scratch) / "ledger.db")["anchors"]
     report |= {"bundle": str(bundles[-1]), "drill": True, "restored_copy": "deleted"}
     _backup_receipt(args, "RESTORE", report)  # a drill is a verified restore; the copy is gone
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
@@ -190,4 +400,101 @@ def verify_backup_manifest_cmd(args) -> int:
         trusted_public_key=public_key,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def timeline_cmd(args) -> int:
+    """Newest-first operator activity; read-only."""
+    import json
+
+    from ..services.operator_timeline import timeline
+    report = timeline(store_root(args), limit=args.limit, sources=set(args.source) if args.source else None)
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+    for event in report["events"]:
+        print(f"{event['at'][:19]}  {event['source']:<20} {event['kind']:<22} {event['summary']}")
+    print("sources:", ", ".join(f"{k}={v}" for k, v in report["sources"].items()))
+    return 0
+
+
+def actions_cmd(args) -> int:
+    """The research action table: CLI and browser availability."""
+    import json
+
+    from ..services.research_actions import action_catalog
+    catalog = action_catalog()
+    if args.json:
+        print(json.dumps(catalog, indent=2))
+        return 0
+    for row in catalog:
+        print(f"{row['action']:<28} {'cli+browser' if row['browser'] else 'cli only':<12} {row['browser_note'] or ''}")
+    return 0
+
+
+def paper_sweep_cmd(args) -> int:
+    """Bulk paper sweep with compact rows; any row reproduces in full with `gymctl paper`."""
+    from decimal import Decimal
+
+    from ..services.paper_sweep import RESOLUTIONS, sweep
+
+    start, end = parse_ts(args.start), parse_ts(args.end)
+    root = store_root(args)
+    out = Path(args.out) if args.out else root / "sweeps" / f"{iso(start)[:16].replace(':', '')}_{iso(end)[:16].replace(':', '')}.sqlite3"
+    if args.report:
+        return _sweep_report(out)
+    split = lambda text: tuple(x.strip() for x in text.split(",") if x.strip()) if text else None
+    summary = sweep(root, out, start, end, symbols=split(args.symbols), resolutions=split(args.res) or RESOLUTIONS,
+                    strategies=split(args.strategies), workers=args.workers, fee=Decimal(args.fee),
+                    progress=lambda line: print(line, flush=True))
+    print(f"{summary['runs']} runs ({summary['ok']} completed) over {summary['markets']} markets in "
+          f"{summary['seconds'] / 60:.1f} min -> {summary['output']}")
+    return _sweep_report(out)
+
+
+def _sweep_report(out: Path) -> int:
+    conn = sqlite3.connect(f"file:{out.as_posix()}?mode=ro", uri=True)
+    try:
+        total, ok = conn.execute("SELECT count(*), sum(status='OK') FROM runs").fetchone()
+        print(f"\n{out}: {total} runs, {ok} completed")
+        for status, n in conn.execute("SELECT status, count(*) FROM runs GROUP BY status"):
+            print(f"  {status:<9} {n}")
+        query = ("SELECT symbol, resolution, strategy, CAST(net_usdt_eq AS REAL) AS eq, CAST(hold_net_usdt_eq AS REAL), "
+                 "fills, closed_trades, max_drawdown_pct FROM runs WHERE status='OK' AND net_usdt_eq IS NOT NULL ")
+        positive = conn.execute("SELECT count(*) FROM runs WHERE status='OK' AND CAST(net_usdt_eq AS REAL) > 0").fetchone()[0]
+        beat = conn.execute("SELECT count(*) FROM runs WHERE status='OK' AND CAST(net_usdt_eq AS REAL) > "
+                            "CAST(hold_net_usdt_eq AS REAL)").fetchone()[0]
+        print(f"  positive net (USDT-eq): {positive}; beat hold-the-base: {beat}")
+        for title, order in (("best", "DESC"), ("worst", "ASC")):
+            print(f"\n{title} 10 by USDT-equivalent net (start 1000 USDT or 300M TMN):")
+            for row in conn.execute(query + f"ORDER BY eq {order} LIMIT 10"):
+                print(f"  {row[0]:<12} {row[1]:<7} {row[2]:<22} net {row[3]:>9.2f}  hold {row[4] or 0:>9.2f}  "
+                      f"fills {row[5]:>4}  trades {row[6] or 0:>3}  maxDD {row[7] or 0:>6.2f}%")
+        print("\nPAPER ONLY. Every configuration is a recorded trial; a best row out of thousands is expected luck.")
+    finally:
+        conn.close()
+    return 0
+
+
+def feed_anomaly_cmd(args) -> int:
+    """Advisory only: the classifier never trades, sizes or edits stored data."""
+    from ..adapters.store import MarketDB
+    from ..services import feed_anomaly
+
+    start, end = parse_ts(args.start), parse_ts(args.end)
+    root = store_root(args)
+    db = MarketDB(root / "market.db", readonly=True)
+    try:
+        if args.mode == "train":
+            busiest = [r[0][7:] for r in db.c.execute(
+                "SELECT instrument_id FROM book_top WHERE ts_avail>=? AND ts_avail<? GROUP BY instrument_id "
+                "ORDER BY count(*) DESC LIMIT ?", (iso(start), iso(end), args.markets))]
+            out = feed_anomaly.train(root, db, busiest, start, end, now=now_utc())
+        else:
+            if not (args.symbol and args.artifact):
+                raise ValueError("scan needs --symbol and --artifact")
+            out = feed_anomaly.scan(root, db, args.symbol.upper(), start, end, args.artifact, now=now_utc())
+    finally:
+        db.c.close()
+    print(json.dumps(out, indent=2, default=str))
     return 0

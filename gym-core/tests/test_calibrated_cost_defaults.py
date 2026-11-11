@@ -1,4 +1,4 @@
-"""Phase A cost defaults require dated observable evidence, without hiding model uncertainty."""
+"""Cost defaults require dated observable evidence, without hiding model uncertainty."""
 from datetime import timedelta
 from decimal import Decimal
 

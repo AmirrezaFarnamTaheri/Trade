@@ -1,4 +1,4 @@
-"""Phase C items 29-30: evidence-gated retirement and meta-label eligibility.
+"""Evidence-gated retirement and meta-label eligibility.
 
 A cherry-picked list of local paper results cannot alter the strategy
 catalog or independently certify a prospective comparison. This module

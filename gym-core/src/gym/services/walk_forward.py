@@ -6,11 +6,10 @@ from decimal import Decimal
 from ..adapters.run_store import save_run
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, instant, rate
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from .collector import now_utc
 from .data_portal import DataPortal, curve_valuation
 from .paper import PaperDataUnavailable, paper
 from .reports import economic_report
@@ -86,10 +85,11 @@ def chained_out_of_sample(folds, records, starting_cash):
     """Chain selected flat-account test growth with strict chronological evidence."""
     equity, peak, worst = Decimal(starting_cash), Decimal(starting_cash), Decimal(0)
     marks, losing, longest = [], 0, 0
-    for fold in folds:
+    for index, fold in enumerate(folds):
         record = records.get(fold["test"].get("run_id"))
-        if record is None or not record["result"].get("end") or fold["test"]["state"] != "COMPLETED":
-            return {"status": "INCOMPLETE", "completed_folds": len(marks),
+        if (record is None or not record["result"].get("end")
+                or fold["test"]["state"] != "COMPLETED" or fold["test"].get("valuation") != "CURRENT"):
+            return {"status": "INCOMPLETE", "completed_folds": index,
                     "limitation": "Missing or unready test evidence prevents a chained economic claim."}
         from ..domain.performance import trade_ledger
 

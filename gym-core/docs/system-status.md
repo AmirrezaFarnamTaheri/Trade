@@ -8,7 +8,7 @@ and the local evidence folders. This page describes the current delivery.
 - Public Wallex catalogue/feed collection, exact SQL observations, rule-aware bars,
   vintages, quality/readiness and transactional publication watermarks.
 - Separated browser view owners preserve existing EN/FA contracts and hashed assets.
-- Fourteen registry strategies, saved paper runs, chronological comparisons,
+- Sixteen registry strategies, saved paper runs, chronological comparisons,
   experiments, replay/debugging, screening, recovery, notes and robustness tools.
 - Compound revision 3 keeps indicator history through wide spreads, records actual
   simulated positions and refuses fee-net holdings below known exit minimums.
@@ -28,7 +28,7 @@ and the local evidence folders. This page describes the current delivery.
   strategy identities. Actual fill cost/time, dust and maker/taker fee assumptions
   remain explicit. Rebuilt single-market and portfolio checkpoints verify saved
   history, pending orders, reservations, targets and latches without deserializing
-  mutable state. This is replay reconstruction, not physical-host restoration.
+  mutable state. This is replay reconstruction, not runtime restoration.
 - Default-off `entry_risk_bps` reuses native exact portfolio sizing against an
   explicit fixed stop. Shared held exposure and pending reservations reduce the
   remaining budget; market and maker partials recheck capacity and current venue
@@ -184,7 +184,7 @@ profitability, and observation gaps still prevented readiness in many markets.
 
 A separate disposable-process rebuild of the 187-market Donchian portfolio
 34d52bf013d84b33 verified a 500-observation prefix and returned EXACT_MATCH against
-the saved full result. This does not establish physical-host recovery.
+the saved full result. This does not establish runtime recovery.
 
 At the 19:07 UTC API check, all 373 observed product rows had UNKNOWN margin
 availability without a newly selected public receipt. The saved journal had
@@ -204,4 +204,34 @@ The [implementation plan](implementation-plan.md) lists remaining implementation
 and acceptance work. Operational journals and saved paper evidence retain their
 existing owners.
 See [acceptance gates](acceptance-status.md) for protected account/execution,
-independent evaluation, cost calibration and physical-machine recovery requirements.
+evaluation, cost calibration and recovery requirements.
+
+## November 11 follow-up verification
+
+Allocation input windows now reject invalid bounds before journal writes; repeated
+symbols are deduplicated, and both fill directions apply recorded venue sizing
+rules. The focused allocation/specification checks passed 85 tests.
+
+Model drafts and responses survive language changes without retaining credential
+fields or allowing duplicate in-flight submissions. Portfolio and margin receipts
+refresh selected-zone timestamps without repeating replay. The UI checks passed
+28 Node tests and 11 Python wrappers. Edge headless smoke passed 80 mobile
+route/language/theme/width combinations, including market-selection targets and
+visible keyboard focus. This is bounded synthetic browser evidence, not a complete
+accessibility or provider qualification.
+
+The fresh locked Python and production Node dependency audits reported no known
+vulnerabilities. Native/service and hosted checks remain separately dated evidence.
+
+The public collector was restarted from its existing scheduled task and data root
+after the connection-acknowledgement repair. New TLS connections initially failed;
+by 17:28 UTC all 18 shards were connected with no fatal fault. Readiness returned
+HTTP 200, DEGRADED: 302 READY, 69 STALE and two MISSING of 373 watched markets.
+Historical gaps remain intact. A 30-second nonblocking live stack profile found
+no long pause; rolling lag had still exceeded its warning bound. This establishes
+partial operational recovery, not resolution of the unexplained latency spikes.
+
+A Drive transport check uploaded and downloaded an 8,677-byte synthetic encrypted
+ledger. SHA-256 matched and both events restored byte-for-byte. Its receipt is
+under .pi/qualification/cloud-transport-20261111. It is not a live research backup,
+retention test, unattended schedule or independent custody evidence.

@@ -11,7 +11,7 @@ function eligibility(verdict) {
 function ruleReference(rule) {
   return `<li><strong>${esc(rule.name || rule.rule_id || t("unknown"))}</strong>${rule.why ? `<p>${esc(rule.why)}</p>` : ""}${keyValues([
     [t("classification"), code(rule.class)], [t("family"), code(rule.family)], [t("status"), label(rule.status)],
-    [t("source"), esc(rule.source)], [t("confirmed"), esc(when(rule.confirmed))],
+    [t("source"), esc(rule.source)], [t("confirmed"), stampHtml(rule.confirmed)],
   ])}</li>`;
 }
 function verdictDetails(title, verdict) {
@@ -19,7 +19,7 @@ function verdictDetails(title, verdict) {
   return `<section><h3>${esc(title)} ${eligibility(verdict)}</h3><h4>${esc(t("blockers"))}</h4>${list(verdict.blockers).length
     ? `<ul class="rule-references">${list(verdict.blockers).map(ruleReference).join("")}</ul>` : `<p class="muted">${esc(t("noBlockers"))}</p>`}
     ${list(verdict.warnings).length ? `<h4>${esc(t("warnings"))}</h4><ul class="rule-references">${verdict.warnings.map(ruleReference).join("")}</ul>` : ""}
-    ${keyValues([[t("nextRuleChange"), verdict.next_change ? esc(when(verdict.next_change)) : esc(t("noRuleChange"))],
+    ${keyValues([[t("nextRuleChange"), verdict.next_change ? stampHtml(verdict.next_change) : esc(t("noRuleChange"))],
       [t("quotaRemaining"), amount(verdict.quota_remaining)], [t("ruleVersion"), num(verdict.ruleset_version)]])}
     <p class="field-help">${esc(t("changeNote"))}</p></section>`;
 }
@@ -79,7 +79,7 @@ function renderMarkets() {
     const id = "market-detail-" + encodeURIComponent(market.symbol);
     return `<tr${expanded ? ' class="is-expanded"' : ""}><td><button type="button" class="symbol-button" data-market="${esc(market.symbol)}" data-focus="market-${esc(market.symbol)}" aria-expanded="${expanded}"${expanded ? ` aria-controls="${esc(id)}"` : ""}><span class="token-mark" aria-hidden="true">${esc((market.base || market.symbol || "?").slice(0, 1))}</span><span class="pair-name"><strong>${esc(name)}</strong><span class="sub">${code(market.symbol)} <span class="quote">${code(market.quote)}</span></span></span></button></td>
       <td class="num">${amount(market.bid)}</td><td class="num">${amount(market.ask)}</td><td class="num">${amount(market.spread_bps)}</td>
-      <td class="num">${trade ? `${amount(trade.price)}<span class="sub">${amount(trade.qty)} ${code(market.base)} · ${esc(when(trade.ts))}</span>` : t("none")}</td>
+      <td class="num">${trade ? `${amount(trade.price)}<span class="sub">${amount(trade.qty)} ${code(market.base)} · ${stampHtml(trade.ts)}</span>` : t("none")}</td>
       <td>${quality}${market.book_age_s != null ? `<span class="sub">${num(market.book_age_s)} ${esc(t("seconds"))}</span>` : ""}</td>
       <td>${eligibility(market.act?.entry)}${market.data_quality?.grade === "POOR" ? ` ${chip(t("poorData"), "warn")}` : ""}</td><td>${eligibility(market.act?.exit)}</td></tr>
       ${expanded ? `<tr class="market-detail-row"><td colspan="8"><section class="market-detail" id="${esc(id)}" aria-label="${esc(t("pairDetails") + " " + market.symbol)}">

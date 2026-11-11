@@ -67,13 +67,46 @@ mod windows_host {
         result
     }
 
+    /// `C:\Program Files` from the shell's known-folder table, not from the
+    /// process environment, which a service's configuration could redirect.
+    fn program_files() -> std::io::Result<PathBuf> {
+        use std::os::windows::ffi::OsStringExt;
+        use windows_sys::Win32::System::Com::CoTaskMemFree;
+        use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath};
+        let denied = || {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "Program Files known-folder lookup failed",
+            )
+        };
+        let mut raw = std::ptr::null_mut();
+        // SAFETY: valid GUID and out-pointer; the returned buffer is freed below on every path.
+        if unsafe {
+            SHGetKnownFolderPath(&FOLDERID_ProgramFiles, 0, std::ptr::null_mut(), &mut raw)
+        } < 0
+        {
+            return Err(denied());
+        }
+        let mut length = 0;
+        // SAFETY: the shell returns a NUL-terminated wide string; the scan is bounded.
+        while length < 32768 && unsafe { *raw.add(length) } != 0 {
+            length += 1;
+        }
+        let root = (length < 32768).then(|| {
+            // SAFETY: `length` UTF-16 units were just read from this buffer.
+            PathBuf::from(OsString::from_wide(unsafe {
+                std::slice::from_raw_parts(raw, length)
+            }))
+        });
+        // SAFETY: allocated by SHGetKnownFolderPath with the COM task allocator.
+        unsafe { CoTaskMemFree(raw.cast()) };
+        root.ok_or_else(denied)
+    }
+
     /// The elevated installer binds a single OS-issued operator *logon* SID.
     /// The protected file cannot be supplied by a regular pipe caller.
     fn provisioned_logon_sid() -> std::io::Result<String> {
-        let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramData")
-        })?;
-        let file = PathBuf::from(root)
+        let file = program_files()?
             .join("TradingGYM")
             .join("Executor")
             .join("stop-logon.sid");
@@ -84,6 +117,8 @@ mod windows_host {
                 "untrusted stop SID configuration",
             ));
         }
+        // Only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
+        exec_svc::windows_identity::verify_trusted_config_file(&file)?;
         let text = std::fs::read_to_string(file)?;
         let sid = text.trim();
         let components: Vec<&str> = sid.split('-').collect();
@@ -104,10 +139,7 @@ mod windows_host {
     /// Operator user identity is separately provisioned from a trusted OS
     /// process token, never copied from a client request or environment value.
     fn provisioned_user_sid() -> std::io::Result<String> {
-        let root = std::env::var_os("ProgramFiles").ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::PermissionDenied, "missing ProgramFiles")
-        })?;
-        let file = PathBuf::from(root)
+        let file = program_files()?
             .join("TradingGYM")
             .join("Executor")
             .join("stop-user.sid");
@@ -118,6 +150,8 @@ mod windows_host {
                 "untrusted operator user SID configuration",
             ));
         }
+        // Only SYSTEM, Administrators or TrustedInstaller may own or write a file that decides who may stop us.
+        exec_svc::windows_identity::verify_trusted_config_file(&file)?;
         let value = std::fs::read_to_string(file)?;
         let sid = value.trim();
         let components: Vec<&str> = sid.split('-').collect();
@@ -229,29 +263,47 @@ mod windows_host {
             phase: privileged_phase.clone(),
         };
         thread::spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(std::io::Error::other)
-                    .and_then(|rt| {
-                        rt.block_on(crate::privileged_pipe::serve(
-                            &privileged_sid,
-                            privileged_tx,
-                            mode,
-                            failure_phase,
-                            operator_context,
-                        ))
-                    })
-            }));
-            if mode != exec_ipc::provision::StartupMode::CredentialRecovery
-                || !matches!(result, Ok(Ok(())))
-            {
-                failed_t2.store(true, Ordering::SeqCst);
-            }
-            stop_t2.store(true, Ordering::SeqCst);
+            exec_svc::supervise_privileged(
+                mode == exec_ipc::provision::StartupMode::CredentialRecovery,
+                &failed_t2,
+                &stop_t2,
+                || {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map_err(std::io::Error::other)
+                        .and_then(|rt| {
+                            rt.block_on(crate::privileged_pipe::serve(
+                                &privileged_sid,
+                                privileged_tx,
+                                mode,
+                                failure_phase,
+                                operator_context,
+                            ))
+                        })
+                },
+            );
         });
-        match privileged_rx.recv_timeout(Duration::from_secs(5)) {
+        // Journal open replays and hash-checks the whole ledger, which grows with history. Wait for it as long
+        // as it keeps working (up to two minutes), telling the service manager we are still starting, instead
+        // of failing a long but healthy ledger after a fixed five seconds (ADR 0004).
+        let started = std::time::Instant::now();
+        let mut checkpoint = 0;
+        let ready = loop {
+            match privileged_rx.recv_timeout(Duration::from_secs(1)) {
+                Err(mpsc::RecvTimeoutError::Timeout)
+                    if started.elapsed() < Duration::from_secs(120) =>
+                {
+                    checkpoint += 1;
+                    let mut pending = status(ServiceState::StartPending, 0);
+                    pending.checkpoint = checkpoint;
+                    pending.wait_hint = Duration::from_secs(5);
+                    status_handle.set_service_status(pending)?;
+                }
+                other => break other,
+            }
+        };
+        match ready {
             Ok(Ok(())) if !privileged_failed.load(Ordering::SeqCst) => {}
             result => {
                 let failure = match result {
@@ -307,17 +359,14 @@ mod windows_host {
         while !should_stop.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(50));
         }
-        let mut stopped = status(
-            ServiceState::Stopped,
-            if listener_failed.load(Ordering::SeqCst) || privileged_failed.load(Ordering::SeqCst) {
-                5
-            } else {
-                0
-            },
+        let (win32, specific) = exec_svc::stopped_exit(
+            listener_failed.load(Ordering::SeqCst),
+            privileged_failed.load(Ordering::SeqCst),
+            privileged_phase.load(Ordering::SeqCst),
         );
-        if privileged_failed.load(Ordering::SeqCst) {
-            stopped.exit_code =
-                ServiceExitCode::ServiceSpecific(privileged_phase.load(Ordering::SeqCst));
+        let mut stopped = status(ServiceState::Stopped, win32);
+        if let Some(phase) = specific {
+            stopped.exit_code = ServiceExitCode::ServiceSpecific(phase);
         }
         status_handle.set_service_status(stopped)?;
         Ok(())

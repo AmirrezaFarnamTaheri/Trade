@@ -6,8 +6,7 @@ import sqlite3
 from aiohttp import web
 
 from ..domain.market_models import fields
-from ..domain.model import strict_loads
-from ..services.collector import now_utc
+from ..domain.model import now_utc, strict_loads
 from ..services.offline_review_journal import OfflineReviewJournal
 from . import finish
 

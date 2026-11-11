@@ -10,10 +10,9 @@ from pathlib import Path
 from ..domain.bars import qualified
 from ..domain.execution_costs import fit_square_root_impact
 from ..domain.market_models import fields, instant
-from ..domain.model import TEHRAN, iso, parse_ts
+from ..domain.model import TEHRAN, iso, now_utc, parse_ts
 from ..domain.strategy import digest
 from ..domain.volatility import ParkinsonEWMA
-from .collector import now_utc
 from .data_portal import DataPortal
 from .market_statistics import spread_report
 

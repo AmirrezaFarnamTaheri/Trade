@@ -37,13 +37,13 @@ $("ticket-editor-mode").addEventListener("click", event => {
   $("ticket-fields").hidden = useJson; $("ticket-json-panel").hidden = !useJson;
   document.querySelectorAll("[data-editor]").forEach(item => item.setAttribute("aria-pressed", String(item === button)));
 });
-$("rule-rows").addEventListener("click", event => {
+$("rule-rows").addEventListener("click", async event => {
   const button = event.target.closest?.("[data-disable]") || event.target, id = button.dataset.disable;
-  if (!id || !confirm(`${t("disableConfirm")}\n${id}`)) return;
+  if (!id || !await confirmAction(`${t("disableConfirm")}\n${id}`, t("disable"), button)) return;
   changeRule(button, async () => { await api("/api/rules/" + encodeURIComponent(id) + "/disable", { method: "POST" }); $("rule-action-result").textContent = t("ruleSaved"); });
 });
-$("load-preset").onclick = () => {
-  if (!confirm(t("presetConfirm"))) return;
+$("load-preset").onclick = async () => {
+  if (!await confirmAction(t("presetConfirm"), t("loadPreset"), $("load-preset"))) return;
   changeRule($("load-preset"), async () => { await api("/api/presets/usdt-irt-october-2026", { method: "POST" }); $("rule-action-result").textContent = t("presetSaved"); });
 };
 $("rule-import-submit").onclick = async () => {

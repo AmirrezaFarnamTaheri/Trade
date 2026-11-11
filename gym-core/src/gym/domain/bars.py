@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from functools import cached_property
 
 from .model import TEHRAN, UTC, BookTop
 from .periods import Calendar, Count, DirectionalChange, Fixed, Mixed, Volume, instant
@@ -36,9 +37,9 @@ class BarSpec:
         if self.price_type not in PRICE_TYPES:
             raise ValueError(f"unsupported price type {self.price_type!r}; have {PRICE_TYPES}")
 
-    @property
+    @cached_property
     def step(self) -> timedelta:
-        return timedelta(seconds=RESOLUTIONS[self.resolution])
+        return timedelta(seconds=RESOLUTIONS[self.resolution])  # immutable spec: computed once, not per quote
 
     def bucket(self, t: datetime) -> datetime:
         """Period start. Daily bars align to Tehran midnight, the venue's calendar; the rest to UTC."""
@@ -120,6 +121,8 @@ class Consolidator:
         self.watermark = now
         if self.cur and now >= self.cur["end"]:
             self._close(self.cur["end"])
+        if not self.pending:
+            return []
         ready = [bar for bar in self.pending if bar.avail <= now]
         self.pending = [bar for bar in self.pending if bar.avail > now]
         return ready
@@ -183,6 +186,9 @@ class Consolidator:
         return c and Bar(self.symbol, self.spec, c["start"], c["end"], now, c["o"], c["h"], c["l"], c["c"], c["v"], c["n"], True)
 
 
+_RANK = {resolution: i for i, resolution in enumerate(RESOLUTIONS)}
+
+
 class CloseSubscriptions:
     """Deterministic on-close fan-out over the existing availability-safe consolidator."""
 
@@ -198,8 +204,9 @@ class CloseSubscriptions:
         }
 
     def _ordered(self, bars):
-        rank = {resolution: i for i, resolution in enumerate(RESOLUTIONS)}
-        return sorted(bars, key=lambda bar: (bar.avail, rank[bar.spec.resolution], self.order[bar.spec.resolution]))
+        if len(bars) < 2:
+            return bars  # nothing to order; most quotes close no bar
+        return sorted(bars, key=lambda bar: (bar.avail, _RANK[bar.spec.resolution], self.order[bar.spec.resolution]))
 
     def scan(self, now: datetime) -> list[Bar]:
         return self._ordered([bar for consolidator in self.by_resolution.values() for bar in consolidator.scan(now)])

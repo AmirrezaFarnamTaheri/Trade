@@ -342,3 +342,45 @@ def test_api_requires_session_and_origin_preserves_uncertainty_and_never_auto_re
             assert len(calls) == 2
 
     asyncio.run(check())
+
+
+def test_v2_golden_frames_share_the_v1_layout_and_are_refused_by_the_v1_codec():
+    """contracts/v2/operator-review-v2.md: identical layout apart from the magic; v1 must reject v2."""
+    lines = (FIXTURE.parents[2] / "v2/fixtures/operator-review-v2.hex").read_text("ascii").splitlines()
+    v2_request, v2_reply = (bytes.fromhex(line) for line in lines)
+    request = {"action": "approve", "ticket": {**ticket(), "client_id": "New_01"}}
+    correlation = bytes([4]) * 16
+    assert v2_request[:8] == b"TGREVW02" and v2_reply[:8] == b"TGREPLY2"
+    assert v2_request[8:] == encode_request(request, correlation)[8:]
+    assert v2_reply[8:] == reply(request)[8:]
+    with pytest.raises(ValueError):
+        decode_reply(v2_reply, correlation, request)
+
+
+def test_ticket_envelopes_follow_the_shared_contract_fixture():
+    """Same vectors as exec-ipc: Python refuses exactly the tickets the executor refuses, at the same boundary."""
+    fixture = json.loads((FIXTURE.parent / "ticket-envelopes.json").read_text("utf-8"))
+
+    def text(quanta, decimals):
+        return str(quanta) if decimals == 0 else f"{quanta // 10**decimals}.{quanta % 10**decimals:0{decimals}d}"
+
+    def accepted(case, debit, credit):
+        base, price, quote = case["decimals"]
+        value = {**ticket(), "side": case["side"], "base_decimals": base, "price_decimals": price,
+                 "quote_decimals": quote, "quantity": text(case["quantity"], base),
+                 "worst_price": text(case["worst_price"], price), "max_quote_debit": text(debit, quote),
+                 "min_quote_credit": text(credit, quote)}
+        try:
+            ticket_bytes(value)
+        except ValueError:
+            return False
+        return True
+
+    for case in fixture["cases"]:
+        assert accepted(case, case["max_quote_debit"], case["min_quote_credit"]) == case["accept"], case["name"]
+        gross = case["gross"]
+        if gross:
+            if case["side"] == "BUY":
+                assert accepted(case, gross, 0) and not accepted(case, gross - 1, 0), case["name"]
+            else:
+                assert accepted(case, 0, gross) and not accepted(case, 0, gross + 1), case["name"]

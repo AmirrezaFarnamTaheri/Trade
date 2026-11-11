@@ -1,0 +1,6 @@
+# Changes to the money path, wire contracts, CI and installers need the owner's review.
+*                       @AmirrezaFarnamTaheri
+/executor/              @AmirrezaFarnamTaheri
+/contracts/             @AmirrezaFarnamTaheri
+/.github/               @AmirrezaFarnamTaheri
+/scripts/windows/       @AmirrezaFarnamTaheri

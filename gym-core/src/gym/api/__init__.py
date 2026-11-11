@@ -6,9 +6,9 @@ import secrets
 from aiohttp import web
 
 LOOPBACK = {"127.0.0.1", "localhost"}
-# Same-origin scripts only; inline style attributes are used for chart geometry.
+# Same-origin scripts and styles only; chart geometry is set through the DOM style API, never inline (S-13).
 SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                                "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
@@ -16,6 +16,14 @@ SECURITY_HEADERS = {
 # Public market/paper reads; every other /api/ route, and every write, needs the per-run token.
 PUBLIC_READS = frozenset({"/api/markets", "/api/health", "/api/ready", "/api/capabilities", "/api/research",
                           "/api/runs", "/api/check", "/api/rules", "/api/rules/export", "/api/chaos-report"})
+
+
+def token_matches(supplied: str, expected: str) -> bool:
+    """Constant-time comparison that treats a non-ASCII header as a bad token instead of a server error."""
+    try:
+        return hmac.compare_digest(supplied.encode("ascii"), expected.encode("ascii"))
+    except UnicodeEncodeError:
+        return False
 
 
 def guard(token: str):
@@ -27,7 +35,7 @@ def guard(token: str):
         if (req.host or "").rsplit(":", 1)[0] not in LOOPBACK:
             return web.json_response({"error": "loopback only"}, status=403)
         public = req.method == "GET" and (req.path in PUBLIC_READS or req.path.startswith("/api/runs/") and req.path.count("/") == 3)
-        if req.path.startswith("/api/") and not public and not hmac.compare_digest(req.headers.get("X-Gym-Token", ""), key[0]):
+        if req.path.startswith("/api/") and not public and not token_matches(req.headers.get("X-Gym-Token", ""), key[0]):
             return web.json_response({"error": "missing or bad X-Gym-Token"}, status=403)
         if req.method == "POST" and req.path == "/api/session/rotate":
             key[0] = secrets.token_urlsafe(24)

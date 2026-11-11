@@ -197,3 +197,47 @@ fn python_and_rust_share_the_same_synthetic_golden_frames() {
     assert_eq!(reply.sequence, 2);
     assert_eq!(reply.credential_generation, [3; 16]);
 }
+
+#[test]
+fn ticket_envelopes_follow_the_shared_contract_fixture() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../contracts/v1/fixtures/ticket-envelopes.json"
+    ))
+    .unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        let d = case["decimals"].as_array().unwrap();
+        let mut t = ticket();
+        t.buy = case["side"] == "BUY";
+        t.base_decimals = d[0].as_u64().unwrap() as u8;
+        t.price_decimals = d[1].as_u64().unwrap() as u8;
+        t.quote_decimals = d[2].as_u64().unwrap() as u8;
+        t.quantity_quanta = case["quantity"].as_u64().unwrap();
+        t.worst_price_quanta = case["worst_price"].as_u64().unwrap();
+        t.max_quote_debit = case["max_quote_debit"].as_u64().unwrap();
+        t.min_quote_credit = case["min_quote_credit"].as_u64().unwrap();
+        assert_eq!(
+            t.validate().is_ok(),
+            case["accept"].as_bool().unwrap(),
+            "{}",
+            case["name"]
+        );
+        // The stated gross is the exact boundary: at it accepted, one quantum past it refused.
+        if let Some(gross) = case["gross"].as_u64().filter(|g| *g > 0) {
+            if t.buy {
+                t.min_quote_credit = 0;
+                t.max_quote_debit = gross;
+                assert!(t.validate().is_ok(), "{} at gross", case["name"]);
+                t.max_quote_debit = gross - 1;
+                assert!(t.validate().is_err(), "{} below gross", case["name"]);
+            } else {
+                t.max_quote_debit = 0;
+                t.min_quote_credit = gross;
+                assert!(t.validate().is_ok(), "{} at gross", case["name"]);
+                if gross < u64::MAX {
+                    t.min_quote_credit = gross + 1;
+                    assert!(t.validate().is_err(), "{} above gross", case["name"]);
+                }
+            }
+        }
+    }
+}

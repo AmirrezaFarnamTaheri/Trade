@@ -138,3 +138,45 @@ fn v2_receipt_is_version_bound_correlated_and_never_funded_authority() {
     });
     assert!(ReplyV2::decode_for(&bytes, &mutated).is_err());
 }
+
+/// Golden v2 frames shared with Python: same layout as v1 apart from the magic.
+/// Regenerate with `GYM_WRITE_FIXTURES=1 cargo test -p exec-ipc --test operator_review_v2`.
+#[test]
+fn v2_golden_frames_match_the_shared_contract_fixture() {
+    let hex = |bytes: &[u8]| bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let unhex = |line: &str| {
+        line.as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect::<Vec<_>>()
+    };
+    let v1 = include_str!("../../../contracts/v1/fixtures/operator-review-v1.hex");
+    let mut reply = Reply::decode(&unhex(v1.lines().nth(1).unwrap()), [4; 16]).unwrap();
+    reply.ticket = Some(ticket("New_01"));
+    let request = request(Command::Approve(Box::new(ticket("New_01"))));
+    let request_bytes = request.encode().unwrap();
+    let reply_bytes = ReplyV2(reply).encode_for(&request).unwrap();
+    let expected = format!("{}\n{}\n", hex(&request_bytes), hex(&reply_bytes));
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../contracts/v2/fixtures/operator-review-v2.hex"
+    );
+    if std::env::var_os("GYM_WRITE_FIXTURES").is_some() {
+        std::fs::create_dir_all(std::path::Path::new(path).parent().unwrap()).unwrap();
+        std::fs::write(path, &expected).unwrap();
+    }
+    let stored = std::fs::read_to_string(path).expect("missing v2 golden fixture");
+    assert_eq!(stored, expected);
+    let lines: Vec<_> = stored.lines().collect();
+    assert_eq!(RequestV2::decode(&unhex(lines[0])).unwrap(), request);
+    assert!(Request::decode(&unhex(lines[0])).is_err());
+    assert_eq!(
+        ReplyV2::decode_for(&unhex(lines[1]), &request)
+            .unwrap()
+            .0
+            .ticket,
+        Some(ticket("New_01"))
+    );
+}

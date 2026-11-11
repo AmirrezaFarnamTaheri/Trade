@@ -131,7 +131,9 @@ def test_journal_api_and_cli(tmp_path, capsys):
             assert d["result"]["decisions"][0]["marks"]
             assert d["evidence"]["claim_ceiling"] == "EXPERIMENTAL"
             assert (await c.get("/api/runs/not-a-run")).status == 400
-            assert (await c.get("/api/runs/" + "0"*16)).status == 404
+            for suffix in ("", "/summary", "/summary.html"):
+                missing = await c.get("/api/runs/" + "0"*16 + suffix, headers={"X-Gym-Token": "tok"})
+                assert missing.status == 404
             assert 'data-view="research"' in await (await c.get("/")).text()
             assert (await c.get("/app.js")).status == 200
             assert (await c.get("/styles.css")).status == 200

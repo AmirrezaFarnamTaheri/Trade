@@ -24,7 +24,7 @@ export class ModelControl {
         loggedIn: c.auth.type === 'oauth' && (await this.state.credentials(c).list()).length > 0 });
       }
       return { ...config, connections, mode: 'RESEARCH_ONLY', funded_authority: false,
-        storage: process.platform === 'win32' ? 'WINDOWS_USER_DPAPI' : 'PRIVATE_FILE_PLAINTEXT' };
+        ...this.state.protection() };
     }
     if (action === 'session') {
       check(typeof value === 'string' && this.sessions.has(value), 'unknown_login');

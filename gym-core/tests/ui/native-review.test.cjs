@@ -6,7 +6,7 @@ const vm = require('node:vm');
 function page(api, demo = false) {
   const ids = ['native-review-form', 'native-review-context', 'native-review-submit', 'native-review-result', 'native-review-input'];
   const nodes = Object.fromEntries(ids.map(id => [id, {disabled:false, textContent:'', value:'', listeners:{}, addEventListener(name, handler) {this.listeners[name] = handler;}}]));
-  const context = {window:{}, document:{getElementById:id => nodes[id], documentElement:{lang:'en'}}};
+  const context = {T: require('./vocabulary.cjs').T, window:{}, document:{getElementById:id => nodes[id], documentElement:{lang:'en'}}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/gym/ui/native-review.js'), 'utf8'), context);
   context.window.gymNativeReview.mount(api, demo);
   return nodes;

@@ -1,4 +1,5 @@
 $("language-toggle").onclick = () => { lang = lang === "en" ? "fa" : "en"; remember("lang", lang); applyLang(); renderAlertToggle(); refresh(); };
+$("zone-toggle").onclick = () => { zone = zone === "UTC" ? "Asia/Tehran" : "UTC"; remember("zone", zone); applyLang(); };
 $("theme-toggle").onclick = () => { theme = theme === "light" ? "dark" : "light"; remember("theme", theme); applyLang(); };
 $("refresh-data").onclick = () => refresh();
 $("retry").onclick = () => refresh();

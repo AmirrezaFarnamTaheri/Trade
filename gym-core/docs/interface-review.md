@@ -51,3 +51,11 @@ finishing work. These are design priorities, not security ratings.
 
 Current numerical validation belongs in [system status](system-status.md).
 [DESIGN.md](../../DESIGN.md) and the shared style sheet own visual tokens.
+
+## Persian copy review
+
+`uv run --no-sync python scripts/ui_copy_extract.py --out ui-copy-review.csv` (from `gym-core/`) writes every
+English/Persian pair in the UI, about 1,090 of them, to one spreadsheet with file, line and key, plus an empty
+`reviewer_note` column. It also prints the few Persian lines it cannot pair (multi-line strings); review those in
+place. The modules keep their copy where it is, because the margin and portfolio components are tested in
+isolation; the sheet is the single place to review it.

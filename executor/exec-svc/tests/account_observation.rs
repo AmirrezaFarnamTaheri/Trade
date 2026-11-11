@@ -569,3 +569,46 @@ fn hash_valid_but_illegal_receipts_fail_replay() {
     drop(source);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn fill_timestamps_follow_the_shared_contract_fixture() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../contracts/v1/fixtures/fill-timestamps.json"
+    ))
+    .unwrap();
+    for (key, expected) in [("accept", true), ("reject", false)] {
+        for value in fixture[key].as_array().unwrap() {
+            assert_eq!(
+                exec_svc::account_observation::fill_timestamp(value),
+                expected,
+                "{key}: {value}"
+            );
+        }
+    }
+}
+
+#[test]
+fn freshness_is_per_resource_so_overlapping_reads_of_different_kinds_both_record() {
+    let root = root();
+    let path = root.join("credentials.sqlite");
+    let mut ledger = journal(&path);
+    let fees_body = br#"{"success":true,"result":{"BTCUSDT":{"makerFeeRate":"0.0010","takerFeeRate":"0.002"}}}"#;
+    // Balances read 1000..1010; a fees read that started at 1005, while it was in flight, is a separate resource.
+    ledger
+        .record_account_observation(observed(AccountKind::Balances, balances(), 1, 1000))
+        .unwrap();
+    ledger
+        .record_account_observation(observed(AccountKind::Fees, fees_body, 2, 1005))
+        .unwrap();
+    // A balances read that started before the stored balances read finished is still stale.
+    assert!(ledger
+        .record_account_observation(observed(AccountKind::Balances, balances(), 3, 1005))
+        .is_err());
+    assert_eq!(ledger.record_count(), 3);
+    drop(ledger);
+    // Replay applies the same rule, so the journal reopens.
+    let ledger = DurableOrderJournal::open(&path).unwrap();
+    assert_eq!(ledger.record_count(), 3);
+    drop(ledger);
+    std::fs::remove_dir_all(root).unwrap();
+}

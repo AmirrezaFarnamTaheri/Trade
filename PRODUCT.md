@@ -26,6 +26,9 @@ The current Python/aiohttp application runs on loopback and serves a dependency-
 - Account observations and external orders are unverified, and do not establish spendable balances or settlement.
 - Demo observations are synthetic and must remain labelled. Paper results cannot authorize real capital.
 - Existing rule import, preset, disable, and export operations remain available.
+- Excluded strategy families: grid, martingale and averaging-down. They add exposure as a position loses, so a
+  small or negative edge becomes a tail loss, and closed-bar paper fills cannot show the gap and liquidity risk that
+  decides their outcome. Do not re-explore them without a written reason that addresses this.
 
 ## Brand Commitments
 
@@ -34,6 +37,21 @@ Use the TradingGYM name and the visual, language and accessibility contracts in 
 ## Evidence on Hand
 
 Source contracts in gym-core/src/gym/api/server.py and domain/services modules; existing local demo/live stores; deterministic tests under gym-core/tests. There are no customer claims, testimonials, or qualified live-trading results to add.
+
+## 90-day checkpoint (written 2026-11-10, review on 2027-02-08)
+
+A pre-committed stop rule, so funded-execution work is earned by evidence rather than momentum. On the review date,
+if either holds, funded-execution work pauses and the observatory remains the product:
+
+- Feed quality is still blocked: `gymctl doctor` or the collector-feed alert has failed on more than 10% of days
+  in the preceding 30, or the archive has a gap longer than 24 hours in that period.
+- No plausible net edge: no strategy has passed validation and an independently consumed holdout
+  (`gymctl research final-run`, the holdout ledger) with a deflated Sharpe probability of at least 0.95 after
+  modelled costs.
+
+Continuing past the checkpoint needs both conditions clear and automated authority/admission
+checks (ADR 0006) passing. The decision and its evidence are recorded in
+`evidence/`.
 
 ## Product Principles
 
@@ -66,9 +84,12 @@ The current [implementation plan](gym-core/docs/implementation-plan.md),
 - Preserve separate Windows principals, custody, exact operator intent, durable
   uncertain outcomes and emergency stop for the protected execution boundary.
 - Enforce the existing zero funded-loss budget until a separate funded probe is
-  explicitly authorized. Physical-host and elapsed-time evidence remain actual
-  acceptance requirements; neither can be replaced by simulated success.
+  explicitly authorized. Restore verification and elapsed-time evidence remain actual
+  acceptance requirements; neither can be replaced by an untested claim.
 
-Predictive ML/RL training remains outside the accepted delivery scope. Current
+Predictive ML/RL training is paper-only and gated: nothing is fitted until the existing gate of 300 verified
+closed trades is met, every model fit counts as a trial in the trial ledger and the deflated Sharpe, and a
+first model is one pre-registered meta-labeling trial with a consume-once evaluation. A model never places or
+sizes an order, and it abstains on a corrupt, expired or incompatible artifact. Current
 rule-based and statistical work remains visible in the plan. Unrelated runtimes
 do not expand authority.

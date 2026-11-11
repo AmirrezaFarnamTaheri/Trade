@@ -485,8 +485,19 @@ struct LocalReservation {
 pub struct ReservationBook {
     entries: Vec<LocalReservation>,
     newest_sequences: Vec<(String, String, u64)>,
+    /// Largest unexplained surplus a settled release may carry (venue dust or rebates), in quanta. Zero by
+    /// default: any unexplained delta, either way, keeps the hold, because a surplus can mask a debit.
+    credit_tolerance: u64,
 }
 impl ReservationBook {
+    /// A book that accepts a settled release carrying up to `quanta` of unexplained surplus.
+    /// Money missing is never tolerated. Set it only from a reviewed venue dust rule.
+    pub fn with_credit_tolerance(quanta: u64) -> Self {
+        Self {
+            credit_tolerance: quanta,
+            ..Self::default()
+        }
+    }
     pub fn is_reserved(&self, intent: &str) -> bool {
         self.entries
             .iter()
@@ -499,13 +510,14 @@ impl ReservationBook {
             .filter(|e| e.asset == asset && !e.released)
             .try_fold(0u64, |total, e| total.checked_add(e.quanta))
     }
+    /// Saturates instead of wrapping, so an impossible overflow makes every
+    /// later admission fail closed rather than see a small total.
     pub fn reserved(&self, account: &str, asset: &str) -> u64 {
         self.entries
             .iter()
             .filter(|e| e.account == account && e.asset == asset)
             .filter(|e| !e.released)
-            .map(|e| e.quanta)
-            .sum()
+            .fold(0u64, |total, e| total.saturating_add(e.quanta))
     }
     pub fn reserve(
         &mut self,
@@ -650,11 +662,19 @@ impl ReservationBook {
             .filter(|e| e.account == reservation.account && e.asset == reservation.asset)
             .try_fold(0u64, |total, e| total.checked_add(e.quanta))
             .ok_or(ReservationError::BalanceMismatch)?;
+        // Money missing, spend above the holds, or a surplus above the declared tolerance keeps the hold. With
+        // the default zero tolerance this is the original exact-equality rule, so replay is unchanged.
+        let explained = reservation
+            .initial_available
+            .checked_add(settled_credits_quanta)
+            .ok_or(ReservationError::BalanceMismatch)?;
         if evidence.spent_quanta > aggregate_quanta
-            || evidence.available_quanta.checked_add(evidence.spent_quanta)
-                != reservation
-                    .initial_available
-                    .checked_add(settled_credits_quanta)
+            || evidence
+                .available_quanta
+                .checked_add(evidence.spent_quanta)
+                .is_none_or(|observed| {
+                    observed < explained || observed - explained > self.credit_tolerance
+                })
         {
             return Err(ReservationError::BalanceMismatch);
         }

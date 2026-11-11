@@ -5,18 +5,18 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import timedelta
-from decimal import localcontext
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 from ..adapters.run_store import save_run
+from ..adapters.sqlite_migrations import enable_wal, execute_schema
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, rate
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.periods import instant
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from .collector import now_utc
 from .paper import paper
 from .reports import economic_report
 from .research_grounding import MetricUnavailable, _number, resolve_run_metric
@@ -38,16 +38,17 @@ class ResearchProtocol:
             raise ValueError("research protocol requires a regular file")
         self.conn = sqlite3.connect(path, timeout=5, isolation_level=None)
         try:
+            enable_wal(self.conn)
+            self.conn.execute("PRAGMA synchronous=FULL")
+            self.conn.execute("BEGIN IMMEDIATE")
             version = self.conn.execute("PRAGMA user_version").fetchone()[0]
             tables = {row[0] for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if version == 0 and tables:
                 raise ValueError("refusing an existing unversioned protocol database")
             if version not in (0, 1):
                 raise ValueError("unsupported protocol schema")
-            self.conn.execute("PRAGMA journal_mode=WAL")
-            self.conn.execute("PRAGMA synchronous=FULL")
             if not version:
-                self.conn.executescript("""BEGIN IMMEDIATE;
+                execute_schema(self.conn, """
                     CREATE TABLE evaluations(id TEXT PRIMARY KEY, body TEXT NOT NULL, registered_at TEXT NOT NULL,
                         state TEXT NOT NULL CHECK(state IN ('REGISTERED','CONSUMED','EVALUATED','INCOMPLETE','FAILED')), result TEXT);
                     CREATE TABLE outcomes(run_id TEXT PRIMARY KEY, body TEXT NOT NULL, resolved_at TEXT);
@@ -64,14 +65,16 @@ class ResearchProtocol:
                         BEGIN SELECT RAISE(ABORT,'retain outcome'); END;
                     CREATE TRIGGER resolved_outcome BEFORE UPDATE ON outcomes WHEN OLD.resolved_at IS NOT NULL
                         BEGIN SELECT RAISE(ABORT,'resolved outcome is immutable'); END;
-                    PRAGMA user_version=1; COMMIT;""")
+                    PRAGMA user_version=1;""")
             tables = {row[0] for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             triggers = {row[0] for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'")}
             if tables != {"evaluations", "outcomes", "observations"} or triggers != {"frozen_evaluation", "retain_evaluation", "retain_outcome", "resolved_outcome", "retain_observation", "frozen_observation"}:
                 raise ValueError("invalid protocol schema")
             if self.conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise ValueError("protocol integrity check failed")
+            self.conn.commit()
         except BaseException:
+            self.conn.rollback()
             self.conn.close()
             raise
 
@@ -92,6 +95,9 @@ class ResearchProtocol:
             raise
 
     def register(self, request):
+        declared = request.get("cost_declaration") if isinstance(request, dict) else None
+        if isinstance(request, dict) and "cost_declaration" in request:
+            request = {k: v for k, v in request.items() if k != "cost_declaration"}
         fields(request, "symbol strategy params selection_end test_from test_to resolution cash fee_rate")
         strategy = create_strategy(request["strategy"], request["params"])
         if type(request["symbol"]) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", request["symbol"]):
@@ -105,9 +111,15 @@ class ResearchProtocol:
         spec = BarSpec(request["resolution"])
         if request["resolution"] == "session" or start - selected < spec.step:
             raise ValueError("final evaluation requires fixed bars and at least one-period purge")
+        from .storage_runway import ensure_runway
+        ensure_runway(self.root, end, now)  # The archive must last through the window
         decimal(request["cash"], "cash", positive=True)
-        rate(request["fee_rate"], "fee_rate")
-        body = {**request, "params": strategy.params, "config_hash": strategy.config_hash,
+        fee = rate(request["fee_rate"], "fee_rate")
+        cost = None
+        if declared is not None:
+            from ..domain.cost_gate import cost_gate
+            cost = cost_gate(declared, Decimal(fee))
+        body = {**request, **({"cost_declaration": cost} if cost else {}), "params": strategy.params, "config_hash": strategy.config_hash,
                 "selection_end": iso(selected), "test_from": iso(start), "test_to": iso(end),
                 "engine_digest": _engine_digest(), "store": self.store}
         key = digest(body)
@@ -136,7 +148,9 @@ class ResearchProtocol:
         body, registered, state, result = row
         if digest(json.loads(body)) != key or json.loads(body)["store"] != self.store:
             raise ValueError("evaluation identity mismatch")
-        return {"evaluation_id": key, "registered_at": registered, "state": state, "configuration": json.loads(body),
+        configuration = json.loads(body)
+        return {"evaluation_id": key, "registered_at": registered, "state": state, "configuration": configuration,
+                "cost_gate": "DECLARED" if "cost_declaration" in configuration else "NOT_DECLARED",
                 "result": json.loads(result) if result else None, "authority": "PAPER_ONLY", "funded_authority": False,
                 "independent_final_evidence": False,
                 "limitation": "Enforces one attempt through this ledger. It cannot prevent direct access to raw data, "
@@ -334,11 +348,12 @@ class ResearchProtocol:
             if digest(body) != key:
                 raise ValueError("observation digest mismatch")
             subject = body["subject"]
-            vintage = (body["published_at"], body["revision_at"] or body["published_at"], known, key)
+            vintage = (body.get("measured_at", body["published_at"]), body["published_at"],
+                       body["revision_at"] or body["published_at"], known, key)
             if subject not in latest or vintage > latest[subject][0]:
                 latest[subject] = vintage, {**body, "observation_id": key, "known_at": known}
         eligible = [body for _, body in latest.values()
-                    if (cutoff - parse_ts(body["published_at"])).total_seconds() <= request["max_age_seconds"]]
+                    if (cutoff - parse_ts(body.get("measured_at", body["published_at"]))).total_seconds() <= request["max_age_seconds"]]
         numeric = request["kind"] != "NEWS"
         ranked = sorted(eligible, key=lambda row: (_number(row["value"]) if numeric else row["published_at"], row["subject"]), reverse=request["descending"])
         return {"authority": "PAPER_ONLY", "funded_authority": False, "as_of": iso(cutoff),
@@ -346,4 +361,5 @@ class ResearchProtocol:
                 "rows": ranked[:request["limit"]], "source_authenticity_verified": False,
                 "ranking": "NUMERIC_VALUE" if numeric else "PUBLICATION_TIME",
                 "limitation": "Ranks one supplied source/series/kind/unit using the latest known vintage per subject. "
+                              "Freshness uses measurement time when supplied, otherwise publication time. "
                               "Missing, future and stale observations are not scored or synthesized; no trade is recommended."}

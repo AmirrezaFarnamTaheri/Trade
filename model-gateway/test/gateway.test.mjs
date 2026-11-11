@@ -438,3 +438,21 @@ test('state rejects symlinked config and POSIX broad permissions', async t => {
   await assert.rejects(f.state.config(), /unsafe_state_path/);
   if (process.platform !== 'win32') { await rm(join(f.home, 'config.json')); await chmod(f.home, 0o755); await assert.rejects(new State(f.home, identity).init(), /unsafe_state_permissions/); await chmod(f.home, 0o700); }
 });
+
+test('local connections reach a loopback model server without a key or the test-only switch, and nothing else', async t => {
+  const f = await fixture(t);
+  const port = f.server.address().port;
+  const local = (baseURL, extra = {}) => ({ schema: 1, enabled: true, connections: [{ id: 'llama', provider: 'local', protocol: 'openai-completions', baseURL, auth: { type: 'local', ...extra } }], presets: [{ id: 'research', connection: 'llama', model: 'fixed-model', maxTokens: 64 }] });
+  // No allowLoopback option: the switch is not needed for a local connection.
+  const config = validate(local(`http://127.0.0.1:${port}/v1`));
+  const result = await complete(f.state, config, 'research', { prompt: 'summarise' }, { env: {} });
+  assert.equal(result.text, 'Advisory only.');
+  assert.equal(f.calls.at(-1).path, '/v1/chat/completions');
+  assert.ok(!String(f.calls.at(-1).auth).includes('test-secret'));  // no real key ever goes out
+  for (const bad of [local('http://192.168.1.5:8080/v1'), local('http://example.com/v1'), local('https://api.example.com/v1'),
+                     local(`http://127.0.0.1:${port}/v1`, { env: ['KEY_A'] })]) {
+    assert.throws(() => validate(bad));
+  }
+  // An api_key connection still cannot use plain http without the test-only switch.
+  assert.throws(() => validate({ ...local(`http://127.0.0.1:${port}/v1`), connections: [{ id: 'llama', provider: 'local', protocol: 'openai-completions', baseURL: `http://127.0.0.1:${port}/v1`, auth: { type: 'api_key', env: ['KEY_A'] } }] }));
+});

@@ -1,0 +1,17 @@
+[package]
+name = "exec-kernel-py"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+description = "Python bindings for the exec-core reference money rules (ADR 0005); optional, research only"
+
+[lib]
+name = "exec_kernel"
+crate-type = ["cdylib"]
+
+[dependencies]
+exec-core = { path = "../exec-core" }
+pyo3 = { version = "0.23", features = ["abi3-py311", "extension-module"] }
+
+# Built on its own with maturin; kept out of the main workspace so the executor never links Python.
+[workspace]

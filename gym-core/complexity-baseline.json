@@ -1,0 +1,19 @@
+{
+  "src/gym/adapters/wallex_order_evidence.py::parse_manual_order_evidence": 23,
+  "src/gym/cli.py::main": 23,
+  "src/gym/domain/compound_strategies.py::decide": 26,
+  "src/gym/domain/margin.py::_replay": 26,
+  "src/gym/domain/rules.py::parse_rule": 24,
+  "src/gym/services/execution_market_models.py::_public_trade_samples": 21,
+  "src/gym/services/experiment_registry.py::run": 28,
+  "src/gym/services/external_journal.py::_sanitize_snapshot": 22,
+  "src/gym/services/liquidity.py::audit_depth": 22,
+  "src/gym/services/paper_twap.py::simulate_twap": 28,
+  "src/gym/services/portfolio_research.py::portfolio_action": 27,
+  "src/gym/services/premium_lead_lag.py::analyze_lead_lag": 24,
+  "src/gym/services/research_market.py::screen_markets": 21,
+  "src/gym/services/research_protocol.py::ingest_observations": 21,
+  "src/gym/services/session.py::scan": 30,
+  "src/gym/services/session.py::settle_limit": 28,
+  "src/gym/services/walk_forward.py::walk_forward": 26
+}

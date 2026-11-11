@@ -1,0 +1,180 @@
+"""One read-only answer to "is this workspace intact?": runs the existing verifiers and reports each result.
+
+Nothing here repairs, creates or deletes data. Missing optional stores are SKIP, not FAIL. The protected
+executor ledger is not read: it belongs to the service account and has its own `verify()`.
+"""
+from __future__ import annotations
+
+import shutil
+import sqlite3
+from datetime import UTC, datetime, timedelta
+from itertools import pairwise
+from pathlib import Path
+
+PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
+BACKUP_STALE = timedelta(hours=36)
+FEED_STALE = timedelta(minutes=10)  # the collector writes quotes every few seconds while the venue is reachable
+
+
+def _check(name, status, detail):
+    return {"check": name, "status": status, "detail": detail}
+
+
+def _market(root: Path, now: datetime, full: bool, archives: list[Path], quick: bool = False):
+    from ..adapters.store import MarketDB, verify_segments
+    path = root / "market.db"
+    if not path.is_file():
+        return [_check("market_db", FAIL, f"{path} not found")]
+    db = MarketDB(path, readonly=True)
+    try:
+        # Newest quote by insertion order: O(1) even on a multi-gigabyte store.
+        newest = db.c.execute("SELECT ts_avail FROM book_top ORDER BY rowid DESC LIMIT 1").fetchone()
+        out = [_freshness(newest[0] if newest else None, now), _gaps(db, now)]
+        if quick:  # alerting mode: no integrity scan or re-hashing every half hour
+            return out
+        check = db.c.execute("PRAGMA quick_check").fetchone()[0]
+        out.insert(0, _check("market_db", PASS if check == "ok" else FAIL, f"SQLite quick_check: {check}"))
+        since = "" if full else (now - timedelta(days=1)).strftime("%Y%m%d")
+        report = verify_segments(db, [root / "raw", *archives], since)
+    finally:
+        db.c.close()
+    scope = "all days" if full else f"days from {since}"
+    bad = report["mismatched"] + report["missing"]
+    out.append(_check("raw_segments", FAIL if bad else PASS,
+                      f"{report['checked']} re-hashed ({scope}); mismatched {report['mismatched'] or 'none'}; "
+                      f"missing {report['missing'] or 'none'}"))
+    # An unclosed row for the current UTC hour is the file a running collector has open; older ones are crash tails.
+    live = now.astimezone(UTC).strftime("%Y%m%d/%H-")
+    loose = report["unregistered"] + [seg for seg in report["unclosed"] if not seg.startswith(live)]
+    out.append(_check("segment_manifest", WARN if loose else PASS,
+                      f"unclosed {report['unclosed'] or 'none'}; unregistered {report['unregistered'] or 'none'}"))
+    return out
+
+
+GAP_LIMIT = timedelta(minutes=10)
+HEARTBEAT = "wallex:USDTTMN"  # the busiest TMN leg; the collector also writes heartbeats for quiet books
+
+
+def _gaps(db, now: datetime):
+    """O-6: the longest hole in the last 24 hours of collection, so a sleep, sign-out or crash is reported on return."""
+    since = (now - timedelta(days=1)).astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    rows = [r[0] for r in db.c.execute("SELECT ts_avail FROM book_top WHERE instrument_id=? AND ts_avail>=? "
+                                       "ORDER BY ts_avail", (HEARTBEAT, since))]
+    if len(rows) < 2:
+        return _check("collection_gaps", SKIP, "fewer than two heartbeat quotes in the last 24 hours")
+    stamps = [datetime.fromisoformat(r) for r in rows]
+    width, start = max(((b - a), a) for a, b in pairwise(stamps))
+    if width <= GAP_LIMIT:
+        return _check("collection_gaps", PASS, f"longest gap in 24 h {width.total_seconds() / 60:.1f} min")
+    return _check("collection_gaps", WARN, f"collection gap of {width.total_seconds() / 60:.0f} min from "
+                  f"{start.isoformat(timespec='seconds')} (sleep, sign-out, crash or venue outage)")
+
+
+def _freshness(newest: str | None, now: datetime):
+    if newest is None:
+        return _check("collector_feed", WARN, "no quotes stored yet")
+    age = now - datetime.fromisoformat(newest)
+    minutes = age.total_seconds() / 60
+    return _check("collector_feed", WARN if age > FEED_STALE else PASS,
+                  f"newest quote {minutes:.0f} min old" + ("; collector stopped or venue unreachable" if age > FEED_STALE else ""))
+
+
+def _disk(root: Path):
+    from ..adapters.store import MIN_FREE_BYTES
+    probe = root / "raw" if (root / "raw").exists() else root
+    if not probe.exists():
+        return _check("free_space", SKIP, f"{probe} not found")
+    free = shutil.disk_usage(probe).free
+    gib = 1024 ** 3
+    status = FAIL if free < MIN_FREE_BYTES else WARN if free < 4 * MIN_FREE_BYTES else PASS
+    return _check("free_space", status, f"{free / gib:.1f} GiB free; collection stops below {MIN_FREE_BYTES / gib:.0f} GiB")
+
+
+def _journal(name: str, path: Path, opener):
+    if not path.exists():
+        return _check(name, SKIP, "not created yet")
+    try:
+        with opener(path):
+            return _check(name, PASS, "integrity and append-only guards verified")
+    except (ValueError, OSError, sqlite3.Error) as e:
+        return _check(name, FAIL, str(e))
+
+
+def _sqlite_only(name: str, path: Path):
+    if not path.exists():
+        return _check(name, SKIP, "not created yet")
+    try:
+        conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+        try:
+            result = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.Error as e:
+        return _check(name, FAIL, str(e))
+    return _check(name, PASS if result == "ok" else FAIL, f"SQLite integrity_check: {result}")
+
+
+def _backup(root: Path, now: datetime):
+    from .backup_status import status
+    try:
+        report = status(root)
+    except (ValueError, OSError, sqlite3.Error) as e:
+        return _check("backup_receipts", FAIL, str(e))
+    latest = report["latest"]["BACKUP"]
+    if latest is None:
+        return _check("backup_receipts", WARN, "no backup receipt recorded; run backup-once or install the schedule")
+    age = now - datetime.fromisoformat(latest["recorded_at"])
+    hours = age.total_seconds() / 3600
+    return _check("backup_receipts", WARN if age > BACKUP_STALE else PASS,
+                  f"last backup {hours:.1f} h ago (sequence {latest['sequence']}); off-machine copy not verified")
+
+
+def _research_backup(root: Path, now: datetime):
+    from .research_backup import status
+    last = status(root)
+    if last is None:
+        return _check("research_backup", WARN, "market data, runs and raw segments have no backup; run backup-research")
+    age = now - datetime.fromisoformat(last["at"])
+    where = "same drive (cloud-synced folder?)" if last.get("same_device") else "another drive"
+    return _check("research_backup", WARN if age > BACKUP_STALE else PASS,
+                  f"last snapshot {age.total_seconds() / 3600:.1f} h ago to {where}; {last.get('segments_total')} segments stored")
+
+
+def _keys(today):
+    from ..adapters import secret_store
+    out = []
+    for role in secret_store.ROLES:
+        if not secret_store._path(role, None).is_file():
+            continue
+        note = secret_store.expiry_note(role, today)
+        status = FAIL if note.startswith("EXPIRED") else WARN if "unknown" in note or "soon" in note else PASS
+        out.append(_check(f"key_{role}", status, note))
+    return out
+
+
+def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Path] | None = None,
+             quick: bool = False) -> dict:
+    from .offline_review_journal import OfflineReviewJournal
+    from .venue_facts import VenueFactsJournal
+    checks = []
+    checks += _market(root, now, full, archives or [], quick)
+    checks.append(_disk(root))
+    if quick:
+        checks.append(_backup(root, now))
+        checks.append(_research_backup(root, now))
+        return _summary(root, now, checks)
+    checks.append(_journal("venue_facts", root / "venue_facts.db", VenueFactsJournal))
+    checks.append(_journal("offline_reviews", root / "offline_reviews.db", OfflineReviewJournal))
+    checks.append(_sqlite_only("external_journal", root / "external_journal.db"))
+    checks.append(_sqlite_only("probe_budget", root / "probe_budget.db"))
+    checks.append(_backup(root, now))
+    checks.append(_research_backup(root, now))
+    checks += _keys(now.date())
+    checks.append(_check("executor_ledger", SKIP, "owned by the protected service; verified by the executor at startup"))
+    return _summary(root, now, checks)
+
+
+def _summary(root: Path, now: datetime, checks: list[dict]) -> dict:
+    worst = FAIL if any(c["status"] == FAIL for c in checks) else WARN if any(c["status"] == WARN for c in checks) else PASS
+    return {"as_of": now.isoformat(), "root": str(root), "status": worst, "checks": checks,
+            "read_only": True, "funded_authority": False}

@@ -15,7 +15,8 @@ from uuid import uuid4
 from ..domain.model import iso, parse_ts
 from ..domain.strategy import digest
 
-_ALLOWED_SOURCES = frozenset(("paper", "portfolio", "compare", "validate", "experiment", "walk-forward", "prospective"))
+_ALLOWED_SOURCES = frozenset(("paper", "portfolio", "compare", "validate", "experiment", "walk-forward", "prospective",
+                              "model-fit"))  # Every model fit counts as a trial
 
 
 def _stamp(value: datetime | str) -> str:
@@ -116,7 +117,7 @@ class TrialLedger:
             attempt_id = uuid4().hex
         if type(attempt_id) is not str or not re.fullmatch(r"[A-Za-z0-9_./:-]{1,128}", attempt_id):
             raise ValueError("invalid attempt identifier")
-        from .collector import now_utc
+        from ..domain.model import now_utc
 
         self.conn.execute("BEGIN IMMEDIATE")
         try:

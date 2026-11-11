@@ -7,10 +7,10 @@ from datetime import timedelta
 from ..adapters.run_store import list_runs, load_verified_run, save_run
 from ..adapters.store import MarketDB
 from ..domain.market_models import decimal, fields, instant
+from ..domain.model import now_utc
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .attribution import toman_attribution
-from .collector import now_utc
 from .data_quality_gate import recorded_bar_coverage
 from .portfolio import MAX_MARKETS, portfolio
 from .trial_ledger import TrialLedger

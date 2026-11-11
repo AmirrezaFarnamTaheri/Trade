@@ -1,4 +1,4 @@
-# Workstream B1 — service security status (2026-11-06)
+# Executor service security status (2026-11-06)
 
 **IN PROGRESS. DISARMED. NOT CERTIFIED. NOT protective or money-enabled.**
 A compiled service, successful GET or acknowledged STOP does not establish certified venue exits.
@@ -73,7 +73,6 @@ was read, service started, ACL changed or credential replaced. The helper now
 preserves the fixed client/OS failure reason and distinguishes timeout from
 disconnection, but this updated diagnostic is not installed. The original failure
 stage is still unknown; zero current events do not establish successful custody.
-The user confirmed no second physical machine is available for recovery testing.
 
 Historical hosted Windows [run 41215249615](https://github.com/AmirrezaFarnamTaheri/Trade/actions/runs/41215249615) checked an earlier disabled service install, ACLs/restricted token and ordinary disposable-account denials. Those accounts were **not** actual sandboxed research workers; that run cannot certify the newly added pipe/vault/read/recovery code.
 
@@ -85,6 +84,6 @@ Historical hosted Windows [run 41215249615](https://github.com/AmirrezaFarnamTah
 - [ ] Exercise actual service-owned balances/locked exposure and known manual-order lifecycle; normalize observations without inventing absent fills or settlement. Connectivity, pagination, margin/package availability and freshness remain unverified.
 - [x] Run the actual constrained child against STOP/T2 pipes, current custody files, operator-profile canary and SCM; all were denied. The future funded ledger still needs its own real-file probe once implemented.
 - [x] Measure independent STOP under the parked main loop and retained-handle containment under a suspended service on ACER; measured deadlines and DISARMED startup passed for the qualified set.
-- [ ] Perform separate-machine restore; same-host WSL portability is not a hardware-loss test. Service-owned DPAPI credentials must be reprovisioned, never exported as plaintext.
+- [ ] Verify an isolated restore, exact ledger chain and DISARMED startup. Service-owned DPAPI credentials must be reprovisioned when required, never exported as plaintext.
 
 Trusted-path T1/funded order transport, live reconciliation and certified protective exits remain missing integration code. No live order creation/cancellation, withdrawal, funded arming or capability promotion is enabled or claimed.

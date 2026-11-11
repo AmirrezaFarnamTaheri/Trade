@@ -2,9 +2,12 @@
 <# Publish an explicit hash-pinned binary bundle to a stopped, disabled service.
    No service start, credential operation, journal access or automatic restart.
    Prior code and a sanitized receipt remain in an administrator-only backup.
+   Once an administrator pins an update key at <Program Files>\TradingGYM\Executor\update-signing.pub, the hash
+   manifest must carry a valid -Signature from `gymctl release-sign` (ECDSA P-256, verified natively below).
+   The published manifest is kept as bundle.sha256 so helpers can be re-checked before every launch.
 #>
 [CmdletBinding(SupportsShouldProcess=$true, ConfirmImpact='High')]
-param([string]$BinaryDirectory, [string]$HashManifest, [switch]$SelfTest)
+param([string]$BinaryDirectory, [string]$HashManifest, [string]$Signature, [switch]$SelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $names = @('gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe',
@@ -79,6 +82,13 @@ foreach ($path in @($BinaryDirectory,$HashManifest)) {
 $manifestFile=Get-Item -LiteralPath $HashManifest
 if ($manifestFile.PSIsContainer -or ($manifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $manifestFile.Length -gt 4096) { throw 'Regular bounded hash manifest required.' }
 $expected=Read-BundleHashes ([IO.File]::ReadAllText($manifestFile.FullName))
+$pinnedKey=Join-Path $code 'update-signing.pub'
+if (Test-Path -LiteralPath $pinnedKey) {
+    if (-not $Signature -or $Signature -notmatch '^[A-Za-z]:\\' -or $Signature -match '(^|\\)\.\.?($|\\)') { throw 'A pinned update key requires an explicit local -Signature for the manifest.' }
+    . (Join-Path $PSScriptRoot 'ManifestSignature.ps1')
+    if (-not (Test-ManifestSignature $manifestFile.FullName $Signature $pinnedKey)) { throw 'Manifest signature does not verify against the pinned update key.' }
+    $report_signature='VERIFIED'
+} else { $report_signature='NO_PINNED_KEY' }
 $serviceSid=([Security.Principal.NTAccount]::new('NT SERVICE\TradingGYMExecutor')).Translate([Security.Principal.SecurityIdentifier]).Value
 $operatorSid=(Get-Content -LiteralPath (Join-Path $code 'stop-user.sid') -Raw).Trim()
 function Seal([string]$Path, [bool]$Directory, [bool]$ServiceRead, [bool]$OperatorRead) {
@@ -93,7 +103,7 @@ function Seal([string]$Path, [bool]$Directory, [bool]$ServiceRead, [bool]$Operat
 $streams=@{}; $published=[Collections.Generic.List[string]]::new(); $prior=@{}
 $backupRoot=$null; $mutationStarted=$false
 $runId=[guid]::NewGuid().ToString('N')
-$report=[ordered]@{ at=[DateTime]::UtcNow.ToString('o'); status='PREFLIGHT'; source_hashes=$expected; prior_hashes=$prior; data_changed=$false; service_started=$false; funded_authority=$false }
+$report=[ordered]@{ at=[DateTime]::UtcNow.ToString('o'); status='PREFLIGHT'; source_hashes=$expected; prior_hashes=$prior; signature=$report_signature; data_changed=$false; service_started=$false; funded_authority=$false }
 try {
     foreach ($name in $names) {
         $sourceFile=Get-Item -LiteralPath (Join-Path $BinaryDirectory $name)
@@ -141,6 +151,12 @@ try {
     if ([IO.File]::ReadAllText($marker) -cne $runId) { throw 'Publication marker changed.' }
     [IO.File]::Delete($marker)
     & (Join-Path $PSScriptRoot 'Test-ReadOnlyExecutor.ps1')
+    # Keep the approved manifest beside the code: helper launches compare each binary against it.
+    $kept=Join-Path $code 'bundle.sha256'
+    $keptStage=Join-Path $backupRoot 'bundle.sha256'
+    [IO.File]::Copy($manifestFile.FullName,$keptStage,$false)
+    if ([IO.File]::Exists($kept)) { [IO.File]::Replace($keptStage,$kept,$null) } else { [IO.File]::Move($keptStage,$kept) }
+    Seal $kept $false $true $true
     $report.status='PUBLISHED_STOPPED_DISABLED'
 } catch {
     $failure=$_

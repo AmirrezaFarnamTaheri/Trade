@@ -1,6 +1,7 @@
 """Exact, causal paper allocation targets and entry-blocking loss latches."""
 import itertools
 from decimal import ROUND_DOWN, Decimal, localcontext
+from operator import mul
 
 from .covariance_models import ledoit_wolf_constant_correlation
 from .hrp import hierarchical_risk_parity
@@ -8,6 +9,9 @@ from .market_models import decimal
 from .model import TEHRAN
 from .volatility import parkinson_ewma
 
+
+class _Status(Exception):
+    """An allocation that cannot be READY yet; args[0] is the published status."""
 
 class PortfolioPolicy:
     def __init__(self, value, symbols):
@@ -95,169 +99,209 @@ class PortfolioPolicy:
                         or self.expected_shortfall_limit is not None)
         with localcontext() as context:
             context.prec = 60
-            covariance = shrinkage = None
-            if need_history:
-                series = [observations.get(s, [])[-(count + 1):] for s in self.symbols]
-                if (any(len(row) < count + 1 for row in series)
-                        or any([item[0] for item in row] != [item[0] for item in series[0]]
-                               for row in series[1:])):
-                    return {**result, "status": "WARMING_UP"}
-                if any(any(not item[1].is_finite() or item[1] <= 0 for item in row) for row in series):
-                    raise ValueError("allocation requires positive finite closed prices")
-                if any(b[0] <= a[0] for a, b in zip(series[0], series[0][1:])):
-                    raise ValueError("allocation prices must be chronological")
-                if len({b[0] - a[0] for a, b in itertools.pairwise(series[0])}) != 1:
-                    return {**result, "status": "GAPPED_HISTORY"}
-                returns = [[b[1] / a[1] - 1 for a, b in itertools.pairwise(row)] for row in series]
-                means = [sum(row) / count for row in returns]
-                covariance = [[sum((returns[i][k] - means[i]) * (returns[j][k] - means[j]) for k in range(count)) / (count - 1)
-                               for j in range(n)] for i in range(n)]
-                if any(covariance[i][i] <= 0 for i in range(n)):
-                    return {**result, "status": "ZERO_VARIANCE"}
-                if self.covariance_shrinkage != "none":
-                    shrinkage = ledoit_wolf_constant_correlation(list(zip(*returns)))
-                    covariance = shrinkage["covariance"]
-                if self.volatility_model == "parkinson-ewma":
-                    if any(any(len(item) != 4 for item in row) for row in series):
-                        return {**result, "status": "WARMING_UP"}
-                    # Preserve observed co-movement while using the shared bar
-                    # volatility scale for every paper allocation target.
-                    sigma = [parkinson_ewma([(item[2], item[3]) for item in row[1:]])
-                             for row in series]
-                    if any(value is None or value <= 0 for value in sigma):
-                        return {**result, "status": "ZERO_VARIANCE"}
-                    raw_stdev = [covariance[i][i].sqrt() for i in range(n)]
-                    covariance = [[covariance[i][j] * sigma[i] * sigma[j]
-                                   / (raw_stdev[i] * raw_stdev[j]) for j in range(n)]
-                                  for i in range(n)]
-                    if self.description["method"] == "hierarchical-risk-parity":
-                        # Decimal multiplication order may differ at the last
-                        # digit. Mirror exactly before HRP symmetry checks.
-                        for i in range(n):
-                            for j in range(i):
-                                covariance[j][i] = covariance[i][j]
-                    result["volatility_model"] = "parkinson-ewma/1"
-            weights = [Decimal(1) / n] * n
+            try:
+                returns = covariance = shrinkage = None
+                if need_history:
+                    returns, covariance, shrinkage = self._history(observations, result, n, count)
+                weights = self._base_weights(covariance, result, n)
+                weights = self._capped(weights, covariance, n)
+                if self.portfolio_volatility_target is not None:
+                    weights = self._volatility_scaled(weights, covariance, result, n)
+                if self.expected_shortfall_limit is not None:
+                    weights = self._shortfall_scaled(weights, returns, result, n, count)
+            except _Status as status:
+                return {**result, "status": status.args[0]}
+            self._publish(weights, covariance, result, n)
+            if shrinkage is not None:
+                self._shrinkage_receipt(observations, shrinkage, result)
+            return result
+
+    def _history(self, observations, result, n, count):
+        """Aligned prior returns, their covariance and optional shrinkage; raises _Status when not ready."""
+        covariance = shrinkage = None
+        series = [observations.get(s, [])[-(count + 1):] for s in self.symbols]
+        if (any(len(row) < count + 1 for row in series)
+                or any([item[0] for item in row] != [item[0] for item in series[0]]
+                       for row in series[1:])):
+            raise _Status("WARMING_UP")
+        if any(any(not item[1].is_finite() or item[1] <= 0 for item in row) for row in series):
+            raise ValueError("allocation requires positive finite closed prices")
+        if any(b[0] <= a[0] for a, b in zip(series[0], series[0][1:])):
+            raise ValueError("allocation prices must be chronological")
+        if len({b[0] - a[0] for a, b in itertools.pairwise(series[0])}) != 1:
+            raise _Status("GAPPED_HISTORY")
+        returns = [[b[1] / a[1] - 1 for a, b in itertools.pairwise(row)] for row in series]
+        means = [sum(row) / count for row in returns]
+        centered = [[value - mean for value in row] for row, mean in zip(returns, means)]
+        covariance = [[Decimal(0)] * n for _ in range(n)]
+        for i in range(n):
+            for j in range(i + 1):
+                covariance[i][j] = covariance[j][i] = sum(map(mul, centered[i], centered[j])) / (count - 1)
+        if any(covariance[i][i] <= 0 for i in range(n)):
+            raise _Status("ZERO_VARIANCE")
+        if self.covariance_shrinkage != "none":
+            shrinkage = ledoit_wolf_constant_correlation(list(zip(*returns)))
+            covariance = shrinkage["covariance"]
+        if self.volatility_model == "parkinson-ewma":
+            if any(any(len(item) != 4 for item in row) for row in series):
+                raise _Status("WARMING_UP")
+            # Preserve observed co-movement while using the shared bar
+            # volatility scale for every paper allocation target.
+            sigma = [parkinson_ewma([(item[2], item[3]) for item in row[1:]])
+                     for row in series]
+            if any(value is None or value <= 0 for value in sigma):
+                raise _Status("ZERO_VARIANCE")
+            raw_stdev = [covariance[i][i].sqrt() for i in range(n)]
+            covariance = [[covariance[i][j] * sigma[i] * sigma[j]
+                           / (raw_stdev[i] * raw_stdev[j]) for j in range(n)]
+                          for i in range(n)]
             if self.description["method"] == "hierarchical-risk-parity":
-                try:
-                    weights, order = hierarchical_risk_parity(covariance)
-                except ValueError:
-                    return {**result, "status": "DEGENERATE_COVARIANCE"}
-                result["hierarchical_risk_parity"] = {
-                    "method": "single-linkage-inverse-variance-bisect/1",
-                    "leaf_order": [self.symbols[i] for i in order],
-                    "basis": "prior aligned closed-bar covariance, paper target weights only"}
-            elif self.description["method"] != "equal":
-                weights = [1 / covariance[i][i].sqrt() for i in range(n)]
-            if self.description["method"] == "risk-parity":
-                for _ in range(100):
-                    for i in range(n):
-                        a = covariance[i][i]
-                        b = sum(covariance[i][j] * weights[j] for j in range(n) if j != i)
-                        weights[i] = (-b + (b * b + 4 * a / n).sqrt()) / (2 * a)
-                    contributions = [weights[i] * sum(covariance[i][j] * weights[j] for j in range(n)) for i in range(n)]
-                    total_risk = sum(contributions)
-                    if total_risk <= 0:
-                        return {**result, "status": "DEGENERATE_COVARIANCE"}
-                    error = max(abs(value / total_risk - Decimal(1) / n) for value in contributions)
-                    if error <= Decimal("0.0001"):
-                        break
-                else:
-                    return {**result, "status": "NO_CONVERGENCE"}
-                result["risk_contribution_error"] = str(error)
-            total = sum(weights)
-            weights = [min(self.rates["max_weight"], value / total * (1 - self.rates["cash_buffer"])) for value in weights]
-            if self.description["correlation_limit"] is not None:
-                groups = [{i} for i in range(n)]
+                # Decimal multiplication order may differ at the last
+                # digit. Mirror exactly before HRP symmetry checks.
                 for i in range(n):
                     for j in range(i):
-                        corr = covariance[i][j] / (covariance[i][i] * covariance[j][j]).sqrt()
-                        if corr >= self.rates["correlation_limit"]:
-                            joined = groups[i] | groups[j]
-                            for k in joined:
-                                groups[k] = joined
-                for group in {frozenset(group) for group in groups}:
-                    total = sum(weights[i] for i in group)
-                    if total > self.rates["correlation_cap"]:
-                        for i in group:
-                            weights[i] *= self.rates["correlation_cap"] / total
-            if self.portfolio_volatility_target is not None:
-                # The policy's target is a per-closed-bar standard deviation.
-                # This never leverages or reallocates spare cash to hit an
-                # unreachable target; every factor uses strictly prior bars.
-                variance = sum((weights[i] * covariance[i][j] * weights[j]
-                                for i in range(n) for j in range(n)), Decimal(0))
-                if variance <= 0:
-                    return {**result, "status": "DEGENERATE_COVARIANCE"}
-                before = variance.sqrt()
-                scale = min(Decimal(1), self.portfolio_volatility_target / before)
-                weights = [weight * scale for weight in weights]
-                projected = sum((weights[i] * covariance[i][j] * weights[j]
-                                 for i in range(n) for j in range(n)), Decimal(0)).sqrt()
-                result["portfolio_volatility"] = {
-                    "model": "joint-prior-covariance/1",
-                    "unit": "standard-deviation-per-closed-bar",
-                    "target_per_bar": str(self.portfolio_volatility_target),
-                    "unscaled_per_bar": str(+before), "scale": str(+scale),
-                    "projected_per_bar": str(+projected),
-                    "leverage_allowed": False}
-            if self.expected_shortfall_limit is not None:
-                # Historical constant-target stress uses only completed returns
-                # strictly before the target event; a future bar never enters
-                # its own cap estimate. Downscaling never adds leverage.
-                losses = sorted((-sum((weights[i] * returns[i][k] for i in range(n)), Decimal(0))
-                                 for k in range(count)), reverse=True)
-                worst = max(1, (count + 19) // 20)
-                unscaled = max(Decimal(0), sum(losses[:worst], Decimal(0)) / worst)
-                scale = (min(Decimal(1), self.expected_shortfall_limit / unscaled)
-                         if unscaled > 0 else Decimal(1))
-                # Always round down: the published scale cannot exceed the
-                # modeled ES bound through finite-precision division.
-                scale = scale.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)
-                weights = [weight * scale for weight in weights]
-                result["expected_shortfall"] = {
-                    "model": "historical-constant-target-es95/1",
-                    "confidence": "0.95",
-                    "history": count,
-                    "worst_observations": worst,
-                    "unit": "loss-fraction-per-closed-bar",
-                    "limit_per_bar": str(self.expected_shortfall_limit),
-                    "unscaled_per_bar": str(+unscaled),
-                    "scale": str(+scale),
-                    "scaled_per_bar": str(+(unscaled * scale)),
-                    "stress_losses_per_bar": [str(+value) for value in losses[:min(5, len(losses))]],
-                    "realized_stress_replay": False,
-                    "scope": "Prior correlated bar returns with frozen current target weights, not executed margin or forced liquidation"}
-            result["weights"] = {s: str(value.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)) for s, value in zip(self.symbols, weights)}
-            if self.description["method"] == "risk-parity":
-                actual = [Decimal(result["weights"][s]) for s in self.symbols]
-                contributions = [actual[i] * sum(covariance[i][j] * actual[j] for j in range(n)) for i in range(n)]
-                total_risk = sum(contributions)
-                result["risk_contribution_error"] = str(max(abs(value / total_risk - Decimal(1) / n) for value in contributions)) if total_risk > 0 else None
-                result["risk_basis"] = "Realized target risk contributions after weight/correlation caps and rounding; constraints can prevent equal risk."
-            if shrinkage is not None:
-                # Compare consecutive target *weights* under the same bars/limits.
-                # This is not execution turnover; realized fills may differ.
-                baseline = PortfolioPolicy(
-                    {k: v for k, v in self.description.items() if k != "covariance_shrinkage"},
-                    self.symbols).weights(observations)
-                def turnover(previous, current):
-                    """Measure half-L1 change in successive allocation targets."""
-                    if previous is None:
-                        return None
-                    return str(sum((abs(Decimal(current[s]) - Decimal(previous[s]))
-                                    for s in self.symbols), Decimal(0)) / 2)
+                        covariance[j][i] = covariance[i][j]
+            result["volatility_model"] = "parkinson-ewma/1"
+        return returns, covariance, shrinkage
 
-                raw = baseline["weights"] if baseline["status"] == "READY" else None
-                chosen = result["weights"]
-                result["covariance_shrinkage"] = {
-                    "method": "ledoit-wolf-constant-correlation/1",
-                    "target": "constant-correlation",
-                    "intensity": str(shrinkage["intensity"]),
-                    "raw_status": baseline["status"],
-                    "turnover_raw": (turnover(getattr(self, "_last_raw_weights", None), raw)
-                                     if raw is not None else None),
-                    "turnover_shrunk": turnover(getattr(self, "_last_shrunk_weights", None), chosen),
-                    "turnover_basis": "half L1 change of successive target weights, not executed fills"}
-                self._last_raw_weights, self._last_shrunk_weights = raw, chosen
-            return result
+    def _base_weights(self, covariance, result, n):
+        """Equal, inverse-volatility, hierarchical or risk-parity weights before caps."""
+        weights = [Decimal(1) / n] * n
+        if self.description["method"] == "hierarchical-risk-parity":
+            try:
+                weights, order = hierarchical_risk_parity(covariance)
+            except ValueError:
+                raise _Status("DEGENERATE_COVARIANCE")
+            result["hierarchical_risk_parity"] = {
+                "method": "single-linkage-inverse-variance-bisect/1",
+                "leaf_order": [self.symbols[i] for i in order],
+                "basis": "prior aligned closed-bar covariance, paper target weights only"}
+        elif self.description["method"] != "equal":
+            weights = [1 / covariance[i][i].sqrt() for i in range(n)]
+        if self.description["method"] == "risk-parity":
+            for _ in range(100):
+                for i in range(n):
+                    a = covariance[i][i]
+                    b = sum(covariance[i][j] * weights[j] for j in range(n) if j != i)
+                    weights[i] = (-b + (b * b + 4 * a / n).sqrt()) / (2 * a)
+                contributions = [weights[i] * sum(covariance[i][j] * weights[j] for j in range(n)) for i in range(n)]
+                total_risk = sum(contributions)
+                if total_risk <= 0:
+                    raise _Status("DEGENERATE_COVARIANCE")
+                error = max(abs(value / total_risk - Decimal(1) / n) for value in contributions)
+                if error <= Decimal("0.0001"):
+                    break
+            else:
+                raise _Status("NO_CONVERGENCE")
+            result["risk_contribution_error"] = str(error)
+        return weights
+
+    def _capped(self, weights, covariance, n):
+        """Cash buffer, per-market maximum and correlated-group caps."""
+        total = sum(weights)
+        weights = [min(self.rates["max_weight"], value / total * (1 - self.rates["cash_buffer"])) for value in weights]
+        if self.description["correlation_limit"] is not None:
+            groups = [{i} for i in range(n)]
+            for i in range(n):
+                for j in range(i):
+                    corr = covariance[i][j] / (covariance[i][i] * covariance[j][j]).sqrt()
+                    if corr >= self.rates["correlation_limit"]:
+                        joined = groups[i] | groups[j]
+                        for k in joined:
+                            groups[k] = joined
+            for group in {frozenset(group) for group in groups}:
+                total = sum(weights[i] for i in group)
+                if total > self.rates["correlation_cap"]:
+                    for i in group:
+                        weights[i] *= self.rates["correlation_cap"] / total
+        return weights
+
+    def _volatility_scaled(self, weights, covariance, result, n):
+        """Scale down (never up) to the per-bar portfolio volatility target."""
+        # The policy's target is a per-closed-bar standard deviation.
+        # This never leverages or reallocates spare cash to hit an
+        # unreachable target; every factor uses strictly prior bars.
+        variance = sum((weights[i] * covariance[i][j] * weights[j]
+                        for i in range(n) for j in range(n)), Decimal(0))
+        if variance <= 0:
+            raise _Status("DEGENERATE_COVARIANCE")
+        before = variance.sqrt()
+        scale = min(Decimal(1), self.portfolio_volatility_target / before)
+        weights = [weight * scale for weight in weights]
+        projected = sum((weights[i] * covariance[i][j] * weights[j]
+                         for i in range(n) for j in range(n)), Decimal(0)).sqrt()
+        result["portfolio_volatility"] = {
+            "model": "joint-prior-covariance/1",
+            "unit": "standard-deviation-per-closed-bar",
+            "target_per_bar": str(self.portfolio_volatility_target),
+            "unscaled_per_bar": str(+before), "scale": str(+scale),
+            "projected_per_bar": str(+projected),
+            "leverage_allowed": False}
+        return weights
+
+    def _shortfall_scaled(self, weights, returns, result, n, count):
+        """Scale down (never up) to the historical expected-shortfall limit."""
+        # Historical constant-target stress uses only completed returns
+        # strictly before the target event; a future bar never enters
+        # its own cap estimate. Downscaling never adds leverage.
+        losses = sorted((-sum((weights[i] * returns[i][k] for i in range(n)), Decimal(0))
+                         for k in range(count)), reverse=True)
+        worst = max(1, (count + 19) // 20)
+        unscaled = max(Decimal(0), sum(losses[:worst], Decimal(0)) / worst)
+        scale = (min(Decimal(1), self.expected_shortfall_limit / unscaled)
+                 if unscaled > 0 else Decimal(1))
+        # Always round down: the published scale cannot exceed the
+        # modeled ES bound through finite-precision division.
+        scale = scale.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)
+        weights = [weight * scale for weight in weights]
+        result["expected_shortfall"] = {
+            "model": "historical-constant-target-es95/1",
+            "confidence": "0.95",
+            "history": count,
+            "worst_observations": worst,
+            "unit": "loss-fraction-per-closed-bar",
+            "limit_per_bar": str(self.expected_shortfall_limit),
+            "unscaled_per_bar": str(+unscaled),
+            "scale": str(+scale),
+            "scaled_per_bar": str(+(unscaled * scale)),
+            "stress_losses_per_bar": [str(+value) for value in losses[:min(5, len(losses))]],
+            "realized_stress_replay": False,
+            "scope": "Prior correlated bar returns with frozen current target weights, not executed margin or forced liquidation"}
+        return weights
+
+    def _publish(self, weights, covariance, result, n):
+        """Rounded published weights and, for risk parity, the realised risk contributions."""
+        result["weights"] = {s: str(value.quantize(Decimal("0.000000000001"), rounding=ROUND_DOWN)) for s, value in zip(self.symbols, weights)}
+        if self.description["method"] == "risk-parity":
+            actual = [Decimal(result["weights"][s]) for s in self.symbols]
+            contributions = [actual[i] * sum(covariance[i][j] * actual[j] for j in range(n)) for i in range(n)]
+            total_risk = sum(contributions)
+            result["risk_contribution_error"] = str(max(abs(value / total_risk - Decimal(1) / n) for value in contributions)) if total_risk > 0 else None
+            result["risk_basis"] = "Realized target risk contributions after weight/correlation caps and rounding; constraints can prevent equal risk."
+
+    def _shrinkage_receipt(self, observations, shrinkage, result):
+        """Compare shrunk targets with the unshrunk baseline on the same bars."""
+        # Compare consecutive target *weights* under the same bars/limits.
+        # This is not execution turnover; realized fills may differ.
+        baseline = PortfolioPolicy(
+            {k: v for k, v in self.description.items() if k != "covariance_shrinkage"},
+            self.symbols).weights(observations)
+        def turnover(previous, current):
+            """Measure half-L1 change in successive allocation targets."""
+            if previous is None:
+                return None
+            return str(sum((abs(Decimal(current[s]) - Decimal(previous[s]))
+                            for s in self.symbols), Decimal(0)) / 2)
+
+        raw = baseline["weights"] if baseline["status"] == "READY" else None
+        chosen = result["weights"]
+        result["covariance_shrinkage"] = {
+            "method": "ledoit-wolf-constant-correlation/1",
+            "target": "constant-correlation",
+            "intensity": str(shrinkage["intensity"]),
+            "raw_status": baseline["status"],
+            "turnover_raw": (turnover(getattr(self, "_last_raw_weights", None), raw)
+                             if raw is not None else None),
+            "turnover_shrunk": turnover(getattr(self, "_last_shrunk_weights", None), chosen),
+            "turnover_basis": "half L1 change of successive target weights, not executed fills"}
+        self._last_raw_weights, self._last_shrunk_weights = raw, chosen

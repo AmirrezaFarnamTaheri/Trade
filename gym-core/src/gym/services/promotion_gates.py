@@ -1,4 +1,4 @@
-"""Fixed Phase E promotion criteria as a non-authoritative paper review screen."""
+"""Fixed paper promotion criteria as a non-authoritative paper review screen."""
 from ..domain.market_models import decimal, fields
 from ..domain.strategy import digest
 

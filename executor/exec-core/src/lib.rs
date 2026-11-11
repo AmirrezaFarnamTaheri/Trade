@@ -1,4 +1,5 @@
 //! Pure Executor control core. No I/O, venue credentials, or order transport.
+#![forbid(unsafe_code)]
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -78,6 +79,10 @@ pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
     )
 }
 
+pub mod arming;
+pub mod available;
+pub mod holds;
+pub mod kernel;
 pub mod orders;
 
 /// Seeded B2 Fake Venue chaos suite (pure; no I/O).

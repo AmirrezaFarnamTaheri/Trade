@@ -8,7 +8,7 @@ in Git history and local qualification artifacts.
 | Gate | Current state | What is required |
 | --- | --- | --- |
 | Public research implementation | Delivered, with current regressions passing | Continue the explicit remaining functionality in the unified plan; implementation is not economic acceptance |
-| Portfolio correctness | Revision 4 accounting, target/risk policies, fill-time cash reservations and checkpoint reconstruction implemented and tested | Preserve frozen records; running-process restoration, physical-host qualification and prospective evidence remain open |
+| Portfolio correctness | Revision 5 accounting, target/risk policies, fill-time cash reservations and checkpoint reconstruction implemented and tested | Preserve frozen records; running-process restoration and prospective evidence remain open |
 | Continuous market collection | Supervised processes running; venue connectivity blocked | Restore actual api.wallex.ir reachability, refresh full eligible catalogue and verify fresh quotes/gaps per market |
 | Sustained prospective paper | Open | Multi-day future evidence with preregistered configuration, real clocks, no-data failures, fills and costs; downtime stays visible |
 | Strategy profitability | Not established | Independent chronological evaluation with costs and selection accounting; the completed compound study had no positive cases |
@@ -19,8 +19,8 @@ in Git history and local qualification artifacts.
 | Protective exits/automation | Unfinished | Qualified native protection, disjoint quantities, reopening/restart and hard loss/installation caps through the real money path |
 | Measured execution costs | Unqualified | Independently reconcile observed fills/fees/depth/latency; a separately bounded authorization and budget before funded probes |
 | Independent final evaluation | Local consume-once controls delivered; independent custody open | Separate access/custody and an untouched prospective evaluation window |
-| Physical-host recovery | Blocked: no second physical machine available | Restore on another host, reprovision host-bound credentials and verify DISARMED; same-machine WSL does not satisfy this |
-| Current browser appearance/accessibility | Not rechecked in a real browser | Current-build desktop/mobile, EN/FA/RTL, focus, contrast and interaction checks |
+| Host-instance recovery | Rehearsed in CI (O-5) | `windows-vm-smoke` rebuilds the executor on a clean disposable Windows VM, installs and starts it, verifies it reports DISARMED and records the elapsed time in the job summary; `b3-synthetic-produce` and `b3-synthetic-restore` restore an encrypted ledger backup across operating systems. Custody reprovisioning with real keys stays a host step |
+| Current browser appearance/accessibility | Real-browser smoke passed 2026-11-09 (Edge: ten views, paired replay, EN/FA RTL, desktop/mobile overflow, keyboard focus, confirmation dialog); axe-core scan not run locally | An axe-core scan in CI and a contrast check of hover, selected, chart and disabled states |
 
 ## Retained installed-host evidence
 
@@ -32,7 +32,7 @@ Stopped/Disabled. Latest recorded bundle receipt:
 
 Earlier synthetic custody/restart/corruption/recovery and suspended-process
 containment evidence has its own dated receipts. Those drills do not establish
-real venue permissions, settlement, funded safety or physical-host portability.
+real venue permissions, settlement or funded safety.
 Repeat affected drills after native deployment, principal or security-policy changes.
 This delivery changes Python research/startup and native test fixtures, not the
 installed native service binaries or custody state.

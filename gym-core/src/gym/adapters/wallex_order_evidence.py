@@ -48,17 +48,20 @@ def _format(value: Decimal) -> str:
     return format(value, "f").rstrip("0").rstrip(".") if "." in format(value, "f") else format(value, "f")
 
 
+# The shared fill-timestamp profile in contracts/v1/fixtures/fill-timestamps.json, also enforced by the executor.
+_FILL_TIME = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})")
+
+
 def _timestamp(value: object) -> str | int:
     if type(value) is int and 946_684_800 <= value <= 4_102_444_800_000:
         return value
-    if isinstance(value, str) and len(value) <= 40 and (
-        value.endswith("Z") or re.search(r"[+-][0-9]{2}:[0-9]{2}\Z", value)
-    ):
+    if isinstance(value, str) and _FILL_TIME.fullmatch(value):
+        zone = value[-6:] if value[-6] in "+-" else None
         try:
-            parsed = datetime.fromisoformat(value)
+            datetime.fromisoformat(value[:19])  # calendar date and time; the fraction is checked by the pattern
         except ValueError:
             raise InvalidOrderEvidence("invalid fill timestamp") from None
-        if parsed.utcoffset() is not None:
+        if zone is None or (int(zone[1:3]) <= 23 and int(zone[4:6]) <= 59):
             return value
     raise InvalidOrderEvidence("invalid fill timestamp")
 

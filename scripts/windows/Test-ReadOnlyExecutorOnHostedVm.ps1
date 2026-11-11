@@ -330,6 +330,12 @@ public static class TradingGymStopPipeProbe {
     if (-not (Test-Path -LiteralPath $StopClient -PathType Leaf)) {
         throw 'Compiled gym-stopctl.exe is required for T0 verification.'
     }
+    # O-5: a freshly rebuilt and started instance must come up DISARMED before anyone touches it.
+    $initial = & $StopClient status 2>&1
+    if ($LASTEXITCODE -ne 0 -or ($initial -join ' ') -notmatch 'mode=Disarmed') {
+        throw "Fresh instance did not report DISARMED: $($initial -join ' ')"
+    }
+    Write-Output "PASS: fresh instance reports DISARMED ($($initial -join ' '))"
     foreach ($command in @('pause', 'exit-only', 'halt')) {
         $watch = [Diagnostics.Stopwatch]::StartNew()
         $reply = & $StopClient $command 2>&1

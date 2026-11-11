@@ -214,3 +214,36 @@ def test_chained_out_of_sample_has_drawdown_and_losing_streak(tmp_path):
             assert report["out_of_sample"]["status"] == "INCOMPLETE"
     finally:
         db.c.close()
+
+
+def test_stale_test_valuation_cannot_form_chained_out_of_sample_returns(tmp_path):
+    rows = [q for q in quote_history(n=750)
+            if q.ts_avail < START + timedelta(minutes=47)]
+    db = market_db(tmp_path, rows)
+    value = request()
+    value["windows"] = value["windows"][:1]
+    try:
+        with ExperimentRegistry(tmp_path, store="live") as registry:
+            report = walk_forward(registry, db, value)
+        test = report["folds"][0]["test"]
+        assert test["state"] == "COMPLETED" and test["fills"] > 0
+        assert test["valuation"] == "STALE"
+        assert report["status"] == "INCOMPLETE"
+        assert report["out_of_sample"]["status"] == "INCOMPLETE"
+        assert "end_equity_quote" not in report["out_of_sample"]
+    finally:
+        db.c.close()
+
+
+def test_incomplete_chain_counts_completed_folds_instead_of_equity_marks():
+    from gym.services.walk_forward import chained_out_of_sample
+
+    folds = [{"test": {"run_id": run_id, "state": "COMPLETED", "valuation": "CURRENT"}}
+             for run_id in ("first", "missing")]
+    records = {"first": {"result": {"base": "BTC", "orders": [], "start_cash": "1000",
+               "curve": [(iso(START + timedelta(minutes=1)), "1050"),
+                         (iso(START + timedelta(minutes=2)), "1100")],
+               "end": {"equity": "1100"}}}}
+    result = chained_out_of_sample(folds, records, "1000")
+    assert result["status"] == "INCOMPLETE"
+    assert result["completed_folds"] == 1

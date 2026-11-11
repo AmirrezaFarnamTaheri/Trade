@@ -68,8 +68,10 @@ def test_stop_authorization_config_is_readonly_to_service():
     installer = INSTALLER.read_text("utf-8")
     main = SERVICE.read_text("utf-8")
     assert "$stopSidPath = Join-Path $CodeDir 'stop-logon.sid'" in installer
-    assert 'var_os("ProgramFiles")' in main
-    assert 'var_os("ProgramData")' not in main
+    # The service reads the SID files from the Program Files code folder (service RX only), resolved through
+    # the shell's known-folder table rather than the environment.
+    assert "FOLDERID_ProgramFiles" in main and 'var_os("ProgramFiles")' not in main
+    assert 'var_os("ProgramData")' not in main and "FOLDERID_ProgramData" not in main
     # CodeDir grants service RX, unlike data folder where service has Modify.
     assert "Invoke-Icacls -Path $CodeDir -Arguments @('/grant:r', $readCode)" in installer
 

@@ -111,7 +111,7 @@ def review_regime_prospective_evidence(candidate, baseline, *,
 
     Supplied arrays/labels are not trustworthy evidence of independent
     registration or provenance. A promising exploratory result only triggers
-    a manual review; it never adds a strategy or grants funded authority.
+    an advisory report; it never adds a strategy or grants funded authority.
     """
     if (type(candidate) not in (list, tuple) or type(baseline) not in (list, tuple)
             or len(candidate) != len(baseline) or len(candidate) > 10000
@@ -126,7 +126,7 @@ def review_regime_prospective_evidence(candidate, baseline, *,
                 and all(type(v) is Decimal and v.is_finite() for v in (*candidate, *baseline)))
     better = verified and sum(candidate) > sum(baseline) and probability < Decimal("0.05")
     return {"schema": "regime-promotion-review/1", "status": "NOT_PROMOTED",
-            "decision": "MANUAL_INDEPENDENT_REVIEW_REQUIRED" if better else "REMOVE_EXPERIMENTAL_GATE",
+            "decision": "ADVISORY_RESEARCH_ONLY" if better else "REMOVE_EXPERIMENTAL_GATE",
             "candidate_observations": len(candidate), "matched_oos_claim": verified,
             "fixed_adx_baseline": True, "probabilistic_gate_selectable": False,
             "funded_authority": False,

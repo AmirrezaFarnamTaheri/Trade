@@ -89,6 +89,9 @@ function stop(child) {
   };
   diagnostic = async () => ({ errors, page: await evaluate(`({
     title:document.title, hash:location.hash, ready:document.readyState,
+    focus:{id:document.activeElement?.id,html:document.activeElement?.outerHTML.slice(0,1000),
+      visible:document.activeElement?.matches(':focus-visible'),documentFocused:document.hasFocus(),
+      outlineStyle:getComputedStyle(document.activeElement).outlineStyle},
     formValid:document.querySelector('#compare-form')?.checkValidity(),
     button:document.querySelector('#compare-submit')?.outerHTML,
     fieldsDisabled:document.querySelector('#comparison-fields')?.disabled,
@@ -176,12 +179,66 @@ function stop(child) {
   await evaluate('document.querySelector("#language-toggle").click()');
   assert.equal(await evaluate('document.documentElement.dir'), 'ltr');
   await screenshot('markets-mobile-en.png');
+  const mobileTargets = [];
+  for (const width of [375, 600]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true });
+    for (const selectedTheme of ['light', 'dark']) {
+      if (await evaluate('document.documentElement.dataset.theme') !== selectedTheme)
+        await evaluate('document.querySelector("#theme-toggle").click()');
+      for (const language of ['en', 'fa']) {
+        if (await evaluate('document.documentElement.lang') !== language)
+          await evaluate('document.querySelector("#language-toggle").click()');
+        for (const route of routes) {
+          await evaluate(`document.querySelector('nav [data-view="${route}"]').click()`);
+          await until(() => evaluate(`document.querySelector('#v-${route}')?.hidden === false`), `mobile navigation ${route}`);
+          const geometry = await evaluate(`(() => {
+            const controls = [...document.querySelectorAll('.button, .segmented button, .tabs [role="tab"], .symbol-button')]
+              .filter(node => node.getClientRects().length)
+              .map(node => ({ id: node.id || node.textContent.trim(), height: node.getBoundingClientRect().height }));
+            return { overflow: document.documentElement.scrollWidth > innerWidth + 1, controls };
+          })()`);
+          assert.equal(geometry.overflow, false, `${width}px ${language} ${selectedTheme} ${route}: horizontal overflow`);
+          assert(geometry.controls.length > 0, `${route}: no visible action controls checked`);
+          assert.deepEqual(geometry.controls.filter(control => control.height < 43.99), [],
+            `${width}px ${language} ${selectedTheme} ${route}: action, tab and market-selection targets below 44px`);
+          mobileTargets.push({ width, language, theme: selectedTheme, route,
+            controls: geometry.controls.length, minimumHeight: Math.min(...geometry.controls.map(control => control.height)) });
+        }
+      }
+    }
+  }
+  if (await evaluate('document.documentElement.lang') !== 'en')
+    await evaluate('document.querySelector("#language-toggle").click()');
+  await send('Page.bringToFront');
+  await evaluate('document.querySelector("#theme-toggle").focus()');
+  assert(await evaluate('document.hasFocus() && document.activeElement?.id === "theme-toggle"'), 'keyboard focus start');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
-  assert(await evaluate('getComputedStyle(document.activeElement).outlineStyle !== "none"'), 'keyboard focus outline');
+  const keyboardFocus = (await diagnostic()).page.focus;
+  console.log('Keyboard focus:', JSON.stringify(keyboardFocus));
+  assert.equal(keyboardFocus.id, 'zone-toggle', 'Tab advances from theme to zone control');
+  assert(keyboardFocus.documentFocused && keyboardFocus.visible && keyboardFocus.outlineStyle !== 'none', 'keyboard focus outline');
+  // Destructive rule actions open a labelled dialog: Cancel has focus, cancelling sends nothing and refocuses the trigger.
+  await evaluate('document.querySelector("nav [data-view=rules]").click()');
+  await until(() => evaluate('document.querySelector("#v-rules")?.hidden === false'), 'rules view');
+  await evaluate(`(() => { window.__posts = 0; const original = window.fetch; window.fetch = (url, init) => { if ((init?.method || "GET") === "POST") window.__posts += 1; return original(url, init); }; return true; })()`);
+  await evaluate('document.querySelector("#load-preset").click()');
+  await until(() => evaluate('document.querySelector("dialog.confirm-dialog")?.open === true'), 'confirmation dialog');
+  assert(await evaluate('document.activeElement?.value === "cancel" && document.querySelector("dialog.confirm-dialog").getAttribute("aria-labelledby") === "confirm-dialog-text"'), 'dialog focus and label');
+  await evaluate('document.activeElement.click()');
+  await until(() => evaluate('!document.querySelector("dialog.confirm-dialog") && document.activeElement?.id === "load-preset"'), 'dialog closed and focus returned');
+  assert.equal(await evaluate('window.__posts'), 0, 'cancelled preset must not POST');
+  // A failing source is named in the banner, and the banner clears once the source answers again.
+  await evaluate(`(() => { const original = window.fetch; window.__restoreFetch = () => { window.fetch = original; };
+    window.fetch = (url, init) => String(url).includes('/api/markets') ? Promise.reject(new TypeError('offline')) : original(url, init); return true; })()`);
+  await evaluate('document.querySelector("nav [data-view=overview]").click()');
+  await until(() => evaluate('!document.querySelector("#connection-error").hidden && document.querySelector("#connection-error-detail").textContent.includes("markets")'), 'named failing source');
+  await evaluate('window.__restoreFetch(); document.querySelector("#retry").click()');
+  await until(() => evaluate('document.querySelector("#connection-error").hidden'), 'banner clears after recovery');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
-    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'no JavaScript exceptions'] };
+    accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus,
+    checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action, tab and market-selection targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {

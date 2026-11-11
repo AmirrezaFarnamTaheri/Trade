@@ -6,7 +6,13 @@ members = [
     "executor/exec-svc",
 ]
 resolver = "2"
+# Python bindings build separately with maturin (ADR 0005); the executor never links Python.
+exclude = ["executor/exec-kernel-py"]
 
 [workspace.package]
 edition = "2021"
 license = "MIT"
+
+# Money-path arithmetic must panic rather than wrap in shipped builds.
+[profile.release]
+overflow-checks = true

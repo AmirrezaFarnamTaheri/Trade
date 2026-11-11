@@ -8,7 +8,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Ledger,
     [Parameter(Mandatory = $true)][string]$Destination,
-    [string]$CoreDirectory = (Join-Path $PSScriptRoot '..\..\gym-core'),
+    [string]$CoreDirectory,
     [string]$At = '03:17',
     [ValidateRange(2, 365)][int]$Keep = 7,
     [string]$TaskName = 'TradingGYM Backup',
@@ -16,6 +16,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-core' }
 
 if ($Uninstall) {
     if ($PSCmdlet.ShouldProcess($TaskName, 'Unregister scheduled task')) { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false }
@@ -29,7 +30,8 @@ $command = "& '$uv' run gymctl backup-once '$Ledger' '$Destination' --keep $Keep
            "& '$uv' run gymctl restore-drill '$Destination' --stored-passphrase; exit `$LASTEXITCODE"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -Command `"$command`"" -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+# O-6: wake a sleeping laptop for the backup, and run a missed one as soon as the machine is next available.
+$settings = New-ScheduledTaskSettingsSet -WakeToRun -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 if ($PSCmdlet.ShouldProcess($TaskName, "Register daily backup of $Ledger to $Destination at $At")) {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null

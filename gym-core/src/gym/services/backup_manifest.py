@@ -139,7 +139,7 @@ def prepare_backup_manifest(bundle_path: Path | str, receipt: dict) -> bytes:
     """Prepare canonical bytes only after local authenticated restore.
 
     A separate, trusted operator signing key (NOT stored here) signs these
-    exact bytes after independent review. The receipt flag is not a remote
+    exact bytes. The receipt flag is not a remote
     attestation; it cannot by itself establish genuine off-machine custody.
     """
     bundle = Path(bundle_path)

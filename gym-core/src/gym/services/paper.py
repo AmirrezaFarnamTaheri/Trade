@@ -20,7 +20,9 @@ class PaperDataUnavailable(ValueError):
 
 
 def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: datetime, resolution: str,
-        cash: Decimal, cost: CostModel, subscriptions=(), reference_symbol=None, auxiliary_symbols=()) -> dict:
+        cash: Decimal, cost: CostModel, subscriptions=(), reference_symbol=None, auxiliary_symbols=(),
+        digest_cache: dict | None = None) -> dict:
+    """`digest_cache` lets a caller that replays the same quote slice many times (the sweep) hash it once."""
     from .session import PaperSession
 
     tops = portal.tops(symbol, t0, t1)
@@ -28,10 +30,13 @@ def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: 
     for top in tops:
         session.feed(top)
     session.finish(t1)
-    return session_result(session, tops, cash)
+    key = None
+    if digest_cache is not None and cost.order_type != "limit":
+        key = (symbol, t0, t1, bool(cost.walk_depth), len(tops))
+    return session_result(session, tops, cash, digest_cache=digest_cache, digest_key=key)
 
 
-def session_result(session, tops, cash):
+def session_result(session, tops, cash, *, digest_cache=None, digest_key=None):
     from .session import outcome_marks
 
     book, last_q, inst = session.book, session.last_quote, session.instrument
@@ -59,9 +64,7 @@ def session_result(session, tops, cash):
             nonfills[o["reason"]] = nonfills.get(o["reason"], 0) + 1
     result = {"strategy": strategy.name, "params": strategy.params, "symbol": symbol, "quote": inst.quote, "base": inst.base,
             "start_cash": str(cash), "observations": len(tops), "qualified": sum(map(qualified, tops)),
-            "data_digest": digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
-                                    *((x.depth,) if cost.walk_depth else ())) for x in tops]
-                                  + ([("limit_trades", session.limit_trades)] if cost.order_type == "limit" else [])),
+            "data_digest": _data_digest(session, tops, cost, digest_cache, digest_key),
             "bars": len(decisions), "fills": len(fills), "nonfills": nonfills, "end": end,
             "balances": {k: str(v) for k, v in book.balances.items()}, "curve": curve,
             "decisions": decisions, "orders": orders, "postings": book.postings,
@@ -83,6 +86,17 @@ def session_result(session, tops, cash):
             "limitation": "Identical event-time/price/qty/aggressor prints have no venue IDs; counted, not removed. This is potential modeled fill capacity, not proven duplicate execution.",
         }
     return result
+
+
+def _data_digest(session, tops, cost, cache, key):
+    if cache is not None and key is not None and key in cache:
+        return cache[key]
+    value = digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
+                     *((x.depth,) if cost.walk_depth else ())) for x in tops]
+                   + ([("limit_trades", session.limit_trades)] if cost.order_type == "limit" else []))
+    if cache is not None and key is not None:
+        cache[key] = value
+    return value
 
 
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,

@@ -13,6 +13,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+from . import ledger_anchors
 from .encrypted_backup import BackupUnsafe, create_backup, restore_backup
 
 _BUNDLE_NAME = re.compile(r"^tradinggym-exec-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}\.tgbak$")
@@ -60,6 +61,9 @@ def backup_once(
         for name in ("sequence", "head_hash", "file_sha256", "schema_version"):
             if receipt[name] != restored[name]:
                 raise BackupUnsafe("roundtrip restore does not match encrypted backup receipt")
+        # A truncated or replaced ledger is refused here, before any older bundle is rotated away.
+        anchored = ledger_anchors.verify(folder, Path(scratch) / "restored.db")
+        ledger_anchors.append(folder, receipt["sequence"], receipt["head_hash"], stamp)
 
     candidates = []
     for candidate in folder.iterdir():
@@ -85,4 +89,5 @@ def backup_once(
         "trusted_origin": False,
         "retention_keep": keep,
         "deleted_old_bundles": removed,
+        "anchors_checked": anchored["anchors"],
     }

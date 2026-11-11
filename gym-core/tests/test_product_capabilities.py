@@ -13,7 +13,7 @@ def test_product_matrix_covers_every_observed_market_without_inventing_margin_cr
     catalogue = margin._save(tmp_path, {"kind": "MARKETS", "received_at": iso(START), "source_url": margin.ORIGIN + margin.MARKETS,
         "markets": [{"symbol": "ADAUSDT", "base": "ADA", "quote": "USDT", "min_risk_coef": "1.1", "max_risk_coef": "4.1",
                      "risk_coef_step": "0.2", "liquidity_margin": "0.15", "max_age": 86400}]})
-    monkeypatch.setattr("gym.services.product_capabilities.now_utc", lambda: START + timedelta(seconds=1))
+    monkeypatch.setattr("gym.services.capabilities.now_utc", lambda: START + timedelta(seconds=1))
     report = research_action(tmp_path, "market-products", {"margin_catalogue_id": catalogue["run_id"]})
     rows = {row["symbol"]: row for row in report["markets"]}
     assert set(rows) == {"BTCUSDT", "ADAUSDT"}
@@ -22,6 +22,6 @@ def test_product_matrix_covers_every_observed_market_without_inventing_margin_cr
     assert rows["ADAUSDT"]["spot"]["sell"] == "OWNED_ASSET_ONLY"
     assert all(row["trade_credit"] == "ACCOUNT_ELIGIBILITY_UNVERIFIED" for row in rows.values())
     assert report["funded_authority"] is False
-    monkeypatch.setattr("gym.services.product_capabilities.now_utc", lambda: START + timedelta(minutes=6))
+    monkeypatch.setattr("gym.services.capabilities.now_utc", lambda: START + timedelta(minutes=6))
     stale = research_action(tmp_path, "market-products", {"margin_catalogue_id": catalogue["run_id"]})
     assert all(row["margin"]["status"] == "STALE_CATALOGUE" for row in stale["markets"])

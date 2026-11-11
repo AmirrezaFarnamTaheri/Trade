@@ -21,7 +21,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
       - name: Verify clean Windows checkout and exact wire fixtures
@@ -35,8 +35,9 @@ jobs:
             $attribute = git check-attr text -- $fixture
             if ($attribute -notmatch ': text: unset$') { throw "Wire fixture not protected from line ending conversion: $fixture" }
           }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
         with:
+          toolchain: 1.96.0
           components: rustfmt, clippy
       - name: Check Rust formatting
         run: cargo fmt --all --check
@@ -49,7 +50,7 @@ jobs:
         run: |
           mkdir -p target/chaos
           cargo run --locked --release -p exec-svc --bin gym-chaos -- target/chaos/report.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() && runner.os == 'Linux' }}
         with:
           name: chaos-report
@@ -80,25 +81,32 @@ jobs:
       run:
         working-directory: gym-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv lock --check
       - run: uv sync --locked --group dev
       - name: Check Python lint
         run: uvx ruff==0.16.9 check src tests
+      - name: Complexity ceiling on the simulator money core
+        run: uvx ruff==0.16.9 check --isolated --select C901 --config "lint.mccabe.max-complexity=20" src/gym/domain/sim.py
+      - name: Complexity ratchet (no new function above 20; listed hotspots may only shrink)
+        run: python scripts/complexity_ratchet.py
       - name: Tests with line coverage
         run: uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q
       - name: Coverage report
         run: |
           uv run --with coverage==7.6.10 coverage report --skip-covered --sort=cover | tail -40
+          # Ratchet: floors sit just under the 2026-11-09 measurement (domain 94%, whole package 87%); raise, never lower.
+          uv run --with coverage==7.6.10 coverage report --include="src/gym/domain/*" --fail-under=93 > /dev/null
+          uv run --with coverage==7.6.10 coverage report --fail-under=86 > /dev/null
           uv run --with coverage==7.6.10 coverage html -d "$RUNNER_TEMP/coverage"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-html
           path: ${{ runner.temp }}/coverage
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - name: Install axe-core for the accessibility pass
@@ -116,12 +124,14 @@ jobs:
       run:
         working-directory: gym-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked
-      - uses: actions/setup-node@v4
+      - name: Windows launcher previews and native signature verification
+        run: uv run --no-sync pytest -q tests/test_collector_startup.py tests/test_release_signing.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - run: node tests/browser_smoke.cjs
@@ -132,48 +142,156 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
       - name: Scan history for committed secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - name: Python dependencies (pip-audit)
         working-directory: gym-core
         run: |
           uv export --locked --no-hashes --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
           uvx pip-audit --strict -r "$RUNNER_TEMP/requirements.txt"
-      - uses: taiki-e/install-action@cargo-audit
+      - uses: taiki-e/install-action@f84dff0ad3f25ff0e5dc531e626734a4e7d11ac7 # cargo-audit
       - name: Rust dependencies (cargo audit)
         run: cargo audit
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - name: Node dependencies (npm audit)
         working-directory: model-gateway
         run: npm audit --omit=dev --audit-level=high
 
-  mutation:
-    name: Mutation check of money and statistics code (weekly, advisory)
-    if: github.event_name == 'schedule'
+  mutation-critical:
+    name: Mutation regression gate (critical cohort)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: gym-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked --group dev
-      # Surviving mutants in these files are untested behavior in money, fills and statistics.
-      - run: uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate src/gym/domain/performance.py,src/gym/domain/sim.py --tests-dir tests --runner "python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py"
-      - if: always()
-        run: uv run --with mutmut==2.5.1 mutmut results
+      - run: uv run --with 'mutmut[patch]==2.5.1' python scripts/mutation_gate.py --output "$RUNNER_TEMP/mutation-critical"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-critical-evidence
+          path: ${{ runner.temp }}/mutation-critical/
+          if-no-files-found: error
+
+  mutation:
+    name: Extended mutation assessment of money and statistics (weekly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv sync --locked --group dev
+      # This broader five-file assessment is not the critical-cohort baseline; failures remain visible.
+      - name: Record weekly source, test, configuration and tool identities
+        run: |
+          mkdir -p "$RUNNER_TEMP/mutation-weekly"
+          git rev-parse HEAD > "$RUNNER_TEMP/mutation-weekly/source-commit.txt"
+          sha256sum src/gym/domain/*.py tests/*.py pyproject.toml uv.lock > "$RUNNER_TEMP/mutation-weekly/input-sha256.txt"
+          uv run --with mutmut==2.5.1 python -c 'import mutmut,sys; from pathlib import Path; from importlib.metadata import version; from hashlib import sha256; print(sys.version); print("mutmut",version("mutmut")); p=Path(mutmut.__file__).parent; [print(name,sha256((p/name).read_bytes()).hexdigest()) for name in ("__init__.py","__main__.py","cache.py")]' > "$RUNNER_TEMP/mutation-weekly/tool-identity.txt"
+      - name: Run complete weekly assessment and preserve its original exit
+        run: |
+          paths="src/gym/domain/performance.py,src/gym/domain/sim.py,src/gym/domain/portfolio.py,src/gym/domain/portfolio_policy.py,src/gym/domain/margin.py"
+          runner="python -m pytest -x -q tests/test_performance.py tests/test_simulation.py tests/test_run_identity_golden.py tests/test_portfolio.py tests/test_portfolio_policy.py tests/test_margin.py tests/test_margin_depth_valuation.py tests/test_honest_sharpe.py tests/test_open_time_annualization.py tests/test_research_diagnostics.py tests/test_paper_sweep.py tests/test_mutation_contracts.py"
+          printf '%s\n' "mutmut==2.5.1" "paths=$paths" "tests-dir=tests" "runner=$runner" > "$RUNNER_TEMP/mutation-weekly/configuration.txt"
+          set +e
+          uv run --with mutmut==2.5.1 mutmut run --paths-to-mutate "$paths" --tests-dir tests --runner "$runner" > "$RUNNER_TEMP/mutation-weekly/mutmut.log" 2>&1
+          result=$?
+          printf '{"exit_code":%s}\n' "$result" > "$RUNNER_TEMP/mutation-weekly/exit.json"
+          cat "$RUNNER_TEMP/mutation-weekly/mutmut.log"
+          exit "$result"
+      - name: Preserve weekly cache and rendered results
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/mutation-weekly"
+          for cache in .mutmut-cache .mutmut-cache-wal .mutmut-cache-shm .mutmut-cache-journal; do
+            if [ -f "$cache" ]; then cp "$cache" "$RUNNER_TEMP/mutation-weekly/$cache"; fi
+          done
+          if [ -f .mutmut-cache ]; then
+            uv run --with mutmut==2.5.1 mutmut results > "$RUNNER_TEMP/mutation-weekly/results.txt" 2>&1
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-weekly-evidence
+          path: ${{ runner.temp }}/mutation-weekly/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  sbom:
+    # G-5: CycloneDX 1.5 SBOMs for the three ecosystems, built from the lockfiles on every run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
+        with:
+          toolchain: 1.96.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: mkdir -p sbom
+      - run: uv export --project gym-core --locked --format cyclonedx1.5 --no-dev -o sbom/python.cdx.json
+      - run: npm sbom --prefix model-gateway --sbom-format cyclonedx --omit dev > sbom/node.cdx.json
+      - run: python3 scripts/cargo_sbom.py -o sbom/rust.cdx.json
+      - name: Every SBOM is CycloneDX and non-empty
+        run: >-
+          python3 -c "import json,glob; files=sorted(glob.glob('sbom/*.json')); assert len(files)==3, files;
+          [print(f, len(json.load(open(f))['components'])) or None for f in files];
+          assert all(json.load(open(f))['bomFormat']=='CycloneDX' and json.load(open(f))['components'] for f in files)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom/
+
+  rust-kernel:
+    # ADR 0005 stage 3: the simulator on the exec-core Rust kernel must pass the whole suite and match the Python path.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: gym-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
+        with:
+          toolchain: 1.96.0
+          components: rustfmt, clippy
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: cargo fmt --manifest-path ../executor/exec-kernel-py/Cargo.toml --check
+      - run: cargo clippy --locked --manifest-path ../executor/exec-kernel-py/Cargo.toml -- -D warnings
+      - run: uv sync --locked --group dev
+      - run: uvx --from "maturin>=1.7,<2" maturin build --release -m ../executor/exec-kernel-py/Cargo.toml -o dist
+      - run: uv pip install --no-deps dist/*.whl
+      - name: Whole suite on the Rust kernel
+        run: GYM_RUST_KERNEL=1 uv run --no-sync pytest -q
 
   model-gateway:
     name: Advisory model gateway (${{ matrix.os }})
@@ -186,13 +304,13 @@ jobs:
       run:
         working-directory: model-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - run: npm ci --ignore-scripts
@@ -207,10 +325,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; version pinned below
+        with:
+          toolchain: 1.96.0
+      - name: Start the host-instance rebuild clock (O-5)
+        shell: pwsh
+        run: '"REBUILD_STARTED=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV'
       - name: Build read-only service and every protected helper using pinned dependencies
         run: cargo build --release --locked -p exec-svc --bins
       - name: Verify service identity, DACL and two non-admin OS principals
@@ -218,6 +341,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./scripts/windows/Test-ReadOnlyExecutorOnHostedVm.ps1 -BinaryPath ./target/release/gym-executor.exe
+      - name: Record the host-instance rebuild time (clean VM to verified DISARMED)
+        shell: pwsh
+        run: |
+          $seconds = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - [int64]$env:REBUILD_STARTED
+          "Host-instance rebuild: clean VM -> built -> installed -> started -> DISARMED verified in $seconds s" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
   b3-synthetic-produce:
     name: B3 encrypt synthetic ledger on Linux runner
@@ -225,17 +353,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - name: Install reviewed Python lock
         working-directory: gym-core
         run: uv sync --locked --group dev
       - name: Create encrypted synthetic archive (no credentials)
         working-directory: gym-core
         run: uv run python scripts/restore_portability_probe.py produce "$RUNNER_TEMP/b3-demo.tgbak"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: b3-ci-synthetic-archive
           path: ${{ runner.temp }}/b3-demo.tgbak
@@ -249,11 +377,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/download-artifact@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: b3-ci-synthetic-archive
           path: ${{ runner.temp }}/b3-input

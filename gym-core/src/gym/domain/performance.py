@@ -8,7 +8,8 @@ import math
 from collections import deque
 from datetime import datetime
 from decimal import Decimal, localcontext
-from itertools import pairwise
+from itertools import islice, pairwise
+from operator import mul
 from random import Random
 from statistics import NormalDist, fmean, median
 
@@ -222,7 +223,8 @@ def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
     var_b = sum((b - mb) ** 2 for b in bench) / (len(bench) - 1)
     cov = sum((s - ms) * (b - mb) for s, b in pairs) / (len(pairs) - 1)
     active = [s - b for s, b in pairs]
-    tracking = math.sqrt(sum((a - fmean(active)) ** 2 for a in active) / (len(active) - 1))
+    active_mean = fmean(active)
+    tracking = math.sqrt(sum((a - active_mean) ** 2 for a in active) / (len(active) - 1))
     sd_s = math.sqrt(sum((s - ms) ** 2 for s in strat) / (len(strat) - 1))
     beta = cov / var_b if var_b else None
     alpha = ms - beta * mb if beta is not None else None
@@ -231,7 +233,7 @@ def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
             "alpha_annualized": alpha * periods_per_year if alpha is not None and periods_per_year else None,
             "correlation": cov / (sd_s * math.sqrt(var_b)) if sd_s and var_b else None,
             "tracking_error_per_period": tracking,
-            "information_ratio_per_period": fmean(active) / tracking if tracking else None}
+            "information_ratio_per_period": active_mean / tracking if tracking else None}
 
 
 def market_open_annualization(start: datetime, end: datetime, step_seconds: float, skipped: list[dict]) -> dict:
@@ -293,7 +295,7 @@ def _lo_factor(returns: list[float], periods_per_year: float, max_lags: int = 20
         return None, 0
     lags = min(max_lags, len(returns) - 1, max(0, math.ceil(periods_per_year) - 1))
     factor = periods_per_year + 2 * sum(
-        (periods_per_year - k) * sum(centered[j] * centered[j - k] for j in range(k, len(centered))) / total
+        (periods_per_year - k) * sum(map(mul, islice(centered, k, None), centered)) / total
         for k in range(1, lags + 1)
     )
     return (factor if factor > 0 else None), lags
@@ -333,6 +335,35 @@ def _sharpe_block(returns: list[float], periods_per_year: float | None, *, enhan
     return result
 
 
+def signal_attribution(result: dict) -> list[dict]:
+    """U-2: closed trades grouped by the reasons of the decision that opened them and of the one that closed them."""
+    def at(text):
+        try:
+            return iso(parse_ts(text)) if text else None
+        except ValueError:
+            return text
+
+    reasons = {at(d.get("t")): d.get("reasons") or [] for d in result.get("decisions", [])}
+    fills = {(o.get("side"), at(o.get("fill_time"))): o for o in result.get("orders", []) if o.get("status") == "FILLED"}
+
+    def tag(order):
+        if order is None:
+            return "unknown"
+        return "; ".join(reasons.get(at(order.get("decision_time")), [])) or "untagged"
+
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for trade in trade_ledger(result.get("orders", []), result.get("base") or "")["trades"]:
+        key = (tag(fills.get(("BUY", at(trade["opened_at"])))), tag(fills.get(("SELL", at(trade["closed_at"])))))
+        groups.setdefault(key, []).append(trade)
+    rows = []
+    for (entry, exit_), trades in groups.items():
+        pnls = [Decimal(t["pnl"]) for t in trades]
+        rows.append({"entry": entry, "exit": exit_, "trades": len(trades), "wins": sum(p > 0 for p in pnls),
+                     "pnl": str(sum(pnls, Decimal(0))),
+                     "average_return": round(fmean(float(t["return"]) for t in trades), 6)})
+    return sorted(rows, key=lambda r: (-r["trades"], r["entry"], r["exit"]))
+
+
 def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = False) -> dict:
     """Risk, return and trade statistics for one saved paper run."""
     result, inputs = record["result"], record["inputs"]
@@ -346,7 +377,12 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     # Equity path: starting cash, each recorded mark, then the end mark.
     points = [(start, cash)] + [(parse_ts(t), Decimal(v)) for t, v in result.get("curve", [])]
     if final:
-        points.append((parse_ts(final["mark_time"]), Decimal(final["equity"])))
+        # Terminal equity belongs to the cutoff; mark_time records the age of its price source.
+        terminal = (end, Decimal(final["equity"]))
+        if points[-1][0] == end:
+            points[-1] = terminal
+        else:
+            points.append(terminal)
     returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(points) if a > 0]
     gaps = sorted((tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(points) if tb > ta)
     periods_per_year = YEAR_SECONDS / median(gaps) if gaps else None
@@ -403,6 +439,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         win_rate, payoff = len(wins) / len(trades), float(gross_win / len(wins)) / float(gross_loss / len(losses))
         stats["kelly_fraction"] = round(max(0.0, win_rate - (1 - win_rate) / payoff), 4)
     out["trades"] = stats
+    out["attribution"] = signal_attribution(result)
     out["ledger"] = trades
     return out
 
@@ -419,7 +456,8 @@ def selection_check(candidates: dict[str, dict], trials: int | None = None) -> d
         return None
     trials = max(len(usable), trials or 0)
     sharpes = [r["sharpe_per_period"] for r in usable.values()]
-    variance = sum((s - fmean(sharpes)) ** 2 for s in sharpes) / (len(sharpes) - 1)
+    mean_sharpe = fmean(sharpes)
+    variance = sum((s - mean_sharpe) ** 2 for s in sharpes) / (len(sharpes) - 1)
     best_name = max(usable, key=lambda name: usable[name]["sharpe_per_period"])
     best = usable[best_name]
     minimum = minimum_track_record_length(best["sharpe_per_period"], best["skew"], best["kurtosis"])

@@ -92,18 +92,22 @@ dependencies = [
 
 [[package]]
 name = "exec-core"
-version = "0.1.0"
+version = "0.2.0"
+dependencies = [
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "exec-ipc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "exec-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fs2",
  "rusqlite",
@@ -113,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "exec-svc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "exec-core",
  "exec-ipc",

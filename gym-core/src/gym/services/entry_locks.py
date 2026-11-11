@@ -3,9 +3,8 @@ from datetime import timedelta
 
 from ..adapters.run_store import load_verified_run
 from ..domain.market_models import decimal, fields, instant
-from ..domain.model import iso
+from ..domain.model import iso, now_utc
 from ..domain.strategy import digest
-from .collector import now_utc
 from .research_grounding import resolve_run_metric
 from .rules import RuleService
 

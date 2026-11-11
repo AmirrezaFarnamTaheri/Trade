@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { mkdir, lstat, open, rename, unlink } from 'node:fs/promises';
 import { join, resolve, dirname, parse } from 'node:path';
 import { homedir, userInfo } from 'node:os';
-import { randomUUID, randomBytes, createHmac } from 'node:crypto';
+import { randomUUID, randomBytes, createHmac, createCipheriv, createDecipheriv, scryptSync } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -66,6 +66,46 @@ async function dpapi(mode, bytes) {
     child.stdin.end(bytes);
   });
 }
+// Off Windows there is no DPAPI. Credentials are sealed with AES-256-GCM under a key derived (scrypt) from a
+// user-held passphrase in GYM_GATEWAY_PASSPHRASE, never stored on disk. Without it, storing a credential is refused
+// unless GYM_GATEWAY_PLAINTEXT=1 explicitly accepts plaintext (0600 file in a 0700 folder). Blobs written before
+// this change carry no magic and are read as legacy plaintext, then sealed on the next write.
+const SEAL_MAGIC = Buffer.from('TGSEAL1:');
+const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+function passphrase(env = process.env) {
+  const value = env.GYM_GATEWAY_PASSPHRASE;
+  return value && value.length >= 12 ? value : null;
+}
+export function credentialProtection(platform = process.platform, env = process.env) {
+  if (platform === 'win32') return { storage: 'WINDOWS_USER_DPAPI', legacy_plaintext_possible: false };
+  const storage = passphrase(env) ? 'PRIVATE_FILE_PASSPHRASE_SEALED'
+    : env.GYM_GATEWAY_PLAINTEXT === '1' ? 'PRIVATE_FILE_PLAINTEXT' : 'CREDENTIAL_PROTECTION_UNAVAILABLE';
+  return { storage, legacy_plaintext_possible: true };
+}
+export async function passphraseSeal(bytes) {
+  const secret = passphrase();
+  if (!secret) {
+    check(process.env.GYM_GATEWAY_PLAINTEXT === '1', 'credential_protection_unavailable');
+    return bytes;
+  }
+  const salt = randomBytes(16), iv = randomBytes(12);
+  const key = scryptSync(secret, salt, 32, SCRYPT);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const body = Buffer.concat([cipher.update(bytes), cipher.final()]);
+  return Buffer.concat([SEAL_MAGIC, salt, iv, cipher.getAuthTag(), body]);
+}
+export async function passphraseUnseal(blob) {
+  if (blob.length < SEAL_MAGIC.length || !blob.subarray(0, SEAL_MAGIC.length).equals(SEAL_MAGIC)) return blob;
+  const secret = passphrase();
+  check(secret, 'credential_protection_unavailable');
+  const at = SEAL_MAGIC.length;
+  const salt = blob.subarray(at, at + 16), iv = blob.subarray(at + 16, at + 28), tag = blob.subarray(at + 28, at + 44);
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', scryptSync(secret, salt, 32, SCRYPT), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(blob.subarray(at + 44)), decipher.final()]);
+  } catch { throw new GatewayError('credential_storage_failed'); }
+}
 function credential(value) {
   check(value && value.type === 'oauth' && typeof value.access === 'string' && value.access.length > 0 && typeof value.refresh === 'string' && value.refresh.length > 0 && Number.isFinite(value.expires), 'corrupt_credentials');
   check(Buffer.byteLength(JSON.stringify(value)) <= 65536, 'credential_too_large');
@@ -75,9 +115,10 @@ export class State {
   constructor(home = defaultHome(), { seal, unseal, allowLoopback = false } = {}) {
     this.home = resolve(home);
     this.options = { allowLoopback };
-    this.seal = seal || (process.platform === 'win32' ? b => dpapi('encrypt', b) : async b => b);
-    this.unseal = unseal || (process.platform === 'win32' ? b => dpapi('decrypt', b) : async b => b);
+    this.seal = seal || (process.platform === 'win32' ? b => dpapi('encrypt', b) : b => passphraseSeal(b));
+    this.unseal = unseal || (process.platform === 'win32' ? b => dpapi('decrypt', b) : b => passphraseUnseal(b));
   }
+  protection() { return credentialProtection(); }
   async init() {
     await noLinks(this.home);
     await mkdir(this.home, { recursive: true, mode: 0o700 });

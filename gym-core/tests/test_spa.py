@@ -2,6 +2,9 @@
 
 from random import Random
 
+import pytest
+
+from gym.services import spa
 from gym.services.spa import stationary_spa
 
 
@@ -23,3 +26,35 @@ def test_stationary_spa_abstains_on_short_or_unchanging_samples():
     assert stationary_spa(short)["status"] == "INSUFFICIENT_DATA"
     zero = {"A": [0.0] * 30, "B": [0.0] * 30}
     assert stationary_spa(zero)["status"] == "INSUFFICIENT_VARIATION"
+
+
+@pytest.mark.parametrize("periods,candidates,seed", [(20, 2, 0), (100, 4, 3), (2000, 8, 42)])
+def test_vector_gather_preserves_scalar_bootstrap_exactly(monkeypatch, periods, candidates, seed):
+    rng = Random(seed)
+    excess = {str(k): [rng.gauss(.001, .02) for _ in range(periods)] for k in range(candidates)}
+    vector = stationary_spa(excess, simulations=100, seed=seed)
+    # The original Python generator is the reference for the changed gather boundary.
+    monkeypatch.setattr(spa, "itemgetter", lambda *indices: lambda values: (values[j] for j in indices))
+    assert vector == stationary_spa(excess, simulations=100, seed=seed)
+
+
+@pytest.mark.parametrize("values", [
+    [0.0] * 40,
+    [1e16, 1.0, -1e16, -1.0] * 10,
+    [1e150, -1e150, 1e-150, -1e-150] * 10,
+])
+def test_vector_gather_preserves_ties_degeneracy_and_finite_extremes(monkeypatch, values):
+    excess = {"second": values, "first": list(values)}
+    vector = stationary_spa(excess, simulations=100, seed=4)
+    monkeypatch.setattr(spa, "itemgetter", lambda *indices: lambda column: (column[j] for j in indices))
+    assert vector == stationary_spa(excess, simulations=100, seed=4)
+
+
+def test_vector_gather_keeps_validation_and_overflow_observable():
+    with pytest.raises(ValueError, match="2..8 candidates"):
+        stationary_spa({"only": [0.0] * 20})
+    with pytest.raises(ValueError, match="budget"):
+        stationary_spa({"A": [0.0] * 20, "B": [0.0] * 20}, simulations=99)
+    assert stationary_spa({"A": [float("nan")] * 20, "B": [0.0] * 20})["status"] == "INSUFFICIENT_DATA"
+    with pytest.raises(OverflowError):
+        stationary_spa({"A": [1e308] * 20, "B": [1e308] * 20}, simulations=100)

@@ -573,6 +573,6 @@ read-only `/api/backup-status` supplies the EN/FA Backups page. An empty read
 creates no receipt database. Receipts omit paths, passphrases and credentials,
 retain concurrent operations and include exact ledger/file hashes. They report
 past operations only: current archive availability, independent origin/custody
-and separate-machine recovery remain unverified. A receipt failure after a
+and runtime readiness remain unverified. A receipt failure after a
 successful operation reports `status_recorded=false` without implying rollback
 or recommending an automatic repeat.

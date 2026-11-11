@@ -149,3 +149,24 @@ def test_cli_protocol_uses_real_clock_and_preserves_cutoff_reads(tmp_path, capsy
     assert main([*prefix, "outcomes", "--at", START.isoformat()]) == 0
     assert json.loads(capsys.readouterr().out)["outcomes"] == []
     assert main([*prefix, "final-status", "bad"]) == 2
+
+
+def test_cost_declaration_refuses_dead_strategies_and_binds_into_identity(tmp_path):
+    """TS-3: declared turnover and costs are checked before any window is spent."""
+    clock = {"at": START - timedelta(minutes=5)}
+    dead = {"trades_per_month": 40, "roundtrip_cost_bps": "45", "expected_gross_edge_bps": "30"}
+    alive = {"trades_per_month": 40, "roundtrip_cost_bps": "45", "expected_gross_edge_bps": "60"}
+    with ResearchProtocol(tmp_path, clock=lambda: clock["at"]) as ledger:
+        with pytest.raises(ValueError, match="arithmetically dead"):
+            ledger.register({**request(), "cost_declaration": dead})
+        with pytest.raises(ValueError, match="below two venue fees"):  # fee 0.002 -> two fees are 40 bps
+            ledger.register({**request(), "cost_declaration": {**alive, "roundtrip_cost_bps": "39"}})
+        plain = ledger.register(request())
+        assert plain["cost_gate"] == "NOT_DECLARED"
+    (tmp_path / "other").mkdir()
+    with ResearchProtocol(tmp_path / "other", clock=lambda: clock["at"]) as ledger:
+        declared = ledger.register({**request(), "cost_declaration": alive})
+        assert declared["cost_gate"] == "DECLARED"
+        assert declared["configuration"]["cost_declaration"]["net_edge_bps"] == "15"
+        assert declared["configuration"]["cost_declaration"]["monthly_cost_drag_bps"] == "1800"
+        assert declared["evaluation_id"] != plain["evaluation_id"]

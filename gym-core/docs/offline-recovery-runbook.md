@@ -32,7 +32,7 @@ variables or chat.
    receiving machine, provenance, digest, event head, manifest authentication and
    retention evidence. The CLI does **not** perform that remote transfer.
 
-## Recovery rehearsal on a second Windows machine
+## Isolated recovery rehearsal
 
 - No active Executor or existing destination ledger may be overwritten. Run
   `gymctl restore-backup BUNDLE NEW_LEDGER` from an interactive console; it
@@ -45,9 +45,8 @@ variables or chat.
 - Reprovision read-only venue credentials under the actual dedicated service
   principal only after B1 T2 service ACL and DPAPI acceptance. Startup remains
   DISARMED. Reconcile every ambiguous order from authenticated venue evidence.
-- Capture actual independent-machine time, event count/head hash, ACL/negative
-  probes, provenance proof and Health evidence for release review. The synthetic
-  GitHub Ubuntu-to-Windows CI test does not satisfy this operational gate.
+- Capture actual restore time, event count/head hash, ACL/negative
+  probes, provenance proof and Health evidence for release review. Record fixture scope explicitly; synthetic CI does not certify actual venue state.
 
 ## Forward-only update / rollback
 
@@ -64,7 +63,7 @@ Restart DISARMED and reconcile the venue before considering future authority.
 **Not yet implemented:** automated privileged off-machine schedule/retention,
 independent manifest attestation, signed migration installation and rollback,
 and B1 service-owned credentials. Cross-OS restore was rehearsed in WSL2 (see
-acceptance-status.md); a physically separate machine remains the stronger test.
+acceptance-status.md).
 Do not close B3 or merge for funded trading on synthetic results alone.
 
 
@@ -89,10 +88,9 @@ size and enclosed ledger chain-head metadata without reading any private key
 or passphrase. Recheck the resulting chain head against the subsequent
 authenticated `restore_backup` result. A successful signature only proves
 the archive matches the independently trusted signing key: it is **not proof**
-of delivery to a second machine, correct remote retention, service-owned
+of verified remote retention, service-owned
 credentials, safe migration, or live trading authority. The verifier always
 reports `off_machine_verified: false` and `install_authorized: false`.
 
-A human-controlled attestation of independent storage, key custody, elapsed
-restore time, release version, failed negative checks and identity of the real
-Windows operator/worker principals remains mandatory before closing B3.
+Retain authenticated receipts for storage, key custody, elapsed restore time, release
+version, negative checks and actual Windows operator/worker principals before closing B3.

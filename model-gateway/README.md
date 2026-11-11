@@ -46,7 +46,9 @@ uv run --project gym-core gymctl models status
 
 These commands run from the repository root. The Python launcher also selects its own Python executable for the Windows DPAPI helper. If invoking Node directly on Windows for OAuth, set `GYM_MODEL_PYTHON` to the absolute path of your Python executable first. A source checkout is required; the optional JavaScript component is not bundled in a Python wheel.
 
-For ChatGPT browser sign-in, use connection `{"id":"chatgpt","provider":"openai","auth":{"type":"oauth"}}`; for Anthropic, use `{"id":"claude","provider":"anthropic","auth":{"type":"oauth"}}`. Put these in the configuration's `connections` array and choose matching model IDs from each catalog for the presets. API-key connections instead use `{"type":"api_key","env":["OPENAI_API_KEY","OPENAI_API_KEY_2"]}` (or the corresponding provider's variables). Keys are environment values, never JSON fields. OAuth never falls back to those keys automatically.
+**Use API-key connections by default.** Consumer-subscription OAuth (ChatGPT, Claude Free/Pro/Max) in third-party tools may be restricted by the provider's terms; Anthropic said in February 2026 that subscription tokens are for Claude Code and Claude.ai only. Read each provider's current terms before enabling an OAuth connection, and treat it as opt-in and liable to stop working.
+
+For ChatGPT browser sign-in, use connection `{"id":"chatgpt","provider":"openai","auth":{"type":"oauth"}}`; for Anthropic, use `{"id":"claude","provider":"anthropic","auth":{"type":"oauth"}}`. Put these in the configuration's `connections` array and choose matching model IDs from each catalog for the presets. API-key connections instead use `{"type":"api_key","env":["OPENAI_API_KEY","OPENAI_API_KEY_2"]}` (or the corresponding provider's variables). Keys are environment values, never JSON fields. When TradingGYM starts the gateway it passes an allowlisted environment: OS essentials, proxy and CA settings, `GYM_MODEL_*`, and only the variables named by API-key connections in `config.json` at spawn time; restart the workspace after adding a new key variable name. OAuth never falls back to those keys automatically.
 
 From the repository root, replace `node gateway.mjs` below with `node model-gateway/gateway.mjs`.
 
@@ -100,6 +102,7 @@ Example custom API-key endpoint configuration (HTTPS required outside explicitly
 For a built-in provider, omit both `protocol` and `baseURL`, and use its SDK ID and a catalog model ID. OAuth uses `"auth": {"type":"oauth"}`; it requires a built-in OAuth provider and forbids both endpoint/protocol overrides. Missing credentials and failed refresh never resolve ambient API keys. No inline key, header, tool, command, executable, credential path or extra schema fields are accepted.
 
 - Missing `enabled` defaults to false. Missing policy defaults to 3 attempts / 30000 ms. Attempts: 1–3; timeout: 100–120000 ms.
+- Optional `policy.allowedHosts`: lowercase hostnames. When non-empty, every custom-protocol `baseURL` must use one of them (`host_not_allowed` otherwise), so a configuration edit alone cannot send a key to an unapproved host. Built-in providers keep their SDK hosts.
 - At most 100 connections, 100 env references per API connection, 5000 presets, 1 MiB configuration. IDs: `[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}`. Env names: `[A-Z_][A-Z0-9_]{0,127}`.
 - Preset `name`, `maxTokens`, `temperature`, and `catalog` are optional. Model IDs/names are nonempty, bounded to 200 characters without control characters. Max output: 1–65536 tokens, additionally bounded by the SDK cap when known; default request cap is min(1024, model cap). Temperature: 0–1 for Anthropic Messages, 0–2 otherwise; SDK model-specific omissions still apply.
 - `catalog` contains only `name`, `api`, `contextWindow`, `maxTokens`, `reasoning`; it is offline SDK display metadata, not executable routing or provider verification. Runtime preserves built-in model capabilities/compatibility flags. Unknown custom models send text input with reasoning disabled. Their SDK adapter uses zero as the unknown-context sentinel and numeric zero prices only to satisfy the SDK cost calculator; those placeholder prices are replaced with null in returned usage unless the provider explicitly reported a cost. The 65536-token ceiling is gateway policy; the actual server context/output capacity, supported capabilities and price remain unknown. Configure an appropriate request cap for the actual server.
@@ -116,6 +119,8 @@ Windows OAuth bytes pass through the fixed sibling helper `gym-core/src/gym/adap
 SQLite `BEGIN IMMEDIATE` spans the entire async credential refresh callback; rollback and process-death release are tested. Credential namespaces are connection/provider pairs. API keys are resolved from configured env names on every completion, deduplicated by value, and never persisted. SQLite persists an HMAC fingerprint, round-robin cursor and invalid/cooldown state scoped to connection/provider/model/protocol/endpoint. Removed/empty value pools discard old health. Value changes get fresh health.
 
 401/auth-invalid evicts a value; 429 or explicitly quota-coded 403 cools it. Permission 403 and other permanent 4xx are fatal. Retry-After/reset headers are honored when exposed, otherwise cooldown is 60 seconds; all-cooling pools fail without early reuse. 5xx/network errors use bounded backoff. No account/provider/model/endpoint fallback occurs. SDK retries are set to zero; a fetch guard permits one HTTP request per gateway attempt, redirects are refused, and all attempts share cancellation/deadline. Stream errors discard buffered partial text and are not replayed. Response streams are capped at 2 MiB and returned text at 1 MiB.
+
+A model server on this machine (for example llama.cpp's OpenAI-compatible server) uses `"auth": {"type": "local"}` with a `protocol` and an `http://127.0.0.1:<port>` (or `[::1]`, `localhost`) `baseURL`. It needs no key and no switch; any non-loopback URL is refused for it, and redirects are refused for every connection.
 
 For local tests only, `GYM_MODEL_ALLOW_LOOPBACK_HTTP=1` admits explicit HTTP URLs on localhost, 127.0.0.1 or ::1. Never use that switch to weaken a production endpoint policy.
 
@@ -137,3 +142,34 @@ access for every key/model. The accompanying suite passed 29 tests, with one
 Windows file-symlink test skipped because the required privilege was unavailable.
 
 Local execution was on Windows with Node v26.1.0 and Python 3.11.9. Node 22/Linux compatibility is targeted by the package engine and parent CI, not claimed as locally executed. Live OAuth login, provider refresh, subscription entitlement and paid requests remain untested. `--device` selects the SDK device flow only for legacy `openai-codex`; current `openai` ChatGPT OAuth is browser/manual-callback only in SDK 1.5.0. OAuth support does not assert compliance with subscription terms. Built-in catalogs and estimated prices can be stale; custom endpoint pricing remains unknown without an explicit provider-reported cost.
+
+## Dependency audit (2026-11-10)
+
+The one direct dependency, `@earendil-works/pi-ai` 1.5.0, declares the Anthropic, OpenAI, Google GenAI and AWS
+Bedrock SDKs as hard dependencies, which is why about 87 packages are installed. They cannot be dropped without
+forking the library. A review of its bundled code found no telemetry or unexpected outbound path:
+`pi-telemetry` holds type contracts only; the only non-provider hosts are a source comment, the default URL of a
+provider this gateway never configures, and attribution headers that are sent only when a caller sets an
+identity, which the gateway does not. Requests use `redirect: 'error'`, and the gateway runs with an
+allowlisted environment and optional `policy.allowedHosts`. Re-run this review when the dependency is upgraded.
+
+## Measured dependency decision (2026-11-11)
+
+Repository simplification follow-up (2026-11-11): the lock still contains 87
+packages. Installed package files total 68,797,502 bytes (file bytes, excluding
+filesystem allocation overhead). Five fresh Node processes imported runtime.mjs
+in 254–284 ms, median 282.974 ms, with median process RSS 75,390,976 bytes. This
+imports the actual adapter and catalog without making provider requests; it is
+not completion latency. The production npm audit reported zero vulnerabilities.
+The existing provider/authentication/streaming contracts have active consumers,
+so these measurements do not justify replacing the SDK or maintaining a fork.
+Revisit when startup/import cost exceeds an explicit product requirement, or a
+dependency update changes the security/support assessment.
+
+## Credential protection off Windows
+
+On Windows, credentials are sealed with current-user DPAPI. Elsewhere they are sealed with AES-256-GCM under a key
+derived (scrypt) from `GYM_GATEWAY_PASSPHRASE` (12 characters or more), which is held by the user and never written
+to disk. Without it, storing a credential is refused (`credential_protection_unavailable`) unless
+`GYM_GATEWAY_PLAINTEXT=1` explicitly accepts a plaintext 0600 file. Plaintext blobs from older versions stay
+readable and are sealed on the next write.

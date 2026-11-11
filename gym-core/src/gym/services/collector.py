@@ -17,7 +17,6 @@ from ..adapters import wallex
 from ..adapters.store import MarketDB, SegmentWriter, move_raw_days
 from ..domain.bars import qualified
 from ..domain.model import (
-    UTC,
     BookSide,
     InstrumentId,
     QualityLimits,
@@ -26,6 +25,7 @@ from ..domain.model import (
     iso,
     levels,
     loads,
+    now_utc,
     parse_ts,
 )
 from ..domain.units import UnitWatch, unit_freeze_rule
@@ -40,10 +40,6 @@ RESEED_BATCH = 5
 REST_REQUESTS_PER_SECOND = 4
 MIN_ASSETS = 1
 MAX_ASSETS = 500
-
-
-def now_utc() -> datetime:
-    return datetime.now(UTC)
 
 
 def _value(m: dict, snake: str, camel: str | None = None):
@@ -169,6 +165,8 @@ class Collector:
         self.seeding: set[str] = set()
         self.connected_shards: set[int] = set()
         self.units = UnitWatch()
+        from .loop_lag import LoopLag
+        self.loop_lag = LoopLag()  # How late the event loop wakes, i.e. time spent in synchronous work
         self.status = {"connected": False, "shards": 0, "last_frame": None, "reconnects": 0, "fatal": None,
                        "errors": deque(maxlen=20), "shard_stats": {}, "archived": None, "integrity": None}
         self.data_quality: dict[str, dict] = {}  # refreshed every 10 minutes from the last day of stored quotes
@@ -427,14 +425,10 @@ class Collector:
 
     async def _ws_once(self, session, symbols: list[str], shard: int) -> int | None:
         async with session.ws_connect(wallex.WS, heartbeat=None, receive_timeout=60, max_msg_size=wallex.MAX_BODY) as ws:
-            for cmd in wallex.connect_cmds(wallex.channels(symbols)):
-                await ws.send_str(cmd)
-            self.connected_shards.add(shard)
+            connect, *subscriptions = wallex.connect_cmds(wallex.channels(symbols))
+            await ws.send_str(connect)
             stats = self.status["shard_stats"].setdefault(shard, {"markets": len(symbols), "reconnects": 0, "last_frame": None})
-            stats["connected_at"] = now_utc()
-            self.status["connected"] = True
-            self.status["shards"] = len(self.connected_shards)
-            seed = asyncio.create_task(self.seed(session, symbols))
+            seed = None
             try:
                 async for msg in ws:  # 60 s of total silence (pings come every 25 s) raises TimeoutError
                     if msg.type == aiohttp.WSMsgType.TEXT:
@@ -442,6 +436,22 @@ class Collector:
                             await ws.send_str("{}")  # pong within 8 s or the server closes with 3012
                         stats["last_frame"] = now_utc()
                         self.handle_frame(msg.data, stats["last_frame"])
+                        if seed is None:
+                            for line in msg.data.split("\n"):
+                                try:
+                                    reply = loads(line)
+                                except ValueError:
+                                    continue  # handle_frame already records malformed input.
+                                if (isinstance(reply, dict) and reply.get("id") == 1
+                                        and isinstance(reply.get("connect"), dict) and "error" not in reply):
+                                    for cmd in subscriptions:
+                                        await ws.send_str(cmd)
+                                    self.connected_shards.add(shard)
+                                    stats["connected_at"] = now_utc()
+                                    self.status["connected"] = True
+                                    self.status["shards"] = len(self.connected_shards)
+                                    seed = asyncio.create_task(self.seed(session, symbols))
+                                    break
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         break
                 return ws.close_code
@@ -449,9 +459,10 @@ class Collector:
                 self.connected_shards.discard(shard)
                 self.status["connected"] = bool(self.connected_shards)
                 self.status["shards"] = len(self.connected_shards)
-                if not seed.done():
-                    seed.cancel()
-                await asyncio.gather(seed, return_exceptions=True)
+                if seed is not None:
+                    if not seed.done():
+                        seed.cancel()
+                    await asyncio.gather(seed, return_exceptions=True)
 
     async def _ws_loop(self, session, symbols: list[str], shard: int):
         backoff = 1
@@ -540,7 +551,11 @@ class Collector:
             db.c.close()
         self.status["integrity"] = {"at": iso(now), **{k: v if k == "checked" else len(v) for k, v in report.items()}}
         event("integrity", **self.status["integrity"])
-        return [("SEGMENT_CORRUPT", f"{seg_id} no longer matches its manifest hash") for seg_id in report["mismatched"]]
+        live = self.seg.path.relative_to(self.seg.root).as_posix() if self.seg.w else None
+        return ([("SEGMENT_CORRUPT", f"{seg_id} no longer matches its manifest hash") for seg_id in report["mismatched"]]
+                + [("SEGMENT_UNCLOSED", f"{seg_id} was opened but never closed; its tail has no manifest hash")
+                   for seg_id in report["unclosed"] if seg_id != live]
+                + [("SEGMENT_UNREGISTERED", f"{seg_id} is on disk with no manifest row") for seg_id in report["unregistered"]])
 
     def archive_raw(self, now: datetime):
         """Move finished raw day folders older than the kept days; a failure is reported, never fatal."""
@@ -579,6 +594,7 @@ class Collector:
         if self.demo:
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(self._housekeeping())
+                tasks.create_task(self.loop_lag.run())
                 tasks.create_task(self._demo())
             return
         async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
@@ -595,6 +611,7 @@ class Collector:
             shards = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(self._housekeeping())
+                tasks.create_task(self.loop_lag.run())
                 tasks.create_task(self._refresh_rest(session))
                 for i, batch in enumerate(shards):
                     tasks.create_task(self._ws_loop(session, batch, i + 1))

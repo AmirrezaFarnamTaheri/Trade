@@ -42,3 +42,20 @@ in PR #18; merging code does not certify a money path. See
 [service security status](docs/service-security-status.md) for implemented
 boundaries and installed-host/venue gates, and
 [Windows setup](docs/windows-service-bootstrap.md) for protected installation.
+
+## Signed updates
+
+1. In an offline signing session: `gymctl release-keygen --private <offline>\update.key --public update.pub`.
+   Keep the private key and its passphrase offline.
+2. As administrator, copy `update.pub` to `%ProgramFiles%\TradingGYM\Executor\update-signing.pub` and seal it like the
+   other code files. From then on an update without a valid signature is refused.
+3. For each bundle: `gymctl release-sign bundle.sha256 --key <offline>\update.key`, then
+   `Update-ReadOnlyExecutor.ps1 -BinaryDirectory <dir> -HashManifest <dir>\bundle.sha256 -Signature <dir>\bundle.sha256.sig`.
+   The script verifies with .NET's ECDSA only (no user-writable code) and keeps the manifest as `bundle.sha256`, against
+   which the Python adapters re-hash `gym-account-read.exe` and `gym-review.exe` before every launch.
+
+## Test-only and unwired paths
+
+`exec_ipc::review_v2` (TGREVW02), `offline_recovery::reserve_prepared_intent`, `exec_core::holds`,
+`exec_core::arming` and `exec_core::available` are exported and tested but not mounted by the service. They
+belong to the funded flow, which stays absent until the pre-funding checks pass; see ADRs 0003 and 0006.

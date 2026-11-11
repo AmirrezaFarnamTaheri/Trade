@@ -43,7 +43,8 @@ UDF_RESOLUTIONS = {"1min": "1", "1h": "60", "1d": "1D"}  # "D" answered no_data 
 
 def parse_udf(text: str) -> list[dict]:
     """`/v1/udf/history` columns -> candles with exact decimals. `no_data` is an empty answer, not an error."""
-    d = json.loads(text)
+    # Decimal straight from the JSON text: a float round trip would record rounded prices as exact.
+    d = json.loads(text, parse_float=Decimal)
     if d.get("s") == "no_data":
         return []
     if d.get("s") != "ok":
@@ -52,10 +53,13 @@ def parse_udf(text: str) -> list[dict]:
     if len({len(c) for c in cols}) != 1:
         raise ValueError("udf history columns differ in length")
     try:
-        return [{"t": datetime.fromtimestamp(int(t), UTC), **{k: Decimal(str(x)) for k, x in zip("ohlcv", row)}}
-                for t, *row in zip(*cols)]
+        out = [{"t": datetime.fromtimestamp(int(t), UTC), **{k: Decimal(str(x)) for k, x in zip("ohlcv", row)}}
+               for t, *row in zip(*cols)]
     except (InvalidOperation, TypeError, OverflowError) as e:
         raise ValueError(f"udf history value: {e}") from e
+    if any(not k[name].is_finite() for k in out for name in "ohlcv"):
+        raise ValueError("udf history value is not finite")
+    return out
 
 
 def connect_cmds(chs: list[str]) -> list[str]:

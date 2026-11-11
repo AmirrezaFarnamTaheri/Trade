@@ -11,7 +11,7 @@ window.gymNativeReview = (() => {
     const output = document.getElementById('native-review-result');
     if (demo) {
       context.disabled = submit.disabled = true;
-      output.textContent = document.documentElement.lang === 'fa' ? 'بررسی سرویس حفاظت‌شده در حالت نمایشی غیرفعال است.' : 'Protected operator reviews are disabled in DEMO.';
+      output.textContent = document.documentElement.lang === 'fa' ? T.fa.nrProtectedOperatorReviewsAreDisabledIn : T.en.nrProtectedOperatorReviewsAreDisabledIn;
       return;
     }
     async function run(request) {
@@ -25,8 +25,7 @@ window.gymNativeReview = (() => {
         output.textContent = JSON.stringify(result, null, 2);
       } catch (_) {
         output.textContent = document.documentElement.lang === 'fa'
-          ? 'دریافت رسید تأیید نشد. پیش از تلاش دوباره، همان شناسه را بررسی کنید؛ وضعیت سفارش یا مجوز معامله اثبات نشده است.'
-          : 'Receipt unacknowledged. Inspect the same identity before retrying; no order status or trading permission is established.';
+          ? T.fa.nrReceiptUnacknowledgedInspectTheSameIdentity : T.en.nrReceiptUnacknowledgedInspectTheSameIdentity;
       } finally { pending = false; context.disabled = submit.disabled = false; }
     }
     context.addEventListener('click', () => run(() => api('/api/operator-reviews', {}, 9000)));

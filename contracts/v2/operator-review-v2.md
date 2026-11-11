@@ -42,3 +42,11 @@ only. Native helper/client/pipe publication, separate token and Windows
 ACL qualification, admitted order reservation, real retry/unknown-order
 recovery, operator approval, authentic account/fee evidence, and an
 explicit nonzero loss budget are all outstanding. The funded budget stays zero.
+
+## Golden fixture
+
+`fixtures/operator-review-v2.hex` holds one approve request and its reply for the
+v2-valid ticket `New_01`. Rust generates and checks it
+(`executor/exec-ipc/tests/operator_review_v2.rs`); Python checks that it shares the v1
+layout apart from the magic and that its v1 codec refuses it
+(`gym-core/tests/test_operator_reviews.py`). Changing the layout breaks both.

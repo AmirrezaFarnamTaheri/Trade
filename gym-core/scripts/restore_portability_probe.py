@@ -59,6 +59,6 @@ def main(args):
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - the CLI reports a bounded failure without leaking fixture data
         print("B3 CI fixture failed: " + type(exc).__name__, file=sys.stderr)
         raise SystemExit(2)

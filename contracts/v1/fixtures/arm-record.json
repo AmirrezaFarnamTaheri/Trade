@@ -1,0 +1,12 @@
+{
+  "note": "Arm-record digest (OD-2): Rust exec_core::arming and gym.services.arm_preflight must agree.",
+  "policy_file": "contracts/arm-policy/cost-probe.json",
+  "policy_sha256": "f4ff884f13cd3b3909d457367210eb175e91050d8bde81ac72258152dc1d2168",
+  "approver": "owner",
+  "runtime_epoch": 3,
+  "armed_at_ms": 1794000000000,
+  "expires_days": 7,
+  "expires_at_ms": 1794604800000,
+  "canonical": "TGARM1\npolicy_sha256=f4ff884f13cd3b3909d457367210eb175e91050d8bde81ac72258152dc1d2168\napprover=owner\nruntime_epoch=3\narmed_at_ms=1794000000000\nexpires_at_ms=1794604800000\n",
+  "digest": "9c08945b2fc04a22494b9b27ab732b604078a4bd912439c0897b6b56cb96407f"
+}

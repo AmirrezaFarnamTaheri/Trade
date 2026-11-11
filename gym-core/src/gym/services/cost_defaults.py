@@ -12,10 +12,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from ..domain.model import iso, parse_ts
+from ..domain.model import iso, now_utc, parse_ts
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
-from .collector import now_utc
 
 _MAX_AGE = timedelta(hours=24)
 _FALLBACK_FEE = Decimal(os.environ.get("GYM_FEE_RATE", "0.001"))

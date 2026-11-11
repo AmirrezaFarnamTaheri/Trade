@@ -6,8 +6,7 @@ from pathlib import Path
 
 from ..adapters.wallex_account_read import parse_account_json
 from ..domain.market_models import fields, instant
-from ..domain.model import iso
-from .collector import now_utc
+from ..domain.model import iso, now_utc
 
 
 def _validate(row):
@@ -51,7 +50,7 @@ def status(root):
             conn.close()
     return {"state": "RECORDED" if any(rows.values()) else "NO_RECEIPTS", "latest": rows,
             "archive_availability_verified": False, "off_machine_verified": False, "origin_authenticated": False,
-            "funded_authority": False, "limitation": "Local historical receipts only. Current archive presence, independent custody and separate-machine recovery are not established."}
+            "funded_authority": False, "limitation": "Local historical receipts only. Current archive presence, provenance and runtime readiness are not established."}
 
 
 def record(root, kind, report):

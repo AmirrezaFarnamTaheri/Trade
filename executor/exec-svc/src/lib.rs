@@ -131,6 +131,116 @@ pub mod windows_pipe;
 #[cfg(windows)]
 pub mod windows_control;
 
+/// Runs the privileged (T2) thread body and applies the fail-closed rule (OD-5): a panic or an error marks the
+/// service failed, and any return stops the whole service, T0 included. Only an orderly credential-recovery run
+/// ends without the failure flag. A restart builds a fresh `StopGate`, which is always `Disarmed`.
+pub fn supervise_privileged<F>(
+    credential_recovery: bool,
+    failed: &std::sync::atomic::AtomicBool,
+    stop: &std::sync::atomic::AtomicBool,
+    run: F,
+) where
+    F: FnOnce() -> std::io::Result<()>,
+{
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run));
+    if !credential_recovery || !matches!(result, Ok(Ok(()))) {
+        failed.store(true, Ordering::SeqCst);
+    }
+    stop.store(true, Ordering::SeqCst);
+}
+
+/// Exit codes reported to the service manager on stop: (Win32 code, service-specific phase code when T2 failed).
+pub fn stopped_exit(
+    listener_failed: bool,
+    privileged_failed: bool,
+    phase: u32,
+) -> (u32, Option<u32>) {
+    let win32 = if listener_failed || privileged_failed {
+        5
+    } else {
+        0
+    };
+    (win32, privileged_failed.then_some(phase))
+}
+
+/// Run a venue read with the vault lock held only to copy the credential out (`begin`) and to record the result
+/// (`finish`), never across the read itself, so a stalled venue cannot hold the vault against other privileged work.
+pub fn read_outside_lock<V, P, B, R>(
+    vault: &std::sync::Mutex<V>,
+    begin: impl FnOnce(&mut V) -> std::io::Result<Option<P>>,
+    read: impl FnOnce(&P) -> B,
+    finish: impl FnOnce(&mut V, P, B) -> std::io::Result<Option<R>>,
+) -> std::io::Result<Option<R>> {
+    let poisoned = || std::io::Error::other("vault poisoned");
+    let Some(plan) = begin(&mut *vault.lock().map_err(|_| poisoned())?)? else {
+        return Ok(None);
+    };
+    let body = read(&plan); // no guard is alive here
+    finish(&mut *vault.lock().map_err(|_| poisoned())?, plan, body)
+}
+
+/// Who may write a provisioned configuration file (the stop-logon and operator SID files decide who may stop
+/// the executor). Pure rule over the owner and the ACEs Windows reports, so it is testable on any OS.
+pub mod config_trust {
+    pub const SYSTEM: &str = "S-1-5-18";
+    pub const ADMINISTRATORS: &str = "S-1-5-32-544";
+    pub const TRUSTED_INSTALLER: &str =
+        "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
+    /// Rights that change the file's content, attributes, owner or permissions, or delete it.
+    pub const WRITE_RIGHTS: u32 = 0x0002
+        | 0x0004
+        | 0x0010
+        | 0x0100
+        | 0x0001_0000
+        | 0x0004_0000
+        | 0x0008_0000
+        | 0x1000_0000
+        | 0x4000_0000;
+    pub const ACCESS_ALLOWED: u8 = 0;
+    pub const ACCESS_DENIED: u8 = 1;
+    pub const INHERIT_ONLY: u8 = 0x08;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Ace {
+        pub kind: u8,
+        pub flags: u8,
+        pub mask: u32,
+        pub sid: String,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum Untrusted {
+        NullDacl,
+        Owner(String),
+        Writer(String),
+        UnknownAce(u8),
+    }
+
+    fn trusted(sid: &str) -> bool {
+        sid == SYSTEM || sid == ADMINISTRATORS || sid == TRUSTED_INSTALLER
+    }
+
+    /// Owner must be SYSTEM, Administrators or TrustedInstaller, and only they may hold any write right.
+    pub fn check(owner: &str, dacl: Option<&[Ace]>) -> Result<(), Untrusted> {
+        if !trusted(owner) {
+            return Err(Untrusted::Owner(owner.to_string()));
+        }
+        let aces = dacl.ok_or(Untrusted::NullDacl)?;
+        for ace in aces {
+            if ace.flags & INHERIT_ONLY != 0 || ace.kind == ACCESS_DENIED {
+                continue;
+            }
+            if ace.kind != ACCESS_ALLOWED {
+                return Err(Untrusted::UnknownAce(ace.kind));
+            }
+            if ace.mask & WRITE_RIGHTS != 0 && !trusted(&ace.sid) {
+                return Err(Untrusted::Writer(ace.sid.clone()));
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct StopGate {
     runtime_epoch: u64,
     mode: AtomicU8,
