@@ -79,11 +79,14 @@ def test_gateway_child_sees_only_allowlisted_and_configured_key_variables(tmp_pa
         {"id": "b", "provider": "anthropic", "auth": {"type": "oauth"}}]}), encoding="utf-8")
     parent = {"GYM_MODEL_HOME": str(tmp_path), "PATH": "p", "SystemRoot": "C:/Windows", "https_proxy": "http://proxy",
               "RESEARCH_KEY_1": "k1", "AWS_SECRET_ACCESS_KEY": "canary", "GITHUB_TOKEN": "canary",
-              "GYM_MODEL_ALLOW_LOOPBACK_HTTP": "1"}
+              "GYM_MODEL_ALLOW_LOOPBACK_HTTP": "1", "GYM_GATEWAY_PASSPHRASE": "synthetic gateway passphrase",
+              "GYM_GATEWAY_PLAINTEXT": "1", "GYM_GATEWAY_UNRELATED_SECRET": "canary"}
     env = gateway_env(parent)
     assert "canary" not in env.values()
     assert env["RESEARCH_KEY_1"] == "k1" and env["PATH"] == "p" and env["SystemRoot"] == "C:/Windows"
     assert env["https_proxy"] == "http://proxy" and env["GYM_MODEL_ALLOW_LOOPBACK_HTTP"] == "1"
+    assert env["GYM_GATEWAY_PASSPHRASE"] == "synthetic gateway passphrase"
+    assert env["GYM_GATEWAY_PLAINTEXT"] == "1"
     assert "GYM_MODEL_PYTHON" in env
     (tmp_path / "config.json").write_text("not json", encoding="utf-8")
     assert "RESEARCH_KEY_1" not in gateway_env(parent)

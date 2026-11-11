@@ -26,6 +26,10 @@ the immutable receipts with an operator-reviewed migration. Preserve all
 other files under the old data root until their owners are identified.
 This repository change does not move databases on a running machine.
 
+Tool-cache cleanup must preserve live and DEMO stores, protected Executor
+ledgers, credentials, backups, immutable run artifacts and signed recovery
+evidence. Tracked design references remain project sources.
+
 Backup/restore receipts are append-only, bounded and sanitized. Current status
 selects the latest recorded time, independent of append order. A receipt does not
 prove current archive availability, independent origin or physical-host recovery.
@@ -46,8 +50,13 @@ commit in one SQLite transaction. A failed tick rolls back its normalized writes
 and restores its cached tops/unit state. Prospective readers use one read snapshot
 for the watermark, quotes, specifications and rules, and do not infer that a
 wall-clock deadline proves the collector has published through that time.
-Older read-only snapshots remain usable; missing watermarks are disclosed and
-quiet-period scans stay quote-driven. Quote and candle observations are immutable.
+Read-only opens require the current market schema (5). Upgrade older stores
+through the normal writable open, after preserving a consistent backup; read-only
+access never runs migrations. Future schema versions are refused in both modes.
+DataPortal uses the current depth, publication and candle-vintage schema directly,
+without runtime fallback to partially supported older layouts. An empty publication
+table still means no committed watermark; quiet-period scans stay quote-driven.
+Quote and candle observations are immutable.
 Raw audit segments retain their existing ownership.
 
 The remaining application JSONL is a compressed audit archive, not a query

@@ -15,7 +15,7 @@ combine these authorities.
 | Margin paper workflow | `domain/margin.py`, `adapters/wallex_margin.py`, `services/margin.py`, `ui/margin.js` | Credential-free pinned public rules/loan/preview endpoints, immutable receipt clocks and currency-aware observed-quote paper positions. Shared supervised GUI/CLI actions; no margin write transport. |
 | Hypotheses and schedules | `services/research_ledger.py` | Existing hypotheses, shadow observations, jobs and durable retry/report publication. |
 | Availability and evaluations | `services/research_protocol.py` | Immutable observation vintages, resolution-time outcome memory and future evaluations consumed before reading holdout data. Local enforcement is not independent sealing. |
-| Numeric review | `services/research_grounding.py`, `research_review.py` | Allowlisted saved-run arithmetic; performance, risk and cash-benchmark roles. Numeric agreement does not validate prose or causality. |
+| Numeric review | `services/research_grounding.py`, `services/research_actions.py` | Allowlisted saved-run arithmetic; performance, risk and cash-benchmark roles. Numeric agreement does not validate prose or causality. |
 | Web composition | `api/server.py` | Existing observatory routes and loopback/token boundary. It installs separate model, research and offline-review workflow routes. Deliberate public reads (loopback Host check only, no token): `PUBLIC_READS` in `api/__init__.py` plus the full record at `GET /api/runs/{id}`, which holds paper results and no credentials; its `/summary` views stay token-gated. `tests/test_api_contract.py` fails when a route becomes public without being listed. |
 | Offline ticket review | `api/offline_reviews.py`, `services/offline_review_journal.py` | The same canonical preview and hash-chain owner used by the CLI. Actual server review time, one acknowledgment/rejection, no T1 permission. |
 | Protected operator intent | `api/operator_reviews.py`, `adapters/service_review.py`, `contracts/review_wire.py`, `ui/native-review.js` | Explicit token/same-origin relay to the fixed protected helper and OS-authenticated Rust pipe. Exact durable review, consume-once preparation and revocation; no money reservation, executable admission, arming, order transport or research/MCP dispatch. New binaries require installed-host qualification. |
@@ -57,7 +57,7 @@ flag has a graphical equivalent or that the protected executor is qualified.
 | --- | --- |
 | research_market.py | Recorded coverage, readiness, screening and comparable market groups |
 | replay_debugger.py, replay_checkpoint.py, replay_annotations.py | Verified inspection, continuation and separate operator notes |
-| experiment_registry.py, research_notes.py | Durable trials/failures, evidence packets and analyst notes |
+| experiment_registry.py, research_actions.py | Durable trials/failures, evidence packets and analyst notes |
 | research_process.py | Bounded isolated calculation supervisor shared by CLI/API/scheduler |
 | operator_actions.py | Existing local journal, conversion and offline probe workflows |
 | news_feed.py | Explicit fixed-origin public receipt retrieval |

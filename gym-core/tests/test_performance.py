@@ -89,6 +89,28 @@ def test_equity_path_statistics_and_annualization_guard():
     assert 0 <= perf["returns"]["probabilistic_sharpe"] <= 1
 
 
+@pytest.mark.parametrize("receipt_age_minutes", [0, 1, 10])
+def test_final_equity_replaces_cutoff_sample_without_a_backward_return(receipt_age_minutes):
+    from gym.services.reports import run_valuation
+
+    cutoff = START + timedelta(minutes=30)
+    final = {"mark_time": iso(cutoff - timedelta(minutes=receipt_age_minutes)), "equity": "1010"}
+    out = {"inputs": {"from": iso(START), "to": iso(cutoff)},
+           "result": {"quote": "USDT", "base": "BTC", "start_cash": "1000", "orders": [],
+                      "curve": [(iso(START + timedelta(minutes=10 * i)), value)
+                                for i, value in enumerate(("1100", "990", "1000"), 1)],
+                      "end": final}}
+    expected = performance({"inputs": out["inputs"], "result": {
+        **out["result"], "curve": out["result"]["curve"][:-1],
+        "end": {"mark_time": iso(cutoff), "equity": "1010"}}})
+    actual = performance(out)
+    assert actual["returns"]["periods"] == 3
+    assert actual["returns"] == expected["returns"]
+    assert actual["total_return_pct"] == "1.0000"
+    assert out["result"]["end"] == final
+    assert run_valuation(out)["status"] == ("STALE" if receipt_age_minutes > 2 else "CURRENT")
+
+
 def test_luck_threshold_grows_with_trials_and_deflates_the_best_result():
     assert expected_max_sharpe(1, 0.01) == 0
     assert expected_max_sharpe(100, 0.01) > expected_max_sharpe(10, 0.01) > 0
@@ -103,6 +125,22 @@ def test_selection_check_names_the_best_candidate():
     check = selection_check({"A": block(0.05), "B": block(0.15), "C": block(-0.02)})
     assert check["best"] == "B" and check["trials"] == 3 and 0 <= check["deflated_sharpe"] <= 1
     assert selection_check({"A": block(0.1)}) is None
+
+
+def test_selection_dispersion_averages_candidates_once(monkeypatch):
+    import gym.domain.performance as metrics
+
+    original, sizes = metrics.fmean, []
+
+    def measured(values):
+        sizes.append(len(values))
+        return original(values)
+
+    monkeypatch.setattr(metrics, "fmean", measured)
+    candidates = {str(i): {"returns": {"sharpe_per_period": i / 1000, "periods": 100,
+                                      "skew": 0.0, "kurtosis": 3.0}} for i in range(256)}
+    assert metrics.selection_check(candidates)["best"] == "255"
+    assert sum(sizes) <= len(candidates)
 
 
 def test_selection_counts_earlier_trials_and_raises_the_luck_threshold():
@@ -148,6 +186,36 @@ def test_bootstrap_range_and_benchmark_against_holding_the_base():
     bench = perf["benchmark"]
     assert bench["name"] == "hold BTC" and bench["beta"] == pytest.approx(1) and bench["alpha_per_period"] == pytest.approx(0, abs=1e-12)
     assert bench["correlation"] == pytest.approx(1)
+
+
+def test_benchmark_tracking_error_does_linear_mean_work(monkeypatch):
+    import statistics
+
+    from gym.domain import performance as metrics
+
+    count = 128
+    equity = [1000 + i + (i % 5) * 2 for i in range(count)]
+    bids = [100 + i / 10 + (i % 7) / 10 for i in range(count)]
+    out = {"result": {
+        "base": "BTC",
+        "curve": [(str(i), str(value)) for i, value in enumerate(equity)],
+        "decisions": [{"t": str(i), "bid": str(value)} for i, value in enumerate(bids)],
+    }}
+    active = [equity[i] / equity[i - 1] - bids[i] / bids[i - 1] for i in range(1, count)]
+    mean_work = 0
+    original = metrics.fmean
+
+    def measured_mean(values):
+        nonlocal mean_work
+        values = tuple(values)
+        mean_work += len(values)
+        return original(values)
+
+    monkeypatch.setattr(metrics, "fmean", measured_mean)
+    result = metrics._benchmark(out, None)
+    assert result["tracking_error_per_period"] == pytest.approx(statistics.stdev(active))
+    assert result["information_ratio_per_period"] == pytest.approx(statistics.fmean(active) / statistics.stdev(active))
+    assert mean_work <= 3 * count
 
 
 def test_signal_attribution_groups_trades_by_entry_and_exit_reasons():

@@ -86,10 +86,11 @@ def chained_out_of_sample(folds, records, starting_cash):
     """Chain selected flat-account test growth with strict chronological evidence."""
     equity, peak, worst = Decimal(starting_cash), Decimal(starting_cash), Decimal(0)
     marks, losing, longest = [], 0, 0
-    for fold in folds:
+    for index, fold in enumerate(folds):
         record = records.get(fold["test"].get("run_id"))
-        if record is None or not record["result"].get("end") or fold["test"]["state"] != "COMPLETED":
-            return {"status": "INCOMPLETE", "completed_folds": len(marks),
+        if (record is None or not record["result"].get("end")
+                or fold["test"]["state"] != "COMPLETED" or fold["test"].get("valuation") != "CURRENT"):
+            return {"status": "INCOMPLETE", "completed_folds": index,
                     "limitation": "Missing or unready test evidence prevents a chained economic claim."}
         from ..domain.performance import trade_ledger
 

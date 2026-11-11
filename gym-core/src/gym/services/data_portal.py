@@ -26,14 +26,12 @@ class DataPortal:
     def __init__(self, db: MarketDB, *, excluded=()):
         self.db = db
         self.excluded = tuple(excluded)
-        # Read-only snapshots of older stores predate the depth column.
-        self.has_depth = any(row[1] == "depth" for row in db.c.execute("pragma table_info(book_top)"))
 
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
         if not t0 < t1:
             raise ValueError(f"inverted or empty range {iso(t0)} .. {iso(t1)}")
-        rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, " + ("depth" if self.has_depth else "null") +
-                                 " from book_top where instrument_id=? and ts_avail>=? and ts_avail<? order by ts_avail, rowid",
+        rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
+                                 "from book_top where instrument_id=? and ts_avail>=? and ts_avail<? order by ts_avail, rowid",
                                  (f"wallex:{symbol}", iso(t0), iso(t1)))
         def optional_decimal(value):
             return None if value is None else dec(value)
@@ -48,8 +46,6 @@ class DataPortal:
                 for r in rows if not any(start <= parse_ts(r[0]) < end for start, end in self.excluded)]
 
     def publication(self):
-        if not self.db.c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='collector_publication'").fetchone():
-            return None
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
         return parse_ts(row[0]) if row else None
 
@@ -59,11 +55,9 @@ class DataPortal:
         return [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
 
     def venue_candles(self, symbol: str, resolution: str, t0: datetime, t1: datetime, *, as_of=None) -> list[dict]:
-        history = self.db.c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='candle_vintages'").fetchone()
-        table = "candle_vintages" if history else "venue_candles"
-        rows = self.db.c.execute(f"""SELECT t,o,h,l,c,v,fetched_at FROM (
+        rows = self.db.c.execute("""SELECT t,o,h,l,c,v,fetched_at FROM (
             SELECT t,o,h,l,c,v,fetched_at,ROW_NUMBER() OVER(PARTITION BY t ORDER BY fetched_at DESC) AS position
-            FROM {table} WHERE instrument_id=? AND resolution=? AND t>=? AND t<? AND (? IS NULL OR fetched_at<?))
+            FROM candle_vintages WHERE instrument_id=? AND resolution=? AND t>=? AND t<? AND (? IS NULL OR fetched_at<?))
             WHERE position=1 ORDER BY t""", (f"wallex:{symbol}", resolution, iso(t0), iso(t1), iso(as_of), iso(as_of)))
         return [{"t": parse_ts(r[0]), **{k: dec(x) for k, x in zip("ohlcv", r[1:6])}, "fetched_at": parse_ts(r[6])}
                 for r in rows]

@@ -13,7 +13,11 @@ window.gymModels = (() => {
     catch { $('models-message').textContent = w('failed'); }
   }
   function renderStatus() {
-    $('models-storage').textContent = `${w('storage')}: ${status.storage}${status.storage === 'PRIVATE_FILE_PLAINTEXT' ? ' · ' + w('plaintext') : ''}`;
+    const storageLabels = { WINDOWS_USER_DPAPI: 'modelsStorageDpapi', PRIVATE_FILE_PASSPHRASE_SEALED: 'modelsStorageSealed',
+      PRIVATE_FILE_PLAINTEXT: 'modelsPlaintext', CREDENTIAL_PROTECTION_UNAVAILABLE: 'modelsStorageUnavailable' };
+    const protection = T[language][storageLabels[status.storage]] ?? status.storage;
+    const legacy = status.legacy_plaintext_possible ?? status.storage === 'PRIVATE_FILE_PLAINTEXT';
+    $('models-storage').textContent = `${w('storage')}: ${protection}${legacy ? ' ' + T[language].modelsStorageLegacy : ''}`;
     $('models-enabled').checked = status.enabled;
     $('models-connections').innerHTML = status.connections.length ? status.connections.map(c => `<article class="panel"><h3>${esc(c.id)} · ${esc(c.provider)}</h3><p>${esc(c.auth.type === 'oauth' ? w(c.loggedIn ? 'connected' : 'disconnected') : `${c.configuredKeys} ${w('configured')}`)}</p><div class="actions">${c.auth.type === 'oauth' ? button('login', c.id, w('signIn')) + button('logout', c.id, w('signOut')) : ''}${button('sync', c.id, w('sync'))}</div>${c.auth.type === 'api_key' && c.auth.stored ? `<form data-key-connection="${esc(c.id)}"><label>${esc(w('key'))}<input type="password" data-secret-keys autocomplete="off" autocapitalize="off" spellcheck="false" required dir="ltr"></label><p class="field-help">${esc(w('keyHelp'))}</p><div class="actions"><button class="button" type="submit">${esc(w('keys'))}</button>${button('clear', c.id, w('clear'))}</div></form>` : ''}</article>`).join('') : `<p>${esc(w('none'))}</p>`;
     const selected = $('models-preset').value;

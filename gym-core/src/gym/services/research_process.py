@@ -89,6 +89,8 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
         temporary = tempfile.TemporaryDirectory(prefix="tradinggym-research-")
         environment = {k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "WINDIR", "SYSTEMDRIVE")}
         environment.update(TEMP=temporary.name, TMP=temporary.name)
+        if os.environ.get("GYM_RUST_KERNEL") == "1":
+            environment["GYM_RUST_KERNEL"] = "1"
         async with asyncio.timeout(timeout_seconds):
             process = await asyncio.create_subprocess_exec(
                 sys.executable, "-I", "-B", "-m", "gym.services.research_process",

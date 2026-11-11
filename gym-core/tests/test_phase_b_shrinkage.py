@@ -1,10 +1,27 @@
 """Phase B 20: causal Ledoit-Wolf constant-correlation shrinkage, off by default."""
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
 from gym.domain.covariance_models import ledoit_wolf_constant_correlation
 from gym.domain.portfolio_policy import PortfolioPolicy
+
+
+@pytest.mark.parametrize("second", [("-1", "-2", "-3"), ("1", "2", "3.000000000000000000000000000001")])
+def test_minimum_sample_retains_exact_covariance_and_column_order(second):
+    observations = [[Decimal(i + 1), Decimal(value)] for i, value in enumerate(second)]
+    with localcontext() as context:
+        context.prec = 60
+        columns = list(zip(*observations))
+        means = [sum(column) / 3 for column in columns]
+        expected = [[sum((row[i] - means[i]) * (row[j] - means[j]) for row in observations) / 2
+                     for j in range(2)] for i in range(2)]
+        result = ledoit_wolf_constant_correlation(observations)
+        assert result["sample"] == expected
+        reversed_result = ledoit_wolf_constant_correlation([list(reversed(row)) for row in observations])
+        for key in ("sample", "target", "covariance"):
+            assert reversed_result[key] == [list(reversed(row)) for row in reversed(result[key])]
+        assert reversed_result["intensity"] == result["intensity"]
 
 
 def test_constant_correlation_shrinkage_has_bounded_intensity_and_preserves_variances():

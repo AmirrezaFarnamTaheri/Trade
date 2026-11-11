@@ -12,3 +12,7 @@ node_modules/
 .impeccable/comp/
 .ruff_cache/
 executor/exec-kernel-py/target/
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/manifest.json

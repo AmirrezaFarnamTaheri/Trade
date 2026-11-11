@@ -44,6 +44,51 @@ def test_stale_and_future_publications_are_explicit_and_news_is_not_a_numeric_si
         assert news["ranking"] == "PUBLICATION_TIME" and not news["rows"][0]["rights_verified"]
 
 
+def test_numeric_screen_keeps_latest_measurement_when_older_period_is_published_later(tmp_path):
+    measured = START + timedelta(hours=1)
+    published = START + timedelta(hours=2)
+    clock = {"at": START + timedelta(hours=3)}
+    with ResearchProtocol(tmp_path, clock=lambda: clock["at"]) as ledger:
+        ledger.ingest_observations({"observations": [
+            observation(value="20", measured_at=measured.isoformat(), published_at=measured.isoformat()),
+            observation(value="999", measured_at=START.isoformat(), published_at=published.isoformat(),
+                        revision_at=clock["at"].isoformat()),
+        ]})
+        reference = {key: observation()[key] for key in ("source_id", "series", "subject", "kind", "unit")}
+        first_cutoff = clock["at"]
+        selected = ledger.screen(query(first_cutoff))["rows"][0]
+        assert selected == ledger.observation(reference, first_cutoff)
+        assert selected["value"] == "20"
+
+        clock["at"] += timedelta(seconds=1)
+        ledger.ingest_observations({"observations": [
+            observation(value="25", measured_at=measured.isoformat(), published_at=measured.isoformat(),
+                        revision_at=clock["at"].isoformat()),
+        ]})
+        assert ledger.screen(query(clock["at"]))["rows"][0]["value"] == "25"
+        assert ledger.screen(query(first_cutoff))["rows"][0]["value"] == "20"
+
+
+@pytest.mark.parametrize("kind,unit,value,measured", [
+    ("OPEN_INTEREST", "USDT", "12", True),
+    ("OPEN_INTEREST", "USDT", "12", False),
+    ("NEWS", "text", "Supplied headline", False),
+])
+def test_screen_freshness_uses_measurement_when_known_and_publication_otherwise(tmp_path, kind, unit, value, measured):
+    published = START + timedelta(hours=1)
+    clock = {"at": published}
+    with ResearchProtocol(tmp_path, clock=lambda: clock["at"]) as ledger:
+        ledger.ingest_observations({"observations": [
+            observation(kind=kind, unit=unit, value=value, published_at=published.isoformat(),
+                        **({"measured_at": START.isoformat()} if measured else {})),
+        ]})
+        assert len(ledger.screen(query(clock["at"], kind=kind, unit=unit, max_age_seconds=3600))["rows"]) == 1
+        clock["at"] += timedelta(seconds=1)
+        result = ledger.screen(query(clock["at"], kind=kind, unit=unit, max_age_seconds=3600))
+        assert result["stale_subjects"] == int(measured)
+        assert len(result["rows"]) == int(not measured)
+
+
 @pytest.mark.parametrize("change", [{"value": "NaN"}, {"value": 1.0}, {"source_id": "../secret"},
     {"kind": "APPROVE_ORDER"}, {"rights_verified": True}, {"revision_at": (START - timedelta(seconds=1)).isoformat()}])
 def test_unsafe_or_untyped_observations_reject_atomically(tmp_path, change):

@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from ..adapters.run_store import save_run
+from ..adapters.sqlite_migrations import enable_wal, execute_schema
 from ..domain.bars import BarSpec
 from ..domain.market_models import decimal, fields, quote, rate
 from ..domain.model import iso, parse_ts
@@ -54,6 +55,13 @@ class ResearchLedger:
             raise ValueError("research ledger must be a regular file")
         self.conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5, isolation_level=None) if readonly else sqlite3.connect(path, timeout=5, isolation_level=None)
         try:
+            self.conn.execute("PRAGMA foreign_keys=ON")
+            if readonly:
+                self.conn.execute("PRAGMA query_only=ON")
+            else:
+                enable_wal(self.conn)
+                self.conn.execute("PRAGMA synchronous=FULL")
+                self.conn.execute("BEGIN IMMEDIATE")
             version = self.conn.execute("PRAGMA user_version").fetchone()[0]
             if version == 0 and self.conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone():
                 raise ValueError("refusing an unversioned existing database")
@@ -61,14 +69,8 @@ class ResearchLedger:
                 raise ValueError("research ledger is not initialized")
             if version not in (0, 1):
                 raise ValueError("unsupported research ledger version")
-            self.conn.execute("PRAGMA foreign_keys=ON")
-            if readonly:
-                self.conn.execute("PRAGMA query_only=ON")
-            else:
-                self.conn.execute("PRAGMA journal_mode=WAL")
-                self.conn.execute("PRAGMA synchronous=FULL")
             if version == 0:
-                self.conn.executescript("BEGIN IMMEDIATE;" + _SCHEMA + "COMMIT;")
+                execute_schema(self.conn, _SCHEMA)
             elif version != 1:
                 raise ValueError("unsupported research ledger version")
             if self.conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
@@ -77,7 +79,10 @@ class ResearchLedger:
             tables = {r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if tables != required:
                 raise ValueError("unexpected research ledger schema")
+            if not readonly:
+                self.conn.commit()
         except BaseException:
+            self.conn.rollback()
             self.conn.close()
             raise
 

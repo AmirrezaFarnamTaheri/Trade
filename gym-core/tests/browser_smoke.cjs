@@ -176,6 +176,36 @@ function stop(child) {
   await evaluate('document.querySelector("#language-toggle").click()');
   assert.equal(await evaluate('document.documentElement.dir'), 'ltr');
   await screenshot('markets-mobile-en.png');
+  const mobileTargets = [];
+  for (const width of [375, 600]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true });
+    for (const selectedTheme of ['light', 'dark']) {
+      if (await evaluate('document.documentElement.dataset.theme') !== selectedTheme)
+        await evaluate('document.querySelector("#theme-toggle").click()');
+      for (const language of ['en', 'fa']) {
+        if (await evaluate('document.documentElement.lang') !== language)
+          await evaluate('document.querySelector("#language-toggle").click()');
+        for (const route of routes) {
+          await evaluate(`document.querySelector('nav [data-view="${route}"]').click()`);
+          await until(() => evaluate(`document.querySelector('#v-${route}')?.hidden === false`), `mobile navigation ${route}`);
+          const geometry = await evaluate(`(() => {
+            const controls = [...document.querySelectorAll('.button, .segmented button, .tabs [role="tab"]')]
+              .filter(node => node.getClientRects().length)
+              .map(node => ({ id: node.id || node.textContent.trim(), height: node.getBoundingClientRect().height }));
+            return { overflow: document.documentElement.scrollWidth > innerWidth + 1, controls };
+          })()`);
+          assert.equal(geometry.overflow, false, `${width}px ${language} ${selectedTheme} ${route}: horizontal overflow`);
+          assert(geometry.controls.length > 0, `${route}: no visible action controls checked`);
+          assert.deepEqual(geometry.controls.filter(control => control.height < 43.99), [],
+            `${width}px ${language} ${selectedTheme} ${route}: action and tab targets below 44px`);
+          mobileTargets.push({ width, language, theme: selectedTheme, route,
+            controls: geometry.controls.length, minimumHeight: Math.min(...geometry.controls.map(control => control.height)) });
+        }
+      }
+    }
+  }
+  if (await evaluate('document.documentElement.lang') !== 'en')
+    await evaluate('document.querySelector("#language-toggle").click()');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   assert(await evaluate('getComputedStyle(document.activeElement).outlineStyle !== "none"'), 'keyboard focus outline');
@@ -198,7 +228,8 @@ function stop(child) {
   await until(() => evaluate('document.querySelector("#connection-error").hidden'), 'banner clears after recovery');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
-    accessibility: axeSource ? accessibility : 'axe-core not installed', checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
+    accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets,
+    checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action and tab targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {

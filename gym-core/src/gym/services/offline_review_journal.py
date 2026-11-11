@@ -11,6 +11,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from ..adapters.sqlite_migrations import enable_wal, execute_schema
 from ..domain.assisted_ticket import (
     PREVIEW_FIELDS,
     _zoned,
@@ -85,9 +86,10 @@ class OfflineReviewJournal:
         self.conn = sqlite3.connect(path, timeout=5)
         try:
             self.conn.execute("PRAGMA busy_timeout=5000")
-            self.conn.execute("PRAGMA journal_mode=WAL")
+            enable_wal(self.conn)
             self.conn.execute("PRAGMA synchronous=FULL")
             self.conn.execute("PRAGMA foreign_keys=ON")
+            self.conn.execute("BEGIN IMMEDIATE")
             version = self.conn.execute("PRAGMA user_version").fetchone()[0]
             if version == 0:
                 if self.conn.execute(
@@ -95,11 +97,13 @@ class OfflineReviewJournal:
                     "('ticket_previews','ticket_review_events')"
                 ).fetchone():
                     raise ReviewUnsafe("partial offline review journal schema")
-                self.conn.executescript("BEGIN IMMEDIATE;" + _SCHEMA + "COMMIT;")
+                execute_schema(self.conn, _SCHEMA)
             elif version != 1:
                 raise ReviewUnsafe("unsupported offline review journal schema")
             self._verify()
+            self.conn.commit()
         except Exception:
+            self.conn.rollback()
             self.conn.close()
             raise
 
@@ -110,6 +114,13 @@ class OfflineReviewJournal:
         self.conn.close()
 
     def _verify(self) -> bytes:
+        self.conn.execute("SAVEPOINT offline_verify")
+        try:
+            return self._verify_snapshot()
+        finally:
+            self.conn.execute("RELEASE offline_verify")
+
+    def _verify_snapshot(self) -> bytes:
         if self.conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ReviewUnsafe("offline review integrity: failed SQLite check")
         must = {

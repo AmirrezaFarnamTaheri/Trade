@@ -53,6 +53,27 @@ def test_worker_gets_disposable_sql_temp_space_without_inheriting_private_enviro
     assert not Path(captured["TEMP"]).exists()
 
 
+@pytest.mark.parametrize("selection", [None, "0", "1", "unexpected"])
+def test_worker_preserves_only_explicit_rust_kernel_selection(tmp_path, monkeypatch, selection):
+    captured = {}
+
+    async def launch(*args, **kwargs):
+        captured.update(kwargs["env"])
+        raise OSError("capture only")
+
+    if selection is None:
+        monkeypatch.delenv("GYM_RUST_KERNEL", raising=False)
+    else:
+        monkeypatch.setenv("GYM_RUST_KERNEL", selection)
+    monkeypatch.setenv("GYM_PRIVATE_TEST_SENTINEL", "do-not-inherit")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", launch)
+    with pytest.raises(ResearchProcessFailure, match="paper worker unavailable"):
+        asyncio.run(calculate(tmp_path, "tick", timeout_seconds=1))
+
+    assert captured.get("GYM_RUST_KERNEL") == ("1" if selection == "1" else None)
+    assert "GYM_PRIVATE_TEST_SENTINEL" not in captured
+
+
 def test_locked_database_deadline_kills_worker_and_never_retries_or_advances(tmp_path):
     prepare(tmp_path)
     blocker = sqlite3.connect(tmp_path / "research.sqlite3", isolation_level=None)

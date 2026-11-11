@@ -1,0 +1,50 @@
+# Requested skill coverage, 2026-11-11
+
+Current execution ledger. Findings, verification and performance measurements are consolidated in [the audit](audit-2026-11-11.md). All 33 requested names are accounted for; prerequisite limits are explicit.
+
+## Every requested skill
+
+
+| Skill | Actual work | Execution limit |
+| --- | --- | --- |
+| onboard | Ran deep collector; read manifest, source entrypoints, CI, layout and generated orientation | Analyzer provenance verification failed (attestation 404); binary was refused. Basic collector completed; no repo-intel/map score |
+| evolution-engine | Checked generation/evaluation isolation, held-out handling and local trial accounting | No arbitrary strategy, Binance job or model generation launched |
+| heytraders-browser | Searched installed skill locations and available tool catalog | Instruction file and connector unavailable; no HeyTraders action claimed |
+| backtesting-frameworks | Reviewed temporal/cost/causal valuation contracts and executed research regressions; found and repaired stale prospective comparisons | No live qualification or positive edge claim |
+| risk-metrics-calculation | Reviewed performance/portfolio/FX/HRP and cutoff handling; ran focused tests | No claim that synthetic passing tests establish investment suitability |
+| thefinancial-ai | Checked current skill/tool availability | Instruction file and connector unavailable; no ticker/portfolio task was supplied and no market query invented |
+| architecture-analyst | Graph-led ownership/authority review, source/caller tracing | `epis` absent; no formal law/knowledge-graph score |
+| antislop-code | Purpose-tested comments in money, concurrency, credential and process paths | Preserved meaningful constraints; no blanket deletion |
+| cleaning-comments | Architecture-aware comment scan and dry review | No comment cleanup required |
+| antislop-ui | Checked actual operator UI, geometry, themes, reading direction and state transitions | Gate not passed; numbered UI repairs await selection |
+| antislop | User explicitly selected both modes; applied purpose/evidence rules to current audit and new guide | No claim of a passed whole-UI delivery gate |
+| deslop | Deep scan across 528 explicitly listed tracked sources; 1,479 mechanical signals triaged by category/sample | Signals are not defects; no auto deletion; jscpd absent |
+| ponytail-audit | Concrete whole-repository risk/bug/scale/test/speed/lean review in bounded high-risk paths | Not every source line read; reviewed limits disclosed |
+| code-refactor | Traced shared owners and callers before assessing changes | No bulk rewrite or new abstraction |
+| planning-backend-refactor | Checked stack and project-rules prerequisites | Missing PROJECT_RULES and unsupported Go/TypeScript backend; formal Ring plan inapplicable |
+| planning-frontend-refactor | Checked rules and actual plain-JS UI | No React/Next.js conversion or invented framework plan |
+| refactoring-and-tech-debt | Refreshed actual versus repaired debt and ownership/trigger decisions | Maintainer ownership remains unassigned; no invented delivery commitment |
+| simplify-implementation | Existence/reuse review of bridge, worker, migration and kernel seams | Actual process/language/authority boundaries retained |
+| planning-codebase-simplification | KEEP/REVIEW assessment with real consumers | Formal Go/TS-specific explorer workflow inapplicable and its atomic pool exceeds available slots |
+| codebase-visualizer | Built a self-contained seven-view guide with EN/CN, two themes, searchable architecture and source-derived SQLite tables | Static/isolated interaction checks pass; browser rendering unverified |
+| ai-integration-architect | Reviewed provider credentials, correlation, bounded output/time, isolated workers and advisory-only scope | No remote model call, scaffold, deployment or account mutation |
+| searching-code | Queried fresh Graphify, followed with exact source/caller/test checks | Graph is navigation evidence, not proof of every dynamic call |
+| typography-selector | Applied hierarchy/readability to current local Segoe/Tahoma/Cascadia roles | Existing product direction retained; no unnecessary downloaded font |
+| color-curator | Confirmed actual light/dark semantic tokens in browser and audited purpose/roles | Full rendered contrast matrix unmeasured |
+| trend-researcher | Inspected live Dribbble web/mobile examples and screenshots; recorded bounded observations | No redesign imposed and no market-wide popularity claim |
+| checking-frontend-quality | Real-browser ten-route, three-width, EN/FA, two-theme checks; source UI tests | Formal Ring handoff absent; axe/cross-browser/Lighthouse/CWV not claimed |
+| code-review-and-quality | Financial/authority/caller/contract/test review and post-fix check | No fictional project standards or blanket green status |
+| review-agent | Independent defect-first review of actual Python fix and guide JavaScript | No introduced defect found in that bounded change scope |
+| dev-review | Holistic design/caller/failure/rollback review | No configured devkit feature lifecycle, remote lint install or push |
+| audit-project | Context collector, ten applicable perspectives, structured queue, high-priority repair, verification and independent rereview | Collector missed nested SQLite/plain-JS UI; actual source corrected scope; ordinary issues retained |
+| systematic-debugging | Failure-before-fix regression and shared-root correction; separate source, host and browser limits | No speculative fix or paid reproduction |
+| perf-baseline-manager | Used bundled storage/readback/comparison utilities for one versioned synthetic benchmark record | No prior same-version baseline; observational timing under concurrent workload, no speedup claim |
+| codebase-documenter | Refreshed source-grounded ownership, startup/check commands and qualification limits in the reports/guide | Reused current docs; no competing documentation scaffold |
+
+## Onboarding and operating boundaries
+
+What this repo does: TradingGYM collects Wallex spot observations and runs local paper research. Python owns collection, exact SQLite storage, the simulator and EN/FA workspace. Rust owns a separately protected executor boundary; Node offers optional advisory model calls. Assumed load is one local operator with concurrent collector/research/browser activity.
+
+Entry paths are `gym-core/src/gym/cli.py` to command modules, `commands/daemon.py` to collector/API composition, `model-gateway/host.mjs` to the correlated advisory runtime, and Rust service/helper binaries under `executor/exec-svc`. Shared wire contracts/golden fixtures live in `contracts/`. The Node result has no funded order authority.
+
+Use the existing README setup/check commands. Local verification used the existing locked Python environment and installed Rust/Node toolchains. No commit, push, hosted CI dispatch, provider/account mutation or funded execution was performed. Local success does not certify hosted deployment, real settlement, venue stops or strategy edge.

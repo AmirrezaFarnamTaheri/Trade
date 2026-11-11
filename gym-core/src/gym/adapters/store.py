@@ -13,6 +13,7 @@ from pathlib import Path
 import zstandard as zstd
 
 from ..domain.model import UTC, BookTop, TradeTick, iso
+from .sqlite_migrations import enable_wal, execute_schema
 
 # Forward-only migrations; index = schema version - 1.
 MIGRATIONS = [
@@ -69,14 +70,29 @@ class MarketDB:
     def __init__(self, path: Path, *, readonly=False):
         if readonly:
             self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None)
-            return
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self.c = sqlite3.connect(path, isolation_level=None)
-        self.c.execute("pragma journal_mode=WAL")
-        self.c.execute("pragma synchronous=NORMAL")
-        v = self.c.execute("pragma user_version").fetchone()[0]
-        for i, sql in enumerate(MIGRATIONS[v:], v + 1):
-            self.c.executescript(f"begin; {sql}; pragma user_version={i}; commit;")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.c = sqlite3.connect(path, isolation_level=None)
+        try:
+            v = self.c.execute("pragma user_version").fetchone()[0]
+            if not readonly and v <= len(MIGRATIONS):
+                enable_wal(self.c)
+                self.c.execute("pragma synchronous=NORMAL")
+                self.c.execute("BEGIN IMMEDIATE")
+                # Reject future layouts before journal mutation; recheck under the migration lock.
+                v = self.c.execute("pragma user_version").fetchone()[0]
+            if v > len(MIGRATIONS) or (readonly and v != len(MIGRATIONS)):
+                raise ValueError(f"unsupported market schema {v}; expected {len(MIGRATIONS)}. "
+                                 "Older stores require a writable open to migrate before read-only use.")
+            if not readonly:
+                for i, sql in enumerate(MIGRATIONS[v:], v + 1):
+                    execute_schema(self.c, sql)
+                    self.c.execute(f"pragma user_version={i}")
+                self.c.commit()
+        except BaseException:
+            self.c.rollback()
+            self.c.close()
+            raise
 
     def upsert_instrument(self, inst, names: dict, spec: dict, source: str, now: datetime):
         iid = f"{inst.venue}:{inst.symbol}"

@@ -1,6 +1,7 @@
 """Exact, causal paper allocation targets and entry-blocking loss latches."""
 import itertools
 from decimal import ROUND_DOWN, Decimal, localcontext
+from operator import mul
 
 from .covariance_models import ledoit_wolf_constant_correlation
 from .hrp import hierarchical_risk_parity
@@ -131,8 +132,11 @@ class PortfolioPolicy:
             raise _Status("GAPPED_HISTORY")
         returns = [[b[1] / a[1] - 1 for a, b in itertools.pairwise(row)] for row in series]
         means = [sum(row) / count for row in returns]
-        covariance = [[sum((returns[i][k] - means[i]) * (returns[j][k] - means[j]) for k in range(count)) / (count - 1)
-                       for j in range(n)] for i in range(n)]
+        centered = [[value - mean for value in row] for row, mean in zip(returns, means)]
+        covariance = [[Decimal(0)] * n for _ in range(n)]
+        for i in range(n):
+            for j in range(i + 1):
+                covariance[i][j] = covariance[j][i] = sum(map(mul, centered[i], centered[j])) / (count - 1)
         if any(covariance[i][i] <= 0 for i in range(n)):
             raise _Status("ZERO_VARIANCE")
         if self.covariance_shrinkage != "none":

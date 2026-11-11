@@ -55,3 +55,35 @@ def test_old_database_migration_preserves_only_genuinely_retained_fetch(tmp_path
         assert db.c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
     finally:
         db.c.close()
+
+
+@pytest.mark.parametrize("version", [2, 4, 999])
+def test_readonly_market_requires_current_schema_without_mutating_old_store(tmp_path, version):
+    path = tmp_path / "market.db"
+    with sqlite3.connect(path) as connection:
+        connection.executescript("".join(MIGRATIONS[:version]))
+        connection.execute(f"PRAGMA user_version={version}")
+    with pytest.raises(ValueError, match="market schema"):
+        MarketDB(path, readonly=True)
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == version
+    if version < len(MIGRATIONS):
+        migrated = MarketDB(path)
+        migrated.c.close()
+        reader = MarketDB(path, readonly=True)
+        assert DataPortal(reader).publication() is None
+        reader.c.close()
+
+
+def test_writable_market_refuses_future_schema_without_rewriting_version(tmp_path):
+    path = tmp_path / "market.db"
+    db = MarketDB(path)
+    db.c.execute("PRAGMA user_version=999")
+    db.c.close()
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0] == "delete"
+    with pytest.raises(ValueError, match="market schema"):
+        MarketDB(path)
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 999
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "delete"

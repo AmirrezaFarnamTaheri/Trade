@@ -417,15 +417,18 @@ class _WorkspaceApi:
         return web.json_response(value)
 
     async def run_summary(self, req):
+        return await asyncio.to_thread(self.run_summary_response, req.match_info["id"], req.path.endswith("/summary.html"))
+
+    def run_summary_response(self, run_id, as_html):
         if self.runs is None:
             raise web.HTTPNotFound()
         try:
-            record = load_run(self.runs, req.match_info["id"])
+            record = load_run(self.runs, run_id)
         except FileNotFoundError:
             raise web.HTTPNotFound() from None
-        if record["run_id"] != req.match_info["id"]:
+        if record["run_id"] != run_id:
             raise ValueError("run identity mismatch")
-        if req.path.endswith("/summary.html"):
+        if as_html:
             return web.Response(text=render_html(record), content_type="text/html", headers={
                 "Cache-Control": "no-store",
                 "Content-Disposition": 'attachment; filename="paper-' + record["run_id"] + '.html"'})
@@ -434,10 +437,13 @@ class _WorkspaceApi:
             "Content-Disposition": 'attachment; filename="paper-' + record["run_id"] + '.json"'})
 
     async def run_detail(self, req):
+        return await asyncio.to_thread(self.run_detail_response, req.match_info["id"])
+
+    def run_detail_response(self, run_id):
         if self.runs is None:
             raise web.HTTPNotFound()
         try:
-            record = load_run(self.runs, req.match_info["id"])
+            record = load_run(self.runs, run_id)
         except FileNotFoundError:
             raise web.HTTPNotFound() from None
         if record["evidence"] is None:

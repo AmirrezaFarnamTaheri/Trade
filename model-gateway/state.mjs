@@ -72,9 +72,15 @@ async function dpapi(mode, bytes) {
 // this change carry no magic and are read as legacy plaintext, then sealed on the next write.
 const SEAL_MAGIC = Buffer.from('TGSEAL1:');
 const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
-function passphrase() {
-  const value = process.env.GYM_GATEWAY_PASSPHRASE;
+function passphrase(env = process.env) {
+  const value = env.GYM_GATEWAY_PASSPHRASE;
   return value && value.length >= 12 ? value : null;
+}
+export function credentialProtection(platform = process.platform, env = process.env) {
+  if (platform === 'win32') return { storage: 'WINDOWS_USER_DPAPI', legacy_plaintext_possible: false };
+  const storage = passphrase(env) ? 'PRIVATE_FILE_PASSPHRASE_SEALED'
+    : env.GYM_GATEWAY_PLAINTEXT === '1' ? 'PRIVATE_FILE_PLAINTEXT' : 'CREDENTIAL_PROTECTION_UNAVAILABLE';
+  return { storage, legacy_plaintext_possible: true };
 }
 export async function passphraseSeal(bytes) {
   const secret = passphrase();
@@ -112,6 +118,7 @@ export class State {
     this.seal = seal || (process.platform === 'win32' ? b => dpapi('encrypt', b) : b => passphraseSeal(b));
     this.unseal = unseal || (process.platform === 'win32' ? b => dpapi('decrypt', b) : b => passphraseUnseal(b));
   }
+  protection() { return credentialProtection(); }
   async init() {
     await noLinks(this.home);
     await mkdir(this.home, { recursive: true, mode: 0o700 });

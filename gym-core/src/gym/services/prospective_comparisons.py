@@ -14,6 +14,7 @@ from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .paper import paper
+from .reports import run_valuation
 from .research_protocol import _engine_digest
 from .trial_ledger import TrialLedger
 
@@ -130,13 +131,15 @@ def evaluate_comparison(registry, key, db, *, now):
                             reference_symbol=getattr(strategy, "reference_symbol", None))
                 save_run(run, registry.root / "runs")
                 end = run["result"]["end"]
+                valuation = run_valuation(run)
+                net_available = valuation["status"] == "CURRENT"
                 results.append({"run_id": run["run_id"], "config_hash": candidate["config_hash"],
                                 "fills": run["result"]["fills"], "observations": run["result"]["observations"],
                                 "qualified": run["result"]["qualified"],
-                                "net": end["net"] if end else None,
-                                "net_available": end is not None,
+                                "net": end["net"] if net_available else None,
+                                "net_available": net_available, "valuation": valuation,
                                 "no_trade": run["result"]["fills"] == 0,
-                                "last_mark_at": end["mark_time"] if end else None})
+                                "last_mark_at": valuation["as_of"]})
         finally:
             db.c.rollback()
         report = {"schema": "prospective-comparison/1", "attempt_id": attempt["id"],

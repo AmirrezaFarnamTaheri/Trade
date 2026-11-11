@@ -327,7 +327,8 @@ svg.tracking .chart-cursor { opacity: .7; }
   .mission-sequence > a { padding: 12px; }
   .key-values { font-size: 11px; } .key-values > div { gap: 8px; }
   .ticket-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .button-small, .segmented button, .sidebar .button-quiet { min-height: 44px; }
+  .button { max-width: 100%; }
+  .button, .view-header > .button, .segmented button, .sidebar .button-quiet, .tabs [role="tab"] { min-height: 44px; }
   .workspace-footer { padding-inline: 16px; }
 }
 .confirm-dialog { max-width: min(520px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 10px; padding: 20px; background: var(--surface); color: inherit; }
