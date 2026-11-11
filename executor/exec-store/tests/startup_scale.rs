@@ -38,14 +38,10 @@ fn open_and_full_replay_of_200k_rows_fits_well_inside_the_startup_wait() {
     let path = dir.path().join("ledger.db");
     build(&path, 200_000, 300);
     let started = Instant::now();
-    let ledger = Ledger::open(&path).unwrap();
-    let opened = started.elapsed();
-    let replayed = ledger.replay_from(0).unwrap();
+    let (_ledger, replayed) = Ledger::open_and_replay(&path).unwrap();
     let total = started.elapsed();
     assert_eq!(replayed.len(), 200_000);
-    eprintln!(
-        "A-5 measurement: 200k rows of 300 B: open+verify {opened:?}, open+verify+replay {total:?}"
-    );
+    eprintln!("A-5 measurement: 200k rows of 300 B: open+verify+replay {total:?}");
     assert!(
         total.as_secs_f64() < 20.0,
         "startup cost regressed: {total:?}"

@@ -3,6 +3,81 @@ use rusqlite::Connection;
 use tempfile::tempdir;
 
 #[test]
+fn opening_with_replay_preserves_bytes_head_and_writer_lock() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("exec_ledger.db");
+    let (mut ledger, entries) = Ledger::open_and_replay(&path).unwrap();
+    assert!(entries.is_empty());
+    let first = ledger.append(b"\0exact bytes\xff").unwrap();
+    let second = ledger.append(b"second").unwrap();
+    drop(ledger);
+    let (mut ledger, entries) = Ledger::open_and_replay(&path).unwrap();
+    assert_eq!(entries, vec![first, second.clone()]);
+    assert_eq!(ledger.pragmas().unwrap(), ("wal".into(), 2));
+    assert_eq!(ledger.verify().unwrap(), second.event_hash);
+    assert!(matches!(
+        Ledger::open_and_replay(&path),
+        Err(LedgerError::WriterLocked)
+    ));
+    let third = ledger.append(b"third").unwrap();
+    assert_eq!(third.sequence, 3);
+    assert_eq!(third.previous_hash, second.event_hash);
+    assert_eq!(ledger.replay_from(2).unwrap(), vec![third]);
+}
+
+#[test]
+fn opening_with_replay_does_not_cache_later_verification() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("exec_ledger.db");
+    let (mut ledger, _) = Ledger::open_and_replay(&path).unwrap();
+    let first = ledger.append(b"first").unwrap();
+    let other = Connection::open(&path).unwrap();
+    let bytes = b"external append";
+    let hash = exec_store::hash_event(&first.event_hash, bytes);
+    other
+        .execute(
+            "INSERT INTO ledger_events VALUES(2,?1,?2,?3)",
+            rusqlite::params![
+                bytes.as_slice(),
+                first.event_hash.as_slice(),
+                hash.as_slice()
+            ],
+        )
+        .unwrap();
+    assert!(matches!(
+        ledger.replay_from(0),
+        Err(LedgerError::Integrity {
+            sequence: 2,
+            reason: "head changed outside writer"
+        })
+    ));
+    assert!(matches!(
+        ledger.verify(),
+        Err(LedgerError::Integrity { sequence: 2, .. })
+    ));
+    assert!(matches!(
+        ledger.append(b"refused"),
+        Err(LedgerError::Integrity { sequence: 2, .. })
+    ));
+    other
+        .execute_batch("DROP TRIGGER ledger_events_no_update;")
+        .unwrap();
+    other
+        .execute(
+            "UPDATE ledger_events SET event_bytes=?1 WHERE sequence=1",
+            [b"changed".as_slice()],
+        )
+        .unwrap();
+    assert!(matches!(
+        ledger.replay_from(2),
+        Err(LedgerError::Integrity {
+            sequence: 1,
+            reason: "stored-byte hash mismatch"
+        })
+    ));
+}
+
+#[test]
 fn committed_events_survive_reopen_with_exact_bytes_and_order() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("exec_ledger.db");
@@ -105,6 +180,13 @@ fn corrupt_existing_events_fail_closed_on_restart() {
     db.execute_batch("CREATE TRIGGER ledger_events_no_update BEFORE UPDATE ON ledger_events BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;").unwrap();
     drop(db);
     assert!(matches!(
+        Ledger::open_and_replay(&path),
+        Err(LedgerError::Integrity {
+            sequence: 1,
+            reason: "stored-byte hash mismatch"
+        })
+    ));
+    assert!(matches!(
         Ledger::open(&path),
         Err(LedgerError::Integrity { sequence: 1, .. })
     ));
@@ -127,6 +209,13 @@ fn missing_sequence_fails_closed_even_when_later_hashes_still_match() {
     // Recreate the DDL protection to test chain sequencing independently.
     db.execute_batch("CREATE TRIGGER ledger_events_no_delete BEFORE DELETE ON ledger_events BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;").unwrap();
     drop(db);
+    assert!(matches!(
+        Ledger::open_and_replay(&path),
+        Err(LedgerError::Integrity {
+            sequence: 1,
+            reason: "missing or out-of-order sequence"
+        })
+    ));
     assert!(matches!(
         Ledger::open(&path),
         Err(LedgerError::Integrity { sequence: 1, .. })
@@ -157,6 +246,10 @@ fn incompatible_future_schema_is_not_rewritten() {
     let db = Connection::open(&path).unwrap();
     db.execute_batch("PRAGMA user_version=99;").unwrap();
     drop(db);
+    assert!(matches!(
+        Ledger::open_and_replay(&path),
+        Err(LedgerError::UnsupportedSchema(99))
+    ));
     assert!(matches!(
         Ledger::open(&path),
         Err(LedgerError::UnsupportedSchema(99))
@@ -195,6 +288,10 @@ fn missing_immutability_trigger_blocks_startup() {
     db.execute_batch("DROP TRIGGER ledger_events_no_update;")
         .unwrap();
     drop(db);
+    assert!(matches!(
+        Ledger::open_and_replay(&path),
+        Err(LedgerError::Configuration("append-only guards missing"))
+    ));
     assert!(matches!(
         Ledger::open(&path),
         Err(LedgerError::Configuration(_))

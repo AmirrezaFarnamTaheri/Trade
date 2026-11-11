@@ -176,7 +176,20 @@ impl Ledger {
     /// Open only with WAL and synchronous=FULL. A corrupted or future-version
     /// ledger fails closed before any append is possible.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, LedgerError> {
-        let path = path.as_ref();
+        Self::open_verified(path.as_ref(), u64::MAX).map(|(ledger, _)| ledger)
+    }
+
+    /// Open and return the full verified history in one pass for startup projections.
+    pub fn open_and_replay(
+        path: impl AsRef<Path>,
+    ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
+        Self::open_verified(path.as_ref(), 0)
+    }
+
+    fn open_verified(
+        path: &Path,
+        after_sequence: u64,
+    ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
         let lock = OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -228,13 +241,16 @@ impl Ledger {
         if trigger_count != 2 {
             return Err(LedgerError::Configuration("append-only guards missing"));
         }
-        let (sequence, head_hash, _) = load_verified(&conn, u64::MAX)?;
-        Ok(Self {
-            conn,
-            _writer_lock: lock,
-            sequence,
-            head_hash,
-        })
+        let (sequence, head_hash, events) = load_verified(&conn, after_sequence)?;
+        Ok((
+            Self {
+                conn,
+                _writer_lock: lock,
+                sequence,
+                head_hash,
+            },
+            events,
+        ))
     }
 
     /// Commit raw, already validated event bytes before returning an identity.

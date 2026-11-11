@@ -1444,8 +1444,7 @@ fn apply_record(
 }
 impl DurableOrderJournal {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, RecoveryError> {
-        let ledger = Ledger::open(path)?;
-        let records = ledger.replay_from(0)?;
+        let (ledger, records) = Ledger::open_and_replay(path)?;
         let mut intents = BTreeMap::new();
         let mut reservations = ReservationBook::default();
         let mut credential = None;
