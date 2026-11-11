@@ -222,3 +222,16 @@ accessibility or provider qualification.
 
 The fresh locked Python and production Node dependency audits reported no known
 vulnerabilities. Native/service and hosted checks remain separately dated evidence.
+
+The public collector was restarted from its existing scheduled task and data root
+after the connection-acknowledgement repair. New TLS connections initially failed;
+by 17:28 UTC all 18 shards were connected with no fatal fault. Readiness returned
+HTTP 200, DEGRADED: 302 READY, 69 STALE and two MISSING of 373 watched markets.
+Historical gaps remain intact. A 30-second nonblocking live stack profile found
+no long pause; rolling lag had still exceeded its warning bound. This establishes
+partial operational recovery, not resolution of the unexplained latency spikes.
+
+A Drive transport check uploaded and downloaded an 8,677-byte synthetic encrypted
+ledger. SHA-256 matched and both events restored byte-for-byte. Its receipt is
+under .pi/qualification/cloud-transport-20261111. It is not a live research backup,
+retention test, unattended schedule or independent custody evidence.

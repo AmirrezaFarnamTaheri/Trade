@@ -1,6 +1,6 @@
 # Due-diligence report (2026-11-09): disposition of every finding
 
-Status as of 2026-11-10, branch chain `hardening/dd-quick-wins` -> `dd-medium-term` -> `dd-conformance` ->
+Status as of 2026-11-11, branch chain `hardening/dd-quick-wins` -> `dd-medium-term` -> `dd-conformance` ->
 `dd-alerts` -> `dd-remaining` -> `dd-arming` -> `dd-final`. **Done** means implemented with tests; **Decided**
 means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Details are in `CHANGELOG.md`.
 
@@ -8,27 +8,27 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 
 | ID | Status | Where |
 |---|---|---|
-| A-1 | Done (stages 1-3) | Golden fill vectors and conformance (`contracts/v1/fixtures/{sizing,fills,price-guard}.json`), `exec-core/src/kernel.rs`, PyO3 bridge `executor/exec-kernel-py`, `GYM_RUST_KERNEL=1` byte-identical on 4,000 orders, CI job `rust-kernel`. Stage 4 (kernel as default, sizing and cost pricing moved in) deferred: needs a defined division rule for unknown venue precision and the wheel in the install path (ADR 0005). |
+| A-1 | Partial | Shared sizing/depth/guard/settlement vectors and PyO3 rules exist; locked optional source installation now works. Simulator settlement uses the shared fee rule. Contextual sizing, modeled-impact resizing and default activation remain open: exact native sizing is not interchangeable with historical Decimal intermediate rounding. Boundary regressions preserve the current simulator; ADR 0005 records the remaining version contract. |
 | A-2 | Decided | OD-1: one venue only. Freshness alerting (`doctor --notify`, `collector_feed`) carries the weight. |
 | A-3 | Done, unverified on host | `begin_account_read`/`finish_account_read`: credential copied out under the lock, venue I/O outside it. Needs the installed service identity to exercise. |
 | A-4 | Done | v2 golden fixture, `contracts/v2/`. |
-| A-5 | Done | Startup waits up to 120 s with StartPending; replay measured 0.31 s per 200k rows (`startup_scale.rs`); fault rule tested (`supervise_privileged`, `tests/privileged_fault.rs`). Checkpointed replay not needed at measured scale (ADR 0004). |
+| A-5 | Done at measured scale | Actual journal startup now verifies and returns history in one pass. Isolated debug open/replay of 200,000 300-byte rows improved from 4.159 s to 2.369 s, retaining the strict 20 s test bound and all integrity checks. Full Rust tests, including doctests, passed. No checkpoint was added; larger live histories and release-profile timing remain unqualified. |
 | A-6 | Done, not wired | `ActiveHoldBook` (`holds.rs`), explicit default-zero dust tolerance in `ReservationBook`, review-v2 and prepared reservation documented as test-only (`executor/README.md`, ADR 0003, 0006). |
 
 ## Engineering
 
 | ID | Status | Where |
 |---|---|---|
-| E-1 | Done (four of five below 20) | `market_order`, `research_action`, `make_app`, `weights` split; `_portfolio` 85 -> 65 (its per-quote closure state stays, to keep the replay hot path free of attribute lookups); CI ratchet `scripts/complexity_ratchet.py` with `complexity-baseline.json`. |
+| E-1 | Ratchet implemented | `scripts/complexity_ratchet.py` and `complexity-baseline.json` retain 17 named hotspots above 20, with a maximum of 30; listed functions may only shrink and new hotspots fail. The research dispatcher no longer carries unreachable sentinel fallbacks; all 83 actions remain registered. |
 | E-2 | Done | `parse_udf` parses Decimal. |
 | E-3 | Done | `token_matches`, 403 on non-ASCII. |
-| E-4 | Done (measurement) | Event-loop lag sampler in `/api/health` (`services/loop_lag.py`). A writer thread waits for the host's p99. |
+| E-4 | Measurement implemented; stall diagnosis open | Full-frame, actual API and rotation tests preserve every observation; a 200.2 MiB rotation took 208 ms. A 30-second live stack profile caught no long stall. Rolling live lag has still exceeded its warning bound, so neither a writer rewrite nor resolution of the historical pauses is claimed. |
 | E-5 | Done | Instrument-spec SAVEPOINT. |
 | E-6 | Done | Per-resource freshness; `verified_available` orders by venue sequence. |
 | E-7 | Done | Saturating `reserved()`, release `overflow-checks`. |
 | E-8 | Done | `fill-timestamps.json` shared fixture. |
 | E-9 | Done | `codec_properties.rs`. |
-| E-10 | Done | Wider mutation scope. |
+| E-10 | Partial | Five-file scope exists, but its weekly job is still advisory. An isolated expanded-runner assessment evaluated only 24 of 971 performance mutants: 17 killed, seven actionable survivors. Independent oracles and a complete evaluated ratchet remain in progress; partial counts are not a passing baseline. |
 
 ## Security
 
@@ -53,16 +53,16 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 |---|---|---|
 | R-1 | Done | `holdout_ledger.py`, `--rescore-holdout`. |
 | R-2 | Done | `services/bias_harness.py`. |
-| R-3 | Done | `ledger_anchors.py`. |
+| R-3 | Local implementation | `ledger_anchors.py` exists; independent remote custody is not established by a local anchor or a same-account cloud upload. |
 | R-4 | Done | Segments registered at open; `recover-segments` applied to live data. |
-| R-5 | Done | `backup-research`, restore drill, schedule script. Off-host copy is OD-4 (postponed). |
-| P-1 | Deferred | Columnar tier would add a dependency to a four-dependency product; revisit for multi-year studies. |
+| R-5 | Local implementation; cloud qualification partial | Native backup/restore and schedule scripts exist. A real Drive upload/download of an 8,677-byte synthetic encrypted ledger matched SHA-256 and restored two exact events. This does not qualify a live research backup, retention or unattended scheduling. |
+| P-1 | Measured decision: retain SQLite | A 373-market/223,800-row exact DataPortal read took 1.692 s median and used the existing index without a temporary sort. Longer histories/concurrent writes remain unqualified; add a storage tier only when a representative deadline failure justifies it. |
 | P-2 | Done | Worker deadline logging. |
 | P-3 | Done | Banner names sources; backoff. |
 | O-1 | Done | `gym-core/docs/disaster-recovery.md`. |
 | O-2, O-3 | Done | `/api/ready` in the launcher; `services/alerts.py`, `Install-HealthAlerts.ps1` (owner runs it). |
 | O-4 | Done | `gymctl doctor`. |
-| O-5 | Done | Recovery gate split into host-instance and hardware loss. |
+| O-5 | Available-host checks | Synthetic downloaded-archive restoration passed. Current-build operational recovery remains bounded by its actual restore and runtime evidence. |
 
 ## Product, governance, research, models
 
@@ -80,13 +80,13 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | G-2 | Done | Root README (licence dropped, OD-3). |
 | G-3 | Done | Coverage floors; `.impeccable/` is tracked design source and no longer ignored, with a test that no tracked file matches an ignore rule. |
 | G-4 | Done | Strategy count guarded by a test. |
-| G-5 | Done | SECURITY, CHANGELOG, CODEOWNERS, ADRs 0001-0006, `tasks.ps1`, SBOM job, onboarding. Version tags need the owner. |
+| G-5 | Implemented; release qualification open | SECURITY, CHANGELOG, CODEOWNERS, ADRs, `tasks.ps1`, SBOM job and onboarding exist. Current-commit hosted checks, release artifacts/tags and protection settings still need qualification. |
 | G-6 | Done | `evidence/INDEX.json`, `scripts/evidence_index.py`. |
 | M-1 | Done | Scope amended to paper-only and gated ML. |
 | M-2 | Done (step 1) | Bias harness point-in-time test; `model_artifacts.py`; fits are `model-fit` trials. Steps 2-3 wait for 300 closed trades. |
 | L-1 to L-6 | Done | Local connection, strict parser, provenance, usage caps, `assistant-eval`. |
 | L-7 | Deferred | After L-8 (`docs/model-pilots.md`). |
-| L-8 | Done (client); pilot is the owner's | `gymctl research entailment-check`; the pilot uses a versioned synthetic fixture set. |
+| L-8 | Client implemented; pilot open | `gymctl research entailment-check` exists. A pinned local runtime/model and versioned synthetic pilot still need execution and measured results. |
 
 ## Owner decisions
 
@@ -95,7 +95,7 @@ means the owner or an ADR settled it; **Deferred** and **Blocked** say why. Deta
 | OD-1 | One venue; recorded. |
 | OD-2 | Policy options and `arm-policy set` (cost-probe installed); `arm-preflight`; arm record and kill rules in `exec_core::arming` with a shared digest fixture. The privileged arm request, armed mode and approval screen are not wired: they need passing automated pre-funding checks (ADR 0006). |
 | OD-3 | Licence dropped. |
-| OD-4 | Postponed by the owner (cloud backup). |
+| OD-4 | Approved, in progress: cloud synthetic transport/restore passed; live backup, retention and unattended scheduling remain open. |
 | OD-5 | Fault stops the service and restart is disarmed (tested); `verified_available` blocks on stale data and disarms on journal disagreement (pure rule, not wired). |
 
 ## Report section 4.10 proposals
