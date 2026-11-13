@@ -5,28 +5,27 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.api import guard
-from gym.services.model_gateway import GatewayUnavailable
 
 
-def test_gateway_outage_is_503_and_every_response_carries_security_headers():
-    async def down(_):
-        raise GatewayUnavailable("model gateway unavailable")
-
+def test_bad_input_is_400_and_every_response_carries_security_headers():
     async def bad(_):
         raise ValueError("bad input")
 
+    async def fine(_):
+        return web.json_response({"ok": True})
+
     app = web.Application(middlewares=[guard("tok")])
-    app.router.add_post("/api/down", down)
     app.router.add_post("/api/bad", bad)
+    app.router.add_post("/api/fine", fine)
 
     async def check():
         async with TestClient(TestServer(app)) as client:
             headers = {"X-Gym-Token": "tok"}
-            down_reply = await client.post("/api/down", headers=headers)
-            assert down_reply.status == 503 and (await down_reply.json())["error"] == "model gateway unavailable"
             bad_reply = await client.post("/api/bad", headers=headers)
-            assert bad_reply.status == 400
-            for reply in (down_reply, bad_reply):
+            assert bad_reply.status == 400 and (await bad_reply.json())["error"] == "bad input"
+            fine_reply = await client.post("/api/fine", headers=headers)
+            assert fine_reply.status == 200
+            for reply in (bad_reply, fine_reply):
                 assert "script-src 'self'" in reply.headers["Content-Security-Policy"]
                 assert reply.headers["X-Content-Type-Options"] == "nosniff"
     asyncio.run(check())

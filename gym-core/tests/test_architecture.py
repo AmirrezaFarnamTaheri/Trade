@@ -11,10 +11,10 @@ import pytest
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "gym"
 
 
-def test_local_ownership_and_usage_do_not_load_the_collector_network_stack():
+def test_local_ownership_does_not_load_the_collector_network_stack():
     code = (
         "import json,sys; sys.path=json.loads(sys.argv[1]); "
-        "import gym.services.process_owner, gym.services.model_usage; "
+        "import gym.services.process_owner; "
         "assert 'gym.services.collector' not in sys.modules; "
         "assert 'aiohttp' not in sys.modules"
     )

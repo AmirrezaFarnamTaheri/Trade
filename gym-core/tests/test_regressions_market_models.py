@@ -11,9 +11,6 @@ from gym.domain.model import BookTop, InstrumentId, TradeTick, iso
 from gym.domain.portfolio_policy import PortfolioPolicy
 from gym.domain.sim import CostModel, Spec
 from gym.services.execution_market_models import _public_trade_samples
-from gym.services.experimental_probabilistic_regime import (
-    review_regime_prospective_evidence,
-)
 from gym.services.paper_twap import simulate_twap
 from gym.services.research_process import HEAVY_ACTIONS, calculate
 from tests.support import START, market_db, quote_history
@@ -103,23 +100,6 @@ def test_gap_after_trade_finalized_bucket_resets_public_impact_volatility(tmp_pa
         assert len(samples) == 1
     finally:
         db.c.close()
-
-
-@pytest.mark.parametrize("invalid", [Decimal("-0.001"), Decimal(-1), Decimal("1.001")])
-def test_regime_pvalue_must_be_valid_probability(invalid):
-    with pytest.raises(ValueError, match="p-value"):
-        review_regime_prospective_evidence(
-            [Decimal(2)] * 30, [Decimal(1)] * 30, independent_final_evidence=True,
-            prospective_registration_ids=["frozen-1"], spa_p_value=invalid)
-
-
-def test_promising_regime_claim_is_still_not_promoted_without_independent_proof():
-    claimed = review_regime_prospective_evidence(
-        [Decimal(2)] * 30, [Decimal(1)] * 30, independent_final_evidence=True,
-        prospective_registration_ids=["frozen-1"], spa_p_value=Decimal("0.01"))
-    assert claimed["decision"] == "ADVISORY_RESEARCH_ONLY"
-    assert claimed["status"] == "NOT_PROMOTED"
-    assert claimed["probabilistic_gate_selectable"] is False
 
 
 def test_twap_child_preserves_modeled_price_guard_reason():

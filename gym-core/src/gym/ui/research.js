@@ -28,8 +28,6 @@ window.gymResearch = (() => {
     'experiment-run': [T.en.rsRunExperimentAndStressScenarios, T.fa.rsRunExperimentAndStressScenarios, 'hypothesis, symbol, strategy, trials: [params], windows: [{from, to}], resolution, cash, scenarios: [{fee_rate, latency_ms, outages: [{from, to}]}], final_evaluation_id (null or saved ID)'],
     'experiment-list': [T.en.rsExperimentRegistry, T.fa.rsExperimentRegistry, ''],
     'experiment-status': [T.en.rsInspectSavedExperimentOrNote, T.fa.rsInspectSavedExperimentOrNote, 'Saved registry ID'],
-    'research-packet': [T.en.rsPrepareAiEvidencePacket, T.fa.rsPrepareAiEvidencePacket, 'run_ids'],
-    'research-notes': [T.en.rsValidateAndSaveAnalystNotes, T.fa.rsValidateAndSaveAnalystNotes, 'packet_id, preset, notes: [{role, observation, citations, claims, disagrees_with}]'],
   };
   const idActions = new Set(['outcome-add', 'final-status', 'final-run', 'experiment-status', 'prospective-status', 'prospective-evaluate']);
   actions['premium-research'] = [T.en.rsAnalyzeTmnConversionPremium, T.fa.rsAnalyzeTmnConversionPremium, 'base, from, to, resolution, max_age_seconds, max_skew_seconds, fee_rate; descriptive, no executable arbitrage'];
@@ -113,11 +111,6 @@ window.gymResearch = (() => {
         document.getElementById('experiment-scorecard')?.remove();
         if (action === 'experiment-scorecard') scorecard(result, esc, fa);
         $('research-action-status').textContent = fa ? T.fa.rsRequestCompleted : T.en.rsRequestCompleted;
-        if (action === 'research-packet') {
-          $('research-packet-prompt').value = result.prompt;
-          $('research-packet-id').textContent = result.packet.id;
-          $('research-packet-send').disabled = false;
-        }
       } catch { $('research-action-status').textContent = fa ? T.fa.rsResultWasNotDeliveredTheOperation : T.en.rsResultWasNotDeliveredTheOperation; }
       finally { submit.disabled = false; }
     };
@@ -242,11 +235,6 @@ window.gymResearch = (() => {
         <label>${text(T.en.rsSavedRunId, T.fa.rsSavedRunId)}<input id="replay-run" required pattern="[0-9a-f]{16}" dir="ltr"></label>
         <button class="button" type="submit">${text(T.en.rsOpenReplay, T.fa.rsOpenReplay)}</button></form>
         <div class="actions"><button id="replay-previous" type="button" class="button" disabled>${text(T.en.rsPrevious, T.fa.rsPrevious)}</button><button id="replay-next" type="button" class="button" disabled>${text(T.en.rsNext, T.fa.rsNext)}</button></div><div id="replay-decision"></div></details>
-      <details><summary>${text(T.en.rsEvidenceLinkedAiResearch, T.fa.rsEvidenceLinkedAiResearch)}</summary>
-        <p>${text(T.en.rsPrepareAnEvidencePacketInThe, T.fa.rsPrepareAnEvidencePacketInThe)}</p>
-        <p id="research-packet-id" dir="ltr"></p><label>${text(T.en.rsEvidencePrompt, T.fa.rsEvidencePrompt)}<textarea id="research-packet-prompt" rows="5" readonly dir="ltr"></textarea></label>
-        <label>${text(T.en.rsConfiguredAiPresetId, T.fa.rsConfiguredAiPresetId)}<input id="research-packet-preset" maxlength="128" dir="ltr"></label>
-        <button id="research-packet-send" class="button" type="button" disabled>${text(T.en.rsSendToAiMayIncurCharges, T.fa.rsSendToAiMayIncurCharges)}</button><pre id="research-packet-response" class="output" dir="auto"></pre></details>
       <p id="research-workspace-status" role="status"></p>`;
     const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     async function act(button, fn) {
@@ -522,11 +510,6 @@ window.gymResearch = (() => {
     $('replay-form').onsubmit = event => { event.preventDefault(); if (replayBusy) return; runId = $('replay-run').value; offset = 0; act(event.target.querySelector('button'), replay); };
     $('replay-previous').onclick = event => { if (!replayBusy) act(event.target, async () => { offset = Math.max(0, offset - 1); await replay(); event.target.disabled = offset === 0; }); };
     $('replay-next').onclick = event => { if (!replayBusy) act(event.target, async () => { offset = Math.min(total - 1, offset + 1); await replay(); event.target.disabled = offset + 1 >= total; }); };
-    $('research-packet-send').onclick = event => act(event.target, async () => {
-      const preset = $('research-packet-preset').value.trim(); if (!preset) throw new Error('preset required');
-      const response = await api('/api/models', {method: 'POST', body: JSON.stringify({action: 'complete', value: {preset, prompt: $('research-packet-prompt').value}})}, 150000);
-      $('research-packet-response').textContent = JSON.stringify(response, null, 2);
-    });
   }
   return { mount };
 })();

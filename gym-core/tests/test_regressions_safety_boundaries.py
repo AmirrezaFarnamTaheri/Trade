@@ -70,28 +70,6 @@ def test_spec_version_close_and_insert_are_atomic(tmp_path):
     assert real.execute("select count(*) from instrument_specs where valid_to is null").fetchone()[0] == 1
 
 
-def test_gateway_child_sees_only_allowlisted_and_configured_key_variables(tmp_path):
-    import json as _json
-
-    from gym.services.model_gateway import gateway_env
-    (tmp_path / "config.json").write_text(_json.dumps({"connections": [
-        {"id": "a", "provider": "openai", "auth": {"type": "api_key", "env": ["RESEARCH_KEY_1"]}},
-        {"id": "b", "provider": "anthropic", "auth": {"type": "oauth"}}]}), encoding="utf-8")
-    parent = {"GYM_MODEL_HOME": str(tmp_path), "PATH": "p", "SystemRoot": "C:/Windows", "https_proxy": "http://proxy",
-              "RESEARCH_KEY_1": "k1", "AWS_SECRET_ACCESS_KEY": "canary", "GITHUB_TOKEN": "canary",
-              "GYM_MODEL_ALLOW_LOOPBACK_HTTP": "1", "GYM_GATEWAY_PASSPHRASE": "synthetic gateway passphrase",
-              "GYM_GATEWAY_PLAINTEXT": "1", "GYM_GATEWAY_UNRELATED_SECRET": "canary"}
-    env = gateway_env(parent)
-    assert "canary" not in env.values()
-    assert env["RESEARCH_KEY_1"] == "k1" and env["PATH"] == "p" and env["SystemRoot"] == "C:/Windows"
-    assert env["https_proxy"] == "http://proxy" and env["GYM_MODEL_ALLOW_LOOPBACK_HTTP"] == "1"
-    assert env["GYM_GATEWAY_PASSPHRASE"] == "synthetic gateway passphrase"
-    assert env["GYM_GATEWAY_PLAINTEXT"] == "1"
-    assert "GYM_MODEL_PYTHON" in env
-    (tmp_path / "config.json").write_text("not json", encoding="utf-8")
-    assert "RESEARCH_KEY_1" not in gateway_env(parent)
-
-
 def test_docs_state_the_registry_strategy_count():
     import re
     from pathlib import Path
@@ -293,14 +271,12 @@ def test_status_docs_agree_on_the_portfolio_revision():
 
 def test_release_versions_agree_across_manifests_and_changelog():
     """G-5: every manifest carries the newest dated CHANGELOG release."""
-    import json
     import re
     import tomllib
     from pathlib import Path
     root = Path(__file__).resolve().parents[2]
     toml = lambda rel: tomllib.loads((root / rel).read_text(encoding="utf-8"))
-    versions = {"gym-core": toml("gym-core/pyproject.toml")["project"]["version"],
-                "model-gateway": json.loads((root / "model-gateway/package.json").read_text(encoding="utf-8"))["version"]}
+    versions = {"gym-core": toml("gym-core/pyproject.toml")["project"]["version"]}
     for crate in ("exec-core", "exec-ipc", "exec-store", "exec-svc", "exec-kernel-py"):
         versions[crate] = toml(f"executor/{crate}/Cargo.toml")["package"]["version"]
     release = re.search(r"^## (\d+\.\d+\.\d+) - \d{4}-\d{2}-\d{2}$", (root / "CHANGELOG.md").read_text(encoding="utf-8"), re.MULTILINE)

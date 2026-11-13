@@ -189,42 +189,6 @@ def arm_preflight_cmd(args) -> int:
     return 0 if report["state"] == "READY" else 1
 
 
-def assistant_eval_cmd(args) -> int:
-    """Baseline always; with --preset, the model through the gateway under the usage caps."""
-    import asyncio
-
-    from ..services.assistant_eval import baseline, cases, evaluate, verdict
-    prompt_set = cases(args.cases)
-    base = baseline(prompt_set)
-    if not args.preset:
-        print(json.dumps({"baseline": base}, indent=2))
-        return 0
-    from ..services.model_gateway import ModelGateway
-    from ..services.model_usage import ModelUsage
-    gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
-
-    async def run():
-        loop = asyncio.get_running_loop()
-        replies = []
-        try:
-            for case in prompt_set:
-                usage.check()
-                result = await gateway.request("complete", {"preset": args.preset, "prompt": case["prompt"]})
-                usage.record(result)
-                replies.append((case["prompt"], str(result.get("text", "")), loop.time()))
-        finally:
-            await gateway.close()
-        return replies
-    try:
-        replies = {p: t for p, t, _ in asyncio.run(run())}
-    finally:
-        usage.close()
-    report = verdict(evaluate(lambda prompt: replies[prompt], prompt_set), base)
-    report["note"] = "Latency here is replay of stored replies; see the usage ledger for provider timings."
-    print(json.dumps(report, indent=2))
-    return 0 if report["adopt"] else 1
-
-
 def doctor_cmd(args) -> int:
     """Run every local verifier read-only; exit 1 when any check fails."""
     from ..services.doctor import diagnose
@@ -475,26 +439,3 @@ def _sweep_report(out: Path) -> int:
         conn.close()
     return 0
 
-
-def feed_anomaly_cmd(args) -> int:
-    """Advisory only: the classifier never trades, sizes or edits stored data."""
-    from ..adapters.store import MarketDB
-    from ..services import feed_anomaly
-
-    start, end = parse_ts(args.start), parse_ts(args.end)
-    root = store_root(args)
-    db = MarketDB(root / "market.db", readonly=True)
-    try:
-        if args.mode == "train":
-            busiest = [r[0][7:] for r in db.c.execute(
-                "SELECT instrument_id FROM book_top WHERE ts_avail>=? AND ts_avail<? GROUP BY instrument_id "
-                "ORDER BY count(*) DESC LIMIT ?", (iso(start), iso(end), args.markets))]
-            out = feed_anomaly.train(root, db, busiest, start, end, now=now_utc())
-        else:
-            if not (args.symbol and args.artifact):
-                raise ValueError("scan needs --symbol and --artifact")
-            out = feed_anomaly.scan(root, db, args.symbol.upper(), start, end, args.artifact, now=now_utc())
-    finally:
-        db.c.close()
-    print(json.dumps(out, indent=2, default=str))
-    return 0
