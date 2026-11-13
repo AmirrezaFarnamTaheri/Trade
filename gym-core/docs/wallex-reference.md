@@ -68,6 +68,8 @@ operator's request. The Swagger `host` fields say `api.wallex.com`; every page a
 | `GET /v1/udf/history` | `symbol`, `resolution`, `from`, `to` (Unix seconds). The candles page lists resolutions `1`, `15`, `60`, `240`, `480`, `720`, `1D`, `2D`, `3D`; the Swagger example also shows `5` and `D`. Daily is `1D` | Top level, not in `result`: `s` (`ok` or `no_data`), arrays `t` (int), `o`, `h`, `l`, `c`, `v` (strings) |
 | `GET /v1/all-fairPrice` | none | Fair price of every market, identical to the `public:all@fairPrice` channel (fields below) |
 | `GET /v1/networks`, `GET /v1/currencies` | none (public) | Network names, withdrawal fees and minimums per coin |
+| `GET /v2/structured-fee` | none (public; not on the developer site, answered 200 on 2026-11-13) | Per quote currency (`TMN`, `USDT`, `BTC`): `recent_days` (30), `levels[]` with `threshold`, `maker_fee`, `taker_fee`, `daily_withdrawal_limitation`. Level 1: TMN 0.25% maker / 0.30% taker; USDT 0.10% / 0.13%. An account can pay less: `/v1/account/fee` is the rate that applies |
+| `GET /v1/currencies/stats` | none (older reference only) | Global coin statistics: rank, market cap, price changes |
 | `GET /v1/otc/markets` | none | `symbols{…}` with spot fields plus `maxNotional`, `buyStatus`, `sellStatus`, `exchangeStatus`, `isZeroFee`, `stats` |
 
 **Trade direction.** `isBuyOrder=true` means the resting (maker) order was the buy, so a seller was the
@@ -88,6 +90,9 @@ prints sat at or above the prior ask 5,761 times against 1,014 at the bid).
 | `POST /v1/account/crypto-withdrawal` | body `{coin, network, value (string), wallet_address, memo?, client_unique_id?}`; resending the same `client_unique_id` returns the earlier withdrawal | Not specified by the Swagger |
 | `GET /v1/account/crypto-withdrawal` | `asset`, `wallet_address`, `memo`, `network_id`, `from_date`, `to_date`, `page`, `per_page` (at most 20) | List; statuses `Accomplished`, `InProgress`, `Rejected` |
 | `GET /v1/account/crypto-withdrawal/{withdrawal_id}` | path id | One withdrawal; empty `result` if it belongs to another user |
+
+Older reference only: `GET /v1/account/profile` (identity and verification level), `GET /v1/account/crypto-deposit`
+(deposit history, paged), and the version 1 socket channel `SYMBOL@marketCap` (live market summary).
 
 ## Spot orders (key with trade permission)
 
@@ -118,7 +123,15 @@ Order-type rules (spot-types page):
   the last trade falls to or below the stop; if above, when it rises to or above. Once active it behaves as
   LIMIT or MARKET.
 
+A rejected order (HTTP 422) carries `result.error_code` (older reference): 1001 price precision, 1002 quantity
+precision, 1003 a MARKET order with a price, 1004 below the minimum quantity, 1005 quantity or total required,
+1006 insufficient balance, 1007 stop price required, 1008 price required, 1009 stop price precision, 1010 quantity
+and total both given, 1011 total precision.
+
 ## Instant trade (OTC)
+
+`GET /v1/account/otc/price` returned 403 "scope is not valid" for a key that reads `/v1/account/fee` (2026-11-13):
+the key needs a permission the read-only one lacks.
 
 | Method and path | Parameters | Response |
 | --- | --- | --- |
@@ -163,7 +176,12 @@ Endpoints: `GET /sub-accounts`; `GET`/`POST /sub-accounts/transfers`; `GET /v1/a
 Terms: a package lasts 30 days and closes automatically unless renewed (renewal opens 5 days before the
 end); credit costs a daily fee; a warning level allows closing or adding collateral before the liquidation
 level closes the package; connect-to-wallet tops the package up from the main wallet below the warning level.
-The repository does not use trading credit.
+`GET /v1/prop/packages` answers without a key (checked 2026-11-13). Each package has `id`, `currency`, `assurance`
+(the user's collateral), `loan`, `warning_limit`, `liquidity_limit`, `expire_days`, `daily_fee`, `final_fee` (the
+daily fee times the lifetime in every row seen) and their `_after_discount` forms. The other endpoints need a key.
+
+The repository reads the public package list (`credit-packages`) and replays one package on recorded quotes
+(`credit-replay`). It assumes the two limits apply to the whole sub-account value; the venue pages do not say.
 
 ## Websocket
 
