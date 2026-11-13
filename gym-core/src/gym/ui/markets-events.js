@@ -1,11 +1,12 @@
 $("market-filter").addEventListener("input", event => { state.filter = event.target.value; renderMarkets(); });
 for (const id of ['market-quality', 'market-sort']) $(id).addEventListener('change', renderMarkets);
+const venueProducts = venue => venue ? [venue.spot && 'SPOT', venue.margin && `MARGIN ≤${venue.max_leverage}×`, venue.otc && 'OTC', venue.zero_fee && 'ZERO_FEE'].filter(Boolean).map(code).join(' · ') : code('UNKNOWN');
 $("products-refresh").onclick = async event => {
   const button = event.target; button.disabled = true;
   setHTML("product-capabilities", empty(t("loading")));
   try {
     const report = await api('/api/research/action', {method: 'POST', body: JSON.stringify({action: 'market-products', value: {margin_catalogue_id: window.gymMargin?.catalogueId() || null}})}, 130000);
-    setHTML("product-capabilities", `<p class="field-help">${esc(report.scope)} · ${stampHtml(report.as_of)}</p>${table([t("pair"), t("entry"), t("exit"), t("status"), t("creditRatioGrid"), t("marginDirections"), t("funded_authority")], list(report.markets).map(row => [code(row.symbol), code(row.spot.buy), code(row.spot.sell), code(row.margin.status), row.margin.credit_grid ? `${code(row.margin.credit_grid.minimum)} → ${code(row.margin.credit_grid.maximum)} · ${code(row.margin.credit_grid.step)}` : code(row.trade_credit), list(row.margin.directions).map(code).join(' / '), code(row.funded_submission)]))}`);
+    setHTML("product-capabilities", `<p class="field-help">${esc(report.scope)} · ${stampHtml(report.as_of)}</p>${table([t("pair"), t("entry"), t("exit"), t("status"), t("creditRatioGrid"), t("marginDirections"), t("venueProducts"), t("funded_authority")], list(report.markets).map(row => [code(row.symbol), code(row.spot.buy), code(row.spot.sell), code(row.margin.status), row.margin.credit_grid ? `${code(row.margin.credit_grid.minimum)} → ${code(row.margin.credit_grid.maximum)} · ${code(row.margin.credit_grid.step)}` : code(row.trade_credit), list(row.margin.directions).map(code).join(' / '), venueProducts(row.venue), code(row.funded_submission)]))}`);
   } catch (_) { setHTML("product-capabilities", empty(t("requestError"))); }
   finally { button.disabled = false; }
 };
