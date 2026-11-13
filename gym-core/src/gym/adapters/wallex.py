@@ -9,6 +9,7 @@ that side, subscribe returns no snapshot, and nothing but candle: channels keeps
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -18,6 +19,12 @@ REST = "https://api.wallex.ir"
 WS = "wss://api.wallex.ir/connection/websocket"
 MAX_CHANNELS = 64
 MAX_BODY = 4 * 1024 * 1024  # untrusted responses are size-bounded
+
+
+def public_session() -> aiohttp.ClientSession:
+    """Session for public venue traffic. GYM_WALLEX_PROXY (an http:// proxy URL) routes REST and WebSocket through it."""
+    return aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"},
+                                 proxy=os.environ.get("GYM_WALLEX_PROXY") or None)
 
 
 def channels(symbols: list[str]) -> list[str]:

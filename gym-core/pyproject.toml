@@ -15,13 +15,13 @@ exec-kernel = { path = "../executor/exec-kernel-py" }
 gymctl = "gym.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff==0.16.9"]
+dev = ["pytest>=8", "ruff==0.17.4"]
 
 [tool.uv.build-backend]
 module-name = "gym"
 
 [build-system]
-requires = ["uv_build>=0.11.23,<0.12.0"]
+requires = ["uv_build>=0.11.23,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.ruff.lint]

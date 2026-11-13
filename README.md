@@ -43,7 +43,7 @@ These are the commands CI runs ([validate.yml](.github/workflows/validate.yml)):
 cargo fmt --all --check
 cargo test --locked --workspace --all-targets
 cargo clippy --locked --workspace --all-targets -- -D warnings
-cd gym-core; uv sync --locked --group dev; uvx ruff==0.16.9 check src tests; uv run pytest -q
+cd gym-core; uv sync --locked --group dev; uvx ruff==0.17.4 check src tests; uv run pytest -q
 cd ../model-gateway; npm ci --ignore-scripts; npm test
 ```
 

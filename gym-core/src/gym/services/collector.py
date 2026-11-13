@@ -597,7 +597,7 @@ class Collector:
                 tasks.create_task(self.loop_lag.run())
                 tasks.create_task(self._demo())
             return
-        async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
+        async with wallex.public_session() as session:
             backoff = 2
             while True:
                 await self.load_catalog(session)

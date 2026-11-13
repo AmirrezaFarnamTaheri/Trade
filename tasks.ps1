@@ -30,7 +30,7 @@ $tasks = @{
         Step 'cargo test' { cargo test --locked --workspace --all-targets }
     }
     python = {
-        Step 'ruff' { uvx ruff==0.16.9 check src tests } $gym
+        Step 'ruff' { uvx ruff==0.17.4 check src tests } $gym
         Step 'complexity ratchet' { python scripts/complexity_ratchet.py } $gym
         Step 'pytest' { uv run --no-sync pytest -q } $gym
     }

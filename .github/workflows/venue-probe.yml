@@ -1,0 +1,17 @@
+name: Venue probe
+# Manual only: answers whether a hosted runner can reach the venue, before any scheduled backfill is built on it.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 gym-core/scripts/venue_probe.py
