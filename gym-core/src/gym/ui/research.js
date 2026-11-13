@@ -37,7 +37,6 @@ window.gymResearch = (() => {
   actions['margin-pairs-replay'] = [T.en.rsSimulateAMatchedLongShortMargin, T.fa.rsSimulateAMatchedLongShortMargin, 'long_preview_id, short_preview_id, from, to, exit_fee_rate, holding_seconds, max_skew_seconds (0..120); public archived quotes only, USDT scorecard if both USDT and settled; never venue orders'];
   actions['lead-lag-research'] = [T.en.rsTestCausalLeadLagAlignment, T.fa.rsTestCausalLeadLagAlignment, 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
   actions['twap-preview'] = [T.en.rsPreviewPaperTwapChildFills, T.fa.rsPreviewPaperTwapChildFills, 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
-  actions['execution-choice-preview'] = [T.en.rsCompareHistoricalImmediateVsTwapCosts, T.fa.rsCompareHistoricalImmediateVsTwapCosts, 'symbol, from, to, side, quantity, slices (2..100), participation, fee_rate, available_quote, available_base, max_delay_seconds; optional dated cost_models. Retrospective only; not live execution advice.'];
   actions['prospective-register'] = [T.en.rsFreezeFutureStrategyComparison, T.fa.rsFreezeFutureStrategyComparison, 'symbol, candidates: [{strategy, params}], selection_end, test_from, test_to, resolution, cash, fee_rate; window must be in future'];
   actions['prospective-status'] = [T.en.rsInspectFrozenComparison, T.fa.rsInspectFrozenComparison, 'Saved 64-character registry ID'];
   actions['prospective-evaluate'] = [T.en.rsConsumeFutureComparisonOnce, T.fa.rsConsumeFutureComparisonOnce, 'Saved 64-character registry ID; failures are consumed'];
@@ -166,8 +165,7 @@ window.gymResearch = (() => {
         <form id="guided-research-form" class="ticket-fields">
           <label>${text(T.en.rsResearchModel, T.fa.rsResearchModel)}<select id="guided-model">
             <option value="premium-research">${text(T.en.rsTmnPremium, T.fa.rsTmnPremium)}</option><option value="lead-lag-research">${text(T.en.rsLeadLag, T.fa.rsLeadLag)}</option>
-            <option value="twap-preview">${text(T.en.rsTwapChildPreview, T.fa.rsTwapChildPreview)}</option>
-            <option value="execution-choice-preview">${text(T.en.rsImmediateVsTwapPaperCosts, T.fa.rsImmediateVsTwapPaperCosts)}</option></select></label>
+            <option value="twap-preview">${text(T.en.rsTwapChildPreview, T.fa.rsTwapChildPreview)}</option></select></label>
           <label>${text(T.en.rsPrimarySymbolOrBasePremiumBtc, T.fa.rsPrimarySymbolOrBasePremiumBtc)}<input id="guided-symbol" required pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text(T.en.rsLeaderSymbolLagOnly, T.fa.rsLeaderSymbolLagOnly)}<input id="guided-leader" value="ETHUSDT" pattern="[A-Z0-9]{2,24}" dir="ltr"></label>
           <label>${text(T.en.windowFrom, T.fa.windowFrom)}<input id="guided-from" type="datetime-local" required></label>
@@ -244,11 +242,8 @@ window.gymResearch = (() => {
     }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;
     $('guided-model').onchange = () => {
-      const choice = $('guided-model').value === 'execution-choice-preview';
-      const twap = $('guided-model').value === 'twap-preview' || choice;
+      const twap = $('guided-model').value === 'twap-preview';
       $('guided-twap-fields').hidden = !twap;
-      $('guided-slices').min = choice ? '2' : '1';
-      if (choice && Number($('guided-slices').value) < 2) $('guided-slices').value = '2';
       const hideLabel = (id, hidden) => {
         const label = $(id).closest?.('label');
         if (label) label.hidden = hidden;
@@ -278,9 +273,6 @@ window.gymResearch = (() => {
       const report = await call(action, value);
       const summary = action === 'premium-research' ? report.coverage : action === 'lead-lag-research'
         ? {status: report.status, overlap: report.overlap, correlation: report.correlation}
-        : action === 'execution-choice-preview'
-          ? {status: report.status, lowerHistoricalCost: report.retrospective_lower_cost,
-             twapAdvantageBps: report.twap_advantage_bps, reason: report.reason}
           : {requested: report.requested_quantity, filled: report.filled_quantity, cancelled: report.cancelled_quantity, children: report.children.length};
       $('guided-result').innerHTML = `<p><strong>${text(T.en.rsPaperOnlyNoOrderSubmitted, T.fa.rsPaperOnlyNoOrderSubmitted)}</strong></p><p>${esc(JSON.stringify(summary))}</p><details><summary>${text(T.en.rsInspectExactEvidence, T.fa.rsInspectExactEvidence)}</summary>${json(report)}</details>`;
     }); };

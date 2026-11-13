@@ -6,10 +6,9 @@ from decimal import Decimal
 import pytest
 
 from gym.domain.execution_costs import modeled_execution_cost
-from gym.domain.model import InstrumentId, TradeTick, iso
-from gym.domain.sim import CostModel, Spec
+from gym.domain.model import iso
+from gym.domain.sim import CostModel
 from gym.services import fair_price
-from gym.services.adaptive_twap import adaptive_twap
 from gym.services.feed_divergence import evaluate_divergence, persist_paper_feed_lock
 from gym.services.postfill import post_fill_checks
 from gym.services.shadow_drift import shadow_drift
@@ -50,24 +49,6 @@ def test_limit_order_receipt_has_no_unapplied_postfill_price_penalty():
     assert "postfill_adverse_bps" not in maker["pricing"]
     assert taker["uplift_bps"] == Decimal(12)
     assert taker["pricing"]["postfill_adverse_bps"] == "12"
-
-
-def test_twap_reports_target_complete_instead_of_missing_volume():
-    """An already fully filled parent has no reason to request later children."""
-    trades_at = START - timedelta(seconds=10)
-    report = adaptive_twap(
-        InstrumentId.wallex("BTCUSDT"),
-        [top(-1), top(1), top(61)],
-        [TradeTick("BTCUSDT", trades_at, trades_at, Decimal(100), Decimal(100), "BUY")],
-        Spec(qty_decimals=2), START, START + timedelta(minutes=2),
-        side="BUY", quantity=Decimal(2), slices=2,
-        participation=Decimal("0.5"), fee_rate=Decimal(0),
-        available_quote=Decimal(1000), available_base=Decimal(0),
-        max_delay_seconds=10, store="demo",
-        volume_lookback_seconds=120, max_spread_bps=Decimal(300))
-    assert Decimal(report["children"][0]["filled_quantity"]) == 2
-    assert Decimal(report["children"][1]["requested_quantity"]) == 0
-    assert report["children"][1]["status"] == "TARGET_COMPLETE"
 
 
 def test_oversize_fair_price_journal_still_allows_reads_but_refuses_writes(tmp_path, monkeypatch):

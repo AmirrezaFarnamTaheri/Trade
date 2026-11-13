@@ -20,7 +20,7 @@ SECONDS_PER_OBSERVATION = 0.0004
 DEADLINE_HEADROOM = 2.5
 DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing
 MAX_OUTPUT = 2 * 1024 * 1024
-HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
+HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-preview", "postfill-check", "shadow-drift-screen", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
                            "replay-checkpoint", "replay-resume", "final-run", "comparison", "validation",
                            "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "portfolio-replay",
                            "execution-model-calibrate"))

@@ -26,7 +26,6 @@ and the [implementation plan](implementation-plan.md).
 - [Measurement methods and evidence limits](measurement-methods.md)
 - [Causal market models](market-models.md)
 - [Strategy research contracts](strategy-research.md)
-- [Historical execution choice](execution-choice.md)
 - [Portfolio risk contracts](portfolio-risk.md)
 - [Paper execution gates](execution-gates.md)
 

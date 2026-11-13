@@ -7,7 +7,6 @@ external operator approval) is outside this workstream.
 
 | Item | Contract | Current implementation state |
 | --- | --- | --- |
-| 38 | Trade-volume participation TWAP, limit-vs-market decisions from prior spread and urgency, selected dated impact-model costs, paired equal-slice report | Paper mechanics added: `adaptive-twap-preview` prior-volume/spread/urgency and equal-slice reference; no significant Almgren–Chriss fit or verified cost improvement |
 | 39 | 1/5/30-minute post-fill adverse move per strategy and order type, causally fitted cost feedback | Paper mechanics added: `postfill-check` records retrospective 1/5/30-minute signed markouts on verified native paper fills; optional bounded later-replay adverse-cost profile |
 | 40 | Daily shadow drift beyond 2σ alerts, immutable demotion evidence | On-demand `shadow-drift-screen` uses a prior disjoint run and recorded prospective paper days; no continuous monitor or executor demotion |
 | 41 | Fixed DSR, history, SPA, prospective and shadow gates, logged before any operator approval | Local paper diagnostic: `paper-promotion-screen` reports fixed numerical thresholds, always blocks any funded promotion without independent evidence |
@@ -16,29 +15,6 @@ external operator approval) is outside this workstream.
 | 44 | Read-only order `fills[]` with fee currency and maker/taker coefficients | Measured fee coefficients retained when complete in existing GET `fills[]` evidence; fee asset kept exact and maker/taker classification marked ambiguous when rates equal; account settlement remains unknown |
 | 45 | Public fair-price observation channel, timestamped storage, labeled non-executable fallback | `fairprice-observe`/`fairprice-read` parse the documented public snapshot shape into an immutable available-at journal; subscription and authentication not installed |
 | 46 | Versioned operator-review client-id constraints and paced submit path | `PaperSubmissionGate` dry-run journal enforces submit-only IDs, uniqueness and 20/10-second paper pacing. A distinct **offline** Rust v2 review codec has tests; native service/helper wiring and real pacing are **not installed**; no live submit path enabled |
-
-## Item 38 — mechanics and limits
-
-`adaptive-twap-preview` accepts the original TWAP request fields plus
-`volume_lookback_seconds` (60..3600), `max_spread_bps` and
-`urgency` (`NORMAL` or `FINISH`). Each scheduled decision uses only
-public trades with `ts_avail < slot` and the preceding qualified book.
-The target is capped at a requested fraction of recently observed traded base
-volume and at remaining target quantity. When prior spread exceeds the
-threshold, a passive LIMIT is proposed; no fill is claimed without queue
-evidence. The final `FINISH` slot may request a MARKET paper fill, priced with
-existing exact-Decimal latency, fee, depth and optional dated impact model.
-The same frozen historical window produces a plain equal-slice TWAP reference.
-Reported modeled costs are compared **only when both schedules completely
-fill the same original quantity**. Missing volume, stale quotes, and otherwise
-unpriced children are not silently promoted to fills.
-
-Remaining acceptance: record real public trade/quote coverage and fit
-significance of item 21's impact model, compare full-fill paper execution
-costs on an independent historical or future period, and demonstrate robust
-performance across volatility, urgency and market closures. Do not introduce
-Almgren–Chriss scheduling until the impact fit passes a documented significant
-out-of-sample test.
 
 ## Verification / status
 

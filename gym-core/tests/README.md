@@ -1,7 +1,7 @@
 # Verification
 
 Test filenames describe the behavior under test, such as `test_covariance_shrinkage.py`
-or `test_execution_choice.py`. Use subject names instead of delivery phases, task
+or `test_postfill_costs.py`. Use subject names instead of delivery phases, task
 numbers or temporary work labels. Shared fixtures belong in `support.py`; a small
 test module is appropriate when it covers one distinct contract.
 
