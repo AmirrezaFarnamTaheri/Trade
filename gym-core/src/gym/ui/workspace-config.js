@@ -492,6 +492,7 @@ Object.assign(vocabulary, {
   rsCheckDeferredMetaLabelEvidenceThreshold: ["Check deferred meta-label evidence threshold", "آستانهٔ شواهد برچسب‌گذاری ثانویه"],
   rsSimulateAMatchedLongShortMargin: ["Simulate a matched long/short margin pair", "بازپخش آزمایشی جفت خرید و فروش اعتباری"],
   rsTestCausalLeadLagAlignment: ["Test causal lead-lag alignment", "بررسی تقدم و تأخر علّی"],
+  rsPreviewPaperStopOrder: ["Replay a venue stop order on recorded trades", "بازپخش سفارش توقف صرافی روی معاملات ثبت‌شده"],
   rsPreviewPaperTwapChildFills: ["Preview paper TWAP child fills", "پیش‌نمایش برش‌های آزمایشی TWAP"],
   rsCompareHistoricalImmediateVsTwapCosts: ["Compare historical immediate vs TWAP costs", "مقایسهٔ تاریخی اجرای فوری و برش‌های TWAP"],
   rsFreezeFutureStrategyComparison: ["Freeze future strategy comparison", "ثبت ثابت مقایسهٔ آینده"],

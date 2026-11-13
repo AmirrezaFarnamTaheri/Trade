@@ -40,7 +40,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 # One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
@@ -571,9 +571,44 @@ def _research_action_protocol_actions(root, action, value, store, at):
             db.c.close()
 
 
+def _research_action_stop_preview(root, action, value, store, at):
+    from ..domain.market_models import instant
+    from .paper_stop import simulate_stop
+    fields(value, "symbol from to side quantity stop_price type limit_price fee_rate")
+    symbol = value["symbol"]
+    if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol):
+        raise ValueError("invalid stop market")
+    start, end = instant(value["from"]), instant(value["to"])
+    if not start < end <= now_utc():
+        raise ValueError("a stop replay requires an observed past window")
+    db = _market_db(root)
+    try:
+        db.c.execute("BEGIN")
+        portal, window = DataPortal(db), ("wallex:" + symbol, iso(start), iso(end))
+        for table, column in (("book_top", "ts_avail"), ("trades", "ts_event")):
+            if db.c.execute(f"SELECT count(*) FROM {table} WHERE instrument_id=? AND {column}>=? AND {column}<?", window).fetchone()[0] > 100000:
+                raise ValueError("too many stop replay observations")
+        last = db.c.execute("SELECT price FROM trades WHERE instrument_id=? AND ts_event<? ORDER BY ts_event DESC, rowid DESC LIMIT 1",
+                            window[:2]).fetchone()
+        if last is None:
+            raise ValueError("no trade was recorded before the order time")
+        limit = value["limit_price"]
+        return simulate_stop(portal.instrument(symbol), decimal(last[0], "last trade", positive=True),
+                             portal.trades_by_event(symbol, start, end), portal.tops(symbol, start, end),
+                             portal.spec_at(symbol, start), start, end, side=value["side"],
+                             quantity=decimal(value["quantity"], "quantity", positive=True),
+                             stop_price=decimal(value["stop_price"], "stop price", positive=True), order_type=value["type"],
+                             limit_price=None if limit is None else decimal(limit, "limit price", positive=True),
+                             fee_rate=decimal(value["fee_rate"], "fee rate"), store=store)
+    finally:
+        db.c.rollback()
+        db.c.close()
+
+
 _RESEARCH_HANDLERS = (
     (frozenset(('premium-research', 'lead-lag-research')), _research_action_premium_research),
     (frozenset(('twap-preview', 'execution-choice-preview', 'adaptive-twap-preview')), _research_action_twap_preview),
+    (frozenset(('stop-preview',)), _research_action_stop_preview),
     (frozenset(('fairprice-observe', 'fairprice-read')), _research_action_fairprice_observe),
     (frozenset(('feed-divergence-screen', 'feed-divergence-lock')), _research_action_feed_divergence_screen),
     (frozenset(('paper-promotion-screen',)), _research_action_paper_promotion_screen),
