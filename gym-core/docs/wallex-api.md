@@ -75,7 +75,7 @@ plus its basic-services, spot, margin, trade-credit and OTC Swagger files) and t
 | Fees | `GET /v1/account/fee`: `result.<SYMBOL>.makerFeeRate`, `takerFeeRate`, `recent_days_sum` | Parsed per symbol; rates stay uncertified observations |
 | Open orders and history | `GET /v1/account/openOrders` and `GET /v1/account/orders`, both with `page` / `per_page` (history at most 100, filters `market`, `type`, `side`, `from`, `to`); result is a map of order arrays | Both read with `page` / `per_page`; pages never prove completeness |
 | Order detail | `GET /v1/account/orders/{client_id}`, with `fills[]` carrying `fee`, `feeAsset`, `isBuyer`, maker/taker coefficients | Used for known-client-order reads |
-| Order types | `LIMIT`, `MARKET`, `STOP_LIMIT`, `STOP_MARKET` | Paper replays model market and resting limit orders only |
+| Order types | `LIMIT`, `MARKET`, `STOP_LIMIT`, `STOP_MARKET` | Paper replays model market and resting limit orders; `stop-preview` replays one stop order |
 | Margin | `/margin-trade/v1/...` public markets, loan, dry-run, positions; a position lives at most 21 days and pays an extension fee every 4 hours | Public markets, loan and dry-run only; `max_age` and extension fees come from each market's returned terms |
 | API keys | `x-api-key`; up to 90 days, not renewable; at most three keys; each trade-credit sub-account needs its own key; withdrawal permission requires the IP allowlist | `gymctl key set <role> --expires YYYY-MM-DD` records the expiry; `gymctl key show` warns 14 days ahead |
 | Rate limits | None published beyond HTTP 429 | Collector paces REST at 4 requests per second and halves the rate on 429 |

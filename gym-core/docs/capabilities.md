@@ -31,7 +31,7 @@ without paper support is a gap to close, not a boundary. Funded use of every row
 | Venue capability | Reference section | Paper support | Gap |
 | --- | --- | --- | --- |
 | Spot `LIMIT` and `MARKET` orders | Spot orders | Simulated with fees, depth walk and the 2% market-order guard | None known |
-| Spot `STOP_LIMIT` and `STOP_MARKET` orders | Spot orders | None; only closed-bar strategy exits | Simulate venue stop activation on the last trade |
+| Spot `STOP_LIMIT` and `STOP_MARKET` orders | Spot orders | `stop-preview` replays one order on recorded trades: activation on the last trade, then one fill at the touch or across stored depth | Strategies still exit at closed bars; the remainder after the first fill is not worked |
 | Instant trade (OTC) quotes and orders | Instant trade (OTC) | Availability and notional limits come with the spot catalogue and show in the product report | The OTC price needs a key; no quoted fill is simulated |
 | Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews, recorded paper positions | Stop-loss and take-profit edits, collateral changes, 4-hour extension fees need a check against the reference |
 | Margin long/short ratio | Margin trading | Read by the adapter | Not recorded as a time series |
