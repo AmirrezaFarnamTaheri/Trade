@@ -33,7 +33,7 @@ without paper support is a gap to close, not a boundary. Funded use of every row
 | Spot `LIMIT` and `MARKET` orders | Spot orders | Simulated with fees, depth walk and the 2% market-order guard | None known |
 | Spot `STOP_LIMIT` and `STOP_MARKET` orders | Spot orders | `stop-preview` replays one order on recorded trades: activation on the last trade, then one fill at the touch or across stored depth | Strategies still exit at closed bars; the remainder after the first fill is not worked |
 | Instant trade (OTC) quotes and orders | Instant trade (OTC) | Availability and notional limits come with the spot catalogue and show in the product report | The OTC price needs a key; no quoted fill is simulated |
-| Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews, recorded paper positions | Stop-loss and take-profit edits, collateral changes, 4-hour extension fees need a check against the reference |
+| Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews; replay with opening, trade and 4-hour extension fees, liquidation, call warning, stop-loss, take-profit, expiry and timed exit | Stop-loss, take-profit and collateral changes during a position; account level limits (`/user/levels` needs a key) |
 | Margin long/short ratio | Margin trading | Read by the adapter | Not recorded as a time series |
 | Trading credit packages and sub-accounts | Trading credit | Supplied-debt diagnostics only | Package terms, daily fee, warning and liquidation levels |
 | Per-account maker and taker fees | Account | Account fee read contract; fixed rate in the simulator | The read fee is not fed into the simulator |
