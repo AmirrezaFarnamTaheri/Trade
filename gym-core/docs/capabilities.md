@@ -16,10 +16,29 @@ the supported product boundary.
 | Replay and experiments | Verified decisions, annotations, registry pages, retained trials/failures, scorecards/heatmaps/path overlays, store-scoped counts, instrumented process ownership and local consume-once evaluations | Ready/traded counts are a bounded verified sample; old progress is not liveness; local ledgers are not independent custody |
 | Paper sizing | Exact stop-risk entries against held exposure/pending cash, plus capped fractional Kelly diagnostics from completed preregistered evaluations | Unknown venue limits abstain; hypothetical stops can fail; fractional diagnostics require simple closed positions and do not change allocation automatically |
 | Screening and diagnostics | Comparable recorded markets, exact supplied-data models and return/cost diagnostics | Supplied holdings/fills/forecasts are unauthenticated; scoring is not prediction |
-| AI research | Scoped provider connections, explicit advisory requests, evidence packets and checked numeric citations | No order tools or automatic paid requests; interpretation remains unverified |
 | Margin paper | Public rules/previews and recorded LONG/SHORT positions using venue credit grids | No real loan, position or protective order is submitted |
 | Account observations | Sanitized journal and separately protected read-only transport contracts | Observation is not completeness, spendability or settlement |
 | Protected executor | Native custody, operator intent, preparation, journals and emergency-stop foundations | Installed evidence is dated; funded admission and transport remain open |
 | Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or runtime readiness |
 
 Predictive ML/RL training is paper-only and gated (300 verified closed trades, every fit counted as a trial; see PRODUCT.md). Unrelated donor runtimes and automatic paid requests are outside accepted scope.
+
+## Venue coverage
+
+Every trading capability in the [Wallex reference](wallex-reference.md) has a row here. A venue capability
+without paper support is a gap to close, not a boundary. Funded use of every row stays DISARMED.
+
+| Venue capability | Reference section | Paper support | Gap |
+| --- | --- | --- | --- |
+| Spot `LIMIT` and `MARKET` orders | Spot orders | Simulated with fees, depth walk and the 2% market-order guard | None known |
+| Spot `STOP_LIMIT` and `STOP_MARKET` orders | Spot orders | None; only closed-bar strategy exits | Simulate venue stop activation on the last trade |
+| Instant trade (OTC) quotes and orders | Instant trade (OTC) | None; `/v1/otc/markets` is not collected | Collect OTC markets and limits; simulate a quoted fill |
+| Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews, recorded paper positions | Stop-loss and take-profit edits, collateral changes, 4-hour extension fees need a check against the reference |
+| Margin long/short ratio | Margin trading | Read by the adapter | Not recorded as a time series |
+| Trading credit packages and sub-accounts | Trading credit | Supplied-debt diagnostics only | Package terms, daily fee, warning and liquidation levels |
+| Per-account maker and taker fees, zero-fee markets | Account | Account fee read contract; fixed rate in the simulator | Catalogue `is_zero_fee` is not applied |
+| Catalogue product flags (`is_margin`, `is_otc`, `max_leverage`, `leverage_step`) | Public market data | Not read | Read them into the product capability report |
+| Fair price | Public market data, Websocket | Observed and stored | None known |
+| Candles, depth and trades | Public market data, Websocket | Collected | `GET /depth/all` and `public:all@price` are unused; not needed while per-market channels run |
+| Deposits, withdrawals, IBANs and cards | Account | None | Out of scope: custody, not trading |
+
