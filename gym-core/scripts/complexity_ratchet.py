@@ -18,7 +18,7 @@ BASELINE = ROOT / "complexity-baseline.json"
 
 
 def measure() -> dict[str, int]:
-    out = subprocess.run(["uvx", "ruff==0.16.9", "check", "--isolated", "--select", "C901", "--config",
+    out = subprocess.run(["uvx", "ruff==0.17.4", "check", "--isolated", "--select", "C901", "--config",
                           f"lint.mccabe.max-complexity={CEILING}", "--output-format", "json", "src"],
                          cwd=ROOT, capture_output=True, text=True, check=False).stdout
     found = {}

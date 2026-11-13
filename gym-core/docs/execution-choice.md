@@ -77,7 +77,7 @@ connects to a trade credential or protected executor.
 
 ```sh
 cd gym-core
-uvx ruff==0.16.9 check src tests
+uvx ruff==0.17.4 check src tests
 uv run pytest -q tests/test_execution_choice.py tests/test_premium_twap_prospective.py
 uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q
 ```

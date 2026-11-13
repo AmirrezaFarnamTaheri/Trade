@@ -104,7 +104,7 @@ evaluation prevent empirical strategy qualification. The status must remain
 open until genuine future prospective, accessible market and account
 evidence can be collected.
 
-Run `cd gym-core && uvx ruff==0.16.9 check src tests`, then
+Run `cd gym-core && uvx ruff==0.17.4 check src tests`, then
 `uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q`.
 The repository Windows, Rust, browser smoke and security jobs also gate
 merging. New actions are available through the EN/FA Research Workbench

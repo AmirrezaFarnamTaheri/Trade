@@ -118,6 +118,6 @@ in this implementation; the production fixed ADX gate is retained.
 - No model is authorized for funded trading or claimed to outperform the
   baseline without independent prospective evidence.
 
-Run `cd gym-core && uvx ruff==0.16.9 check src tests`, then
+Run `cd gym-core && uvx ruff==0.17.4 check src tests`, then
 `uv run --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q`;
 also use the repository's Linux, Windows, security and browser CI suites.
