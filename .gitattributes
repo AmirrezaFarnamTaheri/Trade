@@ -8,4 +8,3 @@ contracts/*/fixtures/* -text
 *.zst -text
 *.sqlite3 -text
 *.db -text
-graphify-out/graph.json merge=graphify

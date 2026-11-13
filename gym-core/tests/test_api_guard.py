@@ -5,30 +5,54 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.api import guard
-from gym.services.model_gateway import GatewayUnavailable
 
 
-def test_gateway_outage_is_503_and_every_response_carries_security_headers():
-    async def down(_):
-        raise GatewayUnavailable("model gateway unavailable")
-
+def test_bad_input_is_400_and_every_response_carries_security_headers():
     async def bad(_):
         raise ValueError("bad input")
 
+    async def fine(_):
+        return web.json_response({"ok": True})
+
     app = web.Application(middlewares=[guard("tok")])
-    app.router.add_post("/api/down", down)
     app.router.add_post("/api/bad", bad)
+    app.router.add_post("/api/fine", fine)
 
     async def check():
         async with TestClient(TestServer(app)) as client:
             headers = {"X-Gym-Token": "tok"}
-            down_reply = await client.post("/api/down", headers=headers)
-            assert down_reply.status == 503 and (await down_reply.json())["error"] == "model gateway unavailable"
             bad_reply = await client.post("/api/bad", headers=headers)
-            assert bad_reply.status == 400
-            for reply in (down_reply, bad_reply):
+            assert bad_reply.status == 400 and (await bad_reply.json())["error"] == "bad input"
+            fine_reply = await client.post("/api/fine", headers=headers)
+            assert fine_reply.status == 200
+            for reply in (bad_reply, fine_reply):
                 assert "script-src 'self'" in reply.headers["Content-Security-Policy"]
                 assert reply.headers["X-Content-Type-Options"] == "nosniff"
+    asyncio.run(check())
+
+
+def _handler_in(module: str, source: str):
+    namespace = {"__name__": module, "web": web}
+    exec(source, namespace)
+    return namespace["handler"]
+
+
+def test_absent_request_field_is_400_but_a_missing_key_inside_a_service_is_500_without_its_text():
+    absent = _handler_in("gym.api.example", "async def handler(req):\n    return web.json_response({'s': req.query['symbol']})")
+    bug = _handler_in("gym.services.example", "async def handler(req):\n    return web.json_response({}['secret_internal_name'])")
+    app = web.Application(middlewares=[guard("tok")])
+    app.router.add_get("/api/absent", absent)
+    app.router.add_get("/api/bug", bug)
+
+    async def check():
+        async with TestClient(TestServer(app)) as client:
+            headers = {"X-Gym-Token": "tok"}
+            reply = await client.get("/api/absent", headers=headers)
+            assert reply.status == 400 and "symbol" in (await reply.json())["error"]
+            reply = await client.get("/api/bug", headers=headers)
+            assert reply.status == 500 and await reply.json() == {"error": "internal error"}
+            assert "script-src 'self'" in reply.headers["Content-Security-Policy"]
+            assert reply.headers["Cache-Control"] == "no-store"
     asyncio.run(check())
 
 

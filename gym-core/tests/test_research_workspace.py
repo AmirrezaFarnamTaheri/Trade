@@ -18,7 +18,7 @@ from gym.services.collector import Collector
 from gym.services.experiment_registry import ExperimentRegistry
 from gym.services.paper import paper
 from gym.services.replay_debugger import execution_quality, replay_decisions
-from gym.services.research_actions import prepare_packet, research_action, save_notes
+from gym.services.research_actions import research_action
 from gym.services.research_protocol import ResearchProtocol
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
@@ -222,26 +222,6 @@ def test_final_evaluation_link_requires_matching_selection_and_frozen_engine(tmp
             registry.run(db, {**request, "cash": "500"})
         linked = registry.run(db, request)["experiment"]
         assert linked["final_evaluation_at_registration"]["evaluation_id"] == final["evaluation_id"]
-
-
-def test_ai_packet_and_notes_exclude_private_fields_reject_invented_citations_and_preserve_disagreements(tmp_path, artifact):
-    _, out = artifact
-    path = tmp_path / "runs" / (out["run_id"] + ".json")
-    body = json.loads(path.read_text())
-    body["private_notes"] = "PRIVATE-CANARY"
-    path.write_text(json.dumps(body))
-    with ExperimentRegistry(tmp_path, store="live") as registry:
-        prepared = prepare_packet(registry, {"run_ids": [out["run_id"]]})
-        assert "PRIVATE-CANARY" not in prepared["prompt"] and not prepared["paid_request_sent"]
-        packet = prepared["packet"]
-        note = {"role": "risk", "observation": "Recorded marks do not establish future risk.", "citations": [packet["citations"][0]], "claims": [], "disagrees_with": []}
-        saved = save_notes(registry, {"packet_id": packet["id"], "preset": "local-preset", "notes": [note]})
-        assert not saved["record"]["semantic_grounding_verified"]
-        assert registry.read(packet["id"])["events"][0]["kind"] == "RESEARCH_NOTES"
-        with pytest.raises(ValueError, match="outside"):
-            save_notes(registry, {"packet_id": packet["id"], "preset": "local-preset", "notes": [{**note, "citations": ["invented"]}]})
-        with pytest.raises(ValueError, match="absent"):
-            save_notes(registry, {"packet_id": packet["id"], "preset": "local-preset", "notes": [{**note, "disagrees_with": ["performance"]}]})
 
 
 def test_shared_actions_expose_coverage_screen_replay_and_registry_and_reject_backdating(tmp_path, artifact):

@@ -9,7 +9,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.store import SegmentWriter
-from gym.api import guard, models, research
+from gym.api import guard, research
 from gym.api.server import make_app
 from gym.services.collector import Collector
 from gym.services.research_ledger import ResearchLedger
@@ -50,38 +50,6 @@ def test_research_workbench_uses_native_ledger_and_rejects_runner_or_clock_injec
                         {"action": "tick", "value": None}, {"action": [], "value": None}):
                 assert (await client.post(route, json=bad, headers={"X-Gym-Token": "tok"})).status == 400
             assert (await client.post(route, data=json.dumps({"action": "register", "value": "x" * 65536}), headers={"X-Gym-Token": "tok"})).status == 400
-    try:
-        asyncio.run(check())
-    finally:
-        db.c.close()
-
-
-def test_model_api_authenticates_before_starting_bridge_and_closes_owned_process(tmp_path, monkeypatch):
-    calls = []
-
-    class Gateway:
-        async def request(self, action, value):
-            calls.append((action, value))
-            return {"mode": "RESEARCH_ONLY", "funded_authority": False}
-
-        async def close(self):
-            calls.append("closed")
-
-    monkeypatch.setattr(models, "ModelGateway", Gateway)
-    db = market_db(tmp_path, quote_history(n=10))
-    col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
-
-    async def check():
-        async with TestClient(TestServer(make_app(col, RuleService(db), "tok"))) as client:
-            for headers in ({}, {"X-Gym-Token": "wrong"}, {"X-Gym-Token": "tok", "Host": "evil.example"}):
-                assert (await client.post("/api/models", json={"action": "status"}, headers=headers)).status == 403
-                assert calls == []
-            assert (await client.post("/api/models", json={"action": "status", "path": "arbitrary"}, headers={"X-Gym-Token": "tok"})).status == 400
-            assert (await client.post("/api/models", data="{", headers={"X-Gym-Token": "tok"})).status == 400
-            response = await client.post("/api/models", json={"action": "status"}, headers={"X-Gym-Token": "tok"})
-            assert response.status == 200 and response.headers["Cache-Control"] == "no-store"
-            assert calls == [("status", None)]
-        assert calls[-1] == "closed"
     try:
         asyncio.run(check())
     finally:

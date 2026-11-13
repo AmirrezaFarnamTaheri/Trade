@@ -33,13 +33,11 @@ from .commands.maintenance import (
     actions_cmd,
     arm_policy_cmd,
     arm_preflight_cmd,
-    assistant_eval_cmd,
     backup_once_cmd,
     backup_research_cmd,
     compact_cmd,
     doctor_cmd,
     drift_cmd,
-    feed_anomaly_cmd,
     paper_sweep_cmd,
     raw_move_cmd,
     recover_segments_cmd,
@@ -55,7 +53,6 @@ from .commands.maintenance import (
 )
 from .commands.research import (
     allocate_cmd,
-    assistant_cmd,
     calibrate_cmd,
     candles_cmd,
     evidence_cmd,
@@ -82,8 +79,6 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     native_review = sub.add_parser("operator-review", help="explicit protected Windows operator intent; never submits an order")
     native_review.add_argument("input", help="native review JSON file (status, inspect, approve, prepare or revoke)")
-    models = sub.add_parser("models", help="optional advisory provider/auth/key/preset gateway")
-    models.add_argument("model_args", nargs=argparse.REMAINDER)
     research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
     from .services.research_actions import CLI_ACTIONS
     research.add_argument("action", choices=CLI_ACTIONS)
@@ -299,15 +294,6 @@ def main(argv=None):
     cal = sub.add_parser("calibrate", help="feed latency and paper fill quality, to set --latency-ms and judge costs")
     cal.add_argument("--hours", type=int, default=24, choices=range(1, 24 * 31 + 1), metavar="1..744")
     cal.add_argument("--demo", action="store_true")
-    asst = sub.add_parser("assistant", help="a model proposes 2..4 strategy configurations; they are tested on paper and saved")
-    asst.add_argument("symbol")
-    asst.add_argument("--preset", required=True, help="model preset from the AI connections page")
-    asst.add_argument("--budget", type=int, default=3, choices=range(2, 5), help="configurations to test (2..4)")
-    asst.add_argument("--res", default="15min", choices=list(RESOLUTIONS))
-    asst.add_argument("--from", dest="start")
-    asst.add_argument("--to", dest="end")
-    asst.add_argument("--cash")
-    asst.add_argument("--demo", action="store_true")
     rbk = sub.add_parser("backup-research", help="encrypted snapshot of market.db, other stores, runs and new raw segments")
     rbk.add_argument("destination", help="existing folder on another drive (or a cloud-synced folder with --allow-same-device)")
     rbk.add_argument("--keep", type=int, default=7, help="snapshots to keep (segments are never pruned)")
@@ -346,10 +332,6 @@ def main(argv=None):
     apo.add_argument("--demo", action="store_true")
     apf = sub.add_parser("arm-preflight", help="read-only READY/BLOCKED checklist for a future funded probe; never arms")
     apf.add_argument("--demo", action="store_true")
-    aev = sub.add_parser("assistant-eval", help="score a model's strategy proposals against a no-model baseline (offline)")
-    aev.add_argument("--preset", help="model gateway preset to evaluate; omit to print only the baseline")
-    aev.add_argument("--cases", type=int, default=30)
-    aev.add_argument("--demo", action="store_true")
     dr = sub.add_parser("doctor", help="read-only workspace integrity check: stores, raw segments, journals, disk, backups, keys")
     dr.add_argument("--full", action="store_true", help="re-hash every raw segment, not only yesterday's and today's")
     dr.add_argument("--archive", action="append", default=[], help="also look in this archive folder (repeatable)")
@@ -368,13 +350,6 @@ def main(argv=None):
     sw.add_argument("--fee", default="0.001", help="fee rate per side")
     sw.add_argument("--out", help="results SQLite file (default: <data>/live/sweeps/<from>_<to>.sqlite3)")
     sw.add_argument("--report", action="store_true", help="print the best and worst rows of an existing sweep")
-    fa = sub.add_parser("feed-anomaly", help="advisory feed-anomaly classifier: train on injected faults, scan a market")
-    fa.add_argument("mode", choices=("train", "scan"))
-    fa.add_argument("--from", dest="start", required=True)
-    fa.add_argument("--to", dest="end", required=True)
-    fa.add_argument("--markets", type=int, default=40, help="train: the busiest N markets in the window")
-    fa.add_argument("--symbol", help="scan: one market")
-    fa.add_argument("--artifact", help="scan: registered artifact SHA-256")
     tl = sub.add_parser("timeline", help="read-only operator activity timeline across the workspace journals")
     tl.add_argument("--limit", type=int, default=50)
     tl.add_argument("--source", action="append", help="restrict to a source (repeatable)")
@@ -395,14 +370,10 @@ def main(argv=None):
     rm.add_argument("--demo", action="store_true")
     args = p.parse_args(argv)
 
-    if args.cmd == "models":
-        from .services.model_gateway import run
-        return run(args.model_args)
-
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "assistant-eval": assistant_eval_cmd, "arm-preflight": arm_preflight_cmd, "timeline": timeline_cmd, "feed-anomaly": feed_anomaly_cmd, "paper-sweep": paper_sweep_cmd, "actions": actions_cmd, "arm-policy": arm_policy_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
-                "assistant": assistant_cmd, "calibrate": calibrate_cmd}
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "arm-preflight": arm_preflight_cmd, "timeline": timeline_cmd, "paper-sweep": paper_sweep_cmd, "actions": actions_cmd, "arm-policy": arm_policy_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
+                "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:
         try:

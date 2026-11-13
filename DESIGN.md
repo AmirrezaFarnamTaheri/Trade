@@ -332,5 +332,5 @@ Keep the skip link, focusable main region, visible (2px) focus outline with (3px
 - **Don't** turn a healthy feed, eligible rule, passed fixture, or paper return into a trading-readiness claim.
 - **Don't** invent account assets, backup archives, diagnostic modules, protective stops, or funded authority to fill a reference composition.
 - **Don't** substitute green decoration for explicit capability text or use color as the only state cue.
-- **Don't** add exchange-custody secrets or recovery-passphrase inputs to ordinary browser workflows. Provider keys belong only in the existing scoped AI connections controls and never in browser storage.
+- **Don't** add exchange-custody secrets or recovery-passphrase inputs to ordinary browser workflows.
 - **Don't** fragment the ten destinations into unrelated themes, fonts, or component systems.

@@ -22,7 +22,6 @@ function applyLang() {
   if (state.researchSetup) { for (const slot of ["first", "second"]) renderCandidate(slot); renderCoverage(); }
   renderComparison();
   if (state.researchState) renderResearchJobs(state.researchState);
-  if (state.view === "models") window.gymModels?.mount(api, esc);
   if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, stamp: stampHtml, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, stamp: stampHtml, curveFigure, strategyFields}); }
 }
 

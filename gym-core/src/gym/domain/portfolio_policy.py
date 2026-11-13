@@ -171,7 +171,7 @@ class PortfolioPolicy:
             try:
                 weights, order = hierarchical_risk_parity(covariance)
             except ValueError:
-                raise _Status("DEGENERATE_COVARIANCE")
+                raise _Status("DEGENERATE_COVARIANCE") from None
             result["hierarchical_risk_parity"] = {
                 "method": "single-linkage-inverse-variance-bisect/1",
                 "leaf_order": [self.symbols[i] for i in order],

@@ -1,10 +1,12 @@
 """Shared loopback API helpers."""
 import asyncio
 import hmac
+import logging
 import secrets
 
 from aiohttp import web
 
+log = logging.getLogger(__name__)
 LOOPBACK = {"127.0.0.1", "localhost"}
 # Same-origin scripts and styles only; chart geometry is set through the DOM style API, never inline (S-13).
 SECURITY_HEADERS = {
@@ -26,6 +28,17 @@ def token_matches(supplied: str, expected: str) -> bool:
         return False
 
 
+def _deepest_package_module(error: BaseException) -> str:
+    """The first two parts of the innermost gym module on the error's traceback, e.g. `gym.services`."""
+    found, step = "", error.__traceback__
+    while step is not None:
+        name = step.tb_frame.f_globals.get("__name__", "")
+        if name.startswith("gym."):
+            found = ".".join(name.split(".")[:2])
+        step = step.tb_next
+    return found
+
+
 def guard(token: str):
     key = [token]  # replaced by POST /api/session/rotate; every other tab and printed link stops working
 
@@ -42,10 +55,16 @@ def guard(token: str):
             return web.json_response({"token": key[0]}, headers={"Cache-Control": "no-store"})
         try:
             response = await handler(req)
-        except (ValueError, KeyError) as e:
+        except ValueError as e:
             response = web.json_response({"error": str(e)}, status=400)
-        except ConnectionError as e:  # a local dependency (the model gateway) is down; retrying later can work
-            response = web.json_response({"error": str(e)}, status=503)
+        except KeyError as e:
+            # A handler reading an absent request field is bad input. The same error from deeper code is a bug:
+            # it must surface as a 500 and keep its text out of the browser.
+            if _deepest_package_module(e) in ("gym.api", "gym.contracts"):
+                response = web.json_response({"error": f"missing field {e}"}, status=400)
+            else:
+                log.exception("unhandled KeyError in %s %s", req.method, req.path)
+                response = web.json_response({"error": "internal error"}, status=500)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         if req.path.startswith("/api/"):

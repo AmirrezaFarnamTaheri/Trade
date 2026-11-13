@@ -106,7 +106,7 @@ function stop(child) {
   await send('Page.navigate', { url: link });
   await until(() => evaluate('document.querySelectorAll("#market-rows tr[data-symbol]").length > 0 || document.querySelector("#market-rows")?.textContent.includes("BTC")'), 'real market rows');
   const routes = await evaluate('[...document.querySelectorAll("nav [data-view]")].map(node => node.dataset.view)');
-  assert.equal(routes.length, 10);
+  assert.equal(routes.length, 9);
   // Accessibility: with axe-core available (CI installs it; AXE_PATH or a resolvable package), every view
   // is checked against WCAG 2 A/AA. Critical violations fail; serious ones are reported.
   let axeSource = null;

@@ -1,7 +1,7 @@
 # Security
 
 TradingGYM is a single-operator research tool. Funded execution is DISARMED, but the repository still holds
-custody code (the Rust executor vault), provider credentials (the model gateway) and an exchange API-key store.
+custody code (the Rust executor vault) and an exchange API-key store.
 
 ## Reporting
 
@@ -11,7 +11,7 @@ Do not open a public issue for anything that exposes keys, the executor's pipes 
 ## Scope
 
 In scope: the executor service and its pipes, the credential vault and ledger, the gym-core loopback API and its
-token boundary, the gateway's credential storage, installer and update scripts, and CI supply chain.
+token boundary, installer and update scripts, and CI supply chain.
 
 Out of scope: paper-research results, and anything that requires an administrator on the host.
 

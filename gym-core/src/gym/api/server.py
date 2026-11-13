@@ -37,7 +37,6 @@ from ..services.research_process import ResearchProcessFailure, calculate
 from ..services.rules import RuleService
 from ..services.venue_facts import VenueFactsJournal
 from . import finish, guard
-from .models import install as install_models
 from .offline_reviews import install as install_offline_reviews
 from .operator_reviews import install as install_operator_reviews
 from .research import install as install_research
@@ -50,7 +49,7 @@ def _decimal_text(value):
 
 
 # Served next to index.html, each with a content-hash query so a browser never runs a stale copy.
-UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "charts.js", "runs.js", "models.js", "replay-chart.js", "research.js", "margin.js", "portfolio.js", "native-review.js",
+UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "charts.js", "runs.js", "replay-chart.js", "research.js", "margin.js", "portfolio.js", "native-review.js",
              "workspace-config.js", "workspace-utils.js", "workspace-overview.js", "workspace-alerts.js",
              "markets-events.js", "research-events.js", "operator-events.js", "shell-events.js", "styles.css")
 
@@ -448,7 +447,10 @@ class _WorkspaceApi:
     def _run_detail_response(self, run_id):
         record = self._load_run(run_id)
         if record["evidence"] is None:
-            record["evidence"] = economic_report(record)
+            try:
+                record["evidence"] = economic_report(record)
+            except KeyError as error:  # a run saved by an older build, or by hand, without the report's inputs
+                raise ValueError(f"saved run has no {error} to report on") from error
         return web.json_response(record)
 
     async def chaos_report_api(self, req):
@@ -521,7 +523,6 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/rules/{id}/disable", api.rule_disable), web.post("/api/rules/{id}/rollback", api.rule_rollback),
         web.post("/api/presets/{name}", api.preset),
     ])
-    install_models(app, runs.parent / "model_usage.db" if runs is not None else None)
     install_operator_reviews(app, enabled=not col.demo)
     install_research(app, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
     review_path = (Path(offline_review_journal.conn.execute("PRAGMA database_list").fetchone()[2])
