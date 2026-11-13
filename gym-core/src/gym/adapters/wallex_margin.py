@@ -12,6 +12,7 @@ ORIGIN = "https://api.wallex.ir"
 MARKETS = "/margin-trade/v1/public/markets"
 LOAN = "/margin-trade/v1/public/loan"
 PREVIEW = "/margin-trade/v1/public/dry-run"
+PACKAGES = "/v1/prop/packages"  # trading-credit package list; answers without a key
 MAX_BODY = 1024 * 1024
 
 
@@ -21,7 +22,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def public_margin(path, body=None):
-    if (path == MARKETS and body is None):
+    if path in (MARKETS, PACKAGES) and body is None:
         data = None
     elif path in (LOAN, PREVIEW) and type(body) is dict:
         optional = OPTIONAL_FIELDS if path == PREVIEW else set()
