@@ -433,6 +433,7 @@ Object.assign(vocabulary, {
   sortSpread: ["Spread · lowest first", "فاصله قیمت · کمترین ابتدا"],
   sortAge: ["Quote age · oldest first", "عمر قیمت · قدیمی‌ترین ابتدا"],
   creditRatioGrid: ["Credit ratio · min → max · step", "نسبت اعتبار · کمینه تا بیشینه · گام"],
+  venueProducts: ["Venue products", "محصولات صرافی"],
   marginDirections: ["Margin directions", "جهت‌های تعهدی"],
   sampleReady: ["Ready runs · newest sample", "اجراهای آماده · نمونه اخیر"],
   sampleTraded: ["Traded runs · newest sample", "اجراهای دارای معامله · نمونه اخیر"],

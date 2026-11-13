@@ -45,6 +45,12 @@ def market_catalog(col):
     return result
 
 
+VENUE_FLAGS = (("spot", "is_spot"), ("margin", "is_margin"), ("otc", "is_otc"), ("zero_fee", "is_zero_fee"),
+               ("max_leverage", "max_leverage"), ("leverage_step", "leverage_step"),
+               ("otc_buy", "otc_buy_enabled"), ("otc_sell", "otc_sell_enabled"),
+               ("otc_min_notional", "otc_min_notional"), ("otc_max_notional", "otc_max_notional"))
+
+
 def market_products(root, db, value, *, store):
     fields(value, "margin_catalogue_id")
     now, catalogue, rules = now_utc(), None, {}
@@ -69,13 +75,18 @@ def market_products(root, db, value, *, store):
         for symbol in symbols:
             instrument = portal.instrument(symbol)
             rule = rules.get(symbol)
+            metadata = portal.metadata_at(symbol, now)
+            raw = metadata["raw"] if metadata else {}
             rows.append({"symbol": symbol, "base": instrument.base, "quote": instrument.quote,
                 "spot": {"status": "OBSERVED" if store == "live" else "SYNTHETIC", "buy": "PAPER_LONG", "sell": "OWNED_ASSET_ONLY", "leverage": "1"},
                 "margin": {"status": "UNKNOWN" if catalogue is None else "STALE_CATALOGUE" if not fresh else "LISTED" if rule else "NOT_LISTED",
                     "directions": ["LONG", "SHORT"] if rule else [],
                     "credit_grid": {"minimum": rule["min_risk_coef"], "maximum": rule["max_risk_coef"], "step": rule["risk_coef_step"]} if rule else None,
                     "receipt_id": catalogue and catalogue["run_id"], "received_at": catalogue and catalogue["received_at"],
-                    "paper_only": True}, "trade_credit": "ACCOUNT_ELIGIBILITY_UNVERIFIED", "funded_submission": "UNAVAILABLE"})
+                    "paper_only": True},
+                # The venue's own catalogue flags in the stored version valid now; None means no catalogue row is stored.
+                "venue": {"valid_from": iso(metadata["valid_from"]), **{name: raw.get(key) for name, key in VENUE_FLAGS}} if metadata else None,
+                "trade_credit": "ACCOUNT_ELIGIBILITY_UNVERIFIED", "funded_submission": "UNAVAILABLE"})
     finally:
         db.c.rollback()
     return {"schema": "market-products/1", "as_of": iso(now), "markets": rows, "store": store,

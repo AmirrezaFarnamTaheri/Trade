@@ -1,7 +1,7 @@
 """A market listing, a credit grid and account authorization are separate facts."""
 from datetime import timedelta
 
-from gym.domain.model import iso
+from gym.domain.model import InstrumentId, iso
 from gym.services import margin
 from gym.services.research_actions import research_action
 from tests.support import START, market_db, quote_history
@@ -25,3 +25,19 @@ def test_product_matrix_covers_every_observed_market_without_inventing_margin_cr
     monkeypatch.setattr("gym.services.capabilities.now_utc", lambda: START + timedelta(minutes=6))
     stale = research_action(tmp_path, "market-products", {"margin_catalogue_id": catalogue["run_id"]})
     assert all(row["margin"]["status"] == "STALE_CATALOGUE" for row in stale["markets"])
+
+
+def test_product_matrix_reports_the_venue_catalogue_flags_or_unknown(tmp_path, monkeypatch):
+    db = market_db(tmp_path, quote_history(n=3) + quote_history(n=3, sym="ADAUSDT"))
+    db.upsert_instrument(InstrumentId.wallex("BTCUSDT", "BTC", "USDT"), {}, {
+        "symbol": "BTCUSDT", "is_spot": True, "is_margin": True, "is_otc": True, "is_zero_fee": False,
+        "max_leverage": "10", "leverage_step": "0.5", "otc_buy_enabled": True, "otc_sell_enabled": False,
+        "otc_min_notional": "90000", "otc_max_notional": "500000000"}, "rest:/hector/web/v1/markets", START)
+    db.c.close()
+    monkeypatch.setattr("gym.services.capabilities.now_utc", lambda: START + timedelta(seconds=1))
+    rows = {row["symbol"]: row for row in research_action(tmp_path, "market-products", {"margin_catalogue_id": None})["markets"]}
+    assert rows["BTCUSDT"]["venue"] == {
+        "valid_from": iso(START), "spot": True, "margin": True, "otc": True, "zero_fee": False,
+        "max_leverage": "10", "leverage_step": "0.5", "otc_buy": True, "otc_sell": False,
+        "otc_min_notional": "90000", "otc_max_notional": "500000000"}
+    assert rows["ADAUSDT"]["venue"] is None

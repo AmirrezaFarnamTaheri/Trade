@@ -32,12 +32,12 @@ without paper support is a gap to close, not a boundary. Funded use of every row
 | --- | --- | --- | --- |
 | Spot `LIMIT` and `MARKET` orders | Spot orders | Simulated with fees, depth walk and the 2% market-order guard | None known |
 | Spot `STOP_LIMIT` and `STOP_MARKET` orders | Spot orders | None; only closed-bar strategy exits | Simulate venue stop activation on the last trade |
-| Instant trade (OTC) quotes and orders | Instant trade (OTC) | None; `/v1/otc/markets` is not collected | Collect OTC markets and limits; simulate a quoted fill |
+| Instant trade (OTC) quotes and orders | Instant trade (OTC) | Availability and notional limits come with the spot catalogue and show in the product report | The OTC price needs a key; no quoted fill is simulated |
 | Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews, recorded paper positions | Stop-loss and take-profit edits, collateral changes, 4-hour extension fees need a check against the reference |
 | Margin long/short ratio | Margin trading | Read by the adapter | Not recorded as a time series |
 | Trading credit packages and sub-accounts | Trading credit | Supplied-debt diagnostics only | Package terms, daily fee, warning and liquidation levels |
-| Per-account maker and taker fees, zero-fee markets | Account | Account fee read contract; fixed rate in the simulator | Catalogue `is_zero_fee` is not applied |
-| Catalogue product flags (`is_margin`, `is_otc`, `max_leverage`, `leverage_step`) | Public market data | Not read | Read them into the product capability report |
+| Per-account maker and taker fees | Account | Account fee read contract; fixed rate in the simulator | The read fee is not fed into the simulator |
+| Catalogue product flags (`is_margin`, `is_otc`, `max_leverage`, `leverage_step`, `is_zero_fee`) | Public market data | Stored with each catalogue version and shown in the product report | The simulator does not apply `is_zero_fee`; set the fee by hand |
 | Fair price | Public market data, Websocket | Observed and stored | None known |
 | Candles, depth and trades | Public market data, Websocket | Collected | `GET /depth/all` and `public:all@price` are unused; not needed while per-market channels run |
 | Deposits, withdrawals, IBANs and cards | Account | None | Out of scope: custody, not trading |
