@@ -69,6 +69,25 @@ def deadline_for(observations: int | None) -> float:
                      max(DEADLINE_SECONDS, observations * SECONDS_PER_OBSERVATION * DEADLINE_HEADROOM)))
 
 
+def _checked_result(raw):
+    """Return the worker result or raise the failure its reply describes."""
+    try:
+        reply = parse_account_json(raw)
+    except ReadUncertain:
+        raise ResearchProcessFailure("invalid paper worker response; inspect saved state", terminated=True) from None
+    if type(reply) is not dict or set(reply) not in ({"result"}, {"error", "kind"}):
+        raise ResearchProcessFailure("invalid paper worker response; inspect saved state", terminated=True)
+    if "error" in reply:
+        if reply["kind"] not in ("VALIDATION", "DELIVERY", "STORE") or type(reply["error"]) is not str or len(reply["error"]) > 1000:
+            raise ResearchProcessFailure("invalid paper worker response; inspect saved state", terminated=True)
+        if reply["kind"] == "VALIDATION":
+            raise ResearchProcessFailure(reply["error"], terminated=True, status=400)
+        raise ResearchProcessFailure("paper result exceeds delivery bound; inspect saved state" if reply["kind"] == "DELIVERY"
+                                     else "paper store unavailable; inspect saved state", terminated=True,
+                                     status=413 if reply["kind"] == "DELIVERY" else 503)
+    return reply["result"]
+
+
 async def calculate(root, action, value=None, *, store="live", at=None, timeout_seconds=None):
     """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
@@ -109,22 +128,9 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
             terminated = True
             if code != 0:
                 raise ResearchProcessFailure("paper worker exited without a verified result; inspect saved state", terminated=True)
-            try:
-                reply = parse_account_json(raw)
-            except ReadUncertain:
-                raise ResearchProcessFailure("invalid paper worker response; inspect saved state", terminated=True) from None
-            if type(reply) is not dict or set(reply) not in ({"result"}, {"error", "kind"}):
-                raise ResearchProcessFailure("invalid paper worker response; inspect saved state", terminated=True)
-            if "error" in reply:
-                if reply["kind"] not in ("VALIDATION", "DELIVERY", "STORE") or type(reply["error"]) is not str or len(reply["error"]) > 1000:
-                    raise ResearchProcessFailure("invalid paper worker response; inspect saved state", terminated=True)
-                if reply["kind"] == "VALIDATION":
-                    raise ResearchProcessFailure(reply["error"], terminated=True, status=400)
-                raise ResearchProcessFailure("paper result exceeds delivery bound; inspect saved state" if reply["kind"] == "DELIVERY"
-                                             else "paper store unavailable; inspect saved state", terminated=True,
-                                             status=413 if reply["kind"] == "DELIVERY" else 503)
+            result = _checked_result(raw)
             _timing(action, started, timeout_seconds, "completed")
-            return reply["result"]
+            return result
     except TimeoutError:
         _timing(action, started, timeout_seconds, "deadline_exceeded")
         raise ResearchProcessFailure("paper calculation deadline exceeded; inspect saved state before retry", terminated=True, status=504) from None

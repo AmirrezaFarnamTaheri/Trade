@@ -85,6 +85,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - run: uv lock --check
       - run: uv sync --locked --group dev
       - name: Check Python lint
@@ -128,6 +130,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - run: uv sync --locked
       - name: Windows launcher previews and native signature verification
         run: uv run --no-sync pytest -q tests/test_collector_startup.py tests/test_release_signing.py
@@ -151,6 +155,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - name: Python dependencies (pip-audit)
         working-directory: gym-core
         run: |
@@ -178,6 +184,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - run: uv sync --locked --group dev
       - run: uv run --with 'mutmut[patch]==2.5.1' python scripts/mutation_gate.py --output "$RUNNER_TEMP/mutation-critical"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -199,6 +207,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - run: uv sync --locked --group dev
       # This broader five-file assessment is not the critical-cohort baseline; failures remain visible.
       - name: Record weekly source, test, configuration and tool identities
@@ -250,11 +260,14 @@ jobs:
         with:
           toolchain: 1.96.0
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: mkdir -p sbom
       - run: uv export --project gym-core --locked --format cyclonedx1.5 --no-dev -o sbom/python.cdx.json
+      - run: npm ci --ignore-scripts --prefix model-gateway
       - run: npm sbom --prefix model-gateway --sbom-format cyclonedx --omit dev > sbom/node.cdx.json
       - run: python3 scripts/cargo_sbom.py -o sbom/rust.cdx.json
       - name: Every SBOM is CycloneDX and non-empty
@@ -285,6 +298,8 @@ jobs:
           toolchain: 1.96.0
           components: rustfmt, clippy
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - run: cargo fmt --manifest-path ../executor/exec-kernel-py/Cargo.toml --check
       - run: cargo clippy --locked --manifest-path ../executor/exec-kernel-py/Cargo.toml -- -D warnings
       - run: uv sync --locked --group dev
@@ -357,6 +372,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - name: Install reviewed Python lock
         working-directory: gym-core
         run: uv sync --locked --group dev
@@ -381,6 +398,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.11.23"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: b3-ci-synthetic-archive
