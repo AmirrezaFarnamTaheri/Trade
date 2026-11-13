@@ -447,7 +447,10 @@ class _WorkspaceApi:
     def _run_detail_response(self, run_id):
         record = self._load_run(run_id)
         if record["evidence"] is None:
-            record["evidence"] = economic_report(record)
+            try:
+                record["evidence"] = economic_report(record)
+            except KeyError as error:  # a run saved by an older build, or by hand, without the report's inputs
+                raise ValueError(f"saved run has no {error} to report on") from error
         return web.json_response(record)
 
     async def chaos_report_api(self, req):

@@ -31,6 +31,29 @@ def test_bad_input_is_400_and_every_response_carries_security_headers():
     asyncio.run(check())
 
 
+def _handler_in(module: str, source: str):
+    namespace = {"__name__": module, "web": web}
+    exec(source, namespace)
+    return namespace["handler"]
+
+
+def test_absent_request_field_is_400_but_a_missing_key_inside_a_service_is_500_without_its_text():
+    absent = _handler_in("gym.api.example", "async def handler(req):\n    return web.json_response({'s': req.query['symbol']})")
+    bug = _handler_in("gym.services.example", "async def handler(req):\n    return web.json_response({}['secret_internal_name'])")
+    app = web.Application(middlewares=[guard("tok")])
+    app.router.add_get("/api/absent", absent)
+    app.router.add_get("/api/bug", bug)
+
+    async def check():
+        async with TestClient(TestServer(app)) as client:
+            headers = {"X-Gym-Token": "tok"}
+            reply = await client.get("/api/absent", headers=headers)
+            assert reply.status == 400 and "symbol" in (await reply.json())["error"]
+            reply = await client.get("/api/bug", headers=headers)
+            assert reply.status == 500 and "secret_internal_name" not in await reply.text()
+    asyncio.run(check())
+
+
 def test_session_key_rotation_retires_the_old_key():
     async def ping(_):
         return web.json_response({"ok": True})
