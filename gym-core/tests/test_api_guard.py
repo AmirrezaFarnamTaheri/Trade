@@ -50,7 +50,9 @@ def test_absent_request_field_is_400_but_a_missing_key_inside_a_service_is_500_w
             reply = await client.get("/api/absent", headers=headers)
             assert reply.status == 400 and "symbol" in (await reply.json())["error"]
             reply = await client.get("/api/bug", headers=headers)
-            assert reply.status == 500 and "secret_internal_name" not in await reply.text()
+            assert reply.status == 500 and await reply.json() == {"error": "internal error"}
+            assert "script-src 'self'" in reply.headers["Content-Security-Policy"]
+            assert reply.headers["Cache-Control"] == "no-store"
     asyncio.run(check())
 
 

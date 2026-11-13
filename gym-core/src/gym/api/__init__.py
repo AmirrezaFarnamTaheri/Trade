@@ -1,10 +1,12 @@
 """Shared loopback API helpers."""
 import asyncio
 import hmac
+import logging
 import secrets
 
 from aiohttp import web
 
+log = logging.getLogger(__name__)
 LOOPBACK = {"127.0.0.1", "localhost"}
 # Same-origin scripts and styles only; chart geometry is set through the DOM style API, never inline (S-13).
 SECURITY_HEADERS = {
@@ -58,9 +60,11 @@ def guard(token: str):
         except KeyError as e:
             # A handler reading an absent request field is bad input. The same error from deeper code is a bug:
             # it must surface as a 500 and keep its text out of the browser.
-            if _deepest_package_module(e) not in ("gym.api", "gym.contracts"):
-                raise
-            response = web.json_response({"error": f"missing field {e}"}, status=400)
+            if _deepest_package_module(e) in ("gym.api", "gym.contracts"):
+                response = web.json_response({"error": f"missing field {e}"}, status=400)
+            else:
+                log.exception("unhandled KeyError in %s %s", req.method, req.path)
+                response = web.json_response({"error": "internal error"}, status=500)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         if req.path.startswith("/api/"):

@@ -9,7 +9,7 @@ command and what a pass looks like. Nothing here arms the executor or starts the
 |---|---|---|
 | Rust | 1.96.0 (pinned in CI) | `executor/` workspace |
 | uv | 0.11 or later | `gym-core/` (Python 3.11+, locked in `uv.lock`) |
-| Node | 22 | `model-gateway/` |
+| Node | 22 | browser smoke test and UI tests |
 | Edge or Chrome | current | browser smoke test |
 | PowerShell | 5.1 or 7 | `tasks.ps1`, installers in `scripts/windows/` |
 
@@ -17,7 +17,7 @@ command and what a pass looks like. Nothing here arms the executor or starts the
 
 ```powershell
 cd gym-core; uv sync --locked --group dev; cd ..
-.\tasks.ps1                 # rust, python, node: the same commands as CI
+.\tasks.ps1                 # rust, python: the same commands as CI
 .\tasks.ps1 browser         # real-browser smoke with axe, synthetic data
 .\tasks.ps1 sbom            # CycloneDX SBOMs for the three ecosystems into .pi\sbom
 .\tasks.ps1 kernel          # optional: the simulator on the Rust money kernel (ADR 0005)

@@ -20,7 +20,6 @@ states the constraints.
 |------|---------|------|
 | [`gym-core/`](gym-core/README.md) | Python, aiohttp, SQLite | Public observation, exact storage, simulator, paper research, EN/FA workspace |
 | [`executor/`](executor/README.md) | Rust (Windows service) | Admission policy, credential vault, hash-chained ledger; DISARMED / NOT CERTIFIED |
-| [`model-gateway/`](model-gateway/README.md) | Node 22 | Optional provider credentials and advisory AI calls; never on the order path |
 | [`contracts/`](contracts/) | | Wire contracts and golden fixtures shared by Python and Rust |
 | [`scripts/windows/`](scripts/windows/) | PowerShell | Install, service registration, workspace start, backups |
 
@@ -44,7 +43,6 @@ cargo fmt --all --check
 cargo test --locked --workspace --all-targets
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cd gym-core; uv sync --locked --group dev; uvx ruff==0.17.4 check src tests; uv run pytest -q
-cd ../model-gateway; npm ci --ignore-scripts; npm test
 ```
 
 Further reading: [decisions](docs/adr/README.md), [disaster recovery](gym-core/docs/disaster-recovery.md), [architecture](gym-core/docs/architecture.md), [capabilities](gym-core/docs/capabilities.md),

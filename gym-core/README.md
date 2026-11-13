@@ -47,9 +47,7 @@ uv run --no-sync gymctl --data ../data doctor   # read-only integrity check; exi
 ```
 
 Paper research exposes comparisons, validation, saved runs, shared-cash
-portfolios, margin previews/replays and research workflows. AI connections use
-the optional [model gateway](../model-gateway/README.md); paid requests are
-explicit and initially disabled. Spot paper is long/flat; selling exits owned
+portfolios, margin previews/replays and research workflows. Spot paper is long/flat; selling exits owned
 assets. Margin paper has separate venue credit/collateral contracts.
 
 These example markets demonstrate syntax. The collector defaults to every
