@@ -15,3 +15,4 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 gym-core/scripts/venue_probe.py
+      - run: python3 gym-core/scripts/venue_public_shape.py
