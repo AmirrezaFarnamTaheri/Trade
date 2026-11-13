@@ -354,9 +354,5 @@ svg.tracking .chart-cursor { opacity: .7; }
 .replay-target:focus-visible .replay-point { stroke-width: 3; }
 .replay-frame { grid-template-rows: 180px auto; }
 .replay-frame .chart-x { grid-row: 2; flex-wrap: wrap; overflow-wrap: anywhere; }
-#models-content, #models-connections, #models-content form, #portfolio-form { display: grid; gap: 16px; min-width: 0; }
-#models-content label { display: grid; gap: 4px; }
-#models-content textarea, #models-content input:not([type="checkbox"]) { width: 100%; }
-#models-content .actions label { display: flex; align-items: center; gap: 8px; }
-#models-login:empty, #models-result:empty { display: none; }
+#portfolio-form { display: grid; gap: 16px; min-width: 0; }
 .market-table th:first-child, .market-table tr:not(.market-detail-row) > td:first-child { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--surface); }

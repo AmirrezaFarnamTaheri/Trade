@@ -56,4 +56,4 @@ def test_scales_stay_collapsed():
 def test_navigation_has_five_labelled_workspaces():
     html = (ROOT / "gym-core/src/gym/ui/index.html").read_text(encoding="utf-8")
     nav = html[html.index('<nav class="nav"'):html.index("</nav>")]
-    assert len(re.findall(r'class="nav-label"', nav)) == 5 and len(re.findall(r"data-view=", nav)) == 10
+    assert len(re.findall(r'class="nav-label"', nav)) == 5 and len(re.findall(r"data-view=", nav)) == 9

@@ -339,42 +339,6 @@ def calibrate_cmd(args) -> int:
     return 0
 
 
-def assistant_cmd(args) -> int:
-    """A model proposes configurations; this machine tests them on paper within the trial budget."""
-    from ..services.model_gateway import ModelGateway
-    from ..services.model_usage import ModelUsage
-    from ..services.research_assistant import assist
-
-    db, symbol = open_db(args), args.symbol.upper()
-    gateway, usage = ModelGateway(), ModelUsage(store_root(args) / "model_usage.db")
-
-    async def complete(action, value):
-        """Return a bounded advisory result while recording model usage."""
-        usage.check()
-        result = await gateway.request(action, value)
-        usage.record(result)
-        return result
-
-    async def go():
-        """Close the model gateway and usage store after an advisory request."""
-        try:
-            span = db.c.execute("select min(ts_avail), max(ts_avail) from book_top where instrument_id=?", (f"wallex:{symbol}",)).fetchone()
-            if not span[0]:
-                raise ValueError(f"no {symbol} quotes stored")
-            start, end = parse_ts(args.start or span[0]), parse_ts(args.end or span[1])
-            cash = Decimal(args.cash) if args.cash else Decimal(300_000_000 if symbol.endswith("TMN") else 1000)
-            return await assist(complete, db, store_root(args) / "runs", symbol, start, end, preset=args.preset, budget=args.budget,
-                                resolution=args.res, cash=cash, store="demo" if args.demo else "live")
-        finally:
-            await gateway.close()
-    try:
-        print(json.dumps(asyncio.run(go()), indent=2, ensure_ascii=False, default=str))
-    finally:
-        usage.close()
-        db.c.close()
-    return 0
-
-
 def summary_cmd(args):
     """Summarize persisted paper evidence without altering the source run."""
     from ..adapters.run_store import load_run

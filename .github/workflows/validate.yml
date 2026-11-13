@@ -165,12 +165,6 @@ jobs:
       - uses: taiki-e/install-action@f84dff0ad3f25ff0e5dc531e626734a4e7d11ac7 # cargo-audit
       - name: Rust dependencies (cargo audit)
         run: cargo audit
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-      - name: Node dependencies (npm audit)
-        working-directory: model-gateway
-        run: npm audit --omit=dev --audit-level=high
 
   mutation-critical:
     name: Mutation regression gate (critical cohort)
@@ -247,7 +241,7 @@ jobs:
           if-no-files-found: error
 
   sbom:
-    # G-5: CycloneDX 1.5 SBOMs for the three ecosystems, built from the lockfiles on every run.
+    # G-5: CycloneDX 1.5 SBOMs for both ecosystems, built from the lockfiles on every run.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -262,17 +256,12 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: "0.11.23"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
       - run: mkdir -p sbom
       - run: uv export --project gym-core --locked --format cyclonedx1.5 --no-dev -o sbom/python.cdx.json
-      - run: npm ci --ignore-scripts --prefix model-gateway
-      - run: npm sbom --prefix model-gateway --sbom-format cyclonedx --omit dev > sbom/node.cdx.json
       - run: python3 scripts/cargo_sbom.py -o sbom/rust.cdx.json
       - name: Every SBOM is CycloneDX and non-empty
         run: >-
-          python3 -c "import json,glob; files=sorted(glob.glob('sbom/*.json')); assert len(files)==3, files;
+          python3 -c "import json,glob; files=sorted(glob.glob('sbom/*.json')); assert len(files)==2, files;
           [print(f, len(json.load(open(f))['components'])) or None for f in files];
           assert all(json.load(open(f))['bomFormat']=='CycloneDX' and json.load(open(f))['components'] for f in files)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -307,29 +296,6 @@ jobs:
       - run: uv pip install --no-deps dist/*.whl
       - name: Whole suite on the Rust kernel
         run: GYM_RUST_KERNEL=1 uv run --no-sync pytest -q
-
-  model-gateway:
-    name: Advisory model gateway (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: model-gateway
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.11"
-      - run: npm ci --ignore-scripts
-      - run: npm test
 
   windows-vm-smoke:
     name: Disposable Windows SCM + access-control integration

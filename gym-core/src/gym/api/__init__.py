@@ -44,8 +44,6 @@ def guard(token: str):
             response = await handler(req)
         except (ValueError, KeyError) as e:
             response = web.json_response({"error": str(e)}, status=400)
-        except ConnectionError as e:  # a local dependency (the model gateway) is down; retrying later can work
-            response = web.json_response({"error": str(e)}, status=503)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         if req.path.startswith("/api/"):

@@ -1,6 +1,6 @@
 {
   "src/gym/adapters/wallex_order_evidence.py::parse_manual_order_evidence": 23,
-  "src/gym/cli.py::main": 23,
+  "src/gym/cli.py::main": 22,
   "src/gym/domain/compound_strategies.py::decide": 26,
   "src/gym/domain/margin.py::_replay": 26,
   "src/gym/domain/rules.py::parse_rule": 24,

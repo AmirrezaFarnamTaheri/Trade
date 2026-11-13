@@ -11,7 +11,7 @@
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Task)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-if (-not $Task) { $Task = @('rust', 'python', 'node') }
+if (-not $Task) { $Task = @('rust', 'python') }
 
 function Step([string]$Name, [scriptblock]$Body, [string]$Where = $root) {
     Write-Host "== $Name" -ForegroundColor Cyan
@@ -34,16 +34,11 @@ $tasks = @{
         Step 'complexity ratchet' { python scripts/complexity_ratchet.py } $gym
         Step 'pytest' { uv run --no-sync pytest -q } $gym
     }
-    node   = { Step 'model gateway tests' { npm test } (Join-Path $root 'model-gateway') }
     browser = { Step 'browser smoke' { node tests/browser_smoke.cjs } $gym }
     sbom   = {
         $out = Join-Path $root '.pi\sbom'
         New-Item -ItemType Directory -Force -Path $out | Out-Null
         Step 'python SBOM' { uv export --locked --format cyclonedx1.5 --no-dev -o (Join-Path $out 'python.cdx.json') } $gym
-        Step 'node SBOM' {
-            $json = npm sbom --sbom-format cyclonedx --omit dev
-            [IO.File]::WriteAllText((Join-Path $out 'node.cdx.json'), ($json -join "`n"), (New-Object Text.UTF8Encoding $false))
-        } (Join-Path $root 'model-gateway')
         Step 'rust SBOM' { python scripts/cargo_sbom.py -o (Join-Path $out 'rust.cdx.json') }
         Write-Host "SBOMs in $out"
     }

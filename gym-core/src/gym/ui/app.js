@@ -16,7 +16,6 @@ async function collectView(name, healthTask) {
           `<article><h3>${esc(t(kind === 'BACKUP' ? 'backupWorkflow' : 'restoreWorkflow'))}</h3><p>${stampHtml(row.recorded_at)}</p><pre class="output" dir="ltr">${esc(JSON.stringify(row, null, 2))}</pre></article>`).join('')));
     } catch (error) { setHTML("backup-operation-status", `<p>${esc(t("requestError"))}</p>`); throw error; }
   }
-  if (name === "models") await window.gymModels?.mount(api, esc);
   if (name === "overview") {
     try {
       await settled([["markets", api("/api/markets").then(data => { state.markets = data; renderMarkets(); })],
@@ -68,7 +67,7 @@ async function refresh() {
     if (!document.hidden) pollTimer = setTimeout(refresh, again ? 0 : delay);
   }
 }
-const viewKeys = { overview: "navOverview", markets: "navMarkets", research: "navResearch", account: "navAccount", operate: "navOperate", rules: "navRules", health: "navHealth", safety: "navSafety", backups: "navBackups", models: "navModels" };
+const viewKeys = { overview: "navOverview", markets: "navMarkets", research: "navResearch", account: "navAccount", operate: "navOperate", rules: "navRules", health: "navHealth", safety: "navSafety", backups: "navBackups" };
 /** Navigate to a known workspace view while preserving keyboard focus. */
 async function showView(name, focus = false) {
   if (!Object.hasOwn(viewKeys, name)) name = "overview";

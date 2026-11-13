@@ -46,7 +46,7 @@ def test_ui_navigation_and_form_labels():
     ids = [e["attrs"]["id"] for e in elements if "id" in e["attrs"]]
     assert len(ids) == len(set(ids)), "Duplicate IDs make label and view targets ambiguous"
     routes = [e["attrs"]["data-view"] for e in elements if "data-view" in e["attrs"]]
-    assert set(routes) == {"overview", "markets", "research", "account", "operate", "rules", "health", "safety", "backups", "models"}
+    assert set(routes) == {"overview", "markets", "research", "account", "operate", "rules", "health", "safety", "backups"}
     assert len(routes) == len(set(routes))
     for route in routes:
         section = next(e for e in elements if e["attrs"].get("id") == "v-" + route)
@@ -137,16 +137,6 @@ def test_copy_review_extract_covers_the_ui(tmp_path):
     assert rows[0][:5] == ["file", "line", "key", "english", "persian"] and len(rows) > 1000
     unpaired = int(out.getvalue().split(";")[1].split()[0])
     assert unpaired <= 21, out.getvalue()
-
-
-def test_oauth_connections_are_opt_in_behind_the_terms_warning():
-    """S-2: adding a browser sign-in connection asks for explicit acceptance; API keys need no extra step."""
-    source = (Path(__file__).resolve().parents[1] / "src/gym/ui/models.js").read_text(encoding="utf-8")
-    gate = "if ($('models-auth').value === 'oauth' && !await confirmAction(w('oauthWarn'), w('oauthAccept')"
-    assert gate in source
-    assert source.index(gate) < source.index("await request('connection'")
-    vocabulary = (Path(__file__).resolve().parents[1] / "src/gym/ui/workspace-config.js").read_text(encoding="utf-8")
-    assert "modelsOauthWarn:" in vocabulary and "Claude Code and Claude.ai" in vocabulary
 
 
 def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
