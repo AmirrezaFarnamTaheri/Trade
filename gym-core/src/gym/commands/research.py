@@ -9,6 +9,7 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
+from ..adapters import wallex
 from ..adapters.store import MarketDB, SegmentWriter
 from ..domain.model import iso, now_utc, parse_ts
 from ..services.collector import Collector
@@ -211,8 +212,6 @@ def candles_cmd(args) -> int:
     """DATA-05: compare internal LAST bars from collected trades with venue candles."""
     from datetime import timedelta
 
-    import aiohttp
-
     from ..services.data_portal import DataPortal
     from ..services.feed_crosscheck import candle_crosscheck
 
@@ -235,7 +234,7 @@ def candles_cmd(args) -> int:
                 """Fetch or inspect candle windows while respecting the local data boundary."""
                 seg = SegmentWriter(store_root(args) / "raw", db)
                 try:
-                    async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
+                    async with wallex.public_session() as session:
                         collector, total = Collector(db, seg, [symbol]), 0
                         for gap_start, gap_end in windows:
                             got = await collector.fetch_candles(session, symbol, "1min", gap_start, gap_end)
@@ -269,7 +268,6 @@ def history_cmd(args) -> int:
     """Backfill long public venue candles so slow strategies can be studied on years, not days, of history."""
     from datetime import timedelta
 
-    import aiohttp
 
     if args.demo:
         raise ValueError("demo data has no venue history; backfill the live store")
@@ -285,7 +283,7 @@ def history_cmd(args) -> int:
         seg = SegmentWriter(store_root(args) / "raw", db)
         totals = {}
         try:
-            async with aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"}) as session:
+            async with wallex.public_session() as session:
                 collector = Collector(db, seg, symbols)
                 for symbol in symbols:
                     total, empty, hi = 0, 0, end
