@@ -32,10 +32,10 @@ without paper support is a gap to close, not a boundary. Funded use of every row
 | --- | --- | --- | --- |
 | Spot `LIMIT` and `MARKET` orders | Spot orders | Simulated with fees, depth walk and the 2% market-order guard | None known |
 | Spot `STOP_LIMIT` and `STOP_MARKET` orders | Spot orders | `stop-preview` replays one order on recorded trades: activation on the last trade, then one fill at the touch or across stored depth | Strategies still exit at closed bars; the remainder after the first fill is not worked |
-| Instant trade (OTC) quotes and orders | Instant trade (OTC) | Availability and notional limits come with the spot catalogue and show in the product report | The OTC price needs a key; no quoted fill is simulated |
+| Instant trade (OTC) quotes and orders | Instant trade (OTC) | Availability and notional limits come with the spot catalogue and show in the product report | `GET /v1/account/otc/price` returns 401 without a key (checked 2026-11-13), so no quoted fill can be replayed from public data |
 | Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews; replay with opening, trade and 4-hour extension fees, liquidation, call warning, stop-loss, take-profit, expiry and timed exit | Stop-loss, take-profit and collateral changes during a position; account level limits (`/user/levels` needs a key) |
 | Margin long/short ratio | Margin trading | Read by the adapter | Not recorded as a time series |
-| Trading credit packages and sub-accounts | Trading credit | Supplied-debt diagnostics only | Package terms, daily fee, warning and liquidation levels |
+| Trading credit packages and sub-accounts | Trading credit | Supplied-debt diagnostics only | `GET /v1/prop/packages` answers without a key (checked 2026-11-13): collateral, loan, warning and liquidation limits, daily and final fee, lifetime. Not collected or replayed yet |
 | Per-account maker and taker fees | Account | Account fee read contract; fixed rate in the simulator | The read fee is not fed into the simulator |
 | Catalogue product flags (`is_margin`, `is_otc`, `max_leverage`, `leverage_step`, `is_zero_fee`) | Public market data | Stored with each catalogue version and shown in the product report | The simulator does not apply `is_zero_fee`; set the fee by hand |
 | Fair price | Public market data, Websocket | Observed and stored | None known |
