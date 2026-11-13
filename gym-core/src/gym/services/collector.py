@@ -35,6 +35,7 @@ from .rules import RuleService
 HEARTBEAT_S = 60
 CATALOG_PATH = "/hector/web/v1/markets"
 CANDLE_REFRESH_S = 60
+CATALOG_REFRESH_S = 6 * 3600  # each refresh stores a new version of every market: its row carries price and volume
 CANDLE_BATCH = 10
 RESEED_BATCH = 5
 REST_REQUESTS_PER_SECOND = 4
@@ -367,16 +368,7 @@ class Collector:
         rows = list(catalog.values())
         self.catalog, self.catalog_received_at = catalog, now if received else None
         self.catalog_source = "PUBLIC_REST" if received else "RETAINED_METADATA"
-        for s, m in catalog.items():
-            base, quote = _value(m, "base_asset", "baseAsset"), _value(m, "quote_asset", "quoteAsset")
-            if not base or not quote:
-                self.quality(now, s, "SOURCE_ERROR", "catalog row missing base/quote")
-                continue
-            inst = InstrumentId.wallex(s, base, quote)
-            names = {"en": m.get("name_en") or m.get("enName") or s,
-                     "fa": m.get("name_fa") or m.get("faName") or s}
-            if received:
-                self.db.upsert_instrument(inst, names, m, "rest:" + CATALOG_PATH, now)
+        self._store_catalog(catalog, now, received)
         if self.explicit_symbols is None:
             symbols, self.universe = select_universe(rows, self.asset_count)
         else:
@@ -394,6 +386,32 @@ class Collector:
         self.universe["remove_requests"] = sorted(self.remove_symbols)
         self.universe["custom_note"] = "custom additions are observed only and bypass ranking filters"
         self.configure(symbols, catalog)
+
+    def _store_catalog(self, catalog, now, received):
+        for s, m in catalog.items():
+            base, quote = _value(m, "base_asset", "baseAsset"), _value(m, "quote_asset", "quoteAsset")
+            if not base or not quote:
+                self.quality(now, s, "SOURCE_ERROR", "catalog row missing base/quote")
+                continue
+            inst = InstrumentId.wallex(s, base, quote)
+            names = {"en": m.get("name_en") or m.get("enName") or s,
+                     "fa": m.get("name_fa") or m.get("faName") or s}
+            if received:
+                self.db.upsert_instrument(inst, names, m, "rest:" + CATALOG_PATH, now)
+
+    async def refresh_catalog(self, session):
+        """Store the venue's current listing facts. The observed markets stay as chosen at start."""
+        now = now_utc()
+        try:
+            raw = await self.rest_text(session, CATALOG_PATH)
+            self.seg.write("rest:" + CATALOG_PATH, raw, now)
+            catalog = {m["symbol"].upper(): m for m in loads(raw)["result"]["markets"]
+                       if isinstance(m, dict) and isinstance(m.get("symbol"), str) and m["symbol"].strip()}
+        except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError) as e:
+            self.quality(now, None, "SOURCE_ERROR", f"catalog refresh: {type(e).__name__}: {e}")
+            return
+        self._store_catalog(catalog, now, True)
+        self.catalog, self.catalog_received_at, self.catalog_source = catalog, now, "PUBLIC_REST"
 
     async def seed(self, session, symbols=None, trades=True):
         """Rate-limited REST snapshots after subscribe/reconnect and for a bounded stale batch."""
@@ -571,7 +589,7 @@ class Collector:
 
     async def _refresh_rest(self, session):
         # Network refresh cannot delay freshness checks or observation heartbeats.
-        last_reseed = last_candles = time.monotonic()
+        last_reseed = last_candles = last_catalog = time.monotonic()
         reseed_cursor = candle_cursor = 0
         while True:
             await asyncio.sleep(2)
@@ -583,6 +601,9 @@ class Collector:
                 reseed_cursor = (reseed_cursor + RESEED_BATCH) % len(symbols)
                 if stale:
                     await self.seed(session, stale, trades=False)
+            if session and time.monotonic() - last_catalog > CATALOG_REFRESH_S:
+                last_catalog = time.monotonic()
+                await self.refresh_catalog(session)
             if session and symbols and time.monotonic() - last_candles > CANDLE_REFRESH_S:
                 last_candles, now = time.monotonic(), now_utc()
                 batch = (symbols[candle_cursor:] + symbols[:candle_cursor])[:CANDLE_BATCH]
