@@ -70,7 +70,6 @@ window.gymResearch = (() => {
   actions['unit-convert'] = [T.en.rsConvertExplicitObservationEpochs, T.fa.rsConvertExplicitObservationEpochs, 'value, factor (exact observation references), from_epoch, to_epoch, target_unit, as_of, max_age_seconds, max_skew_seconds'];
   actions['market-breadth'] = [T.en.rsCompareMarketGroupBreadth, T.fa.rsCompareMarketGroupBreadth, 'groups: [{name, symbols}], quote_currency, from, to, resolution'];
   actions['order-page-import'] = [T.en.rsImportObservedOrderPage, T.fa.rsImportObservedOrderPage, 'account_id, observed_at, kind (OPEN/HISTORY), page, per_page, payload (documented map of order arrays; origin and completeness remain unverified)'];
-  actions['news-fetch'] = [T.en.rsFetchPublicFederalReserveHeadlines, T.fa.rsFetchPublicFederalReserveHeadlines, 'source: "FED_PRESS", max_items: 1..20 (explicit internet read; saves actual receipt times, no historical backfill or trading signal)'];
   const $ = id => document.getElementById(id);
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
@@ -83,7 +82,7 @@ window.gymResearch = (() => {
     const groups = [
       [T.en.rsSchedulesAndRecovery, T.fa.rsSchedulesAndRecovery, /^(schedule|job-|campaign-status$|list$)/],
       [T.en.rsExperimentsAndReplay, T.fa.rsExperimentsAndReplay, /^(register$|review$|experiment-|registry-|annotation-|replay)/],
-      [T.en.rsMarketsAndObservations, T.fa.rsMarketsAndObservations, /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-|news-)/],
+      [T.en.rsMarketsAndObservations, T.fa.rsMarketsAndObservations, /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-)/],
       [T.en.rsResearchEvidenceAndEvaluation, T.fa.rsResearchEvidenceAndEvaluation, /^(research-|prospective-|claim-check$|outcome|final-)/],
       [T.en.rsAccountAndExecutionDiagnostics, T.fa.rsAccountAndExecutionDiagnostics, /./],
     ];
