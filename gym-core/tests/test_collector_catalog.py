@@ -102,3 +102,41 @@ def test_retained_catalogue_rejects_invalid_storage_types_and_oversized_rows(tmp
     finally:
         seg.close()
         db.c.close()
+
+
+def test_refresh_stores_a_changed_catalogue_without_changing_the_observed_markets(tmp_path, monkeypatch):
+    from gym.services import collector as module
+    from gym.services.data_portal import DataPortal
+
+    db = market_db(tmp_path, [])
+    seg = SegmentWriter(tmp_path / "raw", db)
+    collector = Collector(db, seg, None)
+    rows = catalogue()
+    state = {"fail": False}
+
+    async def observed(*_):
+        if state["fail"]:
+            raise TimeoutError
+        return json.dumps({"result": {"markets": rows}})
+
+    monkeypatch.setattr(collector, "rest_text", observed)
+    monkeypatch.setattr(module, "now_utc", lambda: START)
+    try:
+        asyncio.run(collector.load_catalog(None))
+        observed_markets = dict(collector.insts)
+        symbol = rows[0]["symbol"]
+        rows[0] = rows[0] | {"is_zero_fee": True}
+        rows.append(rows[0] | {"symbol": "NEWUSDT", "base_asset": "NEW"})
+        monkeypatch.setattr(module, "now_utc", lambda: START + timedelta(hours=6))
+        asyncio.run(collector.refresh_catalog(None))
+        assert DataPortal(db).metadata_at(symbol, START + timedelta(hours=7))["raw"]["is_zero_fee"] is True
+        assert collector.catalog_received_at == START + timedelta(hours=6)
+        assert collector.insts == observed_markets
+        state["fail"] = True
+        monkeypatch.setattr(module, "now_utc", lambda: START + timedelta(hours=12))
+        asyncio.run(collector.refresh_catalog(None))
+        assert collector.catalog_received_at == START + timedelta(hours=6)
+        assert db.c.execute("SELECT count(*) FROM quality_events WHERE flag='SOURCE_ERROR' AND detail LIKE 'catalog refresh%'").fetchone()[0] == 1
+    finally:
+        seg.close()
+        db.c.close()
