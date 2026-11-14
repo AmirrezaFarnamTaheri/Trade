@@ -96,6 +96,20 @@ Older reference only: `GET /v1/account/profile` (identity and verification level
 
 ## Spot orders (key with trade permission)
 
+Checked with six live BTCTMN limit orders of about 50,000 Toman each on 2026-11-14 (owner-approved, sent by a
+one-off script outside the app; the executor stayed disarmed):
+
+- **Minimum order:** below 50,000 Toman the venue answers 422 with `error_code` 1003. The limit is `minNotional` in
+  `GET /v1/markets`. The catalogue the collector stores (`/hector/web/v1/markets`) does not carry it, so the paper
+  simulator has no minimum for any market and accepts orders the venue would refuse.
+- **Fee:** 0.10% on every fill, resting or crossing (`feeCoefficient` 0.001), matching `/v1/account/fee`.
+- **Fee asset:** the asset received (Toman on a sell, BTC on a buy). This confirms the simulator's
+  `fee-in-received-asset` assumption.
+- **Resting fills:** an order one Toman inside the best price took 14 minutes to fill on the sell side and 13 on
+  the buy side. Crossing orders filled in the 201 answer itself.
+- **Balances:** a resting order shows as `locked`; a cancel answers 200 with `CANCELED` and releases it.
+- **Own trades:** `GET /v1/account/trades?symbol=` answers with `id`, `isMaker` and `clientOrderID` per fill.
+
 | Method and path | Parameters | Response |
 | --- | --- | --- |
 | `POST /v1/account/orders` | body `{symbol, side, type, price, quantity, stop_Price?, client_id?}`; `type` one of `LIMIT`, `MARKET`, `STOP_LIMIT`, `STOP_MARKET`; numbers as strings; `stop_Price` required for the stop types and forbidden otherwise; `client_id` letters, digits and `_` only, unique per account (a duplicate rejects the order; omitted, Wallex generates one); at most 20 requests per 10 s | 201: `OrderResource` |

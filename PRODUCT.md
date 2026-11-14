@@ -87,9 +87,9 @@ The current [implementation plan](gym-core/docs/implementation-plan.md),
   explicitly authorized. Restore verification and elapsed-time evidence remain actual
   acceptance requirements; neither can be replaced by an untested claim.
 
-Predictive ML/RL training is paper-only and gated: nothing is fitted until the existing gate of 300 verified
-closed trades is met, every model fit counts as a trial in the trial ledger and the deflated Sharpe, and a
-first model is one pre-registered meta-labeling trial with a consume-once evaluation. A model never places or
-sizes an order, and it abstains on a corrupt, expired or incompatible artifact. Current
+Predictive ML/RL training is paper-only. Models may be fitted on historical data (owner decision, 2026-11-14,
+replacing the earlier gate of 300 verified closed trades). Every fit is registered in `gym-core/docs/trial-log.md`
+before it runs and counts as a trial in the deflated Sharpe; held-out data is scored once. A model never places
+an order, and it abstains on a corrupt, expired or incompatible artifact. Current
 rule-based and statistical work remains visible in the plan. Unrelated runtimes
 do not expand authority.
