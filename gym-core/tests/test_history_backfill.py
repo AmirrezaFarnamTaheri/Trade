@@ -34,4 +34,7 @@ def test_history_page_never_crosses_the_start(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(Collector, "fetch_candles", fake_fetch)
     assert main(["--data", str(tmp_path), "history", "USDTTMN", "--from", "2026-10-01T00:00:00Z",
                  "--to", "2026-11-01T00:00:00Z"]) == 0
-    assert calls[-1][0] == datetime(2026, 10, 1, tzinfo=UTC) and len(calls) == 1  # 31 days of 1h fits one page
+    # 31 days of 1h is 744 bars: two pages of at most 500, the last one cut at the start.
+    assert calls[-1][0] == datetime(2026, 10, 1, tzinfo=UTC) and len(calls) == 2
+    assert calls[0] == (datetime(2026, 10, 11, 4, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC))
+    assert calls[1][1] == calls[0][0]

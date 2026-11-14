@@ -1,16 +1,16 @@
-"""Screens T2 to T5 of docs/trial-log.md: where could an edge exist on Wallex at the fees actually paid?
+"""Screens T2 to T6 of docs/trial-log.md: where could an edge exist on Wallex at the fees actually paid?
 
 Each screen is a table over recorded data with a pass mark written in the trial log before it ran. Nothing is
 fitted. Floating point is used; anything that passes must be replayed in the exact paper engine before it counts.
 
-Run from gym-core: `uv run --no-sync python scripts/edge_screen.py [--db ../data/live/market.db] [T2 T3 T4 T5]`.
+Run from gym-core: `uv run --no-sync python scripts/edge_screen.py [--db ../data/live/market.db] [T2 T3 T4 T5 T6]`.
 """
 from __future__ import annotations
 
 import argparse
 import sqlite3
 import sys
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from itertools import groupby
 from math import sqrt
 from pathlib import Path
@@ -172,27 +172,36 @@ def trend_returns(closes: list[float], window: int, cost: float) -> list[float]:
     return out
 
 
-def t4(connection, split: str = "2024-01-01") -> bool:
-    cells = []
-    for symbol in ("BTCUSDT", "ETHUSDT"):
-        rows = connection.execute("SELECT t, c FROM venue_candles WHERE instrument_id=? AND resolution='1d' "
-                                  "AND CAST(v AS REAL) > 0 ORDER BY t", (f"wallex:{symbol}",)).fetchall()
-        if len(rows) < 400:
-            print(f"T4 {symbol}: {len(rows)} traded daily candles; run `gymctl history {symbol} --resolution 1d` first")
-            return False
-        days, closes = [row[0] for row in rows], [float(row[1]) for row in rows]
-        for window in (50, 100, 200):
-            cells.append({"symbol": symbol, "window": window, "days": days[window:], "closes": closes})
+SPLIT = "2024-01-01"
+TREND_MARKETS, TREND_WINDOWS = ("BTCUSDT", "ETHUSDT"), (50, 100, 200)
+
+
+def venue_daily(connection, symbol: str) -> tuple[list[str], list[float]]:
+    rows = connection.execute("SELECT t, c FROM venue_candles WHERE instrument_id=? AND resolution='1d' "
+                              "AND CAST(v AS REAL) > 0 ORDER BY t", (f"wallex:{symbol}",)).fetchall()
+    return [row[0] for row in rows], [float(row[1]) for row in rows]
+
+
+def window_returns(days: list[str], closes: list[float], window: int, cost: float) -> tuple[list[float], list[float]]:
+    """Trend returns split at SPLIT: (before, from). The average is warm before the first counted day."""
+    returns = trend_returns(closes, window, cost)
+    cut = bisect_left(days[window:], SPLIT)
+    return returns[:cut], returns[cut:]
+
+
+def trend_verdict(label: str, rank_source: dict, score_source: dict) -> bool:
+    """Rank the six settings on `rank_source` before SPLIT; score the best once on `score_source` from SPLIT."""
     passed = False
     for name, cost in (("account", ACCOUNT_FEE + 0.001), ("published", PUBLISHED["USDT"][1] + 0.001)):
-        for cell in cells:
-            returns = trend_returns(cell["closes"], cell["window"], cost)
-            cut = bisect_right(cell["days"], split)
-            cell["rank"], cell["held"] = returns[:cut], returns[cut:]
-            mean, deviation, skew, kurtosis = _moments(cell["rank"])
-            cell["sharpe"], cell["moments"] = (mean / deviation if deviation else 0.0), (skew, kurtosis)
+        cells = []
+        for symbol in TREND_MARKETS:
+            for window in TREND_WINDOWS:
+                rank = window_returns(*rank_source[symbol], window, cost)[0]
+                mean, deviation, skew, kurtosis = _moments(rank)
+                cells.append({"symbol": symbol, "window": window, "rank": rank, "moments": (skew, kurtosis),
+                              "sharpe": mean / deviation if deviation else 0.0})
         variance = pvariance([cell["sharpe"] for cell in cells])
-        print(f"T4 trend, {name} cost {100 * cost:.2f}% per side (fee plus 0.10% for half the spread); ranked before {split}")
+        print(f"{label} trend, {name} cost {100 * cost:.2f}% per side (fee plus 0.10% for half the spread); ranked before {SPLIT}")
         for cell in cells:
             cell["deflated"] = deflated_sharpe(cell["sharpe"], len(cell["rank"]), *cell["moments"], len(cells), variance) or 0.0
             total = 1.0
@@ -204,14 +213,41 @@ def t4(connection, split: str = "2024-01-01") -> bool:
         if best["deflated"] < 0.95:
             print(f"  {name}: FAIL on ranking days (best {best['symbol']} {best['window']}-day, {best['deflated']:.3f}); later days not scored")
             continue
-        mean, deviation, skew, kurtosis = _moments(best["held"])
-        alone = deflated_sharpe(mean / deviation if deviation else 0.0, len(best["held"]), skew, kurtosis, 1, 0.0) or 0.0
-        print(f"  {name}: {best['symbol']} {best['window']}-day passed ranking; days from {split} scored once: "
-              f"{len(best['held'])} days, yearly Sharpe {mean / deviation * sqrt(365) if deviation else 0:.2f}, "
+        held = window_returns(*score_source[best["symbol"]], best["window"], cost)[1]
+        mean, deviation, skew, kurtosis = _moments(held)
+        alone = deflated_sharpe(mean / deviation if deviation else 0.0, len(held), skew, kurtosis, 1, 0.0) or 0.0
+        total = 1.0
+        for value in held:
+            total *= 1 + value
+        print(f"  {name}: {best['symbol']} {best['window']}-day passed ranking; venue days from {SPLIT} scored once: "
+              f"{len(held)} days, total {100 * (total - 1):.1f}%, yearly Sharpe {mean / deviation * sqrt(365) if deviation else 0:.2f}, "
               f"probability Sharpe > 0: {alone:.3f}; {'pass' if alone >= 0.90 else 'fail'}")
         passed = passed or (alone >= 0.90 and name == "account")
-    print(f"T4 VERDICT: {'PASS' if passed else 'FAIL'}")
+    print(f"{label} VERDICT: {'PASS' if passed else 'FAIL'}")
     return passed
+
+
+def t4(connection) -> bool:
+    venue = {symbol: venue_daily(connection, symbol) for symbol in TREND_MARKETS}
+    short = [symbol for symbol, (days, _) in venue.items() if len(days) < 400]
+    if short:
+        print(f"T4: too few traded daily candles for {', '.join(short)}; run `gymctl history SYMBOL --resolution 1d` first")
+        return False
+    return trend_verdict("T4", venue, venue)
+
+
+def t6(connection, cache: Path | None = None) -> bool:
+    """T4 with the ranking done on Binance's longer daily history; the venue's later days are still what is scored."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("long_history_study", Path(__file__).with_name("long_history_study.py"))
+    study = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(study)
+    try:
+        binance = {symbol: study.load(symbol, "1d", cache or study.CACHE) for symbol in TREND_MARKETS}
+    except SystemExit as missing:
+        print(f"T6: {missing}; run `python scripts/long_history_study.py fetch BTCUSDT ETHUSDT --interval 1d` first")
+        return False
+    return trend_verdict("T6", binance, {symbol: venue_daily(connection, symbol) for symbol in TREND_MARKETS})
 
 
 # T5 -----------------------------------------------------------------------------------------------------------------
@@ -242,7 +278,7 @@ def t5(connection, symbol: str = "USDSUSDT") -> bool:
     return passed
 
 
-SCREENS = {"T2": t2, "T3": t3, "T4": t4, "T5": t5}
+SCREENS = {"T2": t2, "T3": t3, "T4": t4, "T5": t5, "T6": t6}
 
 
 def main(argv: list[str]) -> int:
