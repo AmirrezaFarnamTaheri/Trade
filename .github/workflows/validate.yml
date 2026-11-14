@@ -165,6 +165,8 @@ jobs:
       - uses: taiki-e/install-action@f84dff0ad3f25ff0e5dc531e626734a4e7d11ac7 # cargo-audit
       - name: Rust dependencies (cargo audit)
         run: cargo audit
+      - name: Rust kernel dependencies (cargo audit; its lockfile is outside the workspace)
+        run: cargo audit --file executor/exec-kernel-py/Cargo.lock
 
   mutation-critical:
     name: Mutation regression gate (critical cohort)

@@ -55,13 +55,23 @@ def toast(title: str, body: str) -> bool:
     return result.returncode == 0
 
 
+class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect could move the alert to plain http or another host; the 3xx then surfaces as a failed delivery."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_NO_REDIRECT = urllib.request.build_opener(_RefuseRedirect())
+
+
 def webhook(url: str, title: str, body: str) -> bool:
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("alert webhook must be an https URL without credentials")
     request = urllib.request.Request(url, data=body.encode("utf-8"), method="POST",
                                      headers={"Title": title, "Content-Type": "text/plain; charset=utf-8"})
-    with urllib.request.urlopen(request, timeout=15) as response:
+    with _NO_REDIRECT.open(request, timeout=15) as response:
         return 200 <= response.status < 300
 
 

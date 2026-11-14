@@ -33,3 +33,38 @@ def test_failed_delivery_is_retried_and_webhooks_must_be_https(tmp_path, monkeyp
         alerts.webhook("https://user:pw@example.com/topic", "t", "b")
     out = alerts.notify(report("FAIL"), tmp_path, webhook_url="ftp://x", use_toast=False)
     assert out["channels"]["webhook"].startswith("failed")
+
+
+def test_the_webhook_opener_refuses_a_redirect_instead_of_following_it():
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    followed = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self.send_response(302)
+            self.send_header("Location", "/moved")
+            self.end_headers()
+
+        def do_GET(self):  # urllib turns a redirected POST into a GET
+            followed.append(self.path)
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        request = urllib.request.Request(f"http://127.0.0.1:{server.server_port}/hook", data=b"x", method="POST")
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            alerts._NO_REDIRECT.open(request, timeout=5)
+        assert refused.value.code == 302 and followed == []
+    finally:
+        server.shutdown()
+        server.server_close()

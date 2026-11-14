@@ -12,6 +12,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+  # Kept out of the Cargo workspace, so the root entry does not see its lockfile.
+  - package-ecosystem: cargo
+    directory: /executor/exec-kernel-py
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
   - package-ecosystem: uv
     directory: /gym-core
     schedule:

@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 exec-core = { path = "../exec-core" }
-pyo3 = { version = "0.23", features = ["abi3-py311", "extension-module"] }
+pyo3 = { version = "0.29", features = ["abi3-py311", "extension-module"] }
 
 # Built on its own with maturin; kept out of the main workspace so the executor never links Python.
 [workspace]
