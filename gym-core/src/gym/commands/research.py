@@ -260,7 +260,7 @@ def candles_cmd(args) -> int:
     return 0
 
 
-HISTORY_STEP = {"1h": 3600, "1d": 86400}
+HISTORY_STEP = {"1min": 60, "1h": 3600, "1d": 86400}  # 1min: the venue answers nothing for a window of two days or more
 HISTORY_PAGE_BARS = 1000  # shortcut: assumed per-request bar limit (undocumented); smaller pages only cost requests
 
 

@@ -46,3 +46,27 @@ def test_too_few_sessions_is_reported_as_insufficient_not_as_a_verdict(tmp_path,
     assert v1.main(["--db", str(db), "--all-sessions"]) == 0
     assert "VERDICT: INSUFFICIENT_SESSIONS (1 of 30)" in capsys.readouterr().out
     assert v1.main(["--db", str(db)]) == 1  # the only session is incomplete
+
+
+def test_bar_mode_makes_one_assumed_quote_per_traded_minute_inside_the_session(tmp_path):
+    import sqlite3
+    db = tmp_path / "market.db"
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TABLE venue_candles (instrument_id, resolution, t, o, h, l, c, v, fetched_at)")
+    start = datetime(2026, 11, 4, 11, 0, tzinfo=TEHRAN)  # half an hour before the session opens
+    rows = [("wallex:USDTTMN", "1min", (start + timedelta(minutes=i)).isoformat(), "1", "1", "1", "100000",
+             "0" if i == 100 else "5", "x") for i in range(500)]
+    connection.executemany("INSERT INTO venue_candles VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    connection.commit()
+    connection.close()
+    days = v1.bar_sessions(db, Decimal(10))
+    quotes = days["2026-11-04"]
+    # 500 minutes from 11:00; the first 29 end before 11:30 and one minute had no trade.
+    assert list(days) == ["2026-11-04"] and len(quotes) == 500 - 29 - 1
+    assert quotes[0].ts_avail == datetime(2026, 11, 4, 11, 30, tzinfo=TEHRAN)  # the 11:29 candle is known at 11:30
+    assert (quotes[0].bid, quotes[0].ask) == (Decimal("99950.0000"), Decimal("100050.0000"))  # 10 bps wide around the close
+    v1.MIN_TRADED_MINUTES, kept = 471, v1.MIN_TRADED_MINUTES
+    try:
+        assert v1.bar_sessions(db, Decimal(10)) == {}
+    finally:
+        v1.MIN_TRADED_MINUTES = kept
