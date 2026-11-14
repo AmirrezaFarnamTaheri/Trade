@@ -64,3 +64,26 @@ def test_unusable_flags_are_dropped_and_a_market_needs_every_condition_to_pass()
     assert row["pass_account"] is False  # every result is the same, so there is no spread of results to test against
     thin = screen.t2_row("XTMN", "TMN", quotes, trades, usdt_rate=100000.0)
     assert thin["touch_usdt"] == pytest.approx(0.005) and thin["pass_account"] is False
+
+
+def test_trend_verdict_ranks_on_one_source_and_scores_the_other_only_from_the_split(capsys):
+    from datetime import date, timedelta
+
+    def series(start, count, step):
+        days = [(date.fromisoformat(start) + timedelta(days=i)).isoformat() for i in range(count)]
+        closes, price = [], 100.0
+        for i in range(count):
+            price *= 1 + step + (0.004 if i % 2 else -0.004)  # a drift with some noise, so the Sharpe is finite
+            closes.append(price)
+        return days, closes
+
+    rising = {symbol: series("2022-01-01", 1200, 0.002) for symbol in screen.TREND_MARKETS}
+    falling = {symbol: series("2022-01-01", 1200, -0.002) for symbol in screen.TREND_MARKETS}
+    before, after = screen.window_returns(*rising["BTCUSDT"], 50, 0.0)
+    assert len(before) == 730 - 50 and len(before) + len(after) == 1200 - 50  # 2022 and 2023 less the warm-up
+    assert screen.trend_verdict("X", rising, rising) is True
+    assert "scored once" in capsys.readouterr().out
+    # A rule that ranks well but is scored on a falling market never holds it: flat, so not a pass.
+    assert screen.trend_verdict("X", rising, falling) is False
+    assert screen.trend_verdict("X", falling, rising) is False
+    assert "later days not scored" in capsys.readouterr().out
