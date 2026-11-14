@@ -48,8 +48,7 @@ the disk.
 
 - Market observations from the gap between the last backup and the loss. Wallex keeps only candle history, so
   order-book and trade ticks from that gap are gone; the collector records the gap as missing.
-- Anything protected only by the old machine's DPAPI: provider credentials in the model gateway and the
-  stored Wallex keys. Re-enter them.
+- Anything protected only by the old machine's DPAPI: the stored Wallex keys. Re-enter them.
 
 ## Acceptance status
 

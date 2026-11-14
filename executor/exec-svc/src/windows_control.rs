@@ -88,10 +88,37 @@ pub fn pin_readonly() -> Result<ReadOnlyPinned, String> {
     pinned.verify()?;
     Ok(pinned)
 }
+/// `C:\Program Files` from the shell's known-folder table, not from the process
+/// environment, which the caller's configuration could redirect (same rule as main.rs).
+fn program_files() -> Result<std::path::PathBuf, String> {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::System::Com::CoTaskMemFree;
+    use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath};
+    let mut raw = std::ptr::null_mut();
+    // SAFETY: valid GUID and out-pointer; the returned buffer is freed below on every path.
+    if unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, 0, std::ptr::null_mut(), &mut raw) }
+        < 0
+    {
+        return Err("Program Files known-folder lookup failed".into());
+    }
+    let mut length = 0;
+    // SAFETY: the shell returns a NUL-terminated wide string; the scan is bounded.
+    while length < 32768 && unsafe { *raw.add(length) } != 0 {
+        length += 1;
+    }
+    let root = (length < 32768).then(|| {
+        // SAFETY: `length` UTF-16 units were just read from this buffer.
+        std::path::PathBuf::from(std::ffi::OsString::from_wide(unsafe {
+            std::slice::from_raw_parts(raw, length)
+        }))
+    });
+    // SAFETY: allocated by SHGetKnownFolderPath with the COM task allocator.
+    unsafe { CoTaskMemFree(raw.cast()) };
+    root.ok_or_else(|| "Program Files known-folder lookup failed".into())
+}
 fn validate_config(service: &Service) -> Result<(), String> {
     let config = service.query_config().map_err(|e| e.to_string())?;
-    let expected = std::env::var_os("ProgramFiles").ok_or("missing ProgramFiles")?;
-    let expected = std::path::PathBuf::from(expected)
+    let expected = program_files()?
         .join("TradingGYM")
         .join("Executor")
         .join("gym-executor.exe");
@@ -112,11 +139,10 @@ fn validate_config(service: &Service) -> Result<(), String> {
 fn pin_with_access() -> Result<Pinned, String> {
     let service = service(true)?;
     validate_config(&service)?;
-    let expected =
-        std::path::PathBuf::from(std::env::var_os("ProgramFiles").ok_or("missing ProgramFiles")?)
-            .join("TradingGYM")
-            .join("Executor")
-            .join("gym-executor.exe");
+    let expected = program_files()?
+        .join("TradingGYM")
+        .join("Executor")
+        .join("gym-executor.exe");
     let status = service.query_status().map_err(|e| e.to_string())?;
     let pid = status.process_id.ok_or("service has no process")?;
     if !same_identity(pid, pid, status.current_state != ServiceState::Stopped) {

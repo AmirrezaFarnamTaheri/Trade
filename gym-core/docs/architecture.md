@@ -1,7 +1,6 @@
 # Structure and workflow ownership
 
-The Python observatory owns public observations and paper research. The Node
-model gateway owns provider configuration, sign-in and credentials. The Rust
+The Python observatory owns public observations and paper research. The Rust
 executor owns privileged money-path policy and custody. Browser controls do not
 combine these authorities.
 
@@ -18,14 +17,11 @@ combine these authorities.
 | Hypotheses and schedules | `services/research_ledger.py` | Existing hypotheses, shadow observations, jobs and durable retry/report publication. |
 | Availability and evaluations | `services/research_protocol.py` | Immutable observation vintages, resolution-time outcome memory and future evaluations consumed before reading holdout data. Local enforcement is not independent sealing. |
 | Numeric review | `services/research_grounding.py`, `services/research_actions.py` | Allowlisted saved-run arithmetic; performance, risk and cash-benchmark roles. Numeric agreement does not validate prose or causality. |
-| Web composition | `api/server.py` | Existing observatory routes and loopback/token boundary. It installs separate model, research and offline-review workflow routes. Deliberate public reads (loopback Host check only, no token): `PUBLIC_READS` in `api/__init__.py` plus the full record at `GET /api/runs/{id}`, which holds paper results and no credentials; its `/summary` views stay token-gated. `tests/test_api_contract.py` fails when a route becomes public without being listed. |
+| Web composition | `api/server.py` | Existing observatory routes and loopback/token boundary. It installs separate research and offline-review workflow routes. Deliberate public reads (loopback Host check only, no token): `PUBLIC_READS` in `api/__init__.py` plus the full record at `GET /api/runs/{id}`, which holds paper results and no credentials; its `/summary` views stay token-gated. `tests/test_api_contract.py` fails when a route becomes public without being listed. |
 | Offline ticket review | `api/offline_reviews.py`, `services/offline_review_journal.py` | The same canonical preview and hash-chain owner used by the CLI. Actual server review time, one acknowledgment/rejection, no T1 permission. |
 | Protected operator intent | `api/operator_reviews.py`, `adapters/service_review.py`, `contracts/review_wire.py`, `ui/native-review.js` | Explicit token/same-origin relay to the fixed protected helper and OS-authenticated Rust pipe. Exact durable review, consume-once preparation and revocation; no money reservation, executable admission, arming, order transport or research/MCP dispatch. New binaries require installed-host qualification. |
-| Browser workflows | `ui/app.js`, `markets.js`, `research-controls.js`, `operations.js`, `runs.js`, `models.js`, `research.js` | Shell/common state, markets, comparisons/jobs, operator journals/safety, saved results, AI settings and advanced research respectively. HTML text is escaped; returned reports use text content. Secrets are never browser storage. Each asset has a content-derived URL. |
-| Model process bridge | `services/model_gateway.py` | Fixed executable/entry point, one private bounded JSON channel, correlated replies, single active request and process cleanup. No shell execution. |
-| Provider controls | `model-gateway/control.mjs`, `host.mjs` | One pending OAuth session, explicit cancellation, strict configuration and encrypted stored-key operations. `runtime.mjs` remains the single completion/retry owner. |
-| Credential persistence | `model-gateway/state.mjs` | Windows current-user DPAPI and private ACLs; provider/connection-scoped OAuth and API-key namespaces. Non-Windows fallback is private plaintext and disclosed by the UI. |
-| Protected execution | `executor/`, `scripts/windows/` | Separate principal, permissions, durable outcomes and recovery. Research, model completions and offline acknowledgements grant no funded permission. |
+| Browser workflows | `ui/app.js`, `markets.js`, `research-controls.js`, `operations.js`, `runs.js`, `research.js` | Shell/common state, markets, comparisons/jobs, operator journals/safety, saved results, AI settings and advanced research respectively. HTML text is escaped; returned reports use text content. Secrets are never browser storage. Each asset has a content-derived URL. |
+| Protected execution | `executor/`, `scripts/windows/` | Separate principal, permissions, durable outcomes and recovery. Research and offline acknowledgements grant no funded permission. |
 
 ## Browser capability map
 

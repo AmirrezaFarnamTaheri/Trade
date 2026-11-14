@@ -115,7 +115,9 @@ def portfolio_checkpoint(registry, db, request, *, saved):
 
     out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
-    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in (5, 6) or inputs["rules_mode"] != "point-in-time":
+    # Versions 5..13 are the "newest input wins" identity ladder from portfolio._portfolio_version;
+    # every rung replays through the same engine, so each one can be checkpointed.
+    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in range(5, 14) or inputs["rules_mode"] != "point-in-time":
         raise ValueError("checkpoint requires a current point-in-time portfolio")
     if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
         raise ValueError("checkpoint saved portfolio evidence changed")

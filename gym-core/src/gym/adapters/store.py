@@ -169,7 +169,11 @@ class MarketDB:
         return [{"seq": r[0], "ts": r[1], "op": r[2], "rule_id": r[3], "body": json.loads(r[4]), "actor": r[5]} for r in rows]
 
     def rules_as_of(self, at: datetime | None = None) -> tuple[int, dict[str, dict]]:
-        """Point-in-time rule vintage: fold events recorded at or before `at`."""
+        """Point-in-time rule vintage: the seq-order prefix before the first event stamped after `at`.
+
+        A backdated event (stamped earlier than an already-recorded one) joins vintages only from the
+        first cutoff that also covers its later-stamped predecessors; rules_version_as_of agrees exactly.
+        """
         version, cur = 0, {}
         for e in self.rule_events():
             if at and e["ts"] > iso(at):

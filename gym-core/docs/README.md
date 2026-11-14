@@ -36,4 +36,3 @@ and the [implementation plan](implementation-plan.md).
 - [Read-only venue validation](readonly-venue-validation.md)
 - [Offline recovery](offline-recovery-runbook.md)
 - [Protected executor](../../executor/README.md)
-- [AI connections](../../model-gateway/README.md)
