@@ -130,7 +130,7 @@ and total both given, 1011 total precision.
 
 ## Instant trade (OTC)
 
-`GET /v1/account/otc/price` returned 403 "scope is not valid" for a key that reads `/v1/account/fee` (2026-11-13):
+`GET /v1/account/otc/price` returned 403 "scope is not valid" for a read-only key that reads `/v1/account/fee` (2026-11-13) and 200 for a key with trade scope (2026-11-14; the answer also carries `ttl` 30 and `current_time`):
 the key needs a permission the read-only one lacks.
 
 | Method and path | Parameters | Response |
