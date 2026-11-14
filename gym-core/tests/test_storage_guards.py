@@ -115,7 +115,8 @@ def test_quote_gaps_are_found_inside_the_window(tmp_path):
     db = market_db(tmp_path, rows)
     gaps = quote_gaps(db, "BTCUSDT", START, START + timedelta(hours=1))
     assert gaps == [(START + timedelta(seconds=10), START + timedelta(seconds=400)),
-                    (START + timedelta(seconds=410), START + timedelta(seconds=1000))]
+                    (START + timedelta(seconds=410), START + timedelta(seconds=1000)),
+                    (START + timedelta(seconds=1000), START + timedelta(hours=1))]
 
 
 def test_quality_report_grades_markets_by_flagged_share_and_silence(tmp_path):
@@ -146,3 +147,20 @@ def test_maintenance_jobs_run_on_worker_threads_without_the_collector_connection
     asyncio.run(run())
     assert "BTCUSDT" in col.data_quality and col.status["integrity"]["checked"] == 0
     assert not [row for row in db.quality(10) if row[2] == "MAINTENANCE_FAILED"]
+
+
+def test_quote_gaps_include_silence_at_both_window_edges(tmp_path):
+    from datetime import timedelta
+
+    from gym.services.data_portal import quote_gaps
+    from tests.support import market_db, quote
+    rows = [quote(START + timedelta(seconds=s), "100", "101") for s in (500, 510, 1000)]
+    db = market_db(tmp_path, rows)
+    end = START + timedelta(hours=1)
+    gaps = quote_gaps(db, "BTCUSDT", START, end)
+    assert gaps == [(START, START + timedelta(seconds=500)),
+                    (START + timedelta(seconds=510), START + timedelta(seconds=1000)),
+                    (START + timedelta(seconds=1000), end)]
+    # A window with no quote at all is one gap; a window shorter than the threshold is none.
+    assert quote_gaps(db, "ETHUSDT", START, end) == [(START, end)]
+    assert quote_gaps(db, "ETHUSDT", START, START + timedelta(seconds=60)) == []

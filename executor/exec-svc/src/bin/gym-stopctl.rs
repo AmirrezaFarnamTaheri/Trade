@@ -36,6 +36,23 @@ mod client {
     const PIPE: &str = r"\\.\pipe\TradingGYM.Stop.v1";
 
     fn correlation() -> [u8; 16] {
+        use windows_sys::Win32::Security::Cryptography::{
+            BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        };
+        let mut id = [0u8; 16];
+        // SAFETY: writes exactly 16 bytes into a 16-byte buffer.
+        if unsafe {
+            BCryptGenRandom(
+                std::ptr::null_mut(),
+                id.as_mut_ptr(),
+                16,
+                BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+            )
+        } == 0
+        {
+            return id;
+        }
+        // The OS generator never fails in practice; the clock fallback keeps the stop path available.
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|t| t.as_nanos())

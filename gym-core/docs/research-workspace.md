@@ -323,28 +323,6 @@ independent custody. A final link must match native parameters, symbol,
 resolution, cash, engine digest and selection bounds; linking does not consume
 the evaluation. Existing `final-register`/`final-run` retain consume-once rules.
 
-## Evidence-linked AI notes
-
-`research-packet`: `run_ids` (1..4 distinct saved runs). Produces an allowlisted
-numeric performance/risk/cash-benchmark review, exact citation IDs and a bounded
-prompt. Private notes, credentials, account journals, raw transcripts and order
-tools are not included. Preparing a packet makes no provider request.
-
-The GUI displays the prompt and saved packet ID. A separate explicit send button
-uses a configured AI preset through the existing model gateway and may incur
-charges. The gateway stays subject to its enabled/auth/preset policy. No paid
-request or real authentication was performed during implementation checks.
-
-`research-notes`: `packet_id`, `preset`, `notes`. Paste the returned structured
-notes and the original packet/preset references. Each of at most three notes has
-`role` (`performance`, `risk`, `benchmark`), `observation` (1..2,000 characters),
-`citations`, `claims`, `disagrees_with`. Roles are distinct. Citations must match
-the packet; numeric claims use the existing exact `claim-check` schema and must
-match cited native metrics. Disagreement references must identify included roles.
-Empty claim lists are allowed. Interpretations and model provenance remain
-unverified; numeric checks never certify prose or causality. Saved notes are
-immutable journal events, not execution recommendations or verified lessons.
-
 ## Execution-quality comparison
 
 `execution-quality`: `run_id`, `observations` (0..500). Each observed fill has

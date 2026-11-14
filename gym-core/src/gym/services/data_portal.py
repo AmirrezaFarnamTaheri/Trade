@@ -114,13 +114,28 @@ def quality_report(db: MarketDB, since: datetime) -> dict[str, dict]:
 
 
 def quote_gaps(db: MarketDB, symbol: str, t0: datetime, t1: datetime, min_seconds: float = 120) -> list[tuple[datetime, datetime]]:
-    """Stretches with no stored quote longer than `min_seconds`, inside [t0, t1)."""
+    """Stretches with no stored quote longer than `min_seconds`, inside [t0, t1).
+
+    The window edges count: silence from t0 to the first quote, from the last quote to t1,
+    and the whole window when it holds no quote at all.
+    """
     rows = db.c.execute("""SELECT prev, ts_avail FROM (
         SELECT ts_avail, lag(ts_avail) OVER (ORDER BY ts_avail) AS prev FROM book_top
         WHERE instrument_id=? AND ts_avail>=? AND ts_avail<?)
         WHERE prev IS NOT NULL AND (julianday(ts_avail) - julianday(prev)) * 86400 > ?""",
                         (f"wallex:{symbol}", iso(t0), iso(t1), min_seconds)).fetchall()
-    return [(parse_ts(a), parse_ts(b)) for a, b in rows]
+    gaps = [(parse_ts(a), parse_ts(b)) for a, b in rows]
+    edge = db.c.execute("SELECT min(ts_avail), max(ts_avail) FROM book_top "
+                        "WHERE instrument_id=? AND ts_avail>=? AND ts_avail<?",
+                        (f"wallex:{symbol}", iso(t0), iso(t1))).fetchone()
+    if edge[0] is None:
+        return [(t0, t1)] if (t1 - t0).total_seconds() > min_seconds else []
+    first, last = parse_ts(edge[0]), parse_ts(edge[1])
+    if (first - t0).total_seconds() > min_seconds:
+        gaps.insert(0, (t0, first))
+    if (t1 - last).total_seconds() > min_seconds:
+        gaps.append((last, t1))
+    return gaps
 
 
 def rate_at(tops: list[BookTop], t: datetime) -> tuple[Decimal, datetime] | None:

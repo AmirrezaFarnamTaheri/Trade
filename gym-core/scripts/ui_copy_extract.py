@@ -1,7 +1,7 @@
 """Collect every English/Persian UI string pair into one sheet for a vocabulary review.
 
 The UI keeps copy in several shapes: the shared vocabulary (key: ["en", "fa"]), self-contained modules that call
-text('en', 'fa'), inline `fa ? 'fa' : 'en'` choices, and models.js's own en/fa dictionaries. This finds each
+text('en', 'fa'), inline `fa ? 'fa' : 'en'` choices. This finds each
 shape, writes ui-copy-review.csv (file, line, key, English, Persian), and lists any Persian line it could not
 pair so nothing escapes review.
 
@@ -35,11 +35,6 @@ def extract(path: Path):
     rows, unpaired = [], []
     lines = path.read_text("utf-8").splitlines()
     english_dict = {}
-    if path.name == "models.js":  # en: {...} then fa: {...} with the same keys
-        text = path.read_text("utf-8")
-        en_block = re.search(r"\ben:\s*\{(.*?)\},?\s*\n\s*fa:", text, re.DOTALL)
-        if en_block:
-            english_dict = {m.group(1): literal(m, 1) for m in DICT_ENTRY.finditer(en_block.group(1))}
     for number, line in enumerate(lines, 1):
         found = False
         for match in VOCAB.finditer(line):

@@ -147,3 +147,4 @@ def test_cached_vintage_matches_the_fold_and_sees_new_events(tmp_path):
     assert len(svc.load()[1]) == 3
     svc.disable("s", t0 + timedelta(hours=4))  # an append after the cache was filled is seen on the next call
     assert next(r for r in svc.load()[1] if r.id == "s").disabled
+
