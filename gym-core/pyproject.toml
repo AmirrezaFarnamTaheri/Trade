@@ -16,6 +16,8 @@ gymctl = "gym.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff==0.17.4"]
+# Research-only: model fitting per PRODUCT.md; never imported by the installed app or required by CI.
+research = ["numpy>=2", "scikit-learn>=1.5"]
 
 [tool.uv.build-backend]
 module-name = "gym"
