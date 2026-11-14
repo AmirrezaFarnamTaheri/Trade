@@ -124,6 +124,11 @@ class MarketDB:
 
     def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
         """Retain each fetch; latest projection may advance but cannot erase older knowledge."""
+        # Take the write lock before the first read: a read that later turns into a write fails at once, without
+        # waiting, when another process (the collector) has committed in between.
+        own = not self.c.in_transaction
+        if own:
+            self.c.execute("BEGIN IMMEDIATE")
         self.c.execute("SAVEPOINT candle_batch")
         try:
             for k in candles:
@@ -137,9 +142,13 @@ class MarketDB:
                     ON CONFLICT(instrument_id,resolution,t) DO UPDATE SET o=excluded.o,h=excluded.h,l=excluded.l,
                     c=excluded.c,v=excluded.v,fetched_at=excluded.fetched_at WHERE excluded.fetched_at>venue_candles.fetched_at""", row)
             self.c.execute("RELEASE candle_batch")
+            if own:
+                self.c.execute("COMMIT")
         except BaseException:
             self.c.execute("ROLLBACK TO candle_batch")
             self.c.execute("RELEASE candle_batch")
+            if own:
+                self.c.execute("ROLLBACK")
             raise
 
     def add_quality(self, now: datetime, symbol: str | None, flag: str, detail: str = ""):
