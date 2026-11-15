@@ -1,4 +1,4 @@
-"""U-3: the stylesheet and DESIGN.md must not drift. A new size, radius or colour goes into DESIGN.md first."""
+"""The stylesheet and DESIGN.md must not drift. A new size, radius or colour goes into DESIGN.md first."""
 import re
 from pathlib import Path
 
@@ -43,7 +43,7 @@ def test_theme_colours_match_design_colours():
 
 
 def test_scales_stay_collapsed():
-    """U-3: six type steps, four radius steps (plus round), spacing on a 4 px grid (sub-4 px hairlines allowed)."""
+    """Six type steps, four radius steps (plus round), spacing on a 4 px grid (sub-4 px hairlines allowed)."""
     sizes = {int(x) for x in re.findall(r"font-size:\s*(\d+)px", CSS)}
     assert len(sizes) <= 6, sorted(sizes)
     radii = {int(x) for x in re.findall(r"border-radius:\s*(\d+)px", CSS)}

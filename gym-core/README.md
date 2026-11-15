@@ -81,8 +81,8 @@ qualified quote and the venue rules in force, and a missing quote records NO_QUO
 
 ## Documentation and checks
 
-- [Current system status](docs/system-status.md) and [acceptance gates](docs/acceptance-status.md)
-- [Implementation plan](docs/implementation-plan.md) and [documentation index](docs/README.md)
+- [Capabilities](docs/capabilities.md), [trial log](docs/trial-log.md) and [roadmap](docs/roadmap.md)
+- [Documentation index](docs/README.md)
 - [Architecture and GUI coverage](docs/architecture.md)
 - Full command and option reference: gymctl --help and gymctl COMMAND --help
 - [Portfolio replay](docs/portfolio-replay.md), [research contracts](docs/research-workspace.md),

@@ -1,4 +1,4 @@
-"""U-4: one action table drives the CLI choices; every action is offered in the browser or named CLI-only."""
+"""One action table drives the CLI choices; every action is offered in the browser or named CLI-only."""
 import re
 from pathlib import Path
 

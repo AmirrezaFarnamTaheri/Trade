@@ -1,4 +1,4 @@
-"""P-2: the research deadline scales with the work; a window the archive volume cannot last through is refused."""
+"""The research deadline scales with the work; a window the archive volume cannot last through is refused."""
 from datetime import UTC, datetime, timedelta
 
 import pytest

@@ -1,4 +1,4 @@
-//! OD-5: admission's available amount comes from the newest observation, bounded in age, and blocks (and disarms)
+//! Admission's available amount comes from the newest observation, bounded in age, and blocks (and disarms)
 //! when the two vault journals disagree.
 use exec_core::available::{
     verified_available, Available, AvailableError, Journal, ObservedBalance,

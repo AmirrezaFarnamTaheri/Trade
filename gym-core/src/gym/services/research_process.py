@@ -15,7 +15,7 @@ from ..domain.market_models import fields
 
 DEADLINE_SECONDS = 120
 MAX_DEADLINE_SECONDS = 600
-# 500 markets and 200,000 observations replayed in 79.8 s (system-status); about 0.4 ms per observation.
+# 500 markets and 200,000 observations replayed in 79.8 s; about 0.4 ms per observation.
 SECONDS_PER_OBSERVATION = 0.0004
 DEADLINE_HEADROOM = 2.5
 DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing
@@ -62,7 +62,7 @@ def work_estimate(root, value) -> int | None:
 
 
 def deadline_for(observations: int | None) -> float:
-    """P-2: the deadline scales with the work, with headroom, between the old constant and a stated maximum."""
+    """The deadline scales with the work, with headroom, between the old constant and a stated maximum."""
     if not observations:
         return DEADLINE_SECONDS
     return float(min(MAX_DEADLINE_SECONDS,

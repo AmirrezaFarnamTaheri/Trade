@@ -1,4 +1,4 @@
-//! OD-5: a privileged-thread fault stops the whole service, and a restart comes up disarmed.
+//! A privileged-thread fault stops the whole service, and a restart comes up disarmed.
 use exec_ipc::StopMode;
 use exec_svc::{stopped_exit, supervise_privileged, StopGate};
 use std::sync::atomic::{AtomicBool, Ordering};

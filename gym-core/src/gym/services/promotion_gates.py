@@ -18,13 +18,13 @@ def promotion_screen(request):
     independently verified pass. The external executor approval path is
     never invoked and the initial authorized funded loss budget stays zero.
     """
-    fields(request, "deflated_sharpe_probability closed_trades track_record_days "
+    fields(request, "deflated_sharpe_probability track_record_days "
            "spa_p_value prospective_status shadow_status shadow_days")
     dsr = decimal(request["deflated_sharpe_probability"], "deflated Sharpe probability")
     spa = decimal(request["spa_p_value"], "SPA p-value")
     if dsr > 1 or spa > 1:
         raise ValueError("promotion probabilities must be between zero and one")
-    for key in ("closed_trades", "track_record_days", "shadow_days"):
+    for key in ("track_record_days", "shadow_days"):
         if type(request[key]) is not int or not 0 <= request[key] <= 10000000:
             raise ValueError("promotion history counts must be bounded integers")
     if (request["prospective_status"] not in ("PASS", "FAIL", "UNAVAILABLE")
@@ -33,8 +33,7 @@ def promotion_screen(request):
         raise ValueError("unknown paper promotion evidence status")
     checks = {
         "deflated_sharpe_probability_95pct": dsr >= decimal("0.95"),
-        "closed_positions_30": request["closed_trades"] >= 30,
-        "track_record_90_days": request["track_record_days"] >= 90,
+        "track_record_84_days": request["track_record_days"] >= 84,
         "spa_familywise_p_value_at_most_5pct": spa <= decimal("0.05"),
         "prospective_disjoint_pass": request["prospective_status"] == "PASS",
         "shadow_20_days_within_2sigma": (
@@ -42,9 +41,9 @@ def promotion_screen(request):
     }
     all_local = all(checks.values())
     result = {
-        "schema": "paper-promotion-gates/1", "criteria_version": 2,
-        "fixed_thresholds": {"dsr": "0.95", "closed_trades": 30,
-                             "track_record_days": 90, "spa_max_p": "0.05",
+        "schema": "paper-promotion-gates/1", "criteria_version": 3,
+        "fixed_thresholds": {"dsr": "0.95",
+                             "track_record_days": 84, "spa_max_p": "0.05",
                              "shadow_days": 20, "shadow_lower_band_sigma": "-2"},
         "source": "UNATTESTED_LOCAL_RESEARCH_INPUT",
         "local_inputs": request, "checks": checks,

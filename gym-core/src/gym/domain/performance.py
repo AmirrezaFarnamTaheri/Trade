@@ -336,7 +336,7 @@ def _sharpe_block(returns: list[float], periods_per_year: float | None, *, enhan
 
 
 def signal_attribution(result: dict) -> list[dict]:
-    """U-2: closed trades grouped by the reasons of the decision that opened them and of the one that closed them."""
+    """Closed trades grouped by the reasons of the decision that opened them and of the one that closed them."""
     def at(text):
         try:
             return iso(parse_ts(text)) if text else None

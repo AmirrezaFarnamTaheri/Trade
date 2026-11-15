@@ -54,7 +54,6 @@ uv run gymctl --data ..\data arm-preflight     # READY/BLOCKED checklist; never 
   listed hotspot grows. Lower its baseline when you split one.
 - Executor changes that touch admission, custody, reservation or arming need passing automated contract, security and recovery checks
   before they are wired (ADR 0006).
-- Add a line to `CHANGELOG.md`.
 
 ## 6. Market store schema changes
 
@@ -66,7 +65,7 @@ back.
 
 ## 7. Releases
 
-Versions follow semantic versioning in `CHANGELOG.md`. An executor bundle ships with `bundle.sha256` and a manifest
+Versions follow semantic versioning; releases are Git tags. An executor bundle ships with `bundle.sha256` and a manifest
 signed by the offline release key (`gymctl release-sign`); `Update-ReadOnlyExecutor.ps1 -Signature` refuses an
 unsigned or mismatched manifest. Attach the three SBOMs from the CI `sbom` artifact to a release. Acceptance
 evidence goes into `evidence/` as sanitised derivatives listed in `evidence/INDEX.json`.

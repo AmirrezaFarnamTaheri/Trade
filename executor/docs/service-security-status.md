@@ -56,7 +56,7 @@ venue behavior were not requalified.
 They do not add real order transport or certified protection. The failure history
 below records earlier attempts and is superseded only for the qualified set.
 
-Local unit tests, offline Windows builds, helper refusal probes and PowerShell parsing have passed for the implemented slices. Their exact integrated counts live in [acceptance status](../../gym-core/docs/acceptance-status.md). Source/token checks are not a successful installed-service round trip.
+Local unit tests, offline Windows builds, helper refusal probes and PowerShell parsing have passed for the implemented slices. Source/token checks are not a successful installed-service round trip.
 
 The ACER operator's no-capability AppContainer profile was initialized locally.
 The isolated runtime/public snapshot package passed a local startup self-check.

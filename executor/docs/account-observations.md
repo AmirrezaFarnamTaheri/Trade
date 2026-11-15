@@ -109,5 +109,5 @@ This closes protected capture/normalization of balances, fees and known orders.
 It does not establish key permissions, account ownership beyond the provisioned
 key, instrument/rule/unit epochs, complete paginated external exposure, cost
 basis, settlement, admission, arming or real submit/cancel transport. It does not
-reserve money or grant funded authority. Those requirements remain explicit in
-the [implementation plan](../../gym-core/docs/implementation-plan.md).
+reserve money or grant funded authority. Those requirements are listed in the
+[roadmap](../../gym-core/docs/roadmap.md).

@@ -1,4 +1,4 @@
-"""E-4: replayed full-universe load on the collector's real write path; the event loop must stay responsive.
+"""Replayed full-universe load on the collector's real write path; the event loop must stay responsive.
 
 Every one of 373 markets changes both book sides on every tick (the worst case: every market is written each tick)
 and prints a trade, all through `on_depth`, `on_trade` and `tick` on the event loop, with the lag sampler running.

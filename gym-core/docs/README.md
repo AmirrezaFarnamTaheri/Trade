@@ -1,15 +1,12 @@
 # Documentation
 
-Start with [system status](system-status.md), [acceptance gates](acceptance-status.md)
-and the [implementation plan](implementation-plan.md).
+Start with [capabilities](capabilities.md), the [trial log](trial-log.md) and the [roadmap](roadmap.md).
 
 ## Application and research
 
 - [Install and run](../README.md)
 - [Supported capabilities](capabilities.md)
 - [Architecture and GUI coverage](architecture.md)
-- [Interface review and refinement priorities](interface-review.md)
-- [Research design](research-design.md)
 - [Research workspace contracts](research-workspace.md)
 - [Performance metrics](metrics.md)
 - [Storage ownership](storage.md)

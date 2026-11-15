@@ -19,7 +19,8 @@ async function collectView(name, healthTask) {
   if (name === "overview") {
     try {
       await settled([["markets", api("/api/markets").then(data => { state.markets = data; renderMarkets(); })],
-        ["research", research().then(() => { state.runsLoaded = true; })], ["operate", operate()]]);
+        ["research", research().then(() => { state.runsLoaded = true; })], ["operate", operate()],
+        ["evidence", api("/api/evidence").then(data => { state.evidence = data; })]]);
     } finally { renderOverview(); }
   }
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }

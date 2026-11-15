@@ -8,7 +8,7 @@ A research and paper-trading observatory for the Wallex exchange (TMN and USDT s
   cancellation or protective-exit transport, and the funded-loss budget is zero.
 - **No established edge.** Acceptance gates are open and no paper strategy has a positive result that survived
   the validation protocol. Paper results cannot authorize capital.
-  See [acceptance status](gym-core/docs/acceptance-status.md) and [system status](gym-core/docs/system-status.md).
+  See the [trial log](gym-core/docs/trial-log.md).
 - **One venue.** Wallex is the only venue in scope; collection depends on reaching it from the host.
 
 The product goal is an autonomous trading agent. That is a goal, not a capability; [PRODUCT.md](PRODUCT.md)

@@ -213,7 +213,7 @@ def test_crash_tails_are_registered_with_their_readable_range_and_left_unchanged
 
 
 def test_no_tracked_file_is_also_ignored():
-    """G-3: an ignore rule that matches tracked files means the rules are not enforced."""
+    """An ignore rule that matches tracked files means the rules are not enforced."""
     import shutil
     import subprocess
     from pathlib import Path
@@ -228,7 +228,7 @@ def test_no_tracked_file_is_also_ignored():
 
 
 def test_doctor_reports_a_collection_gap_on_return(tmp_path):
-    """O-6: a sleep or sign-out leaves a hole in the heartbeat market; quick doctor (the alert path) reports it."""
+    """A sleep or sign-out leaves a hole in the heartbeat market; quick doctor (the alert path) reports it."""
     from datetime import UTC, datetime, timedelta
     from decimal import Decimal
 
@@ -247,7 +247,7 @@ def test_doctor_reports_a_collection_gap_on_return(tmp_path):
 
 
 def test_collector_and_backup_tasks_survive_sleep_sign_out_and_the_restart_cap():
-    """O-6: a watchdog trigger past the 999-restart cap, optional signed-out running, and backups that wake the laptop."""
+    """A watchdog trigger past the 999-restart cap, optional signed-out running, and backups that wake the laptop."""
     from pathlib import Path
     scripts = Path(__file__).resolve().parents[2] / "scripts/windows"
     collector = (scripts / "Install-Collector.ps1").read_text(encoding="utf-8")
@@ -259,19 +259,8 @@ def test_collector_and_backup_tasks_survive_sleep_sign_out_and_the_restart_cap()
         assert "-WakeToRun -StartWhenAvailable" in text, name
 
 
-def test_status_docs_agree_on_the_portfolio_revision():
-    """G-4: acceptance-status and system-status name the same portfolio engine revision."""
-    import re
-    from pathlib import Path
-    docs = Path(__file__).resolve().parents[1] / "docs"
-    accept = re.findall(r"Revision (\d+) accounting", (docs / "acceptance-status.md").read_text(encoding="utf-8"))
-    system = re.findall(r"Portfolio revision (\d+)", (docs / "system-status.md").read_text(encoding="utf-8"))
-    assert accept and system and set(accept) == set(system), (accept, system)
-
-
-def test_release_versions_agree_across_manifests_and_changelog():
-    """G-5: every manifest carries the newest dated CHANGELOG release."""
-    import re
+def test_release_versions_agree_across_manifests():
+    """Every manifest carries the same release version."""
     import tomllib
     from pathlib import Path
     root = Path(__file__).resolve().parents[2]
@@ -279,5 +268,4 @@ def test_release_versions_agree_across_manifests_and_changelog():
     versions = {"gym-core": toml("gym-core/pyproject.toml")["project"]["version"]}
     for crate in ("exec-core", "exec-ipc", "exec-store", "exec-svc", "exec-kernel-py"):
         versions[crate] = toml(f"executor/{crate}/Cargo.toml")["package"]["version"]
-    release = re.search(r"^## (\d+\.\d+\.\d+) - \d{4}-\d{2}-\d{2}$", (root / "CHANGELOG.md").read_text(encoding="utf-8"), re.MULTILINE)
-    assert release and set(versions.values()) == {release.group(1)}, versions
+    assert len(set(versions.values())) == 1, versions

@@ -1,8 +1,7 @@
 # Current capability boundaries
 
 The [architecture](architecture.md) identifies implementation owners and browser
-locations. [System status](system-status.md) records dated checks; the
-[implementation plan](implementation-plan.md) owns open work. This page describes
+locations. The [roadmap](roadmap.md) lists open work. This page describes
 the supported product boundary.
 
 | Capability | Current scope | Evidence limit |
