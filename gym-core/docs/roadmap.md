@@ -7,7 +7,8 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 
 - Follow the BTCUSDT 50-day trend rule (T6) on paper every day until the 2027-02-08 checkpoint.
 - Replay T6 through the exact paper engine.
-- Next trials use information the failed ones did not: order-book imbalance, the implied Toman premium and
+- Run T10 (registered): backfill hourly candles for USDTTMN, BTCTMN and BTCUSDT from 2023, then score it.
+- Later trials use information the failed ones did not: order-book imbalance, the implied Toman premium and
   recorded-quote microstructure, with expected value and position size as outputs.
 - Import the off-machine recorder's quote files automatically (they expire after 90 days).
 
