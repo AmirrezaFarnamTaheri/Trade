@@ -25,6 +25,33 @@ from pathlib import Path
 
 POLICY = "arm-policy.json"
 OBSERVATION_FRESH = timedelta(minutes=5)
+# ADR 0007 starting values: a first funded probe risks pocket money, never the account. The owner can change
+# every number from the workspace; nothing arms until the separate privileged approval path exists and is used.
+DEFAULT_POLICY = {"schema": 1, "venue": "wallex", "quote_asset": "USDT", "symbols": ["BTCUSDT"],
+                  "loss_cap_quote": "50", "max_order_quote": "10", "max_orders_per_day": 10,
+                  "kill": {"max_loss_quote": "20", "stale_data_seconds": 120, "max_open_orders": 2},
+                  "expires_days": 7}
+
+
+def read_policy(root: Path):
+    """The saved owner policy, or None; invalid JSON surfaces as an error, never as a silent default."""
+    path = Path(root) / POLICY
+    if not path.is_file():
+        return None
+    return json.loads(path.read_bytes())
+
+
+def save_policy(root: Path, policy: object) -> str:
+    """Validate and atomically write the owner policy; returns its sha256 (the digest the arm record binds)."""
+    problems = validate_policy(policy)
+    if problems:
+        raise ValueError("; ".join(problems))
+    raw = json.dumps(policy, indent=2, sort_keys=True).encode() + b"\n"
+    path = Path(root) / POLICY
+    stage = path.with_suffix(".json.tmp")
+    stage.write_bytes(raw)
+    stage.replace(path)
+    return hashlib.sha256(raw).hexdigest()
 
 
 def _item(name, ok, detail):

@@ -492,6 +492,8 @@ Object.assign(vocabulary, {
   rsCheckDeferredMetaLabelEvidenceThreshold: ["Check deferred meta-label evidence threshold", "آستانهٔ شواهد برچسب‌گذاری ثانویه"],
   rsSimulateAMatchedLongShortMargin: ["Simulate a matched long/short margin pair", "بازپخش آزمایشی جفت خرید و فروش اعتباری"],
   rsTestCausalLeadLagAlignment: ["Test causal lead-lag alignment", "بررسی تقدم و تأخر علّی"],
+  rsReadArmPolicyAndPreflight: ["Read the arm policy and preflight checklist", "خواندن سیاست مسلح‌سازی و چک‌لیست پیش‌پرواز"],
+  rsSaveArmPolicy: ["Save the owner arm policy (loss cap and kill rules)", "ذخیره سیاست مسلح‌سازی مالک (سقف زیان و قواعد توقف)"],
   rsReadCreditPackages: ["Read public trading-credit packages", "خواندن بسته‌های عمومی اعتبار معاملاتی"],
   rsReplayCreditPackage: ["Replay a trading-credit package on recorded quotes", "بازپخش یک بستهٔ اعتبار معاملاتی روی قیمت‌های ثبت‌شده"],
   rsPreviewPaperStopOrder: ["Replay a venue stop order on recorded trades", "بازپخش سفارش توقف صرافی روی معاملات ثبت‌شده"],

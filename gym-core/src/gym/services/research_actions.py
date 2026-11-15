@@ -40,7 +40,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "arm-policy-read", "arm-policy-save", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 # One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
@@ -66,7 +66,7 @@ CLI_ONLY_ACTIONS = {
 }
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
-                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "credit-packages", "prospective-status", "prospective-evaluate")]))
+                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "credit-packages", "prospective-status", "prospective-evaluate", "arm-policy-read")]))
 
 
 def _market_db(root):
@@ -571,6 +571,20 @@ def _research_action_protocol_actions(root, action, value, store, at):
             db.c.close()
 
 
+def _research_action_arm_policy(root, action, value, store, at):
+    """Owner arm-policy configuration (ADR 0007). Writes a file the privileged arm path would bind by hash;
+    it grants no authority: the executor stays disarmed and no arm request exists."""
+    from .arm_preflight import DEFAULT_POLICY, preflight, read_policy, save_policy
+    if store != "live":
+        raise ValueError("the arm policy belongs to the live workspace only")
+    if action == "arm-policy-read":
+        if value is not None:
+            raise ValueError("arm-policy-read takes no value")
+        return {"policy": read_policy(root), "default": DEFAULT_POLICY, "preflight": preflight(root, now_utc())}
+    digest = save_policy(root, value)
+    return {"saved": True, "policy_sha256": digest, "preflight": preflight(root, now_utc())}
+
+
 def _research_action_credit(root, action, value, store, at):
     from .credit import credit_action
     return credit_action(root, action, value, store=store)
@@ -614,6 +628,7 @@ _RESEARCH_HANDLERS = (
     (frozenset(('premium-research', 'lead-lag-research')), _research_action_premium_research),
     (frozenset(('twap-preview', 'execution-choice-preview', 'adaptive-twap-preview')), _research_action_twap_preview),
     (frozenset(('stop-preview',)), _research_action_stop_preview),
+    (frozenset(('arm-policy-read', 'arm-policy-save')), _research_action_arm_policy),
     (frozenset(('credit-packages', 'credit-replay')), _research_action_credit),
     (frozenset(('fairprice-observe', 'fairprice-read')), _research_action_fairprice_observe),
     (frozenset(('feed-divergence-screen', 'feed-divergence-lock')), _research_action_feed_divergence_screen),
