@@ -289,7 +289,14 @@ def history_cmd(args) -> int:
                     total, empty, hi = 0, 0, end
                     while hi > start and empty < 3:
                         lo = max(start, hi - page)
-                        got = await collector.fetch_candles(session, symbol, args.resolution, lo, hi)
+                        for attempt in range(3):
+                            failed = collector.candle_errors
+                            got = await collector.fetch_candles(session, symbol, args.resolution, lo, hi)
+                            if collector.candle_errors == failed:
+                                break
+                            await asyncio.sleep(2 * attempt)
+                        else:
+                            raise ValueError(f"venue history unreadable for {symbol} at {iso(lo)}; stopped after {total} candles")
                         total, empty, hi = total + got, 0 if got else empty + 1, lo
                     totals[symbol] = total
                     print(f"{symbol} {args.resolution}: {total} candles", file=sys.stderr)

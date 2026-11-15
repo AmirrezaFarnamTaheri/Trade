@@ -141,6 +141,7 @@ class Collector:
                  lim: QualityLimits = QualityLimits(), asset_count: int | None = None,
                  add_symbols: tuple[str, ...] = (), remove_symbols: tuple[str, ...] = (), depth_levels: int = 0,
                  archive: tuple[Path, int] | None = None):
+        self.candle_errors = 0  # failed history reads; a backfill must not take an outage for "no data"
         if type(depth_levels) is not int or not 0 <= depth_levels <= 20:
             raise ValueError("depth levels must be 0..20")
         self.db, self.seg, self.demo, self.lim = db, seg, demo, lim
@@ -536,6 +537,7 @@ class Collector:
             candles = wallex.parse_udf(raw)
         except (TimeoutError, aiohttp.ClientError, ValueError) as e:
             self.quality(now, symbol, "SOURCE_ERROR", f"udf history: {type(e).__name__}: {e}")
+            self.candle_errors += 1
             return 0
         self.db.upsert_candles(symbol, resolution, candles, now)
         return len(candles)

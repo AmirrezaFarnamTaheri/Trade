@@ -38,3 +38,17 @@ def test_history_page_never_crosses_the_start(tmp_path, monkeypatch, capsys):
     assert calls[-1][0] == datetime(2026, 10, 1, tzinfo=UTC) and len(calls) == 2
     assert calls[0] == (datetime(2026, 10, 11, 4, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC))
     assert calls[1][1] == calls[0][0]
+
+
+def test_an_unreachable_venue_is_an_error_not_an_empty_history(tmp_path, monkeypatch):
+    async def unreachable(self, session, path, **params):
+        raise TimeoutError("no answer")
+
+    monkeypatch.setattr(Collector, "rest_text", unreachable)
+    monkeypatch.setattr("asyncio.sleep", lambda seconds: _done())
+    assert main(["--data", str(tmp_path), "history", "USDTTMN", "--from", "2026-10-01T00:00:00Z",
+                 "--to", "2026-11-01T00:00:00Z"]) != 0
+
+
+async def _done():
+    return None
