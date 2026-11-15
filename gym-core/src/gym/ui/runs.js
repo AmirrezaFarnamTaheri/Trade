@@ -26,7 +26,7 @@ function performancePanel(perf, quote) {
     <details class="disclosure" data-key="metric-glossary"><summary>${esc(t("glossaryTitle"))}</summary><ul class="glossary">${GLOSSARY.map(key => `<li>${esc(t(key))}</li>`).join("")}</ul></details></section>
     <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("tradesTitle"))} <span class="muted">${esc(quote)}</span></h3>${trades.length ? `<button type="button" class="button button-small" data-csv="trades">${esc(t("downloadCsv"))}</button>` : ""}</div><div class="cards">${table(heads, trades.slice(0, 25), t("noTrades"), numeric)}</div>${trades.length > 25 ? `<details class="disclosure" data-key="trades-more"><summary>${esc(t("showMore"))} · ${digits(trades.length - 25)}</summary>${table(heads, trades.slice(25), "", numeric)}</details>` : ""}</section>${attributionPanel(perf, quote)}`;
 }
-/** U-2: closed trades by the signal that opened and the one that closed them (Freqtrade's entry/exit tag analysis). */
+/** Closed trades by the signal that opened and the one that closed them (Freqtrade's entry/exit tag analysis). */
 function attributionPanel(perf, quote) {
   const rows = list(perf.attribution);
   if (!rows.length) return "";

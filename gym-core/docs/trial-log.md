@@ -28,6 +28,19 @@ rates from `/v2/structured-fee` (Toman markets 0.25% maker, 0.30% taker; USDT ma
 - T9 and T6 agree on the weak point: outside 2024 the trend rule lost money in both later years, on one coin and on ten. The T6 pass is one year's result.
 - The screens use floating point. Anything that passes is replayed in the exact paper engine before it counts.
 
+## Why they lost
+
+| Idea | Cause | What would have to change |
+| --- | --- | --- |
+| Intraday reversion (T1) | No effect to harvest: the gross edge was about zero before any fee. | A different signal, not a cheaper fee. |
+| Quoting thin markets (T2) | Wide spreads are wide because the resting side is picked off; where the sums were positive the touch held 15 to 32 USDT. | Size, which those markets do not have. |
+| Price gaps (T3, T5, T7) | The gap is smaller than the cost of crossing it: three taker fees (T3), a 0.97% spread (T5), a 0.75% to 1.4% markup (T7). | A fee tier or product the account does not have. |
+| Daily trend (T4, T6, T9) | The trend rule earns in a strong rising year and gives part back otherwise; daily rebalancing of ten coins cost 14% over the scored period. | Evidence from a period nobody has seen, which is the forward record. |
+| Fitted model (T8) | Price and volume history alone did not predict the next five days. | Inputs the failed trials did not use: order-book imbalance, the implied Toman premium. |
+
+Round-trip cost on this account is 0.20% in fees plus the spread. Every short-horizon idea so far had a gross edge
+below that, so the remaining candidates are slow rules (few trades) or signals with new information.
+
 ## Forward record
 
 T6 earned a prospective paper run, which started on 2026-11-14 for BTCUSDT with 1,000 USDT of paper cash:

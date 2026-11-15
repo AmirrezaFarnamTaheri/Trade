@@ -235,6 +235,10 @@ function stop(child) {
   await until(() => evaluate('!document.querySelector("#connection-error").hidden && document.querySelector("#connection-error-detail").textContent.includes("markets")'), 'named failing source');
   await evaluate('window.__restoreFetch(); document.querySelector("#retry").click()');
   await until(() => evaluate('document.querySelector("#connection-error").hidden'), 'banner clears after recovery');
+  await until(() => evaluate('document.querySelectorAll("#overview-answer .answer-stats .stat").length === 4 && document.querySelectorAll("#overview-answer .answer-trials tbody tr").length >= 9'), 'answer panel lists every registered trial');
+  assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'overview does not overflow');
+  await evaluate('document.querySelector("#overview-answer details").open = true');
+  await screenshot('overview-answer.png');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
     accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus,

@@ -66,7 +66,6 @@ The hosted-VM test covers its documented disposable SCM/ACL checks only. A local
 WSL restore proves cross-OS portability on the same hardware; loss-of-machine
 recovery still needs a separately controlled machine and credential reprovisioning.
 
-See [current security status](service-security-status.md) and
-[acceptance status](../../gym-core/docs/acceptance-status.md). Real venue
+See [current security status](service-security-status.md). Real venue
 submission/cancel/reconciliation, trusted T1 approvals and certified protective
 exits remain separate integration work. Do not use this service to protect a funded position.

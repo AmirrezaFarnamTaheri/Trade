@@ -152,7 +152,7 @@ def test_cli_protocol_uses_real_clock_and_preserves_cutoff_reads(tmp_path, capsy
 
 
 def test_cost_declaration_refuses_dead_strategies_and_binds_into_identity(tmp_path):
-    """TS-3: declared turnover and costs are checked before any window is spent."""
+    """Declared turnover and costs are checked before any window is spent."""
     clock = {"at": START - timedelta(minutes=5)}
     dead = {"trades_per_month": 40, "roundtrip_cost_bps": "45", "expected_gross_edge_bps": "30"}
     alive = {"trades_per_month": 40, "roundtrip_cost_bps": "45", "expected_gross_edge_bps": "60"}

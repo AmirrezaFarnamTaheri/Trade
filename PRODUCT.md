@@ -66,9 +66,9 @@ Preserve English/Persian and correct RTL layout, keyboard access, visible focus,
 
 ## Current delivery contract
 
-The current [implementation plan](gym-core/docs/implementation-plan.md),
-[system status](gym-core/docs/system-status.md) and
-[acceptance gates](gym-core/docs/acceptance-status.md) own delivery state.
+[Capabilities](gym-core/docs/capabilities.md) states what works today, the
+[trial log](gym-core/docs/trial-log.md) holds every tested idea and its result, and the
+[roadmap](gym-core/docs/roadmap.md) lists open work.
 - Observe the eligible public market universe and expose selection, exclusions,
   per-market freshness, missing periods and receipt-time knowledge separately.
 - Keep exact SQL observations and raw archives, immutable run identities, failed

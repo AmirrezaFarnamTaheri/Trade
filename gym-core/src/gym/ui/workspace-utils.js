@@ -32,7 +32,7 @@ function systemTheme() {
   catch (_) { return "light"; }
 }
 let theme = saved("theme", systemTheme(), ["light", "dark"]);
-/** U-7: timestamps follow a stored zone preference (Tehran, the venue's calendar, or UTC, as exports use). */
+/** Timestamps follow a stored zone preference (Tehran, the venue's calendar, or UTC, as exports use). */
 let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);
 const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [], runCount: 50, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,

@@ -243,7 +243,7 @@ def test_benchmark_tracking_error_does_linear_mean_work(monkeypatch):
 
 
 def test_signal_attribution_groups_trades_by_entry_and_exit_reasons():
-    """U-2: per-signal attribution joins each closed trade to the decisions that opened and closed it."""
+    """Per-signal attribution joins each closed trade to the decisions that opened and closed it."""
     from gym.domain.performance import signal_attribution
     t = [f"2026-11-01T00:0{i}:00Z" for i in range(8)]
     decisions = [{"t": t[0], "reasons": ["cross up"]}, {"t": t[2], "reasons": ["cross down"]},

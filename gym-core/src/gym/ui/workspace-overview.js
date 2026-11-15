@@ -25,8 +25,29 @@ function applyLang() {
   if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, stamp: stampHtml, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, stamp: stampHtml, curveFigure, strategyFields}); }
 }
 
+/** The governing question first: the tally of tested ideas, the forward paper record, then each idea's verdict. */
+function renderAnswer() {
+  const value = state.evidence;
+  if (!value || value.state !== "READY") return setHTML("overview-answer", empty(t(value ? "answerNoLog" : "loading")));
+  const tally = value.tally, forward = value.forward, kinds = { FAIL: "bad", NARROW_PASS: "warn", PASS: "ok", OPEN: "warn" };
+  const headline = tally.PASS ? "answerPassed" : tally.NARROW_PASS ? "answerNarrow" : "answerNone";
+  const plain = text => esc(String(text).replace(/\*\*|`/g, ""));
+  const change = forward ? Number(forward.equity) - Number(forward.start_equity) : 0;
+  setHTML("overview-answer", `<p class="answer-headline">${esc(t(headline))}</p><div class="stats answer-stats">`
+    + stat(t("answerRegistered"), num(tally.registered), t("answerRegisteredNote"))
+    + stat(t("answerFailed"), num(tally.FAIL), t("answerFailedNote"))
+    + stat(t("answerNarrowCount"), num(tally.NARROW_PASS + tally.PASS), t("answerNarrowNote"))
+    + stat(t("answerForward"), forward ? `${num(forward.days)} <small>${esc(t("answerDays"))}</small>` : esc(t("none")),
+      forward ? `${code(forward.symbol)} · ${t(forward.in_market ? "answerInMarket" : "answerInCash")} · ${change >= 0 ? "+" : ""}${change.toFixed(2)} USDT` : t("answerForwardNone"))
+    + `</div><details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
+    + table([t("answerTrial"), t("answerHypothesis"), t("answerVerdict")], value.trials.map(row => [
+      `${code(row.id)} <small class="muted">${esc(row.registered)}</small>`, `<span dir="ltr">${plain(row.hypothesis)}</span>`,
+      chip(t(`verdict${row.verdict}`), kinds[row.verdict])]), t("nothing")) + "</details>");
+}
+
 /** Summarize qualified markets and saved paper evidence without making profit claims. */
 function renderOverview() {
+  renderAnswer();
   const markets = list(state.markets?.markets), latest = state.runs[0];
   setHTML("overview-summary", stat(t("observedPairs"), state.markets ? num(markets.length) : t("none"), t("observedPairsNote"))
     + stat(t("healthyQuotes"), state.markets ? num(markets.filter(healthyQuote).length) : t("none"), t("healthyQuotesNote"))

@@ -62,8 +62,7 @@ Restart DISARMED and reconcile the venue before considering future authority.
 
 **Not yet implemented:** automated privileged off-machine schedule/retention,
 independent manifest attestation, signed migration installation and rollback,
-and B1 service-owned credentials. Cross-OS restore was rehearsed in WSL2 (see
-acceptance-status.md).
+and B1 service-owned credentials. Cross-OS restore was rehearsed in WSL2.
 Do not close B3 or merge for funded trading on synthetic results alone.
 
 

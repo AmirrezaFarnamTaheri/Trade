@@ -56,7 +56,7 @@ HEARTBEAT = "wallex:USDTTMN"  # the busiest TMN leg; the collector also writes h
 
 
 def _gaps(db, now: datetime):
-    """O-6: the longest hole in the last 24 hours of collection, so a sleep, sign-out or crash is reported on return."""
+    """The longest hole in the last 24 hours of collection, so a sleep, sign-out or crash is reported on return."""
     since = (now - timedelta(days=1)).astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
     rows = [r[0] for r in db.c.execute("SELECT ts_avail FROM book_top WHERE instrument_id=? AND ts_avail>=? "
                                        "ORDER BY ts_avail", (HEARTBEAT, since))]

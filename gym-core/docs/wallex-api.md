@@ -51,9 +51,8 @@ venue orders require the separately implemented and qualified protected transpor
 They are unavailable in the current application. Exact intent must be durable
 before first send, unresolved sends must survive restart, and unknown orders must
 retain reservations until reconciliation. Withdrawals and account-money movement
-are outside ordinary strategy authority. Current gates are in
-[acceptance status](acceptance-status.md) and the
-[implementation plan](implementation-plan.md).
+are outside ordinary strategy authority. The wiring order is in
+[ADR 0007](../../docs/adr/0007-wiring-the-funded-path-behind-an-arm-button.md).
 
 ## Official reference cross-check
 

@@ -136,6 +136,9 @@ Order-type rules (spot-types page):
 - **STOP_LIMIT / STOP_MARKET**: if the stop is below the last trade at creation, the order activates when
   the last trade falls to or below the stop; if above, when it rises to or above. Once active it behaves as
   LIMIT or MARKET.
+  Checked live on 2026-11-15 with one BTCTMN sell stop about 6% below the market: accepted with status `NEW`
+  and `stopPriceCondition` `<=`, cancelled with `DELETE`. **The balance was not locked while the stop waited**
+  (`locked` stayed 0), so a waiting stop does not reserve the coins it would sell.
 
 A rejected order (HTTP 422) carries `result.error_code` (older reference): 1001 price precision, 1002 quantity
 precision, 1003 a MARKET order with a price, 1004 below the minimum quantity, 1005 quantity or total required,

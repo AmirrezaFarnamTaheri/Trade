@@ -1,4 +1,4 @@
-"""P-2: refuse to start a prospective window that the archive volume cannot last through.
+"""Refuse to start a prospective window that the archive volume cannot last through.
 
 A preregistered evaluation needs collection to run until its test window closes. If the last day's archive growth
 says the volume reaches the 5 GiB floor (where collection stops) before then, the window would be voided, so the

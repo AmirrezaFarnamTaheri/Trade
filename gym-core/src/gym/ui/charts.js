@@ -136,7 +136,7 @@ function waterfallFigure(entries, quote) {
     `<span><strong class="${step.value < 0 ? "neg" : "pos"}" dir="ltr">${esc(tick(step.value))}</strong><small>${label(step.key)}</small></span>`).join("")}</div></figure>`;
 }
 
-/* S-13: geometry is set through the DOM, never as a style attribute, so the CSP needs no 'unsafe-inline' styles. */
+/* Geometry is set through the DOM, never as a style attribute, so the CSP needs no 'unsafe-inline' styles. */
 function applyChartGeometry(root) {
   if (!root || typeof root.querySelectorAll !== "function") return;
   for (const marker of root.querySelectorAll("[data-left]")) marker.style.left = `${marker.dataset.left}%`;

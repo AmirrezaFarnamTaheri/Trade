@@ -111,7 +111,7 @@ def test_persian_copy_outside_the_vocabulary_does_not_grow():
     the table down); adding inline Persian anywhere else fails here.
     """
     import re
-    # U-7: all Persian copy lives in workspace-config.js; index.html keeps its initial toggle label and <noscript>.
+    # All Persian copy lives in workspace-config.js; index.html keeps its initial toggle label and <noscript>.
     allowed = {"index.html": 2}
     persian = re.compile("[\u0600-\u06ff]")
     for path in [*sorted(UI.with_name("app.js").parent.glob("*.js")), UI.with_name("index.html")]:
@@ -140,7 +140,7 @@ def test_copy_review_extract_covers_the_ui(tmp_path):
 
 
 def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
-    """S-13: geometry goes through the DOM style API; markup never carries a style attribute."""
+    """Geometry goes through the DOM style API; markup never carries a style attribute."""
     import re
 
     from gym.api import SECURITY_HEADERS
@@ -152,7 +152,7 @@ def test_csp_allows_no_inline_styles_and_the_ui_writes_none():
 
 
 def test_timestamps_carry_the_iso_instant_and_follow_the_zone_preference():
-    """U-7: every rendered timestamp has an ISO tooltip; the zone is a stored preference (Tehran or UTC)."""
+    """Every rendered timestamp has an ISO tooltip; the zone is a stored preference (Tehran or UTC)."""
     ui = Path(__file__).resolve().parents[1] / "src/gym/ui"
     utils = (ui / "workspace-utils.js").read_text(encoding="utf-8")
     assert 'let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);' in utils

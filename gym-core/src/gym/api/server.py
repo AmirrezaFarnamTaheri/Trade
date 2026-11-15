@@ -24,6 +24,7 @@ from ..domain.sim import CostModel
 from ..services.backup_status import status as backup_status
 from ..services.capabilities import market_catalog, workspace_capabilities
 from ..services.collector import Collector
+from ..services.evidence import evidence
 from ..services.external_journal import ExternalJournal
 from ..services.liquidity import liquidity_snapshot
 from ..services.offline_review_journal import OfflineReviewJournal
@@ -480,6 +481,9 @@ class _WorkspaceApi:
             return web.json_response({"error": str(error)}, status=400)
         return web.json_response(value)
 
+    async def evidence_api(self, req):
+        return web.json_response(await asyncio.to_thread(evidence, None if self.runs is None else self.runs.parent))
+
     async def backup_status_api(self, req):
         if self.runs is None:
             return web.json_response({"state": "NOT_CONFIGURED"})
@@ -504,7 +508,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.get("/", api.index), *(web.get("/" + asset, api.browser_asset) for asset in UI_ASSETS),
         web.get("/api/markets", api.markets), web.get("/api/health", api.health), web.get("/api/ready", api.ready),
         web.get("/api/capabilities", api.capabilities),
-        web.get("/api/backup-status", api.backup_status_api), web.get("/api/timeline", api.timeline_api),
+        web.get("/api/backup-status", api.backup_status_api), web.get("/api/evidence", api.evidence_api), web.get("/api/timeline", api.timeline_api),
         web.get("/api/account-observations", api.account_observations),
         web.get("/api/external-order-events", api.external_events),
         web.get("/api/venue-facts", api.venue_facts_api), web.get("/api/chaos-report", api.chaos_report_api),

@@ -53,4 +53,4 @@ the disk.
 ## Acceptance status
 
 Rehearse a clean rebuild in an isolated folder or disposable VM, verify the restored chain and bytes,
-record elapsed time, and confirm DISARMED startup. See `acceptance-status.md`.
+record elapsed time, and confirm DISARMED startup.

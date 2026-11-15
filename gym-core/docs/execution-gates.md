@@ -62,7 +62,7 @@ opt-in so older run IDs and research receipts retain their meaning.
   demotion recommendation. No always-on scheduler, independent provenance or
   live registry demotion is claimed.
 - **41:** Fixed local thresholds include DSR probability at least 0.95, at least
-  30 closed positions and 90 days' history, SPA-style p at most 0.05,
+  84 days' history (twelve weeks, so a daily rule can reach it), SPA-style p at most 0.05,
   successful prospective study and at least 20 compliant shadow days.
   Self-reported figures are **never** independent evidence and never pass the
   protected executor's approval gates. No funded permission is possible here.

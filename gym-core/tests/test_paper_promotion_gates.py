@@ -63,7 +63,7 @@ def test_shadow_does_not_consume_later_as_of_prices():
 
 def gates(**changes):
     """All evidence values here are local claims; none is independent approval."""
-    row = {"deflated_sharpe_probability": "0.97", "closed_trades": 310,
+    row = {"deflated_sharpe_probability": "0.97",
            "track_record_days": 92, "spa_p_value": "0.02",
            "prospective_status": "PASS", "shadow_status": "WITHIN_BAND",
            "shadow_days": 22}
@@ -81,7 +81,7 @@ def test_fixed_promotion_gates_never_grant_funded_or_operator_authority():
     assert gates(shadow_status="PAPER_ONLY_DEMOTION")["local_criteria_pass"] is False
     assert gates(spa_p_value="0.08")["local_criteria_pass"] is False
     assert gates(deflated_sharpe_probability="0.92")["local_criteria_pass"] is False
-    assert gates(closed_trades=29)["local_criteria_pass"] is False
+    assert gates(track_record_days=83)["local_criteria_pass"] is False
 
 
 @pytest.mark.parametrize("value", ["NaN", "1.2", -1, True])
