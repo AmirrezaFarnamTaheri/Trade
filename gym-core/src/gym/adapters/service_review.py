@@ -5,14 +5,14 @@ import re
 import secrets
 import subprocess
 
-from ..contracts.review_wire import REPLY_SIZE, decode_reply, encode_request
+from ..contracts.review_wire import REPLY_SIZE, decode_reply_v2, encode_request_v2
 from .service_account_read import _helper_path
 from .wallex_account_read import ReadUncertain, parse_account_json
 
 
 async def review(request):
     correlation = secrets.token_bytes(16)
-    frame = encode_request(request, correlation)
+    frame = encode_request_v2(request, correlation)
     process = None
     try:
         helper = _helper_path("gym-review.exe")
@@ -54,7 +54,7 @@ async def review(request):
                 rf"[0-9a-f]{{{REPLY_SIZE * 2}}}", value
             ):
                 raise ReadUncertain("invalid native review body")
-            return decode_reply(bytes.fromhex(value), correlation, request)
+            return decode_reply_v2(bytes.fromhex(value), correlation, request)
     except (OSError, TimeoutError):
         raise ReadUncertain(
             "native review unavailable or timed out; a change may have committed; inspect before retry"

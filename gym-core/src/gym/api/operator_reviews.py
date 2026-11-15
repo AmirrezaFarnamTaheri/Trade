@@ -6,7 +6,7 @@ from aiohttp import web
 
 from ..adapters.service_review import review
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
-from ..contracts.review_wire import encode_request
+from ..contracts.review_wire import encode_request_v2
 from . import finish
 
 
@@ -40,7 +40,7 @@ def install(app, *, enabled):
         else:
             value = {"action": "status"}
         try:
-            encode_request(value, bytes([1]) * 16)
+            encode_request_v2(value, bytes([1]) * 16)
         except ValueError:
             return web.json_response(
                 {"error": "invalid native review fields or envelope"}, status=400

@@ -216,6 +216,24 @@ def encode_request(value, correlation):
     return bytes(raw)
 
 
+def encode_request_v2(value, correlation):
+    """New approvals/preparations use the venue's submit grammar; legacy reads still work."""
+    raw = encode_request(value, correlation)
+    if value["action"] in ("approve", "prepare"):
+        identity = value["ticket"]["client_id"] if value["action"] == "approve" else value["client_id"]
+        if not re.fullmatch(r"[A-Za-z0-9_]{1,64}", identity):
+            raise ValueError("invalid v2 submit client_id")
+    return b"TGREVW02" + raw[8:]
+
+
+def decode_reply_v2(raw, correlation, request):
+    """Reject cross-version receipts before validating the common exact fields."""
+    encode_request_v2(request, correlation)
+    if type(raw) is not bytes or raw[:8] != b"TGREPLY2":
+        raise ValueError("invalid v2 review reply")
+    return decode_reply(b"TGREPLY1" + raw[8:], correlation, request)
+
+
 def decode_reply(raw, correlation, request):
     if (
         type(raw) is not bytes

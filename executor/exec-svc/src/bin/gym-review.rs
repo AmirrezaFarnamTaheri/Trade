@@ -40,6 +40,7 @@ fn main() {
 #[cfg(windows)]
 fn exchange() -> Result<Vec<u8>, ()> {
     use exec_ipc::review::*;
+    use exec_ipc::review_v2::{ReplyV2, RequestV2};
     use exec_svc::windows_control;
     use std::{
         fs::File,
@@ -53,7 +54,7 @@ fn exchange() -> Result<Vec<u8>, ()> {
         .take(REQUEST_SIZE as u64 + 1)
         .read_to_end(&mut input)
         .map_err(|_| ())?;
-    let request = Request::decode(&input).map_err(|_| ())?;
+    let request = RequestV2::decode(&input).map_err(|_| ())?;
     let pinned = windows_control::pin_readonly().map_err(|_| ())?;
     let name: Vec<u16> = PIPE.encode_utf16().chain(Some(0)).collect();
     let raw = unsafe {
@@ -76,8 +77,7 @@ fn exchange() -> Result<Vec<u8>, ()> {
     pipe.write_all(&input).map_err(|_| ())?;
     let mut raw = vec![0; REPLY_SIZE];
     pipe.read_exact(&mut raw).map_err(|_| ())?;
-    let reply = Reply::decode(&raw, request.correlation).map_err(|_| ())?;
-    reply.validate_for(&request).map_err(|_| ())?;
+    ReplyV2::decode_for(&raw, &request).map_err(|_| ())?;
     pinned.verify().map_err(|_| ())?;
     windows_control::authenticate_pipe(pipe.as_handle(), pinned.pid).map_err(|_| ())?;
     Ok(raw)
