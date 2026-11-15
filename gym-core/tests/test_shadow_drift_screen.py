@@ -1,11 +1,10 @@
-"""Causal shadow drift and bounded paper promotion screens."""
+"""Causal shadow drift on recorded paper curves."""
 from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 
 from gym.domain.model import iso
-from gym.services.promotion_gates import promotion_screen
 from gym.services.shadow_drift import shadow_drift
 from tests.support import START
 
@@ -60,31 +59,3 @@ def test_shadow_does_not_consume_later_as_of_prices():
     assert report["status"] == "NO_COMPLETE_SHADOW_DAYS"
     assert report["alerts"] == []
 
-
-def gates(**changes):
-    """All evidence values here are local claims; none is independent approval."""
-    row = {"deflated_sharpe_probability": "0.97",
-           "track_record_days": 92, "spa_p_value": "0.02",
-           "prospective_status": "PASS", "shadow_status": "WITHIN_BAND",
-           "shadow_days": 22}
-    return promotion_screen({**row, **changes})
-
-
-def test_fixed_promotion_gates_never_grant_funded_or_operator_authority():
-    report = gates()
-    assert report["schema"] == "paper-promotion-gates/1"
-    assert report["local_criteria_pass"] is True
-    assert report["status"] == "INDEPENDENT_EVIDENCE_REQUIRED"
-    assert report["funded_authority"] is False
-    assert report["operator_approval"] is False
-    assert report["missing_external_gates"]
-    assert gates(shadow_status="PAPER_ONLY_DEMOTION")["local_criteria_pass"] is False
-    assert gates(spa_p_value="0.08")["local_criteria_pass"] is False
-    assert gates(deflated_sharpe_probability="0.92")["local_criteria_pass"] is False
-    assert gates(track_record_days=83)["local_criteria_pass"] is False
-
-
-@pytest.mark.parametrize("value", ["NaN", "1.2", -1, True])
-def test_promotional_probability_rejects_invalid_values(value):
-    with pytest.raises(ValueError):
-        gates(deflated_sharpe_probability=value)

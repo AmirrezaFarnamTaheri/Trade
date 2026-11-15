@@ -34,7 +34,7 @@ if ($previousUser -in ($trusted + @($serviceSid))) { throw 'Previous operator is
 # Invalidate before changing helper grants, so interrupted rebinding cannot reuse the old logon.
 $logonPath = Join-Path $code 'stop-logon.sid'
 Remove-Item -LiteralPath $logonPath -Force -ErrorAction Stop
-foreach ($path in @($root, $code, (Join-Path $code 'gym-stopctl.exe'), (Join-Path $code 'gym-hardstop.exe'), (Join-Path $code 'gym-review.exe'), (Join-Path $code 'gym-research-worker.exe'))) {
+foreach ($path in @($root, $code, (Join-Path $code 'gym-stopctl.exe'), (Join-Path $code 'gym-hardstop.exe'), (Join-Path $code 'gym-review.exe'))) {
     $item = Get-Item -LiteralPath $path
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked helper path.' }
     if ($previousUser -ne $userSid) {

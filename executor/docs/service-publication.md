@@ -7,7 +7,7 @@ reset journals or qualify the new runtime. An elevated administrator is required
 
 The bundle contains exactly these names: `gym-executor.exe`, `gym-stopctl.exe`,
 `gym-hardstop.exe`, `gym-provision.exe`, `gym-account-read.exe`, `gym-ceiling.exe`,
-`gym-review.exe` and `gym-research-worker.exe`. The bounded manifest has one line
+`gym-review.exe`. The bounded manifest has one line
 per member: its SHA-256 hex digest, two spaces and its exact lowercase filename.
 Unknown names, duplicates, missing members and paths in filenames are refused.
 This manifest pins explicitly reviewed bytes; it is not publisher signature
