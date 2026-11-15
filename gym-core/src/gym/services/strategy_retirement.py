@@ -1,4 +1,4 @@
-"""Evidence-gated retirement and meta-label eligibility.
+"""Evidence-gated strategy retirement.
 
 A cherry-picked list of local paper results cannot alter the strategy
 catalog or independently certify a prospective comparison. This module
@@ -64,20 +64,6 @@ def assess_retirement(rows, universe, *, independent_final=False):
                   "Insufficient closed trades, stale valuation, demo or unready rows are not failures against the baseline."]}
     result["report_id"] = digest(result)[:16]
     return result
-
-
-def meta_label_eligibility(closed_trades):
-    """Enforce the deferred logistic meta-label experiment's 300-trade minimum."""
-    if type(closed_trades) is not int or not 0 <= closed_trades <= 10**9:
-        raise ValueError("meta-label counts need a nonnegative bounded integer")
-    return {"schema": "meta-label-eligibility/1", "closed_trades": closed_trades,
-            "minimum_closed_trades": 300,
-            "status": "DEFERRED" if closed_trades < 300 else "RESEARCH_ELIGIBLE_NOT_TRAINED",
-            "calibration_evaluated": False, "model_trained": False,
-            "automatically_selectable": False, "funded_authority": False,
-            "reason": ("Fewer than 300 verified closed trades"
-                       if closed_trades < 300 else
-                       "Count alone cannot establish labels, calibration, prospective results or independent custody")}
 
 
 def screen_verified_retirement(root, request, *, store):

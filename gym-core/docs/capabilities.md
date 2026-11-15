@@ -21,7 +21,7 @@ the supported product boundary.
 | Protected executor | Native custody, operator intent, preparation, journals and emergency-stop foundations | Installed evidence is dated; funded admission and transport remain open |
 | Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or runtime readiness |
 
-Predictive ML/RL training is paper-only; models may be fitted on historical data, with every fit registered and counted as a trial (see PRODUCT.md). The `meta-label-eligibility` report still applies its own 300-closed-trade threshold to that one model family. Unrelated donor runtimes and automatic paid requests are outside accepted scope.
+Predictive ML/RL training is paper-only; models may be fitted on historical data, with every fit registered and counted as a trial (see PRODUCT.md). Unrelated donor runtimes and automatic paid requests are outside accepted scope.
 
 ## Venue coverage
 

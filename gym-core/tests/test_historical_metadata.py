@@ -40,6 +40,8 @@ def test_historical_public_metadata(monkeypatch, tmp_path):
     snapshots = iter((first, second))
 
     async def get_text(_session, path):
+        if path == "/v1/markets":  # the order-limit source: nothing extra known in this test
+            return json.dumps({"result": {"symbols": {}}})
         assert path == "/hector/web/v1/markets"
         return json.dumps({"result": {"markets": [next(snapshots)]}})
 
@@ -83,8 +85,8 @@ def test_custom_symbol_overlays_follow_catalog(monkeypatch, tmp_path):
         {"symbol": "ETHUSDT", "base_asset": "ETH", "quote_asset": "USDT", "flags": ["isRisky"]},
     ]
 
-    async def rest_text(_session, _path, **_params):
-        return json.dumps({"result": {"markets": rows}})
+    async def rest_text(_session, path, **_params):
+        return json.dumps({"result": {"symbols": {}} if path == "/v1/markets" else {"markets": rows}})
 
     db = MarketDB(tmp_path / "custom.db")
     collector = Collector(db, _Segments(), ["BTCUSDT"],

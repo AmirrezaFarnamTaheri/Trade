@@ -40,7 +40,7 @@ from .technical_analysis import technical_reports
 
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "arm-policy-read", "arm-policy-save", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "meta-label-eligibility", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
+WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "arm-policy-read", "arm-policy-save", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "paper-promotion-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
                      "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
 # One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
@@ -387,12 +387,6 @@ def _research_action_strategy_retirement_screen(root, action, value, store, at):
     return screen_verified_retirement(root, value, store=store)
 
 
-def _research_action_meta_label_eligibility(root, action, value, store, at):
-    from .strategy_retirement import meta_label_eligibility
-
-    fields(value, "closed_trades")
-    return meta_label_eligibility(value["closed_trades"])
-
 
 def _research_action_margin_pairs_replay(root, action, value, store, at):
     from .margin_pairs import margin_pairs_research
@@ -646,7 +640,6 @@ _RESEARCH_HANDLERS = (
     (frozenset(('portfolio-replay', 'portfolio-read', 'portfolio-list')), _research_action_portfolio_replay),
     (frozenset(('combine-oos',)), _research_action_combine_oos),
     (frozenset(('strategy-retirement-screen',)), _research_action_strategy_retirement_screen),
-    (frozenset(('meta-label-eligibility',)), _research_action_meta_label_eligibility),
     (frozenset(('margin-pairs-replay',)), _research_action_margin_pairs_replay),
     (frozenset(('margin-markets', 'margin-preview', 'margin-replay')), _research_action_margin_markets),
     (frozenset(('depth-audit',)), _research_action_depth_audit),

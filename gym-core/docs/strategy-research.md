@@ -84,13 +84,15 @@ frozen universe or an untouched final evaluation. The catalog is **not
 automatically hidden or mutated**. Actual retirement needs future
 independent evidence and explicit code review; no such evidence exists here.
 
-## 30 — Meta-labeling remains deferred
+## 30 — Fitted models are registered trials
 
-`meta-label-eligibility` reports `DEFERRED` below 300 closed trades.
-At or above 300, `RESEARCH_ELIGIBLE_NOT_TRAINED` is still not permission
-to train or select an ML model without verified labels, out-of-sample
-calibration, and suitable custody. No logistic classifier, RL agent, paid
-model, or automated strategy selection has been added.
+Models may be fitted on historical data. Every fit is written into
+[the trial log](trial-log.md) with its data and pass mark before it runs,
+counts as a trial, and is scored on held-out data once. The first one (T8,
+a logistic veto over a daily trend rule on ten Binance markets) failed all
+three of its marks. Fitting lives in `scripts/` on the `research`
+dependency group; no fitted model is selectable in the app and none places
+an order. No RL agent or paid model has been added.
 
 ## Acceptance and limits
 

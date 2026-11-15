@@ -34,6 +34,10 @@ from .rules import RuleService
 
 HEARTBEAT_S = 60
 CATALOG_PATH = "/hector/web/v1/markets"
+# The catalogue above carries listing facts but no order limits; those live here (minNotional refused a live
+# order with error 1003 on 2026-11-14). Merged into each stored spec so the simulator enforces them.
+RULES_PATH = "/v1/markets"
+RULE_KEYS = ("stepSize", "tickSize", "minQty", "minNotional")
 CANDLE_REFRESH_S = 60
 CATALOG_REFRESH_S = 6 * 3600  # each refresh stores a new version of every market: its row carries price and volume
 CANDLE_BATCH = 10
@@ -368,7 +372,7 @@ class Collector:
         rows = list(catalog.values())
         self.catalog, self.catalog_received_at = catalog, now if received else None
         self.catalog_source = "PUBLIC_REST" if received else "RETAINED_METADATA"
-        self._store_catalog(catalog, now, received)
+        self._store_catalog(catalog, now, received, await self.trade_rules(session, now) if received else None)
         if self.explicit_symbols is None:
             symbols, self.universe = select_universe(rows, self.asset_count)
         else:
@@ -387,8 +391,30 @@ class Collector:
         self.universe["custom_note"] = "custom additions are observed only and bypass ranking filters"
         self.configure(symbols, catalog)
 
-    def _store_catalog(self, catalog, now, received):
+    async def trade_rules(self, session, now) -> dict:
+        """Order limits per market, or {} when unreadable (stored specs then keep the limits they had)."""
+        try:
+            raw = await self.rest_text(session, RULES_PATH)
+            self.seg.write("rest:" + RULES_PATH, raw, now)
+            return {s.upper(): {k: m[k] for k in RULE_KEYS if m.get(k) not in (None, "")}
+                    for s, m in loads(raw)["result"]["symbols"].items() if isinstance(m, dict)}
+        except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, AttributeError) as e:
+            self.quality(now, None, "SOURCE_ERROR", f"trade rules: {type(e).__name__}: {e}")
+            return {}
+
+    def _with_rules(self, symbol, row, rules):
+        found = rules.get(symbol)
+        if found is not None:
+            return {**row, **found}
+        # Unreadable or unlisted this time: keep limits already known, but only where the row has none of its own.
+        prior = self.db.c.execute("select spec from instrument_specs where instrument_id=? and valid_to is null",
+                                  (f"wallex:{symbol}",)).fetchone()
+        known = loads(prior[0]) if prior else {}
+        return {**{k: known[k] for k in RULE_KEYS if k in known}, **row}
+
+    def _store_catalog(self, catalog, now, received, rules=None):
         for s, m in catalog.items():
+            m = self._with_rules(s, m, rules or {}) if received else m
             base, quote = _value(m, "base_asset", "baseAsset"), _value(m, "quote_asset", "quoteAsset")
             if not base or not quote:
                 self.quality(now, s, "SOURCE_ERROR", "catalog row missing base/quote")
@@ -410,7 +436,7 @@ class Collector:
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError) as e:
             self.quality(now, None, "SOURCE_ERROR", f"catalog refresh: {type(e).__name__}: {e}")
             return
-        self._store_catalog(catalog, now, True)
+        self._store_catalog(catalog, now, True, await self.trade_rules(session, now))
         self.catalog, self.catalog_received_at, self.catalog_source = catalog, now, "PUBLIC_REST"
 
     async def seed(self, session, symbols=None, trades=True):

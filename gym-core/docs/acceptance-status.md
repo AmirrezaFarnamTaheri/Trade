@@ -9,11 +9,11 @@ in Git history and local qualification artifacts.
 | --- | --- | --- |
 | Public research implementation | Delivered, with current regressions passing | Continue the explicit remaining functionality in the unified plan; implementation is not economic acceptance |
 | Portfolio correctness | Revision 5 accounting, target/risk policies, fill-time cash reservations and checkpoint reconstruction implemented and tested | Preserve frozen records; running-process restoration and prospective evidence remain open |
-| Continuous market collection | Supervised processes running; venue connectivity blocked | Restore actual api.wallex.ir reachability, refresh full eligible catalogue and verify fresh quotes/gaps per market |
+| Continuous market collection | Local collector recording 373 markets since 2026-10-30; a keyless GitHub Actions recorder covers three markets when this machine is off. api.wallex.ir is intermittently unreachable from this machine | Confirm the six-hour catalogue refresh writes rows after an outage; import recorder artifacts before their 90-day expiry |
 | Sustained prospective paper | Open | Multi-day future evidence with preregistered configuration, real clocks, no-data failures, fills and costs; downtime stays visible |
-| Strategy profitability | Not established | Independent chronological evaluation with costs and selection accounting; the completed compound study had no positive cases |
+| Strategy profitability | Not established. Eight registered trials ([trial log](trial-log.md)): seven failed; T6 (BTCUSDT 50-day trend) passed narrowly and is on a forward paper journal from 2026-11-14 | The forward journal at the 2027-02-08 checkpoint; T6 replayed through the exact engine |
 | Account permissions and exposure | Observation transport/journaling delivered; venue acceptance unverified | Actual key-permission semantics, instrument/rule/unit identity, complete locked/external exposure and fee evidence |
-| Account/order settlement | Unverified | Exact cumulative fills, fee currencies, pagination completeness, spendability and independent settlement evidence |
+| Account/order settlement | Six owner-placed BTCTMN limit orders (2026-11-14) observed outside the app: 0.10% maker and taker fee charged in the received asset, 50,000 TMN minimum, cancel works. Partial fills and stop orders unobserved | A partial fill and a venue stop order; pagination completeness; the same facts read back through the executor's own evidence path |
 | T1 admission/arming | Unfinished | Atomically bind trusted account/rule/cost evidence, exact review/reservation and installation/session/loss caps |
 | Submit/cancel/reconciliation | Unfinished | Fixed-origin real transport, durable first-byte outcomes, bounded retry rules, unknown holds and restart recovery |
 | Protective exits/automation | Unfinished | Qualified native protection, disjoint quantities, reopening/restart and hard loss/installation caps through the real money path |

@@ -225,7 +225,9 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
     if metadata is None:
         w.append("Public instrument metadata was unavailable at the window start; fees, flags and capacity remain UNKNOWN.")
     else:
-        missing = [name for name in ("isZeroFee", "isMarketTypeEnable") if name not in metadata["raw"]]
+        # The venue has served these under both spellings; either one makes the fact known.
+        missing = [camel for camel, snake in (("isZeroFee", "is_zero_fee"), ("isMarketTypeEnable", "is_market_type_enable"))
+                   if camel not in metadata["raw"] and snake not in metadata["raw"]]
         if missing:
             w.append("Historical public metadata leaves " + ", ".join(missing) + " UNKNOWN; current values were not backfilled.")
     if portal.spec_at(symbol, t0) == Spec():
