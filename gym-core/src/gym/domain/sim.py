@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
 
@@ -47,6 +47,8 @@ class CostModel:
     impact_models: dict | None = None  # dated public-print proxy, explicitly chosen per market
     hourly_costs: dict | None = None  # dated quote/fee observations, explicitly chosen per market
     postfill_costs: dict | None = None  # prior paper markout penalty, never independently verified fills
+    market_fees: dict | None = None  # causal account receipt: symbol -> {maker, taker}, exact rate strings
+    zero_fee: bool = False  # public catalogue flag at the replay start; never inferred from a missing fee
 
     def __post_init__(self):
         """Reject invalid fee, sizing, limit and opt-in cost-model parameters."""
@@ -74,6 +76,30 @@ class CostModel:
         validate_impact_models(self.impact_models)
         validate_hourly_costs(self.hourly_costs)
         validate_postfill_costs(self.postfill_costs)
+        if type(self.zero_fee) is not bool:
+            raise ValueError("zero fee flag must be boolean")
+        if self.market_fees is not None:
+            if type(self.market_fees) is not dict or len(self.market_fees) > 1000:
+                raise ValueError("invalid account fee schedule")
+            for symbol, rates in self.market_fees.items():
+                if (type(symbol) is not str or not symbol.isascii() or not symbol.isalnum()
+                        or not 2 <= len(symbol) <= 32 or type(rates) is not dict or set(rates) != {"maker", "taker"}):
+                    raise ValueError("invalid account fee row")
+                for value in rates.values():
+                    if type(value) is not str or not 1 <= len(value) <= 80:
+                        raise ValueError("invalid exact account fee")
+                    rate = decimal(value, "account fee")
+                    if not 0 <= rate < 1:
+                        raise ValueError("account fee must be in [0,1)")
+
+    def for_market(self, symbol, *, zero_fee=False):
+        """Freeze known per-market fees at the replay start; explicit fee scenarios remain supported."""
+        if zero_fee:
+            return replace(self, fee_rate=Decimal(0), maker_fee_rate=Decimal(0), zero_fee=True)
+        if self.market_fees and symbol in self.market_fees:
+            row = self.market_fees[symbol]
+            return replace(self, fee_rate=Decimal(row["taker"]), maker_fee_rate=Decimal(row["maker"]))
+        return self
 
     def describe(self) -> dict:
         """Serialize enabled paper cost assumptions without changing legacy identities."""
@@ -103,6 +129,10 @@ class CostModel:
             out["hourly_costs"] = self.hourly_costs
         if self.postfill_costs is not None:
             out["postfill_costs"] = self.postfill_costs
+        if self.market_fees is not None:
+            out["market_fees"] = self.market_fees
+        if self.zero_fee:
+            out["zero_fee"] = True
         return out
 
     def assert_causal(self, start: datetime):
@@ -150,6 +180,7 @@ class CostModel:
                    order_type=d.get("order_type", "market"),
                    maker_fee_rate=Decimal(d["maker_fee_rate"]) if "maker_fee_rate" in d else None,
                    calibration=d.get("calibration"), impact_models=d.get("impact_models"),
+                   market_fees=d.get("market_fees"), zero_fee=d.get("zero_fee", False),
                    hourly_costs=d.get("hourly_costs"), postfill_costs=d.get("postfill_costs"))
 
 
@@ -274,7 +305,7 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
     best = price = top.ask if side == "BUY" else top.bid
     if limit_price is not None:  # a resting order fills at its own price and pays the maker fee
         best = price = limit_price
-    fee_rate = cost.maker_fee if limit_price is not None else cost.fee_rate
+    fee_rate = Decimal(0) if cost.zero_fee else cost.maker_fee if limit_price is not None else cost.fee_rate
     levels = None
     if cost.walk_depth and limit_price is None:
         if top.depth is None:
@@ -296,6 +327,8 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         if modeled is None:
             return {**out, "fill_time": iso(t), "reason": "MODELED_IMPACT_PRICE_GUARD"}
         qty, price, notional, fee_rate = modeled
+        if cost.zero_fee:
+            fee_rate = Decimal(0)
     if qty <= 0 or price <= 0 or (spec.min_qty and qty < spec.min_qty) or (spec.min_notional and notional < spec.min_notional):
         return {**out, "fill_time": iso(t), "reason": "BELOW_MIN_NOTIONAL"}
     if side == "BUY" and notional > book.get(inst.quote):

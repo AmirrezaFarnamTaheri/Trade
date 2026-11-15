@@ -201,7 +201,7 @@ class _Replay:
         delta = target - held
         band = controller.rates["rebalance_threshold"]
         if controller.cost_aware_rebalance and self.equity() > 0:
-            band = _cost_band(controller, self.cost, symbol, self.sessions[symbol].last_quote, delta, self.equity(), band,
+            band = _cost_band(controller, self.sessions[symbol].cost, symbol, self.sessions[symbol].last_quote, delta, self.equity(), band,
                               self.policy_events)
             if band is None:
                 return action, fraction, reasons
@@ -337,7 +337,9 @@ class _Replay:
                 "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
                     "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
                     "bar_events": session.bar_events, "rules": session.rule_snapshots,
-                    "limit_trades": session.limit_trades} for s, session in sessions.items()}}))
+                    "limit_trades": session.limit_trades,
+                    **({"venue_stop": session.venue_stop, "stop_trades": session.venue_stop_trades}
+                       if session.strategy.params.get("exit_venue_stop") else {})} for s, session in sessions.items()}}))
 
     def run(self):
         checkpoint, tops = self.checkpoint, self.tops
@@ -380,6 +382,8 @@ class _Replay:
             inputs["fx_risk_data"] = digest([(iso(top.ts_avail), top.bid, top.ask, sorted(top.flags))
                                              for top in self.fx_risk_tops])
         inputs["portfolio_version"] = _portfolio_version(controller, cost, self.policy, self.universe_selection)
+        if first.params.get("exit_venue_stop"):
+            inputs["stop_trades"] = digest({s: session.venue_stop_trades for s, session in sessions.items()})
         return inputs
 
     def _output(self):
@@ -491,7 +495,7 @@ def _cost_band(controller, cost, symbol, latest, delta, equity_now, band, policy
     size = abs(delta) / (latest.bid if delta < 0 else latest.ask)
     measured = modeled_execution_cost(cost, symbol, controller.previous_at, size,
                                       latest.bid, latest.ask, maker=maker)
-    fee_rate = measured["fee_rate"] if measured is not None else (
+    fee_rate = Decimal(0) if cost.zero_fee else measured["fee_rate"] if measured is not None else (
         cost.maker_fee if maker else cost.fee_rate)
     uplift = measured["uplift_bps"] / 10000 if measured is not None else Decimal(0)
     modeled = 2 * fee_rate + (latest.ask - latest.bid) / latest.bid + uplift

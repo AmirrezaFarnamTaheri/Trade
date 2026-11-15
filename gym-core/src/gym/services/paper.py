@@ -31,7 +31,7 @@ def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: 
         session.feed(top)
     session.finish(t1)
     key = None
-    if digest_cache is not None and cost.order_type != "limit":
+    if digest_cache is not None and cost.order_type != "limit" and not strategy.params.get("exit_venue_stop"):
         key = (symbol, t0, t1, bool(cost.walk_depth), len(tops))
     return session_result(session, tops, cash, digest_cache=digest_cache, digest_key=key)
 
@@ -72,6 +72,13 @@ def session_result(session, tops, cash, *, digest_cache=None, digest_key=None):
                         "running_at": session.running_at and iso(session.running_at), "skipped": session.skipped,
                         "subscriptions": list(session.closes.by_resolution), "bar_events": session.bar_events,
                         "reopenings": session.reopenings, "rule_snapshots": session.rule_snapshots}}
+    if cost.zero_fee or cost.market_fees:
+        result["effective_cost"] = cost.describe()
+    if strategy.params.get("exit_venue_stop"):
+        result["session"]["venue_stop"] = None if session.venue_stop is None else {
+            key: iso(v) if isinstance(v, datetime) else str(v) if isinstance(v, Decimal) else v
+            for key, v in session.venue_stop.items()}
+        result["session"]["venue_stop_model"] = "received-trade-stop-market/1"
     if cost.order_type == "limit":
         result["session"]["price_band_reference"] = {
             "status": "ESTIMATED", "basis": "FIRST_OBSERVED_TEHRAN_DAY_MID",
@@ -93,7 +100,8 @@ def _data_digest(session, tops, cost, cache, key):
         return cache[key]
     value = digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
                      *((x.depth,) if cost.walk_depth else ())) for x in tops]
-                   + ([("limit_trades", session.limit_trades)] if cost.order_type == "limit" else []))
+                   + ([("limit_trades", session.limit_trades)] if cost.order_type == "limit" else [])
+                   + ([("stop_trades", session.venue_stop_trades)] if session.strategy.params.get("exit_venue_stop") else []))
     if cache is not None and key is not None:
         cache[key] = value
     return value
@@ -240,7 +248,10 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
         w.append(f"Only {main['fills']} fills: far too few to claim anything about this strategy.")
     if cost.order_type == "limit":
         w.append("Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band.")
-    w.append(f"Modeled fee rate {cost.fee_rate * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
+    effective = main.get("effective_cost", cost.describe())
+    w.append(f"Modeled fee rate {Decimal(effective['fee_rate']) * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
+    if main.get("params", {}).get("exit_venue_stop"):
+        w.append("Fixed paper stop-market: received public trades trigger the exit; observed quotes supply fills. Gaps and insufficient depth can delay or prevent the exit; no venue order is placed.")
     if main["strategy"] in ("trend-pullback","adaptive-channel"):
         w.append("Compound paper policy: entry spread and displayed top-depth participation are checked at decision and fill; no queue or full-depth fill model. Baselines retain their original unconstrained execution model.")
         w.append("Stops and the session drawdown lock are evaluated at closed-bar decisions; gaps, minimums or insufficient displayed depth can prevent an exit or exceed the risk budget. No venue stop order or funded authority.")
