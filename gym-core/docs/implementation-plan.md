@@ -14,7 +14,7 @@ No push, paid provider request or credential change is implied.
 
 | ID | Work | Acceptance | State |
 | --- | --- | --- | --- |
-| O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | Current assets and 373-pair retained selection verified; REST and WebSocket connections currently fail; freshness remains blocked |
+| O1 | Diagnose collector shutdown and unify startup/data-root selection | One collector on loopback; all eligible pairs by default; explicit exclusions; current native assets served | 373 pairs recorded since 2026-10-30; the venue is intermittently unreachable from this machine, and a GitHub Actions recorder covers three markets meanwhile |
 | O2 | Supervise collection and paper scheduling | No duplicate processes; clear failures/retries; no hidden narrowing to BTC/ETH/USDT; recovery preserves history | Direct Python task stop/child termination verified on an isolated collector; both current tasks running; sustained observation still open |
 
 ## Strategy and portfolio research
@@ -40,15 +40,15 @@ research mechanics and remaining empirical prerequisites are recorded in
 | C27 | Paired distinct-market long/short margin paper replay with actual short-base debt accounting and descriptive spread stability | Independently attested margin eligibility, venue fills/protection/settlement, and pair stationarity |
 | C28 | Matched prospective paper curves weighted by prior rolling error/risk proxy, with explicit switch-cost assumptions | Truly out-of-sample calibration errors, independently verified live costs and shared-cash fill constraints |
 | C29 | Complete-universe random-entry underperformance review, never automatic catalog retirement based on local claims | Frozen universe and independently attested final evaluation on all tested markets |
-| C30 | Explicit 300-closed-trade eligibility gate; no trained or selectable meta-labeling model | At least 300 verified closed positions with valid labels, independent calibration and prospective evidence |
+| C30 | Models are fitted on history as registered trials (`docs/trial-log.md`); T8, a logistic veto on a daily trend rule, failed all three marks. No model is selectable in the app | A registered fit that passes its held-out mark, then replay through the exact engine and prospective paper evidence |
 
 All of these remain paper-only and fail closed when required evidence is
 missing. No funded execution, external account action or automatic catalog
 hiding is introduced.
 
-Predictive ML/RL training is outside delivery scope. New external data requires
-a provider, clock/revision/rights contract and explicit credentials/paid-call
-authorization. Optional model interpretation remains separate from verified
+Model fitting follows the registered-trial rule in `PRODUCT.md`. Public keyless
+history (Binance daily files) is used for ranking and fitting; a paid or keyed
+provider still needs explicit authorization. Optional model interpretation remains separate from verified
 arithmetic.
 
 ## Protected account and execution
@@ -57,7 +57,7 @@ arithmetic.
 | --- | --- | --- |
 | Service-owned account readiness | Instrument/rule/unit identity, actual key permission semantics, complete exposure/reservations, pagination and fee provenance | Open |
 | Authenticated observation/settlement | Verify actual venue responses; absence of orders is not completeness, spendability or settlement | Unverified |
-| T1 admission and arming | Consume exact operator review, account/rule/cost evidence and installation/session/loss caps atomically | Open |
+| T1 admission and arming | Consume exact operator review, account/rule/cost evidence and installation/session/loss caps atomically | Open; wiring order and starting limits in [ADR 0007](../../docs/adr/0007-wiring-the-funded-path-behind-an-arm-button.md); the owner edits the limits from the workspace |
 | Real submit/cancel/reconciliation | Fixed origin, durable first-byte outcomes, no blind retry, partial fills and unknown-order holds across restart | Open |
 | Protective exits and capped automation | Qualified venue protection, disjoint quantities, restart/reopening and hard installation/loss ceilings | Open |
 | Maker/trade-credit/relay/multi-leg execution | Distinct custody/idempotency/settlement/protection/outage contracts after core execution | Open |

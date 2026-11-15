@@ -12,8 +12,10 @@ from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
-ENGINE_VERSION = "paper-session/8"
-LIMIT_ENGINE_VERSION = "paper-session/9"
+# 10/11 (2026-11-15): the metadata warning reads both key spellings, so warnings differ from 8/9 on stored
+# catalogue rows; saved 8/9 runs keep their identity and are not re-derived under these versions.
+ENGINE_VERSION = "paper-session/10"
+LIMIT_ENGINE_VERSION = "paper-session/11"
 
 
 @dataclass

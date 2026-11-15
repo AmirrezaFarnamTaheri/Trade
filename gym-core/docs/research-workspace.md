@@ -245,7 +245,7 @@ provides previous/next navigation. Artifact identity, output digest, store and
 16 MiB size bound are checked before use. Fingerprints establish integrity
 consistency, not independent source authentication.
 
-New `paper-session/8` artifacts record pre-decision balances, bar/context/reference
+`paper-session/8` and later artifacts record pre-decision balances, bar/context/reference
 observations and deduplicated rule snapshots. Replay resolves the rule reference
 and shows the decision, reasons and available feature values. Subsequent modeled
 orders have a separate display; future outcome marks are excluded from the

@@ -140,3 +140,40 @@ def test_refresh_stores_a_changed_catalogue_without_changing_the_observed_market
     finally:
         seg.close()
         db.c.close()
+
+
+def test_order_limits_from_the_rules_endpoint_reach_the_simulator_and_survive_an_outage(tmp_path, monkeypatch):
+    """The catalogue has no minimum order size; /v1/markets does. A live order below it was refused (1003)."""
+    from decimal import Decimal
+
+    from gym.services import collector as module
+    from gym.services.data_portal import DataPortal
+
+    db = market_db(tmp_path, [])
+    seg = SegmentWriter(tmp_path / "raw", db)
+    collector = Collector(db, seg, None)
+    state = {"rules": True}
+
+    async def observed(_session, path, **_params):
+        if path == module.RULES_PATH:
+            if not state["rules"]:
+                raise TimeoutError
+            return json.dumps({"result": {"symbols": {"BTCUSDT": {"stepSize": 6, "minQty": "0.000001", "minNotional": 5,
+                                                                  "stats": {"lastPrice": "1"}}}}})
+        return json.dumps({"result": {"markets": catalogue()}})
+
+    monkeypatch.setattr(collector, "rest_text", observed)
+    monkeypatch.setattr(module, "now_utc", lambda: START)
+    try:
+        asyncio.run(collector.load_catalog(None))
+        spec = DataPortal(db).spec_at("BTCUSDT", START + timedelta(minutes=1))
+        assert (spec.qty_decimals, spec.min_qty, spec.min_notional) == (6, Decimal("0.000001"), Decimal(5))
+        assert DataPortal(db).spec_at("ETHUSDT", START + timedelta(minutes=1)).min_notional is None  # not listed: unknown
+        state["rules"] = False  # the limits source goes dark: known limits must not be erased by a refresh
+        monkeypatch.setattr(module, "now_utc", lambda: START + timedelta(hours=7))
+        asyncio.run(collector.refresh_catalog(None))
+        assert DataPortal(db).spec_at("BTCUSDT", START + timedelta(hours=8)).min_notional == Decimal(5)
+        assert any("trade rules" in detail for detail, in db.c.execute("SELECT detail FROM quality_events WHERE flag='SOURCE_ERROR'"))
+    finally:
+        seg.close()
+        db.c.close()

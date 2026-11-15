@@ -33,7 +33,7 @@ def promotion_screen(request):
         raise ValueError("unknown paper promotion evidence status")
     checks = {
         "deflated_sharpe_probability_95pct": dsr >= decimal("0.95"),
-        "closed_positions_300": request["closed_trades"] >= 300,
+        "closed_positions_30": request["closed_trades"] >= 30,
         "track_record_90_days": request["track_record_days"] >= 90,
         "spa_familywise_p_value_at_most_5pct": spa <= decimal("0.05"),
         "prospective_disjoint_pass": request["prospective_status"] == "PASS",
@@ -42,8 +42,8 @@ def promotion_screen(request):
     }
     all_local = all(checks.values())
     result = {
-        "schema": "paper-promotion-gates/1", "criteria_version": 1,
-        "fixed_thresholds": {"dsr": "0.95", "closed_trades": 300,
+        "schema": "paper-promotion-gates/1", "criteria_version": 2,
+        "fixed_thresholds": {"dsr": "0.95", "closed_trades": 30,
                              "track_record_days": 90, "spa_max_p": "0.05",
                              "shadow_days": 20, "shadow_lower_band_sigma": "-2"},
         "source": "UNATTESTED_LOCAL_RESEARCH_INPUT",

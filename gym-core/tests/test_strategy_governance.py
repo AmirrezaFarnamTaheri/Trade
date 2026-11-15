@@ -6,7 +6,7 @@ import pytest
 
 from gym.domain.registry import catalog
 from gym.services.oos_combination import combine_oos_curves
-from gym.services.strategy_retirement import assess_retirement, meta_label_eligibility
+from gym.services.strategy_retirement import assess_retirement
 from tests.support import START
 
 
@@ -98,13 +98,7 @@ def test_retirement_rejects_duplicate_markets_unready_runs_and_unsafe_claims():
         assess_retirement(_retirement_rows(), frozen, independent_final=True)
 
 
-def test_meta_label_remains_deferred_below_three_hundred_closed_trades():
-    assert meta_label_eligibility(299)["status"] == "DEFERRED"
-    assert meta_label_eligibility(300)["status"] == "RESEARCH_ELIGIBLE_NOT_TRAINED"
-    assert meta_label_eligibility(300)["funded_authority"] is False
-    assert "meta-labeling" not in [row["id"] for row in catalog()]
-    with pytest.raises(ValueError):
-        meta_label_eligibility(-1)
+
 
 
 def test_explicit_zero_switch_cost_is_valid_and_does_not_invent_fees():

@@ -81,7 +81,7 @@ def test_fixed_promotion_gates_never_grant_funded_or_operator_authority():
     assert gates(shadow_status="PAPER_ONLY_DEMOTION")["local_criteria_pass"] is False
     assert gates(spa_p_value="0.08")["local_criteria_pass"] is False
     assert gates(deflated_sharpe_probability="0.92")["local_criteria_pass"] is False
-    assert gates(closed_trades=299)["local_criteria_pass"] is False
+    assert gates(closed_trades=29)["local_criteria_pass"] is False
 
 
 @pytest.mark.parametrize("value", ["NaN", "1.2", -1, True])

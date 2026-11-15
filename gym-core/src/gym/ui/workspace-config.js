@@ -489,7 +489,6 @@ Object.assign(vocabulary, {
   rsAnalyzeTmnConversionPremium: ["Analyze TMN conversion premium", "بررسی صرف تبدیل تومان"],
   rsCombineMatchedHistoricalOosPaperCurves: ["Combine matched historical OOS paper curves", "ترکیب گذشته‌نگر منحنی‌های برون‌نمونه"],
   rsAuditBaselineUnderperformanceBeforeReview: ["Audit baseline underperformance before review", "بررسی ضعف در برابر مبنای تصادفی"],
-  rsCheckDeferredMetaLabelEvidenceThreshold: ["Check deferred meta-label evidence threshold", "آستانهٔ شواهد برچسب‌گذاری ثانویه"],
   rsSimulateAMatchedLongShortMargin: ["Simulate a matched long/short margin pair", "بازپخش آزمایشی جفت خرید و فروش اعتباری"],
   rsTestCausalLeadLagAlignment: ["Test causal lead-lag alignment", "بررسی تقدم و تأخر علّی"],
   rsReadArmPolicyAndPreflight: ["Read the arm policy and preflight checklist", "خواندن سیاست مسلح‌سازی و چک‌لیست پیش‌پرواز"],
