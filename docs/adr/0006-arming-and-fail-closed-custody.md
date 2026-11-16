@@ -21,11 +21,11 @@ of privileged-thread faults and of reservation when the vault holds two journals
 3. **Privileged fault stops the service** (unchanged behaviour, now tested): `exec_svc::supervise_privileged`
    marks the service failed on any T2 panic, error or unexpected return and stops T0 with it; restart builds a fresh
    `StopGate`, which is always `Disarmed`; `stopped_exit` reports the failing phase (`tests/privileged_fault.rs`).
-4. **Verified available** (`exec_core::available::verified_available`): the original pure rule orders by
-   venue sequence across both journals and refuses stale/disagreeing evidence. The owner replaced that
-   balance-ordering requirement with service-issued receipts in [ADR 0008](0008-balance-observation-ordering.md).
-   The receipt pair, activity fence and native admission consumer are not implemented yet; existing local
-   journal counters must not be relabeled as exchange sequences.
+4. **Verified available** (`exec_core::available::verified_available`): the pure rule now follows the
+   [ADR 0008](0008-balance-observation-ordering.md) receipt contract. It requires two reads at the current
+   credential/runtime/activity fence, matching durable copies, valid local clocks and at most 120-second
+   age, then subtracts open holds. Disagreement disarms. Its field is `receipt_seq`, never a venue sequence.
+   Native receipt production, activity events and the admission consumer remain unwired.
 
 ## Not done, deliberately
 

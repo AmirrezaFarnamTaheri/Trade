@@ -61,7 +61,7 @@ fail-closed. Six external audit reports (2026-11-14) reviewed the same modules a
 | b: active holds | New reviewed/execution holds use ActiveHoldBook; old aggregate events replay with their original semantics. Mixing outstanding old/new models is refused. |
 | c: checkpoints | Digest/tip-bound canonical events, automatic checkpoints and suffix projection implemented. Full chain hashing remains; >1 MiB snapshots fall back to verified replay. Scale/background validation and bounded history remain open. |
 | d: privileged arm | Not implemented. Existing pure arm/kill rules remain disarmed service policy. |
-| e: verified available admission | Receipt-order redesign accepted in ADR 0008. Native pair production, activity fencing, dual durable copies and admission are not implemented. Local receipt order will not claim exchange snapshot ordering. |
+| e: verified available admission | Core receipt-pair/fence/freshness/hold policy implemented under ADR 0008. Native pair production, activity events, dual durable copies and admission remain unwired. Local receipt order does not claim exchange snapshot ordering. |
 | f: end-to-end arm fault tests | Pending d/e. Existing pure kill-table, stop/fault, durable reservation and restart tests pass; they do not qualify a funded path. |
 
 The owner canceled off-machine backup/second-host restoration. That does not make

@@ -4,6 +4,10 @@ Status: Accepted, owner decision 2026-11-16. Supersedes the venue-sequence
 requirement for balance admission in ADR 0006/0007. Implementation and protected
 publication remain separate work; execution stays disarmed.
 
+The pure available-balance rule implements the pair/fence/age/hold checks and
+uses receipt_seq. Its tests do not establish native receipt production, dual
+durability, activity detection or funded admission; those consumers remain open.
+
 ## Evidence and limit
 
 The official [main-wallet response](https://developers.wallex.ir/docs/basic-services-main-wallet),
