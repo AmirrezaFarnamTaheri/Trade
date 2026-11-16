@@ -6,7 +6,7 @@ from decimal import ROUND_DOWN, Decimal, localcontext
 
 from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.market_models import decimal
-from ..domain.model import iso, parse_ts
+from ..domain.model import TEHRAN, UTC, iso, parse_ts
 from ..domain.portfolio import portfolio_sizing
 from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
@@ -95,6 +95,7 @@ class PaperSession:
         # The band reference is the first observed mid of the Tehran day, an estimate: the official API publishes
         # no reference price, daily open or band (checked 2026-11-08).
         self.day_open = {}
+        self._day, self._closures = (start, start, None), (None, None, ())
         self.state = "CONFIGURED"
         self.events.append({"state": self.state, "t": iso(start)})
         self.transition("WARMING_UP", start)
@@ -506,23 +507,38 @@ class PaperSession:
             raise ValueError("session closed or observation out of order")
         if self.state != "FINISHING":
             self.scan(top.ts_avail)
-        if qualified(top):
-            self.day_open.setdefault(tehran_day(top.ts_avail), (top.bid + top.ask) / 2)
-            self.mark_reopening(top)
+        usable = qualified(top)
+        if usable:
+            day = self._day[2] if self._day[0] <= top.ts_avail < self._day[1] else self._enter_day(top.ts_avail)
+            if day not in self.day_open:
+                self.day_open[day] = (top.bid + top.ask) / 2
+            self.mark_reopening(top, day)
         if self.strategy.params.get("exit_venue_stop"):
             self.settle_venue_stop(top)
         self.settle(top, top.ts_avail)
-        if qualified(top):
+        if usable:
             self.closes.update(top.ts_avail, self.bar_spec.price(top))
             self.last_quote = top
         self.cursor = top.ts_avail
 
-    def mark_reopening(self, top):
+    def _enter_day(self, at):
+        """Tehran day of `at`, remembered with its UTC bounds so quotes inside it skip the zone conversion."""
+        day = tehran_day(at)
+        start = datetime.combine(day, datetime.min.time(), TEHRAN)
+        self._day = (start.astimezone(UTC), (start + timedelta(days=1)).astimezone(UTC), day)
+        if not self._day[0] <= at < self._day[1]:  # a zone shift inside the day: do not cache it
+            self._day = (at, at, day)
+        return day
+
+    def mark_reopening(self, top, day):
         """Mark the gap once, on the first qualified quote after a venue closure the position was held across."""
         last = self.last_quote
         if last is None:
             return
-        spans = closures(self.rules_for(top.ts_avail), self.instrument, top.ts_avail)
+        rules = self.rules_for(top.ts_avail)
+        if self._closures[0] is not rules or self._closures[1] != day:  # closures depend on the rules and the Tehran day only
+            self._closures = (rules, day, closures(rules, self.instrument, top.ts_avail))
+        spans = self._closures[2]
         crossed = [(s, e) for s, e in spans if last.ts_avail < e <= top.ts_avail]
         if not crossed:
             return

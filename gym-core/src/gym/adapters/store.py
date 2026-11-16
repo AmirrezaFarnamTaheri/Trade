@@ -189,6 +189,10 @@ class MarketDB:
             "select coalesce(max(seq), 0) from regime_events where seq < "
             "coalesce((select min(seq) from regime_events where ts > ?), 9223372036854775807)", (iso(at),)).fetchone()[0]
 
+    def next_rule_change(self, at: datetime) -> str | None:
+        """Time of the first rule event after `at`; the vintage rules_as_of(at) returns holds until then."""
+        return self.c.execute("select min(ts) from regime_events where ts > ?", (iso(at),)).fetchone()[0]
+
     def add_segment(self, seg_id, path, seq_from, seq_to, sha, nbytes, now):
         self.c.execute("insert or replace into segments values(?,?,?,?,?,?,?)", (seg_id, str(path), seq_from, seq_to, sha, nbytes, iso(now)))
 

@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
-from ..domain.model import dec, iso
+from ..domain.model import dec, iso, parse_ts
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel, Spec
 from ..domain.strategy import BuyAndHold, digest
@@ -107,6 +107,28 @@ def _data_digest(session, tops, cost, cache, key):
     return value
 
 
+def _once(function):
+    seen = {}
+
+    def cached(*key):
+        if key not in seen:
+            seen[key] = function(*key)
+        return seen[key]
+    return cached
+
+
+def _rules_by_vintage(db: MarketDB, svc):
+    """Rules in force at a time, asking the store once per vintage instead of once per quote."""
+    held = [None, None, None]  # from, until, rules
+
+    def rules_for(t):
+        if held[0] is None or t < held[0] or (held[1] is not None and t >= held[1]):
+            until = db.next_rule_change(t)
+            held[:] = [t, None if until is None else parse_ts(until), svc.load(t)[1]]
+        return held[2]
+    return rules_for
+
+
 def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: str = "15min", fast: int = 8,
           slow: int = 21, cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), rules_mode: str = "point-in-time",
           store: str = "live", subscriptions=(), strategy_id="ema-trend", params=None, reference_symbol=None, outages=(), auxiliary_symbols=()) -> dict:
@@ -118,7 +140,8 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
         raise ValueError("outage intervals must be inside the replay window")
     portal, svc = DataPortal(db, excluded=outages), RuleService(db)
     today = svc.load()[1]
-    rules_for = (lambda t: today) if rules_mode == "today" else (lambda t: svc.load(t)[1])
+    rules_for = (lambda t: today) if rules_mode == "today" else _rules_by_vintage(db, svc)
+    portal.tops = _once(portal.tops)  # the hold-the-asset baseline replays the main market's quotes
     inst = portal.instrument(symbol)
     strategy = create_strategy(strategy_id, {"fast": fast, "slow": slow} if params is None and strategy_id == "ema-trend" else params)
     subscriptions = tuple(dict.fromkeys((resolution, *subscriptions, *getattr(strategy, "required_resolutions", ()))))

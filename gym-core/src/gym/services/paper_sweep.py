@@ -102,7 +102,7 @@ class FrozenRules:
             if loaded_version != version:
                 raise RuntimeError("rule snapshot changed during the sweep")
             self.cache[version] = rules
-        return list(self.cache[version])
+        return self.cache[version]  # one list per vintage, so callers can tell an unchanged vintage by identity
 
 
 def _strategy(strategy_id: str):
