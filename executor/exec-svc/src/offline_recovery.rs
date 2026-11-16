@@ -3,6 +3,7 @@
 //! All records are appended to exec-store's FULL-synchronous hash-chained ledger
 //! before an Attempt projection changes. Unknown bytes or illegal replay fail closed.
 use crate::account_observation::{AccountKind, AccountObservation};
+use exec_core::holds::ActiveHoldBook;
 use exec_core::orders::{
     Attempt, BalanceSnapshot, Event, FailureStage, OrderError, ReservationBook, ReservationError,
     SettlementEvidence,
@@ -26,7 +27,6 @@ const REVOKE_APPROVAL: u8 = 11;
 const PREPARE_INTENT: u8 = 12;
 const RESERVE_REVIEW: u8 = 13;
 const ACCOUNT_OBSERVATION: u8 = 14;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OperatorApproval {
     pub ticket: exec_ipc::review::Ticket,
@@ -445,7 +445,7 @@ fn apply_review_reservation(
     approvals: &BTreeMap<String, ApprovalView>,
     requests: &BTreeSet<[u8; 16]>,
     intents: &mut BTreeMap<String, ObservedIntent>,
-    reservations: &mut ReservationBook,
+    reservations: &mut ActiveHoldBook,
     value: &ReviewedReservation,
 ) -> Result<(), RecoveryError> {
     check_review_action(current, approvals, requests, &value.context, true)?;
@@ -497,7 +497,7 @@ fn apply_review_reservation(
     }
     let attempt = Attempt::new(ticket.quantity_quanta).map_err(RecoveryError::Order)?;
     reservations
-        .reserve(
+        .reserve_order(
             &ticket.client_id,
             &ticket.account,
             asset,
@@ -610,7 +610,9 @@ fn check_account_observation(
 pub struct DurableOrderJournal {
     ledger: Ledger,
     intents: BTreeMap<String, ObservedIntent>,
-    reservations: ReservationBook,
+    reservations: ActiveHoldBook,
+    // Historical offline aggregate-settlement events retain their original projection.
+    legacy_reservations: ReservationBook,
     records: usize,
     /// A request already in flight when the journal was reopened cannot be
     /// certified as never sent by this newly started process.
@@ -1187,7 +1189,8 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
 }
 fn apply_record(
     intents: &mut BTreeMap<String, ObservedIntent>,
-    reservations: &mut ReservationBook,
+    reservations: &mut ActiveHoldBook,
+    legacy: &mut ReservationBook,
     record: Record,
 ) -> Result<(), RecoveryError> {
     match record {
@@ -1232,7 +1235,7 @@ fn apply_record(
                 return Err(RecoveryError::InvalidIdentity);
             }
             reservations
-                .reserve(&id, &account, asset, reserved, &snapshot, &attempt)
+                .reserve_order(&id, &account, asset, reserved, &snapshot, &attempt)
                 .map_err(RecoveryError::Reservation)?;
             let admission_index = intents.len();
             intents.insert(
@@ -1249,36 +1252,6 @@ fn apply_record(
             );
         }
         Record::ExecutionSettled { id, settlement } => {
-            let current = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
-            let credits = intents
-                .values()
-                .filter(|other| {
-                    other.account == current.account
-                        && other.admission_index > current.admission_index
-                })
-                .try_fold(0u64, |total, other| {
-                    let (Some(identity), Some(saved)) =
-                        (&other.execution, &other.execution_settlement)
-                    else {
-                        return Ok(total);
-                    };
-                    let (asset, gross) = if identity.side == Side::Buy {
-                        (&identity.base, saved.filled_quanta)
-                    } else {
-                        (&identity.quote, saved.gross_quote_quanta)
-                    };
-                    if asset != &current.asset {
-                        return Ok(total);
-                    }
-                    let net = gross
-                        .checked_sub(if saved.fee_asset == *asset {
-                            saved.fee_quanta
-                        } else {
-                            0
-                        })
-                        .ok_or(RecoveryError::InvalidIdentity)?;
-                    total.checked_add(net).ok_or(RecoveryError::InvalidIdentity)
-                })?;
             let order = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
             let identity = order
                 .execution
@@ -1363,7 +1336,7 @@ fn apply_record(
                 .apply(Event::SettlementVerified)
                 .map_err(RecoveryError::Order)?;
             reservations
-                .release_settled_with_credits(&id, &order.attempt, &settlement.balance, credits)
+                .release_settled(&id, &order.attempt, &settlement.balance)
                 .map_err(RecoveryError::Reservation)?;
             order.execution_settlement = Some(settlement);
         }
@@ -1410,15 +1383,18 @@ fn apply_record(
             }
             let snapshot = BalanceSnapshot::new(&account, &asset, available, sequence)
                 .map_err(RecoveryError::Reservation)?;
-            reservations
+            legacy
                 .reserve(&id, &account, &asset, quanta, &snapshot, &order.attempt)
                 .map_err(RecoveryError::Reservation)?;
         }
         Record::ReleaseDenied { id } => {
             let order = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
-            reservations
-                .release_denied(&id, &order.attempt)
-                .map_err(RecoveryError::Reservation)?;
+            if legacy.is_reserved(&id) {
+                legacy.release_denied(&id, &order.attempt)
+            } else {
+                reservations.release_denied(&id, &order.attempt)
+            }
+            .map_err(RecoveryError::Reservation)?;
         }
         Record::ReleaseSettled {
             id,
@@ -1435,7 +1411,7 @@ fn apply_record(
                 &account, &asset, sequence, complete, locked, spent, available,
             )
             .map_err(RecoveryError::Reservation)?;
-            reservations
+            legacy
                 .release_settled(&id, &order.attempt, &evidence)
                 .map_err(RecoveryError::Reservation)?;
         }
@@ -1446,7 +1422,8 @@ impl DurableOrderJournal {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, RecoveryError> {
         let (ledger, records) = Ledger::open_and_replay(path)?;
         let mut intents = BTreeMap::new();
-        let mut reservations = ReservationBook::default();
+        let mut reservations = ActiveHoldBook::default();
+        let mut legacy_reservations = ReservationBook::default();
         let mut credential = None;
         let mut generations = BTreeSet::new();
         let mut ceiling = None;
@@ -1544,8 +1521,13 @@ impl DurableOrderJournal {
             {
                 return Err(RecoveryError::MalformedEvent);
             }
-            apply_record(&mut intents, &mut reservations, parsed)
-                .map_err(|_| RecoveryError::MalformedEvent)?;
+            apply_record(
+                &mut intents,
+                &mut reservations,
+                &mut legacy_reservations,
+                parsed,
+            )
+            .map_err(|_| RecoveryError::MalformedEvent)?;
         }
         let recovered_inflight = intents
             .iter()
@@ -1565,6 +1547,7 @@ impl DurableOrderJournal {
             ledger,
             intents,
             reservations,
+            legacy_reservations,
             records: records.len(),
             recovered_inflight,
             recovered_cancels,
@@ -1731,6 +1714,15 @@ impl DurableOrderJournal {
         context: IntentPreparation,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        if self
+            .intents
+            .keys()
+            .any(|id| self.legacy_reservations.is_reserved(id))
+        {
+            return Err(RecoveryError::Reservation(
+                ReservationError::InvalidEvidence,
+            ));
+        }
         let ticket = self
             .approvals
             .get(&context.client_id)
@@ -1804,10 +1796,12 @@ impl DurableOrderJournal {
         // Verify on a copy before persisting. No in-memory or venue effect before commit.
         let mut next = self.intents.clone();
         let mut next_holds = self.reservations.clone();
-        apply_record(&mut next, &mut next_holds, parsed)?;
+        let mut next_legacy = self.legacy_reservations.clone();
+        apply_record(&mut next, &mut next_holds, &mut next_legacy, parsed)?;
         self.ledger.append(&raw)?;
         self.intents = next;
         self.reservations = next_holds;
+        self.legacy_reservations = next_legacy;
         self.records += 1;
         Ok(())
     }
@@ -1824,10 +1818,12 @@ impl DurableOrderJournal {
         let parsed = decode(&raw)?;
         let mut next = self.intents.clone();
         let mut next_holds = self.reservations.clone();
-        apply_record(&mut next, &mut next_holds, parsed)?;
+        let mut next_legacy = self.legacy_reservations.clone();
+        apply_record(&mut next, &mut next_holds, &mut next_legacy, parsed)?;
         self.ledger.append(&raw)?;
         self.intents = next;
         self.reservations = next_holds;
+        self.legacy_reservations = next_legacy;
         self.records += 1;
         Ok(())
     }
@@ -1839,6 +1835,15 @@ impl DurableOrderJournal {
         quanta: u64,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        if self
+            .intents
+            .keys()
+            .any(|id| self.reservations.is_reserved(id))
+        {
+            return Err(RecoveryError::Reservation(
+                ReservationError::InvalidEvidence,
+            ));
+        }
         let raw = record_hold(id, snapshot, quanta)?;
         self.apply_durable(raw)
     }
@@ -1857,10 +1862,12 @@ impl DurableOrderJournal {
         let parsed = decode(&raw)?;
         let mut next = self.intents.clone();
         let mut next_holds = self.reservations.clone();
-        apply_record(&mut next, &mut next_holds, parsed)?;
+        let mut next_legacy = self.legacy_reservations.clone();
+        apply_record(&mut next, &mut next_holds, &mut next_legacy, parsed)?;
         self.ledger.append(&raw)?;
         self.intents = next;
         self.reservations = next_holds;
+        self.legacy_reservations = next_legacy;
         self.records += 1;
         Ok(())
     }
@@ -1873,6 +1880,15 @@ impl DurableOrderJournal {
         identity: &ExecutionIdentity,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        if self
+            .intents
+            .keys()
+            .any(|id| self.legacy_reservations.is_reserved(id))
+        {
+            return Err(RecoveryError::Reservation(
+                ReservationError::InvalidEvidence,
+            ));
+        }
         // Legacy simulation records cannot consume an authenticated operator review.
         if self.approvals.contains_key(id) {
             return Err(RecoveryError::DuplicateIdentity);
@@ -1901,7 +1917,9 @@ impl DurableOrderJournal {
         self.apply_durable(record_execution_settlement(id, settlement)?)
     }
     pub fn reserved(&self, account: &str, asset: &str) -> u64 {
-        self.reservations.reserved(account, asset)
+        self.reservations
+            .reserved(account, asset)
+            .saturating_add(self.legacy_reservations.reserved(account, asset))
     }
     pub fn get(&self, id: &str) -> Option<&ObservedIntent> {
         self.intents.get(id)

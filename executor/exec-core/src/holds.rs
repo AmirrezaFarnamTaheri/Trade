@@ -1,5 +1,4 @@
-//! Proposed reservation model for funded orders (ADR 0003). NOT wired into the service: `ReservationBook`
-//! stays authoritative until the money-path review swaps this in deliberately.
+//! Active reservation model used by the durable order journal (ADR 0003).
 //!
 //! Per account and asset it keeps the newest verified venue observation, the active holds of orders that are
 //! not yet settled, and settled spends the newest observation does not yet reflect. Admission requires
@@ -10,6 +9,9 @@
 //! and no exact-equality release, so a venue credit (dust, rebate) can never wedge a hold. A settled spend above
 //! its hold by more than the asset's tolerance puts the asset into RECONCILE, which blocks new entries until a
 //! strictly newer observation arrives.
+use crate::orders::{
+    Attempt, BalanceSnapshot, Lifecycle, ReservationError, Settlement, SettlementEvidence,
+};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,7 +28,7 @@ pub enum HoldError {
 struct AssetState {
     observed_available: u64,
     observed_seq: u64,
-    holds: BTreeMap<String, u64>,
+    holds: BTreeMap<String, (u64, u64)>, // quanta and the observation sequence at admission
     /// (observation sequence the spend settled after, quanta); dropped once a newer observation covers it.
     unobserved_spends: Vec<(u64, u64)>,
     /// Allowed overspend of one settlement above its hold, in quanta (venue rounding or dust rules).
@@ -39,7 +41,7 @@ impl AssetState {
         let holds = self
             .holds
             .values()
-            .try_fold(0u64, |t, q| t.checked_add(*q))?;
+            .try_fold(0u64, |t, (q, _)| t.checked_add(*q))?;
         self.unobserved_spends
             .iter()
             .try_fold(holds, |t, (_, q)| t.checked_add(*q))
@@ -60,6 +62,127 @@ fn valid(name: &str) -> bool {
 }
 
 impl ActiveHoldBook {
+    pub fn is_reserved(&self, intent: &str) -> bool {
+        self.assets
+            .values()
+            .any(|state| state.holds.contains_key(intent))
+    }
+
+    pub fn reserved(&self, account: &str, asset: &str) -> u64 {
+        self.assets
+            .get(&(account.into(), asset.into()))
+            .map_or(0, |s| s.committed().unwrap_or(u64::MAX))
+    }
+
+    pub fn total_reserved(&self, asset: &str) -> Option<u64> {
+        self.assets
+            .iter()
+            .filter(|((_, name), _)| name == asset)
+            .try_fold(0u64, |total, (_, state)| {
+                total.checked_add(state.committed()?)
+            })
+    }
+
+    /// The journal supplies authenticated snapshots; repeated sequence numbers must agree exactly.
+    pub fn reserve_order(
+        &mut self,
+        intent: &str,
+        account: &str,
+        asset: &str,
+        quanta: u64,
+        snapshot: &BalanceSnapshot,
+        order: &Attempt,
+    ) -> Result<(), ReservationError> {
+        if snapshot.account != account || snapshot.asset != asset || snapshot.sequence == 0 {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        if order.lifecycle() != Lifecycle::IntentLogged {
+            return Err(ReservationError::OrderNotFresh);
+        }
+        if let Some(state) = self.assets.get(&(account.into(), asset.into())) {
+            if snapshot.sequence < state.observed_seq {
+                return Err(ReservationError::StaleBalance);
+            }
+            if snapshot.sequence == state.observed_seq
+                && snapshot.available_quanta != state.observed_available
+            {
+                return Err(ReservationError::InvalidEvidence);
+            }
+        }
+        if self
+            .assets
+            .get(&(account.into(), asset.into()))
+            .is_none_or(|s| snapshot.sequence > s.observed_seq)
+        {
+            self.observe(account, asset, snapshot.available_quanta, snapshot.sequence)
+                .map_err(reservation_error)?;
+        }
+        self.reserve(intent, account, asset, quanta)
+            .map_err(reservation_error)
+    }
+
+    pub fn release_denied(
+        &mut self,
+        intent: &str,
+        order: &Attempt,
+    ) -> Result<(), ReservationError> {
+        if order.lifecycle() != Lifecycle::Denied {
+            return Err(ReservationError::OrderNotSettled);
+        }
+        self.release_unsent(intent).map_err(reservation_error)
+    }
+
+    /// A reconciled terminal observation covers the spend; unrelated credits never require exact equality.
+    pub fn release_settled(
+        &mut self,
+        intent: &str,
+        order: &Attempt,
+        evidence: &SettlementEvidence,
+    ) -> Result<(), ReservationError> {
+        if order.lifecycle() != Lifecycle::Closed
+            || !matches!(
+                order.settlement(),
+                Settlement::Settled | Settlement::Verified
+            )
+        {
+            return Err(ReservationError::OrderNotSettled);
+        }
+        let ((account, asset), state) = self
+            .assets
+            .iter()
+            .find(|(_, s)| s.holds.contains_key(intent))
+            .ok_or(ReservationError::UnknownIntent)?;
+        if evidence.account != *account || evidence.asset != *asset || !evidence.complete {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        if evidence.sequence <= state.holds[intent].1 || evidence.sequence < state.observed_seq {
+            return Err(ReservationError::StaleBalance);
+        }
+        if evidence.sequence == state.observed_seq
+            && evidence.available_quanta != state.observed_available
+        {
+            return Err(ReservationError::InvalidEvidence);
+        }
+        if evidence.locked_quanta != 0 {
+            return Err(ReservationError::StillLocked);
+        }
+        if evidence.spent_quanta > state.holds[intent].0 {
+            return Err(ReservationError::BalanceMismatch);
+        }
+        let (account, asset) = (account.clone(), asset.clone());
+        let newer = evidence.sequence > state.observed_seq;
+        self.release_unsent(intent).map_err(reservation_error)?;
+        if newer {
+            self.observe(
+                &account,
+                &asset,
+                evidence.available_quanta,
+                evidence.sequence,
+            )
+            .map_err(reservation_error)?;
+        }
+        Ok(())
+    }
     /// Declare the per-settlement tolerance for an asset (default zero: any overspend reconciles).
     pub fn set_tolerance(
         &mut self,
@@ -134,7 +257,9 @@ impl ActiveHoldBook {
         if after > state.observed_available {
             return Err(HoldError::InsufficientAvailable);
         }
-        state.holds.insert(intent.into(), quanta);
+        state
+            .holds
+            .insert(intent.into(), (quanta, state.observed_seq));
         Ok(())
     }
 
@@ -157,7 +282,7 @@ impl ActiveHoldBook {
             .values_mut()
             .find(|s| s.holds.contains_key(intent))
             .ok_or(HoldError::UnknownIntent)?;
-        let hold = state.holds.remove(intent).unwrap_or(0);
+        let hold = state.holds.remove(intent).map_or(0, |(q, _)| q);
         if spent > 0 {
             state.unobserved_spends.push((state.observed_seq, spent));
         }
@@ -178,5 +303,15 @@ impl ActiveHoldBook {
         self.assets
             .get(&(account.into(), asset.into()))
             .is_some_and(|s| s.reconcile_after.is_some())
+    }
+}
+
+fn reservation_error(error: HoldError) -> ReservationError {
+    match error {
+        HoldError::DuplicateIntent => ReservationError::DuplicateIntent,
+        HoldError::UnknownIntent => ReservationError::UnknownIntent,
+        HoldError::StaleObservation => ReservationError::StaleBalance,
+        HoldError::InsufficientAvailable => ReservationError::InsufficientAvailable,
+        HoldError::InvalidEvidence | HoldError::Reconciling => ReservationError::InvalidEvidence,
     }
 }

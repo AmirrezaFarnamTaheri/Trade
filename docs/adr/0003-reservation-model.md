@@ -1,6 +1,6 @@
 # ADR 0003: Reservation model for funded orders
 
-Status: Proposed, implemented but not wired (needs the money-path review before any funded work; finding A-6)
+Status: Wired in the durable journal source; owner review and protected publication pending. Funded admission stays disabled.
 
 ## Context
 
@@ -33,8 +33,11 @@ one-quantum venue credit (dust, rebates) makes release fail and keeps the hold f
 
 ## Implementation status (2026-11-10)
 
-`exec-core/src/holds.rs` implements this model as `ActiveHoldBook`; `ReservationBook` remains the one the service
-uses, so no journal replay changes. `exec-core/tests/active_holds.rs` checks it against a simulated venue over 300
+`exec-core/src/holds.rs` implements this model as `ActiveHoldBook`. New reviewed and fake execution reservations
+use it in the durable journal source. Historical aggregate hold/release records retain `ReservationBook`
+replay semantics; admissions refuse mixing active holds with legacy outstanding holds. Terminal reconciled
+observations can release an active hold despite an external credit; equal observation sequences must agree.
+The protected installation is unchanged. `exec-core/tests/active_holds.rs` checks the model over 300
 random interleavings of admissions, partial fills, tolerated and untolerated overspends, unsent releases, dust
 credits and observations: the venue balance never goes negative, and after settling and one fresh observation no
 hold or spend remains and the full balance is usable again. The same file records the current book's wedge on a
