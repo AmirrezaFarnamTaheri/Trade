@@ -119,7 +119,8 @@ function stop(child) {
       await pause(800);
       if (!await evaluate('typeof axe === "object"')) await evaluate(axeSource + '; true');
       accessibility[route] = await evaluate(`axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] }).then(result =>
-        result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, help: v.help })))`);
+        result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, help: v.help,
+          details: v.nodes.slice(0, 5).map(n => ({ target: n.target, failure: n.failureSummary })) })))`);
     }
   }
   const critical = Object.entries(accessibility).flatMap(([route, found]) => found.filter(v => v.impact === 'critical').map(v => `${route}: ${v.id} (${v.nodes}) ${v.help}`));
@@ -242,7 +243,7 @@ function stop(child) {
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
     accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus,
-    checks: ['ten real views', 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action, tab and market-selection targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
+    checks: [`${routes.length} real views`, 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action, tab and market-selection targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);
 })().catch(async error => {

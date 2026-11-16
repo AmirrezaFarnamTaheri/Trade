@@ -111,8 +111,6 @@ try {
     $revoked=Request 4 $id $sequence
     if ($revoked[8] -ne 3 -or (Get-Number $revoked 40) -le $sequence) { throw 'Revocation not committed.' }
     $report.client_id=$id; $report.review_prepared_and_revoked=$true
-    $denials=& (Join-Path $PSScriptRoot 'Test-ResearchWorkerBoundary.ps1') -Launcher (Join-Path $code 'gym-research-worker.exe') -InstallDirectory $manifest.worker_install -ExistenceManifest $manifestPath
-    $report.worker_denials=$denials
     $stops=@()
     foreach ($command in @('status','pause','exit-only','halt')) {
         $timer=[Diagnostics.Stopwatch]::StartNew(); $reply=& (Join-Path $code 'gym-stopctl.exe') $command; $timer.Stop()
@@ -123,4 +121,4 @@ try {
 } catch { $report.status='FAILED'; $report.error=$_.Exception.Message }
 finally { [IO.File]::WriteAllText($ReportPath,($report|ConvertTo-Json -Depth 7)) }
 if ($report.status -cne 'PASSED') { throw $report.error }
-Write-Output 'PASS: ordinary operator review/prepare/duplicate-refusal/revoke, seven worker denials and four STOP acknowledgements.'
+Write-Output 'PASS: ordinary operator review/prepare/duplicate-refusal/revoke and four STOP acknowledgements.'

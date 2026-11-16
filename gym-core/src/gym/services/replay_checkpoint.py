@@ -31,6 +31,8 @@ def _state(session):
                    "orders": session.orders, "balances": session.book.balances, "postings": session.book.postings,
                    "curve": session.curve, "bar_events": session.bar_events, "rules": session.rule_snapshots,
                    "limit_trades": session.limit_trades,
+                   **({"venue_stop": session.venue_stop, "stop_trades": session.venue_stop_trades}
+                      if session.strategy.params.get("exit_venue_stop") else {}),
                    "pending": None if pending is None else asdict(pending)})
 
 

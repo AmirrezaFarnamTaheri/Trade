@@ -20,3 +20,21 @@ def test_missing_exact_duration_abstains_instead_of_interpolating_future_quotes(
     assert random_entry_percentile([(0, 100), (60, 101), (120, 100)],
                                    [{"holding_seconds": 75, "net_return": 0.01,
                                      "cost_drag": 0.001}])["reason"] == "NO_EXACT_HOLDING_WINDOW"
+
+
+def test_repeated_holding_durations_do_not_rescan_the_whole_price_history(monkeypatch):
+    from gym.services import random_entry
+
+    lookups = []
+
+    class Prices(dict):
+        def __contains__(self, key):
+            lookups.append(key)
+            return super().__contains__(key)
+
+    monkeypatch.setattr(random_entry, "dict", Prices, raising=False)
+    marks = [(i * 60, 100 + i) for i in range(100)]
+    trades = [{"holding_seconds": (i % 2 + 1) * 60, "net_return": .01, "cost_drag": .001}
+              for i in range(40)]
+    assert random_entry_percentile(marks, trades)["status"] == "EXPLORATORY"
+    assert len(lookups) <= 2 * len(marks)

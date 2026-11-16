@@ -3,7 +3,7 @@ window.gymMargin = (() => {
   let language, catalogue, preview, result, refresh, busy = false;
   const $ = id => document.getElementById(id);
   const inputIds = ['margin-market', 'margin-side', 'margin-collateral', 'margin-risk', 'margin-price', 'margin-stop', 'margin-target', 'margin-from', 'margin-to', 'margin-exit-fee', 'margin-holding'];
-  function mount({api, esc, keyValues, table, amount, when, stamp = (v, d) => esc(when(v, d)), demo = false}) {
+  function mount({api, esc, keyValues, table, amount, when, stamp = (v, d) => esc(when(v, d)), demo = false, setHTML = (id, html) => { if ($(id).innerHTML !== html) $(id).innerHTML = html; }}) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (language === next || busy) { refresh?.(); return; }
     // A language change preserves the operator's exact decimal inputs and receipt.
@@ -39,7 +39,7 @@ window.gymMargin = (() => {
       return value;
     }
     const money = row => `${amount(row.value)} <bdi dir="ltr">${esc(row.currency)}</bdi>`;
-    const raw = value => `<details><summary>${text(T.en.mgSavedReceiptAndLimitations, T.fa.mgSavedReceiptAndLimitations)}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre></details>`;
+    const raw = value => `<details data-key="margin-receipt-${esc(value.run_id || value.kind || 'replay')}"><summary>${text(T.en.mgSavedReceiptAndLimitations, T.fa.mgSavedReceiptAndLimitations)}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre></details>`;
     function controls() {
       $('margin-load').disabled = busy || demo;
       $('margin-preview-fields').disabled = busy || !catalogue;
@@ -50,13 +50,13 @@ window.gymMargin = (() => {
       busy = true; controls(); $('margin-status').textContent = text(T.en.rsWorking, T.fa.rsWorking);
       try { await fn(); $('margin-status').textContent = text(T.en.rsRequestCompleted, T.fa.rsRequestCompleted); }
       catch { $('margin-status').textContent = text(T.en.mgRequestFailedRefreshMarketRulesAnd, T.fa.mgRequestFailedRefreshMarketRulesAnd); }
-      finally { busy = false; controls(); if (document.documentElement.lang !== language) mount({api, esc, keyValues, table, amount, when, stamp, demo}); }
+      finally { busy = false; controls(); if (document.documentElement.lang !== language) mount({api, esc, keyValues, table, amount, when, stamp, demo, setHTML}); }
     }
     function renderRules() {
       if (!catalogue) return;
-      $('margin-rules').innerHTML = `<p>${text(T.en.receiptReceived, T.fa.receiptReceived)} · ${stamp(catalogue.received_at)}</p><details><summary>${text(T.en.mgPerMarketRules, T.fa.mgPerMarketRules)} · ${catalogue.markets.length}</summary>` + table(
+      setHTML('margin-rules', `<p>${text(T.en.receiptReceived, T.fa.receiptReceived)} · ${stamp(catalogue.received_at)}</p><details data-key="margin-market-rules"><summary>${text(T.en.mgPerMarketRules, T.fa.mgPerMarketRules)} · ${catalogue.markets.length}</summary>` + table(
         [text(T.en.pair, T.fa.pair), text(T.en.mgMinimumCredit, T.fa.mgMinimumCredit), text(T.en.mgMaximumCredit, T.fa.mgMaximumCredit), text(T.en.mgStep, T.fa.mgStep), text(T.en.mgLiquidationMarginFraction, T.fa.mgLiquidationMarginFraction), text(T.en.mgMaxAgeSeconds, T.fa.mgMaxAgeSeconds)],
-        catalogue.markets.map(row => [esc(row.symbol), amount(row.min_risk_coef), amount(row.max_risk_coef), amount(row.risk_coef_step), amount(row.liquidity_margin), esc(row.max_age)])) + '</details>';
+        catalogue.markets.map(row => [esc(row.symbol), amount(row.min_risk_coef), amount(row.max_risk_coef), amount(row.risk_coef_step), amount(row.liquidity_margin), esc(row.max_age)])) + '</details>');
     }
     function bounds() {
       const row = catalogue?.markets.find(row => row.symbol === $('margin-market').value);
@@ -68,7 +68,7 @@ window.gymMargin = (() => {
     function renderPreview() {
       if (!preview) return;
       const terms = preview.terms;
-      $('margin-preview').innerHTML = keyValues([
+      setHTML('margin-preview', keyValues([
         [text(T.en.mgSavedPreview, T.fa.mgSavedPreview), esc(preview.run_id)],
         [text(T.en.mgCollateralRange, T.fa.mgCollateralRange), `${amount(preview.collateral_limits.min)} – ${amount(preview.collateral_limits.max)} ${esc(terms.collateral.currency)}`],
         [text(T.en.mgLoan, T.fa.mgLoan), money(terms.loan)], [text(T.en.mgOpeningFee, T.fa.mgOpeningFee), money(terms.open_fee)],
@@ -76,11 +76,11 @@ window.gymMargin = (() => {
         [text(T.en.mgExtensionPeriodSeconds, T.fa.mgExtensionPeriodSeconds), esc(terms.extend_time)],
         [text(T.en.mgWarningPrice, T.fa.mgWarningPrice), amount(terms.call_price)], [text(T.en.mgLiquidationPrice, T.fa.mgLiquidationPrice), amount(terms.liquidity_price)],
         [text(T.en.mgMaxAgeSeconds, T.fa.mgMaxAgeSeconds), esc(terms.max_age)],
-      ]) + raw(preview);
+      ]) + raw(preview));
     }
     function fillMarkets() { if (catalogue) $('margin-market').innerHTML = catalogue.markets.map(row => `<option>${esc(row.symbol)}</option>`).join(''); }
-    function invalidate() { preview = null; result = null; $('margin-preview').textContent = ''; $('margin-result').textContent = ''; controls(); }
-    $('margin-load').onclick = () => act(async () => { invalidate(); catalogue = null; $('margin-rules').textContent = ''; catalogue = receipt(await call('margin-markets', null), 'MARKETS'); fillMarkets(); renderRules(); bounds(); });
+    function invalidate() { preview = null; result = null; setHTML('margin-preview', ''); setHTML('margin-result', ''); controls(); }
+    $('margin-load').onclick = () => act(async () => { invalidate(); catalogue = null; setHTML('margin-rules', ''); catalogue = receipt(await call('margin-markets', null), 'MARKETS'); fillMarkets(); renderRules(); bounds(); });
     $('margin-market').onchange = () => { invalidate(); $('margin-risk').value = ''; bounds(); };
     $('margin-preview-form').oninput = invalidate;
     $('margin-observed-price').onclick = () => act(async () => {
@@ -96,7 +96,7 @@ window.gymMargin = (() => {
       const response = await call('margin-preview', {catalogue_id: catalogue.run_id, request});
       if (response.kind === 'COLLATERAL_LIMITS') {
         const limits = receipt(response, 'COLLATERAL_LIMITS').collateral_limits;
-        $('margin-preview').innerHTML = keyValues([[text(T.en.mgRequiredCollateralRange, T.fa.mgRequiredCollateralRange), `${amount(limits.min)} – ${amount(limits.max)} ${esc(limits.currency)}`]]);
+        setHTML('margin-preview', keyValues([[text(T.en.mgRequiredCollateralRange, T.fa.mgRequiredCollateralRange), `${amount(limits.min)} – ${amount(limits.max)} ${esc(limits.currency)}`]]));
         return;
       }
       preview = receipt(response, 'PREVIEW'); renderPreview();
@@ -111,13 +111,13 @@ window.gymMargin = (() => {
     function renderResult() {
       if (!result) return;
       const row = result.result;
-      $('margin-result').innerHTML = keyValues([
+      setHTML('margin-result', keyValues([
         [text(T.en.mgPaperState, T.fa.mgPaperState), esc(row.state)], [text(T.en.mgCashQuote, T.fa.mgCashQuote), amount(row.cash_quote)],
         [text(T.en.mgBaseHoldings, T.fa.mgBaseHoldings), amount(row.base_units)], [text(T.en.mgQuoteDebt, T.fa.mgQuoteDebt), amount(row.debt_quote)],
         [text(T.en.mgBaseDebt, T.fa.mgBaseDebt), amount(row.debt_base)], [text(T.en.mgMarkedEquityQuote, T.fa.mgMarkedEquityQuote), amount(row.equity_quote)],
         [text(T.en.mgQuoteStatus, T.fa.mgQuoteStatus), esc(row.mark.status)],
       ]) + table([text(T.en.mgFeeCurrency, T.fa.mgFeeCurrency), text(T.en.mgRecognizedCosts, T.fa.mgRecognizedCosts)], Object.entries(row.fees_by_currency || {}).map(([currency, value]) => [esc(currency), amount(value)]))
-        + table([text(T.en.mgTimeSelectedZone, T.fa.mgTimeSelectedZone), text(T.en.mgPaperEvent, T.fa.mgPaperEvent), text(T.en.mgObservedSidePrice, T.fa.mgObservedSidePrice)], row.events.map(row => [stamp(row.at), esc(row.action), amount(row.price)])) + raw(result);
+        + table([text(T.en.mgTimeSelectedZone, T.fa.mgTimeSelectedZone), text(T.en.mgPaperEvent, T.fa.mgPaperEvent), text(T.en.mgObservedSidePrice, T.fa.mgObservedSidePrice)], row.events.map(row => [stamp(row.at), esc(row.action), amount(row.price)])) + raw(result));
     }
     fillMarkets();
     for (const [id, value] of Object.entries(saved)) $(id).value = value;

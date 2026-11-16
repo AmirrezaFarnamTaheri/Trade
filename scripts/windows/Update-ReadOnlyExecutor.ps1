@@ -11,7 +11,7 @@ param([string]$BinaryDirectory, [string]$HashManifest, [string]$Signature, [swit
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $names = @('gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe',
-    'gym-ceiling.exe','gym-review.exe','gym-research-worker.exe','gym-executor.exe')
+    'gym-ceiling.exe','gym-review.exe','gym-executor.exe')
 function Read-BundleHashes([string]$Text) {
     if ($Text.Length -gt 4096) { throw 'Oversized bundle manifest.' }
     $hashes = @{}
@@ -32,7 +32,7 @@ function Stream-Hash([IO.Stream]$Stream) {
 }
 if ($SelfTest) {
     $valid = ($names | ForEach-Object { ('1' * 64) + '  ' + $_ }) -join "`n"
-    if ((Read-BundleHashes $valid).Count -ne 8) { throw 'Manifest self-test failed.' }
+    if ((Read-BundleHashes $valid).Count -ne $names.Count) { throw 'Manifest self-test failed.' }
     foreach ($bad in @($valid + "`n" + ('2' * 64) + '  gym-review.exe', $valid.Replace('gym-review.exe','unknown.exe'),
         $valid.Replace('gym-review.exe','../gym-review.exe'), $valid.Replace('gym-review.exe','GYM-REVIEW.exe'),
         $valid.Substring(1), $valid.Replace('  gym-review.exe',' gym-review.exe'), $valid + [char]0, '')) {
@@ -121,7 +121,7 @@ try {
         $stage=Join-Path $backupRoot ('new-' + $name)
         $out=[IO.File]::Open($stage,'CreateNew','Write','None')
         try { $streams[$name].CopyTo($out); $out.Flush($true) } finally { $out.Dispose() }
-        $operatorRead=$name -in @('gym-stopctl.exe','gym-hardstop.exe','gym-review.exe','gym-research-worker.exe')
+        $operatorRead=$name -in @('gym-stopctl.exe','gym-hardstop.exe','gym-review.exe')
         Seal $stage $false $true $operatorRead
         $staged=[IO.File]::OpenRead($stage)
         try { if ((Stream-Hash $staged) -cne $expected[$name]) { throw 'Staged bundle hash mismatch.' } } finally { $staged.Dispose() }
@@ -145,7 +145,7 @@ try {
         $stage=Join-Path $backupRoot ('new-' + $name)
         if ($null -ne $prior[$name]) { [IO.File]::Replace($stage,$target,$old); Seal $old $false $false $false }
         else { [IO.File]::Move($stage,$target) }
-        Seal $target $false $true ($name -in @('gym-stopctl.exe','gym-hardstop.exe','gym-review.exe','gym-research-worker.exe'))
+        Seal $target $false $true ($name -in @('gym-stopctl.exe','gym-hardstop.exe','gym-review.exe'))
     }
     & (Join-Path $PSScriptRoot 'Test-ReadOnlyExecutor.ps1') -MigrationPreflight
     if ([IO.File]::ReadAllText($marker) -cne $runId) { throw 'Publication marker changed.' }
@@ -170,7 +170,7 @@ try {
                 $name=$published[$index]; $target=Join-Path $code $name; $old=Join-Path $backupRoot ('old-' + $name)
                 if ([IO.File]::Exists($old)) {
                     [IO.File]::Replace($old,$target,(Join-Path $backupRoot ('failed-' + $name)))
-                    Seal $target $false $true ($name -in @('gym-stopctl.exe','gym-hardstop.exe','gym-review.exe','gym-research-worker.exe'))
+                    Seal $target $false $true ($name -in @('gym-stopctl.exe','gym-hardstop.exe','gym-review.exe'))
                 } elseif ($null -eq $prior[$name] -and [IO.File]::Exists($target)) {
                     $stream=[IO.File]::OpenRead($target)
                     try { if ((Stream-Hash $stream) -cne $expected[$name]) { throw 'Rollback target changed.' } } finally { $stream.Dispose() }

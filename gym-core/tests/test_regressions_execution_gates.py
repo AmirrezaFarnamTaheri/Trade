@@ -14,7 +14,7 @@ from gym.services.feed_divergence import evaluate_divergence, persist_paper_feed
 from gym.services.postfill import post_fill_checks
 from gym.services.shadow_drift import shadow_drift
 from tests.support import START, quote
-from tests.test_paper_promotion_gates import source
+from tests.test_shadow_drift_screen import source
 
 PROFILE = {"schema": "postfill-adverse/1", "symbol": "BTCUSDT",
            "trained_until": iso(START), "penalty_bps": "12",

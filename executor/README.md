@@ -8,13 +8,12 @@ submission, cancellation or protective-exit transport.
 - `exec-ipc`: bounded stop, credential provisioning and read-only account contracts.
 - `exec-svc`: restricted LocalService host, independent authenticated STOP listener,
   elevated provisioning/account-read pipe, service-context DPAPI custody and explicit recovery startup.
-- `gym-research-worker`: constrained AppContainer launcher for the fixed public-data-only Python entrypoint.
 
 The protected account helper makes only fixed-origin GET requests. Its output is
 an unparsed observation; key permissions, settlement and spendable balances are
 not established by a successful read. Python can normalize those observations
 with `gymctl account --source service --record`, from a separate elevated console.
-The operator and research worker cannot read the service credential.
+The operator cannot read the service credential.
 
 The new reviewed source adds `gym-account-read open-orders <page> <per-page>`
 and `order-history <page> <per-page>` (pages 1..1000, sizes 1..100), using only

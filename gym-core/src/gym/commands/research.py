@@ -429,9 +429,6 @@ def research_cmd(args):
     from ..services.research_actions import OBJECT_ACTIONS, research_action
 
     root = store_root(args)
-    if args.action == "mcp":
-        from ..services.research_mcp import serve_stdio
-        return serve_stdio(root)
     if args.action == "start":
         root.mkdir(parents=True, exist_ok=True)
         result = asyncio.run(watch(root, store="demo" if args.demo else "live", poll_seconds=args.poll_seconds))

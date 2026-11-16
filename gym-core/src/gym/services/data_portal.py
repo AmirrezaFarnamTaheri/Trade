@@ -54,6 +54,18 @@ class DataPortal:
                                  "and ts_event>=? and ts_event<? order by ts_event, rowid", (f"wallex:{symbol}", iso(t0), iso(t1)))
         return [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
 
+    def trades_by_availability(self, symbol, after, through):
+        rows = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "
+            "AND ts_avail>? AND ts_avail<=? ORDER BY ts_avail,ts_event,rowid LIMIT 100001",
+            (f"wallex:{symbol}", iso(after), iso(through))).fetchall()
+        if len(rows) > 100000:
+            raise ValueError("venue stop trade window exceeds budget")
+        ticks = [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
+        if any(t.ts_event > t.ts_avail or not t.price.is_finite() or t.price <= 0
+               or not t.qty.is_finite() or t.qty <= 0 for t in ticks):
+            raise ValueError("invalid venue stop trade evidence")
+        return ticks
+
     def venue_candles(self, symbol: str, resolution: str, t0: datetime, t1: datetime, *, as_of=None) -> list[dict]:
         rows = self.db.c.execute("""SELECT t,o,h,l,c,v,fetched_at FROM (
             SELECT t,o,h,l,c,v,fetched_at,ROW_NUMBER() OVER(PARTITION BY t ORDER BY fetched_at DESC) AS position

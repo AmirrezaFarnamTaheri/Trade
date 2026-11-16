@@ -337,7 +337,7 @@ class _WorkspaceApi:
         if self.market_path.resolve() != (self.runs.parent / "market.db").resolve():
             raise ValueError("comparison market/run stores must share a root")
         normalized = {"symbol": body.get("symbol"), "from": iso(start), "to": iso(end),
-                      "resolution": body.get("resolution", "15min"), "cash": str(cash), "fee_rate": str(cost.fee_rate),
+                      "resolution": body.get("resolution", "15min"), "cash": str(cash), "fee_rate": body.get("fee_rate"),
                       "latency_ms": latency, "rules_mode": body.get("rules_mode", "point-in-time"),
                       "candidates": body.get("candidates"), "folds": folds,
                       "participation": None if cost.max_participation is None else str(cost.max_participation),

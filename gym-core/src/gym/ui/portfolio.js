@@ -2,11 +2,12 @@
 window.gymPortfolio = (() => {
   let language, setup, record, checkpoint, runs, refresh, busy = false;
   const $ = id => document.getElementById(id);
-  const inputs = ['portfolio-symbols', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold'];
-  function mount({api, esc, table, keyValues, amount, when, stamp = (v, d) => esc(when(v, d)), curveFigure, strategyFields}) {
+  const inputs = ['portfolio-symbols', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold', 'portfolio-checkpoint-count'];
+  function mount({api, esc, table, keyValues, amount, when, stamp = (v, d) => esc(when(v, d)), curveFigure, strategyFields, setHTML = (id, html) => { if ($(id).innerHTML !== html) $(id).innerHTML = html; }}) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (next === language || busy) { refresh?.(); return; }
     const saved = language ? Object.fromEntries(inputs.map(id => [id, $(id).value])) : {};
+    const recovery = language ? $('portfolio-recovery-status').textContent : '';
     language = next;
     const fa = next === 'fa', text = (en, persian) => fa ? persian : en;
     const field = (id, title, attrs = '') => `<label for="${id}">${title}<input id="${id}" class="input" dir="ltr" ${attrs}></label>`;
@@ -47,7 +48,7 @@ window.gymPortfolio = (() => {
       busy = true; controls(); $('portfolio-status').textContent = text(T.en.rsWorking, T.fa.rsWorking);
       try { if (await work() !== false) $('portfolio-status').textContent = text(T.en.rsRequestCompleted, T.fa.rsRequestCompleted); }
       catch { $('portfolio-status').textContent = text(T.en.pfRequestFailedCheckDistinctObservedMarkets, T.fa.pfRequestFailedCheckDistinctObservedMarkets); }
-      finally { busy = false; controls(); if (document.documentElement.lang !== language) mount({api, esc, table, keyValues, amount, when, stamp, curveFigure, strategyFields}); }
+      finally { busy = false; controls(); if (document.documentElement.lang !== language) mount({api, esc, table, keyValues, amount, when, stamp, curveFigure, strategyFields, setHTML}); }
     }
     function fillSetup() {
       if (!setup) return;
@@ -81,9 +82,9 @@ window.gymPortfolio = (() => {
     }
     function renderSaved() {
       if (!runs) return;
-      $('portfolio-saved').innerHTML = `<p class="field-help">${text(T.en.pfSavedReferencesOpenARecordTo, T.fa.pfSavedReferencesOpenARecordTo)}</p>` + table([text(T.en.pfSavedPortfoliosLatest100, T.fa.pfSavedPortfoliosLatest100), text(T.en.strategy, T.fa.strategy), text(T.en.navMarkets, T.fa.navMarkets), text(T.en.pfWindowTehran, T.fa.pfWindowTehran)], runs.runs.map(row => [
-        `<button type="button" class="button button-small" data-portfolio="${esc(row.run_id)}">${esc(row.run_id)}</button>`, `${esc(row.inputs.strategy)} · ${esc(row.inputs.resolution)}`,
-        `<details><summary>${esc(row.inputs.symbols.length)} · ${esc(row.inputs.symbols[0]?.endsWith('USDT') ? 'USDT' : 'TMN')}</summary><p dir="ltr">${esc(row.inputs.symbols.join(', '))}</p></details>`, `${stamp(row.inputs.from)} → ${stamp(row.inputs.to)}`]));
+      setHTML('portfolio-saved', `<p class="field-help">${text(T.en.pfSavedReferencesOpenARecordTo, T.fa.pfSavedReferencesOpenARecordTo)}</p>` + table([text(T.en.pfSavedPortfoliosLatest100, T.fa.pfSavedPortfoliosLatest100), text(T.en.strategy, T.fa.strategy), text(T.en.navMarkets, T.fa.navMarkets), text(T.en.pfWindowTehran, T.fa.pfWindowTehran)], runs.runs.map(row => [
+        `<button type="button" class="button button-small" data-portfolio="${esc(row.run_id)}" data-focus="portfolio-${esc(row.run_id)}">${esc(row.run_id)}</button>`, `${esc(row.inputs.strategy)} · ${esc(row.inputs.resolution)}`,
+        `<details data-key="portfolio-symbols-${esc(row.run_id)}"><summary>${esc(row.inputs.symbols.length)} · ${esc(row.inputs.symbols[0]?.endsWith('USDT') ? 'USDT' : 'TMN')}</summary><p dir="ltr">${esc(row.inputs.symbols.join(', '))}</p></details>`, `${stamp(row.inputs.from)} → ${stamp(row.inputs.to)}`])));
       $('portfolio-saved').querySelectorAll('[data-portfolio]').forEach(button => { button.onclick = () => act(async () => { record = await call('portfolio-read', {run_id: button.dataset.portfolio}); checkpoint = null; $('portfolio-recovery-status').textContent = ''; render(); }); });
     }
     function render() {
@@ -98,7 +99,7 @@ window.gymPortfolio = (() => {
         `<p class="field-help">${text(T.en.pfStaleAndStaleClosedUseAn, T.fa.pfStaleAndStaleClosedUseAn)}</p>` +
         table([text(T.en.pfLatest25ValuationMarksUtc, T.fa.pfLatest25ValuationMarksUtc), text(T.en.pfUsdtEquivalent, T.fa.pfUsdtEquivalent), text(T.en.fxState, T.fa.fxState), text(T.en.fxAge, T.fa.fxAge)],
           fxCurve.slice(-25).map(row => [stamp(row.at, false, 'UTC'), row.equity_usdt_eq == null ? text(T.en.pfUnavailable, T.fa.pfUnavailable) : amount(row.equity_usdt_eq), esc(row.fx.status), esc(row.fx.age_seconds ?? 'UNKNOWN')])) : '';
-      $('portfolio-result').innerHTML = `<h3>${esc(record.run_id)} · ${esc(result.quote)}</h3>` + (result.policy_state ? keyValues([
+      setHTML('portfolio-result', `<h3>${esc(record.run_id)} · ${esc(result.quote)}</h3>` + (result.policy_state ? keyValues([
         [text(T.en.pfPortfolioRiskLatch, T.fa.pfPortfolioRiskLatch), esc(result.policy_state.risk || 'CLEAR')],
         [text(T.en.pfAllocationReadiness, T.fa.pfAllocationReadiness), esc(result.policy_state.weights.status)],
         [text(T.en.pfPolicyScope, T.fa.pfPolicyScope), esc(result.policy_state.scope)]]) : '') + keyValues([
@@ -109,7 +110,7 @@ window.gymPortfolio = (() => {
         [text(T.en.pfDrawdownSampled, T.fa.pfDrawdownSampled), amount(record.performance?.max_drawdown_pct)]]) + curveFigure(result) + table(
         [text(T.en.pair, T.fa.pair), text(T.en.pfFills, T.fa.pfFills), text(T.en.pfClosedTrades, T.fa.pfClosedTrades), text(T.en.pfRealizedPL, T.fa.pfRealizedPL), text(T.en.pfHeldBaseUnits, T.fa.pfHeldBaseUnits), text(T.en.pfLastRecordedBid, T.fa.pfLastRecordedBid), text(T.en.pfPriceFreshness, T.fa.pfPriceFreshness), text(T.en.pfLastMarkTehran, T.fa.pfLastMarkTehran)],
         Object.entries(result.markets).map(([s, row]) => [esc(s), esc(row.fills), esc(row.closed_trades), amount(row.realized_pnl), amount(row.holding), amount(row.last_bid), esc(row.mark_status || 'UNKNOWN'), stamp(row.mark_time)])) +
-        conversion + `<details><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(record, null, 2))}</pre></details>`;
+        conversion + `<details data-key="portfolio-receipt-${esc(record.run_id)}"><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(record, null, 2))}</pre></details>`);
     }
     $('portfolio-load').onclick = () => act(async () => {
       const data = await api('/api/research');
@@ -152,6 +153,7 @@ window.gymPortfolio = (() => {
     renderParameters();
     refresh = () => { renderSaved(); render(); };
     controls(); refresh();
+    $('portfolio-recovery-status').textContent = recovery;
   }
   return {mount};
 })();

@@ -17,25 +17,23 @@
       <span><span class="brand-name">Trading<span>GYM</span></span><span class="brand-tagline" data-t="appTagline">A workspace for market research</span></span>
     </a>
     <nav class="nav" data-t-label="navigation" aria-label="Workspace navigation">
-      <span class="nav-label" data-t="navGroupObserve">Observe</span>
+      <span class="nav-label" data-t="navGroupWorkspace">Workspace</span>
       <a href="#overview" data-view="overview"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m2 9 8-7 8 7M4 8v10h5v-6h3v6h4V8"/></svg><span data-t="navOverview">Overview</span></a>
       <a href="#markets" data-view="markets" aria-current="page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15V9m5 6V4m5 11v-5m4 5V2M2 18h16"/></svg><span data-t="navMarkets">Markets</span></a>
-      <span class="nav-label" data-t="navGroupResearch">Research</span>
       <a href="#research" data-view="research"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h14v14H3zM6 13l3-4 3 2 3-5"/></svg><span data-t="navResearch">Paper research</span></a>
-      <span class="nav-label" data-t="navGroupPrepare">Prepare</span>
       <a href="#account" data-view="account"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v12H3zM3 5l10-3v3m0 5h4v4h-4z"/></svg><span data-t="navAccount">Account journal</span></a>
       <a href="#operate" data-view="operate"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2h10v16H5zM8 6h4m-4 4h4m-4 4h2"/></svg><span data-t="navOperate">Offline ticket</span></a>
-      <span class="nav-label" data-t="navGroupSafety">Safety &amp; health</span>
+      <details class="nav-settings"><summary data-t="navGroupSettings">Settings &amp; system</summary>
       <a href="#safety" data-view="safety"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 7 3v5c0 4-7 8-7 8S3 14 3 10V5z"/></svg><span data-t="navSafety">Safety</span></a>
       <a href="#health" data-view="health"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h4l2-6 4 12 2-6h4"/></svg><span data-t="navHealth">System health</span></a>
-      <span class="nav-label" data-t="navGroupSetup">Setup</span>
       <a href="#rules" data-view="rules"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14M7 3v4m6 1v4m-6 1v4"/></svg><span data-t="navRules">Venue rules</span></a>
       <a href="#backups" data-view="backups"><svg viewBox="0 0 20 20" aria-hidden="true"><ellipse cx="10" cy="5" rx="7" ry="3"/><path d="M3 5v10c0 4 14 4 14 0V5M3 10c0 4 14 4 14 0"/></svg><span data-t="navBackups">Backups</span></a>
+      </details>
     </nav>
     <div class="sidebar-bottom">
       <div class="safety-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 9h10v8H5zM7 9V6a3 3 0 0 1 6 0v3"/></svg><div><strong data-t="disarmedStatus">Trading is disarmed</strong><p data-t="sidebarSafety">Observe, research, and preview. No live orders.</p></div></div>
       <div class="sidebar-controls"><button type="button" id="theme-toggle" class="button button-quiet"></button><button type="button" id="zone-toggle" class="button button-quiet"></button><button type="button" id="language-toggle" class="button button-quiet" lang="fa">فارسی</button></div>
-      <div class="local-label"><span class="dot"></span><span data-t="localWorkspace">Local workspace</span><span class="version">v0.1</span></div>
+      <div class="local-label"><span data-t="localWorkspace">Local workspace</span></div>
     </div>
   </aside>
   <div class="workspace">
@@ -73,7 +71,7 @@
         <header class="view-header"><div><h1 id="research-title" data-t="researchTitle">Paper research</h1><p class="lead" data-t="researchLead">Inspect saved runs, compare costs, and trace every decision.</p></div></header>
         <div id="research-tabs" class="tabs" role="tablist" data-t-label="researchTabs" aria-label="Research sections"><button type="button" role="tab" id="tab-runs" data-tab="runs" aria-controls="panel-runs" aria-selected="true" data-t="tabRuns">Saved runs</button><button type="button" role="tab" id="tab-compare" data-tab="compare" aria-controls="panel-compare" aria-selected="false" tabindex="-1" data-t="tabCompare">Compare</button><button type="button" role="tab" id="tab-schedules" data-tab="schedules" aria-controls="panel-schedules" aria-selected="false" tabindex="-1" data-t="tabSchedules">Schedules</button><button type="button" role="tab" id="tab-margin" data-tab="margin" aria-controls="panel-margin" aria-selected="false" tabindex="-1" data-t="tabMargin">Margin</button><button type="button" role="tab" id="tab-workbench" data-tab="workbench" aria-controls="panel-workbench" aria-selected="false" tabindex="-1" data-t="tabWorkbench">Workbench</button></div>
         <div id="panel-runs" class="tab-panel" role="tabpanel" aria-labelledby="tab-runs">
-          <div class="research"><aside class="panel run-panel"><h2 class="panel-title" data-t="paperRuns">Saved runs</h2><label class="field-help" for="run-filter"><span data-t="runFilter">Filter by symbol</span><input id="run-filter" class="input" type="search" dir="ltr" autocomplete="off" spellcheck="false" placeholder="BTCTMN"></label><ul id="run-list" class="run-list"></ul><button id="compare-picked" type="button" class="button button-small button-primary" hidden>Compare selected</button><button id="run-more" type="button" class="button button-small" data-t="loadMoreRuns" hidden>Load more runs</button></aside><div id="run-detail" class="run-detail"></div></div>
+          <div class="research"><aside class="panel run-panel"><h2 class="panel-title" data-t="paperRuns">Saved runs</h2><label class="field-help" for="run-filter"><span data-t="runFilter">Filter by symbol</span><input id="run-filter" class="input" type="search" dir="ltr" autocomplete="off" spellcheck="false" placeholder="BTCTMN"></label><ul id="run-list" class="run-list"></ul><button id="compare-picked" type="button" class="button button-small button-primary" hidden>Compare selected</button><div class="actions"><button id="run-previous" type="button" class="button button-small" data-t="newerRuns" hidden>Newer runs</button><span id="run-page" class="field-help" role="status"></span><button id="run-more" type="button" class="button button-small" data-t="olderRuns" hidden>Older runs</button></div></aside><div id="run-detail" class="run-detail"></div></div>
         </div>
         <div id="panel-compare" class="tab-panel" role="tabpanel" aria-labelledby="tab-compare" hidden>
           <form id="compare-form" class="panel comparison-panel" aria-labelledby="compare-title">
@@ -120,7 +118,7 @@
         </div>
         <div id="panel-workbench" class="tab-panel" role="tabpanel" aria-labelledby="tab-workbench" hidden>
           <section id="portfolio-workbench" class="panel"></section>
-          <section id="research-workbench" class="panel"></section>
+          <details class="panel disclosure"><summary data-t="researchConsole">Advanced research console</summary><section id="research-workbench"></section></details>
         </div>
       </section>
 

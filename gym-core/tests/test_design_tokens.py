@@ -53,7 +53,8 @@ def test_scales_stay_collapsed():
             assert int(px) < 4 or int(px) % 4 == 0, f"{prop}: {value}"
 
 
-def test_navigation_has_five_labelled_workspaces():
+def test_navigation_keeps_five_workspaces_in_view_and_four_system_pages_folded():
     html = (ROOT / "gym-core/src/gym/ui/index.html").read_text(encoding="utf-8")
     nav = html[html.index('<nav class="nav"'):html.index("</nav>")]
-    assert len(re.findall(r'class="nav-label"', nav)) == 5 and len(re.findall(r"data-view=", nav)) == 9
+    main, system = nav.split('<details class="nav-settings">')
+    assert len(re.findall(r"data-view=", main)) == 5 and len(re.findall(r"data-view=", system)) == 4

@@ -15,7 +15,7 @@ from .reports import sampled_drawdown
 def saved_comparison(root, request, *, store, validation=False):
     from ..adapters.run_store import save_run
     from ..adapters.store import MarketDB
-    from ..domain.market_models import decimal, fields, instant, rate
+    from ..domain.market_models import decimal, fields, instant
     from ..domain.model import now_utc
     from .temporal_validation import validate
     from .trial_ledger import TrialLedger
@@ -29,13 +29,14 @@ def saved_comparison(root, request, *, store, validation=False):
     participation = request["participation"]
     if type(request["walk_depth"]) is not bool or type(request["carry_remainder"]) is not bool:
         raise ValueError("walk_depth and carry_remainder must be booleans")
-    cost = CostModel(rate(request["fee_rate"]), timedelta(milliseconds=latency),
+    from .cost_defaults import calibrated_cost
+    cost = calibrated_cost(root, request["symbol"], fee=request["fee_rate"], now=start, latency_ms=latency,
                      max_participation=None if participation is None else decimal(participation, "participation", positive=True),
                      walk_depth=request["walk_depth"], carry_remainder=request["carry_remainder"],
                      **{key: decimal(request[key], key, positive=True) for key in ("max_fraction", "vol_target")
                         if request[key] is not None},
                      order_type=request["order_type"],
-                     maker_fee_rate=None if request["maker_fee_rate"] is None else rate(request["maker_fee_rate"]))
+                     maker_fee=request["maker_fee_rate"])
     db = MarketDB(root / "market.db", readonly=True)
     try:
         symbol = request["symbol"]

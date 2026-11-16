@@ -52,3 +52,30 @@ def test_import_is_idempotent_and_the_version_1_runner_reads_the_result(tmp_path
     v1_spec.loader.exec_module(v1)
     days = v1.sessions(db, False)
     assert list(days) == ["2026-11-04"] and len(days["2026-11-04"]) == 30  # 08:10 UTC is 11:40 Tehran, in session
+
+
+def test_github_sync_downloads_once_and_rejects_unexpected_zip_members(tmp_path):
+    import io
+    import zipfile
+
+    import pytest
+    content = json.dumps({"symbol":"BTCUSDT", "ts":"2026-11-14T08:00:00.000000Z",
+                          "bid":"99", "ask":"101", "bid_qty":"1", "ask_qty":"1"}).encode()
+    def zipped(name):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr(name, content)
+        return buffer.getvalue()
+    calls = []
+    archive = [zipped("quotes.jsonl")]
+    def api(path):
+        calls.append(path)
+        return archive[0] if path.endswith("/zip") else json.dumps({"artifacts":[
+            {"id":1, "name":"venue-quotes-123", "expired":False, "size_in_bytes":200}]}).encode()
+    db = tmp_path / "recorder.sqlite3"
+    assert recorder.sync_artifacts("owner/repo", db, api=api) == 1
+    assert recorder.sync_artifacts("owner/repo", db, api=api) == 0
+    assert sum(p.endswith("/zip") for p in calls) == 1
+    archive[0] = zipped("../escape")
+    with pytest.raises(ValueError, match="contents"):
+        recorder.sync_artifacts("owner/repo", tmp_path / "bad.db", api=api)

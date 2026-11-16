@@ -345,7 +345,9 @@ const click = async id => {
     assert.ok(output.includes(language === 'en' ? '0.000000000000000001' : '۰.۰۰۰۰۰۰۰۰۰۰۰۰۰۰۰۰۰۱'), 'Fill fees must remain exact');
     assert.ok(output.includes(language === 'en' ? '0.001000000000000001' : '۰.۰۰۱۰۰۰۰۰۰۰۰۰۰۰۰۰۰۱'), 'Recorded fee strings must remain exact');
     assert.ok(output.includes('9007199254740993'), 'Journal sequences must retain exact decimal strings');
-    assert.match(output, /<details><summary>/);
+    assert.match(output, /<details data-key="receipt-[^"]+"><summary>/);
+    assert.match(output, /<details data-key="order-manual-1"><summary>/);
+    assert.match(output, /<details data-key="order-page-OPEN-2"><summary>/);
   }
   if (sandbox.document.documentElement.lang !== 'en') await click('language-toggle');
   const escapedReceipt = app.serviceReceiptDetails([{...receipt,event_hash:'<img src=x onerror=x>',received_at_ms:'<script>x</script>'}]);
@@ -460,6 +462,7 @@ const click = async id => {
     await app.showView(name);
     await settle();
     if (name === "research") {
+      vm.runInContext('showResearchTab("compare")', context); await settle();
       for (const resolution of resolutions) assert.ok(byId("compare-resolution").innerHTML.includes(`<option>${resolution}</option>`), "Comparison must expose every shared fixed timeframe");
     }
     for (const section of elements.filter(e => e.id?.startsWith("v-"))) assert.equal(section.hidden, section.id !== "v-" + name);
@@ -732,6 +735,7 @@ const click = async id => {
     alerts: [{ kind: "RESEARCH_FAILED", due_at: "2026-11-03T08:00:00Z" }] };
   replies.set("/api/research-state", jobs);
   await app.showView("research"); await settle();
+  vm.runInContext('showResearchTab("schedules")', context); await settle();
   assert.match(byId("research-jobs").innerHTML, /ema-trend/);
   assert.match(byId("research-jobs").innerHTML, /data-research-action="pause"/);
   assert.equal(byId("research-tick").disabled, false);

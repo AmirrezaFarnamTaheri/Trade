@@ -1,33 +1,15 @@
-"""Real persistent paper jobs, exact shadow accounting and a read-only MCP boundary."""
+"""Persistent paper jobs and exact shadow accounting."""
 import json
 import sqlite3
 from datetime import timedelta
 from decimal import Decimal
-from io import StringIO
 
 import pytest
 
 from gym.cli import main
 from gym.domain.model import iso
 from gym.services.research_ledger import ResearchLedger
-from gym.services.research_mcp import handle, serve_stdio
 from tests.support import START, market_db, quote_history
-
-
-def test_mcp_discovery_declares_only_the_enforced_local_read_capabilities(tmp_path):
-    tools = handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, tmp_path)["result"]["tools"]
-    for tool in tools:
-        assert tool["annotations"] == {"readOnlyHint": True, "destructiveHint": False,
-                                       "idempotentHint": True, "openWorldHint": False}
-    reply = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                    "params": {"name": "strategy_catalog", "arguments": {}}}, tmp_path)
-    capabilities = json.loads(reply["result"]["content"][0]["text"])["capabilities"]
-    assert set(capabilities["tools"]) == {tool["name"] for tool in tools}
-    assert capabilities["read_only"] is True and capabilities["runtime_isolation_verified"] is False
-    assert capabilities["external_requests"] is False and capabilities["order_submission"] is False
-    denied = handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-                     "params": {"name": "place_order", "arguments": {}}}, tmp_path)
-    assert denied["result"]["isError"] is True
 
 
 def hypothesis(ledger):
@@ -241,28 +223,6 @@ def test_failed_tick_persists_retry_without_advancing_clock_or_starving_healthy_
         db.c.close()
 
 
-def test_mcp_is_readonly_even_at_database_boundary_and_has_no_secret_tools(tmp_path):
-    path = tmp_path / "research.sqlite3"
-    with ResearchLedger(path) as ledger:
-        hypothesis(ledger)
-    with ResearchLedger(path, readonly=True) as ledger, pytest.raises(sqlite3.OperationalError):
-        hypothesis(ledger)
-    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-    names = {tool["name"] for tool in handle(request, tmp_path)["result"]["tools"]}
-    assert names == {"strategy_catalog", "research_state", "market_coverage"}
-    for name, arguments in (("read_file", {"path": "../secrets"}), ("research_state", {"path": "../secrets"}),
-                            ("provision_key", {}), ("execute_order", {})):
-        call = {**request, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
-        assert handle(call, tmp_path)["result"]["isError"] is True
-    call = {**request, "method": "tools/call", "params": {"name": "research_state", "arguments": {}}}
-    assert handle(call, tmp_path)["result"]["isError"] is False
-    sink = StringIO()
-    assert serve_stdio(tmp_path, StringIO(json.dumps(request) + "\n{\n"), sink) == 0
-    lines = [json.loads(line) for line in sink.getvalue().splitlines()]
-    assert lines[0]["id"] == 1 and lines[1]["error"]["code"] == -32700
-    assert serve_stdio(tmp_path, StringIO("x" * 65537), StringIO()) == 2
-
-
 def test_cli_register_list_and_reject_bad_json(tmp_path, capsys):
     source = tmp_path / "hypothesis.json"
     source.write_text(json.dumps({"symbol": "BTCUSDT", "strategy": "ema-trend", "params": {}}), "utf-8")
@@ -287,25 +247,3 @@ def test_unknown_database_is_not_modified(tmp_path):
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 0
         assert conn.execute("SELECT value FROM keep").fetchone()[0] == 42
         assert conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0] == 1
-
-
-def test_research_tool_provenance_binds_arguments_and_actual_payload(tmp_path):
-    from hashlib import sha256
-
-    from gym.domain.strategy import digest
-
-    db = market_db(tmp_path, quote_history(n=10))
-    db.c.close()
-    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-               "params": {"name": "market_coverage", "arguments": {"symbol": "BTCUSDT"}}}
-    result = handle(request, tmp_path)["result"]
-    assert result["isError"] is False
-    payload = result["content"][0]["text"]
-    provenance = result["_meta"]["tradinggym/provenance"]
-    assert provenance["tool"] == "market_coverage"
-    assert provenance["arguments_digest"] == digest({"symbol": "BTCUSDT"})
-    assert provenance["payload_sha256"] == sha256(payload.encode("utf-8")).hexdigest()
-    assert provenance["source_authenticity_verified"] is False
-    value = json.loads(payload)
-    value["observations"] += 1
-    assert provenance["payload_sha256"] != sha256(json.dumps(value).encode("utf-8")).hexdigest()

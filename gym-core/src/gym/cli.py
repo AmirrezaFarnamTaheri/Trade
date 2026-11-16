@@ -79,7 +79,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     native_review = sub.add_parser("operator-review", help="explicit protected Windows operator intent; never submits an order")
     native_review.add_argument("input", help="native review JSON file (status, inspect, approve, prepare or revoke)")
-    research = sub.add_parser("research", help="paper hypothesis, shadow, schedule and read-only MCP workflows")
+    research = sub.add_parser("research", help="paper hypotheses, shadow accounting and schedules")
     from .services.research_actions import CLI_ACTIONS
     research.add_argument("action", choices=CLI_ACTIONS)
     research.add_argument("input", nargs="?", help="input JSON file, or job ID for pause/resume")

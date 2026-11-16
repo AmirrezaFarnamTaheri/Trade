@@ -21,12 +21,14 @@ def random_entry_percentile(marks, trades, *, seeds=200, seed=0):
     if any(not isfinite(v) or v <= 0 for _, v in points):
         raise ValueError("invalid baseline prices")
     prices = dict(points)
-    possible = []
+    possible, windows = [], {}
     for trade in trades:
         hold, net, drag = (float(trade[k]) for k in ("holding_seconds", "net_return", "cost_drag"))
         if hold <= 0 or not isfinite(net) or not 0 <= drag < 1:
             return {"status": "INSUFFICIENT_DATA", "reason": "UNSUPPORTED_TRADE_DURATION_OR_COST"}
-        eligible = [(bid, prices[t + hold]) for t, bid in points if t + hold in prices]
+        if hold not in windows:
+            windows[hold] = [(bid, prices[t + hold]) for t, bid in points if t + hold in prices]
+        eligible = windows[hold]
         if not eligible:
             return {"status": "INSUFFICIENT_DATA", "reason": "NO_EXACT_HOLDING_WINDOW", "trades": len(trades)}
         possible.append((eligible, drag))

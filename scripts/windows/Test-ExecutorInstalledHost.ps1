@@ -1,17 +1,16 @@
 #Requires -Version 5.1
 <# Explicit four-stage, synthetic-only drill on a fresh reviewed installation.
-   Custody (administrator) -> BindWorker (administrator, after worker installation)
+   Custody (administrator) -> Bind (administrator)
    -> Operator (actual selected unelevated logon) -> Contain (administrator).
    Never calls an account API. Synthetic bytes include NUL and cannot form an API header.
    Custody refuses any existing vault content; it never replaces a real credential.
-   Stages preserve evidence/history and leave the service DISABLED. BindWorker parks
+   Stages preserve evidence/history and leave the service DISABLED. Bind parks
    the main loop; Contain is then required to stop it. No result promotes authority.
 #>
 [CmdletBinding(SupportsShouldProcess=$true, ConfirmImpact='High')]
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('Custody','BindWorker','Operator','Contain','SelfTest')][string]$Stage,
+    [Parameter(Mandatory=$true)][ValidateSet('Custody','Bind','Operator','Contain','SelfTest')][string]$Stage,
     [string]$BinaryDirectory,
-    [string]$WorkerInstallDirectory,
     [string]$OperatorReportPath
 )
 Set-StrictMode -Version Latest
@@ -19,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 function Assert-OperatorReport($Report, $State) {
     if ($Report.run_id -cne $State.run_id -or $Report.user_sid -cne $State.user_sid -or
         $Report.logon_sid -cne $State.logon_sid -or $Report.service_pid -ne $State.service_pid -or
-        $Report.worker_denials -ne $true -or @($Report.stops).Count -ne 4) { throw 'Incomplete or different-runtime operator evidence.' }
+        @($Report.stops).Count -ne 4) { throw 'Incomplete or different-runtime operator evidence.' }
     $commands = @($Report.stops | ForEach-Object { $_.command })
     if (($commands -join ',') -cne 'status,pause,exit-only,halt') { throw 'Missing operator STOP command.' }
     foreach ($stop in $Report.stops) {
@@ -28,12 +27,12 @@ function Assert-OperatorReport($Report, $State) {
 }
 if ($Stage -eq 'SelfTest') {
     $state = [pscustomobject]@{ run_id='test'; user_sid='operator'; logon_sid='logon'; service_pid=42 }
-    $report = [pscustomobject]@{ run_id='test'; user_sid='operator'; logon_sid='logon'; service_pid=42; worker_denials=$true;
+    $report = [pscustomobject]@{ run_id='test'; user_sid='operator'; logon_sid='logon'; service_pid=42;
         stops=@('status','pause','exit-only','halt' | ForEach-Object { [pscustomobject]@{ command=$_; acknowledged=$true; elapsed_ms=10 } }) }
     Assert-OperatorReport $report $state
-    foreach ($field in @('run_id','user_sid','logon_sid','service_pid','worker_denials','stops')) {
+    foreach ($field in @('run_id','user_sid','logon_sid','service_pid','stops')) {
         $copy = $report | ConvertTo-Json -Depth 5 | ConvertFrom-Json
-        $copy.$field = if ($field -eq 'service_pid') { 43 } elseif ($field -eq 'worker_denials') { $false } elseif ($field -eq 'stops') { @() } else { 'wrong' }
+        $copy.$field = if ($field -eq 'service_pid') { 43 } elseif ($field -eq 'stops') { @() } else { 'wrong' }
         $rejected = $false
         try { Assert-OperatorReport $copy $state } catch { $rejected = $true }
         if (-not $rejected) { throw "Self-test accepted altered $field" }
@@ -45,7 +44,7 @@ if ($Stage -eq 'SelfTest') {
         try { Assert-OperatorReport $copy $state } catch { $rejected = $true }
         if (-not $rejected) { throw "Self-test accepted $change STOP" }
     }
-    Write-Output 'PASS: operator evidence rejects altered identities, missing worker denials and late/unacknowledged STOP.'
+    Write-Output 'PASS: operator evidence rejects altered identities, late/unacknowledged STOP.'
     return
 }
 if ($env:OS -ne 'Windows_NT') { throw 'Windows required.' }
@@ -111,7 +110,7 @@ if ($Stage -eq 'Custody') {
     if (@(Get-ChildItem -LiteralPath $vault -Force).Count -ne 0 -or (Test-Path -LiteralPath $statePath) -or (Test-Path -LiteralPath $secretPath) -or (Test-Path -LiteralPath $savedCiphertext)) { throw 'Fresh empty vault and no prior drill required; preserve existing custody history.' }
     $BinaryDirectory = LocalPath $BinaryDirectory
     $hashes = @{}
-    foreach ($name in @('gym-executor.exe','gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe','gym-ceiling.exe','gym-review.exe','gym-research-worker.exe')) {
+    foreach ($name in @('gym-executor.exe','gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe','gym-ceiling.exe','gym-review.exe')) {
         $expected = (Get-FileHash -LiteralPath (Join-Path $BinaryDirectory $name) -Algorithm SHA256).Hash
         if ((Get-FileHash -LiteralPath (Join-Path $code $name) -Algorithm SHA256).Hash -cne $expected) { throw 'Installed binary differs from chosen reviewed build.' }
         $hashes[$name] = $expected
@@ -119,12 +118,6 @@ if ($Stage -eq 'Custody') {
     if (-not $PSCmdlet.ShouldProcess($serviceName, 'Fresh synthetic custody, restart, corruption refusal and missing-ciphertext recovery; no account API')) { return }
     $runId = [guid]::NewGuid().ToString('N')
     $operatorSid = (Get-Content -LiteralPath (Join-Path $code 'stop-user.sid') -Raw).Trim()
-    $profileKey = Get-ItemProperty -LiteralPath ('HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\' + $operatorSid)
-    $profileRoot = LocalPath ([Environment]::ExpandEnvironmentVariables($profileKey.ProfileImagePath))
-    $profileCanary = Join-Path $profileRoot ("TradingGYM-boundary-$runId.txt")
-    $canaryContent = [Text.Encoding]::ASCII.GetBytes('TradingGYM AppContainer boundary canary; no private data.')
-    $canaryFile = [IO.File]::Open($profileCanary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
-    try { $canaryFile.Write($canaryContent, 0, $canaryContent.Length) } finally { $canaryFile.Dispose() }
     $synthetic = [byte[]]::new(64)
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
     try { $rng.GetBytes($synthetic) } finally { $rng.Dispose() }
@@ -165,13 +158,13 @@ if ($Stage -eq 'Custody') {
         Move-Item -LiteralPath $savedCiphertext -Destination $generation
         StartNormal
         StopNormal
-        $state = [pscustomobject]@{ run_id=$runId; created_utc=[DateTime]::UtcNow.ToString('o'); profile_canary=$profileCanary;
+        $state = [pscustomobject]@{ run_id=$runId; created_utc=[DateTime]::UtcNow.ToString('o');
             user_sid=$operatorSid;
             logon_sid=(Get-Content -LiteralPath (Join-Path $code 'stop-logon.sid') -Raw).Trim();
-            binary_hashes=[pscustomobject]$hashes; custody_verified=$true; current_generation=$currentGeneration; worker_install=''; service_pid=0; targets=$null }
+            binary_hashes=[pscustomobject]$hashes; custody_verified=$true; current_generation=$currentGeneration; service_pid=0 }
         SaveState $state
         $completed = $true
-        Write-Output "PASS: synthetic service DPAPI provision/restart/corruption refusal/recovery. DISABLED and STOPPED. Current ciphertext=$currentGeneration; profile canary=$profileCanary. Install actual worker publication, then run BindWorker."
+        Write-Output "PASS: synthetic service DPAPI provision/restart/corruption refusal/recovery. DISABLED and STOPPED. Current ciphertext=$currentGeneration. Run Bind next."
     } finally {
         [Array]::Clear($synthetic, 0, $synthetic.Length)
         try {
@@ -184,23 +177,11 @@ if ($Stage -eq 'Custody') {
 }
 $state = LoadState
 if ($Stage -ne 'Operator') { AssertHashes $state }
-if ($Stage -eq 'BindWorker') {
+if ($Stage -eq 'Bind') {
     & (Join-Path $PSScriptRoot 'Test-ReadOnlyExecutor.ps1')
-    $WorkerInstallDirectory = LocalPath $WorkerInstallDirectory
-    $targets = Get-Content -LiteralPath (Join-Path $WorkerInstallDirectory 'boundary.json') -Raw | ConvertFrom-Json
-    if ($targets.stop_pipe -cne '\\.\pipe\TradingGYM.Stop.v1' -or $targets.operate_pipe -cne '\\.\pipe\TradingGYM.Operate.v1' -or $targets.t2_pipe -cne '\\.\pipe\TradingGYM.Privileged.v1' -or
-        $targets.service -cne $serviceName -or (Split-Path -Parent $targets.vault) -ine $vault -or
-        $targets.vault -ine $state.current_generation -or $targets.core_journal -ine (Join-Path $vault 'credentials.sqlite') -or
-        $targets.profile_canary -ine $state.profile_canary) { throw 'Worker targets must name actual current private custody files, profile canary and fixed service pipes.' }
-    foreach ($name in @('vault','core_journal','profile_canary')) {
-        $target = Get-Item -LiteralPath $targets.$name
-        if ($target.PSIsContainer -or ($target.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Missing or linked actual boundary target.' }
-    }
-    if (-not $PSCmdlet.ShouldProcess($serviceName, 'Park service main loop; publish protected existence evidence for actual operator worker probes; Contain required afterward')) { return }
+    if (-not $PSCmdlet.ShouldProcess($serviceName, 'Park service main loop for operator STOP timing; Contain required afterward')) { return }
     try {
         StartNormal '--stop-isolation-drill'
-        $state.worker_install = $WorkerInstallDirectory
-        $state.targets = $targets
         $state.service_pid = (ServiceInfo).ProcessId
         $state.created_utc = [DateTime]::UtcNow.ToString('o')
         SaveState $state
@@ -219,7 +200,7 @@ if ($Stage -eq 'Operator') {
     $logon = (& (Join-Path $PSScriptRoot 'Get-OperatorLogonSid.ps1')).Trim()
     if ($identity.User.Value -cne $state.user_sid -or $logon -cne $state.logon_sid -or
         (ServiceInfo).ProcessId -ne $state.service_pid) { throw 'Actual operator token or service runtime differs from protected binding.' }
-    if (-not $PSCmdlet.ShouldProcess($serviceName, 'Measure operator STOP and launch actual no-capability research child against private resources')) { return }
+    if (-not $PSCmdlet.ShouldProcess($serviceName, 'Measure operator STOP against the hung service loop')) { return }
     $stops = @()
     foreach ($command in @('status','pause','exit-only','halt')) {
         $watch = [Diagnostics.Stopwatch]::StartNew()
@@ -229,12 +210,10 @@ if ($Stage -eq 'Operator') {
             ($command -eq 'status' -and ($reply -join ' ') -notmatch 'mode=Disarmed$')) { throw 'STOP failed or startup was not DISARMED.' }
         $stops += [pscustomobject]@{ command=$command; acknowledged=$true; elapsed_ms=$watch.ElapsedMilliseconds }
     }
-    & (Join-Path $PSScriptRoot 'Test-ResearchWorkerBoundary.ps1') -Launcher (Join-Path $code 'gym-research-worker.exe') -InstallDirectory $state.worker_install -ExistenceManifest $statePath
-    if ($LASTEXITCODE -ne 0) { throw 'Actual worker denial probes failed or are unverified.' }
-    $report = [pscustomobject]@{ run_id=$state.run_id; user_sid=$identity.User.Value; logon_sid=$logon; service_pid=$state.service_pid; worker_denials=$true; stops=$stops }
+    $report = [pscustomobject]@{ run_id=$state.run_id; user_sid=$identity.User.Value; logon_sid=$logon; service_pid=$state.service_pid; stops=$stops }
     Assert-OperatorReport $report $state
     $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $OperatorReportPath -Encoding UTF8
-    Write-Output 'PASS: actual operator STOP<=1s with hung main loop, DISARMED startup and actual AppContainer denial probes. Run Contain as administrator.'
+    Write-Output 'PASS: actual operator STOP<=1s with hung main loop, DISARMED startup. Run Contain as administrator.'
     return
 }
 Assert-OperatorReport (Get-Content -LiteralPath (LocalPath $OperatorReportPath) -Raw | ConvertFrom-Json) $state

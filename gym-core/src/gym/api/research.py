@@ -27,7 +27,7 @@ def install(app, root, *, store):
         if not isinstance(body["action"], str):
             raise ValueError("invalid research action")
         # Scheduled work uses the existing tick route and its separate batching lock.
-        if body["action"] in ("tick", "start", "mcp"):
+        if body["action"] in ("tick", "start"):
             raise ValueError("use the dedicated research runner")
         inspection = body["action"] in ("list", "job-interrupt")
         if not inspection and lock.locked():

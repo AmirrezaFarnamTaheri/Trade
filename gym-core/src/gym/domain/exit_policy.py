@@ -10,6 +10,7 @@ EXIT_PARAMETERS = {key: {"type": "integer", "default": 0, "minimum": 0, "maximum
                    for key, maximum in (("exit_stop_bps", 9999), ("exit_profit_bps", 100000),
                                         ("exit_atr_multiple", 10), ("exit_after_bars", 100000))}
 EXIT_PARAMETERS["entry_risk_bps"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 200}
+EXIT_PARAMETERS["exit_venue_stop"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 1}
 EXIT_VOLATILITY_MODEL = {"type": "string", "default": "atr", "enum": ["atr", "parkinson-ewma"]}
 
 
@@ -17,6 +18,10 @@ class ExitPolicy:
     requires_position_context = True
 
     def __init__(self, strategy, controls):
+        if controls.get("exit_venue_stop") and not controls.get("exit_stop_bps"):
+            raise ValueError("venue stop requires a fixed exit stop")
+        if controls.get("exit_venue_stop") and controls.get("exit_atr_multiple"):
+            raise ValueError("venue stop supports a fixed stop only")
         if controls.get("entry_risk_bps") and not controls.get("exit_stop_bps"):
             raise ValueError("entry risk sizing requires an explicit fixed exit stop")
         self.strategy, self.controls = strategy, controls
@@ -69,7 +74,7 @@ class ExitPolicy:
             if multiple and atr is not None and atr > 0:
                 self.trail = max(self.trail or Decimal(0), self.peak - multiple * atr)
             target = entry * (1 + Decimal(self.controls.get("exit_profit_bps", 0)) / 10000) / (1 - fee)
-            reason = ("PAPER_STOP_EXIT" if self.trail is not None and snap.bid <= self.trail else
+            reason = ("PAPER_STOP_EXIT" if not self.controls.get("exit_venue_stop") and self.trail is not None and snap.bid <= self.trail else
                       "PAPER_PROFIT_EXIT" if self.controls.get("exit_profit_bps") and snap.bid >= target else
                       "PAPER_TIME_EXIT" if self.controls.get("exit_after_bars") and
                       snap.as_of - parse_ts(context["entry_time"]) >= bar.spec.step * self.controls["exit_after_bars"] else None)

@@ -132,7 +132,8 @@ def test_doctor_reports_each_check_and_fails_on_a_tampered_segment(tmp_path, cap
     report = diagnose(root, START + timedelta(minutes=5))
     status = {c["check"]: c["status"] for c in report["checks"]}
     assert status["market_db"] == status["raw_segments"] == status["segment_manifest"] == "PASS"
-    assert status["venue_facts"] == "SKIP" and status["backup_receipts"] == "WARN" and report["read_only"]
+    assert status["venue_facts"] == status["backup_receipts"] == status["research_backup"] == "SKIP"
+    assert report["read_only"]
     assert not (root / "venue_facts.db").exists()  # a missing journal is reported, never created
     [seg] = list((root / "raw").rglob("*.jsonl.zst"))
     seg.write_bytes(b"tampered")

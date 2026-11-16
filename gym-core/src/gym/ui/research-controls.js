@@ -107,12 +107,15 @@ async function submitComparison(event, validation = false) {
 }
 
 async function research() {
-  if (!state.researchSetup) await setupResearch();
-  // shortcut: the list grows to 200 runs; older runs are reached with the symbol filter.
-  const query = new URLSearchParams({ limit: String(state.runCount) });
-  if (state.runFilter) query.set("symbol", state.runFilter);
-  state.runs = list(await api("/api/runs?" + query));
-  $("run-more").hidden = state.runs.length < state.runCount || state.runCount >= 200;
+  const offset = state.runOffset, filter = state.runFilter;
+  const query = new URLSearchParams({ limit: "50", offset: String(offset) });
+  if (filter) query.set("symbol", filter);
+  const runs = list(await api("/api/runs?" + query));
+  if (offset !== state.runOffset || filter !== state.runFilter) return;
+  state.runs = runs;
+  $("run-more").hidden = runs.length < 50 || offset >= 1_000_000;
+  $("run-previous").hidden = offset === 0;
+  $("run-page").textContent = runs.length ? `${digits(offset + 1)}–${digits(offset + runs.length)}` : t("noRuns");
   if (!state.savedComparison && !state.runs.some(run => run.run_id === state.selectedRun) && state.selectedRun !== state.pinnedRun) { state.selectedRun = state.runs[0]?.run_id || ""; state.record = null; }
   renderRunList();
   if (state.savedComparison) return;

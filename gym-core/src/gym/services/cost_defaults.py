@@ -104,7 +104,7 @@ def _recent_calibration(root: Path, symbol: str, now: datetime) -> tuple[int, st
     return latency, at
 
 
-def _recent_fees(root: Path, symbol: str, now: datetime) -> tuple[Decimal, Decimal, str] | None:
+def _recent_fees(root: Path, symbol: str, now: datetime) -> tuple[Decimal, Decimal, str, dict] | None:
     """Use only a recent authenticated GET account snapshot for exact maker/taker fee rates."""
     path = root / "external_journal.db"
     if path.is_symlink() or not path.is_file():
@@ -128,7 +128,7 @@ def _recent_fees(root: Path, symbol: str, now: datetime) -> tuple[Decimal, Decim
         return None
     if not all(x.is_finite() and 0 <= x < 1 for x in (maker, taker)):
         return None
-    return maker, taker, row["observed_at"]
+    return maker, taker, row["observed_at"], row["fee_rates"]
 
 
 def calibrated_cost(root: Path, symbol: str, *, fee: str | None = None,
@@ -153,6 +153,11 @@ def calibrated_cost(root: Path, symbol: str, *, fee: str | None = None,
         provenance["independent_order_latency"] = False
     if provenance:
         provenance["slippage_status"] = "NOT_INDEPENDENTLY_MEASURED"
+    market_fees = None if not fees else {
+        market: {"maker": str(maker_value) if maker_fee is not None else rates["maker"],
+                 "taker": str(fee_value) if fee is not None else rates["taker"]}
+        for market, rates in fees[3].items()}
     return CostModel(fee_rate=fee_value, maker_fee_rate=maker_value,
                      latency=timedelta(milliseconds=latency),
-                     order_type=order_type, calibration=provenance or None, **options)
+                     order_type=order_type, calibration=provenance or None,
+                     market_fees=market_fees, **options)

@@ -34,7 +34,7 @@ function systemTheme() {
 let theme = saved("theme", systemTheme(), ["light", "dark"]);
 /** Timestamps follow a stored zone preference (Tehran, the venue's calendar, or UTC, as exports use). */
 let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);
-const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", runs: [], runCount: 50, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
+const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", overviewRuns: null, runs: [], runOffset: 0, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
   researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };
 let comparisonRevision = 0;
@@ -98,19 +98,19 @@ const keyValues = rows => `<dl class="key-values">${rows.map(([key, value]) => `
 function table(headings, rows, fallback, numeric = []) {
   if (!rows.length) return empty(fallback || t("nothing"));
   const cls = i => numeric.includes(i) ? ' class="num"' : "";
-  return `<div class="table-wrap" tabindex="0"><table class="data"><thead><tr>${headings.map((h, i) => `<th scope="col"${cls(i)}>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map((cell, i) => `<td${cls(i)} data-label="${esc(headings[i] ?? "")}">${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap" tabindex="0" role="region" aria-label="${esc(headings.join(' · '))}"><table class="data"><thead><tr>${headings.map((h, i) => `<th scope="col"${cls(i)}>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map((cell, i) => `<td${cls(i)} data-label="${esc(headings[i] ?? "")}">${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
-const rendered = new Map();
+const rendered = new WeakMap();
 /** Refresh a view without closing disclosure panels or stealing keyboard focus. */
 function setHTML(id, html) {
   const element = $(id);
-  if (rendered.get(id) === html) return;
+  if (rendered.get(element) === html) return;
   const open = new Set([...element.querySelectorAll("details[data-key]")].filter(detail => detail.open).map(detail => detail.dataset.key));
   const focus = document.activeElement?.dataset?.focus;
   const focusedInside = focus && [...element.querySelectorAll("[data-focus]")].includes(document.activeElement);
   element.innerHTML = html;
-  rendered.set(id, html);
+  rendered.set(element, html);
   for (const detail of element.querySelectorAll("details[data-key]")) detail.open = open.has(detail.dataset.key);
   if (focusedInside) [...element.querySelectorAll("[data-focus]")].find(node => node.dataset.focus === focus)?.focus({ preventScroll: true });
 }

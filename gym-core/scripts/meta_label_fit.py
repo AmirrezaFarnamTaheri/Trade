@@ -14,7 +14,7 @@ Every gated decision row is written out as a decision receipt.
 
 Run from gym-core:
     uv run --no-sync python scripts/meta_label_fit.py [--table ../data/research/features_1d.csv]
-        [--split 2025-01-01] [--receipts ../data/research/t8_receipts.csv]
+        [--split 2025-01-01] [--receipts ../data/research/meta-label-receipts.csv]
 """
 from __future__ import annotations
 
@@ -22,23 +22,82 @@ import argparse
 import csv
 import math
 import sys
+from collections import defaultdict
+from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sklearn.calibration import CalibratedClassifierCV
 
 FEATURES = ("ret_1d", "ret_5d", "ret_20d", "sma20_gap", "sma50_gap", "sma200_gap",
             "vol20", "vol60", "vol_ratio", "dd_from_high_200", "range_pos_20")
 THRESHOLD = 0.5  # fixed before scoring: the gate takes a day only when the calibrated win probability exceeds it
+HORIZON = 5
+Sample = tuple[list[float], int, float, str, str, str]
 
 
-def load(table: Path, split: str):
-    train, held = [], []
+def load(table: Path, split: str) -> tuple[list[Sample], list[Sample]]:
+    """Purge five-close labels reaching the split; include the unlabeled tail for dates."""
+    split = date.fromisoformat(split).isoformat()
     with table.open(encoding="utf-8") as file:
-        for row in csv.DictReader(file):
+        rows = list(csv.DictReader(file))
+    symbols = defaultdict(list)
+    for row in rows:
+        row["day"] = date.fromisoformat(row["day"]).isoformat()
+        symbols[row["symbol"]].append(row)
+    train, held = [], []
+    for symbol_rows in symbols.values():
+        days = [row["day"] for row in symbol_rows]
+        if days != sorted(set(days)):
+            raise ValueError("feature dates must be unique and ordered per symbol")
+        if any(row["label_net_fwd"] == "" for row in symbol_rows[:-HORIZON]) or any(
+                row["label_net_fwd"] != "" for row in symbol_rows[-HORIZON:]):
+            raise ValueError("fixed five-close labels need a complete five-row unlabeled tail")
+        for index, row in enumerate(symbol_rows):
             if row["label_net_fwd"] == "":
                 continue
+            label_end = days[index + HORIZON]
             parsed = ([float(row[name]) for name in FEATURES], int(row["label_win"]), float(row["label_net_fwd"]),
-                      row["symbol"], row["day"])
-            (train if row["day"] < split else held).append(parsed)
+                      row["symbol"], row["day"], label_end)
+            if label_end < split:
+                train.append(parsed)
+            elif row["day"] >= split:
+                held.append(parsed)
+    train.sort(key=lambda row: (row[4], row[3]))
+    held.sort(key=lambda row: (row[4], row[3]))
     return train, held
+
+
+def calibration_folds(train: list[Sample]) -> list[tuple[list[int], list[int]]]:
+    """Five expanding date folds; every training label ends before calibration starts."""
+    days = sorted({row[4] for row in train})
+    width = len(days) // 6
+    if width == 0:
+        raise ValueError("need at least six distinct training days for calibration")
+    folds = []
+    for fold in range(1, 6):
+        first = days[fold * width]
+        last = days[(fold + 1) * width] if fold < 5 else None
+        trained = [index for index, row in enumerate(train) if row[5] < first]
+        validated = [index for index, row in enumerate(train) if row[4] >= first and (last is None or row[4] < last)]
+        if not trained or not validated:
+            raise ValueError("not enough non-overlapping label history for calibration")
+        folds.append((trained, validated))
+    return folds
+
+
+def fit_model(train: list[Sample]) -> CalibratedClassifierCV:
+    """Fit scaling, classification and calibration within purged chronological folds."""
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    classifier = make_pipeline(StandardScaler(), LogisticRegression(C=0.1, max_iter=1000))
+    model = CalibratedClassifierCV(classifier, method="isotonic", cv=calibration_folds(train))
+    model.fit([row[0] for row in train], [row[1] for row in train])
+    return model
 
 
 def honest_deciles(pairs: list[tuple[float, int]], width: float = 0.10, need: int = 5):
@@ -64,33 +123,28 @@ def mean_lcb(values: list[float]):
 
 
 def main(argv: list[str]) -> int:
-    from sklearn.calibration import CalibratedClassifierCV
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.pipeline import make_pipeline
-    from sklearn.preprocessing import StandardScaler
-
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--table", type=Path, default=Path(__file__).resolve().parents[2] / "data/research/features_1d.csv")
     parser.add_argument("--split", default="2025-01-01")
-    parser.add_argument("--receipts", type=Path, default=Path(__file__).resolve().parents[2] / "data/research/t8_receipts.csv")
+    parser.add_argument("--receipts", type=Path, default=Path(__file__).resolve().parents[2] / "data/research/meta-label-receipts.csv")
     args = parser.parse_args(argv)
+    if args.receipts.exists():
+        parser.error("receipt file already exists; historical decisions cannot be overwritten")
     train, held = load(args.table, args.split)
     if len(train) < 1000 or len(held) < 100:
         print(f"not enough rows (train {len(train)}, held {len(held)})")
         return 1
-    model = make_pipeline(StandardScaler(),
-                          CalibratedClassifierCV(LogisticRegression(C=0.1, max_iter=1000), method="isotonic", cv=5))
-    model.fit([x for x, *_ in train], [y for _, y, *_ in train])
+    model = fit_model(train)
 
     probabilities = model.predict_proba([x for x, *_ in held])[:, 1]
-    rows = [(float(p), y, net, symbol, day) for p, (_, y, net, symbol, day) in zip(probabilities, held)]
+    rows = [(float(p), y, net, symbol, day) for p, (_, y, net, symbol, day, _) in zip(probabilities, held, strict=True)]
     gated = [r for r in rows if r[0] > THRESHOLD]
     ungated_mean, _ = mean_lcb([net for _, _, net, _, _ in rows])
     gated_mean, gated_lcb = mean_lcb([net for _, _, net, _, _ in gated]) if gated else (0.0, 0.0)
     calibration_ok, deciles = honest_deciles([(p, y) for p, y, *_ in rows])
 
     args.receipts.parent.mkdir(parents=True, exist_ok=True)
-    with args.receipts.open("w", encoding="utf-8", newline="") as file:
+    with args.receipts.open("x", encoding="utf-8", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["day", "symbol", "p_win", "decision", "label_net_fwd"])
         writer.writerows((day, symbol, f"{p:.4f}", "TAKE" if p > THRESHOLD else "ABSTAIN", net)

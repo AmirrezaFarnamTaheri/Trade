@@ -13,6 +13,56 @@ from tests.support import START, market_db, quote_history
 from tests.test_channel_strategies import snapshot
 
 
+def test_venue_stop_uses_received_trades_keeps_waiting_balance_free_and_works_partial_fills(tmp_path):
+    from gym.domain.model import BookTop, TradeTick
+    from gym.services.data_portal import DataPortal
+    from gym.services.session import PaperSession
+
+    class EnterOnce:
+        name, params = "probe", {"exit_venue_stop": 1, "exit_stop_bps": 500}
+        requires_position_context = True
+        feature_values = {}
+        entered = False
+
+        def decide(self, snap, holding):
+            action = "HOLD" if self.entered else "BUY_REQUEST"
+            self.entered = True
+            return action, Decimal(1), (), "probe"
+
+    db = market_db(tmp_path, [])
+    try:
+        session = PaperSession(DataPortal(db), lambda _: [], EnterOnce(), "BTCUSDT", START, "1min", Decimal(1000),
+                               CostModel(fee_rate=Decimal(0), max_participation=Decimal("0.25")))
+        def feed(seconds, bid="100", size="100"):
+            session.feed(BookTop("BTCUSDT", START + timedelta(seconds=seconds), Decimal(bid), Decimal(bid) + 1,
+                                 Decimal(size), Decimal(100), frozenset()))
+        for at in (0, 60, 61):
+            feed(at)
+        assert session.venue_stop and session.pending is None
+        held = session.book.get("BTC")
+        db.add_trade(TradeTick("BTCUSDT", START + timedelta(seconds=62), START + timedelta(seconds=64),
+                               Decimal(90), Decimal(1), "SELL"), None)
+        feed(63, "90")  # crossing quotes alone, and an unreceived trade, do not activate a venue stop
+        assert session.book.get("BTC") == held and session.venue_stop["activation"] is None
+        feed(64, "90", "1")
+        assert session.book.get("BTC") == held - Decimal("0.25")
+        assert session.venue_stop["activation"] == START + timedelta(seconds=64)
+        feed(122, "89")
+        assert Decimal(session.decisions[-1]["balances_before"]["BTC"]) == held - Decimal("0.25")
+        assert session.decisions[-1]["t"] == (START + timedelta(seconds=120)).isoformat(timespec="microseconds").replace("+00:00", "Z")
+        assert session.book.get("BTC") == 0 and session.venue_stop is None
+        stops = [o for o in session.orders if o.get("kind") == "VENUE_STOP_MARKET"]
+        assert len(stops) == 2 and all(o["status"] == "FILLED" for o in stops)
+        assert all(Decimal(v) >= 0 for v in session.book.balances.values())
+        assert stops[0]["trigger_event_time"] != stops[0]["trigger_available_at"]
+        with pytest.raises(ValueError, match="fixed exit stop"):
+            create_strategy("ema-trend", {"exit_venue_stop": 1})
+        with pytest.raises(ValueError, match="fixed stop only"):
+            create_strategy("ema-trend", {"exit_venue_stop": 1, "exit_stop_bps": 500, "exit_atr_multiple": 2})
+    finally:
+        db.c.close()
+
+
 def test_sub_precision_entry_cannot_spend_cash_without_receiving_base():
     book = CashBook({"USDT": Decimal(1000), "BTC": Decimal(1)})
     top = quote_history(n=1)[0]
@@ -24,7 +74,8 @@ def test_sub_precision_entry_cannot_spend_cash_without_receiving_base():
 
 
 @pytest.mark.parametrize("params,price,reason", [({"exit_stop_bps": 100}, 98, "PAPER_STOP_EXIT"),
-    ({"exit_profit_bps": 100}, 102, "PAPER_PROFIT_EXIT"), ({"exit_after_bars": 1}, 100, "PAPER_TIME_EXIT")])
+    ({"exit_profit_bps": 100}, 102, "PAPER_PROFIT_EXIT"), ({"exit_after_bars": 1}, 100, "PAPER_TIME_EXIT"),
+    ({"exit_stop_bps": 100, "exit_venue_stop": 1, "exit_after_bars": 1}, 98, "PAPER_TIME_EXIT")])
 def test_exit_from_actual_position_does_not_wait_for_entry_indicator_warmup(params, price, reason):
     strategy = create_strategy("ema-trend", params)
     snap = replace(snapshot(1, price), execution={"entry_price": "100", "entry_time": START.isoformat(),

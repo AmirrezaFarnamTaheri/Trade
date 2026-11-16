@@ -22,7 +22,7 @@ def _dispatchable() -> set[str]:
 
 def test_every_dispatchable_action_is_a_cli_choice():
     assert _dispatchable() - set(ra.CLI_ACTIONS) == set()
-    assert set(ra.CLI_ACTIONS) - _dispatchable() == {"start", "mcp"}  # handled by the CLI itself
+    assert set(ra.CLI_ACTIONS) - _dispatchable() == {"start"}  # handled by the CLI itself
 
 
 def test_every_cli_action_has_a_browser_form_or_a_stated_reason():

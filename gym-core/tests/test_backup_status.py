@@ -29,6 +29,22 @@ def test_latest_receipt_uses_recorded_time_not_append_order(tmp_path, monkeypatc
     assert status(tmp_path)["latest"]["BACKUP"] == newest
 
 
+def test_doctor_skips_unconfigured_backups_but_warns_on_a_stale_recorded_backup(tmp_path, monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    from gym.services import backup_status
+    from gym.services.doctor import _backup, _research_backup
+
+    now = datetime(2026, 11, 16, tzinfo=UTC)
+    assert _backup(tmp_path, now)["status"] == _research_backup(tmp_path, now)["status"] == "SKIP"
+    assert not tmp_path.joinpath("backup_status.sqlite3").exists()
+    report = {"encrypted": True, "authenticated": True, "verified_restore": True,
+              "sequence": 3, "head_hash": "a" * 64, "file_sha256": "b" * 64, "schema_version": 1}
+    monkeypatch.setattr(backup_status, "now_utc", lambda: now - timedelta(hours=37))
+    record(tmp_path, "BACKUP", report)
+    assert _backup(tmp_path, now)["status"] == "WARN"
+
+
 def test_real_roundtrip_receipts_preserve_concurrent_history_and_omit_private_fields(tmp_path):
     root = tmp_path / "workspace"
     assert status(root)["state"] == "NO_RECEIPTS" and not root.exists()

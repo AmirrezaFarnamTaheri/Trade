@@ -1,6 +1,6 @@
 """Incremental paper-session engine. No venue orders; replay and polling share this path."""
 from bisect import bisect_left
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
 
@@ -12,10 +12,9 @@ from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
-# 10/11 (2026-11-15): the metadata warning reads both key spellings, so warnings differ from 8/9 on stored
-# catalogue rows; saved 8/9 runs keep their identity and are not re-derived under these versions.
-ENGINE_VERSION = "paper-session/10"
-LIMIT_ENGINE_VERSION = "paper-session/11"
+# 14/15: a waiting venue stop must not suppress a due closed-bar time exit. Older artifacts keep their identity.
+ENGINE_VERSION = "paper-session/14"
+LIMIT_ENGINE_VERSION = "paper-session/15"
 
 
 @dataclass
@@ -43,7 +42,9 @@ class PaperSession:
         self.strategy = strategy
         self.symbol = symbol
         self.instrument = portal.instrument(symbol)
-        self.cost = cost
+        metadata = portal.metadata_at(symbol, start)
+        raw = metadata["raw"] if metadata else {}
+        self.cost = cost.for_market(symbol, zero_fee=raw.get("isZeroFee", raw.get("is_zero_fee")) is True)
         self.execution_limits = getattr(strategy,"execution_limits",None)
         self.track_positions = self.execution_limits is not None or getattr(strategy, "requires_position_context", False)
         if self.execution_limits is not None and cost.order_type == "limit":
@@ -52,6 +53,10 @@ class PaperSession:
             raise ValueError("compound strategies do not support working order remainders")
         self.position_entry = self.position_stop = self.position_opened = self.position_id = None
         self.position_closed = True
+        self.venue_stop = None
+        self.venue_stop_trades = []
+        if strategy.params.get("exit_venue_stop") and self.execution_limits is not None:
+            raise ValueError("venue stops require a single-rule strategy")
         self.bar_spec = BarSpec(resolution, "MID")
         required = getattr(strategy, "required_resolutions", ())
         if any(BarSpec(r).step <= self.bar_spec.step for r in required):
@@ -416,11 +421,51 @@ class PaperSession:
             if self.position_closed:
                 self.position_opened, self.position_id = parse_ts(order["fill_time"]), order.get("parent", order["ref"])
             self.position_closed = False
+            if self.strategy.params.get("exit_venue_stop"):
+                stop = self.position_entry * (1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000) / (1 - self.cost.fee_rate)
+                self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None}
         else:
             self.position_closed = sellable_quantity(quantity, top.bid, self.portal.spec_at(self.symbol, at)) == 0
             order["residual_base"] = str(quantity)
             if quantity == 0:
                 self.position_entry = self.position_stop = self.position_opened = self.position_id = None
+                self.venue_stop = None
+
+    def settle_venue_stop(self, top):
+        """Waiting stops reserve no balance; received trades activate a market exit with working remainders."""
+        stop, at = self.venue_stop, top.ts_avail
+        if stop is None:
+            return
+        if stop["activation"] is None:
+            ticks = self.portal.trades_by_availability(self.symbol, stop["checked"], at)
+            stop["checked"] = at
+            self.venue_stop_trades.extend((iso(t.ts_event), iso(t.ts_avail), str(t.price), str(t.qty), t.aggressor) for t in ticks)
+            if len(self.venue_stop_trades) > 200_000:
+                raise ValueError("venue stop trade budget exceeded")
+            hit = next((t for t in ticks if t.ts_event >= stop["created"] and t.price <= stop["price"]), None)
+            if hit is None:
+                return
+            stop["activation"] = hit.ts_avail
+            stop["trigger_event"] = hit.ts_event
+        if self.pending:
+            self.pending.record.update(status="CANCELLED", reason="VENUE_STOP_ACTIVATED")
+            self.pending = None
+        if not qualified(top):
+            return
+        previous_base, previous_cash = self.book.get(self.instrument.base), self.book.get(self.instrument.quote)
+        ref = f"{self.symbol}#{len(self.orders) + 1}"
+        result = market_order(self.book, self.instrument, "SELL", Decimal(1), stop["activation"], stop["price"],
+            [top], 0, replace(self.cost, latency=timedelta(0), max_wait=at - stop["activation"], order_type="market"),
+            self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, ref, self.day_open.get(tehran_day(at)))
+        result.update(kind="VENUE_STOP_MARKET", stop_price=str(stop["price"]), created_at=iso(stop["created"]),
+                      trigger_event_time=iso(stop["trigger_event"]), trigger_available_at=iso(stop["activation"]))
+        if result["status"] == "FILLED":
+            self.orders.append(result)
+            self.record_position_fill(result, previous_base, previous_cash, top, at)
+            self.curve.append((iso(at), str(self.book.equity(self.instrument, top.bid))))
+        elif result.get("reason") != stop.get("last_nonfill"):
+            self.orders.append(result)
+            stop["last_nonfill"] = result.get("reason")
 
     def risk_cash(self, quote):
         if self.risk_budget is not None:
@@ -464,6 +509,8 @@ class PaperSession:
         if qualified(top):
             self.day_open.setdefault(tehran_day(top.ts_avail), (top.bid + top.ask) / 2)
             self.mark_reopening(top)
+        if self.strategy.params.get("exit_venue_stop"):
+            self.settle_venue_stop(top)
         self.settle(top, top.ts_avail)
         if qualified(top):
             self.closes.update(top.ts_avail, self.bar_spec.price(top))

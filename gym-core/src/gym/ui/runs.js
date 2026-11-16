@@ -34,7 +34,7 @@ function attributionPanel(perf, quote) {
     <td class="numeric">${num(row.wins)}</td><td class="numeric"><span class="${signed(row.pnl)}">${money(row.pnl)}</span></td>
     <td class="numeric">${percent(row.average_return, 2)}</td></tr>`).join("");
   return `<section class="panel"><h3 class="panel-title">${esc(t("attributionTitle"))} <span class="muted">${esc(quote)}</span></h3>
-    <div class="table-wrap" tabindex="0"><table><thead><tr><th>${esc(t("entrySignal"))}</th><th>${esc(t("exitSignal"))}</th>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="${esc(t("attributionTitle"))}"><table><thead><tr><th>${esc(t("entrySignal"))}</th><th>${esc(t("exitSignal"))}</th>
     <th class="numeric">${esc(t("attributionTrades"))}</th><th class="numeric">${esc(t("attributionWins"))}</th>
     <th class="numeric">${esc(t("pnl"))}</th><th class="numeric">${esc(t("attributionAvgReturn"))}</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
 }
@@ -146,5 +146,5 @@ function exportCsv(kind, record) {
 function renderRunList() {
   $("compare-picked").hidden = state.pickedRuns.size < 2;
   $("compare-picked").textContent = `${t("comparePicked")} · ${digits(state.pickedRuns.size)}`;
-  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(run.inputs?.strategy || "")} · ${code(run.inputs?.resolution)}</span><span>${stampHtml(run.inputs?.from)} → ${stampHtml(run.inputs?.to)}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
+  setHTML("run-list", state.runs.map(run => `<li class="run-item"><input type="checkbox" class="run-pick" data-pick="${esc(run.run_id)}" data-focus="pick-${esc(run.run_id)}" ${state.pickedRuns.has(run.run_id) ? "checked" : ""} aria-label="${esc(`${t("pickRun")} ${run.inputs?.symbol || ""} ${run.run_id}`)}"><button type="button" class="run-link" data-run="${esc(run.run_id)}" data-focus="run-${esc(run.run_id)}" aria-pressed="${run.run_id === state.selectedRun}"><strong>${code(run.inputs?.symbol || run.result?.symbol || run.run_id)}</strong><span>${esc(run.inputs?.strategy || "")} · ${code(run.inputs?.resolution)}</span><span>${stampHtml(run.inputs?.from)} → ${stampHtml(run.inputs?.to)}</span><span class="sub">${code(run.run_id)} · ${esc(t(run.inputs?.store === "demo" ? "synthetic" : "liveData"))}</span></button></li>`).join(""));
 }

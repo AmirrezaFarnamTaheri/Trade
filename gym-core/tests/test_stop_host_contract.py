@@ -205,7 +205,7 @@ def test_installer_and_auditor_keep_provisioning_helper_admin_only():
     auditor = (ROOT / "scripts/windows/Test-ReadOnlyExecutor.ps1").read_text("utf-8")
     operator_helpers = installer.split("if ($helper.File.Name -in @(", 1)[1].split("))", 1)[0]
     assert set(re.findall(r"'([^']+[.]exe)'", operator_helpers)) == {
-        "gym-stopctl.exe", "gym-hardstop.exe", "gym-research-worker.exe",
+        "gym-stopctl.exe", "gym-hardstop.exe",
         "gym-review.exe",
     }
     operator_paths = auditor.split("$operatorPaths =", 1)[1].split("foreach", 1)[0]

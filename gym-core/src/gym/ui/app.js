@@ -19,16 +19,12 @@ async function collectView(name, healthTask) {
   if (name === "overview") {
     try {
       await settled([["markets", api("/api/markets").then(data => { state.markets = data; renderMarkets(); })],
-        ["research", research().then(() => { state.runsLoaded = true; })], ["operate", operate()],
+        ["saved runs", api("/api/runs?limit=50&offset=0").then(data => { state.overviewRuns = list(data); })], ["operate", operate()],
         ["evidence", api("/api/evidence").then(data => { state.evidence = data; })]]);
     } finally { renderOverview(); }
   }
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }
-  if (name === "research") {
-    window.gymResearch?.mount(api, esc);
-    window.gymMargin?.mount({api, esc, keyValues, table, amount, when, stamp: stampHtml, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, stamp: stampHtml, curveFigure, strategyFields});
-    await settled([["research", research()], ["research jobs", researchJobs()]]);
-  }
+  if (name === "research") await collectResearchTab();
   if (name === "account") {
     await settled([["account journal", accountJournal()], ["external journal", externalJournal()], ["offline reviews", offlineReviews()]]);
   }
@@ -37,6 +33,20 @@ async function collectView(name, healthTask) {
   if (name === "health") {
     await settled([["health", healthTask.then(renderHealth)], ["venue facts", venueFacts()], ["chaos report", chaos()]]);
   }
+}
+
+function mountResearchTab() {
+  if (researchTab === "margin") window.gymMargin?.mount({api, esc, keyValues, table, amount, when, stamp: stampHtml, demo: DEMO, setHTML});
+  if (researchTab === "workbench") {
+    window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, stamp: stampHtml, curveFigure, strategyFields, setHTML});
+    window.gymResearch?.mount(api, esc);
+  }
+}
+async function collectResearchTab() {
+  mountResearchTab();
+  if (researchTab === "runs") await research();
+  if (researchTab === "compare" && !state.researchSetup) await setupResearch();
+  if (researchTab === "schedules") await researchJobs();
 }
 
 /** Serialize polling, pause while hidden, and surface network failures. */
@@ -74,7 +84,8 @@ async function showView(name, focus = false) {
   if (!Object.hasOwn(viewKeys, name)) name = "overview";
   state.view = name;
   document.querySelectorAll("[data-view]").forEach(link => {
-    if (link.dataset.view === name) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
+    if (link.dataset.view === name) { link.setAttribute("aria-current", "page"); const group = link.closest?.("details"); if (group) group.open = true; }
+    else link.removeAttribute("aria-current");
   });
   Object.keys(viewKeys).forEach(view => { $("v-" + view).hidden = view !== name; });
   $("current-view").textContent = t(viewKeys[name]);
