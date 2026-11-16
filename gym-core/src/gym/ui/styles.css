@@ -117,7 +117,7 @@ main { padding: 28px 32px 40px; min-width: 0; max-width: 1660px; width: 100%; ma
 .fx-panel { padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--accent-soft); display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
 .fx-panel .stat-label { color: var(--accent); flex-basis: 100%; font-weight: 600; }
 .fx-panel .stat-value { font-size: 21px; }
-.fx-panel .field-help { flex-basis: 100%; }
+.fx-panel .field-help { flex-basis: 100%; color: var(--text); }
 .board-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 20px 16px; }
 .board-header p { font-size: 11px; margin-top: 3px; }
 .observation-label { font-size: 11px; color: var(--accent); background: var(--accent-soft); padding: 4px 8px; border-radius: 4px; white-space: nowrap; }
