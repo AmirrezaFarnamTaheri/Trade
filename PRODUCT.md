@@ -20,7 +20,7 @@ The current Python/aiohttp application runs on loopback and serves a dependency-
 
 ## Capabilities and Constraints
 
-- The current application is DISARMED. It has no funded order-submission path or enabled Autopilot. Autonomous trading is the product goal, not an available capability to invent in this redesign.
+- The current installed application is DISARMED and has no enabled Autopilot. New native source connects an elevated, reviewed LIMIT-order path; it is unpublished and unqualified. The browser cannot arm or submit. Autonomous trading remains a product goal.
 - Private local reads and mutations use the per-run token. Do not expose credentials or echo ticket input into errors.
 - Monetary values arrive as exact decimal strings. Calculate with exact decimals; rounded summaries retain exact inspection and export.
 - Account observations and external orders are unverified, and do not establish spendable balances or settlement.

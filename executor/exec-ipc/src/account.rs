@@ -2,7 +2,9 @@
 use crate::provision::{AccountResource, ACCOUNT_REQUEST_SIZE, MAX_ACCOUNT_BODY};
 
 pub const REPLY_SIZE: usize = 144;
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum ObservationKind {
     Balances = 1,
     Fees = 2,

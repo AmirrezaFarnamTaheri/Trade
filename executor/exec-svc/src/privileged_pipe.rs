@@ -55,10 +55,45 @@ enum Request {
     Provision(Secret, [u8; 16]),
     Account(AccountResource, [u8; 16], bool),
     Ceiling(exec_ipc::ceiling::CeilingRequest, Administrator),
+    Arm(exec_ipc::arm::ArmRequest, Administrator),
+    Submit(exec_ipc::submit::SubmitRequest, Administrator),
 }
 async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Request> {
-    let mut hello = [0; ACCOUNT_REQUEST_SIZE + 1];
+    let mut hello = [0; exec_ipc::arm::REQUEST_SIZE + 1];
     let count = pipe.read(&mut hello).await?;
+    if hello[..count].starts_with(b"TGSUB001") {
+        let principal = admit(pipe, || {
+            Ok(Administrator {
+                user: exec_svc::windows_identity::impersonated_thread_user_sid()?,
+                logon: exec_svc::windows_identity::impersonated_thread_logon_sid()?,
+            })
+        })?;
+        if mode != StartupMode::Normal {
+            return Err(io::Error::other(
+                "submission unavailable outside normal startup",
+            ));
+        }
+        return Ok(Request::Submit(
+            exec_ipc::submit::SubmitRequest::decode(&hello[..count]).map_err(io::Error::other)?,
+            principal,
+        ));
+    }
+    if hello[..count].starts_with(b"TGARM001") {
+        let principal = admit(pipe, || {
+            Ok(Administrator {
+                user: exec_svc::windows_identity::impersonated_thread_user_sid()?,
+                logon: exec_svc::windows_identity::impersonated_thread_logon_sid()?,
+            })
+        })?;
+        if mode != StartupMode::Normal {
+            return Err(io::Error::other(
+                "arming unavailable outside normal startup",
+            ));
+        }
+        let request =
+            exec_ipc::arm::ArmRequest::decode(&hello[..count]).map_err(io::Error::other)?;
+        return Ok(Request::Arm(request, principal));
+    }
     if hello[..count].starts_with(b"TGCEIL01") {
         let principal = admit(pipe, || {
             Ok(Administrator {
@@ -106,7 +141,10 @@ pub async fn serve(
         Vault::open_mode(sid, mode)
     };
     let vault = match opened {
-        Ok(vault) => vault,
+        Ok(mut vault) => {
+            vault.bind_gate(operator.gate.clone());
+            vault
+        }
         Err(error) => {
             let _ = ready.send(Err(exec_svc::ServiceFailure::Vault));
             return Err(error);
@@ -126,6 +164,9 @@ pub async fn serve(
             return Err(error);
         }
     }
+    if mode == StartupMode::Normal {
+        crate::native_runtime::start(vault.clone(), operator.clone())?;
+    }
     ready
         .send(Ok(()))
         .map_err(|_| io::Error::other("service startup cancelled"))?;
@@ -137,6 +178,44 @@ pub async fn serve(
             Ok(()) => {
                 if let Ok(Ok(request)) = timeout(DEADLINE, receive(&mut client, mode)).await {
                     match request {
+                        Request::Submit(request, principal) => {
+                            let reply = vault
+                                .lock()
+                                .map_err(|_| io::Error::other("vault poisoned"))?
+                                .submit(
+                                    &request,
+                                    &principal.user,
+                                    &principal.logon,
+                                    &operator.user,
+                                    &operator.logon,
+                                    &operator.gate,
+                                )?;
+                            let raw = reply.encode().map_err(io::Error::other)?;
+                            let _ = timeout(DEADLINE, client.write_all(&raw)).await;
+                        }
+                        Request::Arm(request, principal) => {
+                            let reply = vault
+                                .lock()
+                                .map_err(|_| io::Error::other("vault poisoned"))?
+                                .arm(
+                                    &request,
+                                    &principal.user,
+                                    &principal.logon,
+                                    &operator.user,
+                                    &operator.logon,
+                                    &operator.gate,
+                                )?;
+                            let raw = reply.encode().map_err(io::Error::other)?;
+                            if !matches!(
+                                timeout(DEADLINE, client.write_all(&raw)).await,
+                                Ok(Ok(()))
+                            ) {
+                                vault
+                                    .lock()
+                                    .map_err(|_| io::Error::other("vault poisoned"))?
+                                    .disarm();
+                            }
+                        }
                         Request::Ceiling(request, principal) => {
                             let reply = vault
                                 .lock()
@@ -178,7 +257,7 @@ pub async fn serve(
                             let epoch = operator.gate.runtime_epoch();
                             let observed = exec_svc::read_outside_lock(
                                 &vault,
-                                |v| v.begin_account_read(),
+                                |v| v.begin_account_read(&resource, correlation, epoch),
                                 |plan| crate::service_account::read(&plan.key, &resource),
                                 |v, plan, body| {
                                     v.finish_account_read(plan, &resource, body, correlation, epoch)

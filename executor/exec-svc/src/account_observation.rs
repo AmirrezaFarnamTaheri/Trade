@@ -5,7 +5,7 @@ use std::fmt;
 
 pub use exec_ipc::account::ObservationKind as AccountKind;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AccountObservation {
     kind: AccountKind,
     generation: [u8; 16],
@@ -403,8 +403,12 @@ fn normalized_order(row: &Value) -> Result<Value, &'static str> {
             if carry != 0 || total > requested {
                 return Err("fill quantity overflow");
             }
-            clean.push(json!({"quantity":quantity,"price":price,"fee":fee,
-                              "feeAsset":asset,"timestamp":timestamp}));
+            let mut item = json!({"quantity":quantity,"price":price,"fee":fee,
+                              "feeAsset":asset,"timestamp":timestamp});
+            if fill.get("sum").is_some() {
+                item["sum"] = Value::String(order_amount(fill.get("sum"), true)?.0.into());
+            }
+            clean.push(item);
         }
         if !fills.is_empty() && total != executed {
             return Err("fill quantity mismatch");
@@ -545,6 +549,12 @@ impl AccountObservation {
     }
     pub fn generation(&self) -> [u8; 16] {
         self.generation
+    }
+    pub fn runtime_epoch(&self) -> u64 {
+        self.runtime_epoch
+    }
+    pub fn response_digest(&self) -> [u8; 32] {
+        self.response_digest
     }
     pub fn request_id(&self) -> [u8; 16] {
         self.request_id

@@ -1,6 +1,7 @@
 //! Operator-only review receipts. No key reads, account HTTP or order transport.
 use crate::credential_vault::{descriptor, Vault};
-use exec_ipc::review::{Reply, Request, ReviewState, PIPE, REQUEST_SIZE};
+use exec_ipc::review::{Reply, ReviewState, PIPE, REQUEST_SIZE};
+use exec_ipc::review_v2::{ReplyV2, RequestV2};
 use std::{
     io,
     sync::{
@@ -78,13 +79,14 @@ async fn handle(
         .await
         .map_err(|_| io::Error::other("review input deadline"))??;
     exec_svc::windows_pipe::verified_client_logon(&client, &context.logon, &context.user)?;
-    let request = Request::decode(&raw[..count]).map_err(io::Error::other)?;
+    let frame = RequestV2::decode(&raw[..count]).map_err(io::Error::other)?;
+    let request = &frame.0;
     let reply = if !admitted {
         context.deferred(request.correlation)
     } else {
         match vault.try_lock() {
             Ok(mut owner) => {
-                match owner.review(&request, &context.user, &context.logon, &context.gate) {
+                match owner.review(request, &context.user, &context.logon, &context.gate) {
                     Ok(reply) => reply,
                     Err(error) => {
                         context.fail();
@@ -99,7 +101,7 @@ async fn handle(
             }
         }
     };
-    let raw = reply.encode().map_err(|error| {
+    let raw = ReplyV2(reply).encode_for(&frame).map_err(|error| {
         context.fail();
         io::Error::other(error)
     })?;

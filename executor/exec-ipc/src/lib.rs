@@ -3,10 +3,12 @@
 #![forbid(unsafe_code)]
 use std::convert::TryInto;
 pub mod account;
+pub mod arm;
 pub mod ceiling;
 pub mod provision;
 pub mod review;
 pub mod review_v2;
+pub mod submit;
 
 pub const FRAME_SIZE: usize = 40;
 pub const VERSION: u16 = 1;
@@ -34,13 +36,26 @@ impl TryFrom<u8> for StopCommand {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum StopMode {
     Disarmed = 0,
     Paused = 1,
     ExitOnly = 2,
     Halted = 3,
+    Armed = 4,
+}
+
+impl StopMode {
+    /// Stop severity is independent of the wire discriminant; Armed never confirms a stop.
+    pub const fn stop_level(self) -> u8 {
+        match self {
+            Self::Disarmed | Self::Armed => 0,
+            Self::Paused => 1,
+            Self::ExitOnly => 2,
+            Self::Halted => 3,
+        }
+    }
 }
 
 impl TryFrom<u8> for StopMode {
@@ -51,6 +66,7 @@ impl TryFrom<u8> for StopMode {
             1 => Ok(Self::Paused),
             2 => Ok(Self::ExitOnly),
             3 => Ok(Self::Halted),
+            4 => Ok(Self::Armed),
             _ => Err(ProtocolError::InvalidReply),
         }
     }
@@ -188,7 +204,7 @@ impl StopReply {
         self.result == StopResult::Ack
             && self.runtime_epoch == request.runtime_epoch
             && self.correlation == request.correlation
-            && (self.mode as u8) >= (required_mode as u8)
+            && self.mode.stop_level() >= required_mode.stop_level()
     }
 
     pub fn encode(self) -> Result<[u8; FRAME_SIZE], ProtocolError> {

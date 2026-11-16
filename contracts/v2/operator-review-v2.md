@@ -1,13 +1,12 @@
 # Offline native operator-review wire v2
 
-**Status:** protocol-only / not deployed. This file specifies a future review
-boundary for item 46. It **does not** create a service listener, money
-reservation, venue request, credential path, or funded trading authority.
+**Status:** wired in source / not published to the protected installation. The
+operate listener, native helper and Python relay now require v2. This review
+boundary records intent and preparation; it grants no funded authority.
 
 ## Separation from v1
 
-The original v1 operator-review pipe, helper, Python adapter, journal and
-all historical receipts remain unchanged. A v1 request starts with
+Historical v1 codecs, journal records and receipts remain readable. A v1 request starts with
 `TGREVW01` and a v1 reply starts with `TGREPLY1`. A v2 request begins
 with `TGREVW02`; a v2 reply begins with `TGREPLY2`. The existing canonical
 400-byte request, 432-byte reply and 352-byte ticket field layouts are
@@ -16,9 +15,10 @@ sequence/correlation, exact-unit and reply-to-request checks still apply.
 
 A v1 parser rejects v2; a v2 parser rejects v1. A v2 receipt must be
 correlated with its exact v2 request and must not be treated as a submit
-capability. No endpoint currently serves the v2 magic. A future listener
-would need a separately authorized OS principal, revocation and restart
-tests before installation; automatic fallback from v2 to v1 is forbidden.
+capability. The source listener serves v2 on the existing OS-authenticated
+operate pipe, with the same user/logon gate. Publish the helper, service and
+Python relay together and repeat installed-host checks. Automatic fallback from
+v2 to v1 is forbidden; an old installed helper must fail explicitly.
 
 ## Submit-side IDs versus historical read IDs
 
@@ -37,8 +37,8 @@ request correlation, ticket mismatch, and identifier boundaries.
 
 The previous Python `PaperSubmissionGate` records dry-run duplicate
 and 20-proposals/10-seconds checks; that is **not** native service pacing,
-real order idempotency or venue rate-limit proof. The v2 module is a codec
-only. Native helper/client/pipe publication, separate token and Windows
+real order idempotency or venue rate-limit proof. The v2 review codec
+is mounted in source. Native helper/client/pipe publication, separate token and Windows
 ACL qualification, admitted order reservation, real retry/unknown-order
 recovery, operator approval, authentic account/fee evidence, and an
 explicit nonzero loss budget are all outstanding. The funded budget stays zero.

@@ -234,6 +234,68 @@ pub fn authenticate_pipe(pipe: BorrowedHandle<'_>, expected_pid: u32) -> Result<
     Ok(())
 }
 
+/// Fixed native control channels only; the pinned SCM process is checked before and after the exchange.
+pub fn exchange_control<const N: usize>(name: &str, request: &[u8]) -> std::io::Result<[u8; N]> {
+    use std::{
+        fs::File,
+        io::{Read, Write},
+        os::windows::io::{AsHandle, FromRawHandle},
+    };
+    use windows_sys::Win32::{Foundation::INVALID_HANDLE_VALUE, Storage::FileSystem::*};
+    if ![exec_ipc::provision::PIPE, exec_ipc::review::PIPE].contains(&name)
+        || request.len() > exec_ipc::arm::REQUEST_SIZE
+        || N > exec_ipc::review::REPLY_SIZE
+    {
+        return Err(std::io::Error::other("invalid native control exchange"));
+    }
+    let pinned = pin_readonly().map_err(std::io::Error::other)?;
+    let wide: Vec<_> = name.encode_utf16().chain(Some(0)).collect();
+    // SAFETY: fixed NUL-terminated pipe, data access only, and a newly owned handle.
+    let raw = unsafe {
+        CreateFileW(
+            wide.as_ptr(),
+            0x00100003,
+            0,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+            std::ptr::null_mut(),
+        )
+    };
+    if raw == INVALID_HANDLE_VALUE {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: CreateFileW returned a new valid handle.
+    let mut pipe = unsafe { File::from_raw_handle(raw) };
+    pinned.verify().map_err(std::io::Error::other)?;
+    authenticate_pipe(pipe.as_handle(), pinned.pid).map_err(std::io::Error::other)?;
+    pipe.write_all(request)?;
+    let mut reply = [0; N];
+    pipe.read_exact(&mut reply)?;
+    pinned.verify().map_err(std::io::Error::other)?;
+    authenticate_pipe(pipe.as_handle(), pinned.pid).map_err(std::io::Error::other)?;
+    Ok(reply)
+}
+
+pub fn random_correlation() -> std::io::Result<[u8; 16]> {
+    use windows_sys::Win32::Security::Cryptography::*;
+    let mut id = [0; 16];
+    // SAFETY: the system RNG receives a valid 16-byte output buffer.
+    if unsafe {
+        BCryptGenRandom(
+            std::ptr::null_mut(),
+            id.as_mut_ptr(),
+            16,
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        )
+    } != 0
+        || id == [0; 16]
+    {
+        return Err(std::io::Error::other("system RNG failed"));
+    }
+    Ok(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

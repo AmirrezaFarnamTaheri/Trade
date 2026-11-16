@@ -24,6 +24,11 @@ class StopMode(IntEnum):
     PAUSED = 1
     EXIT_ONLY = 2
     HALTED = 3
+    ARMED = 4
+
+    @property
+    def stop_level(self) -> int:
+        return 0 if self is StopMode.ARMED else self.value
 
 
 class StopResult(IntEnum):
@@ -103,6 +108,6 @@ def verify_reply_for(request: bytes, reply: bytes) -> tuple[StopMode, bool]:
         StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,
         StopCommand.HALT: StopMode.HALTED,
     }[command]
-    if mode < required:
+    if mode.stop_level < required.stop_level:
         raise ValueError("acknowledgment does not confirm the requested stop level")
     return mode, changed

@@ -1,7 +1,7 @@
 //! Offline B2 recovery state machine: no network, clock, keys, or side effects.
 //! The venue's status strings must be verified before mapping them to these
 //! evidence events. Missing a list row is never an absence proof.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Lifecycle {
     IntentLogged,
     Submitting,
@@ -14,7 +14,7 @@ pub enum Lifecycle {
     Rejected, // explicit venue refusal, still requires settlement evidence
     Closed,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum EconomicEffect {
     None,
     NoneObserved,
@@ -22,7 +22,7 @@ pub enum EconomicEffect {
     Full,
     Unverified,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Settlement {
     Unverified,
     Pending,
@@ -35,7 +35,7 @@ pub enum FailureStage {
     BeforeFirstByte,
     AfterFirstByte,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Cancellation {
     None,
     Submitting,
@@ -54,6 +54,7 @@ pub enum Event {
     TerminalReported,
     SettlementVerified,
     Denied,
+    AbandonUnsent,
     VenueRejected,
     SettlementAnomaly,
     AnomalyReconciled {
@@ -72,7 +73,7 @@ pub enum OrderError {
     FillRegression,
     UnreconciledAnomaly,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Attempt {
     requested_quanta: u64,
     filled_quanta: u64,
@@ -132,6 +133,13 @@ impl Attempt {
         // Copy-then-commit: invalid transitions never partially alter state.
         let mut next = *self;
         match event {
+            AbandonUnsent => {
+                if next.lifecycle != Lifecycle::NotSent || next.filled_quanta != 0 {
+                    return Err(OrderError::IllegalTransition);
+                }
+                next.lifecycle = Lifecycle::Denied;
+                next.effect = EconomicEffect::NoneObserved;
+            }
             BeginCancel => {
                 if !matches!(
                     next.lifecycle,
@@ -436,7 +444,7 @@ impl BalanceSnapshot {
         })
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SettlementEvidence {
     pub account: String,
     pub asset: String,
@@ -471,7 +479,7 @@ impl SettlementEvidence {
         })
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct LocalReservation {
     intent: String,
     account: String,
@@ -481,7 +489,7 @@ struct LocalReservation {
     snapshot_seq: u64,
     released: bool,
 }
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ReservationBook {
     entries: Vec<LocalReservation>,
     newest_sequences: Vec<(String, String, u64)>,

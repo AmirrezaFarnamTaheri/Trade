@@ -4,6 +4,129 @@ use exec_svc::offline_recovery::{DurableOrderJournal, RecoveryError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
+fn checkpoint_restores_holds_and_does_not_allow_new_prebyte_proof() {
+    use exec_core::orders::BalanceSnapshot;
+    let path = db_path("checkpoint");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    journal
+        .create_intent("checkpointed", "main", "USDT", 10)
+        .unwrap();
+    journal
+        .reserve_intent(
+            "checkpointed",
+            50,
+            &BalanceSnapshot::new("main", "USDT", 100, 1).unwrap(),
+        )
+        .unwrap();
+    journal
+        .record_event("checkpointed", Event::BeginSend)
+        .unwrap();
+    journal.checkpoint().unwrap();
+    let count = journal.record_count();
+    drop(journal);
+    let mut restored = DurableOrderJournal::open(&path).unwrap();
+    assert_eq!(restored.record_count(), count);
+    assert_eq!(restored.reserved("main", "USDT"), 50);
+    assert_eq!(
+        restored.record_event(
+            "checkpointed",
+            Event::TransportFailed(FailureStage::BeforeFirstByte)
+        ),
+        Err(RecoveryError::Order(OrderError::IllegalTransition))
+    );
+    restored
+        .record_event(
+            "checkpointed",
+            Event::TransportFailed(FailureStage::AfterFirstByte),
+        )
+        .unwrap();
+    drop(restored);
+    assert_eq!(
+        DurableOrderJournal::open(&path)
+            .unwrap()
+            .get("checkpointed")
+            .unwrap()
+            .attempt
+            .lifecycle(),
+        Lifecycle::Unknown
+    );
+}
+
+#[test]
+fn checkpoint_digest_is_checked_even_when_the_event_chain_is_valid() {
+    let path = db_path("bad-checkpoint");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    journal.create_intent("one", "main", "USDT", 1).unwrap();
+    journal.checkpoint().unwrap();
+    drop(journal);
+    let mut ledger = exec_store::Ledger::open(&path).unwrap();
+    let mut raw = ledger
+        .replay_from(0)
+        .unwrap()
+        .last()
+        .unwrap()
+        .event_bytes
+        .clone();
+    raw[8] ^= 1;
+    ledger.append(&raw).unwrap();
+    drop(ledger);
+    assert!(matches!(
+        DurableOrderJournal::open(&path),
+        Err(RecoveryError::MalformedEvent)
+    ));
+}
+
+#[test]
+fn automatic_checkpoint_bounds_the_projection_suffix() {
+    let path = db_path("bounded-projection");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    for i in 0..1025 {
+        journal
+            .create_intent(&format!("i{i}"), "main", "BTC", 1)
+            .unwrap();
+    }
+    drop(journal);
+    let (ledger, suffix) = exec_store::Ledger::open_after_checkpoint(&path, b"TGCKPT01").unwrap();
+    assert!(suffix[0].event_bytes.starts_with(b"TGCKPT01"));
+    assert_eq!(suffix.len(), 2);
+    drop(ledger);
+    assert_eq!(
+        DurableOrderJournal::open(&path)
+            .unwrap()
+            .pending_ids()
+            .len(),
+        1025
+    );
+}
+
+#[test]
+fn chunked_checkpoint_restores_state_larger_than_one_event() {
+    use std::time::Instant;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("paged-state.sqlite");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    let name = "a".repeat(90);
+    for i in 0..2400 {
+        journal
+            .create_intent(&format!("{name}{i}"), &name, &name, 1)
+            .unwrap();
+    }
+    assert!(journal.checkpoint().unwrap());
+    let count = journal.record_count();
+    journal
+        .create_intent("after-large-snapshot", "main", "USDT", 1)
+        .unwrap();
+    drop(journal);
+    let started = Instant::now();
+    let mut restored = DurableOrderJournal::open(&path).unwrap();
+    let opened = started.elapsed();
+    restored.wait_for_audit().unwrap();
+    eprintln!("active-state checkpoint qualification: active_intents=2401 file_bytes={} open_hash_restore={opened:?} open_plus_full_decode={:?}", std::fs::metadata(&path).unwrap().len(), started.elapsed());
+    assert_eq!(restored.pending_ids().len(), 2401);
+    assert_eq!(restored.record_count(), count + 1);
+}
+
+#[test]
 fn recovered_cancel_cannot_invent_prebyte_proof_or_discard_racing_fills() {
     use exec_core::orders::Cancellation;
     let path = db_path("cancel-restart");

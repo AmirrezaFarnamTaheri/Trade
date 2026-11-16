@@ -35,7 +35,7 @@ function Get-Number([byte[]]$Frame,[int]$Offset) {
 }
 function Request([int]$Action,[string]$ClientId='',[uint64]$Sequence=0,[byte[]]$Ticket=$null) {
     $frame=[byte[]]::new(400)
-    [Text.Encoding]::ASCII.GetBytes('TGREVW01').CopyTo($frame,0); $frame[8]=[byte]$Action
+    [Text.Encoding]::ASCII.GetBytes('TGREVW02').CopyTo($frame,0); $frame[8]=[byte]$Action
     ([guid]::NewGuid().ToByteArray()).CopyTo($frame,16)
     if ($ClientId) { $id=[Text.Encoding]::ASCII.GetBytes($ClientId); $frame[9]=[byte]$id.Length; $id.CopyTo($frame,48) }
     if ($Sequence) { Put-Number $frame 32 $Sequence }
@@ -43,7 +43,7 @@ function Request([int]$Action,[string]$ClientId='',[uint64]$Sequence=0,[byte[]]$
     $raw=Review $frame
     $reply=[byte[]]::new(432)
     for ($i=0;$i -lt 432;$i++) { $reply[$i]=[Convert]::ToByte($raw.Substring($i*2,2),16) }
-    if ([Text.Encoding]::ASCII.GetString($reply,0,8) -cne 'TGREPLY1') { throw 'Review magic mismatch.' }
+    if ([Text.Encoding]::ASCII.GetString($reply,0,8) -cne 'TGREPLY2') { throw 'Review magic mismatch.' }
     for ($i=16;$i -lt 32;$i++) { if ($reply[$i] -ne $frame[$i]) { throw 'Uncorrelated review.' } }
     return ,$reply
 }
@@ -57,7 +57,7 @@ if ($SelfTest) {
         if ($Value.Length -ne 400 -or $Value[8] -ne 5 -or $Value[9] -ne 8 -or
             [Text.Encoding]::ASCII.GetString($Value,48,8) -cne 'intent-1' -or (Get-Number $Value 32) -ne 9007199254740993) { throw 'Native request layout mismatch.' }
         $reply=[byte[]]::new(432)
-        [Text.Encoding]::ASCII.GetBytes('TGREPLY1').CopyTo($reply,0)
+        [Text.Encoding]::ASCII.GetBytes('TGREPLY2').CopyTo($reply,0)
         [Array]::Copy($Value,16,$reply,16,16)
         if ($script:badCorrelation) { $reply[16]=$reply[16] -bxor 255 }
         return ([BitConverter]::ToString($reply)).Replace('-','').ToLowerInvariant()
@@ -88,7 +88,7 @@ $report=[ordered]@{run_id=$manifest.run_id;at=[DateTime]::UtcNow.ToString('o');s
 try {
     $status=Request 1
     if ($status[8] -ne 1 -or $status[9] -ne 0 -or (Get-Number $status 56) -eq 0) { throw 'DISARMED service and recorded zero ceiling required.' }
-    $id='probe-'+[guid]::NewGuid().ToString('N')
+    $id='probe_'+[guid]::NewGuid().ToString('N')
     $ticket=[byte[]]::new(352); $ticket[0]=2; $ticket[1]=8; $ticket[2]=2; $ticket[3]=6
     $values=@($id,'main','BTC','USDT'); $offsets=@(152,216,248,264)
     for ($i=0;$i -lt 4;$i++) { $name=[Text.Encoding]::ASCII.GetBytes($values[$i]); $ticket[4+$i]=[byte]$name.Length; $name.CopyTo($ticket,$offsets[$i]) }

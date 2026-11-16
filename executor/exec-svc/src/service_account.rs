@@ -1,4 +1,4 @@
-//! Service-only, fixed-origin GET transport. A response is observation, never permission proof.
+//! Service-only, fixed-origin transport. A response is never permission proof.
 use crate::credential_vault::Secret;
 use exec_ipc::provision::{AccountResource, MAX_ACCOUNT_BODY};
 use std::{
@@ -82,8 +82,58 @@ fn finish_observation(body: Secret, key: &Secret, elapsed: Duration) -> io::Resu
 
 /// One venue read with a key copied out of the vault, so the vault lock is not held across network I/O.
 pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
-    let path = wide(&resource.path().map_err(|_| uncertain())?);
-    let header = key_header(key)?;
+    read_path(Some(key), &resource.path().map_err(|_| uncertain())?)
+}
+
+pub fn public_depth(symbol: &str) -> io::Result<Secret> {
+    if !(3..=32).contains(&symbol.len())
+        || !symbol
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+    {
+        return Err(uncertain());
+    }
+    read_path(None, &format!("/v1/depth?symbol={symbol}"))
+}
+
+fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
+    exchange(key, resource, None, || Ok(()))
+}
+
+pub fn submit(
+    key: &Secret,
+    body: &[u8],
+    mut allowed: impl FnMut() -> bool,
+) -> Result<Secret, exec_core::orders::FailureStage> {
+    use exec_core::orders::FailureStage;
+    let mut reached_send = false;
+    if body.is_empty() || body.len() > 4096 {
+        return Err(FailureStage::BeforeFirstByte);
+    }
+    let result = exchange(Some(key), "/v1/account/orders", Some(body), || {
+        if !allowed() {
+            return Err(uncertain());
+        }
+        reached_send = true;
+        Ok(())
+    });
+    result.map_err(|_| {
+        if reached_send {
+            FailureStage::AfterFirstByte
+        } else {
+            FailureStage::BeforeFirstByte
+        }
+    })
+}
+
+fn exchange(
+    key: Option<&Secret>,
+    resource: &str,
+    payload: Option<&[u8]>,
+    before_send: impl FnOnce() -> io::Result<()>,
+) -> io::Result<Secret> {
+    let path = wide(resource);
+    let header = key.map(key_header).transpose()?;
     let started = Instant::now();
     unsafe {
         let session = Handle::checked(WinHttpOpen(
@@ -103,7 +153,7 @@ pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
         ))?;
         let request = Handle::checked(WinHttpOpenRequest(
             connection.0,
-            wide("GET").as_ptr(),
+            wide(if payload.is_some() { "POST" } else { "GET" }).as_ptr(),
             path.as_ptr(),
             ptr::null(),
             ptr::null(),
@@ -122,14 +172,28 @@ pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
             WINHTTP_OPTION_DISABLE_FEATURE,
             WINHTTP_DISABLE_REDIRECTS | WINHTTP_DISABLE_AUTHENTICATION | WINHTTP_DISABLE_COOKIES,
         )?;
-        // Native certificate validation is unchanged. No proxy, auth negotiation, redirect or request body.
+        if payload.is_some() {
+            let content_type = wide("Content-Type: application/json\r\n");
+            success(WinHttpAddRequestHeaders(
+                request.0,
+                content_type.as_ptr(),
+                (content_type.len() - 1) as u32,
+                WINHTTP_ADDREQ_FLAG_ADD,
+            ))?;
+        }
+        before_send()?;
+        // The gate is checked at the last boundary before WinHTTP can send bytes. Never retry this call.
         success(WinHttpSendRequest(
             request.0,
-            header.0.as_ptr(),
-            (header.0.len() - 1) as u32,
-            ptr::null(),
-            0,
-            0,
+            header
+                .as_ref()
+                .map_or(ptr::null(), |header| header.0.as_ptr()),
+            header
+                .as_ref()
+                .map_or(0, |header| (header.0.len() - 1) as u32),
+            payload.map_or(ptr::null(), |body| body.as_ptr().cast()),
+            payload.map_or(0, |body| body.len() as u32),
+            payload.map_or(0, |body| body.len() as u32),
             0,
         ))?;
         drop(header);
@@ -144,7 +208,7 @@ pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
             &mut size,
             ptr::null_mut(),
         ))?;
-        if status != 200 {
+        if status != 200 && !(payload.is_some() && status == 201) {
             return Err(uncertain());
         }
         let mut body = Secret(Vec::new());
@@ -168,7 +232,13 @@ pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
             }
             body.0.extend_from_slice(&chunk.0[..count as usize]);
         }
-        finish_observation(body, key, started.elapsed())
+        if let Some(key) = key {
+            finish_observation(body, key, started.elapsed())
+        } else if started.elapsed() >= Duration::from_secs(12) || body.0.is_empty() {
+            Err(uncertain())
+        } else {
+            Ok(body)
+        }
     }
 }
 
@@ -188,6 +258,13 @@ mod tests {
         }
         assert!(key_header(&Secret(vec![b'a'; exec_ipc::provision::MAX_SECRET + 1])).is_err());
         assert!(key_header(&Secret(b"synthetic-not-a-key".to_vec())).is_ok());
+    }
+    #[test]
+    fn public_book_path_rejects_caller_control_before_network_io() {
+        for symbol in ["", "BTCUSDT&x=y", "../balances", "btcusdt", "BTC\r\n", "AB"] {
+            assert!(public_depth(symbol).is_err());
+        }
+        assert!(public_depth(&"A".repeat(33)).is_err());
     }
     #[test]
     fn response_bound_deadline_and_credential_echo_fail_closed() {
@@ -210,5 +287,16 @@ mod tests {
         )
         .is_err());
         assert_eq!(uncertain().to_string(), "account observation unavailable");
+    }
+    #[test]
+    fn no_payload_or_invalid_key_is_a_proven_unsent_request() {
+        use exec_core::orders::FailureStage;
+        let key = Secret(b"synthetic-invalid-key\r\n".to_vec());
+        for body in [b"".as_slice(), b"{}"] {
+            assert!(matches!(
+                submit(&key, body, || panic!("invalid input reached send")),
+                Err(FailureStage::BeforeFirstByte)
+            ));
+        }
     }
 }

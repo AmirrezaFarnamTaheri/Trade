@@ -3,6 +3,7 @@
 //! All records are appended to exec-store's FULL-synchronous hash-chained ledger
 //! before an Attempt projection changes. Unknown bytes or illegal replay fail closed.
 use crate::account_observation::{AccountKind, AccountObservation};
+use exec_core::holds::ActiveHoldBook;
 use exec_core::orders::{
     Attempt, BalanceSnapshot, Event, FailureStage, OrderError, ReservationBook, ReservationError,
     SettlementEvidence,
@@ -10,6 +11,11 @@ use exec_core::orders::{
 use exec_store::{Ledger, LedgerError};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Arc,
+};
+use std::thread::JoinHandle;
 
 const MAGIC: &[u8; 5] = b"TGOR1";
 const CREATE: u8 = 1;
@@ -26,8 +32,68 @@ const REVOKE_APPROVAL: u8 = 11;
 const PREPARE_INTENT: u8 = 12;
 const RESERVE_REVIEW: u8 = 13;
 const ACCOUNT_OBSERVATION: u8 = 14;
+const RESERVE_REVIEW_WITH_FEE: u8 = 15;
+const REVIEW_SETTLED: u8 = 16;
+const CHECKPOINT_MAGIC: &[u8; 8] = b"TGCKPT01";
+const CHECKPOINT_MANIFEST_MAGIC: &[u8; 8] = b"TGCKPT02";
+const CHECKPOINT_PAGE_MAGIC: &[u8; 8] = b"TGCKPG01";
+const MAX_CHECKPOINT_BYTES: usize = 64 * 1024 * 1024;
+const PAGE_HEADER: usize = 44;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckpointManifest {
+    tip: (u64, [u8; 32]),
+    chunks: u32,
+    state_bytes: usize,
+    digest: [u8; 32],
+}
+
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Checkpoint {
+    tip: (u64, [u8; 32]),
+    intents: BTreeMap<String, ObservedIntent>,
+    reservations: ActiveHoldBook,
+    legacy_reservations: ReservationBook,
+    credential: Option<CredentialMetadata>,
+    generations: BTreeSet<[u8; 16]>,
+    ceiling: Option<(u64, CeilingChange)>,
+    ceiling_requests: BTreeSet<[u8; 16]>,
+    approvals: BTreeMap<String, ApprovalView>,
+    approval_requests: BTreeSet<[u8; 16]>,
+    #[serde(with = "observation_map")]
+    account_observations: BTreeMap<(AccountKind, String), AccountObservation>,
+    account_requests: BTreeSet<[u8; 16]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    history_through: Option<u64>,
+}
+
+mod observation_map {
+    use super::*;
+    pub fn serialize<S: serde::Serializer>(
+        value: &BTreeMap<(AccountKind, String), AccountObservation>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serde::Serialize::serialize(&value.iter().collect::<Vec<_>>(), serializer)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<BTreeMap<(AccountKind, String), AccountObservation>, D::Error> {
+        let value: Vec<((AccountKind, String), AccountObservation)> =
+            serde::Deserialize::deserialize(deserializer)?;
+        Ok(value.into_iter().collect())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AuditStatus {
+    Pending,
+    Verified,
+    Failed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OperatorApproval {
     pub ticket: exec_ipc::review::Ticket,
     pub principal: String,
@@ -36,7 +102,7 @@ pub struct OperatorApproval {
     pub request_id: [u8; 16],
     pub mode: exec_ipc::StopMode,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ApprovalView {
     pub sequence: u64,
     pub approval: OperatorApproval,
@@ -180,6 +246,7 @@ fn check_approval(
         &value.principal,
         value.recorded_at_ms,
         value.mode,
+        false,
     )
 }
 fn check_review_context(
@@ -189,6 +256,7 @@ fn check_review_context(
     principal: &str,
     at: u64,
     mode: exec_ipc::StopMode,
+    prepared: bool,
 ) -> Result<(), RecoveryError> {
     if ticket.ceiling_sequence != sequence
         || ticket.quote != limit.ceiling.currency
@@ -201,7 +269,9 @@ fn check_review_context(
             > at.checked_add(30000)
                 .ok_or(RecoveryError::InvalidIdentity)?
         || mode == exec_ipc::StopMode::Halted
-        || (ticket.buy && mode != exec_ipc::StopMode::Disarmed)
+        || (ticket.buy
+            && mode != exec_ipc::StopMode::Disarmed
+            && !(prepared && mode == exec_ipc::StopMode::Armed))
         || ticket.max_quote_debit > limit.ceiling.capital_quanta
     {
         return Err(RecoveryError::InvalidIdentity);
@@ -253,6 +323,7 @@ fn check_review_action(
         &value.principal,
         value.recorded_at_ms,
         value.mode,
+        prepared,
     )
 }
 fn check_revocation(
@@ -278,7 +349,7 @@ fn check_revocation(
 }
 
 /// Durable metadata, not a money permit. The service must authenticate the writer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CeilingChange {
     pub ceiling: exec_ipc::ceiling::Ceiling,
     pub principal: String,
@@ -351,13 +422,13 @@ fn check_ceiling(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum CredentialPermission {
     Unverified,
 }
 
 /// Ciphertext identity only. This record never confers executor authority.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CredentialMetadata {
     pub generation: [u8; 16],
     pub ciphertext_digest: [u8; 32],
@@ -408,7 +479,7 @@ impl From<LedgerError> for RecoveryError {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ObservedIntent {
     pub admission_index: usize,
     pub account: String,
@@ -424,11 +495,16 @@ struct ReviewedReservation {
     context: IntentPreparation,
     ticket: exec_ipc::review::Ticket,
     snapshot: BalanceSnapshot,
+    held_quanta: Option<u64>,
 }
 impl ReviewedReservation {
     fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
         let mut raw = self.context.encode()?;
-        raw[MAGIC.len()] = RESERVE_REVIEW;
+        raw[MAGIC.len()] = if self.held_quanta.is_some() {
+            RESERVE_REVIEW_WITH_FEE
+        } else {
+            RESERVE_REVIEW
+        };
         raw.extend_from_slice(
             &self
                 .ticket
@@ -437,6 +513,9 @@ impl ReviewedReservation {
         );
         raw.extend_from_slice(&self.snapshot.available_quanta.to_be_bytes());
         raw.extend_from_slice(&self.snapshot.sequence.to_be_bytes());
+        if let Some(held) = self.held_quanta {
+            raw.extend_from_slice(&held.to_be_bytes());
+        }
         Ok(raw)
     }
 }
@@ -445,7 +524,7 @@ fn apply_review_reservation(
     approvals: &BTreeMap<String, ApprovalView>,
     requests: &BTreeSet<[u8; 16]>,
     intents: &mut BTreeMap<String, ObservedIntent>,
-    reservations: &mut ReservationBook,
+    reservations: &mut ActiveHoldBook,
     value: &ReviewedReservation,
 ) -> Result<(), RecoveryError> {
     check_review_action(current, approvals, requests, &value.context, true)?;
@@ -462,11 +541,18 @@ fn apply_review_reservation(
     } else {
         &ticket.base
     };
-    let quanta = if ticket.buy {
+    let ordinary_hold = if ticket.buy {
         ticket.max_quote_debit
     } else {
         ticket.quantity_quanta
     };
+    let quanta = value.held_quanta.unwrap_or(ordinary_hold);
+    if (ticket.buy && quanta != ordinary_hold)
+        || quanta < ordinary_hold
+        || (!ticket.buy && quanta > ordinary_hold.saturating_mul(2))
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
     let units = |value: &exec_ipc::review::Ticket| {
         if value.base == *asset {
             (value.base_epoch, value.base_decimals)
@@ -497,7 +583,7 @@ fn apply_review_reservation(
     }
     let attempt = Attempt::new(ticket.quantity_quanta).map_err(RecoveryError::Order)?;
     reservations
-        .reserve(
+        .reserve_order(
             &ticket.client_id,
             &ticket.account,
             asset,
@@ -521,19 +607,19 @@ fn apply_review_reservation(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Side {
     Buy,
     Sell,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Purpose {
     Entry,
     Conversion,
     ProtectiveExit,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ExecutionIdentity {
     pub instrument: String,
     pub base: String,
@@ -578,7 +664,7 @@ impl ExecutionIdentity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ExecutionSettlement {
     pub filled_quanta: u64,
     pub gross_quote_quanta: u64,
@@ -609,14 +695,19 @@ fn check_account_observation(
 
 pub struct DurableOrderJournal {
     ledger: Ledger,
+    audit: Option<JoinHandle<()>>,
+    audit_state: Arc<AtomicU8>,
     intents: BTreeMap<String, ObservedIntent>,
-    reservations: ReservationBook,
+    reservations: ActiveHoldBook,
+    // Historical offline aggregate-settlement events retain their original projection.
+    legacy_reservations: ReservationBook,
     records: usize,
     /// A request already in flight when the journal was reopened cannot be
     /// certified as never sent by this newly started process.
     recovered_inflight: BTreeSet<String>,
     recovered_cancels: BTreeSet<String>,
     credential: Option<CredentialMetadata>,
+    generations: BTreeSet<[u8; 16]>,
     ceiling: Option<(u64, CeilingChange)>,
     ceiling_requests: BTreeSet<[u8; 16]>,
     approvals: BTreeMap<String, ApprovalView>,
@@ -624,9 +715,23 @@ pub struct DurableOrderJournal {
     account_observations: BTreeMap<(AccountKind, String), AccountObservation>,
     account_requests: BTreeSet<[u8; 16]>,
 }
+
+impl Drop for DurableOrderJournal {
+    fn drop(&mut self) {
+        if let Some(audit) = self.audit.take() {
+            let _ = audit.join();
+        }
+    }
+}
+
 enum Record {
     AccountObservation(AccountObservation),
     ReviewedReservation(ReviewedReservation),
+    ReviewSettled {
+        id: String,
+        filled: u64,
+        balance: SettlementEvidence,
+    },
     PrepareIntent(IntentPreparation),
     Approval(OperatorApproval),
     RevokeApproval(ApprovalRevocation),
@@ -731,6 +836,7 @@ fn record_event(id: &str, event: Event) -> Result<Vec<u8>, RecoveryError> {
         CancelTransportFailed(FailureStage::BeforeFirstByte) => 15,
         CancelTransportFailed(FailureStage::AfterFirstByte) => 16,
         CancelAcknowledged => 17,
+        AbandonUnsent => 18,
     };
     data.push(tag);
     match event {
@@ -931,7 +1037,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                     .map_err(|_| RecoveryError::MalformedEvent)?,
             )
         }
-        PREPARE_INTENT | RESERVE_REVIEW => {
+        PREPARE_INTENT | RESERVE_REVIEW | RESERVE_REVIEW_WITH_FEE => {
             let value = IntentPreparation {
                 client_id: id,
                 expected_sequence: r.num()?,
@@ -964,6 +1070,11 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                     context: value,
                     ticket,
                     snapshot,
+                    held_quanta: if kind == RESERVE_REVIEW_WITH_FEE {
+                        Some(r.num()?)
+                    } else {
+                        None
+                    },
                 })
             }
         }
@@ -1145,6 +1256,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                 15 => CancelTransportFailed(FailureStage::BeforeFirstByte),
                 16 => CancelTransportFailed(FailureStage::AfterFirstByte),
                 17 => CancelAcknowledged,
+                18 => AbandonUnsent,
                 _ => return Err(RecoveryError::MalformedEvent),
             };
             Record::Observation { id, event }
@@ -1158,7 +1270,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
             sequence: r.num()?,
         },
         RELEASE_DENIED => Record::ReleaseDenied { id },
-        RELEASE_SETTLED => {
+        RELEASE_SETTLED | REVIEW_SETTLED => {
             let account = r.name()?;
             let asset = r.name()?;
             let sequence = r.num()?;
@@ -1167,15 +1279,34 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                 1 => true,
                 _ => return Err(RecoveryError::MalformedEvent),
             };
-            Record::ReleaseSettled {
-                id,
-                account,
-                asset,
-                sequence,
-                complete,
-                locked: r.num()?,
-                spent: r.num()?,
-                available: r.num()?,
+            let locked = r.num()?;
+            let spent = r.num()?;
+            let available = r.num()?;
+            if kind == REVIEW_SETTLED {
+                Record::ReviewSettled {
+                    id,
+                    filled: r.num()?,
+                    balance: SettlementEvidence {
+                        account,
+                        asset,
+                        sequence,
+                        complete,
+                        locked_quanta: locked,
+                        spent_quanta: spent,
+                        available_quanta: available,
+                    },
+                }
+            } else {
+                Record::ReleaseSettled {
+                    id,
+                    account,
+                    asset,
+                    sequence,
+                    complete,
+                    locked,
+                    spent,
+                    available,
+                }
             }
         }
         _ => return Err(RecoveryError::MalformedEvent),
@@ -1187,7 +1318,8 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
 }
 fn apply_record(
     intents: &mut BTreeMap<String, ObservedIntent>,
-    reservations: &mut ReservationBook,
+    reservations: &mut ActiveHoldBook,
+    legacy: &mut ReservationBook,
     record: Record,
 ) -> Result<(), RecoveryError> {
     match record {
@@ -1232,7 +1364,7 @@ fn apply_record(
                 return Err(RecoveryError::InvalidIdentity);
             }
             reservations
-                .reserve(&id, &account, asset, reserved, &snapshot, &attempt)
+                .reserve_order(&id, &account, asset, reserved, &snapshot, &attempt)
                 .map_err(RecoveryError::Reservation)?;
             let admission_index = intents.len();
             intents.insert(
@@ -1249,36 +1381,6 @@ fn apply_record(
             );
         }
         Record::ExecutionSettled { id, settlement } => {
-            let current = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
-            let credits = intents
-                .values()
-                .filter(|other| {
-                    other.account == current.account
-                        && other.admission_index > current.admission_index
-                })
-                .try_fold(0u64, |total, other| {
-                    let (Some(identity), Some(saved)) =
-                        (&other.execution, &other.execution_settlement)
-                    else {
-                        return Ok(total);
-                    };
-                    let (asset, gross) = if identity.side == Side::Buy {
-                        (&identity.base, saved.filled_quanta)
-                    } else {
-                        (&identity.quote, saved.gross_quote_quanta)
-                    };
-                    if asset != &current.asset {
-                        return Ok(total);
-                    }
-                    let net = gross
-                        .checked_sub(if saved.fee_asset == *asset {
-                            saved.fee_quanta
-                        } else {
-                            0
-                        })
-                        .ok_or(RecoveryError::InvalidIdentity)?;
-                    total.checked_add(net).ok_or(RecoveryError::InvalidIdentity)
-                })?;
             let order = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
             let identity = order
                 .execution
@@ -1363,7 +1465,7 @@ fn apply_record(
                 .apply(Event::SettlementVerified)
                 .map_err(RecoveryError::Order)?;
             reservations
-                .release_settled_with_credits(&id, &order.attempt, &settlement.balance, credits)
+                .release_settled(&id, &order.attempt, &settlement.balance)
                 .map_err(RecoveryError::Reservation)?;
             order.execution_settlement = Some(settlement);
         }
@@ -1394,6 +1496,34 @@ fn apply_record(
             let current = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
             current.attempt.apply(event).map_err(RecoveryError::Order)?;
         }
+        Record::ReviewSettled {
+            id,
+            filled,
+            balance,
+        } => {
+            use exec_core::orders::Lifecycle;
+            let order = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
+            if order.review_ticket.is_none() {
+                return Err(RecoveryError::InvalidIdentity);
+            }
+            let mut next = order.attempt;
+            if matches!(next.lifecycle(), Lifecycle::Submitting | Lifecycle::Unknown) {
+                next.apply(Event::Acknowledged)
+                    .map_err(RecoveryError::Order)?;
+            }
+            next.apply(Event::CumulativeFilled(filled))
+                .map_err(RecoveryError::Order)?;
+            if next.lifecycle() != Lifecycle::TerminalReported {
+                next.apply(Event::TerminalReported)
+                    .map_err(RecoveryError::Order)?;
+            }
+            next.apply(Event::SettlementVerified)
+                .map_err(RecoveryError::Order)?;
+            reservations
+                .release_settled(&id, &next, &balance)
+                .map_err(RecoveryError::Reservation)?;
+            order.attempt = next;
+        }
         Record::Hold {
             id,
             account,
@@ -1410,15 +1540,18 @@ fn apply_record(
             }
             let snapshot = BalanceSnapshot::new(&account, &asset, available, sequence)
                 .map_err(RecoveryError::Reservation)?;
-            reservations
+            legacy
                 .reserve(&id, &account, &asset, quanta, &snapshot, &order.attempt)
                 .map_err(RecoveryError::Reservation)?;
         }
         Record::ReleaseDenied { id } => {
             let order = intents.get(&id).ok_or(RecoveryError::UnknownIdentity)?;
-            reservations
-                .release_denied(&id, &order.attempt)
-                .map_err(RecoveryError::Reservation)?;
+            if legacy.is_reserved(&id) {
+                legacy.release_denied(&id, &order.attempt)
+            } else {
+                reservations.release_denied(&id, &order.attempt)
+            }
+            .map_err(RecoveryError::Reservation)?;
         }
         Record::ReleaseSettled {
             id,
@@ -1435,118 +1568,516 @@ fn apply_record(
                 &account, &asset, sequence, complete, locked, spent, available,
             )
             .map_err(RecoveryError::Reservation)?;
-            reservations
+            legacy
                 .release_settled(&id, &order.attempt, &evidence)
                 .map_err(RecoveryError::Reservation)?;
         }
     }
     Ok(())
 }
-impl DurableOrderJournal {
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, RecoveryError> {
-        let (ledger, records) = Ledger::open_and_replay(path)?;
-        let mut intents = BTreeMap::new();
-        let mut reservations = ReservationBook::default();
-        let mut credential = None;
-        let mut generations = BTreeSet::new();
-        let mut ceiling = None;
-        let mut ceiling_requests = BTreeSet::new();
-        let mut approvals = BTreeMap::new();
-        let mut approval_requests = BTreeSet::new();
-        let mut account_observations = BTreeMap::new();
-        let mut account_requests = BTreeSet::new();
-        for e in &records {
-            let parsed = decode(&e.event_bytes)?;
-            if let Record::AccountObservation(value) = parsed {
-                check_account_observation(
-                    credential.as_ref(),
-                    &account_observations,
-                    &account_requests,
-                    &value,
-                )
+
+impl Checkpoint {
+    fn apply_event(&mut self, e: &exec_store::LedgerEntry) -> Result<(), RecoveryError> {
+        let Self {
+            intents,
+            reservations,
+            legacy_reservations,
+            credential,
+            generations,
+            ceiling,
+            ceiling_requests,
+            approvals,
+            approval_requests,
+            account_observations,
+            account_requests,
+            ..
+        } = self;
+        let parsed = decode(&e.event_bytes)?;
+        if let Record::AccountObservation(value) = parsed {
+            check_account_observation(
+                credential.as_ref(),
+                account_observations,
+                account_requests,
+                &value,
+            )
+            .map_err(|_| RecoveryError::MalformedEvent)?;
+            account_requests.insert(value.request_id());
+            account_observations.insert(value.key(), value);
+            return Ok(());
+        }
+        if let Record::ReviewedReservation(value) = parsed {
+            apply_review_reservation(
+                ceiling.as_ref(),
+                approvals,
+                approval_requests,
+                intents,
+                reservations,
+                &value,
+            )
+            .map_err(|_| RecoveryError::MalformedEvent)?;
+            approval_requests.insert(value.context.request_id);
+            approvals
+                .get_mut(&value.context.client_id)
+                .unwrap()
+                .sequence = e.sequence;
+            return Ok(());
+        }
+        if let Record::PrepareIntent(value) = parsed {
+            check_preparation(ceiling.as_ref(), approvals, approval_requests, &value)
                 .map_err(|_| RecoveryError::MalformedEvent)?;
-                account_requests.insert(value.request_id());
-                account_observations.insert(value.key(), value);
-                continue;
-            }
-            if let Record::ReviewedReservation(value) = parsed {
-                apply_review_reservation(
-                    ceiling.as_ref(),
-                    &approvals,
-                    &approval_requests,
-                    &mut intents,
-                    &mut reservations,
-                    &value,
-                )
-                .map_err(|_| RecoveryError::MalformedEvent)?;
-                approval_requests.insert(value.context.request_id);
-                approvals
-                    .get_mut(&value.context.client_id)
-                    .unwrap()
-                    .sequence = e.sequence;
-                continue;
-            }
-            if let Record::PrepareIntent(value) = parsed {
-                check_preparation(ceiling.as_ref(), &approvals, &approval_requests, &value)
-                    .map_err(|_| RecoveryError::MalformedEvent)?;
-                if intents.contains_key(&value.client_id) {
-                    return Err(RecoveryError::MalformedEvent);
-                }
-                approval_requests.insert(value.request_id);
-                let saved = approvals.get_mut(&value.client_id).unwrap();
-                saved.prepared_at_ms = Some(value.recorded_at_ms);
-                saved.sequence = e.sequence;
-                continue;
-            }
-            if let Record::Approval(value) = parsed {
-                check_approval(ceiling.as_ref(), &approvals, &approval_requests, &value)
-                    .map_err(|_| RecoveryError::MalformedEvent)?;
-                if intents.contains_key(&value.ticket.client_id) {
-                    return Err(RecoveryError::MalformedEvent);
-                }
-                approval_requests.insert(value.request_id);
-                approvals.insert(
-                    value.ticket.client_id.clone(),
-                    ApprovalView {
-                        sequence: e.sequence,
-                        approval: value,
-                        revoked_at_ms: None,
-                        prepared_at_ms: None,
-                    },
-                );
-                continue;
-            }
-            if let Record::RevokeApproval(value) = parsed {
-                check_revocation(&approvals, &approval_requests, &value)
-                    .map_err(|_| RecoveryError::MalformedEvent)?;
-                approval_requests.insert(value.request_id);
-                let current = approvals.get_mut(&value.client_id).unwrap();
-                current.sequence = e.sequence;
-                current.revoked_at_ms = Some(value.recorded_at_ms);
-                continue;
-            }
-            if let Record::Ceiling(change) = parsed {
-                check_ceiling(ceiling.as_ref(), &ceiling_requests, &change)
-                    .map_err(|_| RecoveryError::MalformedEvent)?;
-                ceiling_requests.insert(change.request_id);
-                ceiling = Some((e.sequence, change));
-                continue;
-            }
-            if let Record::Credential(metadata) = parsed {
-                if !generations.insert(metadata.generation) {
-                    return Err(RecoveryError::MalformedEvent);
-                }
-                credential = Some(metadata);
-                continue;
-            }
-            // Verified bytes that cannot form a legal state also fail closed.
-            if matches!(&parsed, Record::Open { id, .. } | Record::Execution { id, .. } if approvals.contains_key(id))
-            {
+            if intents.contains_key(&value.client_id) {
                 return Err(RecoveryError::MalformedEvent);
             }
-            apply_record(&mut intents, &mut reservations, parsed)
-                .map_err(|_| RecoveryError::MalformedEvent)?;
+            approval_requests.insert(value.request_id);
+            let saved = approvals.get_mut(&value.client_id).unwrap();
+            saved.prepared_at_ms = Some(value.recorded_at_ms);
+            saved.sequence = e.sequence;
+            return Ok(());
         }
+        if let Record::Approval(value) = parsed {
+            check_approval(ceiling.as_ref(), approvals, approval_requests, &value)
+                .map_err(|_| RecoveryError::MalformedEvent)?;
+            if intents.contains_key(&value.ticket.client_id) {
+                return Err(RecoveryError::MalformedEvent);
+            }
+            approval_requests.insert(value.request_id);
+            approvals.insert(
+                value.ticket.client_id.clone(),
+                ApprovalView {
+                    sequence: e.sequence,
+                    approval: value,
+                    revoked_at_ms: None,
+                    prepared_at_ms: None,
+                },
+            );
+            return Ok(());
+        }
+        if let Record::RevokeApproval(value) = parsed {
+            check_revocation(approvals, approval_requests, &value)
+                .map_err(|_| RecoveryError::MalformedEvent)?;
+            approval_requests.insert(value.request_id);
+            let current = approvals.get_mut(&value.client_id).unwrap();
+            current.sequence = e.sequence;
+            current.revoked_at_ms = Some(value.recorded_at_ms);
+            return Ok(());
+        }
+        if let Record::Ceiling(change) = parsed {
+            check_ceiling(ceiling.as_ref(), ceiling_requests, &change)
+                .map_err(|_| RecoveryError::MalformedEvent)?;
+            ceiling_requests.insert(change.request_id);
+            *ceiling = Some((e.sequence, change));
+            return Ok(());
+        }
+        if let Record::Credential(metadata) = parsed {
+            if !generations.insert(metadata.generation) {
+                return Err(RecoveryError::MalformedEvent);
+            }
+            *credential = Some(metadata);
+            return Ok(());
+        }
+        // Verified bytes that cannot form a legal state also fail closed.
+        if matches!(&parsed, Record::Open { id, .. } | Record::Execution { id, .. } if approvals.contains_key(id))
+        {
+            return Err(RecoveryError::MalformedEvent);
+        }
+        apply_record(intents, reservations, legacy_reservations, parsed)
+            .map_err(|_| RecoveryError::MalformedEvent)?;
+        Ok(())
+    }
+
+    fn bounded_history(&mut self, through: u64) {
+        self.generations.clear();
+        self.ceiling_requests.clear();
+        self.approval_requests.clear();
+        self.account_requests.clear();
+        self.history_through = Some(through);
+    }
+
+    fn bound_recent_ids(&mut self) {
+        if self.generations.len()
+            + self.ceiling_requests.len()
+            + self.approval_requests.len()
+            + self.account_requests.len()
+            > 1024
+        {
+            self.generations.clear();
+            self.ceiling_requests.clear();
+            self.approval_requests.clear();
+            self.account_requests.clear();
+        }
+    }
+}
+
+fn decode_checkpoint(e: &exec_store::LedgerEntry) -> Result<Checkpoint, RecoveryError> {
+    if e.event_bytes.len() < 40 {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    let raw = &e.event_bytes[40..];
+    if exec_store::hash_event(&[0; 32], raw).as_slice() != &e.event_bytes[8..40] {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    let saved: Checkpoint =
+        serde_json::from_slice(raw).map_err(|_| RecoveryError::MalformedEvent)?;
+    if saved.tip != (e.sequence - 1, e.previous_hash)
+        || saved
+            .history_through
+            .is_some_and(|through| through != saved.tip.0)
+        || serde_json::to_vec(&saved).map_err(|_| RecoveryError::MalformedEvent)? != raw
+    {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    Ok(saved)
+}
+
+fn record_identities(record: &Record) -> Vec<(&'static str, Vec<u8>)> {
+    let (scope, key) = match record {
+        Record::AccountObservation(value) => ("account_request", value.request_id().to_vec()),
+        Record::ReviewedReservation(value) => {
+            ("approval_request", value.context.request_id.to_vec())
+        }
+        Record::PrepareIntent(value) => ("approval_request", value.request_id.to_vec()),
+        Record::Approval(value) => {
+            return vec![
+                ("approval_request", value.request_id.to_vec()),
+                ("client", value.ticket.client_id.as_bytes().to_vec()),
+            ]
+        }
+        Record::RevokeApproval(value) => ("approval_request", value.request_id.to_vec()),
+        Record::Ceiling(value) => ("ceiling_request", value.request_id.to_vec()),
+        Record::Credential(value) => ("generation", value.generation.to_vec()),
+        Record::Open { id, .. } | Record::Execution { id, .. } => {
+            ("client", id.as_bytes().to_vec())
+        }
+        _ => return Vec::new(),
+    };
+    vec![(scope, key)]
+}
+
+fn checkpoint_manifest(
+    entry: &exec_store::LedgerEntry,
+) -> Result<CheckpointManifest, RecoveryError> {
+    let raw = entry
+        .event_bytes
+        .get(8..)
+        .ok_or(RecoveryError::MalformedEvent)?;
+    let manifest: CheckpointManifest =
+        serde_json::from_slice(raw).map_err(|_| RecoveryError::MalformedEvent)?;
+    if manifest.chunks < 2
+        || manifest.state_bytes > MAX_CHECKPOINT_BYTES
+        || manifest.state_bytes <= exec_store::MAX_EVENT_BYTES - 40
+        || manifest.tip.0.checked_add(u64::from(manifest.chunks) + 1) != Some(entry.sequence)
+        || serde_json::to_vec(&manifest).map_err(|_| RecoveryError::MalformedEvent)? != raw
+    {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    Ok(manifest)
+}
+
+fn restore_checkpoint_pages(
+    entry: &exec_store::LedgerEntry,
+    pages: &[exec_store::LedgerEntry],
+) -> Result<Checkpoint, RecoveryError> {
+    let manifest = checkpoint_manifest(entry)?;
+    if pages.len() != manifest.chunks as usize {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    let mut raw = CHECKPOINT_MAGIC.to_vec();
+    raw.extend_from_slice(&manifest.digest);
+    let mut previous = manifest.tip.1;
+    for (index, page) in pages.iter().enumerate() {
+        if !page.event_bytes.starts_with(CHECKPOINT_PAGE_MAGIC)
+            || page.event_bytes.len() <= PAGE_HEADER
+            || page.sequence != manifest.tip.0 + index as u64 + 1
+            || page.previous_hash != previous
+            || page.event_bytes[8..12] != (index as u32).to_be_bytes()
+            || page.event_bytes[12..44] != manifest.digest
+            || (index + 1 < pages.len() && page.event_bytes.len() != exec_store::MAX_EVENT_BYTES)
+        {
+            return Err(RecoveryError::MalformedEvent);
+        }
+        raw.extend_from_slice(&page.event_bytes[PAGE_HEADER..]);
+        if raw.len() > manifest.state_bytes + 40 {
+            return Err(RecoveryError::MalformedEvent);
+        }
+        previous = page.event_hash;
+    }
+    if raw.len() != manifest.state_bytes + 40 || previous != entry.previous_hash {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    decode_checkpoint(&exec_store::LedgerEntry {
+        sequence: manifest.tip.0 + 1,
+        previous_hash: manifest.tip.1,
+        event_bytes: raw,
+        event_hash: [0; 32],
+    })
+}
+
+fn retain_checkpoint_page(
+    pages: &mut Vec<exec_store::LedgerEntry>,
+    entry: &exec_store::LedgerEntry,
+) -> Result<(), RecoveryError> {
+    if entry.event_bytes.len() <= PAGE_HEADER {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    let index = u32::from_be_bytes(entry.event_bytes[8..12].try_into().unwrap()) as usize;
+    if index == 0 {
+        pages.clear();
+    }
+    if index != pages.len()
+        || (index + 1) * (exec_store::MAX_EVENT_BYTES - PAGE_HEADER)
+            > MAX_CHECKPOINT_BYTES + exec_store::MAX_EVENT_BYTES
+    {
+        return Err(RecoveryError::MalformedEvent);
+    }
+    pages.push(entry.clone());
+    Ok(())
+}
+
+fn audit_prefix(path: &Path, tip: (u64, [u8; 32])) -> Result<(), LedgerError> {
+    let mut state = Checkpoint::default();
+    let mut pages = Vec::new();
+    Ledger::audit_prefix(path, tip, |entry, index| {
+        let malformed = || LedgerError::Integrity {
+            sequence: entry.sequence,
+            reason: "independent journal replay disagrees with checkpoint",
+        };
+        if entry.event_bytes.starts_with(CHECKPOINT_PAGE_MAGIC) {
+            retain_checkpoint_page(&mut pages, entry).map_err(|_| malformed())?;
+            state.tip = (entry.sequence, entry.event_hash);
+            return Ok(());
+        }
+        if entry.event_bytes.starts_with(CHECKPOINT_MAGIC)
+            || entry.event_bytes.starts_with(CHECKPOINT_MANIFEST_MAGIC)
+        {
+            let saved = if entry.event_bytes.starts_with(CHECKPOINT_MAGIC) {
+                decode_checkpoint(entry)
+            } else {
+                restore_checkpoint_pages(entry, &pages)
+            }
+            .map_err(|_| malformed())?;
+            let mut expected = state.clone();
+            expected.tip = saved.tip;
+            if saved.history_through.is_some() {
+                expected.bounded_history(saved.tip.0);
+            } else {
+                expected.history_through = None;
+                let keys = |scope| -> Result<BTreeSet<[u8; 16]>, LedgerError> {
+                    index
+                        .keys(scope)?
+                        .into_iter()
+                        .map(|key| key.try_into().map_err(|_| malformed()))
+                        .collect()
+                };
+                expected.generations = keys("generation")?;
+                expected.ceiling_requests = keys("ceiling_request")?;
+                expected.approval_requests = keys("approval_request")?;
+                expected.account_requests = keys("account_request")?;
+            }
+            if serde_json::to_vec(&expected).map_err(|_| malformed())?
+                != serde_json::to_vec(&saved).map_err(|_| malformed())?
+            {
+                return Err(malformed());
+            }
+            state = expected;
+        } else {
+            let record = decode(&entry.event_bytes).map_err(|_| malformed())?;
+            let identities = record_identities(&record);
+            for (scope, key) in &identities {
+                if index.contains(scope, key)? {
+                    return Err(malformed());
+                }
+            }
+            state.apply_event(entry).map_err(|_| malformed())?;
+            for (scope, key) in identities {
+                index.remember(scope, &key, entry.sequence)?;
+            }
+            state.bound_recent_ids();
+        }
+        pages.clear();
+        state.tip = (entry.sequence, entry.event_hash);
+        Ok(())
+    })
+}
+
+impl DurableOrderJournal {
+    pub fn audit_status(&self) -> AuditStatus {
+        match self.audit_state.load(Ordering::Acquire) {
+            0 => AuditStatus::Pending,
+            1 => AuditStatus::Verified,
+            _ => AuditStatus::Failed,
+        }
+    }
+
+    pub fn audit_failed(&self) -> bool {
+        self.audit_status() == AuditStatus::Failed
+    }
+
+    /// Native custody chooses the local destination; a failed or pending audit cannot certify a copy.
+    pub fn backup_to(
+        &mut self,
+        destination: impl AsRef<Path>,
+    ) -> Result<(u64, [u8; 32]), RecoveryError> {
+        self.wait_for_audit()?;
+        Ok(self.ledger.backup_to(destination)?)
+    }
+
+    /// A writer never consumes a restored projection before independent replay has validated it.
+    pub fn wait_for_audit(&mut self) -> Result<(), RecoveryError> {
+        if let Some(audit) = self.audit.take() {
+            if audit.join().is_err() {
+                self.audit_state.store(2, Ordering::Release);
+            }
+        }
+        if self.audit_status() != AuditStatus::Verified {
+            return Err(RecoveryError::MalformedEvent);
+        }
+        Ok(())
+    }
+
+    fn append_record(&mut self, raw: &[u8]) -> Result<exec_store::LedgerEntry, RecoveryError> {
+        self.wait_for_audit()?;
+        let identities = if raw.starts_with(CHECKPOINT_MAGIC)
+            || raw.starts_with(CHECKPOINT_MANIFEST_MAGIC)
+            || raw.starts_with(CHECKPOINT_PAGE_MAGIC)
+        {
+            Vec::new()
+        } else {
+            record_identities(&decode(raw)?)
+        };
+        for (scope, key) in &identities {
+            if self.ledger.identity_seen(scope, key)? {
+                return Err(RecoveryError::DuplicateIdentity);
+            }
+        }
+        let identities: Vec<_> = identities
+            .iter()
+            .map(|(scope, key)| (*scope, key.as_slice()))
+            .collect();
+        Ok(self.ledger.append_identified(raw, &identities)?)
+    }
+    fn maybe_checkpoint(&mut self) -> Result<(), RecoveryError> {
+        if self.records.is_multiple_of(1024) && !self.checkpoint()? {
+            eprintln!("executor checkpoint exceeds event bound; retaining verified replay");
+        }
+        if self.generations.len()
+            + self.ceiling_requests.len()
+            + self.approval_requests.len()
+            + self.account_requests.len()
+            > 1024
+        {
+            self.generations.clear();
+            self.ceiling_requests.clear();
+            self.approval_requests.clear();
+            self.account_requests.clear();
+        }
+        Ok(())
+    }
+
+    /// Only this owner creates snapshots of committed state; request payloads never supply checkpoint state.
+    pub fn checkpoint(&mut self) -> Result<bool, RecoveryError> {
+        self.wait_for_audit()?;
+        let mut saved = Checkpoint {
+            tip: self.ledger.tip(),
+            intents: self.intents.clone(),
+            reservations: self.reservations.clone(),
+            legacy_reservations: self.legacy_reservations.clone(),
+            credential: self.credential.clone(),
+            generations: self.generations.clone(),
+            ceiling: self.ceiling.clone(),
+            ceiling_requests: self.ceiling_requests.clone(),
+            approvals: self.approvals.clone(),
+            approval_requests: self.approval_requests.clone(),
+            account_observations: self.account_observations.clone(),
+            account_requests: self.account_requests.clone(),
+            history_through: None,
+        };
+        saved.bounded_history(saved.tip.0);
+        let state = serde_json::to_vec(&saved).map_err(|_| RecoveryError::MalformedEvent)?;
+        let mut raw = CHECKPOINT_MAGIC.to_vec();
+        raw.extend_from_slice(&exec_store::hash_event(&[0; 32], &state));
+        raw.extend_from_slice(&state);
+        // shortcut: state above 64 MiB uses full replay; qualify a larger memory budget before raising it.
+        if state.len() > MAX_CHECKPOINT_BYTES {
+            return Ok(false);
+        }
+        if raw.len() <= exec_store::MAX_EVENT_BYTES {
+            self.append_record(&raw)?;
+            self.records += 1;
+        } else {
+            let digest = exec_store::hash_event(&[0; 32], &state);
+            let chunks = state.chunks(exec_store::MAX_EVENT_BYTES - PAGE_HEADER);
+            let manifest = CheckpointManifest {
+                tip: saved.tip,
+                chunks: chunks.len() as u32,
+                state_bytes: state.len(),
+                digest,
+            };
+            for (index, chunk) in chunks.enumerate() {
+                let mut page = CHECKPOINT_PAGE_MAGIC.to_vec();
+                page.extend_from_slice(&(index as u32).to_be_bytes());
+                page.extend_from_slice(&digest);
+                page.extend_from_slice(chunk);
+                self.append_record(&page)?;
+                self.records += 1;
+            }
+            let mut commit = CHECKPOINT_MANIFEST_MAGIC.to_vec();
+            commit.extend_from_slice(
+                &serde_json::to_vec(&manifest).map_err(|_| RecoveryError::MalformedEvent)?,
+            );
+            self.append_record(&commit)?;
+            self.records += 1;
+        }
+        self.ceiling_requests.clear();
+        self.approval_requests.clear();
+        self.account_requests.clear();
+        self.generations.clear();
+        Ok(true)
+    }
+
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, RecoveryError> {
+        let (ledger, records) =
+            Ledger::open_after_checkpoints(path, &[CHECKPOINT_MAGIC, CHECKPOINT_MANIFEST_MAGIC])?;
+        let mut state = Checkpoint::default();
+        for e in &records {
+            if e.event_bytes.starts_with(CHECKPOINT_PAGE_MAGIC) {
+                if e.event_bytes.len() <= PAGE_HEADER {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                continue;
+            }
+            if e.event_bytes.starts_with(CHECKPOINT_MANIFEST_MAGIC) {
+                if e != &records[0] {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                let manifest = checkpoint_manifest(e)?;
+                let pages = ledger.checkpoint_pages(manifest.tip.0 + 1, e.sequence - 1)?;
+                state = restore_checkpoint_pages(e, &pages)?;
+                continue;
+            }
+            if e.event_bytes.starts_with(CHECKPOINT_MAGIC) {
+                if e != &records[0] || e.event_bytes.len() < 40 {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                state = decode_checkpoint(e)?;
+                continue;
+            }
+            state.apply_event(e)?;
+            state.bound_recent_ids();
+        }
+        let Checkpoint {
+            intents,
+            reservations,
+            legacy_reservations,
+            credential,
+            generations,
+            ceiling,
+            ceiling_requests,
+            approvals,
+            approval_requests,
+            account_observations,
+            account_requests,
+            ..
+        } = state;
         let recovered_inflight = intents
             .iter()
             .filter(|(_, order)| {
@@ -1561,14 +2092,37 @@ impl DurableOrderJournal {
             })
             .map(|(id, _)| id.clone())
             .collect();
+        let record_count = ledger
+            .tip()
+            .0
+            .try_into()
+            .map_err(|_| RecoveryError::MalformedEvent)?;
+        let audit_state = Arc::new(AtomicU8::new(0));
+        let audit_result = audit_state.clone();
+        let audit_path = ledger.audit_path();
+        let audit_tip = ledger.tip();
+        let audit = std::thread::Builder::new()
+            .name("executor-prefix-audit".into())
+            .spawn(move || {
+                let result = std::panic::catch_unwind(|| audit_prefix(&audit_path, audit_tip));
+                audit_result.store(
+                    if matches!(result, Ok(Ok(()))) { 1 } else { 2 },
+                    Ordering::Release,
+                );
+            })
+            .map_err(|_| RecoveryError::MalformedEvent)?;
         Ok(Self {
             ledger,
+            audit: Some(audit),
+            audit_state,
             intents,
             reservations,
-            records: records.len(),
+            legacy_reservations,
+            records: record_count,
             recovered_inflight,
             recovered_cancels,
             credential,
+            generations,
             ceiling,
             ceiling_requests,
             approvals,
@@ -1614,6 +2168,10 @@ impl DurableOrderJournal {
             .get(&(AccountKind::KnownClientOrder, client_id.into()))
             .filter(|value| value.is_fresh(generation, epoch, now, max_age))
     }
+    pub fn latest_known_order(&self, client_id: &str) -> Option<&AccountObservation> {
+        self.account_observations
+            .get(&(AccountKind::KnownClientOrder, client_id.into()))
+    }
 
     pub fn order_page_observation(
         &self,
@@ -1656,11 +2214,12 @@ impl DurableOrderJournal {
         raw.push(ACCOUNT_OBSERVATION);
         add_name(&mut raw, "main")?;
         raw.extend_from_slice(&value.encode().map_err(|_| RecoveryError::InvalidIdentity)?);
-        let entry = self.ledger.append(&raw)?;
+        let entry = self.append_record(&raw)?;
         let receipt = value.receipt(entry.sequence, entry.event_hash);
         self.account_requests.insert(value.request_id());
         self.account_observations.insert(value.key(), value);
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(receipt)
     }
 
@@ -1681,7 +2240,7 @@ impl DurableOrderJournal {
         if self.intents.contains_key(&value.ticket.client_id) {
             return Err(RecoveryError::DuplicateIdentity);
         }
-        let entry = self.ledger.append(&value.encode()?)?;
+        let entry = self.append_record(&value.encode()?)?;
         self.approval_requests.insert(value.request_id);
         self.approvals.insert(
             value.ticket.client_id.clone(),
@@ -1693,16 +2252,18 @@ impl DurableOrderJournal {
             },
         );
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     pub fn revoke_approval(&mut self, value: ApprovalRevocation) -> Result<(), RecoveryError> {
         check_revocation(&self.approvals, &self.approval_requests, &value)?;
-        let entry = self.ledger.append(&value.encode()?)?;
+        let entry = self.append_record(&value.encode()?)?;
         self.approval_requests.insert(value.request_id);
         let current = self.approvals.get_mut(&value.client_id).unwrap();
         current.sequence = entry.sequence;
         current.revoked_at_ms = Some(value.recorded_at_ms);
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     pub fn prepare_intent(&mut self, value: IntentPreparation) -> Result<(), RecoveryError> {
@@ -1715,22 +2276,50 @@ impl DurableOrderJournal {
         if self.intents.contains_key(&value.client_id) {
             return Err(RecoveryError::DuplicateIdentity);
         }
-        let entry = self.ledger.append(&value.encode()?)?;
+        let entry = self.append_record(&value.encode()?)?;
         self.approval_requests.insert(value.request_id);
         let saved = self.approvals.get_mut(&value.client_id).unwrap();
         saved.prepared_at_ms = Some(value.recorded_at_ms);
         saved.sequence = entry.sequence;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
-    /// Offline admission mechanics only. A supplied balance is not authenticated evidence;
-    /// the live service exposes no reservation or transport command.
+    /// Journal mechanics alone grant no authority; native admission supplies authenticated receipts.
     pub fn reserve_prepared_intent(
         &mut self,
         context: IntentPreparation,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        self.reserve_review(context, snapshot, None)
+    }
+
+    /// Native admission includes a conservative outgoing-base fee in a sell hold.
+    pub fn reserve_prepared_with_hold(
+        &mut self,
+        context: IntentPreparation,
+        snapshot: &BalanceSnapshot,
+        held_quanta: u64,
+    ) -> Result<(), RecoveryError> {
+        self.reserve_review(context, snapshot, Some(held_quanta))
+    }
+
+    fn reserve_review(
+        &mut self,
+        context: IntentPreparation,
+        snapshot: &BalanceSnapshot,
+        held_quanta: Option<u64>,
+    ) -> Result<(), RecoveryError> {
+        if self
+            .intents
+            .keys()
+            .any(|id| self.legacy_reservations.is_reserved(id))
+        {
+            return Err(RecoveryError::Reservation(
+                ReservationError::InvalidEvidence,
+            ));
+        }
         let ticket = self
             .approvals
             .get(&context.client_id)
@@ -1742,6 +2331,7 @@ impl DurableOrderJournal {
             context,
             ticket,
             snapshot: snapshot.clone(),
+            held_quanta,
         };
         let mut intents = self.intents.clone();
         let mut reservations = self.reservations.clone();
@@ -1753,7 +2343,7 @@ impl DurableOrderJournal {
             &mut reservations,
             &value,
         )?;
-        let entry = self.ledger.append(&value.encode()?)?;
+        let entry = self.append_record(&value.encode()?)?;
         self.intents = intents;
         self.reservations = reservations;
         self.approval_requests.insert(value.context.request_id);
@@ -1762,30 +2352,30 @@ impl DurableOrderJournal {
             .unwrap()
             .sequence = entry.sequence;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     pub fn commit_ceiling(&mut self, change: CeilingChange) -> Result<(), RecoveryError> {
         check_ceiling(self.ceiling.as_ref(), &self.ceiling_requests, &change)?;
-        let entry = self.ledger.append(&change.encode()?)?;
+        let entry = self.append_record(&change.encode()?)?;
         self.ceiling_requests.insert(change.request_id);
         self.ceiling = Some((entry.sequence, change));
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
     /// Call only after the immutable ciphertext generation has been durably published.
     pub fn commit_credential(&mut self, metadata: CredentialMetadata) -> Result<(), RecoveryError> {
         let raw = metadata.encode()?;
-        for entry in self.ledger.replay_from(0)? {
-            if let Record::Credential(old) = decode(&entry.event_bytes)? {
-                if old.generation == metadata.generation {
-                    return Err(RecoveryError::DuplicateIdentity);
-                }
-            }
+        if self.generations.contains(&metadata.generation) {
+            return Err(RecoveryError::DuplicateIdentity);
         }
-        self.ledger.append(&raw)?;
+        self.append_record(&raw)?;
+        self.generations.insert(metadata.generation);
         self.credential = Some(metadata);
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
@@ -1804,11 +2394,14 @@ impl DurableOrderJournal {
         // Verify on a copy before persisting. No in-memory or venue effect before commit.
         let mut next = self.intents.clone();
         let mut next_holds = self.reservations.clone();
-        apply_record(&mut next, &mut next_holds, parsed)?;
-        self.ledger.append(&raw)?;
+        let mut next_legacy = self.legacy_reservations.clone();
+        apply_record(&mut next, &mut next_holds, &mut next_legacy, parsed)?;
+        self.append_record(&raw)?;
         self.intents = next;
         self.reservations = next_holds;
+        self.legacy_reservations = next_legacy;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
@@ -1824,21 +2417,32 @@ impl DurableOrderJournal {
         let parsed = decode(&raw)?;
         let mut next = self.intents.clone();
         let mut next_holds = self.reservations.clone();
-        apply_record(&mut next, &mut next_holds, parsed)?;
-        self.ledger.append(&raw)?;
+        let mut next_legacy = self.legacy_reservations.clone();
+        apply_record(&mut next, &mut next_holds, &mut next_legacy, parsed)?;
+        self.append_record(&raw)?;
         self.intents = next;
         self.reservations = next_holds;
+        self.legacy_reservations = next_legacy;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
-    /// Durable offline reservation admission. A snapshot is *not* trusted
-    /// solely because this model accepts it: funded admission is disabled.
+    /// Legacy model admission. A snapshot alone is never authenticated evidence.
     pub fn reserve_intent(
         &mut self,
         id: &str,
         quanta: u64,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        if self
+            .intents
+            .keys()
+            .any(|id| self.reservations.is_reserved(id))
+        {
+            return Err(RecoveryError::Reservation(
+                ReservationError::InvalidEvidence,
+            ));
+        }
         let raw = record_hold(id, snapshot, quanta)?;
         self.apply_durable(raw)
     }
@@ -1852,16 +2456,53 @@ impl DurableOrderJournal {
     ) -> Result<(), RecoveryError> {
         self.apply_durable(record_release_settled(id, evidence)?)
     }
+    /// Closing and releasing a reviewed hold are one commit, so a crash cannot strand a closed hold.
+    pub fn settle_reviewed(
+        &mut self,
+        id: &str,
+        filled: u64,
+        balance: &SettlementEvidence,
+    ) -> Result<(), RecoveryError> {
+        let mut raw = record_release_settled(id, balance)?;
+        raw[MAGIC.len()] = REVIEW_SETTLED;
+        raw.extend_from_slice(&filled.to_be_bytes());
+        self.apply_durable(raw)
+    }
+    pub fn reviewed_pending_ids(&self) -> Vec<String> {
+        self.intents
+            .iter()
+            .filter(|(id, order)| {
+                order.review_ticket.is_some()
+                    && (order.attempt.holds_slot() || self.reservations.is_reserved(id))
+            })
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+    pub fn reconciliation_ready(&self) -> bool {
+        use exec_core::orders::Lifecycle;
+        self.intents
+            .iter()
+            .all(|(id, order)| match order.attempt.lifecycle() {
+                Lifecycle::Acknowledged | Lifecycle::Working => order.review_ticket.is_some(),
+                Lifecycle::Closed | Lifecycle::Denied => {
+                    !self.reservations.is_reserved(id) && !self.legacy_reservations.is_reserved(id)
+                }
+                _ => false,
+            })
+    }
     /// A failed transition is not appended and does not change any hold.
     fn apply_durable(&mut self, raw: Vec<u8>) -> Result<(), RecoveryError> {
         let parsed = decode(&raw)?;
         let mut next = self.intents.clone();
         let mut next_holds = self.reservations.clone();
-        apply_record(&mut next, &mut next_holds, parsed)?;
-        self.ledger.append(&raw)?;
+        let mut next_legacy = self.legacy_reservations.clone();
+        apply_record(&mut next, &mut next_holds, &mut next_legacy, parsed)?;
+        self.append_record(&raw)?;
         self.intents = next;
         self.reservations = next_holds;
+        self.legacy_reservations = next_legacy;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     /// Identity and reservation commit together; transport is a separate, later step.
@@ -1873,6 +2514,15 @@ impl DurableOrderJournal {
         identity: &ExecutionIdentity,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        if self
+            .intents
+            .keys()
+            .any(|id| self.legacy_reservations.is_reserved(id))
+        {
+            return Err(RecoveryError::Reservation(
+                ReservationError::InvalidEvidence,
+            ));
+        }
         // Legacy simulation records cannot consume an authenticated operator review.
         if self.approvals.contains_key(id) {
             return Err(RecoveryError::DuplicateIdentity);
@@ -1901,7 +2551,9 @@ impl DurableOrderJournal {
         self.apply_durable(record_execution_settlement(id, settlement)?)
     }
     pub fn reserved(&self, account: &str, asset: &str) -> u64 {
-        self.reservations.reserved(account, asset)
+        self.reservations
+            .reserved(account, asset)
+            .saturating_add(self.legacy_reservations.reserved(account, asset))
     }
     pub fn get(&self, id: &str) -> Option<&ObservedIntent> {
         self.intents.get(id)
@@ -1913,7 +2565,40 @@ impl DurableOrderJournal {
             .map(|(id, _)| id.as_str())
             .collect()
     }
+    /// History is protected native receipt data; active orders also require a current read.
+    pub fn reviewed_risk_orders(
+        &self,
+        generation: [u8; 16],
+        epoch: u64,
+        now: u64,
+    ) -> Option<Vec<crate::native_risk::OwnOrder<'_>>> {
+        self.intents
+            .iter()
+            .filter(|(_, order)| order.attempt.lifecycle() != exec_core::orders::Lifecycle::Denied)
+            .map(|(id, order)| {
+                let ticket = order.review_ticket.as_ref()?;
+                let observation = self
+                    .account_observations
+                    .get(&(AccountKind::KnownClientOrder, id.clone()))?;
+                if order.attempt.holds_slot()
+                    && !observation.is_fresh(generation, epoch, now, 30_000)
+                {
+                    return None;
+                }
+                let submitted_at_ms = self.approvals.get(id)?.prepared_at_ms?;
+                Some(crate::native_risk::OwnOrder {
+                    ticket,
+                    observation,
+                    submitted_at_ms,
+                })
+            })
+            .collect()
+    }
     pub fn record_count(&self) -> usize {
         self.records
     }
 }
+
+#[cfg(test)]
+#[path = "checkpoint_tests.rs"]
+mod checkpoint_tests;

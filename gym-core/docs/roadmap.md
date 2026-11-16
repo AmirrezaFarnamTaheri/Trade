@@ -6,25 +6,28 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 ## Evidence
 
 - Follow the BTCUSDT 50-day trend rule (T6) on paper every day until the 2027-02-08 checkpoint.
-- Replay T6 through the exact paper engine.
-- Run T10 (registered): backfill hourly candles for USDTTMN, BTCTMN and BTCUSDT from 2023, then score it.
 - Later trials use information the failed ones did not: order-book imbalance, the implied Toman premium and
   recorded-quote microstructure, with expected value and position size as outputs.
-- Import the off-machine recorder's quote files automatically (they expire after 90 days).
 
 ## Paper engine
 
-- Apply zero-fee markets and the account fee tier in the cost model.
-- Let strategies place venue stop orders.
+- Extend strategy stop-market support to stop-limit and trailing orders after their paper contracts are defined.
+- Reconstruct in-run fee-tier and catalogue fee changes when historical receipts exist.
 - Collect the margin long/short ratio and `/v2/structured-fee`.
 
 ## Funded path
 
 Disarmed. The wiring order is in
-[ADR 0007](../../docs/adr/0007-wiring-the-funded-path-behind-an-arm-button.md): mount review frame v2, active
-holds, ledger checkpoints, the privileged arm request, verified available balance in admission, then fault tests.
+[ADR 0007](../../docs/adr/0007-wiring-the-funded-path-behind-an-arm-button.md). Review v2, active holds and
+checkpoint events, independent startup audit, privileged approval, native admission and one-shot LIMIT
+transport/settlement are wired and locally fault tested. Remaining: owner review/publication of the complete
+binary bundle, installed-host/venue qualification and the registered prospective checkpoint.
+The owner accepted [service receipt ordering](../../docs/adr/0008-balance-observation-ordering.md): two fresh
+reads, own-activity fencing, disagreement disarm and conservative held-funds subtraction. That contract is
+implemented. The venue's undocumented balance sequence is no longer a requirement.
 
 ## Operations
 
-- Off-machine backup on a schedule, and a restore on a second machine.
-- Remove the MCP server and research worker launchers together with their installer scripts.
+- Qualify each reviewed native service build on the installed Windows host before use.
+
+The owner canceled off-machine backup scheduling and second-machine restoration on 2026-11-16.

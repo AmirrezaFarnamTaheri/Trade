@@ -3,7 +3,9 @@
 The service now records an administrator-controlled installation capital limit.
 It remains **DISARMED / NOT CERTIFIED**. Recording a limit does not create an
 operator approval, arm a session, certify a method or permit a venue order.
-Real money-path enforcement and authenticated venue reconciliation remain missing.
+New unpublished native source enforces it against net own cash debits, outstanding
+quote holds and the new fee-inclusive buy hold. Native reconciliation is connected
+in source; installed-host and venue qualification remain pending.
 
 ## Protected console
 

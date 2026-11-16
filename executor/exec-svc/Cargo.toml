@@ -8,8 +8,13 @@ license.workspace = true
 exec-ipc = { path = "../exec-ipc" }
 exec-core = { path = "../exec-core" }
 exec-store = { path = "../exec-store" }
-serde = "1"
-serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = "0.11"
+
+[dev-dependencies]
+rusqlite = { version = "0.42", features = ["bundled"] }
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 tokio = { version = "1.53", features = ["rt", "net", "io-util", "time", "sync"] }
@@ -48,3 +53,11 @@ path = "src/bin/gym-ceiling.rs"
 [[bin]]
 name = "gym-review"
 path = "src/bin/gym-review.rs"
+
+[[bin]]
+name = "gym-arm"
+path = "src/bin/gym-arm.rs"
+
+[[bin]]
+name = "gym-submit"
+path = "src/bin/gym-submit.rs"

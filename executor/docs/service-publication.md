@@ -7,7 +7,7 @@ reset journals or qualify the new runtime. An elevated administrator is required
 
 The bundle contains exactly these names: `gym-executor.exe`, `gym-stopctl.exe`,
 `gym-hardstop.exe`, `gym-provision.exe`, `gym-account-read.exe`, `gym-ceiling.exe`,
-`gym-review.exe`. The bounded manifest has one line
+`gym-review.exe`, `gym-arm.exe`, `gym-submit.exe`. The bounded manifest has one line
 per member: its SHA-256 hex digest, two spaces and its exact lowercase filename.
 Unknown names, duplicates, missing members and paths in filenames are refused.
 This manifest pins explicitly reviewed bytes; it is not publisher signature
@@ -16,7 +16,7 @@ verification or an unattended-update authorization.
 Run the updater with absolute `-BinaryDirectory` and `-HashManifest` paths from
 the administrator console. It checks the fixed SCM image/account and stopped,
 disabled state, existing code/data ACLs and parent mutation permissions. Migration
-preflight permits only the previously absent ceiling/review helpers; its output
+preflight permits only the previously absent ceiling/review/arm/submit helpers; its output
 is explicitly not installed-host acceptance. Existing helper permissions remain
 mandatory, and a normal final audit requires the complete new bundle.
 

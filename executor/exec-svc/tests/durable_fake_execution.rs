@@ -446,7 +446,7 @@ fn concurrent_exit_credits_are_order_specific_durable_and_idempotent() {
     }
 }
 #[test]
-fn unexplained_credit_does_not_release_an_unknown_entry() {
+fn a_verified_terminal_receipt_releases_the_hold_despite_an_external_credit() {
     let path = path();
     let gate = Arc::new(StopGate::new(1).unwrap());
     let mut venue = venue();
@@ -470,7 +470,12 @@ fn unexplained_credit_does_not_release_an_unknown_entry() {
         .unwrap();
     venue.fill("unknown", 10, "BTC", 1, true).unwrap();
     venue.set_balance("main", "USDT", 901, 3);
-    assert!(service.reconcile(&mut venue, "unknown").is_err());
     assert_eq!(service.lifecycle("unknown"), Some(Lifecycle::Unknown));
     assert_eq!(service.journal().reserved("main", "USDT"), 110);
+    service.reconcile(&mut venue, "unknown").unwrap();
+    assert_eq!(service.lifecycle("unknown"), Some(Lifecycle::Closed));
+    assert_eq!(service.journal().reserved("main", "USDT"), 0);
+    drop(service);
+    let restarted = FakeExecution::open(&path, Arc::new(StopGate::new(2).unwrap())).unwrap();
+    assert_eq!(restarted.journal().reserved("main", "USDT"), 0);
 }

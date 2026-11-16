@@ -266,12 +266,25 @@ pub struct Vault {
     journal: DurableOrderJournal,
     limits: Option<DurableOrderJournal>,
     mode: exec_ipc::provision::StartupMode,
+    balances: exec_svc::balance_receipts::BalanceReceipts,
+    gate: Option<std::sync::Arc<exec_svc::StopGate>>,
+    arm_controller: exec_svc::arm_control::ArmController,
+    owner_review: Option<exec_svc::owner_evidence::OwnerEvidence>,
+    native_markets: std::collections::BTreeMap<String, exec_svc::native_market::MarketObservation>,
+    observation_policy: Option<exec_core::arming::ArmPolicy>,
+    native_backup: Option<arm::NativeBackup>,
+    native_incident: bool,
 }
+#[path = "vault_arm.rs"]
+mod arm;
+#[path = "vault_submit.rs"]
+mod submit;
 /// The key and generation copied out of the vault for one account read; the key is wiped on drop.
 pub struct AccountRead {
     pub key: Secret,
     generation: [u8; 16],
     started_at_ms: u64,
+    balance_read: Option<exec_svc::balance_receipts::BalanceRead>,
 }
 
 fn now_ms() -> io::Result<u64> {
@@ -375,6 +388,14 @@ impl Vault {
             journal,
             limits,
             mode,
+            balances: exec_svc::balance_receipts::BalanceReceipts::default(),
+            gate: None,
+            arm_controller: exec_svc::arm_control::ArmController::new(),
+            owner_review: None,
+            native_markets: std::collections::BTreeMap::new(),
+            observation_policy: None,
+            native_backup: None,
+            native_incident: true,
         };
         if mode.allows_account_read() {
             drop(vault.load_current_secret()?);
@@ -409,6 +430,7 @@ impl Vault {
             ceiling,
         } = &request.command
         {
+            self.disarm();
             let current = self
                 .limits
                 .as_ref()
@@ -598,22 +620,45 @@ impl Vault {
     /// Phase one of an account read, under the vault lock: check identity and mode, then copy out the current
     /// key and its generation. The caller releases the lock for the venue read, so a slow venue cannot stall
     /// every other privileged request.
-    pub fn begin_account_read(&self) -> io::Result<Option<AccountRead>> {
+    pub fn begin_account_read(
+        &mut self,
+        resource: &exec_ipc::provision::AccountResource,
+        request_id: [u8; 16],
+        runtime_epoch: u64,
+    ) -> io::Result<Option<AccountRead>> {
         require_service_identity()?;
         if !self.mode.allows_account_read() {
+            self.mark_fault();
             return Ok(None);
         }
         let Some(metadata) = self.journal.credential_metadata() else {
+            self.mark_fault();
             return Ok(None);
         };
         let generation = metadata.generation;
         let Some(key) = self.load_current_secret()? else {
             return Ok(None);
         };
+        let started_at_ms = now_ms()?;
+        let balance_read = if matches!(resource, exec_ipc::provision::AccountResource::Balances) {
+            match self
+                .balances
+                .begin(generation, runtime_epoch, request_id, started_at_ms)
+            {
+                Ok(read) => Some(read),
+                Err(_) => {
+                    self.mark_fault();
+                    return Ok(None);
+                }
+            }
+        } else {
+            None
+        };
         Ok(Some(AccountRead {
             key,
             generation,
-            started_at_ms: now_ms()?,
+            started_at_ms,
+            balance_read,
         }))
     }
 
@@ -633,14 +678,32 @@ impl Vault {
         use exec_svc::offline_recovery::RecoveryError;
         require_service_identity()?;
         let received_at_ms = now_ms()?;
+        let AccountRead {
+            key,
+            generation,
+            started_at_ms,
+            balance_read,
+        } = read;
+        drop(key);
         let Ok(body) = body else {
+            if let Some(read) = balance_read {
+                self.balances.abort(read);
+            }
+            self.mark_fault();
             return Ok(None);
         };
-        if !self.mode.allows_account_read() {
+        if !self.mode.allows_account_read()
+            || self
+                .journal
+                .credential_metadata()
+                .is_none_or(|key| key.generation != generation)
+        {
+            if let Some(read) = balance_read {
+                self.balances.abort(read);
+            }
+            self.mark_fault();
             return Ok(None);
         }
-        let (generation, started_at_ms) = (read.generation, read.started_at_ms);
-        drop(read);
         let observed = match resource {
             AccountResource::KnownClientOrder(client_id) => {
                 AccountObservation::from_order_response(
@@ -680,14 +743,117 @@ impl Vault {
         };
         let observation = match observed {
             Ok(observation) => observation,
-            Err(_) => return Ok(None),
+            Err(_) => {
+                if let Some(read) = balance_read {
+                    self.balances.abort(read);
+                }
+                self.mark_fault();
+                return Ok(None);
+            }
         };
-        match self.journal.record_account_observation(observation) {
-            Ok(receipt) => Ok(Some((body, Some(receipt)))),
+        if let Some(read) = balance_read {
+            return match self.balances.complete(
+                read,
+                observation,
+                &mut self.journal,
+                self.limits.as_mut(),
+            ) {
+                Ok(saved) if !saved.disagreed => Ok(Some((body, Some(saved.receipt)))),
+                Ok(_) => {
+                    self.mark_fault();
+                    Ok(None)
+                }
+                Err(exec_svc::balance_receipts::ReceiptError::CommitUncertain) => Err(
+                    io::Error::other("balance journal copies uncertain; service must stop"),
+                ),
+                Err(_) => {
+                    self.mark_fault();
+                    Ok(None)
+                }
+            };
+        }
+        let owned = |id: &str| {
+            self.limits
+                .as_ref()
+                .is_some_and(|ledger| ledger.get(id).is_some())
+        };
+        let own_order_read = match observation.kind() {
+            AccountKind::KnownClientOrder => observation.data()["result"]["clientOrderId"]
+                .as_str()
+                .is_some_and(|id| {
+                    owned(id)
+                        && self
+                            .limits
+                            .as_ref()
+                            .and_then(|ledger| ledger.latest_known_order(id))
+                            .is_none_or(|old| old.data() != observation.data())
+                }),
+            AccountKind::OpenOrders | AccountKind::OrderHistory => observation.data()["result"]
+                ["orders"]
+                .as_array()
+                .is_some_and(|rows| {
+                    rows.iter().any(|row| {
+                        row["clientOrderId"].as_str().is_some_and(|id| {
+                            owned(id)
+                                && self
+                                    .limits
+                                    .as_ref()
+                                    .and_then(|ledger| ledger.latest_known_order(id))
+                                    .is_none_or(|old| {
+                                        !exec_svc::native_risk::same_progress(
+                                            &old.data()["result"],
+                                            row,
+                                        )
+                                    })
+                        })
+                    })
+                }),
+            _ => false,
+        };
+        if own_order_read {
+            self.balances
+                .own_activity(received_at_ms)
+                .map_err(|_| io::Error::other("balance activity fence failed"))?;
+            self.disarm();
+        }
+        let own_copy = observation.kind() == AccountKind::KnownClientOrder
+            && observation.data()["result"]["clientOrderId"]
+                .as_str()
+                .is_some_and(|id| {
+                    self.limits
+                        .as_ref()
+                        .is_some_and(|ledger| ledger.get(id).is_some())
+                });
+        match self.journal.record_account_observation(observation.clone()) {
+            Ok(receipt) => {
+                if own_copy {
+                    let metadata = self
+                        .journal
+                        .credential_metadata()
+                        .cloned()
+                        .ok_or_else(|| io::Error::other("native credential disappeared"))?;
+                    let ledger = self
+                        .limits
+                        .as_mut()
+                        .ok_or_else(|| io::Error::other("native execution ledger disappeared"))?;
+                    if ledger.credential_metadata() != Some(&metadata) {
+                        ledger
+                            .commit_credential(metadata)
+                            .map_err(|_| io::Error::other("own-order generation copy uncertain"))?;
+                    }
+                    ledger
+                        .record_account_observation(observation)
+                        .map_err(|_| io::Error::other("own-order journal copy uncertain"))?;
+                }
+                Ok(Some((body, Some(receipt))))
+            }
             Err(RecoveryError::Ledger(_)) => Err(io::Error::other(
                 "account receipt commit uncertain; service must stop",
             )),
-            Err(_) => Ok(None),
+            Err(_) => {
+                self.mark_fault();
+                Ok(None)
+            }
         }
     }
 
@@ -718,6 +884,8 @@ impl Vault {
         mut secret: Secret,
         phase: &std::sync::atomic::AtomicU32,
     ) -> io::Result<[u8; 16]> {
+        self.disarm();
+        self.native_incident = true;
         if !(1..=exec_ipc::provision::MAX_SECRET).contains(&secret.0.len()) {
             return Err(denied());
         }

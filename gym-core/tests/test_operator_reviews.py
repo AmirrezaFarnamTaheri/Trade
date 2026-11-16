@@ -16,7 +16,9 @@ from gym.api import guard, operator_reviews
 from gym.contracts.review_wire import (
     REPLY_SIZE,
     decode_reply,
+    decode_reply_v2,
     encode_request,
+    encode_request_v2,
     parse_ticket,
     ticket_bytes,
 )
@@ -138,8 +140,8 @@ def test_helper_uses_only_fixed_stdin_frame_and_bounds_failure(
 ):
     from tests.test_service_account_read import Process
 
-    request = {"action": "approve", "ticket": ticket()}
-    raw = reply(request)
+    request = {"action": "approve", "ticket": {**ticket(), "client_id": "intent_1"}}
+    raw = b"TGREPLY2" + reply(request)[8:]
 
     class Input:
         def write(self, value):
@@ -183,7 +185,7 @@ def test_helper_uses_only_fixed_stdin_frame_and_bounds_failure(
         assert calls[0][0] == (
             str(Path("C:/Program Files/TradingGYM/Executor/gym-review.exe")),
         )
-        assert process.stdin.value == encode_request(request, bytes([4]) * 16)
+        assert process.stdin.value == encode_request_v2(request, bytes([4]) * 16)
         bad = deepcopy(request)
         bad["ticket"]["funded_authority"] = True
         with pytest.raises(ValueError):
@@ -353,6 +355,16 @@ def test_v2_golden_frames_share_the_v1_layout_and_are_refused_by_the_v1_codec():
     assert v2_request[:8] == b"TGREVW02" and v2_reply[:8] == b"TGREPLY2"
     assert v2_request[8:] == encode_request(request, correlation)[8:]
     assert v2_reply[8:] == reply(request)[8:]
+    assert encode_request_v2(request, correlation) == v2_request
+    assert decode_reply_v2(v2_reply, correlation, request)["ticket"] == request["ticket"]
+    with pytest.raises(ValueError):
+        decode_reply_v2(reply(request), correlation, request)
+    for identity in ("bad-id", "bad.id"):
+        with pytest.raises(ValueError):
+            encode_request_v2({"action": "approve", "ticket": {**ticket(), "client_id": identity}}, correlation)
+        with pytest.raises(ValueError):
+            encode_request_v2({"action": "prepare", "client_id": identity, "expected_sequence": "1"}, correlation)
+        assert encode_request_v2({"action": "inspect", "client_id": identity}, correlation)
     with pytest.raises(ValueError):
         decode_reply(v2_reply, correlation, request)
 
