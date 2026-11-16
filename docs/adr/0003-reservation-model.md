@@ -1,6 +1,6 @@
 # ADR 0003: Reservation model for funded orders
 
-Status: Wired in the durable journal source; owner review and protected publication pending. Funded admission stays disabled.
+Status: Wired through native reviewed admission and atomic settlement in source; owner review and protected publication pending. Installed execution stays disarmed.
 
 ## Context
 

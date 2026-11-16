@@ -1,7 +1,7 @@
 # ADR 0007: Wire the funded path end to end, behind an owner arm button
 
 Status: Accepted (owner decision 2026-11-14: "wire the funded executor but keep it blocked by a button").
-Source wiring is partly implemented; the protected installation remains unchanged and disarmed.
+Source wiring and local fault checks are implemented; the protected installation remains unchanged and disarmed.
 
 ## Context
 
@@ -59,11 +59,14 @@ fail-closed. Six external audit reports (2026-11-14) reviewed the same modules a
 | --- | --- |
 | a: review v2 | Source listener, helper, Python relay and operator protocol self-check require v2; historical v1 fixtures remain. Matching protected publication and host qualification pending. |
 | b: active holds | New reviewed/execution holds use ActiveHoldBook; old aggregate events replay with their original semantics. Mixing outstanding old/new models is refused. |
-| c: checkpoints | Digest/tip-bound canonical events, automatic checkpoints and suffix projection implemented. Full chain hashing remains; >1 MiB snapshots fall back to verified replay. Scale/background validation and bounded history remain open. |
-| d: privileged arm | Not implemented. Existing pure arm/kill rules remain disarmed service policy. |
-| e: verified available admission | Core receipt-pair/fence/freshness/hold policy implemented under ADR 0008. Native pair production, activity events, dual durable copies and admission remain unwired. Local receipt order does not claim exchange snapshot ordering. |
-| f: end-to-end arm fault tests | Pending d/e. Existing pure kill-table, stop/fault, durable reservation and restart tests pass; they do not qualify a funded path. |
+| c: checkpoints | Full-prefix independent decode/state comparison, bounded indexed identity caches, tip/suffix projection and paged checkpoints. One-million-row request history opens in 1.70 s and completes audit in 19.40 s; a separate 2,401-live-intent fixture passes. States above 64 MiB retain verified replay. See checkpoint evidence. |
+| d: privileged arm | Elevated `gym-arm`, actual user/logon checks, policy/evidence hashes, revision CAS, synced approval receipt, expiring effect lease and native safety worker. Native local backup bundle; no off-machine schedule. Source only; installed host unqualified. |
+| e: verified available admission | Native single-flight reads dual-commit both copies. Actual fees/book, receipt fences, holds, net own cash debits and installation limits bound one prepared LIMIT order. Separate elevated `gym-submit`; terminal fills and later balance pairs close/release atomically. Local order never claims exchange snapshot order. |
+| f: end-to-end arm fault tests | Local producer/controller/admission/attempt/journal composition covers stale/unequal reads, partial copies, own activity, policy/credential/runtime changes, STOP, write failure, expiry, uncertain sends, non-retry, settlement and every kill input. Synthetic local checks do not qualify an installed funded path. |
 
 The owner canceled off-machine backup/second-host restoration. That does not make
 the arm preflight's missing backup or any other missing evidence pass. Keep each
 native step separate for owner review; none of this source is a deployment approval.
+See [native order lifecycle](../../executor/docs/native-order-lifecycle.md) and the
+[review branch record](../../evidence/2026-11-16-review-branches.md). No real order, owner approval evidence
+or funded permission was manufactured. The service still requires the prospective checkpoint.

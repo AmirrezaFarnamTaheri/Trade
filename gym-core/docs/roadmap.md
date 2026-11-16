@@ -19,11 +19,12 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 
 Disarmed. The wiring order is in
 [ADR 0007](../../docs/adr/0007-wiring-the-funded-path-behind-an-arm-button.md). Review v2, active holds and
-checkpoint events are wired in source and awaiting separate owner review/publication. Remaining: checkpoint
-scale/background verification, privileged arm request, verified available admission and end-to-end fault tests.
+checkpoint events, independent startup audit, privileged approval, native admission and one-shot LIMIT
+transport/settlement are wired and locally fault tested. Remaining: owner review/publication of the complete
+binary bundle, installed-host/venue qualification and the registered prospective checkpoint.
 The owner accepted [service receipt ordering](../../docs/adr/0008-balance-observation-ordering.md): two fresh
-reads, own-activity fencing, disagreement disarm and conservative held-funds subtraction. Implement that
-contract; the venue's undocumented balance sequence is no longer a requirement.
+reads, own-activity fencing, disagreement disarm and conservative held-funds subtraction. That contract is
+implemented. The venue's undocumented balance sequence is no longer a requirement.
 
 ## Operations
 

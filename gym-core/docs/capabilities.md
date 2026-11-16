@@ -17,7 +17,7 @@ the supported product boundary.
 | Screening and diagnostics | Comparable recorded markets, exact supplied-data models and return/cost diagnostics | Supplied holdings/fills/forecasts are unauthenticated; scoring is not prediction |
 | Margin paper | Public rules/previews and recorded LONG/SHORT positions using venue credit grids | No real loan, position or protective order is submitted |
 | Account observations | Sanitized journal and separately protected read-only transport contracts | Observation is not completeness, spendability or settlement |
-| Protected executor | Native custody, operator intent, preparation, journals and emergency-stop foundations | Installed evidence is dated; funded admission and transport remain open |
+| Protected executor | Native source connects custody, review, receipts, holds, elevated approval, one-shot LIMIT orders, settlement and independent STOP | Installed evidence is dated; new source is unpublished and unqualified. Service stays disarmed; browser cannot arm or submit |
 | Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or runtime readiness |
 
 Predictive ML/RL training is paper-only; models may be fitted on historical data, with every fit registered and counted as a trial (see PRODUCT.md). Unrelated donor runtimes and automatic paid requests are outside accepted scope.

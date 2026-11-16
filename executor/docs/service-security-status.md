@@ -1,9 +1,21 @@
-# Executor service security status (2026-11-06)
+# Executor service security status
 
 **IN PROGRESS. DISARMED. NOT CERTIFIED. NOT protective or money-enabled.**
 A compiled service, successful GET or acknowledged STOP does not establish certified venue exits.
 
-## Implemented locally
+## Source update, 2026-11-16
+
+New local source connects elevated owner approval, native balance receipts, risk
+measurements, reviewed admission, one-shot LIMIT transport and atomic settlement.
+Independent checkpoint audits, bounded identity caches and scale checks also pass.
+The full branch record is [here](../../evidence/2026-11-16-review-branches.md);
+[native lifecycle](native-order-lifecycle.md) defines the exact boundary.
+These binaries have not been published or qualified on the installed host.
+The older installed evidence below remains dated and does not certify this source.
+Execution stays disarmed; no owner approval evidence or real order was produced.
+Off-machine backup and second-host restoration were canceled by the owner.
+
+## Installed evidence, 2026-11-06
 
 Current installed result (13:24 Asia/Tehran): ordinary ACER review, consume-once
 preparation, duplicate refusal, inspection and revocation passed. The actual R0

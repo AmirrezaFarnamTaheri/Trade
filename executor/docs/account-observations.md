@@ -108,6 +108,9 @@ response schemas or the new receipt header against a real account.
 This closes protected capture/normalization of balances, fees and known orders.
 It does not establish key permissions, account ownership beyond the provisioned
 key, instrument/rule/unit epochs, complete paginated external exposure, cost
-basis, settlement, admission, arming or real submit/cancel transport. It does not
-reserve money or grant funded authority. Those requirements are listed in the
+basis or funded authority by itself. Separate native consumers now implement
+arming, admission, LIMIT transport and settlement in unpublished source; they
+revalidate native evidence and hold money before effects. See
+[native order lifecycle](native-order-lifecycle.md). This observation channel does
+not submit or reserve money. Qualification requirements are listed in the
 [roadmap](../../gym-core/docs/roadmap.md).

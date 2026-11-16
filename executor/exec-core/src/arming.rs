@@ -1,6 +1,6 @@
 //! Arm records and kill rules (owner decision OD-2). Pure policy: it cannot arm anything by itself.
 //!
-//! The privileged arm path (not built; the service stays DISARMED) will call `approve` with the owner's policy
+//! The native arm controller calls `approve` with the owner's policy
 //! file and a preflight computed service-side, and then `check` / `admit_order` on every tick and order. Kill rules
 //! are code, not something an operator watches: any breach returns `Verdict::Disarm`. Arming always expires.
 //! The record digest binds the exact policy file (by SHA-256), the approver, the runtime epoch and the window, so

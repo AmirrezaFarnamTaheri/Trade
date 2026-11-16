@@ -1,12 +1,13 @@
 # ADR 0006: Arming record, kill rules and fail-closed custody
 
-Status: Implemented as pure rules in exec-core; not wired (the service stays DISARMED). Owner decisions OD-2, OD-5.
+Status: Wired in native source under ADR 0007/0008; local fault checks passed. Protected publication and installed-host qualification pending; execution stays DISARMED. Owner decisions OD-2, OD-5.
 
 ## Context
 
 The owner wants the project always arm-ready with a one-click approval (OD-2), and asked for the safest handling
-of privileged-thread faults and of reservation when the vault holds two journals (OD-5). No arming path exists:
-`exec_core::step` can only reduce authority, and `Mode` has no armed state.
+of privileged-thread faults and of reservation when the vault holds two journals (OD-5). At adoption these
+were pure rules. ADR 0007 now connects them through a separate elevated native control channel; the browser
+and the pure `exec_core::step` still cannot raise authority.
 
 ## Decision
 
@@ -25,12 +26,13 @@ of privileged-thread faults and of reservation when the vault holds two journals
    [ADR 0008](0008-balance-observation-ordering.md) receipt contract. It requires two reads at the current
    credential/runtime/activity fence, matching durable copies, valid local clocks and at most 120-second
    age, then subtracts open holds. Disagreement disarms. Its field is `receipt_seq`, never a venue sequence.
-   Native receipt production, activity events and the admission consumer remain unwired.
+   Native receipt production, activity events, admission, one-shot LIMIT transport and atomic settlement
+   are connected in source. The matching protected binaries have not been published or qualified.
 
-## Not done, deliberately
+## Qualification still required
 
-- Wiring: a privileged arm request on T2, an armed mode in the stop gate, the approval screen and the per-tick
-  loss measurement. All of it changes the money path and needs passing automated authority, security and recovery checks.
-- Review v2 (`exec_ipc::review_v2`, TGREVW02) is mounted in the source operate listener/helper/relay.
-  `reserve_prepared_intent` uses active holds in the durable offline model; funded admission remains unwired.
-  Neither change is installed or grants authority. See ADR 0007 for the remaining order of work.
+The privileged helper/listener, revisioned gate, native loss/counter measurements, dual balance receipts,
+reviewed hold admission and native send/settlement path have local composition and fault tests. Owner evidence
+is exact-hash-bound and cannot pass before the registered 2027-02-08 checkpoint. No actual attestation was
+created. Installed-host/venue qualification and explicit owner publication approval remain separate work.
+See [native order lifecycle](../../executor/docs/native-order-lifecycle.md) for the exact source boundary.

@@ -4,13 +4,14 @@ Status: Accepted, owner decision 2026-11-16. Supersedes the venue-sequence
 requirement for balance admission in ADR 0006/0007. Implementation and protected
 publication remain separate work; execution stays disarmed.
 
-The pure available-balance rule implements the pair/fence/age/hold checks and
-uses receipt_seq. Its tests do not establish native receipt production, dual
-durability, activity detection or funded admission; those consumers remain open.
+The native producer, dual journal commits, activity detection, reviewed admission
+and one-shot send/settlement consumers now implement this contract in source.
+Local composition tests pass; protected publication and installed-host qualification
+remain pending. The rule uses receipt_seq and never invents a venue sequence.
 
 ## Evidence and limit
 
-The official [main-wallet response](https://developers.wallex.ir/docs/basic-services-main-wallet),
+The official [main-wallet response](https://developers.wallex.ir/basicservices/mainaccountwallet),
 checked 2026-11-16, documents asset identity, value, locked amount and display
 flags. It documents no balance sequence or exchange observation timestamp.
 Requiring one would prevent this API from ever satisfying admission.
@@ -57,10 +58,10 @@ intervening activity/STOP/epoch change is rechecked before transport.
 
 ## Order and trade cross-checks
 
-The current [order-detail reference](https://developers.wallex.ir/docs/spot-single-order-detail)
+The current [active-order reference](https://developers.wallex.ir/spot/activeorders)
 documents created_at, updated_at, transactTime and each fill's timestamp. The
-[order-list reference](https://developers.wallex.ir/docs/spot-order-list) exposes
-the same event fields. These can cross-check known order activity and detect
+[older order-detail reference](https://api-docs.wallex.ir/) also documents order event
+timestamps. These can cross-check known order activity and detect
 regressions in a reconciled order's history. They do not timestamp a balance read
 or provide a shared revision connecting orders and balances.
 
@@ -79,7 +80,8 @@ cap and all independent kill/preflight rules. The prospective paper checkpoint
 is unchanged. No off-machine backup or second-host restore is required by this
 decision; the owner canceled those jobs. Existing local backup checks remain.
 
-Before publication, test the composed native producer, dual journal commits,
+Local tests now exercise the composed native producer, dual journal commits,
 admission and privileged arm/STOP path against stale/unequal reads, own activity
 between reads, late fills, replay, restart, partial commits and every kill input.
-This ADR authorizes the receipt-based redesign, not funded orders or installation.
+The same boundary still needs installed-host qualification before use. This ADR
+authorizes the receipt-based redesign, not funded orders or installation.

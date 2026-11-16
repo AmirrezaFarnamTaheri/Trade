@@ -633,3 +633,70 @@ fn a_balance_pair_that_predates_the_terminal_read_cannot_settle_and_partial_term
     assert_eq!(summary.filled_quanta, 5000);
     assert_eq!(summary.spent_quanta, 4004000);
 }
+
+#[test]
+fn producer_faults_revoke_the_live_controller_before_any_new_admission() {
+    use exec_svc::balance_receipts::ReceiptError;
+    for case in 0..6 {
+        let mut f = Fixture::new(true);
+        let now = if case == 1 { 121231 } else { 2100 };
+        match case {
+            0 => f.balances.own_activity(now).unwrap(),
+            1 => {}
+            2 => {
+                f.balances.begin([4; 16], 10, [30; 16], now).unwrap();
+            }
+            3 | 4 => {
+                let read = f.balances.begin([3; 16], 10, [30; 16], now).unwrap();
+                let raw=serde_json::to_vec(&serde_json::json!({"success":true,"result":{"balances":{
+                    "USDT":{"value":if case==4 {"19"}else{"20"},"locked":"0"},"BTC":{"value":"1","locked":"0"}}}})).unwrap();
+                let observed = AccountObservation::from_response(
+                    AccountKind::Balances,
+                    &raw,
+                    [3; 16],
+                    10,
+                    [30; 16],
+                    now,
+                    now + 10,
+                )
+                .unwrap();
+                if case == 3 {
+                    f.ledger
+                        .record_account_observation(observed.clone())
+                        .unwrap();
+                }
+                let saved =
+                    f.balances
+                        .complete(read, observed, &mut f._credentials, Some(&mut f.ledger));
+                if case == 3 {
+                    assert!(matches!(saved, Err(ReceiptError::CommitUncertain)));
+                } else {
+                    assert!(saved.unwrap().disagreed);
+                }
+            }
+            5 => {
+                f.balances.begin([3; 16], 11, [30; 16], now).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let mut evidence = f.arm.clone();
+        evidence.measured_at_ms = now + 10;
+        evidence.market_received_at_ms = Some(now);
+        evidence.available = if f.balances.matches_context([3; 16], 10) {
+            f.balances.available("USDT", 6, 0, now + 10, 120000).ok()
+        } else {
+            None
+        };
+        assert!(
+            f.controller
+                .safety_tick(&f.gate, &evidence, now + 10)
+                .is_err(),
+            "case {case}"
+        );
+        assert_eq!(f.gate.mode(), StopMode::Disarmed);
+        assert!(f.controller.record().is_none());
+        let count = f.ledger.record_count();
+        assert!(f.admit(f.context()).is_err());
+        assert_eq!(f.ledger.record_count(), count);
+    }
+}

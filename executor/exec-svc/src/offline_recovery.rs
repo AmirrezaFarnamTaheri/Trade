@@ -2286,8 +2286,7 @@ impl DurableOrderJournal {
         Ok(())
     }
 
-    /// Offline admission mechanics only. A supplied balance is not authenticated evidence;
-    /// the live service exposes no reservation or transport command.
+    /// Journal mechanics alone grant no authority; native admission supplies authenticated receipts.
     pub fn reserve_prepared_intent(
         &mut self,
         context: IntentPreparation,
@@ -2428,8 +2427,7 @@ impl DurableOrderJournal {
         self.maybe_checkpoint()?;
         Ok(())
     }
-    /// Durable offline reservation admission. A snapshot is *not* trusted
-    /// solely because this model accepts it: funded admission is disabled.
+    /// Legacy model admission. A snapshot alone is never authenticated evidence.
     pub fn reserve_intent(
         &mut self,
         id: &str,
