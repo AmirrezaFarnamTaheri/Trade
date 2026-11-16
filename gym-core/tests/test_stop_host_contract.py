@@ -216,6 +216,9 @@ def test_installer_and_auditor_keep_provisioning_helper_admin_only():
     assert "$ArmControl" not in operator_paths
     assert "Join-Path $CodeDir 'gym-arm.exe'" in auditor
     assert "gym-arm.exe" in installer
+    assert "$SubmitControl" not in operator_paths
+    assert "Join-Path $CodeDir 'gym-submit.exe'" in auditor
+    assert "gym-submit.exe" in installer
     assert "Join-Path $CodeDir 'gym-provision.exe'" in auditor
     assert "FileSystemRights]::ReadAndExecute" in auditor
 

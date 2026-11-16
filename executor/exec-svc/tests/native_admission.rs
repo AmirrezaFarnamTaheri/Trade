@@ -307,3 +307,87 @@ fn exact_rounding_refuses_overflow_and_never_rounds_a_hold_down() {
         None
     );
 }
+
+#[test]
+fn real_attempt_composition_distinguishes_proven_unsent_and_uncertain_bytes_without_retry() {
+    use exec_svc::native_effect::{execute, SendOutcome};
+    for case in 0..4 {
+        let mut f = Fixture::new(true);
+        let order = f.admit(f.context()).unwrap();
+        let mut calls = 0;
+        let outcome = execute(
+            &mut f.ledger,
+            &order,
+            &f.gate,
+            || Some(AT),
+            |_, allowed| {
+                calls += 1;
+                assert!(allowed());
+                match case {
+                    0 => Err(FailureStage::BeforeFirstByte),
+                    1 => Err(FailureStage::AfterFirstByte),
+                    2 => Ok(false),
+                    3 => Ok(true),
+                    _ => unreachable!(),
+                }
+            },
+        )
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(
+            outcome,
+            match case {
+                0 => SendOutcome::NotSent,
+                3 => SendOutcome::Observed,
+                _ => SendOutcome::Pending,
+            }
+        );
+        assert_eq!(
+            f.ledger.reserved("main", "USDT"),
+            if case == 0 { 0 } else { 8010000 }
+        );
+        assert!(execute(
+            &mut f.ledger,
+            &order,
+            &f.gate,
+            || Some(AT),
+            |_, _| panic!("identity sent twice")
+        )
+        .is_err());
+        drop(order);
+        let path = f.root.path().join("execution.sqlite");
+        drop(f.ledger);
+        let replay = DurableOrderJournal::open(path).unwrap();
+        assert_eq!(
+            replay.reserved("main", "USDT"),
+            if case == 0 { 0 } else { 8010000 }
+        );
+    }
+}
+
+#[test]
+fn stop_before_or_during_transport_setup_never_sends_and_releases_only_a_proven_unsent_hold() {
+    use exec_svc::native_effect::{execute, SendOutcome};
+    for during in [false, true] {
+        let mut f = Fixture::new(true);
+        let order = f.admit(f.context()).unwrap();
+        if !during {
+            f.gate.disarm();
+        }
+        let outcome = execute(
+            &mut f.ledger,
+            &order,
+            &f.gate,
+            || Some(AT),
+            |_, allowed| {
+                assert!(during);
+                f.gate.disarm();
+                assert!(!allowed());
+                Err(FailureStage::BeforeFirstByte)
+            },
+        )
+        .unwrap();
+        assert_eq!(outcome, SendOutcome::NotSent);
+        assert_eq!(f.ledger.reserved("main", "USDT"), 0);
+    }
+}

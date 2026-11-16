@@ -277,6 +277,8 @@ pub struct Vault {
 }
 #[path = "vault_arm.rs"]
 mod arm;
+#[path = "vault_submit.rs"]
+mod submit;
 /// The key and generation copied out of the vault for one account read; the key is wiped on drop.
 pub struct AccountRead {
     pub key: Secret,

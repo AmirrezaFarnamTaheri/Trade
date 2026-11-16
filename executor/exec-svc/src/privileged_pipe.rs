@@ -56,10 +56,28 @@ enum Request {
     Account(AccountResource, [u8; 16], bool),
     Ceiling(exec_ipc::ceiling::CeilingRequest, Administrator),
     Arm(exec_ipc::arm::ArmRequest, Administrator),
+    Submit(exec_ipc::submit::SubmitRequest, Administrator),
 }
 async fn receive(pipe: &mut NamedPipeServer, mode: StartupMode) -> io::Result<Request> {
     let mut hello = [0; exec_ipc::arm::REQUEST_SIZE + 1];
     let count = pipe.read(&mut hello).await?;
+    if hello[..count].starts_with(b"TGSUB001") {
+        let principal = admit(pipe, || {
+            Ok(Administrator {
+                user: exec_svc::windows_identity::impersonated_thread_user_sid()?,
+                logon: exec_svc::windows_identity::impersonated_thread_logon_sid()?,
+            })
+        })?;
+        if mode != StartupMode::Normal {
+            return Err(io::Error::other(
+                "submission unavailable outside normal startup",
+            ));
+        }
+        return Ok(Request::Submit(
+            exec_ipc::submit::SubmitRequest::decode(&hello[..count]).map_err(io::Error::other)?,
+            principal,
+        ));
+    }
     if hello[..count].starts_with(b"TGARM001") {
         let principal = admit(pipe, || {
             Ok(Administrator {
@@ -160,6 +178,21 @@ pub async fn serve(
             Ok(()) => {
                 if let Ok(Ok(request)) = timeout(DEADLINE, receive(&mut client, mode)).await {
                     match request {
+                        Request::Submit(request, principal) => {
+                            let reply = vault
+                                .lock()
+                                .map_err(|_| io::Error::other("vault poisoned"))?
+                                .submit(
+                                    &request,
+                                    &principal.user,
+                                    &principal.logon,
+                                    &operator.user,
+                                    &operator.logon,
+                                    &operator.gate,
+                                )?;
+                            let raw = reply.encode().map_err(io::Error::other)?;
+                            let _ = timeout(DEADLINE, client.write_all(&raw)).await;
+                        }
                         Request::Arm(request, principal) => {
                             let reply = vault
                                 .lock()

@@ -158,7 +158,6 @@ impl Vault {
         at: u64,
         gate: &exec_svc::StopGate,
     ) -> io::Result<ArmEvidence> {
-        use exec_svc::account_observation::AccountKind;
         let mut evidence = ArmEvidence::missing(at, gate.runtime_epoch());
         let generation = self.journal.credential_metadata().map(|key| key.generation);
         evidence.credential_generation = generation;
@@ -204,63 +203,11 @@ impl Vault {
             if complete {
                 evidence.market_received_at_ms = oldest;
             }
-            let fee = self.journal.account_observation(
-                AccountKind::Fees,
-                generation,
-                gate.runtime_epoch(),
-                at,
-                30_000,
-            );
-            let open = self.journal.order_page_observation(
-                &exec_ipc::provision::AccountResource::OpenOrders {
-                    page: 1,
-                    per_page: 100,
-                },
-                generation,
-                gate.runtime_epoch(),
-                at,
-                30_000,
-            );
-            if let (Some(fee), Some(open), Some(orders)) = (
-                fee,
-                open,
-                ledger.reviewed_risk_orders(generation, gate.runtime_epoch(), at),
-            ) {
-                let mut highest = Exact {
-                    mantissa: 0,
-                    scale: 0,
-                };
-                let all_fees = policy.symbols.iter().all(|symbol| {
-                    ["makerFeeRate", "takerFeeRate"].iter().all(|field| {
-                        let Some(rate) = fee.data()["result"][symbol][field]
-                            .as_str()
-                            .and_then(Exact::parse)
-                        else {
-                            return false;
-                        };
-                        match rate.cmp_value(highest) {
-                            Some(std::cmp::Ordering::Greater) => highest = rate,
-                            Some(_) => {}
-                            None => return false,
-                        }
-                        true
-                    })
-                });
-                if all_fees {
-                    if let Ok(risk) = exec_svc::native_risk::measure(
-                        &orders,
-                        open,
-                        &self.native_markets,
-                        &policy.quote_asset,
-                        highest,
-                        at,
-                    ) {
-                        evidence.loss_quote = Some(risk.loss_quote);
-                        evidence.open_orders = Some(risk.open_orders);
-                        evidence.orders_today = Some(risk.orders_today);
-                        evidence.reconciliation_clean = audits;
-                    }
-                }
+            if let Some(risk) = self.measured_risk(policy, generation, gate.runtime_epoch(), at) {
+                evidence.loss_quote = Some(risk.loss_quote);
+                evidence.open_orders = Some(risk.open_orders);
+                evidence.orders_today = Some(risk.orders_today);
+                evidence.reconciliation_clean = audits;
             }
             if self.owner_review.as_ref().is_some_and(|review| {
                 review
@@ -290,6 +237,54 @@ impl Vault {
                 .retain(|item| *item != ArmBlocker::OpenIncident);
         }
         Ok(evidence)
+    }
+
+    pub(super) fn measured_risk(
+        &self,
+        policy: &ArmPolicy,
+        generation: [u8; 16],
+        epoch: u64,
+        at: u64,
+    ) -> Option<exec_svc::native_risk::NativeRisk> {
+        use exec_svc::account_observation::AccountKind;
+        let ledger = self.limits.as_ref()?;
+        let fee =
+            self.journal
+                .account_observation(AccountKind::Fees, generation, epoch, at, 30_000)?;
+        let open = self.journal.order_page_observation(
+            &exec_ipc::provision::AccountResource::OpenOrders {
+                page: 1,
+                per_page: 100,
+            },
+            generation,
+            epoch,
+            at,
+            30_000,
+        )?;
+        let orders = ledger.reviewed_risk_orders(generation, epoch, at)?;
+        let mut highest = Exact {
+            mantissa: 0,
+            scale: 0,
+        };
+        for symbol in &policy.symbols {
+            for field in ["makerFeeRate", "takerFeeRate"] {
+                let rate = fee.data()["result"][symbol][field]
+                    .as_str()
+                    .and_then(Exact::parse)?;
+                if rate.cmp_value(highest)? == std::cmp::Ordering::Greater {
+                    highest = rate;
+                }
+            }
+        }
+        exec_svc::native_risk::measure(
+            &orders,
+            open,
+            &self.native_markets,
+            &policy.quote_asset,
+            highest,
+            at,
+        )
+        .ok()
     }
 
     pub fn safety_tick(&mut self) -> io::Result<()> {

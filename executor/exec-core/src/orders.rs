@@ -54,6 +54,7 @@ pub enum Event {
     TerminalReported,
     SettlementVerified,
     Denied,
+    AbandonUnsent,
     VenueRejected,
     SettlementAnomaly,
     AnomalyReconciled {
@@ -132,6 +133,13 @@ impl Attempt {
         // Copy-then-commit: invalid transitions never partially alter state.
         let mut next = *self;
         match event {
+            AbandonUnsent => {
+                if next.lifecycle != Lifecycle::NotSent || next.filled_quanta != 0 {
+                    return Err(OrderError::IllegalTransition);
+                }
+                next.lifecycle = Lifecycle::Denied;
+                next.effect = EconomicEffect::NoneObserved;
+            }
             BeginCancel => {
                 if !matches!(
                     next.lifecycle,

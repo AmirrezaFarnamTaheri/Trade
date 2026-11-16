@@ -423,6 +423,7 @@ pub mod offline_recovery;
 pub mod account_observation;
 pub mod balance_receipts;
 pub mod native_admission;
+pub mod native_effect;
 pub mod native_market;
 pub mod native_risk;
 pub mod owner_evidence;

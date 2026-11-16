@@ -5,6 +5,24 @@ use exec_core::orders::{
 };
 
 #[test]
+fn abandoning_a_proven_unsent_order_consumes_its_identity_and_cannot_hide_uncertainty() {
+    for stage in [FailureStage::BeforeFirstByte, FailureStage::AfterFirstByte] {
+        let mut order = Attempt::new(1).unwrap();
+        order.apply(Event::BeginSend).unwrap();
+        order.apply(Event::TransportFailed(stage)).unwrap();
+        let before = order;
+        if stage == FailureStage::BeforeFirstByte {
+            order.apply(Event::AbandonUnsent).unwrap();
+            assert_eq!(order.lifecycle(), Lifecycle::Denied);
+            assert!(order.apply(Event::BeginSend).is_err());
+        } else {
+            assert!(order.apply(Event::AbandonUnsent).is_err());
+            assert_eq!(order, before);
+        }
+    }
+}
+
+#[test]
 fn cancellation_ack_and_lost_ack_never_erase_late_fills_or_release_the_slot() {
     let mut order = Attempt::new(100).unwrap();
     assert!(order.apply(Event::BeginCancel).is_err());

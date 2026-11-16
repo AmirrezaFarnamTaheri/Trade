@@ -30,6 +30,20 @@ fn text(value: &serde_json::Value, name: &str) -> Result<Exact, &'static str> {
         .ok_or("own-order amount overflow")
 }
 
+pub fn matches_ticket(ticket: &Ticket, observation: &AccountObservation) -> bool {
+    let row = &observation.data()["result"];
+    observation.kind() == AccountKind::KnownClientOrder
+        && row["clientOrderId"].as_str() == Some(ticket.client_id.as_str())
+        && row["symbol"].as_str() == Some(format!("{}{}", ticket.base, ticket.quote).as_str())
+        && row["side"].as_str() == Some(if ticket.buy { "BUY" } else { "SELL" })
+        && text(row, "origQty").ok().and_then(|value| {
+            value.cmp_value(Exact {
+                mantissa: u128::from(ticket.quantity_quanta),
+                scale: u32::from(ticket.base_decimals),
+            })
+        }) == Some(std::cmp::Ordering::Equal)
+}
+
 pub struct OwnOrder<'a> {
     pub ticket: &'a Ticket,
     pub observation: &'a AccountObservation,
@@ -93,15 +107,7 @@ pub fn measure(
             orders_today = orders_today.checked_add(1).ok_or("order count overflow")?;
         }
         let row = &own.observation.data()["result"];
-        let symbol = format!("{}{}", ticket.base, ticket.quote);
-        if row["clientOrderId"].as_str() != Some(&ticket.client_id)
-            || row["symbol"].as_str() != Some(&symbol)
-            || row["side"].as_str() != Some(if ticket.buy { "BUY" } else { "SELL" })
-            || text(row, "origQty")?.cmp_value(Exact {
-                mantissa: u128::from(ticket.quantity_quanta),
-                scale: u32::from(ticket.base_decimals),
-            }) != Some(std::cmp::Ordering::Equal)
-        {
+        if !matches_ticket(ticket, own.observation) {
             return Err("native order disagrees with reviewed identity");
         }
         match row["status"].as_str() {

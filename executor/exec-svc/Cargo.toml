@@ -57,3 +57,7 @@ path = "src/bin/gym-review.rs"
 [[bin]]
 name = "gym-arm"
 path = "src/bin/gym-arm.rs"
+
+[[bin]]
+name = "gym-submit"
+path = "src/bin/gym-submit.rs"

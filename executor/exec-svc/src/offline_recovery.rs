@@ -830,6 +830,7 @@ fn record_event(id: &str, event: Event) -> Result<Vec<u8>, RecoveryError> {
         CancelTransportFailed(FailureStage::BeforeFirstByte) => 15,
         CancelTransportFailed(FailureStage::AfterFirstByte) => 16,
         CancelAcknowledged => 17,
+        AbandonUnsent => 18,
     };
     data.push(tag);
     match event {
@@ -1249,6 +1250,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                 15 => CancelTransportFailed(FailureStage::BeforeFirstByte),
                 16 => CancelTransportFailed(FailureStage::AfterFirstByte),
                 17 => CancelAcknowledged,
+                18 => AbandonUnsent,
                 _ => return Err(RecoveryError::MalformedEvent),
             };
             Record::Observation { id, event }

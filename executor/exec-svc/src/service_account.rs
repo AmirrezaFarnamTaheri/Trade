@@ -1,4 +1,4 @@
-//! Service-only, fixed-origin GET transport. A response is observation, never permission proof.
+//! Service-only, fixed-origin transport. A response is never permission proof.
 use crate::credential_vault::Secret;
 use exec_ipc::provision::{AccountResource, MAX_ACCOUNT_BODY};
 use std::{
@@ -97,6 +97,41 @@ pub fn public_depth(symbol: &str) -> io::Result<Secret> {
 }
 
 fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
+    exchange(key, resource, None, || Ok(()))
+}
+
+pub fn submit(
+    key: &Secret,
+    body: &[u8],
+    mut allowed: impl FnMut() -> bool,
+) -> Result<Secret, exec_core::orders::FailureStage> {
+    use exec_core::orders::FailureStage;
+    let mut reached_send = false;
+    if body.is_empty() || body.len() > 4096 {
+        return Err(FailureStage::BeforeFirstByte);
+    }
+    let result = exchange(Some(key), "/v1/account/orders", Some(body), || {
+        if !allowed() {
+            return Err(uncertain());
+        }
+        reached_send = true;
+        Ok(())
+    });
+    result.map_err(|_| {
+        if reached_send {
+            FailureStage::AfterFirstByte
+        } else {
+            FailureStage::BeforeFirstByte
+        }
+    })
+}
+
+fn exchange(
+    key: Option<&Secret>,
+    resource: &str,
+    payload: Option<&[u8]>,
+    before_send: impl FnOnce() -> io::Result<()>,
+) -> io::Result<Secret> {
     let path = wide(resource);
     let header = key.map(key_header).transpose()?;
     let started = Instant::now();
@@ -118,7 +153,7 @@ fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
         ))?;
         let request = Handle::checked(WinHttpOpenRequest(
             connection.0,
-            wide("GET").as_ptr(),
+            wide(if payload.is_some() { "POST" } else { "GET" }).as_ptr(),
             path.as_ptr(),
             ptr::null(),
             ptr::null(),
@@ -137,7 +172,17 @@ fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
             WINHTTP_OPTION_DISABLE_FEATURE,
             WINHTTP_DISABLE_REDIRECTS | WINHTTP_DISABLE_AUTHENTICATION | WINHTTP_DISABLE_COOKIES,
         )?;
-        // Native certificate validation is unchanged. No proxy, auth negotiation, redirect or request body.
+        if payload.is_some() {
+            let content_type = wide("Content-Type: application/json\r\n");
+            success(WinHttpAddRequestHeaders(
+                request.0,
+                content_type.as_ptr(),
+                (content_type.len() - 1) as u32,
+                WINHTTP_ADDREQ_FLAG_ADD,
+            ))?;
+        }
+        before_send()?;
+        // The gate is checked at the last boundary before WinHTTP can send bytes. Never retry this call.
         success(WinHttpSendRequest(
             request.0,
             header
@@ -146,9 +191,9 @@ fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
             header
                 .as_ref()
                 .map_or(0, |header| (header.0.len() - 1) as u32),
-            ptr::null(),
-            0,
-            0,
+            payload.map_or(ptr::null(), |body| body.as_ptr().cast()),
+            payload.map_or(0, |body| body.len() as u32),
+            payload.map_or(0, |body| body.len() as u32),
             0,
         ))?;
         drop(header);
@@ -163,7 +208,7 @@ fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
             &mut size,
             ptr::null_mut(),
         ))?;
-        if status != 200 {
+        if status != 200 && !(payload.is_some() && status == 201) {
             return Err(uncertain());
         }
         let mut body = Secret(Vec::new());
@@ -242,5 +287,16 @@ mod tests {
         )
         .is_err());
         assert_eq!(uncertain().to_string(), "account observation unavailable");
+    }
+    #[test]
+    fn no_payload_or_invalid_key_is_a_proven_unsent_request() {
+        use exec_core::orders::FailureStage;
+        let key = Secret(b"synthetic-invalid-key\r\n".to_vec());
+        for body in [b"".as_slice(), b"{}"] {
+            assert!(matches!(
+                submit(&key, body, || panic!("invalid input reached send")),
+                Err(FailureStage::BeforeFirstByte)
+            ));
+        }
     }
 }
