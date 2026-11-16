@@ -6,7 +6,7 @@
 #![forbid(unsafe_code)]
 
 use fs2::FileExt;
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fmt;
@@ -97,9 +97,57 @@ pub struct LedgerEntry {
 /// remain the authoritative access boundary once the Windows host is built.
 pub struct Ledger {
     conn: Connection,
+    path: PathBuf,
     _writer_lock: File,
     sequence: u64,
     head_hash: [u8; 32],
+}
+
+/// A disposable projection rebuilt only from a fully decoded, hash-verified prefix.
+pub struct IdentityIndex<'a> {
+    conn: &'a Connection,
+}
+
+impl IdentityIndex<'_> {
+    pub fn contains(&self, scope: &str, key: &[u8]) -> Result<bool, LedgerError> {
+        Ok(self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM temp.audit_identities WHERE scope=?1 AND identity=?2)",
+            params![scope, key],
+            |row| row.get(0),
+        )?)
+    }
+
+    pub fn remember(&self, scope: &str, key: &[u8], sequence: u64) -> Result<(), LedgerError> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO temp.audit_identities(scope,identity,sequence) VALUES(?1,?2,?3)",
+            params![scope, key, sqlite_sequence(sequence)?],
+        )?;
+        Ok(())
+    }
+
+    pub fn keys(&self, scope: &str) -> Result<Vec<Vec<u8>>, LedgerError> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM temp.audit_identities WHERE scope=?1",
+            [scope],
+            |row| row.get(0),
+        )?;
+        if count > (MAX_EVENT_BYTES / 16) as i64 {
+            return Err(LedgerError::Configuration(
+                "legacy checkpoint identity history exceeds event bound",
+            ));
+        }
+        let mut stmt = self.conn.prepare(
+            "SELECT identity FROM temp.audit_identities WHERE scope=?1 ORDER BY identity",
+        )?;
+        let keys = stmt
+            .query_map([scope], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        Ok(keys)
+    }
+}
+
+fn sqlite_sequence(sequence: u64) -> Result<i64, LedgerError> {
+    i64::try_from(sequence).map_err(|_| LedgerError::Configuration("sequence exhausted"))
 }
 
 fn lock_path(path: &Path) -> PathBuf {
@@ -119,13 +167,26 @@ fn load_verified(
     conn: &Connection,
     after_sequence: u64,
 ) -> Result<(u64, [u8; 32], Vec<LedgerEntry>), LedgerError> {
+    let mut visible = Vec::new();
+    let (sequence, previous) = visit_verified(conn, |entry| {
+        if entry.sequence > after_sequence {
+            visible.push(entry);
+        }
+        Ok(())
+    })?;
+    Ok((sequence, previous, visible))
+}
+
+fn visit_verified(
+    conn: &Connection,
+    mut visit: impl FnMut(LedgerEntry) -> Result<(), LedgerError>,
+) -> Result<(u64, [u8; 32]), LedgerError> {
     let mut stmt = conn.prepare(
         "SELECT sequence,event_bytes,previous_hash,event_hash FROM ledger_events ORDER BY sequence",
     )?;
     let mut rows = stmt.query([])?;
     let mut sequence = 0_u64;
     let mut previous = GENESIS;
-    let mut visible = Vec::new();
     while let Some(row) = rows.next()? {
         let raw_sequence: i64 = row.get(0)?;
         let expected = sequence
@@ -158,18 +219,16 @@ fn load_verified(
                 reason: "stored-byte hash mismatch",
             });
         }
-        if expected > after_sequence {
-            visible.push(LedgerEntry {
-                sequence: expected,
-                event_bytes,
-                previous_hash: prev_hash,
-                event_hash,
-            });
-        }
+        visit(LedgerEntry {
+            sequence: expected,
+            event_bytes,
+            previous_hash: prev_hash,
+            event_hash,
+        })?;
         previous = event_hash;
         sequence = expected;
     }
-    Ok((sequence, previous, visible))
+    Ok((sequence, previous))
 }
 
 impl Ledger {
@@ -191,7 +250,14 @@ impl Ledger {
         path: impl AsRef<Path>,
         magic: &[u8; 8],
     ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
-        Self::open_verified(path.as_ref(), 0, Some(magic))
+        Self::open_after_checkpoints(path, &[magic])
+    }
+
+    pub fn open_after_checkpoints(
+        path: impl AsRef<Path>,
+        magics: &[&[u8; 8]],
+    ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
+        Self::open_verified(path.as_ref(), 0, Some(magics))
     }
 
     pub fn tip(&self) -> (u64, [u8; 32]) {
@@ -201,7 +267,7 @@ impl Ledger {
     fn open_verified(
         path: &Path,
         after_sequence: u64,
-        checkpoint_magic: Option<&[u8; 8]>,
+        checkpoint_magics: Option<&[&[u8; 8]]>,
     ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
         let lock = OpenOptions::new()
             .create(true)
@@ -254,10 +320,16 @@ impl Ledger {
         if trigger_count != 2 {
             return Err(LedgerError::Configuration("append-only guards missing"));
         }
-        let after_sequence = if let Some(magic) = checkpoint_magic {
-            conn.query_row("SELECT sequence-1 FROM ledger_events WHERE substr(event_bytes,1,8)=?1 ORDER BY sequence DESC LIMIT 1",
-                [magic.as_slice()], |row| row.get::<_, i64>(0)).optional()?.unwrap_or(0)
-                .try_into().map_err(|_| LedgerError::Configuration("invalid checkpoint sequence"))?
+        let after_sequence = if let Some(magics) = checkpoint_magics {
+            let mut latest = 0;
+            for magic in magics {
+                let sequence: i64 = conn.query_row("SELECT sequence-1 FROM ledger_events WHERE substr(event_bytes,1,8)=?1 ORDER BY sequence DESC LIMIT 1",
+                    [magic.as_slice()], |row| row.get(0)).optional()?.unwrap_or(0);
+                latest = latest.max(sequence);
+            }
+            latest
+                .try_into()
+                .map_err(|_| LedgerError::Configuration("invalid checkpoint sequence"))?
         } else {
             after_sequence
         };
@@ -265,6 +337,7 @@ impl Ledger {
         Ok((
             Self {
                 conn,
+                path: std::fs::canonicalize(path)?,
                 _writer_lock: lock,
                 sequence,
                 head_hash,
@@ -276,6 +349,15 @@ impl Ledger {
     /// Commit raw, already validated event bytes before returning an identity.
     /// No venue action may be attempted if this returns an error.
     pub fn append(&mut self, event_bytes: &[u8]) -> Result<LedgerEntry, LedgerError> {
+        self.append_identified(event_bytes, &[])
+    }
+
+    /// Update the disposable identity index in the same commit as its authoritative bytes.
+    pub fn append_identified(
+        &mut self,
+        event_bytes: &[u8],
+        identities: &[(&str, &[u8])],
+    ) -> Result<LedgerEntry, LedgerError> {
         if event_bytes.is_empty() || event_bytes.len() > MAX_EVENT_BYTES {
             return Err(LedgerError::InvalidSize(event_bytes.len()));
         }
@@ -315,6 +397,26 @@ impl Ledger {
             "INSERT INTO ledger_events(sequence,event_bytes,previous_hash,event_hash) VALUES(?1,?2,?3,?4)",
             params![sequence_i64, event_bytes, previous_hash.as_slice(), event_hash.as_slice()],
         )?;
+        let indexed: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ledger_identity_tip')", [], |row| row.get(0))?;
+        if indexed {
+            let consistent: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM ledger_identity_tip WHERE singleton=1 AND sequence=?1 AND event_hash=?2)", params![sqlite_sequence(self.sequence)?, self.head_hash.as_slice()], |row| row.get(0))?;
+            if !consistent {
+                return Err(LedgerError::Configuration(
+                    "identity index does not cover the committed prefix",
+                ));
+            }
+            for (scope, key) in identities {
+                tx.execute("INSERT OR IGNORE INTO ledger_identities(scope,identity,sequence) VALUES(?1,?2,?3)", params![scope,key,sequence_i64])?;
+            }
+            tx.execute(
+                "UPDATE ledger_identity_tip SET sequence=?1,event_hash=?2 WHERE singleton=1",
+                params![sequence_i64, event_hash.as_slice()],
+            )?;
+        } else if !identities.is_empty() {
+            return Err(LedgerError::Configuration(
+                "identity index has not been verified",
+            ));
+        }
         tx.commit()?;
         self.sequence = sequence;
         self.head_hash = event_hash;
@@ -324,6 +426,118 @@ impl Ledger {
             previous_hash,
             event_hash,
         })
+    }
+
+    pub fn audit_path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    /// Startup already verified the whole chain; retain only a committed checkpoint's named pages.
+    pub fn checkpoint_pages(&self, first: u64, last: u64) -> Result<Vec<LedgerEntry>, LedgerError> {
+        if first == 0 || last < first || last > self.sequence {
+            return Err(LedgerError::Configuration("invalid checkpoint page range"));
+        }
+        let mut stmt = self.conn.prepare("SELECT sequence,event_bytes,previous_hash,event_hash FROM ledger_events WHERE sequence BETWEEN ?1 AND ?2 ORDER BY sequence")?;
+        let mut rows = stmt.query(params![sqlite_sequence(first)?, sqlite_sequence(last)?])?;
+        let mut result = Vec::new();
+        let mut expected = first;
+        let mut previous = None;
+        while let Some(row) = rows.next()? {
+            let sequence: i64 = row.get(0)?;
+            let event_bytes: Vec<u8> = row.get(1)?;
+            let previous_hash = checked_hash(row.get(2)?, expected)?;
+            let event_hash = checked_hash(row.get(3)?, expected)?;
+            if sequence < 1
+                || sequence as u64 != expected
+                || event_bytes.is_empty()
+                || event_bytes.len() > MAX_EVENT_BYTES
+                || previous.is_some_and(|hash| hash != previous_hash)
+                || hash_event(&previous_hash, &event_bytes) != event_hash
+            {
+                return Err(LedgerError::Integrity {
+                    sequence: expected,
+                    reason: "invalid checkpoint page bytes",
+                });
+            }
+            result.push(LedgerEntry {
+                sequence: expected,
+                event_bytes,
+                previous_hash,
+                event_hash,
+            });
+            previous = Some(event_hash);
+            expected += 1;
+        }
+        if expected != last + 1 {
+            return Err(LedgerError::Integrity {
+                sequence: expected,
+                reason: "missing checkpoint page",
+            });
+        }
+        Ok(result)
+    }
+
+    /// Independent connection, full byte verification, full caller decode, and atomic index publication.
+    /// BEGIN IMMEDIATE keeps the target prefix fixed while normal readers remain available in WAL mode.
+    pub fn audit_prefix(
+        path: &Path,
+        expected_tip: (u64, [u8; 32]),
+        mut visit: impl FnMut(&LedgerEntry, &IdentityIndex<'_>) -> Result<(), LedgerError>,
+    ) -> Result<(), LedgerError> {
+        let mut conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        conn.busy_timeout(Duration::from_secs(30))?;
+        conn.execute_batch("PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")?;
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute_batch("CREATE TEMP TABLE audit_identities(scope TEXT NOT NULL,identity BLOB NOT NULL,sequence INTEGER NOT NULL,PRIMARY KEY(scope,identity)) WITHOUT ROWID;")?;
+        let identities = IdentityIndex { conn: &tx };
+        let actual_tip = visit_verified(&tx, |entry| visit(&entry, &identities))?;
+        if actual_tip != expected_tip {
+            return Err(LedgerError::Integrity {
+                sequence: actual_tip.0,
+                reason: "audit prefix changed",
+            });
+        }
+        tx.execute_batch("CREATE TABLE IF NOT EXISTS ledger_identities(scope TEXT NOT NULL,identity BLOB NOT NULL,sequence INTEGER NOT NULL REFERENCES ledger_events(sequence),PRIMARY KEY(scope,identity)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS ledger_identity_tip(singleton INTEGER PRIMARY KEY CHECK(singleton=1),sequence INTEGER NOT NULL,event_hash BLOB NOT NULL);
+DELETE FROM ledger_identities;
+INSERT INTO ledger_identities SELECT * FROM temp.audit_identities;
+DELETE FROM ledger_identity_tip;")?;
+        tx.execute(
+            "INSERT INTO ledger_identity_tip VALUES(1,?1,?2)",
+            params![sqlite_sequence(expected_tip.0)?, expected_tip.1.as_slice()],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn identity_seen(&self, scope: &str, key: &[u8]) -> Result<bool, LedgerError> {
+        let covered: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM ledger_identity_tip WHERE singleton=1 AND sequence=?1 AND event_hash=?2)", params![sqlite_sequence(self.sequence)?,self.head_hash.as_slice()], |row| row.get(0))?;
+        if !covered {
+            return Err(LedgerError::Configuration("identity index is not current"));
+        }
+        Ok(self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM ledger_identities WHERE scope=?1 AND identity=?2)",
+            params![scope, key],
+            |row| row.get(0),
+        )?)
+    }
+
+    /// Verify a saved backup anchor against all current bytes, including checkpoint events.
+    pub fn verify_anchor(&self, anchor: (u64, [u8; 32])) -> Result<(), LedgerError> {
+        let mut matched = anchor == (0, GENESIS);
+        let tip = visit_verified(&self.conn, |entry| {
+            if entry.sequence == anchor.0 {
+                matched = entry.event_hash == anchor.1;
+            }
+            Ok(())
+        })?;
+        if !matched || tip != self.tip() {
+            return Err(LedgerError::Integrity {
+                sequence: anchor.0,
+                reason: "backup anchor does not match the verified ledger",
+            });
+        }
+        Ok(())
     }
 
     /// Verify the entire chain, also detecting changes to the head while open.

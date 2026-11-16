@@ -100,7 +100,8 @@ fn automatic_checkpoint_bounds_the_projection_suffix() {
 }
 
 #[test]
-fn oversized_checkpoint_keeps_committed_records_and_replay_available() {
+fn chunked_checkpoint_restores_state_larger_than_one_event() {
+    use std::time::Instant;
     let path = db_path("large-checkpoint");
     let mut journal = DurableOrderJournal::open(&path).unwrap();
     let name = "a".repeat(90);
@@ -109,13 +110,17 @@ fn oversized_checkpoint_keeps_committed_records_and_replay_available() {
             .create_intent(&format!("{name}{i}"), &name, &name, 1)
             .unwrap();
     }
-    assert!(!journal.checkpoint().unwrap());
+    assert!(journal.checkpoint().unwrap());
     let count = journal.record_count();
     journal
         .create_intent("after-large-snapshot", "main", "USDT", 1)
         .unwrap();
     drop(journal);
-    let restored = DurableOrderJournal::open(&path).unwrap();
+    let started = Instant::now();
+    let mut restored = DurableOrderJournal::open(&path).unwrap();
+    let opened = started.elapsed();
+    restored.wait_for_audit().unwrap();
+    eprintln!("active-state checkpoint qualification: active_intents=2401 file_bytes={} open_hash_restore={opened:?} open_plus_full_decode={:?}", std::fs::metadata(&path).unwrap().len(), started.elapsed());
     assert_eq!(restored.pending_ids().len(), 2401);
     assert_eq!(restored.record_count(), count + 1);
 }
