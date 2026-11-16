@@ -266,12 +266,14 @@ pub struct Vault {
     journal: DurableOrderJournal,
     limits: Option<DurableOrderJournal>,
     mode: exec_ipc::provision::StartupMode,
+    balances: exec_svc::balance_receipts::BalanceReceipts,
 }
 /// The key and generation copied out of the vault for one account read; the key is wiped on drop.
 pub struct AccountRead {
     pub key: Secret,
     generation: [u8; 16],
     started_at_ms: u64,
+    balance_read: Option<exec_svc::balance_receipts::BalanceRead>,
 }
 
 fn now_ms() -> io::Result<u64> {
@@ -375,6 +377,7 @@ impl Vault {
             journal,
             limits,
             mode,
+            balances: exec_svc::balance_receipts::BalanceReceipts::default(),
         };
         if mode.allows_account_read() {
             drop(vault.load_current_secret()?);
@@ -598,7 +601,12 @@ impl Vault {
     /// Phase one of an account read, under the vault lock: check identity and mode, then copy out the current
     /// key and its generation. The caller releases the lock for the venue read, so a slow venue cannot stall
     /// every other privileged request.
-    pub fn begin_account_read(&self) -> io::Result<Option<AccountRead>> {
+    pub fn begin_account_read(
+        &mut self,
+        resource: &exec_ipc::provision::AccountResource,
+        request_id: [u8; 16],
+        runtime_epoch: u64,
+    ) -> io::Result<Option<AccountRead>> {
         require_service_identity()?;
         if !self.mode.allows_account_read() {
             return Ok(None);
@@ -610,10 +618,23 @@ impl Vault {
         let Some(key) = self.load_current_secret()? else {
             return Ok(None);
         };
+        let started_at_ms = now_ms()?;
+        let balance_read = if matches!(resource, exec_ipc::provision::AccountResource::Balances) {
+            match self
+                .balances
+                .begin(generation, runtime_epoch, request_id, started_at_ms)
+            {
+                Ok(read) => Some(read),
+                Err(_) => return Ok(None),
+            }
+        } else {
+            None
+        };
         Ok(Some(AccountRead {
             key,
             generation,
-            started_at_ms: now_ms()?,
+            started_at_ms,
+            balance_read,
         }))
     }
 
@@ -633,14 +654,30 @@ impl Vault {
         use exec_svc::offline_recovery::RecoveryError;
         require_service_identity()?;
         let received_at_ms = now_ms()?;
+        let AccountRead {
+            key,
+            generation,
+            started_at_ms,
+            balance_read,
+        } = read;
+        drop(key);
         let Ok(body) = body else {
+            if let Some(read) = balance_read {
+                self.balances.abort(read);
+            }
             return Ok(None);
         };
-        if !self.mode.allows_account_read() {
+        if !self.mode.allows_account_read()
+            || self
+                .journal
+                .credential_metadata()
+                .is_none_or(|key| key.generation != generation)
+        {
+            if let Some(read) = balance_read {
+                self.balances.abort(read);
+            }
             return Ok(None);
         }
-        let (generation, started_at_ms) = (read.generation, read.started_at_ms);
-        drop(read);
         let observed = match resource {
             AccountResource::KnownClientOrder(client_id) => {
                 AccountObservation::from_order_response(
@@ -680,8 +717,52 @@ impl Vault {
         };
         let observation = match observed {
             Ok(observation) => observation,
-            Err(_) => return Ok(None),
+            Err(_) => {
+                if let Some(read) = balance_read {
+                    self.balances.abort(read);
+                }
+                return Ok(None);
+            }
         };
+        if let Some(read) = balance_read {
+            return match self.balances.complete(
+                read,
+                observation,
+                &mut self.journal,
+                self.limits.as_mut(),
+            ) {
+                Ok(saved) if !saved.disagreed => Ok(Some((body, Some(saved.receipt)))),
+                Ok(_) => Ok(None),
+                Err(exec_svc::balance_receipts::ReceiptError::CommitUncertain) => Err(
+                    io::Error::other("balance journal copies uncertain; service must stop"),
+                ),
+                Err(_) => Ok(None),
+            };
+        }
+        let owned = |id: &str| {
+            self.limits
+                .as_ref()
+                .is_some_and(|ledger| ledger.get(id).is_some())
+        };
+        let own_order_read = match observation.kind() {
+            AccountKind::KnownClientOrder => observation.data()["result"]["clientOrderId"]
+                .as_str()
+                .is_some_and(owned),
+            AccountKind::OpenOrders | AccountKind::OrderHistory => observation.data()["result"]
+                ["orders"]
+                .as_array()
+                .is_some_and(|rows| {
+                    rows.iter()
+                        .any(|row| row["clientOrderId"].as_str().is_some_and(owned))
+                }),
+            _ => false,
+        };
+        if own_order_read {
+            // shortcut: any own-order read fences balances; track changes only if continuous polling needs it.
+            self.balances
+                .own_activity(received_at_ms)
+                .map_err(|_| io::Error::other("balance activity fence failed"))?;
+        }
         match self.journal.record_account_observation(observation) {
             Ok(receipt) => Ok(Some((body, Some(receipt)))),
             Err(RecoveryError::Ledger(_)) => Err(io::Error::other(

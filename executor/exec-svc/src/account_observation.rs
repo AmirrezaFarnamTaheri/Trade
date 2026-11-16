@@ -546,6 +546,12 @@ impl AccountObservation {
     pub fn generation(&self) -> [u8; 16] {
         self.generation
     }
+    pub fn runtime_epoch(&self) -> u64 {
+        self.runtime_epoch
+    }
+    pub fn response_digest(&self) -> [u8; 32] {
+        self.response_digest
+    }
     pub fn request_id(&self) -> [u8; 16] {
         self.request_id
     }

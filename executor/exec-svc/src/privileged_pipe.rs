@@ -178,7 +178,7 @@ pub async fn serve(
                             let epoch = operator.gate.runtime_epoch();
                             let observed = exec_svc::read_outside_lock(
                                 &vault,
-                                |v| v.begin_account_read(),
+                                |v| v.begin_account_read(&resource, correlation, epoch),
                                 |plan| crate::service_account::read(&plan.key, &resource),
                                 |v, plan, body| {
                                     v.finish_account_read(plan, &resource, body, correlation, epoch)
