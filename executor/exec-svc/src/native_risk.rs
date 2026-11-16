@@ -10,6 +10,7 @@ pub struct NativeRisk {
     pub loss_quote: Exact,
     pub open_orders: u32,
     pub orders_today: u32,
+    pub own_inventory: BTreeMap<String, Exact>,
 }
 
 fn zero() -> Exact {
@@ -160,6 +161,7 @@ pub fn measure(
         return Err("venue and executor open orders disagree");
     }
     let mut marked = zero();
+    let mut own_inventory = BTreeMap::new();
     let after_fee = minus(
         Exact {
             mantissa: 1,
@@ -169,6 +171,7 @@ pub fn measure(
     )?;
     for (base, (bought, sold)) in inventory {
         let quantity = minus(bought, sold)?;
+        own_inventory.insert(base.to_owned(), quantity);
         if !quantity.is_zero() {
             let book = markets
                 .get(&format!("{base}{quote_asset}"))
@@ -197,5 +200,6 @@ pub fn measure(
             .try_into()
             .map_err(|_| "open count overflow")?,
         orders_today,
+        own_inventory,
     })
 }

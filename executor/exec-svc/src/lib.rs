@@ -422,6 +422,7 @@ pub mod offline_recovery;
 /// Exact service account observations; never spendable balances or permission proof.
 pub mod account_observation;
 pub mod balance_receipts;
+pub mod native_admission;
 pub mod native_market;
 pub mod native_risk;
 pub mod owner_evidence;

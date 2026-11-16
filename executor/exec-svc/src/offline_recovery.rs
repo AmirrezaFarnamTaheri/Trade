@@ -32,6 +32,7 @@ const REVOKE_APPROVAL: u8 = 11;
 const PREPARE_INTENT: u8 = 12;
 const RESERVE_REVIEW: u8 = 13;
 const ACCOUNT_OBSERVATION: u8 = 14;
+const RESERVE_REVIEW_WITH_FEE: u8 = 15;
 const CHECKPOINT_MAGIC: &[u8; 8] = b"TGCKPT01";
 const CHECKPOINT_MANIFEST_MAGIC: &[u8; 8] = b"TGCKPT02";
 const CHECKPOINT_PAGE_MAGIC: &[u8; 8] = b"TGCKPG01";
@@ -493,11 +494,16 @@ struct ReviewedReservation {
     context: IntentPreparation,
     ticket: exec_ipc::review::Ticket,
     snapshot: BalanceSnapshot,
+    held_quanta: Option<u64>,
 }
 impl ReviewedReservation {
     fn encode(&self) -> Result<Vec<u8>, RecoveryError> {
         let mut raw = self.context.encode()?;
-        raw[MAGIC.len()] = RESERVE_REVIEW;
+        raw[MAGIC.len()] = if self.held_quanta.is_some() {
+            RESERVE_REVIEW_WITH_FEE
+        } else {
+            RESERVE_REVIEW
+        };
         raw.extend_from_slice(
             &self
                 .ticket
@@ -506,6 +512,9 @@ impl ReviewedReservation {
         );
         raw.extend_from_slice(&self.snapshot.available_quanta.to_be_bytes());
         raw.extend_from_slice(&self.snapshot.sequence.to_be_bytes());
+        if let Some(held) = self.held_quanta {
+            raw.extend_from_slice(&held.to_be_bytes());
+        }
         Ok(raw)
     }
 }
@@ -531,11 +540,18 @@ fn apply_review_reservation(
     } else {
         &ticket.base
     };
-    let quanta = if ticket.buy {
+    let ordinary_hold = if ticket.buy {
         ticket.max_quote_debit
     } else {
         ticket.quantity_quanta
     };
+    let quanta = value.held_quanta.unwrap_or(ordinary_hold);
+    if (ticket.buy && quanta != ordinary_hold)
+        || quanta < ordinary_hold
+        || (!ticket.buy && quanta > ordinary_hold.saturating_mul(2))
+    {
+        return Err(RecoveryError::InvalidIdentity);
+    }
     let units = |value: &exec_ipc::review::Ticket| {
         if value.base == *asset {
             (value.base_epoch, value.base_decimals)
@@ -1014,7 +1030,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                     .map_err(|_| RecoveryError::MalformedEvent)?,
             )
         }
-        PREPARE_INTENT | RESERVE_REVIEW => {
+        PREPARE_INTENT | RESERVE_REVIEW | RESERVE_REVIEW_WITH_FEE => {
             let value = IntentPreparation {
                 client_id: id,
                 expected_sequence: r.num()?,
@@ -1047,6 +1063,11 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                     context: value,
                     ticket,
                     snapshot,
+                    held_quanta: if kind == RESERVE_REVIEW_WITH_FEE {
+                        Some(r.num()?)
+                    } else {
+                        None
+                    },
                 })
             }
         }
@@ -2217,6 +2238,25 @@ impl DurableOrderJournal {
         context: IntentPreparation,
         snapshot: &BalanceSnapshot,
     ) -> Result<(), RecoveryError> {
+        self.reserve_review(context, snapshot, None)
+    }
+
+    /// Native admission includes a conservative outgoing-base fee in a sell hold.
+    pub fn reserve_prepared_with_hold(
+        &mut self,
+        context: IntentPreparation,
+        snapshot: &BalanceSnapshot,
+        held_quanta: u64,
+    ) -> Result<(), RecoveryError> {
+        self.reserve_review(context, snapshot, Some(held_quanta))
+    }
+
+    fn reserve_review(
+        &mut self,
+        context: IntentPreparation,
+        snapshot: &BalanceSnapshot,
+        held_quanta: Option<u64>,
+    ) -> Result<(), RecoveryError> {
         if self
             .intents
             .keys()
@@ -2237,6 +2277,7 @@ impl DurableOrderJournal {
             context,
             ticket,
             snapshot: snapshot.clone(),
+            held_quanta,
         };
         let mut intents = self.intents.clone();
         let mut reservations = self.reservations.clone();
