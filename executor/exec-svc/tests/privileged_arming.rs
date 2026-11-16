@@ -186,6 +186,43 @@ fn stop_or_disarm_during_preflight_invalidates_the_approval_snapshot() {
 }
 
 #[test]
+fn approval_commit_failure_or_stop_during_commit_never_opens_the_gate() {
+    let owner = OwnerFile::new();
+    for halted in [false, true] {
+        let gate = StopGate::new(7).unwrap();
+        let mut controller = ArmController::new();
+        let result = controller.approve_committed(
+            &gate,
+            gate.approval_snapshot().unwrap(),
+            owner.policy(),
+            &evidence(NOW),
+            "owner",
+            NOW,
+            |record| {
+                assert_eq!(gate.mode(), StopMode::Disarmed);
+                assert_ne!(record.digest(), [0; 32]);
+                if halted {
+                    stop(&gate, StopCommand::Halt);
+                    Ok(())
+                } else {
+                    Err(std::io::Error::other("synthetic disk failure"))
+                }
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(
+            gate.mode(),
+            if halted {
+                StopMode::Halted
+            } else {
+                StopMode::Disarmed
+            }
+        );
+        assert!(controller.record().is_none());
+    }
+}
+
+#[test]
 fn concurrent_halt_always_revokes_an_arm_even_when_approval_wins_first() {
     let owner = OwnerFile::new();
     for _ in 0..50 {

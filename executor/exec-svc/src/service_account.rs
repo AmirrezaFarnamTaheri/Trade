@@ -82,8 +82,23 @@ fn finish_observation(body: Secret, key: &Secret, elapsed: Duration) -> io::Resu
 
 /// One venue read with a key copied out of the vault, so the vault lock is not held across network I/O.
 pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
-    let path = wide(&resource.path().map_err(|_| uncertain())?);
-    let header = key_header(key)?;
+    read_path(Some(key), &resource.path().map_err(|_| uncertain())?)
+}
+
+pub fn public_depth(symbol: &str) -> io::Result<Secret> {
+    if !(3..=32).contains(&symbol.len())
+        || !symbol
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+    {
+        return Err(uncertain());
+    }
+    read_path(None, &format!("/v1/depth?symbol={symbol}"))
+}
+
+fn read_path(key: Option<&Secret>, resource: &str) -> io::Result<Secret> {
+    let path = wide(resource);
+    let header = key.map(key_header).transpose()?;
     let started = Instant::now();
     unsafe {
         let session = Handle::checked(WinHttpOpen(
@@ -125,8 +140,12 @@ pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
         // Native certificate validation is unchanged. No proxy, auth negotiation, redirect or request body.
         success(WinHttpSendRequest(
             request.0,
-            header.0.as_ptr(),
-            (header.0.len() - 1) as u32,
+            header
+                .as_ref()
+                .map_or(ptr::null(), |header| header.0.as_ptr()),
+            header
+                .as_ref()
+                .map_or(0, |header| (header.0.len() - 1) as u32),
             ptr::null(),
             0,
             0,
@@ -168,7 +187,13 @@ pub fn read(key: &Secret, resource: &AccountResource) -> io::Result<Secret> {
             }
             body.0.extend_from_slice(&chunk.0[..count as usize]);
         }
-        finish_observation(body, key, started.elapsed())
+        if let Some(key) = key {
+            finish_observation(body, key, started.elapsed())
+        } else if started.elapsed() >= Duration::from_secs(12) || body.0.is_empty() {
+            Err(uncertain())
+        } else {
+            Ok(body)
+        }
     }
 }
 
@@ -188,6 +213,13 @@ mod tests {
         }
         assert!(key_header(&Secret(vec![b'a'; exec_ipc::provision::MAX_SECRET + 1])).is_err());
         assert!(key_header(&Secret(b"synthetic-not-a-key".to_vec())).is_ok());
+    }
+    #[test]
+    fn public_book_path_rejects_caller_control_before_network_io() {
+        for symbol in ["", "BTCUSDT&x=y", "../balances", "btcusdt", "BTC\r\n", "AB"] {
+            assert!(public_depth(symbol).is_err());
+        }
+        assert!(public_depth(&"A".repeat(33)).is_err());
     }
     #[test]
     fn response_bound_deadline_and_credential_echo_fail_closed() {

@@ -2092,6 +2092,10 @@ impl DurableOrderJournal {
             .get(&(AccountKind::KnownClientOrder, client_id.into()))
             .filter(|value| value.is_fresh(generation, epoch, now, max_age))
     }
+    pub fn latest_known_order(&self, client_id: &str) -> Option<&AccountObservation> {
+        self.account_observations
+            .get(&(AccountKind::KnownClientOrder, client_id.into()))
+    }
 
     pub fn order_page_observation(
         &self,
@@ -2431,6 +2435,35 @@ impl DurableOrderJournal {
             .iter()
             .filter(|(_, record)| record.attempt.holds_slot())
             .map(|(id, _)| id.as_str())
+            .collect()
+    }
+    /// History is protected native receipt data; active orders also require a current read.
+    pub fn reviewed_risk_orders(
+        &self,
+        generation: [u8; 16],
+        epoch: u64,
+        now: u64,
+    ) -> Option<Vec<crate::native_risk::OwnOrder<'_>>> {
+        self.intents
+            .iter()
+            .filter(|(_, order)| order.attempt.lifecycle() != exec_core::orders::Lifecycle::Denied)
+            .map(|(id, order)| {
+                let ticket = order.review_ticket.as_ref()?;
+                let observation = self
+                    .account_observations
+                    .get(&(AccountKind::KnownClientOrder, id.clone()))?;
+                if order.attempt.holds_slot()
+                    && !observation.is_fresh(generation, epoch, now, 30_000)
+                {
+                    return None;
+                }
+                let submitted_at_ms = self.approvals.get(id)?.prepared_at_ms?;
+                Some(crate::native_risk::OwnOrder {
+                    ticket,
+                    observation,
+                    submitted_at_ms,
+                })
+            })
             .collect()
     }
     pub fn record_count(&self) -> usize {

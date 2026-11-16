@@ -428,9 +428,10 @@ fn only_the_latest_two_complete_reads_contribute_to_the_freshness_bound() {
         20
     );
     let read = producer.begin([3; 16], 10, [4; 16], 1060).unwrap();
-    assert_eq!(
-        producer.available("USDT", 2, 0, 1060, 120_000),
-        Err(AvailableError::Missing)
-    );
+    // A request becomes a receipt only after both durable commits; an uncertain commit poisons the producer.
+    assert!(producer.available("USDT", 2, 0, 1060, 120_000).is_ok());
+    assert!(producer.matches_context([3; 16], 10));
+    assert!(!producer.matches_context([4; 16], 10));
+    assert!(!producer.matches_context([3; 16], 11));
     producer.abort(read);
 }

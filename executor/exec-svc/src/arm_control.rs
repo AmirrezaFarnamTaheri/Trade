@@ -318,6 +318,23 @@ impl ArmController {
         approver: &str,
         now_ms: u64,
     ) -> Result<ArmRecord, ArmControlError> {
+        self.approve_committed(gate, snapshot, policy, evidence, approver, now_ms, |_| {
+            Ok(())
+        })
+    }
+
+    /// The native host persists the approval before the gate can gain authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn approve_committed(
+        &mut self,
+        gate: &StopGate,
+        snapshot: ApprovalSnapshot,
+        policy: PolicyFile,
+        evidence: &ArmEvidence,
+        approver: &str,
+        now_ms: u64,
+        persist: impl FnOnce(&ArmRecord) -> io::Result<()>,
+    ) -> Result<ArmRecord, ArmControlError> {
         let _lease = policy
             .lease()
             .map_err(|_| ArmControlError::Blocked(ArmBlocker::Policy.bit()))?;
@@ -333,6 +350,8 @@ impl ArmController {
         if let Verdict::Disarm(reason) = record.check(&inputs) {
             return Err(ArmControlError::Kill(reason));
         }
+        persist(&record)
+            .map_err(|_| ArmControlError::Blocked(ArmBlocker::PrivilegedFault.bit()))?;
         gate.arm(snapshot)
             .map_err(|_| ArmControlError::Blocked(ArmBlocker::ApprovalChanged.bit()))?;
         self.generation = evidence.credential_generation;

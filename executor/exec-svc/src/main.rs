@@ -3,6 +3,8 @@
 #[cfg(windows)]
 mod credential_vault;
 #[cfg(windows)]
+mod native_runtime;
+#[cfg(windows)]
 mod operate_pipe;
 #[cfg(windows)]
 mod privileged_pipe;

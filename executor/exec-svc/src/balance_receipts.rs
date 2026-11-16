@@ -85,6 +85,12 @@ fn quanta(text: &str, decimals: u8, round_up: bool) -> Result<u64, AvailableErro
 }
 
 impl BalanceReceipts {
+    pub fn matches_context(&self, generation: [u8; 16], runtime_epoch: u64) -> bool {
+        !self.poisoned
+            && self.fence.is_some_and(|fence| {
+                fence.credential_generation == generation && fence.runtime_epoch == runtime_epoch
+            })
+    }
     /// Context comes from the native vault and runtime, never from an IPC balance body.
     pub fn begin(
         &mut self,
@@ -264,9 +270,6 @@ impl BalanceReceipts {
     ) -> Result<Available, AvailableError> {
         if self.poisoned || decimals > 18 {
             return Err(AvailableError::InvalidReceipt);
-        }
-        if self.in_flight.is_some() {
-            return Err(AvailableError::Missing);
         }
         let fence = self.fence.ok_or(AvailableError::Missing)?;
         let mut copies = Vec::with_capacity(4);
