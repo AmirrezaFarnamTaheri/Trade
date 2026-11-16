@@ -37,6 +37,9 @@ fn independent_replay_rejects_a_self_consistent_but_unearned_checkpoint() {
     assert!(restored.wait_for_audit().is_err());
     assert_eq!(restored.audit_status(), AuditStatus::Failed);
     assert!(restored.audit_failed());
+    let backup = dir.path().join("unearned-backup.sqlite");
+    assert!(restored.backup_to(&backup).is_err());
+    assert!(!backup.exists());
     let count = restored.record_count();
     assert!(restored.create_intent("two", "main", "USDT", 1).is_err());
     assert_eq!(restored.record_count(), count);
@@ -151,6 +154,69 @@ fn local_backup_anchors_remain_verifiable_before_on_and_after_a_checkpoint() {
     }
     assert!(ledger.verify_anchor((before.0, after.1)).is_err());
     assert!(ledger.verify_anchor((after.0 + 1, after.1)).is_err());
+}
+
+#[test]
+fn consistent_local_copy_preserves_checkpoint_anchors_holds_and_unknown_recovery() {
+    use exec_core::orders::{BalanceSnapshot, Event, FailureStage, OrderError};
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.sqlite");
+    let backup = dir.path().join("local-copy.sqlite");
+    let mut journal = DurableOrderJournal::open(&source).unwrap();
+    journal.create_intent("pending", "main", "USDT", 1).unwrap();
+    journal
+        .reserve_intent(
+            "pending",
+            50,
+            &BalanceSnapshot::new("main", "USDT", 100, 1).unwrap(),
+        )
+        .unwrap();
+    let before_checkpoint = journal.ledger.tip();
+    journal.record_event("pending", Event::BeginSend).unwrap();
+    journal.checkpoint().unwrap();
+    let checkpoint = journal.ledger.tip();
+    let tip = journal.backup_to(&backup).unwrap();
+    assert_eq!(tip, checkpoint);
+    let bytes = std::fs::read(&backup).unwrap();
+    Ledger::verify_backup(&backup, tip, &[before_checkpoint, checkpoint]).unwrap();
+    assert_eq!(std::fs::read(&backup).unwrap(), bytes);
+    assert!(!dir.path().join("local-copy.sqlite.writer.lock").exists());
+    assert!(Ledger::verify_backup(&backup, (tip.0 + 1, tip.1), &[]).is_err());
+    assert!(Ledger::verify_backup(&backup, tip, &[(before_checkpoint.0, tip.1)]).is_err());
+    assert!(journal.backup_to(&backup).is_err());
+    assert_eq!(std::fs::read(&backup).unwrap(), bytes);
+    let existing_empty = dir.path().join("existing-empty.sqlite");
+    std::fs::write(&existing_empty, []).unwrap();
+    assert!(journal.backup_to(&existing_empty).is_err());
+    assert_eq!(std::fs::metadata(existing_empty).unwrap().len(), 0);
+    journal
+        .create_intent("after-copy", "main", "BTC", 1)
+        .unwrap();
+    Ledger::verify_backup(&backup, tip, &[checkpoint]).unwrap();
+    let mut restored = DurableOrderJournal::open(&backup).unwrap();
+    restored.wait_for_audit().unwrap();
+    assert_eq!(restored.reserved("main", "USDT"), 50);
+    assert!(restored.get("after-copy").is_none());
+    assert_eq!(
+        restored.record_event(
+            "pending",
+            Event::TransportFailed(FailureStage::BeforeFirstByte)
+        ),
+        Err(RecoveryError::Order(OrderError::IllegalTransition))
+    );
+    drop(restored);
+    let conn = rusqlite::Connection::open(&backup).unwrap();
+    conn.execute_batch(
+        "DROP TRIGGER ledger_events_no_update;
+UPDATE ledger_events SET event_bytes=X'00' WHERE sequence=1;
+CREATE TRIGGER ledger_events_no_update BEFORE UPDATE ON ledger_events
+BEGIN SELECT RAISE(ABORT, 'ledger events are immutable'); END;",
+    )
+    .unwrap();
+    assert!(matches!(
+        Ledger::verify_backup(&backup, tip, &[]),
+        Err(LedgerError::Integrity { .. })
+    ));
 }
 
 #[test]

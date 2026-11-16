@@ -540,6 +540,64 @@ DELETE FROM ledger_identity_tip;")?;
         Ok(())
     }
 
+    /// Caller selects a trusted local directory; an existing destination is never overwritten.
+    pub fn backup_to(&self, destination: impl AsRef<Path>) -> Result<(u64, [u8; 32]), LedgerError> {
+        let destination = destination.as_ref();
+        let name = destination
+            .to_str()
+            .ok_or(LedgerError::Configuration("backup path is not Unicode"))?;
+        let created = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(destination)?;
+        self.conn.execute("VACUUM INTO ?1", [name])?;
+        created.sync_all()?;
+        drop(created);
+        let tip = self.tip();
+        Self::verify_backup(destination, tip, &[])?;
+        Ok(tip)
+    }
+
+    /// Read-only verification of a sealed SQLite copy against native-issued tip/backup anchors.
+    pub fn verify_backup(
+        path: impl AsRef<Path>,
+        expected_tip: (u64, [u8; 32]),
+        anchors: &[(u64, [u8; 32])],
+    ) -> Result<(), LedgerError> {
+        let mut conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        conn.busy_timeout(Duration::from_secs(5))?;
+        let tx = conn.transaction()?;
+        let version: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if version != SCHEMA_VERSION {
+            return Err(LedgerError::UnsupportedSchema(version));
+        }
+        let guards: i64 = tx.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN ('ledger_events_no_update','ledger_events_no_delete')", [], |row| row.get(0))?;
+        if guards != 2 {
+            return Err(LedgerError::Configuration(
+                "backup append-only guards missing",
+            ));
+        }
+        let mut matched: Vec<_> = anchors
+            .iter()
+            .map(|anchor| *anchor == (0, GENESIS))
+            .collect();
+        let tip = visit_verified(&tx, |entry| {
+            for (anchor, matched) in anchors.iter().zip(&mut matched) {
+                if entry.sequence == anchor.0 {
+                    *matched = entry.event_hash == anchor.1;
+                }
+            }
+            Ok(())
+        })?;
+        if tip != expected_tip || matched.iter().any(|matched| !matched) {
+            return Err(LedgerError::Integrity {
+                sequence: tip.0,
+                reason: "backup tip or anchor mismatch",
+            });
+        }
+        Ok(())
+    }
+
     /// Verify the entire chain, also detecting changes to the head while open.
     pub fn verify(&self) -> Result<[u8; 32], LedgerError> {
         let (sequence, head, _) = load_verified(&self.conn, u64::MAX)?;

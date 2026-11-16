@@ -50,3 +50,18 @@ events. It proves historical request-index behavior, not a million simultaneous 
 
 No protected service installation, cold-disk/VM/second-host timing, hosted CI or venue qualification was performed.
 The owner canceled off-machine backups. The source verification does not approve publication, arming or funding.
+
+## Service-created local copy primitive
+
+A separate source change adds `DurableOrderJournal::backup_to(path)`: it requires the completed independent audit,
+creates the destination exclusively, performs a bound-path SQLite `VACUUM INTO`, flushes the copy and verifies
+every hash-chain byte against the exact native-issued tip. `Ledger::verify_backup(path, tip, anchors)` opens the
+copy read-only and checks the schema guards, full chain and supplied anchors. Existing destinations, including
+empty files, are refused. A failure may leave an unqualified partial destination; it never overwrites an older copy.
+
+The local-copy regression checks checkpoint anchors, a consistent earlier tip despite later source writes,
+preserved holds and recovered unknown-send restrictions, failed-audit refusal, no-overwrite behavior, altered
+anchors/tips and corrupted stored bytes. Native custody must choose the protected local destination and include
+the matching ciphertext generation before it can claim a complete custody backup. This primitive installs no
+schedule and makes no off-machine copy. The full native suite after this addition passes 205 ordinary tests,
+with the million-row test still explicitly excluded from the ordinary count and separately qualified above.

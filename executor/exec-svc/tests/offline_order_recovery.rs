@@ -102,7 +102,8 @@ fn automatic_checkpoint_bounds_the_projection_suffix() {
 #[test]
 fn chunked_checkpoint_restores_state_larger_than_one_event() {
     use std::time::Instant;
-    let path = db_path("large-checkpoint");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("paged-state.sqlite");
     let mut journal = DurableOrderJournal::open(&path).unwrap();
     let name = "a".repeat(90);
     for i in 0..2400 {

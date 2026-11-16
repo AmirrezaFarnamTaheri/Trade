@@ -1836,6 +1836,15 @@ impl DurableOrderJournal {
         self.audit_status() == AuditStatus::Failed
     }
 
+    /// Native custody chooses the local destination; a failed or pending audit cannot certify a copy.
+    pub fn backup_to(
+        &mut self,
+        destination: impl AsRef<Path>,
+    ) -> Result<(u64, [u8; 32]), RecoveryError> {
+        self.wait_for_audit()?;
+        Ok(self.ledger.backup_to(destination)?)
+    }
+
     /// A writer never consumes a restored projection before independent replay has validated it.
     pub fn wait_for_audit(&mut self) -> Result<(), RecoveryError> {
         if let Some(audit) = self.audit.take() {
