@@ -91,6 +91,8 @@ class Consolidator:
         self.symbol, self.spec, self.period, self.cur = symbol, spec, period, None
         self.publication_lag, self.pending, self.watermark = publication_lag, [], None
         self.direction, self.extreme = -1, None
+        # A fixed grid or a rules-derived session function: a quote inside the forming bar cannot close it.
+        self._gridded = period is None or not isinstance(period, (Fixed, Count, Volume, Mixed, Calendar, DirectionalChange))
 
     def period_of(self, t: datetime) -> tuple[datetime, datetime]:
         t = instant(t)
@@ -131,6 +133,17 @@ class Consolidator:
         if not isinstance(price, Decimal) or not price.is_finite() or price <= 0 or not isinstance(qty, Decimal) or not qty.is_finite() or qty < 0:
             raise ValueError("bar price must be positive and finite; quantity must be nonnegative and finite")
         t = instant(t)
+        c = self.cur
+        if (self._gridded and c is not None and not self.pending and self.watermark is not None
+                and self.watermark <= t < c["end"]):
+            # Same result as the general path below for a quote inside the forming bar.
+            self.watermark = t
+            if price > c["h"]:
+                c["h"] = price
+            if price < c["l"]:
+                c["l"] = price
+            c["c"], c["v"], c["n"] = price, c["v"] + qty, c["n"] + 1
+            return []
         dc = self.period if isinstance(self.period, DirectionalChange) else None
         if dc:
             bid, ask = (price if bid is None else bid), (price if ask is None else ask)
