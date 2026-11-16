@@ -201,12 +201,16 @@ pub struct PolicyLease {
     _file: File,
     runtime_epoch: u64,
     revision: u64,
+    armed_at_ms: u64,
+    expires_at_ms: u64,
 }
 
 impl PolicyLease {
     /// Repeat immediately before each venue effect; the file lease alone grants no authority.
-    pub fn allows_effect(&self, gate: &StopGate) -> bool {
-        gate.is_armed_at(self.runtime_epoch, self.revision)
+    pub fn allows_effect_at(&self, gate: &StopGate, now_ms: u64) -> bool {
+        now_ms >= self.armed_at_ms
+            && now_ms < self.expires_at_ms
+            && gate.is_armed_at(self.runtime_epoch, self.revision)
     }
 }
 
@@ -271,6 +275,8 @@ impl PolicyFile {
                 _file: file,
                 runtime_epoch: 0,
                 revision: 0,
+                armed_at_ms: 0,
+                expires_at_ms: 0,
             },
             policy,
         ))
@@ -421,6 +427,8 @@ impl ArmController {
         }
         lease.runtime_epoch = gate.runtime_epoch();
         lease.revision = revision;
+        lease.armed_at_ms = record.armed_at_ms;
+        lease.expires_at_ms = record.expires_at_ms;
         Ok(lease)
     }
 }

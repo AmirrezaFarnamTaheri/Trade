@@ -11,7 +11,7 @@ param([string]$BinaryDirectory, [string]$HashManifest, [string]$Signature, [swit
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $names = @('gym-stopctl.exe','gym-hardstop.exe','gym-provision.exe','gym-account-read.exe',
-    'gym-ceiling.exe','gym-review.exe','gym-executor.exe')
+    'gym-ceiling.exe','gym-review.exe','gym-arm.exe','gym-executor.exe')
 function Read-BundleHashes([string]$Text) {
     if ($Text.Length -gt 4096) { throw 'Oversized bundle manifest.' }
     $hashes = @{}

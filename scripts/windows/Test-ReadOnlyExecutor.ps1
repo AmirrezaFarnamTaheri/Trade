@@ -100,6 +100,7 @@ $Provision = Join-Path $CodeDir 'gym-provision.exe'
 $AccountRead = Join-Path $CodeDir 'gym-account-read.exe'
 $CeilingControl = Join-Path $CodeDir 'gym-ceiling.exe'
 $OperatorReview = Join-Path $CodeDir 'gym-review.exe'
+$ArmControl = Join-Path $CodeDir 'gym-arm.exe'
 $StopUser = Join-Path $CodeDir 'stop-user.sid'
 $StopLogon = Join-Path $CodeDir 'stop-logon.sid'
 $trusted = @('S-1-5-18', 'S-1-5-32-544', $sid)
@@ -135,8 +136,8 @@ $writeBits = [Security.AccessControl.FileSystemRights]::WriteData -bor
     [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
     [Security.AccessControl.FileSystemRights]::TakeOwnership
 
-foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $CeilingControl, $OperatorReview, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
-    if ($MigrationPreflight -and $path -in @($CeilingControl, $OperatorReview) -and -not (Test-Path -LiteralPath $path)) { continue }
+foreach ($path in @($CodeRoot, $CodeDir, $Binary, $StopCtl, $HardStop, $Provision, $AccountRead, $CeilingControl, $OperatorReview, $ArmControl, $StopUser, $StopLogon, $DataRoot, $DataDir)) {
+    if ($MigrationPreflight -and $path -in @($CeilingControl, $OperatorReview, $ArmControl) -and -not (Test-Path -LiteralPath $path)) { continue }
     $item = Get-Item -LiteralPath $path -ErrorAction Stop
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Reparse point in protected path: $path"

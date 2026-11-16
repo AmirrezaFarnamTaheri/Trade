@@ -53,3 +53,7 @@ path = "src/bin/gym-ceiling.rs"
 [[bin]]
 name = "gym-review"
 path = "src/bin/gym-review.rs"
+
+[[bin]]
+name = "gym-arm"
+path = "src/bin/gym-arm.rs"

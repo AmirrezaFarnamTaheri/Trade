@@ -147,7 +147,7 @@ fn only_a_complete_current_native_preflight_can_arm() {
             Exact::parse("10").unwrap(),
         )
         .unwrap();
-    assert!(lease.allows_effect(&gate));
+    assert!(lease.allows_effect_at(&gate, NOW));
     assert_eq!(StopGate::new(8).unwrap().mode(), StopMode::Disarmed);
 }
 
@@ -268,7 +268,7 @@ fn file_changes_revoke_approval_and_each_effect_holds_the_policy_lease() {
     #[cfg(windows)]
     assert!(std::fs::write(owner.path(), POLICY).is_err());
     stop(&gate, StopCommand::PauseEntries);
-    assert!(!lease.allows_effect(&gate));
+    assert!(!lease.allows_effect_at(&gate, NOW));
     drop(lease);
     let (gate, mut controller) = armed(&owner);
     std::fs::write(
@@ -285,6 +285,24 @@ fn file_changes_revoke_approval_and_each_effect_holds_the_policy_lease() {
     assert_eq!(gate.mode(), StopMode::Disarmed);
     std::fs::write(owner.path(), POLICY).unwrap();
     assert_eq!(gate.mode(), StopMode::Disarmed);
+}
+
+#[test]
+fn effect_lease_expires_without_waiting_for_the_safety_tick() {
+    let owner = OwnerFile::new();
+    let (gate, mut controller) = armed(&owner);
+    let lease = controller
+        .admit_order(
+            &gate,
+            &evidence(NOW),
+            NOW,
+            "BTCUSDT",
+            Exact::parse("1").unwrap(),
+        )
+        .unwrap();
+    assert!(!lease.allows_effect_at(&gate, NOW - 1));
+    assert!(lease.allows_effect_at(&gate, NOW + 7 * 86_400_000 - 1));
+    assert!(!lease.allows_effect_at(&gate, NOW + 7 * 86_400_000));
 }
 
 #[test]
