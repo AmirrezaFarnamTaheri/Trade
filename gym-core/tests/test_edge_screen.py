@@ -47,6 +47,13 @@ def test_trend_holds_only_above_the_average_and_pays_on_each_change():
     assert screen.trend_returns(closes, 2, cost=0.01) == pytest.approx([0.0, 15 / 12 - 1 - 0.01, 9 / 15 - 1, -0.01])
 
 
+def test_daily_ranking_splits_at_the_outcome_close_instead_of_the_signal_day():
+    days = ["2023-12-29", "2023-12-30", "2023-12-31", "2024-01-01", "2024-01-02"]
+    before, after = screen.window_returns(days, [100.0, 100.0, 101.0, 202.0, 202.0], 2, 0.0)
+    assert before == [0.0]
+    assert after == [1.0, 0.0]  # Dec 31's signal earns Jan 1's return, so it cannot enter ranking
+
+
 def test_best_round_trip_buys_at_an_earlier_ask_and_sells_at_a_later_bid():
     day = [quote(0, 0.99, 1.00), quote(1, 0.97, 0.98), quote(2, 1.01, 1.02), quote(3, 0.95, 0.96)]
     assert screen.best_round_trip(day) == pytest.approx(1.01 / 0.98 - 1)

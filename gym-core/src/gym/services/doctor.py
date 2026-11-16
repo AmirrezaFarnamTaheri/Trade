@@ -122,18 +122,18 @@ def _backup(root: Path, now: datetime):
         return _check("backup_receipts", FAIL, str(e))
     latest = report["latest"]["BACKUP"]
     if latest is None:
-        return _check("backup_receipts", WARN, "no backup receipt recorded; run backup-once or install the schedule")
+        return _check("backup_receipts", SKIP, "optional local backups are not configured")
     age = now - datetime.fromisoformat(latest["recorded_at"])
     hours = age.total_seconds() / 3600
     return _check("backup_receipts", WARN if age > BACKUP_STALE else PASS,
-                  f"last backup {hours:.1f} h ago (sequence {latest['sequence']}); off-machine copy not verified")
+                  f"last local backup {hours:.1f} h ago (sequence {latest['sequence']})")
 
 
 def _research_backup(root: Path, now: datetime):
     from .research_backup import status
     last = status(root)
     if last is None:
-        return _check("research_backup", WARN, "market data, runs and raw segments have no backup; run backup-research")
+        return _check("research_backup", SKIP, "optional research backups are not configured")
     age = now - datetime.fromisoformat(last["at"])
     where = "same drive (cloud-synced folder?)" if last.get("same_device") else "another drive"
     return _check("research_backup", WARN if age > BACKUP_STALE else PASS,

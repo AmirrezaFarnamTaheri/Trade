@@ -7,7 +7,7 @@ function serviceReceiptDetails(receipts) {
     return Number.isFinite(date.getTime()) ? when(date.toISOString()) : String(value);
   };
   return `<h3>${esc(t("serviceReceipts"))}</h3><p class="field-help">${esc(t("serviceReceiptsNote"))}</p>` + list(receipts).map(row =>
-    `<details><summary>${esc(t(({BALANCES:"receiptBalances",FEES:"receiptFees",ORDER_STATUS:"receiptOrder",OPEN_ORDERS:"receiptOpenOrders",ORDER_HISTORY:"receiptHistory"})[row.resource] || "UNKNOWN"))}${row.client_id ? ` · ${esc(row.client_id)}` : ""}${row.page ? ` · ${esc(t("pageNumber"))} ${esc(row.page)} / ${esc(row.per_page)}` : ""} · ${esc(stamp(row.received_at_ms))} · ${esc(t("receiptEntry"))} ${esc(row.sequence)}</summary>${keyValues([
+    `<details data-key="receipt-${esc(row.request_id || row.sequence)}"><summary>${esc(t(({BALANCES:"receiptBalances",FEES:"receiptFees",ORDER_STATUS:"receiptOrder",OPEN_ORDERS:"receiptOpenOrders",ORDER_HISTORY:"receiptHistory"})[row.resource] || "UNKNOWN"))}${row.client_id ? ` · ${esc(row.client_id)}` : ""}${row.page ? ` · ${esc(t("pageNumber"))} ${esc(row.page)} / ${esc(row.per_page)}` : ""} · ${esc(stamp(row.received_at_ms))} · ${esc(t("receiptEntry"))} ${esc(row.sequence)}</summary>${keyValues([
       [t("receiptRequested"), esc(stamp(row.started_at_ms))], [t("receiptReceived"), esc(stamp(row.received_at_ms))],
       [t("receiptRuntime"), code(row.runtime_epoch)], [t("receiptGeneration"), code(row.credential_generation)],
       [t("receiptRequest"), code(row.request_id)], [t("receiptResponse"), code(row.response_digest)],
@@ -17,7 +17,7 @@ function serviceReceiptDetails(receipts) {
 function orderEvidenceDetails(evidence) {
   if (!list(evidence).length) return "";
   return `<h3>${esc(t("orderDetails"))}</h3><p class="field-help">${esc(t("orderDetailsNote"))}</p>` + list(evidence).map(row =>
-    `<details><summary>${esc(row.client_id)} · ${esc(row.symbol)} · ${esc(row.raw_status)}</summary>${keyValues([
+    `<details data-key="order-${esc(row.client_id)}"><summary>${esc(row.client_id)} · ${esc(row.symbol)} · ${esc(row.raw_status)}</summary>${keyValues([
       [t("side"), esc(row.side)], [t("requestedQuantity"), amount(row.requested_qty)],
       [t("filledObserved"), amount(row.executed_qty)], [t("fillCoverage"), esc(t(row.fill_coverage))],
       [t("settlement"), esc(t(row.settlement))],
@@ -27,7 +27,7 @@ function orderEvidenceDetails(evidence) {
 function orderPageDetails(pages) {
   if (!list(pages).length) return "";
   return `<h3>${esc(t("orderPages"))}</h3><p class="field-help">${esc(t("orderPagesNote"))}</p>` + list(pages).map(page =>
-    `<details><summary>${esc(t(page.kind === "OPEN" ? "receiptOpenOrders" : "receiptHistory"))} · ${esc(page.requested_page)}</summary>${keyValues([
+    `<details data-key="order-page-${esc(page.kind)}-${esc(page.requested_page)}"><summary>${esc(t(page.kind === "OPEN" ? "receiptOpenOrders" : "receiptHistory"))} · ${esc(page.requested_page)}</summary>${keyValues([
       [t("pageNumber"), esc(page.requested_page)], [t("perPage"), esc(page.requested_per_page)],
       [t("paginationEcho"), esc(t(page.pagination_echo))], [t("settlement"), esc(t(page.settlement))],
     ])}${table([t("clientId"), t("pair"), t("rawStatus"), t("filledObserved")], list(page.orders).map(row =>
@@ -120,7 +120,7 @@ async function previewTicket() {
   const input = $("offline-ticket"), button = $("preview-ticket"), output = $("ticket-output");
   const raw = input.value, revision = ticketRevision;
   button.disabled = true; button.setAttribute("aria-busy", "true"); input.removeAttribute("aria-invalid");
-  output.textContent = t("previewBusy"); rendered.delete("ticket-output");
+  output.textContent = t("previewBusy"); rendered.delete(output);
   try {
     JSON.parse(raw);
     // Preserve duplicate fields so the backend's strict parser can reject ambiguity.

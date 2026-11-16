@@ -2,6 +2,8 @@ const researchTabs = ["runs", "compare", "schedules", "margin", "workbench"];
 let researchTab = saved("researchTab", "runs", researchTabs);
 /** Select a research subview and keep URL history, focus, and ARIA state aligned. */
 function showResearchTab(name, focus = false, link = true) {
+  if (!researchTabs.includes(name)) name = "runs";
+  const changed = name !== researchTab;
   if (name !== researchTab) window.scrollTo?.({ top: 0 });
   researchTab = name; remember("researchTab", name);
   document.querySelectorAll("#research-tabs [role=tab]").forEach(tab => {
@@ -11,6 +13,7 @@ function showResearchTab(name, focus = false, link = true) {
   });
   for (const tab of researchTabs) $("panel-" + tab).hidden = tab !== name;
   if (link) linkResearch();
+  if (changed && state.view === "research") refresh();
 }
 $("research-tabs").addEventListener("click", event => {
   const tab = event.target.closest?.("[data-tab]") || event.target;
@@ -28,7 +31,7 @@ showResearchTab(researchTab);
 function selectSavedRun(event) {
   const button = event.target.closest?.("[data-run]") || event.target;
   if (!button.dataset.run) return;
-  state.selectedRun = button.dataset.run; state.record = null; state.savedComparison = false;
+  state.selectedRun = state.pinnedRun = button.dataset.run; state.record = null; state.savedComparison = false;
   showResearchTab("runs"); renderRunList(); refresh();
 }
 $("run-list").addEventListener("click", selectSavedRun);
@@ -46,8 +49,9 @@ $("compare-picked").addEventListener("click", async () => {
     renderSavedComparison(records);
   } catch (_) { setHTML("run-detail", empty(t("runReadError"))); }
 });
-$("run-filter").addEventListener("change", () => { state.runFilter = $("run-filter").value.trim().toUpperCase(); state.runCount = 50; refresh(); });
-$("run-more").addEventListener("click", () => { state.runCount = Math.min(200, state.runCount + 50); refresh(); });
+$("run-filter").addEventListener("change", () => { state.runFilter = $("run-filter").value.trim().toUpperCase(); state.runOffset = 0; refresh(); });
+$("run-more").addEventListener("click", () => { state.runOffset = Math.min(1_000_000, state.runOffset + 50); refresh(); });
+$("run-previous").addEventListener("click", () => { state.runOffset = Math.max(0, state.runOffset - 50); refresh(); });
 $("run-detail").addEventListener("click", async event => {
   const csvButton = event.target.closest?.("[data-csv]");
   if (csvButton && state.record) { exportCsv(csvButton.dataset.csv, state.record); return; }

@@ -3,6 +3,7 @@
 Read-only. The trial log is the single source; this parses its table so the workspace shows the same rows.
 """
 import re
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 from .allocation import journal
@@ -30,9 +31,17 @@ def forward(root: Path) -> dict | None:
     if not entries:
         return None
     last = entries[-1]
+    start, equity, base = (Decimal(value) for value in
+                           (entries[0]["equity"], last["equity"], last["holdings"]["base"]))
+    if not all(value.is_finite() for value in (start, equity, base)):
+        raise ValueError("invalid forward journal amount")
+    with localcontext() as context:
+        context.prec = max(28, max(start.adjusted(), equity.adjusted())
+                           - min(start.as_tuple().exponent, equity.as_tuple().exponent) + 2)
+        net = format(equity - start, "f")
     return {"symbol": last["symbol"], "started": entries[0]["at"], "latest": last["at"], "days": len(entries),
-            "start_equity": entries[0]["equity"], "equity": last["equity"],
-            "in_market": float(last["holdings"]["base"]) > 0, "trades": sum(1 for row in entries if row["decision"].get("trade"))}
+            "start_equity": entries[0]["equity"], "equity": last["equity"], "net": net,
+            "in_market": base > 0, "trades": sum(1 for row in entries if row["decision"].get("trade"))}
 
 
 def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:

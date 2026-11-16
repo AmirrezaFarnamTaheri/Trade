@@ -75,9 +75,31 @@ window.gymResearch = (() => {
   actions['market-breadth'] = [T.en.rsCompareMarketGroupBreadth, T.fa.rsCompareMarketGroupBreadth, 'groups: [{name, symbols}], quote_currency, from, to, resolution'];
   actions['order-page-import'] = [T.en.rsImportObservedOrderPage, T.fa.rsImportObservedOrderPage, 'account_id, observed_at, kind (OPEN/HISTORY), page, per_page, payload (documented map of order arrays; origin and completeness remain unverified)'];
   const $ = id => document.getElementById(id);
+  function translateInterface(node, from, to) {
+    if (node.nodeType === 3) {
+      const key = Object.keys(T[from]).find(key => T[from][key] === node.nodeValue.trim());
+      if (key) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), T[to][key]);
+      return;
+    }
+    if (['PRE', 'CODE', 'INPUT', 'TEXTAREA', 'BDI', 'TIME', 'SCRIPT', 'STYLE', 'TD'].includes(node.tagName) || node.hasAttribute?.('data-raw')) return;
+    for (const child of node.childNodes || []) translateInterface(child, from, to);
+    if (node.tagName === 'OPTGROUP') {
+      const key = Object.keys(T[from]).find(key => T[from][key] === node.label);
+      if (key) node.label = T[to][key];
+    }
+    const label = node.getAttribute?.('aria-label');
+    const key = Object.keys(T[from]).find(key => T[from][key] === label);
+    if (key) node.setAttribute('aria-label', T[to][key]);
+  }
   function mount(api, esc) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (language === next) return;
+    if (language) {
+      // Keep replay cursors, exact drafts and in-flight receipt identities attached to their original controls.
+      for (const id of ['research-workspace', 'research-workbench']) translateInterface($(id), language, next);
+      language = next;
+      return;
+    }
     language = next;
     const fa = language === 'fa';
     workspace(api, esc, fa);
@@ -93,6 +115,8 @@ window.gymResearch = (() => {
     $('research-action').innerHTML = groups.map(([en, persian], index) => `<optgroup label="${esc(fa ? persian : en)}">${Object.entries(actions)
       .filter(([id]) => groups.findIndex(group => group[2].test(id)) === index)
       .map(([id, labels]) => `<option value="${id}">${esc(labels[fa ? 1 : 0])}</option>`).join('')}</optgroup>`).join('');
+    let actionBusy = false;
+    const text = (en, persian) => language === 'fa' ? persian : en;
     function update() {
       const action = $('research-action').value;
       $('research-action-fields').textContent = actions[action][2];
@@ -102,8 +126,11 @@ window.gymResearch = (() => {
     $('research-action').onchange = update; update();
     $('research-action-form').onsubmit = async event => {
       event.preventDefault();
+      if (actionBusy) return;
+      actionBusy = true;
       const submit = event.target.querySelector('button'); submit.disabled = true;
-      $('research-action-status').textContent = fa ? T.fa.rsWorking : T.en.rsWorking;
+      $('research-action').disabled = true; $('research-action-input').disabled = true;
+      $('research-action-status').textContent = text(T.en.rsWorking, T.fa.rsWorking);
       $('research-action-result').textContent = '';
       try {
         const action = $('research-action').value;
@@ -112,18 +139,18 @@ window.gymResearch = (() => {
         const result = await api('/api/research/action', { method: 'POST', body: JSON.stringify({ action, value }) }, 130000);
         $('research-action-result').textContent = JSON.stringify(result, null, 2);
         document.getElementById('experiment-scorecard')?.remove();
-        if (action === 'experiment-scorecard') scorecard(result, esc, fa);
-        $('research-action-status').textContent = fa ? T.fa.rsRequestCompleted : T.en.rsRequestCompleted;
-      } catch { $('research-action-status').textContent = fa ? T.fa.rsResultWasNotDeliveredTheOperation : T.en.rsResultWasNotDeliveredTheOperation; }
-      finally { submit.disabled = false; }
+        if (action === 'experiment-scorecard') scorecard(result, esc, language === 'fa');
+        $('research-action-status').textContent = text(T.en.rsRequestCompleted, T.fa.rsRequestCompleted);
+      } catch { $('research-action-status').textContent = text(T.en.rsResultWasNotDeliveredTheOperation, T.fa.rsResultWasNotDeliveredTheOperation); }
+      finally { actionBusy = false; submit.disabled = false; $('research-action').disabled = false; update(); }
     };
   }
   function scorecard(report, esc, fa) {
-    const text = (en, persian) => fa ? persian : en;
+    const text = (en, persian) => language === 'fa' ? persian : en;
     const host = document.createElement('section'); host.id = 'experiment-scorecard'; host.className = 'panel';
     const definitions = report.definition;
     host.innerHTML = `<h3>${text(T.en.rsEveryRegisteredTrial, T.fa.rsEveryRegisteredTrial)}</h3><p>${esc(report.registered_trials)} ${text(T.en.rsParameterTrials, T.fa.rsParameterTrials)} · ${esc(report.registered_attempts)} ${text(T.en.rsAttemptsIncludingFailures, T.fa.rsAttemptsIncludingFailures)}</p>
-      <div class="table-wrap" tabindex="0"><table class="data"><caption>${text(T.en.rsNetResultInQuoteCurrencyUnready, T.fa.rsNetResultInQuoteCurrencyUnready)}</caption><thead><tr><th>${text(T.en.rsWindowCost, T.fa.rsWindowCost)}</th>${definitions.trials.map((params, i) => `<th scope="col">${i + 1}<br><code>${esc(JSON.stringify(params))}</code></th>`).join('')}</tr></thead><tbody>${definitions.windows.flatMap((period, w) => definitions.scenarios.map((cost, s) => `<tr><th scope="row"><time dir="ltr">${esc(period.from)} → ${esc(period.to)}</time><br><code>${esc(JSON.stringify(cost))}</code></th>${definitions.trials.map((_, trial) => {
+      <div class="table-wrap" tabindex="0" role="region" aria-label="${esc(text(T.en.rsNetResultInQuoteCurrencyUnready, T.fa.rsNetResultInQuoteCurrencyUnready))}"><table class="data"><caption>${text(T.en.rsNetResultInQuoteCurrencyUnready, T.fa.rsNetResultInQuoteCurrencyUnready)}</caption><thead><tr><th>${text(T.en.rsWindowCost, T.fa.rsWindowCost)}</th>${definitions.trials.map((params, i) => `<th scope="col">${i + 1}<br><code>${esc(JSON.stringify(params))}</code></th>`).join('')}</tr></thead><tbody>${definitions.windows.flatMap((period, w) => definitions.scenarios.map((cost, s) => `<tr><th scope="row"><time dir="ltr">${esc(period.from)} → ${esc(period.to)}</time><br><code>${esc(JSON.stringify(cost))}</code></th>${definitions.trials.map((_, trial) => {
         const row = report.rows.find(r => r.trial === trial && r.window === w && r.scenario === s), run = row?.run;
         const valid = run?.ready && run.valuation.status === 'CURRENT' && run.net_quote != null;
         const tone = valid && Number(run.net_quote) !== 0 ? Number(run.net_quote) > 0 ? 'positive' : 'negative' : 'neutral';
@@ -151,7 +178,7 @@ window.gymResearch = (() => {
       host = document.createElement('section'); host.id = 'research-workspace'; host.className = 'panel';
       $('research-workbench').before(host);
     }
-    const text = (en, persian) => fa ? persian : en;
+    const text = (en, persian) => language === 'fa' ? persian : en;
     const resolutions = JSON.parse($('gym-config').textContent).resolutions || [];
     const prospectiveStrategies = [
       ['ema-trend', 'EMA trend'], ['sma-cross', 'SMA crossover'],
@@ -241,6 +268,7 @@ window.gymResearch = (() => {
       <p id="research-workspace-status" role="status"></p>`;
     const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     async function act(button, fn) {
+      if (button.disabled) return;
       button.disabled = true; $('research-workspace-status').textContent = text(T.en.rsWorking, T.fa.rsWorking);
       try { await fn(); if ($('research-workspace-status').textContent === text(T.en.rsWorking, T.fa.rsWorking)) $('research-workspace-status').textContent = text(T.en.rsRequestCompleted, T.fa.rsRequestCompleted); }
       catch { $('research-workspace-status').textContent = text(T.en.rsRequestFailedRefreshTheSavedState, T.fa.rsRequestFailedRefreshTheSavedState); }
@@ -341,7 +369,7 @@ window.gymResearch = (() => {
         $('prospective-result').innerHTML = '<p><strong>' +
           text(T.en.rsOneTimeAttemptRecordedPaperOnly, T.fa.rsOneTimeAttemptRecordedPaperOnly) +
           '</strong></p><p>' + (k => text(T.en[k], T.fa[k]))(report.comparable ? 'rsComparisonsAvailable' : 'rsComparisonsIncomplete') +
-          '</p><div class="workspace-table"><table><thead><tr>' + headings.map(label => '<th>' + esc(label) + '</th>').join('') +
+          '</p><div class="table-wrap" tabindex="0" role="region" aria-label="' + esc(text(T.en.rsFrozenProspectiveComparisonPaperOnly, T.fa.rsFrozenProspectiveComparisonPaperOnly)) + '"><table class="data"><thead><tr>' + headings.map(label => '<th scope="col">' + esc(label) + '</th>').join('') +
           '</tr></thead><tbody>' + body + '</tbody></table></div>' + prospectiveEvidence(result);
       }
     };
@@ -420,7 +448,7 @@ window.gymResearch = (() => {
     };
     $('coverage-form').onsubmit = event => { event.preventDefault(); act(event.target.querySelector('button'), async () => {
       const result = await call('coverage', {symbol: $('coverage-symbol').value, from: $('coverage-from').value + ':00Z', to: $('coverage-to').value + ':00Z', resolution: $('coverage-resolution').value});
-      $('coverage-timeline').innerHTML = `<p>${esc(result.report_id)} · ${esc(JSON.stringify(result.counts))}</p><p>${esc(result.limitation)}</p><div class="workspace-table"><table><thead><tr>${['UTC', text(T.en.rsState, T.fa.rsState), text(T.en.rsQuotes, T.fa.rsQuotes), text(T.en.rsLateTrades, T.fa.rsLateTrades), text(T.en.rsQuoteAgeS, T.fa.rsQuoteAgeS), text(T.en.rsIndicators, T.fa.rsIndicators)].map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${result.buckets.map(row => `<tr><td dir="ltr">${esc(row.from)}</td><td>${esc(row.status)}</td><td>${esc(row.quotes)}</td><td>${esc(row.late_trade_receipts)}</td><td>${esc(row.last_known_qualified_quote_age_seconds ?? 'UNKNOWN')} ${row.quote_stale ? text(T.en.rsStale, T.fa.rsStale) : ''}</td><td><details><summary>${text(T.en.rsReadiness, T.fa.rsReadiness)}</summary>${json(row.indicator_readiness)}</details></td></tr>`).join('')}</tbody></table></div>`;
+      $('coverage-timeline').innerHTML = `<p>${esc(result.report_id)} · ${esc(JSON.stringify(result.counts))}</p><p>${esc(result.limitation)}</p><div class="table-wrap" tabindex="0" role="region" aria-label="${esc(text(T.en.rsCoverageTimeline, T.fa.rsCoverageTimeline))}"><table class="data"><thead><tr>${['UTC', text(T.en.rsState, T.fa.rsState), text(T.en.rsQuotes, T.fa.rsQuotes), text(T.en.rsLateTrades, T.fa.rsLateTrades), text(T.en.rsQuoteAgeS, T.fa.rsQuoteAgeS), text(T.en.rsIndicators, T.fa.rsIndicators)].map(x => `<th scope="col">${esc(x)}</th>`).join('')}</tr></thead><tbody>${result.buckets.map(row => `<tr><td dir="ltr">${esc(row.from)}</td><td>${esc(row.status)}</td><td>${esc(row.quotes)}</td><td>${esc(row.late_trade_receipts)}</td><td>${esc(row.last_known_qualified_quote_age_seconds ?? 'UNKNOWN')} ${row.quote_stale ? text(T.en.rsStale, T.fa.rsStale) : ''}</td><td><details><summary>${text(T.en.rsReadiness, T.fa.rsReadiness)}</summary>${json(row.indicator_readiness)}</details></td></tr>`).join('')}</tbody></table></div>`;
     }); };
     async function jobs() {
       const result = await call('list', null);
@@ -461,15 +489,15 @@ window.gymResearch = (() => {
       const result = await call('replay', {run_id: runId, offset: start, limit: offset - start + 1}); total = result.total;
       const row = result.decisions.at(-1);
       $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text(T.en.rsKnownAtDecision, T.fa.rsKnownAtDecision)}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text(T.en.rsBidAsk, T.fa.rsBidAsk)}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text(T.en.rsHoldingsBeforeDecision, T.fa.rsHoldingsBeforeDecision)}</h3><p>${esc(row.balance_status)}</p>${json(row.balances_before)}<details><summary>${text(T.en.rsIndicatorValuesAndReadiness, T.fa.rsIndicatorValuesAndReadiness)}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text(T.en.rsRecordedRules, T.fa.rsRecordedRules)}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text(T.en.rsBarAndReferenceObservations, T.fa.rsBarAndReferenceObservations)}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text(T.en.rsLaterModeledOrderOutcomeNotKnown, T.fa.rsLaterModeledOrderOutcomeNotKnown)}</summary>${json(row.subsequent_modeled_order)}</details>` : text(T.en.rsNoRecordedDecisions, T.fa.rsNoRecordedDecisions);
-      $('replay-decision').insertAdjacentHTML('afterbegin', window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa));
+       $('replay-decision').insertAdjacentHTML('afterbegin', window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, language === 'fa'));
       if (row) {
         const features = Object.keys(row.known_at_decision.feature_values ?? {}).filter(key => {
           const value = row.known_at_decision.feature_values[key];
           return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
         });
         if (!features.includes(feature)) feature = features[0] ?? '';
-        $('replay-decision').insertAdjacentHTML('beforeend', `<details><summary>${text(T.en.rsLinkedEquityAndIndicatorPanes, T.fa.rsLinkedEquityAndIndicatorPanes)}</summary>${window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, 'equity')}<label>${text(T.en.rsRecordedIndicator, T.fa.rsRecordedIndicator)}<select id="replay-feature">${features.map(key => `<option ${key === feature ? 'selected' : ''} value="${esc(key)}">${esc(key)}</option>`).join('')}</select></label><div id="replay-feature-chart"></div></details><details><summary>${text(T.en.rsOperatorAnnotationsSeparateFromDecisionEvidence, T.fa.rsOperatorAnnotationsSeparateFromDecisionEvidence)}</summary><form id="replay-annotation-form"><label>${text(T.en.rsNoteOnThisDecision, T.fa.rsNoteOnThisDecision)}<textarea id="replay-annotation-text" maxlength="2000" required></textarea></label><button class="button" type="submit">${text(T.en.rsSaveAnnotation, T.fa.rsSaveAnnotation)}</button></form><div id="replay-annotations"></div><button id="replay-annotations-more" class="button" type="button" disabled>${text(T.en.rsMoreAnnotations, T.fa.rsMoreAnnotations)}</button></details>`);
-        const featureChart = () => { $('replay-feature-chart').innerHTML = feature ? window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, fa, feature) : text(T.en.rsNoNumericIndicatorTrace, T.fa.rsNoNumericIndicatorTrace); };
+        $('replay-decision').insertAdjacentHTML('beforeend', `<details><summary>${text(T.en.rsLinkedEquityAndIndicatorPanes, T.fa.rsLinkedEquityAndIndicatorPanes)}</summary>${window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, language === 'fa', 'equity')}<label>${text(T.en.rsRecordedIndicator, T.fa.rsRecordedIndicator)}<select id="replay-feature">${features.map(key => `<option ${key === feature ? 'selected' : ''} value="${esc(key)}">${esc(key)}</option>`).join('')}</select></label><div id="replay-feature-chart"></div></details><details><summary>${text(T.en.rsOperatorAnnotationsSeparateFromDecisionEvidence, T.fa.rsOperatorAnnotationsSeparateFromDecisionEvidence)}</summary><form id="replay-annotation-form"><label>${text(T.en.rsNoteOnThisDecision, T.fa.rsNoteOnThisDecision)}<textarea id="replay-annotation-text" maxlength="2000" required></textarea></label><button class="button" type="submit">${text(T.en.rsSaveAnnotation, T.fa.rsSaveAnnotation)}</button></form><div id="replay-annotations"></div><button id="replay-annotations-more" class="button" type="button" disabled>${text(T.en.rsMoreAnnotations, T.fa.rsMoreAnnotations)}</button></details>`);
+        const featureChart = () => { $('replay-feature-chart').innerHTML = feature ? window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, language === 'fa', feature) : text(T.en.rsNoNumericIndicatorTrace, T.fa.rsNoNumericIndicatorTrace); };
         $('replay-feature').onchange = event => { feature = event.target.value; featureChart(); }; featureChart();
         $('replay-feature').closest('details').open = linkedOpen;
         $('replay-annotation-form').closest('details').open = notesOpen;
@@ -478,7 +506,7 @@ window.gymResearch = (() => {
         async function notes() {
           const page = await call('annotation-list', {...identity, after: pageAfter, through: pageThrough, limit: 20});
           pageThrough = page.through; pageAfter = page.next_after;
-          $('replay-annotations').insertAdjacentHTML('beforeend', page.events.map(note => `<article><button type="button" class="button" data-replay-index="${note.decision_index}">${esc(note.decision_at)}</button><p>${esc(note.text)}</p><small>${esc(note.recorded_at)} · ${esc(note.id)}</small></article>`).join(''));
+          $('replay-annotations').insertAdjacentHTML('beforeend', page.events.map(note => `<article><button type="button" class="button" data-replay-index="${note.decision_index}">${esc(note.decision_at)}</button><p data-raw>${esc(note.text)}</p><small>${esc(note.recorded_at)} · ${esc(note.id)}</small></article>`).join(''));
           $('replay-annotations-more').disabled = pageAfter == null;
         }
         await notes();

@@ -22,7 +22,7 @@ function applyLang() {
   if (state.researchSetup) { for (const slot of ["first", "second"]) renderCandidate(slot); renderCoverage(); }
   renderComparison();
   if (state.researchState) renderResearchJobs(state.researchState);
-  if (state.view === "research") { window.gymResearch?.mount(api, esc); window.gymMargin?.mount({api, esc, keyValues, table, amount, when, stamp: stampHtml, demo: DEMO}); window.gymPortfolio?.mount({api, esc, table, keyValues, amount, when, stamp: stampHtml, curveFigure, strategyFields}); }
+  if (state.view === "research") mountResearchTab();
 }
 
 /** The governing question first: the tally of tested ideas, the forward paper record, then each idea's verdict. */
@@ -32,13 +32,13 @@ function renderAnswer() {
   const tally = value.tally, forward = value.forward, kinds = { FAIL: "bad", NARROW_PASS: "warn", PASS: "ok", OPEN: "warn" };
   const headline = tally.PASS ? "answerPassed" : tally.NARROW_PASS ? "answerNarrow" : "answerNone";
   const plain = text => esc(String(text).replace(/\*\*|`/g, ""));
-  const change = forward ? Number(forward.equity) - Number(forward.start_equity) : 0;
+  const change = forward?.net == null ? t("unavailable") : digits(rounded(forward.net, 2));
   setHTML("overview-answer", `<p class="answer-headline">${esc(t(headline))}</p><div class="stats answer-stats">`
     + stat(t("answerRegistered"), num(tally.registered), t("answerRegisteredNote"))
     + stat(t("answerFailed"), num(tally.FAIL), t("answerFailedNote"))
     + stat(t("answerNarrowCount"), num(tally.NARROW_PASS + tally.PASS), t("answerNarrowNote"))
     + stat(t("answerForward"), forward ? `${num(forward.days)} <small>${esc(t("answerDays"))}</small>` : esc(t("none")),
-      forward ? `${code(forward.symbol)} · ${t(forward.in_market ? "answerInMarket" : "answerInCash")} · ${change >= 0 ? "+" : ""}${change.toFixed(2)} USDT` : t("answerForwardNone"))
+      forward ? `${forward.symbol} · ${t(forward.in_market ? "answerInMarket" : "answerInCash")} · ${change} USDT` : t("answerForwardNone"))
     + `</div><details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
     + table([t("answerTrial"), t("answerHypothesis"), t("answerVerdict")], value.trials.map(row => [
       `${code(row.id)} <small class="muted">${esc(row.registered)}</small>`, `<span dir="ltr">${plain(row.hypothesis)}</span>`,
@@ -48,15 +48,15 @@ function renderAnswer() {
 /** Summarize qualified markets and saved paper evidence without making profit claims. */
 function renderOverview() {
   renderAnswer();
-  const markets = list(state.markets?.markets), latest = state.runs[0];
+  const markets = list(state.markets?.markets), runs = list(state.overviewRuns), latest = runs[0];
   setHTML("overview-summary", stat(t("observedPairs"), state.markets ? num(markets.length) : t("none"), t("observedPairsNote"))
     + stat(t("healthyQuotes"), state.markets ? num(markets.filter(healthyQuote).length) : t("none"), t("healthyQuotesNote"))
-    + stat(t("savedRunCount"), state.runsLoaded ? num(state.runs.length) : t("none"), t("runCountNote"))
+    + stat(t("savedRunCount"), state.overviewRuns ? num(runs.length) : t("none"), t("runCountNote"))
     + stat(t("latestNet"), latest?.end ? `<span class="${signed(latest.end.net)}">${money(latest.end.net)}</span> <small>${esc(/(TMN|USDT)$/.exec(latest.inputs?.symbol || "")?.[1] || "")}</small>` : esc(t("none")), t("latestNetNote")));
   setHTML("overview-markets", state.markets ? table([t("pair"), t("bid"), t("ask"), t("spreadBps"), t("entry")], markets.slice(0, 5).map(m => [code(m.symbol), amount(m.bid), amount(m.ask), amount(m.spread_bps), eligibility(m.act?.entry)]), t("noMarkets"), [1, 2, 3]) : empty(t("loading")));
-  const record = state.record, result = record?.result;
-  setHTML("overview-research", result ? `<div class="run-heading"><h3>${code(result.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h3>${chip(t(record.inputs?.store === "demo" ? "synthetic" : "paperOnly"))}</div>${curveFigure(result)}${keyValues([[t("net"), `${money(result.end?.net)} ${code(result.quote)}`], [t("totalReturn"), pct(record.evidence?.performance?.total_return_pct)], [t("fills"), num(result.fills)]])}<p class="field-help">${esc(record.evidence?.primary_limitation || t("noCapital"))}</p>` : empty(t(state.runsLoaded ? "noRuns" : "loading"), t("noRunsHelp")));
-  setHTML("overview-activity", state.runs.length ? table([t("pair"), t("time"), t("net")], state.runs.slice(0, 4).map(run => [code(run.inputs?.symbol), stampHtml(run.inputs?.to), `${money(run.end?.net)} ${code(/(TMN|USDT)$/.exec(run.inputs?.symbol || "")?.[1])}`]), "", [2]) : empty(t(state.runsLoaded ? "recentEvidenceEmpty" : "loading")));
+  const quote = /(TMN|USDT)$/.exec(latest?.inputs?.symbol || "")?.[1] || "";
+  setHTML("overview-research", latest ? `<div class="run-heading"><h3>${code(latest.inputs?.symbol)} <span class="muted">${esc(latest.inputs?.strategy || "")}</span></h3>${chip(t(latest.inputs?.store === "demo" ? "synthetic" : "paperOnly"))}</div>${keyValues([[t("net"), `${money(latest.end?.net)} ${code(quote)}`], [t("equity"), `${money(latest.end?.equity)} ${code(quote)}`], [t("window"), `${stampHtml(latest.inputs?.from)} → ${stampHtml(latest.inputs?.to)}`]])}<a class="button button-small" href="#research/runs/${esc(latest.run_id)}">${esc(t("inspectRun"))}</a>` : empty(t(state.overviewRuns ? "noRuns" : "loading"), t("noRunsHelp")));
+  setHTML("overview-activity", runs.length ? table([t("pair"), t("time"), t("net")], runs.slice(0, 4).map(run => [code(run.inputs?.symbol), stampHtml(run.inputs?.to), `${money(run.end?.net)} ${code(/(TMN|USDT)$/.exec(run.inputs?.symbol || "")?.[1])}`]), "", [2]) : empty(t(state.overviewRuns ? "recentEvidenceEmpty" : "loading")));
 }
 
 /** Show connection and readiness failures explicitly, including unknown feed state. */
