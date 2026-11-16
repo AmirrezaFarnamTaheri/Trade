@@ -422,6 +422,7 @@ pub mod offline_recovery;
 /// Exact service account observations; never spendable balances or permission proof.
 pub mod account_observation;
 pub mod balance_receipts;
+pub mod owner_evidence;
 
 /// Durable service composition with an in-process fake venue, never a live adapter.
 pub mod fake_execution;
