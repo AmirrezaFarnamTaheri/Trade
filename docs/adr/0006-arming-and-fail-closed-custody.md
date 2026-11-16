@@ -21,13 +21,16 @@ of privileged-thread faults and of reservation when the vault holds two journals
 3. **Privileged fault stops the service** (unchanged behaviour, now tested): `exec_svc::supervise_privileged`
    marks the service failed on any T2 panic, error or unexpected return and stops T0 with it; restart builds a fresh
    `StopGate`, which is always `Disarmed`; `stopped_exit` reports the failing phase (`tests/privileged_fault.rs`).
-4. **Verified available** (`exec_core::available::verified_available`): newest observation by venue sequence
-   across both journals, refused when older than a bound, and refused with `disarms() == true` when two journals
-   report different amounts for one sequence.
+4. **Verified available** (`exec_core::available::verified_available`): the original pure rule orders by
+   venue sequence across both journals and refuses stale/disagreeing evidence. The owner replaced that
+   balance-ordering requirement with service-issued receipts in [ADR 0008](0008-balance-observation-ordering.md).
+   The receipt pair, activity fence and native admission consumer are not implemented yet; existing local
+   journal counters must not be relabeled as exchange sequences.
 
 ## Not done, deliberately
 
 - Wiring: a privileged arm request on T2, an armed mode in the stop gate, the approval screen and the per-tick
   loss measurement. All of it changes the money path and needs passing automated authority, security and recovery checks.
-- The review-v2 codec (`exec_ipc::review_v2`, TGREVW02) and `reserve_prepared_intent` remain **test-only**: exported
-  and tested, not mounted by the service. They are mounted with the arm path, after those checks.
+- Review v2 (`exec_ipc::review_v2`, TGREVW02) is mounted in the source operate listener/helper/relay.
+  `reserve_prepared_intent` uses active holds in the durable offline model; funded admission remains unwired.
+  Neither change is installed or grants authority. See ADR 0007 for the remaining order of work.

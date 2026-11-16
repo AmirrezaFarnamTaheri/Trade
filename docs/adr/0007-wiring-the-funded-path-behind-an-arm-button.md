@@ -1,7 +1,7 @@
 # ADR 0007: Wire the funded path end to end, behind an owner arm button
 
 Status: Accepted (owner decision 2026-11-14: "wire the funded executor but keep it blocked by a button").
-Wiring not started; this records the design, the starting limits and what must pass first.
+Source wiring is partly implemented; the protected installation remains unchanged and disarmed.
 
 ## Context
 
@@ -39,7 +39,8 @@ fail-closed. Six external audit reports (2026-11-14) reviewed the same modules a
       (today it is a full scan, and the in-memory journal clones its maps on every append).
    d. Privileged arm request + approval on the privileged pipe, binding the policy hash; an `Armed` mode in the
       stop gate that any fault, restart, kill rule or expiry collapses back to `Disarmed`.
-   e. `verified_available` in admission: stale or disagreeing balance journals block and disarm.
+   e. `verified_available` in admission under [ADR 0008](0008-balance-observation-ordering.md): two fresh native
+      service receipts, own-activity fencing and conservative spendable amounts; stale/disagreeing journals disarm.
    f. End-to-end tests: starts disarmed, stays disarmed on every injected fault, and the kill table fires on
       each input (expiry, epoch change, privileged fault, reconciliation mismatch, loss, staleness, open orders).
 5. **What arming still requires after the wiring exists:** every preflight item green (policy, service, trade key,
@@ -51,3 +52,18 @@ fail-closed. Six external audit reports (2026-11-14) reviewed the same modules a
 - The workspace can prepare everything; it cannot arm. A compromised browser session can at worst write a
   stricter-or-different policy file, which un-arms the system rather than widening it.
 - The 2027-02-08 checkpoint still governs: no funded probe without prospective paper evidence, whatever is wired.
+
+## Source progress (2026-11-16)
+
+| Step | State |
+| --- | --- |
+| a: review v2 | Source listener, helper, Python relay and operator protocol self-check require v2; historical v1 fixtures remain. Matching protected publication and host qualification pending. |
+| b: active holds | New reviewed/execution holds use ActiveHoldBook; old aggregate events replay with their original semantics. Mixing outstanding old/new models is refused. |
+| c: checkpoints | Digest/tip-bound canonical events, automatic checkpoints and suffix projection implemented. Full chain hashing remains; >1 MiB snapshots fall back to verified replay. Scale/background validation and bounded history remain open. |
+| d: privileged arm | Not implemented. Existing pure arm/kill rules remain disarmed service policy. |
+| e: verified available admission | Receipt-order redesign accepted in ADR 0008. Native pair production, activity fencing, dual durable copies and admission are not implemented. Local receipt order will not claim exchange snapshot ordering. |
+| f: end-to-end arm fault tests | Pending d/e. Existing pure kill-table, stop/fault, durable reservation and restart tests pass; they do not qualify a funded path. |
+
+The owner canceled off-machine backup/second-host restoration. That does not make
+the arm preflight's missing backup or any other missing evidence pass. Keep each
+native step separate for owner review; none of this source is a deployment approval.
