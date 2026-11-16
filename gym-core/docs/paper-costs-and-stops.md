@@ -1,8 +1,13 @@
 # Paper costs and strategy stops
 
-New runs use `paper-session/12` (market) or `/13` (limit). Existing saved runs,
+New runs use `paper-session/14` (market) or `/15` (limit). Existing saved runs,
 their identities and results stay intact. A frozen hypothesis requiring an older
 engine must use that engine; it is not silently upgraded.
+
+Versions 12/13 introduced this batch. Versions 14/15 correct the combination of a
+waiting venue stop and a due time exit: the stop no longer suppresses that exit
+when the quote is also below the stop threshold. Existing 12/13 artifacts remain
+intact.
 
 ## Fees
 

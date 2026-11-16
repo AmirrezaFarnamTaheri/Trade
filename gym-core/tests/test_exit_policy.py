@@ -74,7 +74,8 @@ def test_sub_precision_entry_cannot_spend_cash_without_receiving_base():
 
 
 @pytest.mark.parametrize("params,price,reason", [({"exit_stop_bps": 100}, 98, "PAPER_STOP_EXIT"),
-    ({"exit_profit_bps": 100}, 102, "PAPER_PROFIT_EXIT"), ({"exit_after_bars": 1}, 100, "PAPER_TIME_EXIT")])
+    ({"exit_profit_bps": 100}, 102, "PAPER_PROFIT_EXIT"), ({"exit_after_bars": 1}, 100, "PAPER_TIME_EXIT"),
+    ({"exit_stop_bps": 100, "exit_venue_stop": 1, "exit_after_bars": 1}, 98, "PAPER_TIME_EXIT")])
 def test_exit_from_actual_position_does_not_wait_for_entry_indicator_warmup(params, price, reason):
     strategy = create_strategy("ema-trend", params)
     snap = replace(snapshot(1, price), execution={"entry_price": "100", "entry_time": START.isoformat(),

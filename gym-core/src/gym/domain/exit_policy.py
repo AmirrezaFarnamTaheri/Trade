@@ -74,13 +74,11 @@ class ExitPolicy:
             if multiple and atr is not None and atr > 0:
                 self.trail = max(self.trail or Decimal(0), self.peak - multiple * atr)
             target = entry * (1 + Decimal(self.controls.get("exit_profit_bps", 0)) / 10000) / (1 - fee)
-            reason = ("PAPER_STOP_EXIT" if self.trail is not None and snap.bid <= self.trail else
+            reason = ("PAPER_STOP_EXIT" if not self.controls.get("exit_venue_stop") and self.trail is not None and snap.bid <= self.trail else
                       "PAPER_PROFIT_EXIT" if self.controls.get("exit_profit_bps") and snap.bid >= target else
                       "PAPER_TIME_EXIT" if self.controls.get("exit_after_bars") and
                       snap.as_of - parse_ts(context["entry_time"]) >= bar.spec.step * self.controls["exit_after_bars"] else None)
             self.feature_values.update(exit_stop_price=None if self.trail is None else str(self.trail), exit_target_price=str(target))
-            if reason == "PAPER_STOP_EXIT" and self.controls.get("exit_venue_stop"):
-                reason = None
             if reason:
                 action, fraction, reasons = "SELL_REQUEST", Decimal(1), (reason,)
         if action == "BUY_REQUEST" and not self.entry_allowed:

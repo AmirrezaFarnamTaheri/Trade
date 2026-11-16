@@ -58,4 +58,3 @@ def test_shadow_does_not_consume_later_as_of_prices():
     report = shadow_drift(historical, observed, observed_at=START + timedelta(days=26))
     assert report["status"] == "NO_COMPLETE_SHADOW_DAYS"
     assert report["alerts"] == []
-

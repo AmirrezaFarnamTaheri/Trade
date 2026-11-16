@@ -11,11 +11,11 @@ def test_paper_run_identity_is_frozen(tmp_path):
     db = market_db(tmp_path, quote_history(n=500))
     window = {"resolution": "1min", "fast": 2, "slow": 3}
     plain = paper(db, "BTCUSDT", START, START + timedelta(hours=1), **window)
-    # Re-pinned at paper-session/12 (2026-11-16). The outputs digest is the one pinned before the participation
+    # Re-pinned at paper-session/14 (2026-11-16). The outputs digest is the one pinned before the participation
     # cap existed: the engine bump changed the identity, not one simulated number.
-    assert (plain["run_id"], plain["outputs_digest"]) == ("efc067c96d41fb6b", "85bc4a119e7a2a9d")
+    assert (plain["run_id"], plain["outputs_digest"]) == ("76c3204402b87674", "85bc4a119e7a2a9d")
     capped = paper(db, "BTCUSDT", START, START + timedelta(hours=1), cost=CostModel(max_participation=Decimal("0.5")), **window)
-    assert capped["run_id"] == "79ee21476aea5417"
+    assert capped["run_id"] == "ad792b6008e5ca74"
 
 def test_price_band_display_does_not_mutate_existing_market_run_artifact(tmp_path):
     """A display-only safety notice must not corrupt a frozen saved run ID."""

@@ -12,9 +12,9 @@ from ..domain.rules import closures, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
-# 12/13: causal market/account fees and trade-triggered strategy stops. Older artifacts keep their identity.
-ENGINE_VERSION = "paper-session/12"
-LIMIT_ENGINE_VERSION = "paper-session/13"
+# 14/15: a waiting venue stop must not suppress a due closed-bar time exit. Older artifacts keep their identity.
+ENGINE_VERSION = "paper-session/14"
+LIMIT_ENGINE_VERSION = "paper-session/15"
 
 
 @dataclass
