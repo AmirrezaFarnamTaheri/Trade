@@ -41,9 +41,17 @@ impl Vault {
         self.native_incident = true;
         self.disarm();
     }
-    pub fn poll_plan(&self) -> Option<(Vec<exec_ipc::provision::AccountResource>, Vec<String>)> {
+    pub fn poll_plan(
+        &mut self,
+    ) -> io::Result<Option<(Vec<exec_ipc::provision::AccountResource>, Vec<String>)>> {
         use exec_ipc::provision::AccountResource;
-        self.journal.credential_metadata()?;
+        if self.journal.credential_metadata().is_none() {
+            return Ok(None);
+        }
+        if let Some(ledger) = self.limits.as_mut() {
+            exec_svc::native_settlement::recover_unsent(ledger)
+                .map_err(|_| io::Error::other("native unsent recovery failed"))?;
+        }
         let mut resources = vec![AccountResource::Fees];
         if let Some(ledger) = &self.limits {
             resources.extend(
@@ -64,7 +72,7 @@ impl Vault {
             .as_ref()
             .map(|policy| policy.symbols.clone())
             .unwrap_or_else(|| vec!["BTCUSDT".into()]);
-        Some((resources, symbols))
+        Ok(Some((resources, symbols)))
     }
     pub fn record_native_market(
         &mut self,
@@ -90,8 +98,28 @@ impl Vault {
             }
         }
     }
-    pub fn observation_cycle_complete(&mut self) {
-        self.native_incident = false;
+    pub fn observation_cycle_complete(&mut self) -> io::Result<()> {
+        let generation = self.journal.credential_metadata().map(|key| key.generation);
+        let epoch = self.gate.as_ref().map(|gate| gate.runtime_epoch());
+        let clean = if let (Some(ledger), Some(generation), Some(epoch)) =
+            (self.limits.as_mut(), generation, epoch)
+        {
+            exec_svc::native_settlement::reconcile(
+                ledger,
+                &self.balances,
+                generation,
+                epoch,
+                now_ms()?,
+            )
+            .map_err(|_| io::Error::other("native reconciliation journal failed"))?
+        } else {
+            false
+        };
+        self.native_incident = !clean;
+        if !clean {
+            self.disarm();
+        }
+        Ok(())
     }
 
     fn local_backup(&mut self, at: u64) -> io::Result<()> {
@@ -248,6 +276,9 @@ impl Vault {
     ) -> Option<exec_svc::native_risk::NativeRisk> {
         use exec_svc::account_observation::AccountKind;
         let ledger = self.limits.as_ref()?;
+        if !ledger.reconciliation_ready() {
+            return None;
+        }
         let fee =
             self.journal
                 .account_observation(AccountKind::Fees, generation, epoch, at, 30_000)?;

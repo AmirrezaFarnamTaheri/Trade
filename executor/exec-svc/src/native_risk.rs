@@ -44,6 +44,33 @@ pub fn matches_ticket(ticket: &Ticket, observation: &AccountObservation) -> bool
         }) == Some(std::cmp::Ordering::Equal)
 }
 
+pub(crate) fn fills(row: &serde_json::Value) -> Result<&[serde_json::Value], &'static str> {
+    if let Some(fills) = row.get("fills") {
+        return fills
+            .as_array()
+            .map(Vec::as_slice)
+            .ok_or("invalid own fills");
+    }
+    if text(row, "executedQty")?.is_zero() {
+        Ok(&[])
+    } else {
+        Err("missing own fills")
+    }
+}
+
+/// Page rows may omit fill details or format the same decimal differently.
+pub fn same_progress(a: &serde_json::Value, b: &serde_json::Value) -> bool {
+    ["clientOrderId", "symbol", "side", "status"]
+        .iter()
+        .all(|field| a[*field] == b[*field])
+        && ["origQty", "executedQty"].iter().all(|field| {
+            text(a, field)
+                .ok()
+                .zip(text(b, field).ok())
+                .is_some_and(|(a, b)| a.cmp_value(b) == Some(std::cmp::Ordering::Equal))
+        })
+}
+
 pub struct OwnOrder<'a> {
     pub ticket: &'a Ticket,
     pub observation: &'a AccountObservation,
@@ -113,10 +140,10 @@ pub fn measure(
         match row["status"].as_str() {
             Some("NEW" | "PARTIALLY_FILLED") => {
                 expected_open.insert(ticket.client_id.as_str());
-                if current_open
+                if !current_open
                     .iter()
                     .find(|current| current["clientOrderId"].as_str() == Some(&ticket.client_id))
-                    != Some(row)
+                    .is_some_and(|current| same_progress(current, row))
                 {
                     return Err("own fill changed between native reads");
                 }
@@ -124,7 +151,7 @@ pub fn measure(
             Some("FILLED" | "CANCELED" | "CANCELLED" | "REJECTED" | "EXPIRED") => {}
             _ => return Err("unknown native order status"),
         }
-        let fills = row["fills"].as_array().ok_or("missing own fills")?;
+        let fills = fills(row)?;
         let mut total = zero();
         for fill in fills {
             let quantity = text(fill, "quantity")?;
@@ -135,9 +162,14 @@ pub fn measure(
                 return Err("unpriced fee asset");
             }
             total = plus(total, quantity)?;
-            let gross = quantity
-                .checked_mul(price)
-                .ok_or("fill notional overflow")?;
+            let gross = if fill.get("sum").is_some() {
+                text(fill, "sum")?
+            } else {
+                // Historical sanitized receipts did not retain the venue's fill sum.
+                quantity
+                    .checked_mul(price)
+                    .ok_or("fill notional overflow")?
+            };
             let base_fee = if fee_asset == ticket.base {
                 fee
             } else {

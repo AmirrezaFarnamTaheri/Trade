@@ -33,6 +33,7 @@ const PREPARE_INTENT: u8 = 12;
 const RESERVE_REVIEW: u8 = 13;
 const ACCOUNT_OBSERVATION: u8 = 14;
 const RESERVE_REVIEW_WITH_FEE: u8 = 15;
+const REVIEW_SETTLED: u8 = 16;
 const CHECKPOINT_MAGIC: &[u8; 8] = b"TGCKPT01";
 const CHECKPOINT_MANIFEST_MAGIC: &[u8; 8] = b"TGCKPT02";
 const CHECKPOINT_PAGE_MAGIC: &[u8; 8] = b"TGCKPG01";
@@ -726,6 +727,11 @@ impl Drop for DurableOrderJournal {
 enum Record {
     AccountObservation(AccountObservation),
     ReviewedReservation(ReviewedReservation),
+    ReviewSettled {
+        id: String,
+        filled: u64,
+        balance: SettlementEvidence,
+    },
     PrepareIntent(IntentPreparation),
     Approval(OperatorApproval),
     RevokeApproval(ApprovalRevocation),
@@ -1264,7 +1270,7 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
             sequence: r.num()?,
         },
         RELEASE_DENIED => Record::ReleaseDenied { id },
-        RELEASE_SETTLED => {
+        RELEASE_SETTLED | REVIEW_SETTLED => {
             let account = r.name()?;
             let asset = r.name()?;
             let sequence = r.num()?;
@@ -1273,15 +1279,34 @@ fn decode(raw: &[u8]) -> Result<Record, RecoveryError> {
                 1 => true,
                 _ => return Err(RecoveryError::MalformedEvent),
             };
-            Record::ReleaseSettled {
-                id,
-                account,
-                asset,
-                sequence,
-                complete,
-                locked: r.num()?,
-                spent: r.num()?,
-                available: r.num()?,
+            let locked = r.num()?;
+            let spent = r.num()?;
+            let available = r.num()?;
+            if kind == REVIEW_SETTLED {
+                Record::ReviewSettled {
+                    id,
+                    filled: r.num()?,
+                    balance: SettlementEvidence {
+                        account,
+                        asset,
+                        sequence,
+                        complete,
+                        locked_quanta: locked,
+                        spent_quanta: spent,
+                        available_quanta: available,
+                    },
+                }
+            } else {
+                Record::ReleaseSettled {
+                    id,
+                    account,
+                    asset,
+                    sequence,
+                    complete,
+                    locked,
+                    spent,
+                    available,
+                }
             }
         }
         _ => return Err(RecoveryError::MalformedEvent),
@@ -1470,6 +1495,34 @@ fn apply_record(
         Record::Observation { id, event } => {
             let current = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
             current.attempt.apply(event).map_err(RecoveryError::Order)?;
+        }
+        Record::ReviewSettled {
+            id,
+            filled,
+            balance,
+        } => {
+            use exec_core::orders::Lifecycle;
+            let order = intents.get_mut(&id).ok_or(RecoveryError::UnknownIdentity)?;
+            if order.review_ticket.is_none() {
+                return Err(RecoveryError::InvalidIdentity);
+            }
+            let mut next = order.attempt;
+            if matches!(next.lifecycle(), Lifecycle::Submitting | Lifecycle::Unknown) {
+                next.apply(Event::Acknowledged)
+                    .map_err(RecoveryError::Order)?;
+            }
+            next.apply(Event::CumulativeFilled(filled))
+                .map_err(RecoveryError::Order)?;
+            if next.lifecycle() != Lifecycle::TerminalReported {
+                next.apply(Event::TerminalReported)
+                    .map_err(RecoveryError::Order)?;
+            }
+            next.apply(Event::SettlementVerified)
+                .map_err(RecoveryError::Order)?;
+            reservations
+                .release_settled(&id, &next, &balance)
+                .map_err(RecoveryError::Reservation)?;
+            order.attempt = next;
         }
         Record::Hold {
             id,
@@ -2404,6 +2457,40 @@ impl DurableOrderJournal {
         evidence: &SettlementEvidence,
     ) -> Result<(), RecoveryError> {
         self.apply_durable(record_release_settled(id, evidence)?)
+    }
+    /// Closing and releasing a reviewed hold are one commit, so a crash cannot strand a closed hold.
+    pub fn settle_reviewed(
+        &mut self,
+        id: &str,
+        filled: u64,
+        balance: &SettlementEvidence,
+    ) -> Result<(), RecoveryError> {
+        let mut raw = record_release_settled(id, balance)?;
+        raw[MAGIC.len()] = REVIEW_SETTLED;
+        raw.extend_from_slice(&filled.to_be_bytes());
+        self.apply_durable(raw)
+    }
+    pub fn reviewed_pending_ids(&self) -> Vec<String> {
+        self.intents
+            .iter()
+            .filter(|(id, order)| {
+                order.review_ticket.is_some()
+                    && (order.attempt.holds_slot() || self.reservations.is_reserved(id))
+            })
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+    pub fn reconciliation_ready(&self) -> bool {
+        use exec_core::orders::Lifecycle;
+        self.intents
+            .iter()
+            .all(|(id, order)| match order.attempt.lifecycle() {
+                Lifecycle::Acknowledged | Lifecycle::Working => order.review_ticket.is_some(),
+                Lifecycle::Closed | Lifecycle::Denied => {
+                    !self.reservations.is_reserved(id) && !self.legacy_reservations.is_reserved(id)
+                }
+                _ => false,
+            })
     }
     /// A failed transition is not appended and does not change any hold.
     fn apply_durable(&mut self, raw: Vec<u8>) -> Result<(), RecoveryError> {

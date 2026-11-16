@@ -311,4 +311,38 @@ impl BalanceReceipts {
             &copies, "main", asset, fence, now_ms, max_age_ms, open_holds,
         )
     }
+
+    /// Settlement needs a complete pair whose requests both followed the terminal native receipt.
+    pub fn settlement_evidence(
+        &self,
+        asset: &str,
+        decimals: u8,
+        spent: u64,
+        after_ms: u64,
+        now_ms: u64,
+    ) -> Result<exec_core::orders::SettlementEvidence, AvailableError> {
+        let available = self.available(asset, decimals, 0, now_ms, 120_000)?;
+        if after_ms == 0
+            || self
+                .reads
+                .front()
+                .is_none_or(|(read, _)| read.started_at_ms() < after_ms)
+        {
+            return Err(AvailableError::Missing);
+        }
+        let locked = self
+            .reads
+            .back()
+            .and_then(|(read, _)| read.data()["result"]["balances"][asset]["locked"].as_str())
+            .ok_or(AvailableError::Missing)?;
+        Ok(exec_core::orders::SettlementEvidence {
+            account: "main".into(),
+            asset: asset.into(),
+            sequence: available.receipt_seq,
+            complete: true,
+            locked_quanta: quanta(locked, decimals, true)?,
+            spent_quanta: spent,
+            available_quanta: available.available_quanta,
+        })
+    }
 }

@@ -30,7 +30,7 @@ fn observe(vault: &Mutex<Vault>, context: &Context) -> io::Result<()> {
     let Some((resources, symbols)) = vault
         .lock()
         .map_err(|_| io::Error::other("vault poisoned"))?
-        .poll_plan()
+        .poll_plan()?
     else {
         return Ok(());
     };
@@ -69,7 +69,7 @@ fn observe(vault: &Mutex<Vault>, context: &Context) -> io::Result<()> {
     vault
         .lock()
         .map_err(|_| io::Error::other("vault poisoned"))?
-        .observation_cycle_complete();
+        .observation_cycle_complete()?;
     Ok(())
 }
 

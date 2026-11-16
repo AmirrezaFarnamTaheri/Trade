@@ -119,6 +119,58 @@ fn loss_uses_own_fills_fees_and_liquidation_depth_without_account_credits() {
 }
 
 #[test]
+fn sparse_zero_fill_pages_match_progress_and_native_gross_cash_retains_venue_rounding() {
+    let buy = ticket("buy", true, 100);
+    let raw=br#"{"success":true,"result":{"clientOrderId":"buy","symbol":"BTCUSDT","side":"BUY","status":"NEW","origQty":"01.000","executedQty":"0.000"}}"#;
+    let observed =
+        AccountObservation::from_order_response("buy", raw, [3; 16], 10, [4; 16], 1000, 1010)
+            .unwrap();
+    assert!(measure(
+        &[OwnOrder {
+            ticket: &buy,
+            observation: &observed,
+            submitted_at_ms: 1000
+        }],
+        &open(&["buy"]),
+        &markets("10"),
+        "USDT",
+        Exact::parse("0.01").unwrap(),
+        1020
+    )
+    .is_ok());
+    let original = order("buy", true, "1", "100", "1", "FILLED");
+    let mut raw = original.data().clone();
+    raw["result"]["fills"][0]["sum"] = "100.01".into();
+    let rounded = AccountObservation::from_order_response(
+        "buy",
+        &serde_json::to_vec(&raw).unwrap(),
+        [3; 16],
+        10,
+        [5; 16],
+        1000,
+        1010,
+    )
+    .unwrap();
+    eq(
+        measure(
+            &[OwnOrder {
+                ticket: &buy,
+                observation: &rounded,
+                submitted_at_ms: 1000,
+            }],
+            &open(&[]),
+            &markets("10"),
+            "USDT",
+            Exact::parse("0.01").unwrap(),
+            1020,
+        )
+        .unwrap()
+        .loss_quote,
+        "11.91",
+    );
+}
+
+#[test]
 fn partial_sale_and_profitable_close_keep_exact_cash_and_inventory() {
     let buy = ticket("buy", true, 100);
     let bought = order("buy", true, "1", "100", "1", "FILLED");

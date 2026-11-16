@@ -403,8 +403,12 @@ fn normalized_order(row: &Value) -> Result<Value, &'static str> {
             if carry != 0 || total > requested {
                 return Err("fill quantity overflow");
             }
-            clean.push(json!({"quantity":quantity,"price":price,"fee":fee,
-                              "feeAsset":asset,"timestamp":timestamp}));
+            let mut item = json!({"quantity":quantity,"price":price,"fee":fee,
+                              "feeAsset":asset,"timestamp":timestamp});
+            if fill.get("sum").is_some() {
+                item["sum"] = Value::String(order_amount(fill.get("sum"), true)?.0.into());
+            }
+            clean.push(item);
         }
         if !fills.is_empty() && total != executed {
             return Err("fill quantity mismatch");

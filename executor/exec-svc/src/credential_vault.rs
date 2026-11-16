@@ -799,7 +799,12 @@ impl Vault {
                                     .limits
                                     .as_ref()
                                     .and_then(|ledger| ledger.latest_known_order(id))
-                                    .is_none_or(|old| &old.data()["result"] != row)
+                                    .is_none_or(|old| {
+                                        !exec_svc::native_risk::same_progress(
+                                            &old.data()["result"],
+                                            row,
+                                        )
+                                    })
                         })
                     })
                 }),

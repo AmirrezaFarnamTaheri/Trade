@@ -391,3 +391,229 @@ fn stop_before_or_during_transport_setup_never_sends_and_releases_only_a_proven_
         assert_eq!(f.ledger.reserved("main", "USDT"), 0);
     }
 }
+
+fn native_terminal(
+    f: &mut Fixture,
+    buy: bool,
+    partial: bool,
+    sum: Option<&str>,
+    base_fee: bool,
+) -> AccountObservation {
+    let quantity = if partial { "0.00005" } else { "0.0001" };
+    let mut fill = serde_json::json!({"quantity":quantity,"price":"80000","fee":if base_fee {"0.00000010"}else if partial {"0.004"}else{"0.008"},
+        "feeAsset":if base_fee {"BTC"}else{"USDT"},"timestamp":1700000000000u64});
+    if let Some(sum) = sum {
+        fill["sum"] = sum.into();
+    }
+    let body=serde_json::to_vec(&serde_json::json!({"success":true,"result":{"clientOrderId":"intent_1","symbol":"BTCUSDT",
+        "side":if buy {"BUY"}else{"SELL"},"status":if partial {"CANCELED"}else{"FILLED"},"origQty":"0.0001","executedQty":quantity,"fills":[fill]}})).unwrap();
+    let observation = AccountObservation::from_order_response(
+        "intent_1", &body, [3; 16], 10, [15; 16], 2100, 2110,
+    )
+    .unwrap();
+    f._credentials
+        .record_account_observation(observation.clone())
+        .unwrap();
+    f.ledger
+        .record_account_observation(observation.clone())
+        .unwrap();
+    observation
+}
+fn fresh_settlement_pair(f: &mut Fixture, locked: &str) {
+    for (id, start) in [(20, 2200), (21, 2220)] {
+        let read = f.balances.begin([3; 16], 10, [id; 16], start).unwrap();
+        let body = serde_json::to_vec(&serde_json::json!({"success":true,"result":{"balances":{
+            "USDT":{"value":"18.992","locked":locked},"BTC":{"value":"1.0001","locked":locked}}}}))
+        .unwrap();
+        let observation = AccountObservation::from_response(
+            AccountKind::Balances,
+            &body,
+            [3; 16],
+            10,
+            [id; 16],
+            start,
+            start + 10,
+        )
+        .unwrap();
+        f.balances
+            .complete(read, observation, &mut f._credentials, Some(&mut f.ledger))
+            .unwrap();
+    }
+}
+
+#[test]
+fn native_terminal_fills_and_later_pair_close_and_release_atomically_even_with_a_credit() {
+    use exec_svc::{native_effect::execute, native_settlement};
+    for (buy, partial, base_fee) in [
+        (true, false, false),
+        (true, true, false),
+        (false, false, true),
+    ] {
+        let mut f = Fixture::new(buy);
+        let order = f.admit(f.context()).unwrap();
+        execute(&mut f.ledger, &order, &f.gate, || Some(AT), |_, _| Ok(true)).unwrap();
+        f.balances.own_activity(2100).unwrap();
+        native_terminal(
+            &mut f,
+            buy,
+            partial,
+            Some(if partial { "4" } else { "8" }),
+            base_fee,
+        );
+        assert!(
+            !native_settlement::reconcile(&mut f.ledger, &f.balances, [3; 16], 10, 2110).unwrap()
+        );
+        fresh_settlement_pair(&mut f, "0");
+        let count = f.ledger.record_count();
+        assert!(
+            native_settlement::reconcile(&mut f.ledger, &f.balances, [3; 16], 10, 2230).unwrap()
+        );
+        assert_eq!(f.ledger.record_count(), count + 1);
+        assert_eq!(
+            f.ledger.reserved("main", if buy { "USDT" } else { "BTC" }),
+            0
+        );
+        assert_eq!(
+            f.ledger.get("intent_1").unwrap().attempt.lifecycle(),
+            exec_core::orders::Lifecycle::Closed
+        );
+        assert_eq!(
+            f.ledger.get("intent_1").unwrap().attempt.filled_quanta(),
+            if partial { 5000 } else { 10000 }
+        );
+        drop(order);
+        let path = f.root.path().join("execution.sqlite");
+        drop(f.ledger);
+        let replay = DurableOrderJournal::open(path).unwrap();
+        assert!(replay.reconciliation_ready());
+        assert!(replay.reviewed_pending_ids().is_empty());
+    }
+}
+
+#[test]
+fn missing_gross_cash_locked_balance_or_changed_context_never_releases_a_terminal_hold() {
+    use exec_svc::{native_effect::execute, native_settlement};
+    for case in 0..4 {
+        let mut f = Fixture::new(true);
+        let order = f.admit(f.context()).unwrap();
+        execute(&mut f.ledger, &order, &f.gate, || Some(AT), |_, _| Ok(true)).unwrap();
+        f.balances.own_activity(2100).unwrap();
+        native_terminal(
+            &mut f,
+            true,
+            false,
+            if case == 0 { None } else { Some("8") },
+            false,
+        );
+        fresh_settlement_pair(&mut f, if case == 1 { "0.1" } else { "0" });
+        let count = f.ledger.record_count();
+        assert!(!native_settlement::reconcile(
+            &mut f.ledger,
+            &f.balances,
+            if case == 2 { [9; 16] } else { [3; 16] },
+            if case == 3 { 11 } else { 10 },
+            2230
+        )
+        .unwrap());
+        assert_eq!(f.ledger.reserved("main", "USDT"), 8010000);
+        assert_eq!(f.ledger.record_count(), count);
+    }
+}
+
+#[test]
+fn invalid_atomic_settlement_keeps_both_the_attempt_and_hold_unchanged() {
+    use exec_svc::native_effect::execute;
+    let mut f = Fixture::new(true);
+    let order = f.admit(f.context()).unwrap();
+    execute(&mut f.ledger, &order, &f.gate, || Some(AT), |_, _| Ok(true)).unwrap();
+    f.balances.own_activity(2100).unwrap();
+    native_terminal(&mut f, true, false, Some("8"), false);
+    fresh_settlement_pair(&mut f, "0");
+    let evidence = f
+        .balances
+        .settlement_evidence("USDT", 6, 8008000, 2110, 2230)
+        .unwrap();
+    for case in 0..5 {
+        let mut bad = evidence.clone();
+        let mut filled = 10000;
+        match case {
+            0 => bad.locked_quanta = 1,
+            1 => bad.spent_quanta = 8010001,
+            2 => bad.sequence = 1,
+            3 => bad.complete = false,
+            4 => filled = 10001,
+            _ => unreachable!(),
+        };
+        let count = f.ledger.record_count();
+        let before = f.ledger.get("intent_1").unwrap().attempt;
+        assert!(f.ledger.settle_reviewed("intent_1", filled, &bad).is_err());
+        assert_eq!(f.ledger.record_count(), count);
+        assert_eq!(f.ledger.get("intent_1").unwrap().attempt, before);
+        assert_eq!(f.ledger.reserved("main", "USDT"), 8010000);
+    }
+}
+
+#[test]
+fn restart_recovery_releases_only_durably_proven_unsent_reviews() {
+    use exec_svc::native_settlement;
+    for case in 0..4 {
+        let mut f = Fixture::new(true);
+        let order = f.admit(f.context()).unwrap();
+        match case {
+            0 => {}
+            1 => f.ledger.record_event("intent_1", Event::Denied).unwrap(),
+            2 | 3 => {
+                f.ledger.record_event("intent_1", Event::BeginSend).unwrap();
+                f.ledger
+                    .record_event(
+                        "intent_1",
+                        Event::TransportFailed(if case == 2 {
+                            FailureStage::BeforeFirstByte
+                        } else {
+                            FailureStage::AfterFirstByte
+                        }),
+                    )
+                    .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        drop(order);
+        let path = f.root.path().join("execution.sqlite");
+        drop(f.ledger);
+        let mut replay = DurableOrderJournal::open(path).unwrap();
+        native_settlement::recover_unsent(&mut replay).unwrap();
+        assert_eq!(
+            replay.reserved("main", "USDT"),
+            if case == 3 { 8010000 } else { 0 }
+        );
+        assert_eq!(replay.reconciliation_ready(), case != 3);
+    }
+}
+
+#[test]
+fn a_balance_pair_that_predates_the_terminal_read_cannot_settle_and_partial_terminal_cash_is_kept()
+{
+    use exec_svc::{native_effect::execute, native_settlement};
+    let mut f = Fixture::new(true);
+    let order = f.admit(f.context()).unwrap();
+    execute(&mut f.ledger, &order, &f.gate, || Some(AT), |_, _| Ok(true)).unwrap();
+    let terminal = native_terminal(&mut f, true, true, Some("4"), false);
+    assert!(!native_settlement::reconcile(&mut f.ledger, &f.balances, [3; 16], 10, 2110).unwrap());
+    assert_eq!(f.ledger.reserved("main", "USDT"), 8010000);
+    let mut raw = terminal.data().clone();
+    raw["result"]["status"] = "FILLED".into();
+    let partial = AccountObservation::from_order_response(
+        "intent_1",
+        &serde_json::to_vec(&raw).unwrap(),
+        [3; 16],
+        10,
+        [16; 16],
+        2100,
+        2110,
+    )
+    .unwrap();
+    let summary = native_settlement::summarize(&order.ticket, &partial).unwrap();
+    assert!(summary.terminal);
+    assert_eq!(summary.filled_quanta, 5000);
+    assert_eq!(summary.spent_quanta, 4004000);
+}

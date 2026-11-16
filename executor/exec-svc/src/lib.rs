@@ -426,6 +426,7 @@ pub mod native_admission;
 pub mod native_effect;
 pub mod native_market;
 pub mod native_risk;
+pub mod native_settlement;
 pub mod owner_evidence;
 
 /// Durable service composition with an in-process fake venue, never a live adapter.
