@@ -146,7 +146,9 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     strategy = create_strategy(strategy_id, {"fast": fast, "slow": slow} if params is None and strategy_id == "ema-trend" else params)
     subscriptions = tuple(dict.fromkeys((resolution, *subscriptions, *getattr(strategy, "required_resolutions", ()))))
     reference_symbol = reference_symbol or getattr(strategy, "reference_symbol", None)
-    main = run(portal, rules_for, strategy, symbol, t0, t1, resolution, cash, cost, subscriptions, reference_symbol, auxiliary_symbols)
+    digests = {}  # the baselines replay the main market's quotes: hash them once
+    main = run(portal, rules_for, strategy, symbol, t0, t1, resolution, cash, cost, subscriptions, reference_symbol, auxiliary_symbols,
+               digest_cache=digests)
     if main["qualified"] == 0:
         raise PaperDataUnavailable(f"no qualified {symbol} quotes between {iso(t0)} and {iso(t1)}")
     base_syms = {f"hold {inst.base}": symbol}
@@ -157,7 +159,7 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     baselines = {f"hold {inst.quote}": {"end": {"equity": str(cash), "net": "0"}, "fills": 0}}
     baseline_evidence = {}
     for name, s in base_syms.items():
-        b = run(portal, rules_for, BuyAndHold(), s, t0, t1, resolution, cash, cost, subscriptions)
+        b = run(portal, rules_for, BuyAndHold(), s, t0, t1, resolution, cash, cost, subscriptions, digest_cache=digests)
         # Keep raw-data and rule/spec-dependent results before reducing the baseline display.
         baseline_evidence[s] = digest(b)
         baselines[name] = {k: b[k] for k in ("symbol", "end", "fills", "nonfills")} if b["end"] else {"unavailable": f"no qualified {s} quotes"}
