@@ -29,6 +29,7 @@ struct Fixture {
     fees: AccountObservation,
     market: MarketObservation,
     inventory: BTreeMap<String, Exact>,
+    net_debits_quote: Exact,
     root: tempfile::TempDir,
 }
 impl Fixture {
@@ -158,6 +159,7 @@ impl Fixture {
             fees,
             market,
             inventory,
+            net_debits_quote: Exact::parse("0").unwrap(),
             root,
         }
     }
@@ -186,6 +188,7 @@ impl Fixture {
                 fees: &self.fees,
                 market: &self.market,
                 own_inventory: &self.inventory,
+                net_debits_quote: self.net_debits_quote,
             },
         )
     }
@@ -306,6 +309,19 @@ fn exact_rounding_refuses_overflow_and_never_rounds_a_hold_down() {
         native_admission::rounded_quanta(Exact::parse("18446744073709551616").unwrap(), 0, true),
         None
     );
+}
+
+#[test]
+fn installation_cap_counts_cash_already_committed_to_positions_and_exact_remaining_budget() {
+    for (committed, allowed) in [("42", false), ("41.99", true), ("50", false)] {
+        let mut f = Fixture::new(true);
+        f.net_debits_quote = Exact::parse(committed).unwrap();
+        assert_eq!(f.admit(f.context()).is_ok(), allowed);
+        assert_eq!(
+            f.ledger.reserved("main", "USDT"),
+            if allowed { 8010000 } else { 0 }
+        );
+    }
 }
 
 #[test]

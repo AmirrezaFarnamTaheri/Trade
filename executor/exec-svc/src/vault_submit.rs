@@ -153,6 +153,7 @@ impl Vault {
                 fees: &fees,
                 market,
                 own_inventory: &risk.own_inventory,
+                net_debits_quote: risk.net_debits_quote,
             },
         ) {
             Ok(order) => order,

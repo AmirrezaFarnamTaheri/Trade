@@ -319,7 +319,7 @@ impl ArmController {
         now_ms: u64,
     ) -> Result<ArmRecord, ArmControlError> {
         self.approve_committed(gate, snapshot, policy, evidence, approver, now_ms, |_| {
-            Ok(())
+            Ok(now_ms)
         })
     }
 
@@ -333,7 +333,7 @@ impl ArmController {
         evidence: &ArmEvidence,
         approver: &str,
         now_ms: u64,
-        persist: impl FnOnce(&ArmRecord) -> io::Result<()>,
+        persist: impl FnOnce(&ArmRecord) -> io::Result<u64>,
     ) -> Result<ArmRecord, ArmControlError> {
         let _lease = policy
             .lease()
@@ -350,8 +350,12 @@ impl ArmController {
         if let Verdict::Disarm(reason) = record.check(&inputs) {
             return Err(ArmControlError::Kill(reason));
         }
-        persist(&record)
+        let committed_at_ms = persist(&record)
             .map_err(|_| ArmControlError::Blocked(ArmBlocker::PrivilegedFault.bit()))?;
+        let inputs = evidence.inputs(&record.policy, gate.runtime_epoch(), committed_at_ms)?;
+        if let Verdict::Disarm(reason) = record.check(&inputs) {
+            return Err(ArmControlError::Kill(reason));
+        }
         gate.arm(snapshot)
             .map_err(|_| ArmControlError::Blocked(ArmBlocker::ApprovalChanged.bit()))?;
         self.generation = evidence.credential_generation;

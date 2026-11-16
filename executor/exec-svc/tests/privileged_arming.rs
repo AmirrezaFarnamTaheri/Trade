@@ -203,7 +203,7 @@ fn approval_commit_failure_or_stop_during_commit_never_opens_the_gate() {
                 assert_ne!(record.digest(), [0; 32]);
                 if halted {
                     stop(&gate, StopCommand::Halt);
-                    Ok(())
+                    Ok(NOW)
                 } else {
                     Err(std::io::Error::other("synthetic disk failure"))
                 }
@@ -218,6 +218,28 @@ fn approval_commit_failure_or_stop_during_commit_never_opens_the_gate() {
                 StopMode::Disarmed
             }
         );
+        assert!(controller.record().is_none());
+    }
+}
+
+#[test]
+fn slow_or_regressing_approval_commit_cannot_backdate_freshness() {
+    let owner = OwnerFile::new();
+    for committed_at in [NOW - 1, NOW + 1001, NOW + 120001] {
+        let gate = StopGate::new(7).unwrap();
+        let mut controller = ArmController::new();
+        assert!(controller
+            .approve_committed(
+                &gate,
+                gate.approval_snapshot().unwrap(),
+                owner.policy(),
+                &evidence(NOW),
+                "owner",
+                NOW,
+                |_| Ok(committed_at)
+            )
+            .is_err());
+        assert_eq!(gate.mode(), StopMode::Disarmed);
         assert!(controller.record().is_none());
     }
 }

@@ -105,6 +105,7 @@ fn loss_uses_own_fills_fees_and_liquidation_depth_without_account_credits() {
     )
     .unwrap();
     eq(result.loss_quote, "11.9");
+    eq(result.net_debits_quote, "101");
     assert_eq!(result.open_orders, 0);
     assert_eq!(result.orders_today, 1);
     assert!(measure(

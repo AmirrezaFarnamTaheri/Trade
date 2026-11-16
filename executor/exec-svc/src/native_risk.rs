@@ -11,6 +11,7 @@ pub struct NativeRisk {
     pub open_orders: u32,
     pub orders_today: u32,
     pub own_inventory: BTreeMap<String, Exact>,
+    pub net_debits_quote: Exact,
 }
 
 fn zero() -> Exact {
@@ -239,5 +240,12 @@ pub fn measure(
             .map_err(|_| "open count overflow")?,
         orders_today,
         own_inventory,
+        net_debits_quote: match debits
+            .cmp_value(credits)
+            .ok_or("capital comparison overflow")?
+        {
+            std::cmp::Ordering::Greater => minus(debits, credits)?,
+            _ => zero(),
+        },
     })
 }

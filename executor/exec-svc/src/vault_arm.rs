@@ -199,10 +199,9 @@ impl Vault {
                 .balances
                 .matches_context(generation, gate.runtime_epoch())
             {
-                if let Some((_, limit)) = ledger
-                    .installation_ceiling()
-                    .filter(|(_, limit)| limit.ceiling.currency == policy.quote_asset)
-                {
+                if let Some((_, limit)) = ledger.installation_ceiling().filter(|(_, limit)| {
+                    limit.ceiling.currency == policy.quote_asset && limit.ceiling.capital_quanta > 0
+                }) {
                     evidence.available = self
                         .balances
                         .available(
@@ -445,6 +444,10 @@ impl Vault {
                         gate.runtime_epoch(),
                         snapshot.revision()
                     ));
+                    let owner = self
+                        .owner_review
+                        .as_ref()
+                        .ok_or(ArmBlocker::ProspectiveEvidence.bit())?;
                     self.arm_controller
                         .approve_committed(gate, snapshot, policy, &evidence, user, at, |record| {
                             let raw = serde_json::to_vec(&serde_json::json!({"schema":1,
@@ -454,7 +457,15 @@ impl Vault {
                             let mut file =
                                 OpenOptions::new().write(true).create_new(true).open(path)?;
                             file.write_all(&raw)?;
-                            file.sync_all()
+                            file.sync_all()?;
+                            let committed_at_ms = now_ms()?;
+                            let _evidence_lease = owner.verify(
+                                &record.policy,
+                                generation,
+                                gate.runtime_epoch(),
+                                committed_at_ms,
+                            )?;
+                            Ok(committed_at_ms)
                         })
                         .map_err(|error| error.blocker_mask())
                 })();

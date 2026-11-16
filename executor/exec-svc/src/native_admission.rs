@@ -17,6 +17,7 @@ pub struct NativeInputs<'a> {
     pub fees: &'a AccountObservation,
     pub market: &'a MarketObservation,
     pub own_inventory: &'a BTreeMap<String, Exact>,
+    pub net_debits_quote: Exact,
 }
 
 #[must_use = "retain the policy lease and recheck immediately before venue bytes"]
@@ -184,6 +185,20 @@ pub fn admit(
         .map_err(|_| invalid())?;
     if required > raw.available_quanta.saturating_sub(holds) {
         return Err(invalid());
+    }
+    if ticket.buy {
+        let (_, limit) = ledger.installation_ceiling().ok_or_else(invalid)?;
+        let committed = native
+            .net_debits_quote
+            .checked_add(amount(holds, ticket.quote_decimals))
+            .and_then(|value| value.checked_add(amount(required, ticket.quote_decimals)))
+            .ok_or_else(invalid)?;
+        if committed
+            .cmp_value(amount(limit.ceiling.capital_quanta, limit.ceiling.decimals))
+            .is_none_or(|order| order == Ordering::Greater)
+        {
+            return Err(invalid());
+        }
     }
     // Buy admission caps the entire reviewed debit, including fees and rounding.
     let notional = if ticket.buy {
