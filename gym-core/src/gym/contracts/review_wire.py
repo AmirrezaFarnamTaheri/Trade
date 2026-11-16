@@ -241,7 +241,7 @@ def decode_reply(raw, correlation, request):
         or raw[:8] != b"TGREPLY1"
         or raw[16:32] != correlation
         or raw[8] not in range(1, 8)
-        or raw[9] > 3
+        or raw[9] > 4
         or raw[10] > 1
         or any(raw[11:16])
     ):
@@ -295,7 +295,7 @@ def decode_reply(raw, correlation, request):
             "REFUSED",
             "PREPARED",
         )[raw[8] - 1],
-        "mode": ("DISARMED", "PAUSED", "EXIT_ONLY", "HALTED")[raw[9]],
+        "mode": ("DISARMED", "PAUSED", "EXIT_ONLY", "HALTED", "ARMED")[raw[9]],
         "current_epoch": str(epoch),
         "current_ceiling_sequence": str(int.from_bytes(raw[56:64], "big")),
         "current_credential_generation": raw[64:80].hex(),

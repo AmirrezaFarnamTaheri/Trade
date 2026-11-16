@@ -263,9 +263,15 @@ impl ArmRecord {
             Some(KillReason::Expired)
         } else if !inputs.reconciliation_clean {
             Some(KillReason::ReconciliationMismatch)
-        } else if le(p.loss_cap_quote, inputs.loss_quote) {
+        } else if !matches!(
+            p.loss_cap_quote.cmp_value(inputs.loss_quote),
+            Some(Ordering::Greater)
+        ) {
             Some(KillReason::LossCap)
-        } else if le(p.kill_max_loss_quote, inputs.loss_quote) {
+        } else if !matches!(
+            p.kill_max_loss_quote.cmp_value(inputs.loss_quote),
+            Some(Ordering::Greater)
+        ) {
             Some(KillReason::KillLoss)
         } else if inputs.newest_data_age_ms > u64::from(p.stale_data_seconds) * 1000 {
             Some(KillReason::StaleData)

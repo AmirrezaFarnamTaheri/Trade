@@ -226,3 +226,18 @@ fn orders_are_held_inside_the_per_order_limits() {
         Err(OrderRefusal::Disarmed(KillReason::Expired))
     );
 }
+
+#[test]
+fn a_loss_that_cannot_be_compared_exactly_disarms() {
+    let mut policy = cost_probe();
+    let tiny = x("0.0000000000000000000000000000000000001");
+    policy.loss_cap_quote = tiny;
+    policy.kill_max_loss_quote = tiny;
+    policy.max_order_quote = tiny;
+    let record = approve(policy, &ready(), "owner", 3, NOW).unwrap();
+    let input = KillInputs {
+        loss_quote: x("50"),
+        ..calm(NOW)
+    };
+    assert_eq!(record.check(&input), Verdict::Disarm(KillReason::LossCap));
+}

@@ -3,7 +3,7 @@
 use exec_ipc::{
     ProtocolError, StopCommand, StopMode, StopReply, StopRequest, StopResult, FRAME_SIZE,
 };
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Stable SCM service-specific startup and custody failures; never include credential or request data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -243,7 +243,37 @@ pub mod config_trust {
 
 pub struct StopGate {
     runtime_epoch: u64,
-    mode: AtomicU8,
+    state: AtomicU64,
+}
+
+/// A service-issued approval fence. Any stop or disarm invalidates it, including repeated stops.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApprovalSnapshot {
+    state: u64,
+    runtime_epoch: u64,
+}
+
+impl ApprovalSnapshot {
+    pub fn revision(self) -> u64 {
+        self.state >> 3
+    }
+}
+
+fn state_mode(state: u64) -> StopMode {
+    match state & 7 {
+        0 => StopMode::Disarmed,
+        1 => StopMode::Paused,
+        2 => StopMode::ExitOnly,
+        4 => StopMode::Armed,
+        _ => StopMode::Halted,
+    }
+}
+
+fn next_state(state: u64, mode: StopMode) -> u64 {
+    match (state & !7).checked_add(8) {
+        Some(revision) => revision | mode as u64,
+        None => (state & !7) | StopMode::Halted as u64,
+    }
 }
 
 impl StopGate {
@@ -253,19 +283,95 @@ impl StopGate {
         }
         Ok(Self {
             runtime_epoch,
-            mode: AtomicU8::new(StopMode::Disarmed as u8),
+            state: AtomicU64::new(StopMode::Disarmed as u64),
         })
     }
 
     pub fn mode(&self) -> StopMode {
-        self.mode
-            .load(Ordering::SeqCst)
-            .try_into()
-            .expect("mode only stored by StopGate")
+        state_mode(self.state.load(Ordering::SeqCst))
     }
 
     pub fn runtime_epoch(&self) -> u64 {
         self.runtime_epoch
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.state.load(Ordering::SeqCst) >> 3
+    }
+
+    pub fn is_armed_at(&self, runtime_epoch: u64, revision: u64) -> bool {
+        let state = self.state.load(Ordering::SeqCst);
+        runtime_epoch == self.runtime_epoch
+            && state >> 3 == revision
+            && state_mode(state) == StopMode::Armed
+    }
+
+    pub fn approval_snapshot(&self) -> Result<ApprovalSnapshot, &'static str> {
+        let state = self.state.load(Ordering::SeqCst);
+        if state_mode(state) != StopMode::Disarmed {
+            return Err("executor must be disarmed before approval");
+        }
+        Ok(ApprovalSnapshot {
+            state,
+            runtime_epoch: self.runtime_epoch,
+        })
+    }
+
+    pub(crate) fn arm(&self, snapshot: ApprovalSnapshot) -> Result<(), &'static str> {
+        if snapshot.runtime_epoch != self.runtime_epoch
+            || state_mode(snapshot.state) != StopMode::Disarmed
+        {
+            return Err("invalid approval fence");
+        }
+        let target = next_state(snapshot.state, StopMode::Armed);
+        if state_mode(target) != StopMode::Armed {
+            return Err("stop revision exhausted");
+        }
+        self.state
+            .compare_exchange(snapshot.state, target, Ordering::SeqCst, Ordering::SeqCst)
+            .map(|_| ())
+            .map_err(|_| "stop changed during approval")
+    }
+
+    /// Faults revoke approvals without weakening a concurrent PAUSE, EXIT_ONLY or HALT.
+    pub fn disarm(&self) {
+        let mut state = self.state.load(Ordering::SeqCst);
+        loop {
+            let mode = match state_mode(state) {
+                StopMode::Armed => StopMode::Disarmed,
+                mode => mode,
+            };
+            match self.state.compare_exchange(
+                state,
+                next_state(state, mode),
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return,
+                Err(current) => state = current,
+            }
+        }
+    }
+
+    fn stop(&self, target: StopMode) -> bool {
+        let mut state = self.state.load(Ordering::SeqCst);
+        loop {
+            let old = state_mode(state);
+            let mode = if old.stop_level() < target.stop_level() {
+                target
+            } else {
+                old
+            };
+            match self.state.compare_exchange(
+                state,
+                next_state(state, mode),
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return mode != old,
+                Err(current) => state = current,
+            }
+        }
     }
 
     /// Linearizable stop: HALT wins over every weaker concurrent request.
@@ -278,13 +384,20 @@ impl StopGate {
                 StopCommand::Status => (StopResult::Ack, false),
                 command => {
                     let target = match command {
-                        StopCommand::PauseEntries => StopMode::Paused as u8,
-                        StopCommand::ExitOnly => StopMode::ExitOnly as u8,
-                        StopCommand::Halt => StopMode::Halted as u8,
-                        StopCommand::Status => unreachable!(),
+                        StopCommand::PauseEntries => StopMode::Paused,
+                        StopCommand::ExitOnly => StopMode::ExitOnly,
+                        StopCommand::Halt => StopMode::Halted,
+                        StopCommand::Status => {
+                            return StopReply {
+                                result: StopResult::Ack,
+                                mode: self.mode(),
+                                changed: false,
+                                runtime_epoch: self.runtime_epoch,
+                                correlation: request.correlation,
+                            }
+                        }
                     };
-                    let old = self.mode.fetch_max(target, Ordering::SeqCst);
-                    (StopResult::Ack, old < target)
+                    (StopResult::Ack, self.stop(target))
                 }
             }
         };
@@ -312,3 +425,6 @@ pub mod balance_receipts;
 
 /// Durable service composition with an in-process fake venue, never a live adapter.
 pub mod fake_execution;
+
+/// Privileged arm approval, policy-file binding and per-effect safety checks.
+pub mod arm_control;

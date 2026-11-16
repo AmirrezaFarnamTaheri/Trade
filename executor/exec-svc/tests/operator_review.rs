@@ -125,6 +125,32 @@ fn prepared_review_and_exact_hold_commit_once_and_survive_restart() {
     drop(journal);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn armed_mode_allows_only_a_previously_prepared_review_to_reserve() {
+    use exec_core::orders::BalanceSnapshot;
+    let root = root();
+    let path = root.join("exec_ledger.db");
+    let mut journal = DurableOrderJournal::open(&path).unwrap();
+    journal.commit_ceiling(limit()).unwrap();
+    let mut unprepared = approval();
+    unprepared.mode = StopMode::Armed;
+    assert!(journal.record_approval(unprepared).is_err());
+    journal.record_approval(approval()).unwrap();
+    let mut prepare = preparation();
+    prepare.mode = StopMode::Armed;
+    assert!(journal.prepare_intent(prepare).is_err());
+    journal.prepare_intent(preparation()).unwrap();
+    let mut reserve = reservation();
+    reserve.mode = StopMode::Armed;
+    let snapshot = BalanceSnapshot::new("main", "USDT", 10_000_000, 1).unwrap();
+    journal.reserve_prepared_intent(reserve, &snapshot).unwrap();
+    drop(journal);
+    let replayed = DurableOrderJournal::open(&path).unwrap();
+    assert!(replayed.get("intent-1").is_some());
+    drop(replayed);
+    std::fs::remove_dir_all(root).unwrap();
+}
 #[test]
 fn reservation_refusals_leave_both_the_review_and_cash_unchanged() {
     use exec_core::orders::BalanceSnapshot;

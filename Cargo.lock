@@ -120,6 +120,7 @@ dependencies = [
  "exec-store",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "windows-service",
  "windows-sys",

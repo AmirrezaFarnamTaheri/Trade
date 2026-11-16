@@ -199,6 +199,7 @@ fn check_approval(
         &value.principal,
         value.recorded_at_ms,
         value.mode,
+        false,
     )
 }
 fn check_review_context(
@@ -208,6 +209,7 @@ fn check_review_context(
     principal: &str,
     at: u64,
     mode: exec_ipc::StopMode,
+    prepared: bool,
 ) -> Result<(), RecoveryError> {
     if ticket.ceiling_sequence != sequence
         || ticket.quote != limit.ceiling.currency
@@ -220,7 +222,9 @@ fn check_review_context(
             > at.checked_add(30000)
                 .ok_or(RecoveryError::InvalidIdentity)?
         || mode == exec_ipc::StopMode::Halted
-        || (ticket.buy && mode != exec_ipc::StopMode::Disarmed)
+        || (ticket.buy
+            && mode != exec_ipc::StopMode::Disarmed
+            && !(prepared && mode == exec_ipc::StopMode::Armed))
         || ticket.max_quote_debit > limit.ceiling.capital_quanta
     {
         return Err(RecoveryError::InvalidIdentity);
@@ -272,6 +276,7 @@ fn check_review_action(
         &value.principal,
         value.recorded_at_ms,
         value.mode,
+        prepared,
     )
 }
 fn check_revocation(

@@ -105,3 +105,16 @@ def test_mismatched_or_weaker_ack_does_not_confirm_requested_stop():
     fake_ack = encode_reply(StopResult.ACK, StopMode.PAUSED, True, EPOCH, CORRELATION)
     with pytest.raises(ValueError):
         verify_reply_for(request, fake_ack)
+
+
+@pytest.mark.parametrize("command", list(StopCommand))
+def test_armed_wire_value_never_confirms_a_stop(command):
+    from gym.contracts.stop_wire import verify_reply_for
+
+    request = encode_request(command, EPOCH, CORRELATION)
+    reply = encode_reply(StopResult.ACK, StopMode.ARMED, False, EPOCH, CORRELATION)
+    if command is StopCommand.STATUS:
+        assert verify_reply_for(request, reply) == (StopMode.ARMED, False)
+    else:
+        with pytest.raises(ValueError, match="requested stop level"):
+            verify_reply_for(request, reply)
