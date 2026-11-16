@@ -141,18 +141,6 @@
       "diff": "     command, epoch, correlation = decode_request(request)\n     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n-        raise ValueError(\"stop has not been acknowledged for this request\")\n+        raise ValueError(\"XXstop has not been acknowledged for this requestXX\")\n     required = {\n         StopCommand.STATUS: StopMode.DISARMED,\n         StopCommand.PAUSE_ENTRIES: StopMode.PAUSED,\n",
       "status": "killed"
     },
-    "src/gym/contracts/stop_wire.py:6f0859da4691a7afe5a9bbc952f198bed4292cf91eb7a5efb5ecf7fda15da2ac": {
-      "diff": "     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n-    required = {\n-        StopCommand.STATUS: StopMode.DISARMED,\n-        StopCommand.PAUSE_ENTRIES: StopMode.PAUSED,\n-        StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,\n-        StopCommand.HALT: StopMode.HALTED,\n-    }[command]\n+    required = None\n     if mode < required:\n         raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n     return mode, changed\n",
-      "status": "killed"
-    },
-    "src/gym/contracts/stop_wire.py:3757c7adc55f96ae51f05e48e398102fdaa6082e0cb94afa4e4478719891a256": {
-      "diff": "         StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,\n         StopCommand.HALT: StopMode.HALTED,\n     }[command]\n-    if mode < required:\n+    if mode <= required:\n         raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n     return mode, changed\n",
-      "status": "killed"
-    },
-    "src/gym/contracts/stop_wire.py:26164d88a178b0e49310d2511d171a7b78511b1c1f4fa68e20bc7d766c4ca289": {
-      "diff": "         StopCommand.HALT: StopMode.HALTED,\n     }[command]\n     if mode < required:\n-        raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n+        raise ValueError(\"XXacknowledgment does not confirm the requested stop levelXX\")\n     return mode, changed\n",
-      "status": "killed"
-    },
     "src/gym/domain/performance.py:bcc7e64a3833b06a04bb8fab9bb623d5e26ccdf5322a9245ed5363c375f88d0e": {
       "diff": " \n def expected_max_sharpe(trials: int, sharpe_variance: float) -> float:\n     \"\"\"Sharpe the best of `trials` unskilled strategies reaches by luck alone (per period).\"\"\"\n-    if trials < 2 or sharpe_variance <= 0:\n+    if trials <= 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n                                          + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n",
       "status": "killed"
@@ -235,6 +223,18 @@
     },
     "src/gym/domain/performance.py:690437eb100504f1bb4cb3c8e301799f503836c6adfb124da6446fdf3b6257fb": {
       "diff": "     if trials < 2 or sharpe_variance <= 0:\n         return 0.0\n     return math.sqrt(sharpe_variance) * ((1 - EULER) * _N.inv_cdf(1 - 1 / trials)\n-                                         + EULER * _N.inv_cdf(1 - 1 / (trials * math.e)))\n+                                         + EULER * _N.inv_cdf(1 - 1 / (trials / math.e)))\n \n \n def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: float,\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:ad40293b974862ef88dd498b8f25191772796dc0eb3207a176433177d9b206df": {
+      "diff": "         StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,\n         StopCommand.HALT: StopMode.HALTED,\n     }[command]\n-    if mode.stop_level < required.stop_level:\n+    if mode.stop_level <= required.stop_level:\n         raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n     return mode, changed\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:f14b7ddc8e91b0556418d4570039d7e36b6d4acabc6aa4904d339d183d4553c7": {
+      "diff": "     result, mode, changed, reply_epoch, reply_id = decode_reply(reply)\n     if reply_id != correlation or result != StopResult.ACK or reply_epoch != epoch:\n         raise ValueError(\"stop has not been acknowledged for this request\")\n-    required = {\n-        StopCommand.STATUS: StopMode.DISARMED,\n-        StopCommand.PAUSE_ENTRIES: StopMode.PAUSED,\n-        StopCommand.EXIT_ONLY: StopMode.EXIT_ONLY,\n-        StopCommand.HALT: StopMode.HALTED,\n-    }[command]\n+    required = None\n     if mode.stop_level < required.stop_level:\n         raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n     return mode, changed\n",
+      "status": "killed"
+    },
+    "src/gym/contracts/stop_wire.py:7c74f6210f5e12d426b70f1507cbdf0e9e8d1fc392062dc560973b69f7302d51": {
+      "diff": "         StopCommand.HALT: StopMode.HALTED,\n     }[command]\n     if mode.stop_level < required.stop_level:\n-        raise ValueError(\"acknowledgment does not confirm the requested stop level\")\n+        raise ValueError(\"XXacknowledgment does not confirm the requested stop levelXX\")\n     return mode, changed\n",
       "status": "killed"
     }
   },
