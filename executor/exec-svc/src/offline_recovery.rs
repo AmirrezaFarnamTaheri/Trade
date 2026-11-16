@@ -27,7 +27,26 @@ const REVOKE_APPROVAL: u8 = 11;
 const PREPARE_INTENT: u8 = 12;
 const RESERVE_REVIEW: u8 = 13;
 const ACCOUNT_OBSERVATION: u8 = 14;
-#[derive(Clone, Debug, PartialEq, Eq)]
+const CHECKPOINT_MAGIC: &[u8; 8] = b"TGCKPT01";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Checkpoint {
+    tip: (u64, [u8; 32]),
+    intents: BTreeMap<String, ObservedIntent>,
+    reservations: ActiveHoldBook,
+    legacy_reservations: ReservationBook,
+    credential: Option<CredentialMetadata>,
+    generations: BTreeSet<[u8; 16]>,
+    ceiling: Option<(u64, CeilingChange)>,
+    ceiling_requests: BTreeSet<[u8; 16]>,
+    approvals: BTreeMap<String, ApprovalView>,
+    approval_requests: BTreeSet<[u8; 16]>,
+    account_observations: Vec<((AccountKind, String), AccountObservation)>,
+    account_requests: BTreeSet<[u8; 16]>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OperatorApproval {
     pub ticket: exec_ipc::review::Ticket,
     pub principal: String,
@@ -36,7 +55,7 @@ pub struct OperatorApproval {
     pub request_id: [u8; 16],
     pub mode: exec_ipc::StopMode,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ApprovalView {
     pub sequence: u64,
     pub approval: OperatorApproval,
@@ -278,7 +297,7 @@ fn check_revocation(
 }
 
 /// Durable metadata, not a money permit. The service must authenticate the writer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CeilingChange {
     pub ceiling: exec_ipc::ceiling::Ceiling,
     pub principal: String,
@@ -351,13 +370,13 @@ fn check_ceiling(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum CredentialPermission {
     Unverified,
 }
 
 /// Ciphertext identity only. This record never confers executor authority.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CredentialMetadata {
     pub generation: [u8; 16],
     pub ciphertext_digest: [u8; 32],
@@ -408,7 +427,7 @@ impl From<LedgerError> for RecoveryError {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ObservedIntent {
     pub admission_index: usize,
     pub account: String,
@@ -521,19 +540,19 @@ fn apply_review_reservation(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Side {
     Buy,
     Sell,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Purpose {
     Entry,
     Conversion,
     ProtectiveExit,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ExecutionIdentity {
     pub instrument: String,
     pub base: String,
@@ -578,7 +597,7 @@ impl ExecutionIdentity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ExecutionSettlement {
     pub filled_quanta: u64,
     pub gross_quote_quanta: u64,
@@ -619,6 +638,7 @@ pub struct DurableOrderJournal {
     recovered_inflight: BTreeSet<String>,
     recovered_cancels: BTreeSet<String>,
     credential: Option<CredentialMetadata>,
+    generations: BTreeSet<[u8; 16]>,
     ceiling: Option<(u64, CeilingChange)>,
     ceiling_requests: BTreeSet<[u8; 16]>,
     approvals: BTreeMap<String, ApprovalView>,
@@ -1419,8 +1439,48 @@ fn apply_record(
     Ok(())
 }
 impl DurableOrderJournal {
+    fn maybe_checkpoint(&mut self) -> Result<(), RecoveryError> {
+        if self.records.is_multiple_of(1024) && !self.checkpoint()? {
+            eprintln!("executor checkpoint exceeds event bound; retaining verified replay");
+        }
+        Ok(())
+    }
+
+    /// Only this owner creates snapshots of committed state; request payloads never supply checkpoint state.
+    pub fn checkpoint(&mut self) -> Result<bool, RecoveryError> {
+        let saved = Checkpoint {
+            tip: self.ledger.tip(),
+            intents: self.intents.clone(),
+            reservations: self.reservations.clone(),
+            legacy_reservations: self.legacy_reservations.clone(),
+            credential: self.credential.clone(),
+            generations: self.generations.clone(),
+            ceiling: self.ceiling.clone(),
+            ceiling_requests: self.ceiling_requests.clone(),
+            approvals: self.approvals.clone(),
+            approval_requests: self.approval_requests.clone(),
+            account_observations: self
+                .account_observations
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            account_requests: self.account_requests.clone(),
+        };
+        let state = serde_json::to_vec(&saved).map_err(|_| RecoveryError::MalformedEvent)?;
+        let mut raw = CHECKPOINT_MAGIC.to_vec();
+        raw.extend_from_slice(&exec_store::hash_event(&[0; 32], &state));
+        raw.extend_from_slice(&state);
+        // shortcut: snapshots over 1 MiB use verified replay; add chunked checkpoints before high-volume use.
+        if raw.len() > exec_store::MAX_EVENT_BYTES {
+            return Ok(false);
+        }
+        self.ledger.append(&raw)?;
+        self.records += 1;
+        Ok(true)
+    }
+
     pub fn open(path: impl AsRef<Path>) -> Result<Self, RecoveryError> {
-        let (ledger, records) = Ledger::open_and_replay(path)?;
+        let (ledger, records) = Ledger::open_after_checkpoint(path, CHECKPOINT_MAGIC)?;
         let mut intents = BTreeMap::new();
         let mut reservations = ActiveHoldBook::default();
         let mut legacy_reservations = ReservationBook::default();
@@ -1433,6 +1493,35 @@ impl DurableOrderJournal {
         let mut account_observations = BTreeMap::new();
         let mut account_requests = BTreeSet::new();
         for e in &records {
+            if e.event_bytes.starts_with(CHECKPOINT_MAGIC) {
+                if e != &records[0] || e.event_bytes.len() < 40 {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                let state = &e.event_bytes[40..];
+                if exec_store::hash_event(&[0; 32], state).as_slice() != &e.event_bytes[8..40] {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                let saved: Checkpoint =
+                    serde_json::from_slice(state).map_err(|_| RecoveryError::MalformedEvent)?;
+                if saved.tip != (e.sequence - 1, e.previous_hash)
+                    || serde_json::to_vec(&saved).map_err(|_| RecoveryError::MalformedEvent)?
+                        != state
+                {
+                    return Err(RecoveryError::MalformedEvent);
+                }
+                intents = saved.intents;
+                reservations = saved.reservations;
+                legacy_reservations = saved.legacy_reservations;
+                credential = saved.credential;
+                generations = saved.generations;
+                ceiling = saved.ceiling;
+                ceiling_requests = saved.ceiling_requests;
+                approvals = saved.approvals;
+                approval_requests = saved.approval_requests;
+                account_observations = saved.account_observations.into_iter().collect();
+                account_requests = saved.account_requests;
+                continue;
+            }
             let parsed = decode(&e.event_bytes)?;
             if let Record::AccountObservation(value) = parsed {
                 check_account_observation(
@@ -1543,15 +1632,21 @@ impl DurableOrderJournal {
             })
             .map(|(id, _)| id.clone())
             .collect();
+        let record_count = ledger
+            .tip()
+            .0
+            .try_into()
+            .map_err(|_| RecoveryError::MalformedEvent)?;
         Ok(Self {
             ledger,
             intents,
             reservations,
             legacy_reservations,
-            records: records.len(),
+            records: record_count,
             recovered_inflight,
             recovered_cancels,
             credential,
+            generations,
             ceiling,
             ceiling_requests,
             approvals,
@@ -1644,6 +1739,7 @@ impl DurableOrderJournal {
         self.account_requests.insert(value.request_id());
         self.account_observations.insert(value.key(), value);
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(receipt)
     }
 
@@ -1676,6 +1772,7 @@ impl DurableOrderJournal {
             },
         );
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     pub fn revoke_approval(&mut self, value: ApprovalRevocation) -> Result<(), RecoveryError> {
@@ -1686,6 +1783,7 @@ impl DurableOrderJournal {
         current.sequence = entry.sequence;
         current.revoked_at_ms = Some(value.recorded_at_ms);
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     pub fn prepare_intent(&mut self, value: IntentPreparation) -> Result<(), RecoveryError> {
@@ -1704,6 +1802,7 @@ impl DurableOrderJournal {
         saved.prepared_at_ms = Some(value.recorded_at_ms);
         saved.sequence = entry.sequence;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
@@ -1754,6 +1853,7 @@ impl DurableOrderJournal {
             .unwrap()
             .sequence = entry.sequence;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     pub fn commit_ceiling(&mut self, change: CeilingChange) -> Result<(), RecoveryError> {
@@ -1762,22 +1862,21 @@ impl DurableOrderJournal {
         self.ceiling_requests.insert(change.request_id);
         self.ceiling = Some((entry.sequence, change));
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
     /// Call only after the immutable ciphertext generation has been durably published.
     pub fn commit_credential(&mut self, metadata: CredentialMetadata) -> Result<(), RecoveryError> {
         let raw = metadata.encode()?;
-        for entry in self.ledger.replay_from(0)? {
-            if let Record::Credential(old) = decode(&entry.event_bytes)? {
-                if old.generation == metadata.generation {
-                    return Err(RecoveryError::DuplicateIdentity);
-                }
-            }
+        if self.generations.contains(&metadata.generation) {
+            return Err(RecoveryError::DuplicateIdentity);
         }
         self.ledger.append(&raw)?;
+        self.generations.insert(metadata.generation);
         self.credential = Some(metadata);
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
@@ -1803,6 +1902,7 @@ impl DurableOrderJournal {
         self.reservations = next_holds;
         self.legacy_reservations = next_legacy;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
 
@@ -1825,6 +1925,7 @@ impl DurableOrderJournal {
         self.reservations = next_holds;
         self.legacy_reservations = next_legacy;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     /// Durable offline reservation admission. A snapshot is *not* trusted
@@ -1869,6 +1970,7 @@ impl DurableOrderJournal {
         self.reservations = next_holds;
         self.legacy_reservations = next_legacy;
         self.records += 1;
+        self.maybe_checkpoint()?;
         Ok(())
     }
     /// Identity and reservation commit together; transport is a separate, later step.

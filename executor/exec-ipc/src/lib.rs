@@ -34,7 +34,7 @@ impl TryFrom<u8> for StopCommand {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum StopMode {
     Disarmed = 0,

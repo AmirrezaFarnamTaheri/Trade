@@ -176,19 +176,32 @@ impl Ledger {
     /// Open only with WAL and synchronous=FULL. A corrupted or future-version
     /// ledger fails closed before any append is possible.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, LedgerError> {
-        Self::open_verified(path.as_ref(), u64::MAX).map(|(ledger, _)| ledger)
+        Self::open_verified(path.as_ref(), u64::MAX, None).map(|(ledger, _)| ledger)
     }
 
     /// Open and return the full verified history in one pass for startup projections.
     pub fn open_and_replay(
         path: impl AsRef<Path>,
     ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
-        Self::open_verified(path.as_ref(), 0)
+        Self::open_verified(path.as_ref(), 0, None)
+    }
+
+    /// Verify every chain byte, retaining only the latest checkpoint and its suffix for projection.
+    pub fn open_after_checkpoint(
+        path: impl AsRef<Path>,
+        magic: &[u8; 8],
+    ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
+        Self::open_verified(path.as_ref(), 0, Some(magic))
+    }
+
+    pub fn tip(&self) -> (u64, [u8; 32]) {
+        (self.sequence, self.head_hash)
     }
 
     fn open_verified(
         path: &Path,
         after_sequence: u64,
+        checkpoint_magic: Option<&[u8; 8]>,
     ) -> Result<(Self, Vec<LedgerEntry>), LedgerError> {
         let lock = OpenOptions::new()
             .create(true)
@@ -241,6 +254,13 @@ impl Ledger {
         if trigger_count != 2 {
             return Err(LedgerError::Configuration("append-only guards missing"));
         }
+        let after_sequence = if let Some(magic) = checkpoint_magic {
+            conn.query_row("SELECT sequence-1 FROM ledger_events WHERE substr(event_bytes,1,8)=?1 ORDER BY sequence DESC LIMIT 1",
+                [magic.as_slice()], |row| row.get::<_, i64>(0)).optional()?.unwrap_or(0)
+                .try_into().map_err(|_| LedgerError::Configuration("invalid checkpoint sequence"))?
+        } else {
+            after_sequence
+        };
         let (sequence, head_hash, events) = load_verified(&conn, after_sequence)?;
         Ok((
             Self {

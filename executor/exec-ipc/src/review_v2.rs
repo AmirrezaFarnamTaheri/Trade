@@ -1,7 +1,7 @@
-//! Offline, version-distinct operator-review v2 wire. No service listener or order transport.
+//! Version-distinct operator-review v2 wire, mounted on the operator pipe. No order transport.
 //!
 //! This codec does not authenticate a principal, reserve money, prepare a venue
-//! order, or create funded authority. The installed service remains on v1.
+//! order, or create funded authority.
 //! Only future *submission-side* approvals/preparations narrow client IDs;
 //! legacy inspection/revocation retains the original read-side grammar.
 use crate::review::{Command, Reply, Request, REPLY_SIZE, REQUEST_SIZE};
@@ -23,7 +23,7 @@ pub fn valid_submit_client_id(client_id: &str) -> Result<(), &'static str> {
     }
 }
 
-/// A v2-only review request. No deployed listener accepts these frames.
+/// A v2-only review request; v1 frames are refused by the operator listener.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RequestV2(pub Request);
 

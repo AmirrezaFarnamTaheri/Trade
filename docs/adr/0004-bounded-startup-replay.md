@@ -33,5 +33,10 @@ ledger, so a long enough ledger makes the service fail to start with an error th
   two journals, so the fixed window was the real risk only for long ledgers.
 - Done: the service now waits up to two minutes for the privileged thread, reporting START_PENDING with an
   advancing checkpoint every second, instead of failing after five seconds.
-- Still proposed: checkpoint events with a derived-state digest and suffix-only replay. Not needed at current
-  volumes; revisit when the startup measurement in the service log approaches the two-minute bound.
+- Source update (2026-11-16): canonical checkpoint events bind committed state, its digest and the previous
+  ledger tip. The journal writes one every 1,024 records and restores its state plus the suffix; every chain
+  byte is still hash-checked. Credential generation lookups use a cached set and the ledger exposes its cached tip.
+- A snapshot exceeding the existing 1 MiB event limit is explicitly skipped, retaining verified replay rather
+  than reporting a committed operation as failed. Chunked/compact checkpoints, bounded request-id history,
+  independent prefix decode-and-compare and the million-row startup qualification remain open. This is not
+  a constant-time startup claim or installed-service qualification.

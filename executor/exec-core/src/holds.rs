@@ -24,7 +24,7 @@ pub enum HoldError {
     Reconciling,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct AssetState {
     observed_available: u64,
     observed_seq: u64,
@@ -48,9 +48,34 @@ impl AssetState {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct ActiveHoldBook {
+    #[serde(with = "asset_rows")]
     assets: BTreeMap<(String, String), AssetState>,
+}
+
+mod asset_rows {
+    use super::AssetState;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::BTreeMap;
+    type Rows = Vec<((String, String), AssetState)>;
+    pub fn serialize<S: Serializer>(
+        assets: &BTreeMap<(String, String), AssetState>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        assets.iter().collect::<Vec<_>>().serialize(s)
+    }
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<BTreeMap<(String, String), AssetState>, D::Error> {
+        let rows = Rows::deserialize(d)?;
+        let count = rows.len();
+        let assets: BTreeMap<_, _> = rows.into_iter().collect();
+        if assets.len() != count {
+            return Err(serde::de::Error::custom("duplicate checkpoint asset"));
+        }
+        Ok(assets)
+    }
 }
 
 fn valid(name: &str) -> bool {

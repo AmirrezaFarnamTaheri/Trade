@@ -1,7 +1,7 @@
 //! Administrator-only limit metadata. No identity claim or money permission on this wire.
 pub const SIZE: usize = 96;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Ceiling {
     pub currency: String,
     pub unit_epoch: u32,

@@ -5,7 +5,7 @@ pub const TICKET_SIZE: usize = 352;
 pub const REQUEST_SIZE: usize = 400;
 pub const REPLY_SIZE: usize = 432;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Ticket {
     pub client_id: String,
     pub account: String,

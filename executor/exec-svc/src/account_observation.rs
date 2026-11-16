@@ -5,7 +5,7 @@ use std::fmt;
 
 pub use exec_ipc::account::ObservationKind as AccountKind;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AccountObservation {
     kind: AccountKind,
     generation: [u8; 16],
