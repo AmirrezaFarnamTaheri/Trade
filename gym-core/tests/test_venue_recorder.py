@@ -79,3 +79,22 @@ def test_github_sync_downloads_once_and_rejects_unexpected_zip_members(tmp_path)
     archive[0] = zipped("../escape")
     with pytest.raises(ValueError, match="contents"):
         recorder.sync_artifacts("owner/repo", tmp_path / "bad.db", api=api)
+
+
+def test_margin_previews_cover_each_allowed_ratio_and_side_at_the_touch(tmp_path):
+    markets = {"result": [{"symbol": "BTCUSDT", "base": "BTC", "quote": "USDT", "min_risk_coef": "1",
+                           "max_risk_coef": "3", "risk_coef_step": "0.5"}]}
+    sent = []
+
+    def post(path, body=None):
+        if body is None:
+            return json.dumps(markets)
+        sent.append(body)
+        return '{"success":true,"result":{"trade_fee":{"value":"0.5","currency":"USDT"}}}'
+
+    out = tmp_path / "margin.jsonl"
+    assert recorder.margin_terms(out, post=post, fetch=lambda symbol: DEPTH, sleep=lambda s: None) == (6, 0)
+    assert [(b["side"], b["risk_coef"], b["open_price"]) for b in sent][:4] == [
+        ("long", "1", "271121"), ("long", "2", "271121"), ("long", "3", "271121"), ("short", "1", "271050.5")]
+    line = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert line["request"]["collateral"] == "100" and line["answer"]["result"]["trade_fee"]["value"] == "0.5"

@@ -247,3 +247,34 @@ def test_unknown_database_is_not_modified(tmp_path):
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 0
         assert conn.execute("SELECT value FROM keep").fetchone()[0] == 42
         assert conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0] == 1
+
+
+def test_a_stopped_worker_claim_is_taken_again_after_it_expires_then_given_up(tmp_path, monkeypatch):
+    from gym.services import research_ledger
+    db = market_db(tmp_path, quote_history(n=500))
+    due = START + timedelta(hours=1)
+    try:
+        with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+            job = schedule(ledger)
+
+            def stopped(*_):
+                raise OSError("worker stopped")
+            monkeypatch.setattr(research_ledger, "save_run", stopped)
+            with pytest.raises(OSError):
+                ledger.run_due(db, iso(due))
+            stale = json.loads(ledger.conn.execute("SELECT body FROM reports").fetchone()[0])
+            assert ledger.run_due(db, iso(due + timedelta(minutes=14))) == {
+                "completed": [], "failed": [], "superseded": [], "authority": "PAPER_ONLY"}
+            monkeypatch.undo()
+            out = ledger.run_due(db, iso(due + timedelta(minutes=16)))
+            assert [a["job_id"] for a in out["completed"]] == [job["job_id"]]
+            assert not ledger._owns(job["job_id"], job["next_at"], stale["claim_id"])
+            for _ in range(research_ledger.MAX_ABANDONED):
+                ledger.conn.execute("UPDATE reports SET body=? WHERE job_id=?", (json.dumps(
+                    {**stale, "attempts": research_ledger.MAX_ABANDONED}), job["job_id"]))
+            ledger.conn.execute("UPDATE jobs SET next_at=?", (job["next_at"],))
+            ledger.conn.commit()
+            given_up = ledger.run_due(db, iso(due + timedelta(hours=2)))["failed"][0]
+            assert (given_up["error_code"], given_up["retryable"]) == ("REPLAY_ABANDONED", False)
+    finally:
+        db.c.close()

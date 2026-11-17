@@ -4,6 +4,7 @@ Standard library only; no key is sent. Candles can be fetched later, quotes cann
 best bid, best ask and their sizes, with the receipt time. Prices and sizes are kept as the venue's exact text.
 
     python scripts/venue_recorder.py record --minutes 340 --out quotes.jsonl [--symbols USDTTMN BTCTMN BTCUSDT]
+    python scripts/venue_recorder.py margin --out margin-terms.jsonl
     python scripts/venue_recorder.py import quotes.jsonl [more.jsonl] --db ../data/live/recorder.sqlite3
 
 `import` writes a `book_top` table that `scripts/usdttmn_v1.py --db` reads. Rows are unique per market and receipt
@@ -149,6 +150,50 @@ def sync_artifacts(repo, db, *, api=github_api):
     raise ValueError("artifact listing exceeded page limit")
 
 
+RATIOS = ("1", "2", "3", "5", "10")
+COLLATERAL = {"USDT": "100", "TMN": "30000000"}
+
+
+def post_margin(path: str, body: dict | None = None) -> str:
+    request = urllib.request.Request(ORIGIN + path, data=None if body is None else json.dumps(body).encode(),
+                                     headers={"User-Agent": "TradingGYM-recorder", "Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=15) as reply:
+        return reply.read(1024 * 1024).decode("utf-8")
+
+
+def margin_terms(out: Path, *, post=post_margin, fetch=fetch, sleep=time.sleep) -> tuple[int, int]:
+    """The venue's own margin preview for every margin market, both sides and each allowed credit ratio, at the
+    current touch. Public calculators only; nothing is opened. Venue answers are kept whole, as received."""
+    markets = json.loads(post("/margin-trade/v1/public/markets"), parse_float=str, parse_int=str)["result"]
+    rows = errors = 0
+    with out.open("a", encoding="utf-8", newline="\n") as file:
+        for market in markets:
+            try:
+                quote = top(fetch(market["symbol"]))
+            except (OSError, ValueError, KeyError, TypeError):
+                quote, errors = None, errors + 1
+            if not quote:
+                continue
+            lo, hi, step = (Decimal(market[k]) for k in ("min_risk_coef", "max_risk_coef", "risk_coef_step"))
+            for side in ("long", "short"):
+                for ratio in RATIOS:
+                    if not lo <= Decimal(ratio) <= hi or (Decimal(ratio) - lo) % step:
+                        continue
+                    body = {"market": market["symbol"], "side": side, "risk_coef": ratio, "collateral": COLLATERAL[market["quote"]],
+                            "open_price": quote["ask" if side == "long" else "bid"]}
+                    try:
+                        answer = json.loads(post("/margin-trade/v1/public/dry-run", body), parse_float=str, parse_int=str)
+                    except (OSError, ValueError) as error:
+                        errors += 1
+                        print(f"{market['symbol']} {side} {ratio}: {type(error).__name__}: {error}", file=sys.stderr)
+                        continue
+                    at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                    file.write(json.dumps({"ts": at, "rule": market, "request": body, "answer": answer}) + "\n")
+                    rows += 1
+                    sleep(0.3)
+    return rows, errors
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -159,6 +204,8 @@ def main(argv: list[str]) -> int:
     importer = commands.add_parser("import")
     importer.add_argument("files", type=Path, nargs="+")
     importer.add_argument("--db", type=Path, required=True)
+    margin = commands.add_parser("margin", help="save the venue's margin previews for every market, side and ratio")
+    margin.add_argument("--out", type=Path, required=True)
     sync = commands.add_parser("sync", help="import retained GitHub recorder artifacts using gh authentication")
     sync.add_argument("--repo", required=True)
     sync.add_argument("--db", type=Path, required=True)
@@ -166,6 +213,10 @@ def main(argv: list[str]) -> int:
     if args.command == "sync":
         print(f"{sync_artifacts(args.repo, args.db)} new hosted rows")
         return 0
+    if args.command == "margin":
+        rows, errors = margin_terms(args.out)
+        print(f"{rows} margin previews, {errors} failed reads")
+        return 0 if rows else 1
     if args.command == "import":
         print(f"{import_files(args.files, args.db)} new rows")
         return 0

@@ -672,7 +672,8 @@ def research_action(root, action, value=None, *, store="live", at=None):
         if action == "tick":
             db = _market_db(root)
             try:
-                return ledger.run_due(db, at or now_utc().isoformat(), store=store)
+                # One job per supervised worker: the worker deadline covers one replay, not every due job at once.
+                return ledger.run_due(db, at or now_utc().isoformat(), store=store, limit=1)
             finally:
                 db.c.close()
         method = getattr(ledger, actions[action])
