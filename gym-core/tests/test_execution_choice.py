@@ -67,6 +67,9 @@ def test_unmatched_partial_fills_cannot_be_ranked_as_cheaper_execution():
     assert report["reason"] == "UNMATCHED_FILLED_QUANTITY"
     assert report["retrospective_lower_cost"] is None
     assert report["twap_advantage_bps"] is None
+    fast, slow = Decimal(report["immediate_fill_rate"]), Decimal(report["twap_fill_rate"])
+    assert fast != slow and 0 <= min(fast, slow) and max(fast, slow) <= 1
+    assert fast == (Decimal(report["immediate_filled_quantity"]) / Decimal(report["requested_quantity"])).quantize(Decimal("0.0001"))
 
 
 def test_mismatched_scenarios_and_malformed_prices_fail_closed():

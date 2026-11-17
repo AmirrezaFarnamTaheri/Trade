@@ -136,6 +136,9 @@ def compare_execution_previews(immediate, twap):
             "requested_quantity": str(requested),
             "immediate_filled_quantity": str(fast_filled),
             "twap_filled_quantity": str(slow_filled),
+            # Kept when prices are not comparable: how much each approach got done is itself the finding.
+            "immediate_fill_rate": str((fast_filled / requested).quantize(Decimal("0.0001"))) if requested else None,
+            "twap_fill_rate": str((slow_filled / requested).quantize(Decimal("0.0001"))) if requested else None,
             "immediate": immediate,
             "twap": twap,
             "status": "NOT_COMPARABLE",

@@ -207,8 +207,9 @@ def _bootstrap(returns: list[float], seed: int = 0) -> dict:
     sharpes.sort()
     totals.sort()
     low, high = int(0.05 * (sims - 1)), int(0.95 * (sims - 1))
+    # Beside the probabilistic Sharpe, which counts bars as independent: blocks keep their dependence.
     return {"simulations": sims, "mean_block": block, "sharpe_per_period": [sharpes[low], sharpes[high]],
-            "total_return": [totals[low], totals[high]]}
+            "total_return": [totals[low], totals[high]], "probability_sharpe_positive": sum(x > 0 for x in sharpes) / sims}
 
 
 def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
@@ -439,9 +440,42 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         win_rate, payoff = len(wins) / len(trades), float(gross_win / len(wins)) / float(gross_loss / len(losses))
         stats["kelly_fraction"] = round(max(0.0, win_rate - (1 - win_rate) / payoff), 4)
     out["trades"] = stats
+    out["activity"] = _activity(out, result, stats)
+    out["abstentions"] = _abstentions(result)
     out["attribution"] = signal_attribution(result)
     out["ledger"] = trades
     return out
+
+
+def _abstentions(result: dict) -> dict:
+    """How often the run could not act, by reason: withheld decisions, skipped periods and orders that did not fill."""
+    counts: dict[str, int] = {}
+    for decision in result.get("decisions", []):
+        if str(decision.get("action", "")).startswith("ABSTAIN"):
+            counts[decision["action"]] = counts.get(decision["action"], 0) + 1
+    for gap in result.get("session", {}).get("skipped", []):
+        key = "SKIPPED_" + gap.get("reason", "UNKNOWN")
+        counts[key] = counts.get(key, 0) + 1
+    for reason, n in (result.get("nonfills") or {}).items():
+        counts["NONFILL_" + reason] = counts.get("NONFILL_" + reason, 0) + int(n)
+    return dict(sorted(counts.items()))
+
+
+def _activity(out: dict, result: dict, stats: dict) -> dict | None:
+    """Return per unit of trading, and holding the base asset scaled to the same time in market.
+
+    The matched benchmark is exposure x the asset's move over the window: a strategy in the market half the time is
+    compared with half a holding, not a full one. It ignores when the exposure happened, so it is a yardstick only.
+    """
+    if out.get("total_return_pct") is None:
+        return None
+    total = float(out["total_return_pct"]) / 100
+    bids = [float(d["bid"]) for d in result.get("decisions", []) if d.get("bid")]
+    move = bids[-1] / bids[0] - 1 if len(bids) > 1 and bids[0] > 0 else None
+    exposure, turnover = stats["exposure"], float(stats["turnover"])
+    return {"return_per_turnover": round(total / turnover, 6) if turnover else None,
+            "hold_return_pct": round(move * 100, 4) if move is not None else None,
+            "exposure_matched_hold_pct": round(exposure * move * 100, 4) if move is not None and exposure is not None else None}
 
 
 def selection_check(candidates: dict[str, dict], trials: int | None = None) -> dict | None:
@@ -461,7 +495,9 @@ def selection_check(candidates: dict[str, dict], trials: int | None = None) -> d
     best_name = max(usable, key=lambda name: usable[name]["sharpe_per_period"])
     best = usable[best_name]
     minimum = minimum_track_record_length(best["sharpe_per_period"], best["skew"], best["kurtosis"])
-    return {"trials": trials, "compared": len(usable), "best": best_name, "best_sharpe_per_period": best["sharpe_per_period"],
+    return {"trials": trials, "compared": len(usable), "best": best_name,
+            # Dispersion comes only from these candidates; with two or three it is a rough estimate.
+            "dispersion_basis": "ROUGH_FEW_CANDIDATES" if len(usable) < 4 else "COMPARED_CANDIDATES", "best_sharpe_per_period": best["sharpe_per_period"],
             "luck_threshold_per_period": expected_max_sharpe(trials, variance),
             "minimum_track_record": minimum,
             "track_record_status": "SUFFICIENT" if minimum is not None and best["periods"] >= minimum else "NOT_ENOUGH_DATA",
