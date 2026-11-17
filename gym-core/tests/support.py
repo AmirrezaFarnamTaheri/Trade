@@ -13,11 +13,11 @@ def quote(t, bid, ask, flags=()):
     return BookTop("BTCUSDT", t, Decimal(bid), Decimal(ask), Decimal(1), Decimal(1), frozenset(flags))
 
 
-def quote_history(n=2000, step=10, sym="BTCUSDT"):
-    """Up for the first half, down for the second: EMA trades at least twice."""
+def quote_history(n=2000, step=10, sym="BTCUSDT", turn=0.5):
+    """Up until `turn` of the way through, then down: EMA trades at least twice. `turn=1` only rises."""
     out, px = [], Decimal(70000)
     for i in range(n):
-        px += Decimal(3) if i < n // 2 else Decimal(-3)
+        px += Decimal(3) if i < n * turn else Decimal(-3)
         out.append(BookTop(sym, START + timedelta(seconds=step * i), px - 5, px + 5, Decimal(1), Decimal(1), frozenset()))
     return out
 

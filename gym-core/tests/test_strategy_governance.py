@@ -25,9 +25,9 @@ def _paths():
             {"run_id": "b" * 16, "strategy": "sma-cross", "marks": b}]
 
 
-def test_oos_combination_weights_use_only_earlier_squared_errors():
+def test_oos_combination_weights_use_only_earlier_return_variance():
     report = combine_oos_curves(_paths(), lookback=6, rebalance_cost_bps=Decimal(5))
-    assert report["schema"] == "oos-strategy-combination/1"
+    assert report["schema"] == "oos-strategy-combination/2"
     assert report["status"] == "MODELED_PROXY_ONLY"
     assert report["funded_authority"] is False
     assert len(report["components"]) == 2
@@ -120,3 +120,11 @@ def test_unhashable_run_identifiers_are_rejected_as_validation_errors(tmp_path):
         screen_verified_retirement(tmp_path, {
             "run_ids": [{"malformed": True}, "b" * 16, "c" * 16],
             "universe": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]}, store="demo")
+
+
+def test_a_steady_gainer_is_not_penalised_for_its_average_return():
+    paths = _paths()
+    for i, mark in enumerate(paths[0]["marks"]):
+        mark["equity_usdt"] = str(Decimal(1000) * Decimal("1.01") ** i)  # large but perfectly steady gains
+    report = combine_oos_curves(paths, lookback=6, rebalance_cost_bps=Decimal(0))
+    assert Decimal(report["weights"][-1]["ema-trend"]) > Decimal("0.4")

@@ -1,6 +1,8 @@
 """Successive paper windows retain separate selection, warmup and failure states."""
 import json
+from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -26,7 +28,7 @@ def test_invalid_window_count_is_rejected_before_transaction(tmp_path, folds):
 
 
 def test_windows_share_snapshot_but_not_cash_or_strategy_state(tmp_path, monkeypatch):
-    db = market_db(tmp_path, quote_history(n=1500))
+    db = market_db(tmp_path, quote_history(n=1500, turn=1))
     end = START + timedelta(minutes=240)
     try:
         original = temporal_validation.validate(db, "BTCUSDT", START, end, CANDIDATES,
@@ -144,11 +146,23 @@ def test_unexpected_holdout_errors_are_not_masked_as_missing_data(tmp_path, monk
 
 
 def test_missing_holdout_remains_unavailable(tmp_path):
-    db = market_db(tmp_path, quote_history(n=128))
+    db = market_db(tmp_path, quote_history(n=128, turn=1))
     try:
         report = temporal_validation.validate(db, "BTCUSDT", START, START + timedelta(minutes=31),
                                               CANDIDATES, resolution="1min")
         assert report["selected"] is not None
         assert report["status"] == "UNAVAILABLE" and report["holdout_run_id"] is None
+    finally:
+        db.c.close()
+
+
+def test_cash_is_selected_when_no_candidate_made_money_on_the_selection_days(tmp_path):
+    falling = [replace(top, bid=top.bid - 6 * i, ask=top.ask - 6 * i) for i, top in enumerate(quote_history(n=1500, turn=1))]
+    db = market_db(tmp_path, falling)
+    try:
+        report = temporal_validation.validate(db, "BTCUSDT", START, START + timedelta(minutes=240), CANDIDATES, resolution="1min")
+        assert all(Decimal(run["result"]["end"]["net"]) <= 0 for run in report["runs"])
+        assert (report["status"], report["reason"], report["selected"], report["holdout_run_id"]) == (
+            "ABSTAIN", "NO_CANDIDATE_BEAT_CASH", None, None)
     finally:
         db.c.close()

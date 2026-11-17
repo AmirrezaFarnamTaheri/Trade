@@ -1,7 +1,9 @@
 # Rust Executor
 
-The Windows service remains **DISARMED / NOT CERTIFIED**. There is no funded
-submission, cancellation or protective-exit transport.
+The Windows service remains **DISARMED / NOT CERTIFIED**. In source, an elevated owner step can arm a one-shot
+LIMIT submission (ADR 0007); that build is not installed, not qualified and not armed. The installed service has no
+funded submission path. Neither has cancellation or protective-exit transport.
+Stages: [capabilities](../gym-core/docs/capabilities.md#stages).
 
 - `exec-core`: authority/stop policies, exact order/reservation state and seeded Fake Venue scenarios.
 - `exec-store`: single-writer SQLite WAL ledger with FULL-synchronous commits and stored-byte hash verification.

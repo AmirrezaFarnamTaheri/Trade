@@ -83,8 +83,8 @@ opt-in so older run IDs and research receipts retain their meaning.
   rolling 20-proposals-per-10-seconds cap. The offline Rust review v2
   codec uses distinct request/reply magic and rejects invalid submit-side
   IDs while allowing historical read-only identities. The installed
-  native review service remains v1: no funded submit or paced order path
-  is attached.
+  native review service remains v1 with no funded submit path; the one-shot
+  LIMIT path exists in source only (see capabilities, Stages).
 
 All of these contracts require separate authenticated venue observations,
 prospective stress windows, integrated scheduler/executor controls and

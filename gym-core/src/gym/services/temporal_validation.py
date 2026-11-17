@@ -75,6 +75,9 @@ def _validate_in_snapshot(db, symbol, start, end, candidates, *, resolution="15m
                                             for key in ("strategy", "strategy_version", "params", "config_hash")}
     holdout = None
     status, reason = "ABSTAIN", "NO_CURRENT_ACTIVE_SELECTION_RESULT"
+    if selected is not None and Decimal(selected["result"]["end"]["net"]) <= 0:
+        # Cash is a candidate: when nothing beat it on the selection days, holding cash is the selection.
+        selected, winner, reason = None, None, "NO_CANDIDATE_BEAT_CASH"
     if selected is not None:
         try:
             holdout = paper(db, symbol, holdout_start, end, resolution=resolution, cash=cash, cost=cost,
@@ -98,9 +101,9 @@ def _validate_in_snapshot(db, symbol, start, end, candidates, *, resolution="15m
                             "run_ids": [run["run_id"] for run in selection["runs"]]},
               "holdout_run_id": None if holdout is None else holdout["run_id"],
               "trial_count": len(runs), "runs": runs,
-              "limitation": "First 70% selects a fixed registered candidate; one decision period is purged. "
+              "limitation": "First 70% selects a fixed registered candidate, or cash when none made money; one decision period is purged. "
                             "The remaining window starts a separate flat paper account with its own warmup. "
                             "Same engine; repeatable historical diagnostic, not a consume-once or independent final test. "
-                            "A negative selection result can still win; selection is not evidence of profitability."}
+                            "Selection is not evidence of profitability."}
     report["validation_id"] = digest({key: value for key, value in report.items() if key != "runs"})[:16]
     return report

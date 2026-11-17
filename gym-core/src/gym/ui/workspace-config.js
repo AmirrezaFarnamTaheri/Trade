@@ -342,7 +342,7 @@ Object.assign(vocabulary, {
   validationWindow: ["Window", "بازه"], INCOMPLETE: ["Incomplete evaluation", "ارزیابی ناقص"],
   validationNote: ["Select on the first 70%, skip one period, then evaluate the fixed choice. Reusing history weakens independence.", "انتخاب روی ۷۰٪ نخست، حذف یک دوره، سپس ارزیابی انتخاب ثابت. استفادهٔ دوباره از تاریخچه استقلال را کم می‌کند."],
   validationTitle: ["Chronological validation", "اعتبارسنجی زمانی"], selectionWindow: ["Selection window", "بازهٔ انتخاب"], holdoutWindow: ["Later evaluation window", "بازهٔ ارزیابی بعدی"],
-  selectedCandidate: ["Selected candidate", "گزینهٔ انتخاب‌شده"], ABSTAIN: ["No eligible candidate", "گزینهٔ واجد شرایط وجود ندارد"],
+  selectedCandidate: ["Selected candidate", "گزینهٔ انتخاب‌شده"], cashSelected: ["Cash (no candidate made money)", "نقد (هیچ گزینه‌ای سود نکرد)"], ABSTAIN: ["No eligible candidate", "گزینهٔ واجد شرایط وجود ندارد"],
   EVALUATED: ["Evaluated", "ارزیابی‌شده"], STALE_HOLDOUT: ["Later valuation is stale", "ارزش‌گذاری بازهٔ بعدی کهنه است"],
 });
 Object.assign(vocabulary, {
