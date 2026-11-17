@@ -1,4 +1,4 @@
-//! Disarmed service with independent T0 STOP and privileged custody/account/limit control.
+//! Disarmed service with an independent STOP listener and privileged custody/account/limit control.
 //! Custody and account GETs are implemented; funded orders and protective exits are not.
 #[cfg(windows)]
 mod credential_vault;
@@ -320,7 +320,7 @@ mod windows_host {
         let listener_failed = Arc::new(AtomicBool::new(false));
         let failed = Arc::clone(&listener_failed);
         let stop_on_failure = Arc::clone(&should_stop);
-        // This independent T0 thread never waits for Python, UI or the main
+        // This independent STOP thread never waits for Python, UI or the main
         // proposal/reconciliation loop and cannot gain funded permissions.
         thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -338,7 +338,7 @@ mod windows_host {
                         ))
                     })
             }));
-            // Any return (or panic) loses T0; never leave SCM RUNNING.
+            // Any return (or panic) loses the STOP listener; never leave SCM RUNNING.
             let _ = result;
             failed.store(true, Ordering::SeqCst);
             stop_on_failure.store(true, Ordering::SeqCst);
@@ -352,7 +352,7 @@ mod windows_host {
         }
         // SCM RUNNING means the stop pipe exists, NOT exit protection.
         status_handle.set_service_status(status(ServiceState::Running, 0))?;
-        // Explicit SCM-admin drill: T0 must remain responsive while this loop is hung.
+        // Explicit SCM-admin drill: the STOP listener must remain responsive while this loop is hung.
         if mode == exec_ipc::provision::StartupMode::StopIsolationDrill {
             loop {
                 thread::park();

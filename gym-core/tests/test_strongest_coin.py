@@ -1,4 +1,4 @@
-"""T14 holds the strongest qualifying coin, waits in USDT otherwise, and charges both legs of a rotation."""
+"""strongest-coin-or-cash holds the strongest qualifying coin, waits in USDT otherwise, and charges both legs of a rotation."""
 import importlib.util
 import sys
 from pathlib import Path

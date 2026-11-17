@@ -1,4 +1,4 @@
-//! Elevated T2 arm control. This framing carries no trusted measurements or identity claims.
+//! Elevated administrator arm control. This framing carries no trusted measurements or identity claims.
 use crate::StopMode;
 
 pub const REQUEST_SIZE: usize = 1152;

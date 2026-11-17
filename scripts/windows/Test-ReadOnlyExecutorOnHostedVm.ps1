@@ -200,7 +200,7 @@ try {
     $logonSidPresent = ($identityGroups -contains $expectedSid)
     $logonSidEnabled = $principal.IsInRole(
         [Security.Principal.SecurityIdentifier]::new($expectedSid))
-    Write-Output "T0 ACL preflight: logon-match=$($expectedSid -ceq $actualSid) network-token-group=$hasNetworkSid logon-group-present=$logonSidPresent logon-group-enabled=$logonSidEnabled"
+    Write-Output "STOP pipe ACL preflight: logon-match=$($expectedSid -ceq $actualSid) network-token-group=$hasNetworkSid logon-group-present=$logonSidPresent logon-group-enabled=$logonSidEnabled"
     if ($expectedSid -cne $actualSid) {
         throw 'The stop-pipe client token does not match privileged installation logon.'
     }
@@ -310,25 +310,25 @@ public static class TradingGymStopPipeProbe {
 }
 '@
     Add-Type -TypeDefinition $accessProbeType
-    Write-Output "T0 caller token restricted: $([TradingGymStopPipeProbe]::TokenRestricted())"
+    Write-Output "STOP pipe caller token restricted: $([TradingGymStopPipeProbe]::TokenRestricted())"
     foreach ($principalSid in @($expectedSid, ('RC+' + $expectedSid), 'BA', 'AU', 'WD')) {
         $canaryResult = [TradingGymStopPipeProbe]::Canary($principalSid)
         $label = if ($principalSid -eq $expectedSid) { 'logon' } elseif ($principalSid -like 'RC+*') { 'logon+RC' } else { $principalSid }
-        Write-Output "T0 same-logon DACL canary: principal=$label $canaryResult"
+        Write-Output "STOP pipe same-logon DACL canary: principal=$label $canaryResult"
     }
     foreach ($rights in @('0x00100003', '0x00120003', '0x00100083',
                            '0x00120083', '0x0012008B', '0x0012018B', 'GA')) {
         $result = [TradingGymStopPipeProbe]::CanaryRights($expectedSid,
             $rights, [uint32]0x00100003)
-        Write-Output "T0 operator-ACE rights=$rights $result"
+        Write-Output "STOP pipe operator-ACE rights=$rights $result"
     }
     foreach ($mask in @([uint32]0, [uint32]1, [uint32]2, [uint32]3, [uint32]0x00100003)) {
         $errorNumber = [TradingGymStopPipeProbe]::Probe($mask)
-        Write-Output ('T0 access-probe mask=0x{0:X8} win32={1}' -f $mask, $errorNumber)
+        Write-Output ('STOP pipe access-probe mask=0x{0:X8} win32={1}' -f $mask, $errorNumber)
     }
     $StopClient = Join-Path (Split-Path -Parent $binary) 'gym-stopctl.exe'
     if (-not (Test-Path -LiteralPath $StopClient -PathType Leaf)) {
-        throw 'Compiled gym-stopctl.exe is required for T0 verification.'
+        throw 'Compiled gym-stopctl.exe is required for STOP pipe verification.'
     }
     # A freshly rebuilt and started instance must come up DISARMED before anyone touches it.
     $initial = & $StopClient status 2>&1
@@ -344,7 +344,7 @@ public static class TradingGymStopPipeProbe {
             throw "Stop-only pipe did not acknowledge ${command}: $($reply -join ' ')"
         }
         if ($watch.ElapsedMilliseconds -ge 1000) {
-            throw "T0 ACK exceeded 1 second for ${command}: $($watch.ElapsedMilliseconds)ms"
+            throw "STOP pipe ACK exceeded 1 second for ${command}: $($watch.ElapsedMilliseconds)ms"
         }
         Write-Output "PASS: stop-only pipe $command ACKNOWLEDGED in $($watch.ElapsedMilliseconds)ms"
     }

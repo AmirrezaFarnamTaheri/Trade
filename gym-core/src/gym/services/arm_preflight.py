@@ -1,4 +1,4 @@
-"""Standing arm-ready preflight (owner decision OD-2): READY or BLOCKED with reasons. It never arms anything.
+"""Standing arm-ready preflight (owner decision on arming): READY or BLOCKED with reasons. It never arms anything.
 
 Arming itself does not exist yet: it needs the privileged executor path and an owner-set policy. This report is
 the checklist that path will require, computed from evidence available today, so the gap is always visible.

@@ -1,4 +1,4 @@
-"""C2 offline review queue is usable through CLI, Journal and guarded local API."""
+"""The offline review queue is usable through CLI, Journal and guarded local API."""
 import asyncio
 import json
 

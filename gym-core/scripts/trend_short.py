@@ -1,4 +1,4 @@
-"""T11: the T6 trend rule, short below its average instead of in USDT, at 1x or 2x of equity.
+"""trend-with-short-side: the btc-daily-trend trend rule, short below its average instead of in USDT, at 1x or 2x of equity.
 
 Registered in docs/trial-log.md before this script ran. Ranks 60 cells on Binance days before 2024-01-01, then
 scores the best window and ratio once on Wallex margin markets no trend trial has used.
@@ -69,7 +69,7 @@ def verdict(rank_source, held_source) -> bool:
                 cells.append({"symbol": symbol, "window": window, "ratio": ratio, "series": series,
                               "moments": (skew, kurtosis), "sharpe": mean / deviation if deviation else 0.0})
     variance = pvariance([cell["sharpe"] for cell in cells])
-    print(f"T11 ranked before {SPLIT}; cost {100 * COST:.2f}% per side, carry {100 * CARRY:.2f}% a day on borrowed amounts")
+    print(f"trend-with-short-side ranked before {SPLIT}; cost {100 * COST:.2f}% per side, carry {100 * CARRY:.2f}% a day on borrowed amounts")
     for cell in cells:
         cell["deflated"] = deflated_sharpe(cell["sharpe"], len(cell["series"]), *cell["moments"], len(cells), variance) or 0.0
         long_only = [r for day, r in returns(*rank_source[cell["symbol"]], cell["window"], cell["ratio"], short=False) if day < SPLIT]
@@ -77,13 +77,13 @@ def verdict(rank_source, held_source) -> bool:
               f"(long or cash {100 * total(long_only):8.1f}%), yearly Sharpe {cell['sharpe'] * sqrt(365):5.2f}, deflated {cell['deflated']:.3f}")
     best = max(cells, key=lambda cell: cell["deflated"])
     if best["deflated"] < 0.95:
-        print(f"T11 FAIL on ranking days (best {best['symbol']} {best['window']}-day {best['ratio']:.0f}x, {best['deflated']:.3f}); held-out markets not scored")
+        print(f"trend-with-short-side FAIL on ranking days (best {best['symbol']} {best['window']}-day {best['ratio']:.0f}x, {best['deflated']:.3f}); held-out markets not scored")
         return False
     held = pooled(held_source, best["window"], best["ratio"])
     mean, deviation, chance = probability(held)
     print(f"  held out, {best['window']}-day {best['ratio']:.0f}x on {len(held_source)} markets: {len(held)} days, total {100 * total(held):.1f}%, "
           f"yearly Sharpe {mean / deviation * sqrt(365) if deviation else 0:.2f}, probability Sharpe > 0: {chance:.3f}")
-    print(f"T11 VERDICT: {'PASS' if chance >= 0.90 else 'FAIL'}")
+    print(f"trend-with-short-side VERDICT: {'PASS' if chance >= 0.90 else 'FAIL'}")
     return chance >= 0.90
 
 

@@ -1,4 +1,4 @@
-//! Seeded, deterministic Fake Venue for the B2 chaos suite (spec 14.1/14.3).
+//! Seeded, deterministic Fake Venue for the chaos suite.
 //! Pure: no I/O, clock, keys or real orders. The venue holds ground truth;
 //! the client side sees only lossy, duplicated, reordered observations and
 //! drives the real `orders` state machine and `ReservationBook`.

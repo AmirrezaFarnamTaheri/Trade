@@ -1,4 +1,4 @@
-"""T13 trades only past its threshold, pays both touches and fees, and will not score before its window closes."""
+"""book-imbalance trades only past its threshold, pays both touches and fees, and will not score before its window closes."""
 import importlib.util
 from datetime import UTC, datetime
 from pathlib import Path

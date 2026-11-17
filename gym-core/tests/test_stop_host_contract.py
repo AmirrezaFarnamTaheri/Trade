@@ -1,4 +1,4 @@
-"""Read-only T0 Windows service activation contract (source checks only).
+"""Read-only STOP-pipe Windows service activation contract (source checks only).
 
 Real Windows named-pipe creation and ACKs must be tested by hosted CI.
 """
@@ -94,7 +94,7 @@ def test_disposable_vm_checks_effective_logon_identity_before_stop_client():
     smoke = SMOKE.read_text("utf-8")
     assert "Get-OperatorLogonSid.ps1" in smoke
     assert "stop-logon.sid" in smoke
-    assert "T0 ACL preflight" in smoke
+    assert "STOP pipe ACL preflight" in smoke
     assert "S-1-5-2" in smoke  # deny-NETWORK group membership diagnostic
     assert "Write-Output $expectedSid" not in smoke
     assert "Write-Output $actualSid" not in smoke
@@ -124,10 +124,10 @@ def test_disposable_windows_ci_includes_same_logon_descriptor_canary():
     # logon-SID ACL from a service-specific authorization failure.
     script = SMOKE.read_text("utf-8")
     assert "Canary($principalSid)" in script
-    assert "T0 caller token restricted" in script
+    assert "STOP pipe caller token restricted" in script
     for group in ("'BA'", "'AU'", "'WD'"):
         assert group in script
-    assert "T0 same-logon DACL canary:" in script
+    assert "STOP pipe same-logon DACL canary:" in script
 
 
 def test_operator_stop_pipe_acl_allows_metadata_read_but_not_pipe_creation():

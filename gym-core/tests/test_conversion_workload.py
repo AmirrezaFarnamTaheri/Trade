@@ -1,4 +1,4 @@
-"""C2 conversion workload and implementation shortfall with deterministic fake fills."""
+"""Conversion workload and implementation shortfall with deterministic fake fills."""
 import pytest
 
 from gym.domain.conversion import ConversionUnsafe, ConversionWorkload

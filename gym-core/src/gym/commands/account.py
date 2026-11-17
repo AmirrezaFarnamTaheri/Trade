@@ -156,7 +156,7 @@ def ticket_queue_add_cmd(args) -> int:
 
 
 def ticket_queue_review_cmd(args) -> int:
-    """Record offline ACKNOWLEDGE/REJECT; never issue T1 or live permission."""
+    """Record offline ACKNOWLEDGE/REJECT; never issue an operator approval or live permission."""
     from ..services.offline_review_journal import OfflineReviewJournal
 
     root = store_root(args)
@@ -196,7 +196,7 @@ def ticket_preview_cmd(args) -> int:
 
 
 def venue_fact_import_cmd(args) -> int:
-    """Store strict, sanitized C1 evidence metadata; never accept raw API JSON.
+    """Store strict, sanitized venue-fact metadata; never accept raw API JSON.
 
     A claimed source is NOT authenticated. This command can never certify
     venue order methods, provision keys or authorize any funded operation.

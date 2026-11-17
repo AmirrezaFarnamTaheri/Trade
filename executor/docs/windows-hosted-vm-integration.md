@@ -1,4 +1,4 @@
-# Disposable Windows VM integration gate (B1, read-only only)
+# Disposable Windows VM integration gate (read-only)
 
 This workflow exercises the **actual** Windows SCM and effective NTFS/SCM ACLs
 on a fresh **GitHub-hosted Windows runner**, never on a workstation or an
@@ -33,8 +33,8 @@ and uses no venue credentials, trading endpoints, funded actions or persistent
 secrets. Successful CI is evidence for **these specific installer, service-
 identity and two-principal OS access checks**, not proof of real operator session
 binding, actual worker sandbox containment, authenticated stop-pipe access,
-sub-second STOP availability under a hung Python/UI process, backups, T2 or
-real-money readiness. Those B1 gates remain open. Do not run this test on a
+sub-second STOP availability under a hung Python/UI process, backups, the administrator pipe or
+real-money readiness. Those read-only gates remain open. Do not run this test on a
 funded or non-disposable host.
 
 The local-account probe compiles a Windows PowerShell Add-Type helper. Each test

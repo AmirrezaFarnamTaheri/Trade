@@ -1,4 +1,4 @@
-//! B2 offline, durably logged order identity and evidence projection.
+//! Offline, durably logged order identity and evidence projection.
 //! No transport or funded authority: restarting this journal never submits an order.
 //! All records are appended to exec-store's FULL-synchronous hash-chained ledger
 //! before an Attempt projection changes. Unknown bytes or illegal replay fail closed.

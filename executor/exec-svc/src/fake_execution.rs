@@ -251,7 +251,7 @@ impl FakeVenue {
     }
 }
 
-/// Only this fixture can create these approvals. This is NOT an authenticated live T1 token.
+/// Only this fixture can create these approvals. This is NOT an authenticated live operator token.
 #[derive(Clone)]
 pub struct ApprovedFakeIntent {
     id: String,

@@ -172,7 +172,7 @@ class WallexAccountReader:
         """Fetch one explicit, ID-echoed order and its documented fill fees.
 
         This still uses an injected *read-only* session and is not the
-        service-owned T2 credential path. No funding, settlement or order
+        service-owned administrator credential path. No funding, settlement or order
         absence can be inferred from a single GET.
         """
         from .wallex_order_evidence import (

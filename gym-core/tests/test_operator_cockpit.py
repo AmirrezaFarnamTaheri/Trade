@@ -1,4 +1,4 @@
-"""C1-C3 operator cockpit must never imply funded or certified permissions."""
+"""The operator cockpit must never imply funded or certified permissions."""
 import asyncio
 
 from aiohttp.test_utils import TestClient, TestServer

@@ -1,4 +1,4 @@
-//! A stalled venue read holds neither the vault lock nor the independent T0 stop gate.
+//! A stalled venue read holds neither the vault lock nor the independent STOP gate.
 use exec_ipc::{StopCommand, StopMode, StopRequest};
 use exec_svc::{read_outside_lock, StopGate};
 use std::sync::{Arc, Mutex};

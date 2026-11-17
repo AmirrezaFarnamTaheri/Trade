@@ -1,4 +1,4 @@
-"""T12: each month hold the daily rule with the best trailing after-cost return, or USDT when none made money.
+"""rule-selector-with-cash: each month hold the daily rule with the best trailing after-cost return, or USDT when none made money.
 
 Registered in docs/trial-log.md before this script ran. Ranks 30 cells (ten coins x three lookbacks) on Binance
 days before 2024-01-01, then scores the best lookback once on Wallex margin markets no trend trial has scored.
@@ -116,7 +116,7 @@ def verdict(rank_source, held_source) -> bool:
                           "sharpe": mean / deviation if deviation else 0.0, "best_rule": best_rule,
                           "best_rule_total": total(singles[best_rule]), "cash_share": chosen.count("cash") / len(chosen)})
     variance = pvariance([cell["sharpe"] for cell in cells])
-    print(f"T12 ranked before {SPLIT}; {100 * COST:.2f}% per side on every change")
+    print(f"rule-selector-with-cash ranked before {SPLIT}; {100 * COST:.2f}% per side on every change")
     for cell in cells:
         cell["deflated"] = deflated_sharpe(cell["sharpe"], len(cell["series"]), *cell["moments"], len(cells), variance) or 0.0
         print(f"  {cell['symbol']:9} {cell['lookback']:3}-day lookback: total {100 * total(cell['series']):9.1f}% "
@@ -125,7 +125,7 @@ def verdict(rank_source, held_source) -> bool:
     best = max(cells, key=lambda cell: cell["deflated"])
     beats = total(best["series"]) > best["best_rule_total"]
     if best["deflated"] < 0.95 or not beats:
-        print(f"T12 FAIL on ranking days (best {best['symbol']} {best['lookback']}-day, deflated {best['deflated']:.3f}, "
+        print(f"rule-selector-with-cash FAIL on ranking days (best {best['symbol']} {best['lookback']}-day, deflated {best['deflated']:.3f}, "
               f"{'beats' if beats else 'below'} its best single rule); held-out markets not scored")
         return False
     by_day = {}
@@ -138,7 +138,7 @@ def verdict(rank_source, held_source) -> bool:
     mean, deviation, _, _ = _moments(held)
     print(f"  held out, {best['lookback']}-day lookback on {len(held_source)} markets: {len(held)} days, total {100 * total(held):.1f}%, "
           f"yearly Sharpe {mean / deviation * sqrt(365) if deviation else 0:.2f}, block-bootstrap probability Sharpe > 0: {chance:.3f}")
-    print(f"T12 VERDICT: {'PASS' if chance >= 0.90 else 'FAIL'}")
+    print(f"rule-selector-with-cash VERDICT: {'PASS' if chance >= 0.90 else 'FAIL'}")
     return chance >= 0.90
 
 

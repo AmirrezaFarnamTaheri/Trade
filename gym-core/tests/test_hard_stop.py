@@ -1,4 +1,4 @@
-"""B2 last-resort hard stop is operator-elevated containment, not exit safety."""
+"""The last-resort hard stop is operator-elevated containment, not exit safety."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]

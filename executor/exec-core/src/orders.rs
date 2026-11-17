@@ -1,4 +1,4 @@
-//! Offline B2 recovery state machine: no network, clock, keys, or side effects.
+//! Offline order recovery state machine: no network, clock, keys, or side effects.
 //! The venue's status strings must be verified before mapping them to these
 //! evidence events. Missing a list row is never an absence proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -397,7 +397,7 @@ impl Slots {
     }
 }
 
-// The following exact-quanta book is an offline B2 admission model, NOT
+// The following exact-quanta book is an offline admission model, NOT
 // the service's persistent spending authority. All balances have explicit
 // accounts, assets and monotonic observation sequences. No float units.
 #[derive(Clone, Debug, PartialEq, Eq)]

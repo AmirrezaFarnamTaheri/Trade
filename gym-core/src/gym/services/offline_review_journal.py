@@ -1,4 +1,4 @@
-"""C2 durable offline order-ticket review, no funded approvals or venue writes.
+"""Durable offline order-ticket review, no funded approvals or venue writes.
 
 Ticket inputs are fully reconstructed from the allowlisted dry-run calculator.
 A recovered ACKNOWLEDGE is never a Tier-1 authorization, and no method can

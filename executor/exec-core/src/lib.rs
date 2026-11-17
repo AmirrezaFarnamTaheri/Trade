@@ -43,7 +43,7 @@ pub enum StopResult {
     StaleRuntime { current_epoch: u64 },
 }
 
-/// T0 requests can only reduce authority. Arming requires a separate,
+/// Stop requests can only reduce authority. Arming requires a separate,
 /// privileged path that does not exist in this read-only foundation.
 pub fn step(state: State, request: StopRequest) -> (State, StopResult) {
     if request.runtime_epoch != state.runtime_epoch {
@@ -85,7 +85,7 @@ pub mod holds;
 pub mod kernel;
 pub mod orders;
 
-/// Seeded B2 Fake Venue chaos suite (pure; no I/O).
+/// Seeded Fake Venue chaos suite (pure; no I/O).
 pub mod fake_venue;
 
 pub mod authority;

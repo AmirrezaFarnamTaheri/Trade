@@ -1,4 +1,4 @@
-"""T12 holds cash when no rule made money, follows the best one otherwise, and charges every switch."""
+"""rule-selector-with-cash holds cash when no rule made money, follows the best one otherwise, and charges every switch."""
 import importlib.util
 import sys
 from pathlib import Path

@@ -1,9 +1,9 @@
-"""Screens T2 to T6 of docs/trial-log.md: where could an edge exist on Wallex at the fees actually paid?
+"""Screens thin-market-quoting to btc-daily-trend of docs/trial-log.md: where could an edge exist on Wallex at the fees actually paid?
 
 Each screen is a table over recorded data with a pass mark written in the trial log before it ran. Nothing is
 fitted. Floating point is used; anything that passes must be replayed in the exact paper engine before it counts.
 
-Run from gym-core: `uv run --no-sync python scripts/edge_screen.py [--db ../data/live/market.db] [T2 T3 T4 T5 T6]`.
+Run from gym-core: `uv run --no-sync python scripts/edge_screen.py [--db ../data/live/market.db] [thin-market-quoting triangle-gap venue-daily-trend zero-fee-round-trip btc-daily-trend]`.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def quotes_of(connection, symbol: str) -> list[tuple]:
             if None not in (bid, ask, bid_size, ask_size) and usable(flags) and 0 < float(bid) < float(ask)]
 
 
-# T2 -----------------------------------------------------------------------------------------------------------------
+# thin-market-quoting
 
 def maker_results(quotes: list[tuple], trades: list[tuple], fee: float) -> list[float]:
     """What the resting side of each trade made against the mid five minutes later, after two maker fees.
@@ -58,7 +58,7 @@ def maker_results(quotes: list[tuple], trades: list[tuple], fee: float) -> list[
     return out
 
 
-def t2_row(symbol: str, quote: str, quotes: list[tuple], trades: list[tuple], usdt_rate: float) -> dict | None:
+def quoting_row(symbol: str, quote: str, quotes: list[tuple], trades: list[tuple], usdt_rate: float) -> dict | None:
     if len(quotes) < 100 or not trades:
         return None
     to_usdt = 1 / usdt_rate if quote == "TMN" else 1.0
@@ -76,7 +76,7 @@ def t2_row(symbol: str, quote: str, quotes: list[tuple], trades: list[tuple], us
     return row
 
 
-def t2(connection) -> bool:
+def thin_market_quoting(connection) -> bool:
     markets = {f"wallex:{symbol}": (symbol, quote) for symbol, quote in connection.execute("SELECT symbol, quote FROM instruments")
                if quote in PUBLISHED}
     trades: dict[str, list] = {}
@@ -92,12 +92,12 @@ def t2(connection) -> bool:
         quotes = [(at, float(bid), float(ask), float(bid_size), float(ask_size)) for _, at, bid, ask, bid_size, ask_size, flags in group
                   if None not in (bid, ask, bid_size, ask_size) and usable(flags) and 0 < float(bid) < float(ask)]
         if market in markets:
-            row = t2_row(*markets[market], quotes, trades.get(market, []), usdt_rate)
+            row = quoting_row(*markets[market], quotes, trades.get(market, []), usdt_rate)
             if row:
                 rows.append(row)
     wide = [row for row in rows if row["spread"] >= 0.004]
     liquid = [row for row in wide if row["trades_per_day"] >= 50 and row["touch_usdt"] >= 50]
-    print(f"T2 quoting: {len(rows)} markets with quotes and trades; {len(wide)} with median spread >= 0.40%; "
+    print(f"thin-market-quoting: {len(rows)} markets with quotes and trades; {len(wide)} with median spread >= 0.40%; "
           f"{len(liquid)} of those with >= 50 trades a day and touch >= 50 USDT")
     print("market          days trades/day spread% touch-USDT | account fee: n  mean%      t | published fee: mean%      t  pass")
     # The markets liquid enough to quote, then the strongest of the rest (mostly a handful of trades each).
@@ -109,11 +109,11 @@ def t2(connection) -> bool:
               f"{a['n']:14} {100 * a['mean']:6.3f} {a['t']:6.1f} | {100 * p['mean']:20.3f} {p['t']:6.1f}  "
               f"{'ACCOUNT' if row['pass_account'] else '-'}{'+PUBLISHED' if row['pass_published'] else ''}")
     passed = [row["symbol"] for row in rows if row["pass_account"]]
-    print(f"T2 VERDICT: {'PASS for ' + ', '.join(passed) if passed else 'FAIL: no market meets every condition'}")
+    print(f"thin-market-quoting VERDICT: {'PASS for ' + ', '.join(passed) if passed else 'FAIL: no market meets every condition'}")
     return bool(passed)
 
 
-# T3 -----------------------------------------------------------------------------------------------------------------
+# triangle-gap
 
 def last_fresh(quotes: list[tuple], times: list[int], at: int):
     i = bisect_right(times, at) - 1
@@ -139,7 +139,7 @@ def triangle_gaps(usdt_tmn, coin_tmn, coin_usdt, fees: float) -> list[tuple[int,
     return out
 
 
-def t3(connection) -> bool:
+def triangle_gap(connection) -> bool:
     usdt_tmn = quotes_of(connection, "USDTTMN")
     passed = False
     for coin in ("BTC", "ETH"):
@@ -147,20 +147,20 @@ def t3(connection) -> bool:
         for name, fees in (("account", 3 * ACCOUNT_FEE), ("published", 2 * PUBLISHED["TMN"][1] + PUBLISHED["USDT"][1])):
             gaps = triangle_gaps(usdt_tmn, coin_tmn, coin_usdt, fees)
             if not gaps:
-                print(f"T3 {coin} {name}: no minutes with all three quotes")
+                print(f"triangle-gap {coin} {name}: no minutes with all three quotes")
                 continue
             positive = [(at, gap) for at, gap in gaps if gap > 0]
             share, days = len(positive) / len(gaps), len({at // DAY for at, _ in positive})
             ok = share >= 0.01 and days >= 5
             passed = passed or (ok and name == "account")
-            print(f"T3 {coin} {name} fees {100 * fees:.2f}%: {len(gaps)} minutes on {len({at // DAY for at, _ in gaps})} days; "
+            print(f"triangle-gap {coin} {name} fees {100 * fees:.2f}%: {len(gaps)} minutes on {len({at // DAY for at, _ in gaps})} days; "
                   f"median gap {100 * median(gap for _, gap in gaps):.3f}%, best {100 * max(gap for _, gap in gaps):.3f}%; "
                   f"positive {100 * share:.2f}% of minutes on {days} days; {'pass' if ok else 'fail'}")
-    print(f"T3 VERDICT: {'PASS' if passed else 'FAIL'}")
+    print(f"triangle-gap VERDICT: {'PASS' if passed else 'FAIL'}")
     return passed
 
 
-# T4 -----------------------------------------------------------------------------------------------------------------
+# venue-daily-trend
 
 def trend_returns(closes: list[float], window: int, cost: float) -> list[float]:
     """Daily returns of holding the asset only while yesterday's close was above its `window`-day average."""
@@ -227,17 +227,17 @@ def trend_verdict(label: str, rank_source: dict, score_source: dict) -> bool:
     return passed
 
 
-def t4(connection) -> bool:
+def venue_daily_trend(connection) -> bool:
     venue = {symbol: venue_daily(connection, symbol) for symbol in TREND_MARKETS}
     short = [symbol for symbol, (days, _) in venue.items() if len(days) < 400]
     if short:
-        print(f"T4: too few traded daily candles for {', '.join(short)}; run `gymctl history SYMBOL --resolution 1d` first")
+        print(f"venue-daily-trend: too few traded daily candles for {', '.join(short)}; run `gymctl history SYMBOL --resolution 1d` first")
         return False
-    return trend_verdict("T4", venue, venue)
+    return trend_verdict("venue-daily-trend", venue, venue)
 
 
-def t6(connection, cache: Path | None = None) -> bool:
-    """T4 with the ranking done on Binance's longer daily history; the venue's later days are still what is scored."""
+def btc_daily_trend(connection, cache: Path | None = None) -> bool:
+    """venue-daily-trend with the ranking done on Binance's longer daily history; the venue's later days are still what is scored."""
     import importlib.util
     spec = importlib.util.spec_from_file_location("long_history_study", Path(__file__).with_name("long_history_study.py"))
     study = importlib.util.module_from_spec(spec)
@@ -245,12 +245,12 @@ def t6(connection, cache: Path | None = None) -> bool:
     try:
         binance = {symbol: study.load(symbol, "1d", cache or study.CACHE) for symbol in TREND_MARKETS}
     except SystemExit as missing:
-        print(f"T6: {missing}; run `python scripts/long_history_study.py fetch BTCUSDT ETHUSDT --interval 1d` first")
+        print(f"btc-daily-trend: {missing}; run `python scripts/long_history_study.py fetch BTCUSDT ETHUSDT --interval 1d` first")
         return False
-    return trend_verdict("T6", binance, {symbol: venue_daily(connection, symbol) for symbol in TREND_MARKETS})
+    return trend_verdict("btc-daily-trend", binance, {symbol: venue_daily(connection, symbol) for symbol in TREND_MARKETS})
 
 
-# T5 -----------------------------------------------------------------------------------------------------------------
+# zero-fee-round-trip
 
 def best_round_trip(quotes: list[tuple]) -> float | None:
     """Buy at the lowest ask so far, sell at a later bid: the most one same-day round trip at the touch could make."""
@@ -262,23 +262,24 @@ def best_round_trip(quotes: list[tuple]) -> float | None:
     return best
 
 
-def t5(connection, symbol: str = "USDSUSDT") -> bool:
+def zero_fee_round_trip(connection, symbol: str = "USDSUSDT") -> bool:
     quotes = quotes_of(connection, symbol)
     days = [list(group) for _, group in groupby(quotes, key=lambda quote: quote[0] // DAY)]
     trips = [trip for trip in (best_round_trip(day) for day in days if len(day) > 100) if trip is not None]
     if not trips:
-        print(f"T5 {symbol}: no usable days")
+        print(f"zero-fee-round-trip {symbol}: no usable days")
         return False
     touch = median(min(bid_size, ask_size) * (bid + ask) / 2 for _, bid, ask, bid_size, ask_size in quotes)
     spread = median((ask - bid) / ((ask + bid) / 2) for _, bid, ask, _, _ in quotes)
     passed = median(trips) >= 0.002 and touch >= 100
-    print(f"T5 {symbol}: {len(trips)} days; median spread {100 * spread:.3f}%; median touch {touch:.0f} USDT; "
+    print(f"zero-fee-round-trip {symbol}: {len(trips)} days; median spread {100 * spread:.3f}%; median touch {touch:.0f} USDT; "
           f"best same-day round trip: median {100 * median(trips):.3f}%, largest {100 * max(trips):.3f}%")
-    print(f"T5 VERDICT: {'PASS' if passed else 'FAIL'}")
+    print(f"zero-fee-round-trip VERDICT: {'PASS' if passed else 'FAIL'}")
     return passed
 
 
-SCREENS = {"T2": t2, "T3": t3, "T4": t4, "T5": t5, "T6": t6}
+SCREENS = {"thin-market-quoting": thin_market_quoting, "triangle-gap": triangle_gap, "venue-daily-trend": venue_daily_trend,
+           "zero-fee-round-trip": zero_fee_round_trip, "btc-daily-trend": btc_daily_trend}
 
 
 def main(argv: list[str]) -> int:

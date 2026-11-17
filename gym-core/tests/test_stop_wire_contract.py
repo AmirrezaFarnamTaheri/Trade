@@ -1,4 +1,4 @@
-"""Byte-level fixtures for IPC-only T0 stop commands (no order authority)."""
+"""Byte-level fixtures for IPC-only stop commands (no order authority)."""
 import json
 from pathlib import Path
 

@@ -209,7 +209,7 @@ def technical_report_cmd(args) -> int:
 
 
 def candles_cmd(args) -> int:
-    """DATA-05: compare internal LAST bars from collected trades with venue candles."""
+    """Compare internal LAST bars from collected trades with venue candles."""
     from datetime import timedelta
 
     from ..services.data_portal import DataPortal

@@ -31,7 +31,7 @@ def test_account_cli_uses_identity_bound_fill_fee_evidence(monkeypatch, capsys):
                     "fills": [{"quantity": "1", "price": "10", "fee": "0.001", "fee_asset": "BTC"}],
                     "fill_coverage": "REPORTED_QUANTITY_MATCHES", "settlement": "UNKNOWN", "money_authority": False}
         async def manual_order(self, client_id):
-            raise AssertionError("the display-only parser must not supply C1 evidence")
+            raise AssertionError("the display-only parser must not supply venue-fact evidence")
 
     monkeypatch.setattr(secret_store, "load", lambda role: "fixture-read-key")
     monkeypatch.setattr(aiohttp, "ClientSession", Session)

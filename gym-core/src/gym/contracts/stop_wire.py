@@ -1,4 +1,4 @@
-"""TradingGYM T0 stop-only control-wire v1 reference codec.
+"""TradingGYM stop-only control-wire v1 reference codec.
 
 No order, credential, arm or budget messages exist on this protocol. OS-level
 pipe ACLs authenticate the caller; this frame does not authenticate anyone.
@@ -55,7 +55,7 @@ def _parse(raw: bytes):
 
 def encode_request(command: StopCommand, epoch: int, correlation: bytes) -> bytes:
     if not isinstance(command, StopCommand):
-        raise ValueError("unknown T0 command")
+        raise ValueError("unknown stop command")
     _validate_identity(epoch, correlation)
     return _FRAME.pack(MAGIC, VERSION, FRAME_SIZE, command.value, 0, 0, 0, epoch, correlation)
 
@@ -67,7 +67,7 @@ def decode_request(raw: bytes) -> tuple[StopCommand, int, bytes]:
     try:
         command = StopCommand(code)
     except ValueError as err:
-        raise ValueError("unsupported T0 command") from err
+        raise ValueError("unsupported stop command") from err
     return command, epoch, correlation
 
 

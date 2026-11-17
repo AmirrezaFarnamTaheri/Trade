@@ -19,7 +19,7 @@ fn a_panic_or_error_in_t2_fails_and_stops_the_service() {
         run(false, || Err(std::io::Error::other("vault"))),
         (true, true)
     );
-    // Even an orderly return outside credential recovery stops the service as failed: T2 must never just end.
+    // Even an orderly return outside credential recovery stops the service as failed: the administrator thread must never just end.
     assert_eq!(run(false, || Ok(())), (true, true));
     assert_eq!(
         run(true, || Err(std::io::Error::other("vault"))),

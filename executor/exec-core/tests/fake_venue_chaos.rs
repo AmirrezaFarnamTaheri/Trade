@@ -1,4 +1,4 @@
-//! Deterministic B2 Fake Venue chaos fixtures: no I/O or funded POST.
+//! Deterministic Fake Venue chaos fixtures: no I/O or funded POST.
 use exec_core::orders::{
     Attempt, EconomicEffect, Event, FailureStage, Lifecycle, OrderError, Settlement, SlotError,
     Slots,

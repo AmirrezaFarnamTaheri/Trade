@@ -1,4 +1,4 @@
-"""B1 private reader only permits explicit bounded GETs; no funded writes."""
+"""The private reader only permits explicit bounded GETs; no funded writes."""
 import asyncio
 import json
 from contextlib import asynccontextmanager

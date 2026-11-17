@@ -1,4 +1,4 @@
-"""B1 read-only manual account observation UI/API contract.
+"""Read-only manual account observation UI/API contract.
 
 Live credential provisioning is deliberately NOT part of this view. The API
 does not accept secrets or give funded order authority to the browser.

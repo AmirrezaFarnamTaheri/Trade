@@ -1,7 +1,7 @@
-# Workstream C: controlled-integration engineering runbook
+# Controlled integration runbook
 
 **Status: implementation and synthetic acceptance only — NOT funded release.**
-This runbook covers the current stacked draft branches for C1, C2, and C3.
+It covers venue evidence and manual probes, order tickets and review, and exit safety.
 All development in this slice is safe to run without a Wallex API key, but
 **none of it submits, cancels, protects or certifies a real order**.
 
@@ -17,12 +17,12 @@ cd ..
 cargo test --locked --workspace --all-targets
 ```
 
-Windows SCM/ACL, remote backup recovery, T2 principal and service-owned
+Windows SCM/ACL, remote backup recovery, administrator principal and service-owned
 credential isolation require a **clean controlled Windows host**.
 CI success and synthetically restored ledgers are not a substitute for
 operator-controlled deployment evidence.
 
-## C1 — evidence, private-read uncertainty and budgeted manual probes
+## Venue evidence, private-read uncertainty and budgeted manual probes
 
 1. Public observatory works without credentials. The existing read-only
    account adapter can receive a deliberately injected **read-scoped**
@@ -66,7 +66,7 @@ operator-controlled deployment evidence.
    `UNKNOWN`, **not** proof of an absent order. A 200 balance observation
    is still not executable or certified. There is no private key in this path.
 
-## C2 — order preview, review queue and shortfall
+## Order preview, review queue and shortfall
 
 - In Operate (offline), paste a safe request JSON envelope. The only request
   the UI sends is to the **local** `/api/dry-run/ticket`. It returns an exact
@@ -78,7 +78,7 @@ operator-controlled deployment evidence.
   available balances, worst price, fee rate, order cap and venue minimum.
   Inputs are **hypothetical** until independently verified by a money service.
 - `OfflineReviewJournal` persistently records canonical previews and
-  append-only `ACKNOWLEDGE`/`REJECT` events. ACKNOWLEDGE is never T1
+  append-only `ACKNOWLEDGE`/`REJECT` events. ACKNOWLEDGE is never an operator
   authorization. The review journal cannot submit or create an order ID.
   Use `gymctl --data data ticket-queue-add saved-preview.json` to register a
   completed `ticket-preview` output, and `gymctl --data data
@@ -98,7 +98,7 @@ operator-controlled deployment evidence.
 
 The read-only Research Workbench also offers the bounded `execution-choice-preview` for item 25. It compares a one-slice immediate paper attempt with multi-slice TWAP on the same historical public quotes and dated cost assumptions. Partial outcomes are **NOT_COMPARABLE**; full-fill price differences are retrospective diagnostics, not orders or live trading recommendations. See [historical execution choice](execution-choice.md).
 
-## C3 — exit/reopening safety
+## Exit and reopening safety
 
 The earlier Python shadow-Autopilot, exit-guard and reopening advisory models were
 removed: nothing in the application called them. Rebuild these policies inside the
@@ -106,24 +106,24 @@ Executor when a funded path exists, so there is one implementation.
 
 - Rust `exec_core::execution_admission` has independent entry/exit pure vetoes.
   Even when every caller-supplied fact is true, it refuses funded authority
-  without the missing trusted service, T1/T2 principal and durable request.
+  without the missing trusted service, operator/administrator principal and durable request.
 - The browser's `/api/automation-safety` is intentionally conservative:
   **DISARMED, UNAVAILABLE, NOT_CERTIFIED, entries_enabled=false,
   autopilot_enabled=false**. It does not pretend to query a privileged
   Executor that has not been integrated.
 
-## Acceptance still required for C1, C2 and C3 release
+## Acceptance still required before funded use
 
 | Gate | Real proof required | Current status |
 | --- | --- | --- |
-| B1 / SEC-02 | Win32 separated principals, protected service keys, T2 consent and worker pipe/credential denial | **Not verified on operator host** |
-| B2 / MONEY-01..11 | Durable money authority, account-scoped reservations, authenticated recovery, emergency stop and real settlement | **Only partial B models and synthetic tests** |
-| C1 / VenueFacts | Real, dated private balance/fee/status reads and honest filter/pagination probes; no raw secrets | **Only offline/synthetic** |
-| C1 / Probe | Operator-fixed affordable full-loss budget; explicit consent for **each** real order; observed client-ID, duplicate and stop semantics | **Not performed** |
-| C2 / Assisted | T1 approval cryptographically/authenticated to exact durable order and price envelope; real conversion with settlement and measured shortfall | **Only offline models** |
-| C3 / Exit Guard | Venue-side waiting/trigger/cancel/fee/quantity certification, host/network outage test and reopening policy exercised with real positions | **Only advisory models** |
-| C3 / Autopilot | One signed/pinned executable workload, independently enforced service caps, real reconciled capped session and protected stops | **Not authorized or executed** |
-| UI / OPS-03..05 | Live Operate/Journal state transitions, accessible bilingual controls, stop request acknowledgement and actual protection disclosure | **Offline bilingual UI, no live control acceptance** |
+| Separated Windows principals | Win32 separated principals, protected service keys, administrator consent and worker pipe/credential denial | **Not verified on operator host** |
+| Money authority and recovery | Durable money authority, account-scoped reservations, authenticated recovery, emergency stop and real settlement | **Only partial offline models and synthetic tests** |
+| Venue facts | Real, dated private balance/fee/status reads and honest filter/pagination probes; no raw secrets | **Only offline/synthetic** |
+| Manual probe order | Operator-fixed affordable full-loss budget; explicit consent for **each** real order; observed client-ID, duplicate and stop semantics | **Not performed** |
+| Assisted ticket | operator approval cryptographically/authenticated to exact durable order and price envelope; real conversion with settlement and measured shortfall | **Only offline models** |
+| Exit guard | Venue-side waiting/trigger/cancel/fee/quantity certification, host/network outage test and reopening policy exercised with real positions | **Only advisory models** |
+| Autopilot | One signed/pinned executable workload, independently enforced service caps, real reconciled capped session and protected stops | **Not authorized or executed** |
+| Operate and Journal views | Live Operate/Journal state transitions, accessible bilingual controls, stop request acknowledgement and actual protection disclosure | **Offline bilingual UI, no live control acceptance** |
 
 **Never classify C as production-complete on the strength of a green CI run,
 a local hash chain, a paper preview, or a caller-supplied boolean.** The first

@@ -1,4 +1,4 @@
-"""C2 safe preview CLI only; never constructs a funded order."""
+"""Safe preview CLI only; never constructs a funded order."""
 import json
 
 from gym.cli import main

@@ -43,8 +43,8 @@ mod tests {
     #[test]
     fn preserves_fixed_client_failure_and_distinguishes_deadline_from_termination() {
         assert_eq!(
-            failure_reason(Ok(Err("T2 admission denied".into()))),
-            "T2 admission denied"
+            failure_reason(Ok(Err("administrator admission denied".into()))),
+            "administrator admission denied"
         );
         assert_eq!(
             failure_reason(Err(RecvTimeoutError::Timeout)),
@@ -264,7 +264,7 @@ mod client {
             .map_err(|_| "header write failed")?;
         let mut ready = [0; 8];
         pipe.read_exact(&mut ready)
-            .map_err(|_| "T2 admission denied")?;
+            .map_err(|_| "administrator admission denied")?;
         if &ready != READY {
             return Err("invalid admission response".into());
         }

@@ -40,7 +40,7 @@ if ($CheckStopPipeOnly) {
     if (-not $sidMatch.Success) {
         throw 'SECURITY TEST INVALID: no OS-issued child logon SID'
     }
-    Write-Output "T0 child identity diagnostic: childUser=$($identity.User.Value), childLogon=$($sidMatch.Value), expectedLogon=$ExpectedLogonSid"
+    Write-Output "STOP pipe child identity diagnostic: childUser=$($identity.User.Value), childLogon=$($sidMatch.Value), expectedLogon=$ExpectedLogonSid"
     if ($ExpectedUserSid -notmatch '^S-1-[0-9]+(-[0-9]+){2,12}$') {
         throw 'SECURITY TEST INVALID: no expected operator user SID'
     }
@@ -49,7 +49,7 @@ if ($CheckStopPipeOnly) {
     }
     # A different user can carry the same logon SID in some runner launch
     # modes. Both identities must be checked by the service before an ACK.
-    Write-Output 'T0 negative probe: child Windows logon SID differs from authorized operator.'
+    Write-Output 'STOP pipe negative probe: child Windows logon SID differs from authorized operator.'
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -75,7 +75,7 @@ public static class TradingGYMStopNegativeAccess {
     # scoped DACL. A successful CreateFile is NOT authorization to command the
     # Executor. The server MUST reject a different OS-issued logon SID before
     # processing even STATUS; the negative client tests an actual framed PAUSE.
-    Write-Output "T0 negative DACL open returned Win32 $code (diagnostic only)"
+    Write-Output "STOP pipe negative DACL open returned Win32 $code (diagnostic only)"
     $stagedStop = Join-Path $PSScriptRoot 'StopClient.exe'
     if (-not (Test-Path -LiteralPath $stagedStop -PathType Leaf)) {
         throw 'SECURITY TEST INVALID: trusted stop client not staged'

@@ -26,7 +26,7 @@ staged, flushed and hashed again before publication. An administrator-only backu
 directory retains prior code and a sanitized receipt. A flushed `update.pending`
 marker precedes replacement, and the executor image is replaced last. Each file
 replacement retains old bytes. Helpers receive the same narrow service/operator
-permissions as the installer; T2 helpers remain administrator-only.
+permissions as the installer; elevated helpers remain administrator-only.
 
 The new service refuses startup with stable error **1019** whenever that marker
 exists, before creating listeners. The normal installation audit refuses it too.

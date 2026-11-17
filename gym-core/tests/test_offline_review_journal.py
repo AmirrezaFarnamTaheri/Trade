@@ -1,4 +1,4 @@
-"""C2 persistent *offline* review queue: not Executor T1 and never a POST."""
+"""Persistent *offline* review queue: not an Executor operator approval and never a POST."""
 import sqlite3
 
 import pytest

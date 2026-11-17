@@ -1,4 +1,4 @@
-"""B2 cockpit view of the Fake Venue chaos-suite report: evidence only, never authority."""
+"""Cockpit view of the Fake Venue chaos-suite report: evidence only, never authority."""
 import asyncio
 import json
 

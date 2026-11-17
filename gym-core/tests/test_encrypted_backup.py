@@ -1,4 +1,4 @@
-"""B3 portable passphrase-encrypted backups and non-destructive restore."""
+"""Portable passphrase-encrypted backups and non-destructive restore."""
 import hashlib
 import sqlite3
 from pathlib import Path

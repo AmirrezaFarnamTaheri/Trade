@@ -1,4 +1,4 @@
-"""B3 exit evidence via operator commands: restore to a new path; an unsafe update is refused."""
+"""Exit evidence via operator commands: restore to a new path; an unsafe update is refused."""
 import json
 import sys
 

@@ -1,5 +1,5 @@
 //! Restricted Windows SCM host identity preflight, using the OS process token.
-//! This does not verify named-pipe ACLs, T2 principal or credential isolation.
+//! This does not verify named-pipe ACLs, administrator principal or credential isolation.
 use std::io;
 use std::ptr;
 use windows_sys::Win32::Foundation::{CloseHandle, LocalFree, HANDLE};
@@ -7,7 +7,7 @@ use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
-/// Queried only while impersonating the connected T2 client; no wire claims.
+/// Queried only while impersonating the connected administrator client; no wire claims.
 pub fn impersonated_elevated_administrator() -> io::Result<()> {
     use windows_sys::Win32::Security::{
         CheckTokenMembership, CreateWellKnownSid, TokenElevation, TokenElevationType,
@@ -72,7 +72,7 @@ pub fn impersonated_elevated_administrator() -> io::Result<()> {
     if !admits_elevation(elevated.TokenIsElevated, kind, member) {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
-            "T2 requires an actual elevated administrator token",
+            "the administrator tier requires an actual elevated token",
         ));
     }
     Ok(())
@@ -330,7 +330,7 @@ fn current_token_groups(
 /// - the exact service SID enabled in ordinary group membership;
 /// - the same service SID in its restricting SID list.
 ///
-/// This does not certify the operator logon SID, pipe ACL, T2, credentials,
+/// This does not certify the operator logon SID, pipe ACL, administrator principal, credentials,
 /// private data ACLs or funded safety. It is a strictly stronger bootstrap gate.
 pub fn is_restricted_executor_service() -> bool {
     use windows_sys::Win32::Security::{TokenGroups, TokenRestrictedSids};

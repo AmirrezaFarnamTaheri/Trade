@@ -1,8 +1,8 @@
-"""C1 offline probe-ladder evidence and immutable loss-budget planner.
+"""Offline probe-ladder evidence and immutable loss-budget planner.
 
 No credentials, network transport, order POST, cancellations or certification
 exist in this module. Staging a probe is NEVER permission to trade. The
-restricted Executor must enforce any real T2 consent and money budget again.
+restricted Executor must enforce any real administrator consent and money budget again.
 """
 from __future__ import annotations
 

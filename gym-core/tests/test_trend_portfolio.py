@@ -1,4 +1,4 @@
-"""T9's portfolio arithmetic: causal weights, cost on every change of weight, slots that never sum above one."""
+"""ten-coin-trend's portfolio arithmetic: causal weights, cost on every change of weight, slots that never sum above one."""
 import importlib.util
 from datetime import date, timedelta
 from pathlib import Path

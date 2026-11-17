@@ -1,4 +1,4 @@
-"""C1 safe local Health and operator-import workflow; nothing can place an order."""
+"""Safe local Health and operator-import workflow; nothing can place an order."""
 import asyncio
 import hashlib
 import json

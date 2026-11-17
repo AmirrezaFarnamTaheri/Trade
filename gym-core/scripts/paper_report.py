@@ -85,13 +85,13 @@ import trend_short  # noqa: E402
 binance = {symbol: trend_short.study.load(symbol, "1d", trend_short.study.CACHE) for symbol in trend_short.RANK_COINS}
 
 
-def t11_median(window, ratio, short):
+def short_side_median(window, ratio, short):
     return st.median(100 * trend_short.total([r for day, r in trend_short.returns(*binance[s], window, ratio, short=short)
                                               if day < trend_short.SPLIT]) for s in trend_short.RANK_COINS)
 
 
-T11 = [(f"{w}-day, short {x:.0f}x", t11_median(w, x, True), t11_median(w, x, False)) for w, x in ((50, 1.0), (50, 2.0), (100, 1.0), (200, 1.0))]
-t11_rows = [row for name, short, cash_rule in T11
+short_side = [(f"{w}-day, short {x:.0f}x", short_side_median(w, x, True), short_side_median(w, x, False)) for w, x in ((50, 1.0), (50, 2.0), (100, 1.0), (200, 1.0))]
+short_side_rows = [row for name, short, cash_rule in short_side
             for row in ((name, short, "median of ten coins"), (name.split(",")[0] + ", long or cash", cash_rule, "same rule, no short"))]
 journal = [(e["day"][:10], f'{e["decision"]["close"]:,.0f}', f'{e["decision"]["average"]:,.0f}',
             "Stay in USDT" if not e["decision"]["target"] else f'Hold {e["decision"]["target"]:.0%} BTC', e["equity"])
@@ -100,9 +100,8 @@ causes = {}
 for line in TRIAL_LOG.read_text(encoding="utf-8").split("## Why they lost", 1)[-1].splitlines():
     cells = [c.strip() for c in line.strip().strip("|").split("|")]
     if len(cells) == 3:
-        for ids in re.findall(r"\((T[\d, T]+)\)", cells[0]):
-            for trial in re.findall(r"T\d+", ids):
-                causes[trial] = cells[1].split(". ")[0].split(": ")[0].rstrip(".")
+        for trial in re.findall(r"`([a-z0-9-]+)`", cells[0]):
+            causes[trial] = cells[1].split(". ")[0].split(": ")[0].rstrip(".")
 trials = [(t["id"], t["hypothesis"].split(". ")[0].split(" (")[0], {"NARROW_PASS": "PASS (narrow)"}.get(t["verdict"], t["verdict"]),
            causes.get(t["id"], "Forward paper record running" if "PASS" in t["verdict"] else "")) for t in registered()]
 
@@ -234,7 +233,7 @@ The fastest 5x liquidation took {first_liq[0]['liquidated_h']:.0f} hours ({first
 <h2>What a short has to earn first</h2>
 <p class="sub">Fall needed just to pay the venue's margin fees on a 1x short, before the spread: entry, exit, the loan fee every 4 hours, and a fresh entry every 21 days.</p>
 <figure>{table(["Held for", "Price must fall by"], hurdle)}</figure>
-<div class="take">A short held for months needs a large fall just to stand still, which is why T11 lost. A short has to be an event measured in days.</div>
+<div class="take">A short held for months needs a large fall just to stand still, which is why the short-side trend trial lost. A short has to be an event measured in days.</div>
 
 <h2>The few that made money</h2>
 <p class="sub">Best ten runs with at least three closed trades. Out of {len(enough):,} runs, ten good ones are what luck alone produces. None of these is evidence of an edge.</p>
@@ -253,22 +252,22 @@ The fastest 5x liquidation took {first_liq[0]['liquidated_h']:.0f} hours ({first
 <figure>{table(["Trial", "Idea", "Result", "Why"], [(a, b, tone(1 if c.startswith("PASS") else -1, c), d) for a, b, c, d in trials])}</figure>
 
 <h2>Over six years, shorting the trend lost</h2>
-<p class="sub">Trial T11 tested the obvious follow-up: the trend rule, short below its 50, 100 or 200-day average instead of in USDT,
+<p class="sub">The trial `trend-with-short-side` tested the obvious follow-up: the trend rule, short below its 50, 100 or 200-day average instead of in USDT,
 at 1x or 2x, on ten large coins from 2018 to 2023. It was registered before it ran.</p>
-<figure>{bars(t11_rows, label_w=150)}</figure>
+<figure>{bars(short_side_rows, label_w=150)}</figure>
 <div class="take">Shorting lost against sitting in cash in every one of the 60 cells. Coins spent more time rising than falling,
 and a short pays about 33% a year to borrow plus a fresh entry every 21 days. The 17-day fall above was one window, not a pattern.</div>
 
 <h2>What to do next</h2>
 <ol>
-<li><b>Stay long or in cash.</b> The trend rule that moves to USDT in a fall (T6) beat its short version in every test. Its forward record is the evidence that counts.</li>
+<li><b>Stay long or in cash.</b> The trend rule that moves to USDT in a fall (btc-daily-trend) beat its short version in every test. Its forward record is the evidence that counts.</li>
 <li><b>Refuse wide spreads.</b> Skip entry when the spread is above a fixed share of the expected move. This removes the largest single cost found.</li>
 <li><b>Register Toman mean reversion as a trial.</b> It is the only family that shows up among the winners.</li>
 <li><b>Keep leverage at 2x or below.</b> At 3x a 17-day fall liquidated a third of markets.</li>
 </ol>
 <footer>Paper only. Window {meta['from']} to {meta['to']}, engine {meta['engine']}, starting cash 1,000 USDT or 300,000,000 TMN, fee {float(meta['fee']):.2%} per side.
 {sum(r['status'] == 'NO_DATA' for r in runs):,} runs had no usable quotes and {sum(r['status'] == 'REFUSED' for r in runs):,} were refused as invalid combinations.
-The sweep and margin holds cover one 17-day falling window; T11 covers 2018 to 2023 on Binance prices.</footer>
+The sweep and margin holds cover one 17-day falling window; the short-side trial covers 2018 to 2023 on Binance prices.</footer>
 </main></html>"""
 args.out.write_text(page, encoding="utf-8")
 print(args.out, len(page))

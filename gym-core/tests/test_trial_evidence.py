@@ -12,9 +12,9 @@ from tests.support import market_db, quote_history
 
 LOG = """| ID | Registered | Hypothesis | Data | Pass mark | Result |
 | --- | --- | --- | --- | --- | --- |
-| T1 | 2026-11-13 | A beats B. | Candles. | Mark one. | **FAIL** (2026-11-14). Best 0.001. |
-| T2 | 2026-11-14 | C beats D. | Quotes. | Mark two. | **PASS, narrowly** (2026-11-14). 0.917. |
-| T3 | 2026-11-15 | E beats F. | Dailies. | Mark three. | |
+| alpha-reversion | 2026-11-13 | A beats B. | Candles. | Mark one. | **FAIL** (2026-11-14). Best 0.001. |
+| beta-trend | 2026-11-14 | C beats D. | Quotes. | Mark two. | **PASS, narrowly** (2026-11-14). 0.917. |
+| gamma-carry | 2026-11-15 | E beats F. | Dailies. | Mark three. | |
 """
 
 
@@ -30,8 +30,11 @@ def test_verdicts_come_from_the_result_column_and_an_unrun_trial_is_open(tmp_pat
 
 def test_the_real_trial_log_parses_every_registered_row():
     rows = trials()
-    lines = [line for line in TRIAL_LOG.read_text(encoding="utf-8").splitlines() if line.startswith("| T")]
-    assert len(rows) == len(lines) >= 9 and all(row["verdict"] != "OPEN" for row in rows[:8])
+    log = TRIAL_LOG.read_text(encoding="utf-8")
+    registry = log.split("| --- |", 1)[1].split("\n\n", 1)[0]
+    lines = [line for line in registry.splitlines()[1:] if line.startswith("| ")]
+    assert len(rows) == len(lines) >= 14 and all(row["verdict"] != "OPEN" for row in rows[:14])
+    assert rows[5]["id"] == "btc-daily-trend" and rows[5]["verdict"] == "NARROW_PASS"
 
 
 def test_forward_record_counts_days_missing_days_fees_and_the_hold_comparison(tmp_path):

@@ -38,7 +38,7 @@ cargo test --locked --workspace --all-targets
 cargo clippy --locked --workspace --all-targets -- -D warnings
 ```
 
-Earlier B1/B2/B3 and C preparation PRs have merged. The current combined work is
+Earlier read-only, offline-recovery, backup and order-ticket preparation PRs have merged. The current combined work is
 in PR #18; merging code does not certify a money path. See
 [service security status](docs/service-security-status.md) for implemented
 boundaries and installed-host/venue gates, and

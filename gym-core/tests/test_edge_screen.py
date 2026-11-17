@@ -64,12 +64,12 @@ def test_unusable_flags_are_dropped_and_a_market_needs_every_condition_to_pass()
     assert screen.usable("") and screen.usable("WIDE_SPREAD") and not screen.usable("WIDE_SPREAD,STALE")
     quotes = [quote(60 * i, 99.0, 101.0, size=5.0) for i in range(8 * 1440)]  # 2% spread for eight days
     trades = [(60 * i + 5, 101.0 if i % 2 else 99.0, "BUY" if i % 2 else "SELL") for i in range(0, 8 * 1440 - 10, 10)]
-    row = screen.t2_row("XUSDT", "USDT", quotes, trades, usdt_rate=1.0)
+    row = screen.quoting_row("XUSDT", "USDT", quotes, trades, usdt_rate=1.0)
     assert row["spread"] == pytest.approx(0.02) and row["days"] == 8 and row["trades_per_day"] == pytest.approx(len(trades) / 8)
     assert row["touch_usdt"] == pytest.approx(500.0)
     assert row["account"]["n"] == len(trades) and row["account"]["mean"] == pytest.approx(0.008, abs=2e-4)
     assert row["pass_account"] is False  # every result is the same, so there is no spread of results to test against
-    thin = screen.t2_row("XTMN", "TMN", quotes, trades, usdt_rate=100000.0)
+    thin = screen.quoting_row("XTMN", "TMN", quotes, trades, usdt_rate=100000.0)
     assert thin["touch_usdt"] == pytest.approx(0.005) and thin["pass_account"] is False
 
 

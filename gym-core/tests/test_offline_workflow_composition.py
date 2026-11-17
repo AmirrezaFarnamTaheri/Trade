@@ -1,4 +1,4 @@
-"""C1 -> C2 synthetic integration; no route creates a venue order."""
+"""Venue facts into the offline ticket: synthetic integration; no route creates a venue order."""
 import hashlib
 
 from gym.domain.assisted_ticket import prepare_preview

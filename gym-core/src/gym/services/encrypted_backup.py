@@ -1,4 +1,4 @@
-"""Portable authenticated B3 backups; never includes secrets.dat.
+"""Portable authenticated backups; never includes secrets.dat.
 
 Backups use a passphrase-derived key (scrypt) and AES-256-GCM. The encrypted
 payload is a consistent SQLite backup created through SQLite's backup API.

@@ -1,4 +1,4 @@
-//! C2/C3 pure money-core preflight is advisory; real T1/T2 and POST are absent.
+//! The pure money-core preflight is advisory; real operator and administrator attestation and POST are absent.
 use exec_core::execution_admission::{assess_entry, assess_exit, Blocker, EntryCheck, ExitCheck};
 use exec_core::Mode;
 
@@ -24,7 +24,7 @@ fn entry() -> EntryCheck {
 fn all_positive_c2_inputs_remain_nonfunded_until_separate_service_authority() {
     let report = assess_entry(entry());
     assert!(!report.funded_authority);
-    // The pure core cannot authenticate that an asserted T1 approval is real.
+    // The pure core cannot authenticate that an asserted operator approval is real.
     assert_eq!(report.blocker, Some(Blocker::MissingExecutorAuthority));
 }
 

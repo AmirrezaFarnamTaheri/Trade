@@ -1,4 +1,4 @@
-"""Item 27: retrospective paired long/short margin paper replay, no venue effects.
+"""Retrospective paired long/short margin paper replay, no venue effects.
 
 Two separately retained public margin PREVIEW receipts provide distinct long
 and short terms. Both legs replay inside one immutable local market snapshot.

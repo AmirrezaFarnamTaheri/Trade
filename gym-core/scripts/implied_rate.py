@@ -1,4 +1,4 @@
-"""T10 of docs/trial-log.md: does USDTTMN fall back after standing above the rate implied by BTC?
+"""implied-toman-rate of docs/trial-log.md: does USDTTMN fall back after standing above the rate implied by BTC?
 
 The implied rate is BTCTMN divided by BTCUSDT. When USDTTMN is dearer than that by more than its usual gap, the
 rule sells USDT for Toman and buys it back when the gap closes or a day has passed. Returns are in USDT, net of
@@ -76,7 +76,7 @@ def verdict(rows: list[tuple[str, int, float, float]]) -> bool:
             cells.append({"hours": hours, "threshold": threshold,
                           **summary([row for row in found if row[3] < SPLIT])})
     variance = pvariance([cell["sharpe"] for cell in cells])
-    print(f"T10 implied rate, cost {100 * COST:.2f}% per side; {len(rows)} shared hours from {rows[0][0][:10]}; ranked before {SPLIT}")
+    print(f"implied-toman-rate implied rate, cost {100 * COST:.2f}% per side; {len(rows)} shared hours from {rows[0][0][:10]}; ranked before {SPLIT}")
     for cell in cells:
         cell["deflated"] = deflated_sharpe(cell["sharpe"], cell["trades"], *cell["moments"], len(cells), variance) or 0.0
         print(f"  {cell['hours']:2}h median, {10000 * cell['threshold']:3.0f} bps: {cell['trades']:4} trades, gross sum "
@@ -84,7 +84,7 @@ def verdict(rows: list[tuple[str, int, float, float]]) -> bool:
               f"{10000 * cell.get('mean_gross', 0.0):6.1f} bps, deflated {cell['deflated']:.3f}")
     best = max(cells, key=lambda cell: cell["deflated"])
     if best["deflated"] < RANK_MARK or best["trades"] < RANK_TRADES:
-        print(f"T10 VERDICT: FAIL on ranking (best {best['hours']}h {10000 * best['threshold']:.0f} bps, deflated "
+        print(f"implied-toman-rate VERDICT: FAIL on ranking (best {best['hours']}h {10000 * best['threshold']:.0f} bps, deflated "
               f"{best['deflated']:.3f} on {best['trades']} trades); {SPLIT[:4]} not scored")
         return False
     found = trades(rows, best["hours"], best["threshold"], COST)
@@ -93,7 +93,7 @@ def verdict(rows: list[tuple[str, int, float, float]]) -> bool:
     passed = alone >= HELD_MARK and held["trades"] >= HELD_TRADES
     print(f"  {best['hours']}h {10000 * best['threshold']:.0f} bps passed ranking; {SPLIT[:4]} scored once: {held['trades']} trades, "
           f"gross sum {100 * held['gross']:.2f}%, net sum {100 * held['net']:.2f}%, probability Sharpe > 0: {alone:.3f}")
-    print(f"T10 VERDICT: {'PASS' if passed else 'FAIL'}")
+    print(f"implied-toman-rate VERDICT: {'PASS' if passed else 'FAIL'}")
     return passed
 
 

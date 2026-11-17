@@ -1,4 +1,4 @@
-"""B3 offline encrypted backup rotation: negative cases are the safety contract."""
+"""Offline encrypted backup rotation: negative cases are the safety contract."""
 import hashlib
 import os
 import sqlite3

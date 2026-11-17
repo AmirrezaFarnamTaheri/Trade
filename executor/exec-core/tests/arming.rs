@@ -1,4 +1,4 @@
-//! OD-2 validation: arming refused when any preflight item fails, the digest binds the limits, expiry and every
+//! Arming validation: arming refused when any preflight item fails, the digest binds the limits, expiry and every
 //! kill rule disarm, and a restart comes up disarmed.
 use exec_core::arming::{
     approve, ArmPolicy, ArmRefusal, KillInputs, KillReason, OrderRefusal, PolicyError, Preflight,

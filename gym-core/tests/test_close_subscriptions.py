@@ -1,4 +1,4 @@
-"""DATA-06 deterministic multi-timeframe close subscriptions."""
+"""Deterministic multi-timeframe close subscriptions."""
 from datetime import timedelta
 from decimal import Decimal
 

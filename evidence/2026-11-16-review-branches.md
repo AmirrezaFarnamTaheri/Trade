@@ -53,7 +53,7 @@ local checks directory as the other branches.
 
 ## Review points
 
-- Research evidence stays separate from the engine change. T10 failed ranking;
+- Research evidence stays separate from the engine change. `implied-toman-rate` failed ranking;
   2026 was not scored. The daily-trend accounting artifact uses engine 10. Its
   receipt explains how to reproduce that version without replacing the artifact
   or rescoring already consumed data.

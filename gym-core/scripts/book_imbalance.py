@@ -1,4 +1,4 @@
-"""T13: does top-of-book quantity imbalance predict a mid move large enough to pay for crossing the spread?
+"""book-imbalance: does top-of-book quantity imbalance predict a mid move large enough to pay for crossing the spread?
 
 Registered in docs/trial-log.md before this script ran. `rank` uses quotes recorded before 2026-11-18T00:00Z.
 `score` reads the prospective quotes (2026-11-18 to 2026-12-18) and refuses to run before that window has closed.
@@ -84,14 +84,14 @@ def rank(connection) -> bool:
             cells.append({"threshold": threshold, "hold": hold, "n": len(values), "mean": mean,
                           "gross": mean + 2 * FEE, "sharpe": mean / deviation if deviation else 0.0, "moments": (skew, kurtosis)})
     variance = pvariance([c["sharpe"] for c in cells])
-    print(f"T13 ranked on quotes before {REGISTERED}; {', '.join(f'{m} {len(b)}' for m, b in books.items())} qualified quotes")
+    print(f"book-imbalance ranked on quotes before {REGISTERED}; {', '.join(f'{m} {len(b)}' for m, b in books.items())} qualified quotes")
     for c in cells:
         c["deflated"] = deflated_sharpe(c["sharpe"], c["n"], *c["moments"], len(cells), variance) or 0.0 if c["n"] > 2 else 0.0
         print(f"  imbalance {c['threshold']:.1f}, hold {c['hold']:2} min: {c['n']:6} trades, mean gross {10000 * c['gross']:7.1f} bps, "
               f"net {10000 * c['mean']:7.1f} bps, Sharpe per trade {c['sharpe']:6.3f}, deflated {c['deflated']:.3f}")
     best = max(cells, key=lambda c: c["deflated"])
     ok = best["deflated"] >= 0.95 and best["n"] >= 200
-    print(f"T13 ranking {'PASS' if ok else 'FAIL'}: best imbalance {best['threshold']}, hold {best['hold']} min, "
+    print(f"book-imbalance ranking {'PASS' if ok else 'FAIL'}: best imbalance {best['threshold']}, hold {best['hold']} min, "
           f"deflated {best['deflated']:.3f}, {best['n']} trades{'' if ok else '; prospective quotes will not be scored'}")
     return ok
 
@@ -99,13 +99,13 @@ def rank(connection) -> bool:
 def score(connection, threshold, hold, now=None) -> bool:
     now = now or datetime.now(UTC)
     if now < datetime.fromisoformat(PROSPECT_END.replace("Z", "+00:00")):
-        raise SystemExit(f"T13 prospective window closes {PROSPECT_END}; scoring before then would peek")
+        raise SystemExit(f"book-imbalance prospective window closes {PROSPECT_END}; scoring before then would peek")
     rows = [row for m in MARKETS for row in trades(quotes(connection, m, REGISTERED, PROSPECT_END), threshold, hold)]
     chance = day_block_probability(rows)
     mean = fmean(v for _, v in rows) if rows else 0.0
     passed = chance >= 0.90 and len(rows) >= 100
-    print(f"T13 prospective: {len(rows)} trades, mean net {10000 * mean:.1f} bps, day-block probability mean > 0: {chance:.3f}")
-    print(f"T13 VERDICT: {'PASS' if passed else 'FAIL'}")
+    print(f"book-imbalance prospective: {len(rows)} trades, mean net {10000 * mean:.1f} bps, day-block probability mean > 0: {chance:.3f}")
+    print(f"book-imbalance VERDICT: {'PASS' if passed else 'FAIL'}")
     return passed
 
 
