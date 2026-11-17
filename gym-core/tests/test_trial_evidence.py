@@ -34,26 +34,30 @@ def test_the_real_trial_log_parses_every_registered_row():
     assert len(rows) == len(lines) >= 9 and all(row["verdict"] != "OPEN" for row in rows[:8])
 
 
-def test_forward_record_counts_days_and_whether_it_is_in_the_market(tmp_path):
+def test_forward_record_counts_days_missing_days_fees_and_the_hold_comparison(tmp_path):
     (tmp_path / "allocation").mkdir()
-    rows = [{"at": "2026-11-14T15:03:55Z", "symbol": "BTCUSDT", "equity": "1000.0", "holdings": {"base": "0", "quote": "1000"},
-             "decision": {"trade": False}},
-            {"at": "2026-11-15T08:02:36Z", "symbol": "BTCUSDT", "equity": "1003.5", "holdings": {"base": "0.01", "quote": "340"},
-             "decision": {"trade": True}}]
+    rows = [{"at": "2026-11-14T15:03:55Z", "day": "2026-11-13T00:00:00Z", "symbol": "BTCUSDT", "status": "READY",
+             "equity": "1000.0", "holdings": {"base": "0", "quote": "1000"}, "decision": {"trade": False, "close": 100}},
+            {"at": "2026-11-15T08:02:36Z", "day": "2026-11-14T00:00:00Z", "symbol": "BTCUSDT", "status": "NO_QUOTE",
+             "equity": "1000.0", "holdings": {"base": "0", "quote": "1000"}, "decision": {"trade": True, "close": 104}},
+            {"at": "2026-11-17T08:02:36Z", "day": "2026-11-16T00:00:00Z", "symbol": "BTCUSDT", "status": "READY",
+             "equity": "1003.5", "holdings": {"base": "0.01", "quote": "340"}, "decision": {"trade": True, "close": 110},
+             "fill": {"side": "BUY", "qty": "0.01", "price": "66000", "fee": "0.66"}}]
     (tmp_path / "allocation/journal.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
     assert evidence(tmp_path, tmp_path / "none.md")["forward"] == {
-        "symbol": "BTCUSDT", "started": "2026-11-14T15:03:55Z", "latest": "2026-11-15T08:02:36Z", "days": 2,
-        "start_equity": "1000.0", "equity": "1003.5", "net": "3.5", "in_market": True, "trades": 1}
+        "symbol": "BTCUSDT", "started": "2026-11-14T15:03:55Z", "latest": "2026-11-17T08:02:36Z", "latest_day": "2026-11-16",
+        "days": 3, "missing_days": 1, "start_equity": "1000.0", "equity": "1003.5", "net": "3.5", "hold_net": "100.00",
+        "fees": "0.66", "in_market": True, "trades": 1, "withheld": 1}
 
 
 def test_forward_net_keeps_all_decimal_places(tmp_path):
     (tmp_path / "allocation").mkdir()
     rows = [{"at": "2026-11-14T00:00:00Z", "symbol": "BTCUSDT",
              "equity": "10000000000000000000000000000.000000000000000001",
-             "holdings": {"base": "0"}, "decision": {}},
+             "holdings": {"base": "0"}, "decision": {}, "status": "READY"},
             {"at": "2026-11-15T00:00:00Z", "symbol": "BTCUSDT",
              "equity": "10000000000000000000000000000.000000000000000003",
-             "holdings": {"base": "0.000000000000000000000000000001"}, "decision": {}}]
+             "holdings": {"base": "0.000000000000000000000000000001"}, "decision": {}, "status": "READY"}]
     (tmp_path / "allocation/journal.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
     value = evidence(tmp_path, tmp_path / "none.md")["forward"]
     assert value["net"] == "0.000000000000000002" and value["in_market"] is True

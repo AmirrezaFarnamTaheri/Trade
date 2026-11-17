@@ -171,7 +171,7 @@ function renderHealth(data) {
   const storage = data.storage, gib = bytes => bytes == null ? t("none") : digits((bytes / 2 ** 30).toFixed(1)) + " GiB";
   setHTML("health-storage", storage ? keyValues([[t("freeSpace"), esc(gib(storage.free_bytes))], [t("stopFloor"), esc(gib(storage.floor_bytes))],
     [t("growthPerHour"), esc(storage.growth_bytes_per_hour == null ? t("none") : digits((storage.growth_bytes_per_hour / 2 ** 20).toFixed(0)) + " MiB")],
-    [t("hoursToFloor"), storage.hours_to_floor == null ? esc(t("none")) : `<span class="${storage.hours_to_floor < 48 ? "neg" : ""}">${num(storage.hours_to_floor)}</span>`],
+    [t("hoursToFloor"), storage.hours_to_floor == null ? esc(t("none")) : `<span class="${storage.hours_to_floor < 48 ? "neg" : ""}">${storage.hours_to_floor < 48 ? num(storage.hours_to_floor) : `${num(Math.floor(storage.hours_to_floor / 24))} ${esc(t("answerDays"))}`}</span>`],
     [t("lastArchive"), data.archived ? `${stampHtml(data.archived.at)} · ${num(data.archived.days.length)}` : esc(t("none"))],
     [t("integritySweep"), data.integrity ? `${stampHtml(data.integrity.at)} · ${num(data.integrity.checked)} ✓ · ${num(data.integrity.missing)} / ${num(data.integrity.mismatched)} ✗` : esc(t("none"))]])
     + table([t("shard"), t("markets"), t("status"), t("reconnects"), t("frameAge")], list(data.shards).map(row => [num(row.shard), num(row.markets),

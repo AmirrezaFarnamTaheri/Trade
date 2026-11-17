@@ -74,6 +74,11 @@ def live_jobs():
 
 
 jobs = live_jobs()
+import margin_hold  # noqa: E402
+
+hurdle = [(f"{days} day{'s' if days > 1 else ''}",
+           f"{100 * (margin_hold.ENTRY_FEE + margin_hold.EXIT_FEE + margin_hold.LOAN_FEE * (1 + days * 86400 // margin_hold.PERIOD) + (margin_hold.ENTRY_FEE + margin_hold.EXIT_FEE) * ((days - 1) // 21)):.2f}%")
+          for days in (1, 7, 21, 60)]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import trend_short  # noqa: E402
 
@@ -215,6 +220,11 @@ Liquidation is checked against every one-minute low and high. {venue_note} This 
 <figure>{bars(lev_rows, label_w=150)}</figure>
 <div class="take">A 3x long was liquidated on {sum(r['liquidated_h'] is not None for r in lev if r['side'] == 'long' and r['ratio'] == 3)} of {len(lev_markets)} markets and a 5x long on {len(first_liq)} of {sum(1 for r in lev if r['side'] == 'long' and r['ratio'] == 5)}.
 The fastest 5x liquidation took {first_liq[0]['liquidated_h']:.0f} hours ({first_liq[0]['symbol']}). Leverage did not change which side won. It changed how fast the losing side was wiped out.</div>
+
+<h2>What a short has to earn first</h2>
+<p class="sub">Fall needed just to pay the venue's margin fees on a 1x short, before the spread: entry, exit, the loan fee every 4 hours, and a fresh entry every 21 days.</p>
+<figure>{table(["Held for", "Price must fall by"], hurdle)}</figure>
+<div class="take">A short held for months needs a large fall just to stand still, which is why T11 lost. A short has to be an event measured in days.</div>
 
 <h2>The few that made money</h2>
 <p class="sub">Best ten runs with at least three closed trades. Out of {len(enough):,} runs, ten good ones are what luck alone produces. None of these is evidence of an edge.</p>

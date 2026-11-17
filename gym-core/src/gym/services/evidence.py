@@ -3,6 +3,7 @@
 Read-only. The trial log is the single source; this parses its table so the workspace shows the same rows.
 """
 import re
+from datetime import date
 from decimal import Decimal, localcontext
 from pathlib import Path
 
@@ -39,9 +40,17 @@ def forward(root: Path) -> dict | None:
         context.prec = max(28, max(start.adjusted(), equity.adjusted())
                            - min(start.as_tuple().exponent, equity.as_tuple().exponent) + 2)
         net = format(equity - start, "f")
-    return {"symbol": last["symbol"], "started": entries[0]["at"], "latest": last["at"], "days": len(entries),
-            "start_equity": entries[0]["equity"], "equity": last["equity"], "net": net,
-            "in_market": base > 0, "trades": sum(1 for row in entries if row["decision"].get("trade"))}
+        fees = format(sum((Decimal(row["fill"]["fee"]) for row in entries if row.get("fill")), Decimal(0)), "f")
+        closes = [row["decision"].get("close") for row in entries if row["decision"].get("close")]
+        # What 1,000 USDT put into the coin on the first decided day would be worth at the last close (no fees).
+        hold_net = format(start * Decimal(str(closes[-1])) / Decimal(str(closes[0])) - start, ".2f") if len(closes) > 1 else None
+    days = sorted({row["day"][:10] for row in entries if row.get("day")})
+    span = (date.fromisoformat(days[-1]) - date.fromisoformat(days[0])).days + 1 if days else 0
+    return {"symbol": last["symbol"], "started": entries[0]["at"], "latest": last["at"], "latest_day": days[-1] if days else None,
+            "days": len(entries), "missing_days": span - len(days),
+            "start_equity": entries[0]["equity"], "equity": last["equity"], "net": net, "hold_net": hold_net, "fees": fees,
+            "in_market": base > 0, "trades": sum(1 for row in entries if row.get("fill")),
+            "withheld": sum(1 for row in entries if row["status"] != "READY")}
 
 
 def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:

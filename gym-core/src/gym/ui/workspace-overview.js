@@ -39,10 +39,24 @@ function renderAnswer() {
     + stat(t("answerNarrowCount"), num(tally.NARROW_PASS + tally.PASS), t("answerNarrowNote"))
     + stat(t("answerForward"), forward ? `${num(forward.days)} <small>${esc(t("answerDays"))}</small>` : esc(t("none")),
       forward ? `${forward.symbol} · ${t(forward.in_market ? "answerInMarket" : "answerInCash")} · ${change} USDT` : t("answerForwardNone"))
-    + `</div><details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
+    + `</div>${forwardRecord(forward, value.trials.find(row => row.id === "T6"), kinds)}<details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
     + table([t("answerTrial"), t("answerHypothesis"), t("answerVerdict")], value.trials.map(row => [
       `${code(row.id)} <small class="muted">${esc(row.registered)}</small>`, `<span dir="ltr">${plain(row.hypothesis)}</span>`,
       chip(t(`verdict${row.verdict}`), kinds[row.verdict])]), t("nothing")) + "</details>");
+}
+
+/** The prospective record beside the historical verdict it follows; amounts only, no profit claim. */
+function forwardRecord(forward, historical, kinds) {
+  if (!forward) return "";
+  const usdt = value => value == null ? esc(t("unavailable")) : `<span class="${signed(value)}">${digits(rounded(value, 2))} USDT</span>`;
+  return `<h3 class="forward-title">${esc(t("forwardTitle"))}</h3>` + keyValues([
+    [t("forwardHistorical"), historical ? chip(t(`verdict${historical.verdict}`), kinds[historical.verdict]) : esc(t("none"))],
+    [t("forwardDays"), esc(t("forwardDaysValue").replace("{days}", forward.days).replace("{missing}", forward.missing_days).replace("{withheld}", forward.withheld))],
+    [t("forwardTrades"), `${num(forward.trades)} · ${digits(rounded(forward.fees, 2))} USDT ${esc(t("forwardFees"))}`],
+    [t("forwardVsUsdt"), usdt(forward.net)],
+    [t("forwardVsHold").replace("{coin}", forward.symbol.replace(/USDT$/, "")), usdt(forward.hold_net)],
+    [t("forwardLatest"), stampHtml(forward.latest)],
+  ]);
 }
 
 /** Summarize qualified markets and saved paper evidence without making profit claims. */
@@ -50,9 +64,9 @@ function renderOverview() {
   renderAnswer();
   const markets = list(state.markets?.markets), runs = list(state.overviewRuns), latest = runs[0];
   setHTML("overview-summary", stat(t("observedPairs"), state.markets ? num(markets.length) : t("none"), t("observedPairsNote"))
-    + stat(t("healthyQuotes"), state.markets ? num(markets.filter(healthyQuote).length) : t("none"), t("healthyQuotesNote"))
+    + stat(t("healthyQuotes"), state.markets ? num(markets.filter(healthyQuote).length) : t("none"), state.markets ? `${t("healthyQuotesNote")} · ${when(state.markets.now)}` : t("healthyQuotesNote"))
     + stat(t("savedRunCount"), state.overviewRuns ? num(runs.length) : t("none"), t("runCountNote"))
-    + stat(t("latestNet"), latest?.end ? `<span class="${signed(latest.end.net)}">${money(latest.end.net)}</span> <small>${esc(/(TMN|USDT)$/.exec(latest.inputs?.symbol || "")?.[1] || "")}</small>` : esc(t("none")), t("latestNetNote")));
+    + stat(t("latestNet"), latest?.end ? `<span class="${signed(latest.end.net)}">${money(latest.end.net)}</span> <small>${esc(/(TMN|USDT)$/.exec(latest.inputs?.symbol || "")?.[1] || "")}</small>` : esc(t("none")), latest?.inputs?.to ? `${t("latestNetNote")} · ${when(latest.inputs.to)}` : t("latestNetNote")));
   setHTML("overview-markets", state.markets ? table([t("pair"), t("bid"), t("ask"), t("spreadBps"), t("entry")], markets.slice(0, 5).map(m => [code(m.symbol), amount(m.bid), amount(m.ask), amount(m.spread_bps), eligibility(m.act?.entry)]), t("noMarkets"), [1, 2, 3]) : empty(t("loading")));
   const quote = /(TMN|USDT)$/.exec(latest?.inputs?.symbol || "")?.[1] || "";
   setHTML("overview-research", latest ? `<div class="run-heading"><h3>${code(latest.inputs?.symbol)} <span class="muted">${esc(latest.inputs?.strategy || "")}</span></h3>${chip(t(latest.inputs?.store === "demo" ? "synthetic" : "paperOnly"))}</div>${keyValues([[t("net"), `${money(latest.end?.net)} ${code(quote)}`], [t("equity"), `${money(latest.end?.equity)} ${code(quote)}`], [t("window"), `${stampHtml(latest.inputs?.from)} → ${stampHtml(latest.inputs?.to)}`]])}<a class="button button-small" href="#research/runs/${esc(latest.run_id)}">${esc(t("inspectRun"))}</a>` : empty(t(state.overviewRuns ? "noRuns" : "loading"), t("noRunsHelp")));
