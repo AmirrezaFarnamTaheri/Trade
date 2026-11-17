@@ -79,7 +79,7 @@ def _missing(symbol):
     return jobs
 
 
-def fetch(symbols, workers=16):
+def fetch(symbols, workers=64):
     with ThreadPoolExecutor(workers) as pool:
         jobs = [job for found in pool.map(_missing, symbols) for job in found]
         print(f"{len(symbols)} coins; {len(jobs)} files to download", flush=True)
