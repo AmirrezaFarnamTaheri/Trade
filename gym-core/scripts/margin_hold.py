@@ -89,6 +89,8 @@ def holds(root, t0, t1, terms=None):
                     continue
                 entry, exit_price = (float(ask_in), float(bid_out)) if side == "long" else (float(bid_in), float(ask_out))
                 quoted = (terms or {}).get((rule["symbol"], side, float(ratio)))
+                if terms and not quoted:
+                    continue  # the venue refused this ratio for this market
                 rows.append({"symbol": rule["symbol"], "quote": rule["quote"], "side": side, "ratio": ratio,
                              "entry": entry, "exit": exit_price, "minutes": len(path), "terms": "venue" if quoted else "model",
                              "move": float(bid_out) / float(ask_in) - 1, **hold(side, ratio, entry, path, exit_price, quoted)})
