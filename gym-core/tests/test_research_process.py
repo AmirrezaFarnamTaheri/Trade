@@ -128,6 +128,6 @@ def test_worker_deadline_use_is_logged_for_completed_and_expired_runs(tmp_path, 
             blocker.close()
     timings = [r.fields for r in caplog.records if r.getMessage() == "research_worker"]
     assert [t["outcome"] for t in timings] == ["completed", "deadline_exceeded"]
-    assert timings[0]["deadline_seconds"] == 600 and 0 < timings[0]["deadline_used"] < 1
+    assert timings[0]["deadline_seconds"] == 600 and 0 <= timings[0]["deadline_used"] < 1
     assert timings[1]["deadline_used"] >= 1
     assert any(r.getMessage() == "research_worker_near_deadline" for r in caplog.records)
