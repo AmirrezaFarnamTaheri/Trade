@@ -60,6 +60,13 @@ function renderRun(record) {
   if (!record) return;
   const result = record.result || {}, inputs = record.inputs || {}, end = result.end || {}, quote = result.quote || "";
   const entries = Object.entries(end.waterfall || {});
+  // One sentence answering "why did it win or lose": the largest term, and whether price moves beat the costs.
+  const terms = entries.filter(([key]) => key !== "net").map(([key, value]) => [key, Number(value)]).filter(([, value]) => Number.isFinite(value));
+  const largest = terms.reduce((best, term) => Math.abs(term[1]) > Math.abs(best?.[1] ?? 0) ? term : best, null);
+  const paid = terms.filter(([key]) => key !== "directional").reduce((sum, [, value]) => sum + value, 0);
+  const moved = terms.find(([key]) => key === "directional")?.[1] ?? 0;
+  const why = largest ? `<p class="why-result">${esc(t(Number(end.waterfall.net) >= 0 ? "whyWon" : "whyLost").replace("{term}", t(largest[0]).toLowerCase())
+    .replace("{moved}", digits(moved.toFixed(2))).replace("{paid}", digits((-paid).toFixed(2))).replace("{quote}", quote))}</p>` : "";
   const costs = entries.length ? keyValues(entries.map(([key, value]) => [t(key), `<span class="${signed(value)}">${amount(value)}</span>`])) : empty(t("noCost"));
   const baselines = Object.entries({ strategy: result, ...(record.baselines || {}) }).map(([name, baseline]) => [esc(name),
     baseline.end ? `${money(baseline.end.net)} ${code(quote)}` : `${esc(t("unavailable"))}<span class="sub">${esc(baseline.unavailable || "")}</span>`, money(baseline.end?.net_usdt_eq), num(baseline.fills)]);
@@ -74,7 +81,7 @@ function renderRun(record) {
     <div class="stats stats-4">${stat(t("equity"), `${money(end.equity)} <small>${esc(quote)}</small>`)}${stat(t("net"), `<span class="${signed(end.net)}">${money(end.net)}</span> <small>${esc(quote)}</small>`)}${stat(t("fills"), num(result.fills))}${stat(t("observations"), `${num(result.qualified)} <small>/ ${num(result.observations)}</small>`)}</div>
     <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
     ${valuationPanel(result)}${performancePanel(evidence?.performance, quote)}
-    <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${stampHtml(end.mark_time)}</p></section>
+    <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${why}${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${stampHtml(end.mark_time)}</p></section>
     <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3><p class="field-help">${esc(t("baselineNote"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines, "", [1, 2, 3])}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), money(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"), [2, 3])}
       ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), money(row.net_quote), money(row.net_usdt_eq)]), "", [1, 2])}` : ""}</section>
