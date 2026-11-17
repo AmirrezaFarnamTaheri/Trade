@@ -700,6 +700,7 @@ Object.assign(vocabulary, {
   mgUseCurrentCutoff: ["Use current cutoff", "استفاده از زمان فعلی برای انتها"],
   mgReplayPaperPosition: ["Replay paper position", "بازپخش موقعیت آزمایشی"],
   mgSavedReceiptAndLimitations: ["Saved receipt and limitations", "رسید ذخیره‌شده و محدودیت‌ها"],
+  researchRunningSince: ["Running since", "در حال اجرا از"], researchStalled: ["Stopped, retried soon; claimed", "متوقف شد و به‌زودی تکرار می‌شود؛ شروع"],
   pfBlockedSetup: ["Load observed markets to unlock the portfolio form.", "برای فعال شدن فرم سبد، بازارهای مشاهده‌شده را بارگذاری کنید."],
   mgBlockedDemo: ["Margin terms come from the live venue; switch to the live store to load them.", "شرایط مارجین از صرافی زنده می‌آید؛ برای بارگذاری آن به مخزن زنده بروید."],
   mgBlockedRules: ["Load the market rules to unlock the preview.", "برای فعال شدن پیش‌نمایش، قوانین بازار را بارگذاری کنید."],

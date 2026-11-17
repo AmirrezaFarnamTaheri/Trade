@@ -133,13 +133,17 @@ async function research() {
 }
 
 function renderResearchJobs(data) {
+  // A claim older than the ledger's 15-minute reclaim limit belongs to a stopped worker, not a running one.
+  const lastReport = report => report?.status === "RUNNING" && report.started_at
+    ? `${esc(t(Date.now() - Date.parse(report.started_at) > 15 * 60_000 ? "researchStalled" : "researchRunningSince"))} ${stampHtml(report.started_at)}`
+    : label(report?.error_code ?? report?.status);
   const hypotheses = new Map(list(data.hypotheses).map(row => [row.id, row]));
   const jobs = list(data.jobs);
   $("research-tick").disabled = state.researchBusy || !jobs.some(job => job.enabled === true);
   setHTML("research-jobs", table([t("strategy"), t("symbol"), t("status"), t("nextResearchRun"), t("lastResearchRun"), t("researchRetry"), t("actions")], jobs.map(job => {
     const hypothesis = hypotheses.get(job.hypothesis_id), action = job.enabled ? "pause" : "resume";
     return [code(hypothesis?.strategy), code(hypothesis?.symbol), esc(t(job.enabled ? "researchEnabled" : "researchPaused")),
-      stampHtml(job.next_at), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : label(job.last_report?.error_code ?? job.last_report?.status), stampHtml(job.last_report?.retry_at),
+      stampHtml(job.next_at), job.last_report?.run_id ? `<button type="button" class="button button-small" data-run="${esc(job.last_report.run_id)}">${esc(t("inspectRun"))}</button>` : lastReport(job.last_report), stampHtml(job.last_report?.retry_at),
       `<button type="button" class="button button-small" data-research-action="${action}" data-job="${esc(job.id)}" data-focus="research-${esc(job.id)}"${state.researchBusy ? " disabled" : ""}>${esc(t(action === "pause" ? "researchPause" : "researchResume"))}</button>`];
   }), t("noResearchJobs")));
   setHTML("research-alerts", table([t("time"), t("status"), t("researchRetry")], list(data.alerts).slice(0, 20).map(alert => [stampHtml(alert.due_at), label(alert.kind), stampHtml(alert.retry_at)]), t("noResearchAlerts")));
