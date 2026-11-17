@@ -58,7 +58,7 @@ def test_replaced_attempt_cannot_publish_over_new_owner(tmp_path, monkeypatch):
         db.c.close()
 
 
-def test_crash_claim_survives_restart_and_requires_explicit_interruption(tmp_path, monkeypatch):
+def test_crash_claim_survives_restart_until_it_expires_and_can_be_interrupted_sooner(tmp_path, monkeypatch):
     db = market_db(tmp_path, quote_history())
     path, due = tmp_path / "research.sqlite3", START + timedelta(hours=1)
     try:
@@ -72,7 +72,7 @@ def test_crash_claim_survives_restart_and_requires_explicit_interruption(tmp_pat
         with ResearchLedger(path) as operator:
             running = operator.overview()["jobs"][0]["last_report"]
             assert running["status"] == "RUNNING"
-            assert operator.run_due(db, iso(due + timedelta(days=1)), limit=1)["failed"] == []
+            assert operator.run_due(db, iso(due + timedelta(minutes=10)), limit=1)["failed"] == []
             request = {"job_id": job["job_id"], "expected_due": iso(due),
                        "expected_claim": running["claim_id"], "reason": "worker exited"}
             assert not operator.interrupt(request, at=due)["process_terminated"]

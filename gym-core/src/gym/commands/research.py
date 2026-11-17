@@ -477,10 +477,20 @@ async def _watch(root, store, poll_seconds, stop):
     reason = "Stop requested"
     try:
         while not stop.is_set():
-            result = await calculate(root, "tick", store=store, at=now_utc().isoformat())
+            try:
+                result = await calculate(root, "tick", store=store, at=now_utc().isoformat())
+            except ResearchProcessFailure as error:
+                if error.status != 504:  # a broken store or worker needs a person; only an overrun is retried
+                    return {"state": "STOPPED", **error.report, "ticks": ticks, "completed": completed, "failed": failed}
+                # The overrun worker was stopped and published nothing; the ledger reclaims its job once the claim expires.
+                print(json.dumps({"tick_failed": error.report}), file=sys.stderr, flush=True)
+                result = {"completed": [], "failed": []}
+                failed += 1
             ticks += 1
             completed += len(result["completed"])
             failed += len(result["failed"])
+            if result["completed"] or result["failed"]:
+                continue  # more jobs may be due; take the next one now
             if not stop.is_set():
                 try:
                     await asyncio.wait_for(stop.wait(), timeout=poll_seconds)
@@ -488,6 +498,4 @@ async def _watch(root, store, poll_seconds, stop):
                     pass
     except asyncio.CancelledError:
         reason = "Operator interrupted"
-    except ResearchProcessFailure as error:
-        return {"state": "STOPPED", **error.report, "ticks": ticks, "completed": completed, "failed": failed}
     return {"state": "STOPPED", "reason": reason, "ticks": ticks, "completed": completed, "failed": failed}

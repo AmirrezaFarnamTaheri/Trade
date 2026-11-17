@@ -22,6 +22,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Margin previews at every credit ratio
+        continue-on-error: true
+        run: python3 gym-core/scripts/venue_recorder.py margin --out margin-terms.jsonl
       - env:
           MINUTES: ${{ inputs.minutes || '340' }}
         run: python3 gym-core/scripts/venue_recorder.py record --minutes "$MINUTES" --out quotes.jsonl
@@ -32,3 +35,10 @@ jobs:
           path: quotes.jsonl
           retention-days: 90
           if-no-files-found: warn
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: margin-terms-${{ github.run_id }}
+          path: margin-terms.jsonl
+          retention-days: 90
+          if-no-files-found: ignore

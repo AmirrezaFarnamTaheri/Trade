@@ -19,6 +19,10 @@ from ..domain.strategy import digest
 from .paper import paper
 from .session import ENGINE_VERSION
 
+# A claim older than the longest worker deadline belongs to a worker that was stopped; its claim ID no longer
+# matches once reclaimed, so it can never publish.
+ABANDONED_AFTER, MAX_ABANDONED = timedelta(minutes=15), 3
+
 _SCHEMA = """
 CREATE TABLE hypotheses(id TEXT PRIMARY KEY, body TEXT NOT NULL);
 CREATE TABLE shadows(id TEXT PRIMARY KEY, opened TEXT NOT NULL, closed TEXT);
@@ -267,17 +271,27 @@ class ResearchLedger:
                     WHERE j.enabled=1 AND j.next_at<=? AND (? IS NULL OR j.id=?) AND
                     (r.body IS NULL OR (json_extract(r.body,'$.status')='FAILED'
                     AND COALESCE(json_extract(r.body,'$.retryable'),1)=1
-                    AND COALESCE(json_extract(r.body,'$.retry_at'),'')<=?))
-                    ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), job_id, job_id, iso(now))).fetchone()
+                    AND COALESCE(json_extract(r.body,'$.retry_at'),'')<=?)
+                    OR (json_extract(r.body,'$.status')='RUNNING' AND json_extract(r.body,'$.started_at')<=?))
+                    ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), job_id, job_id, iso(now), iso(now - ABANDONED_AFTER))).fetchone()
                 if row is None:
                     break
                 key, encoded, due, previous = row
                 previous = json.loads(previous) if previous else None
-                if previous is not None and previous.get("status") != "FAILED":
+                if previous is not None and previous.get("status") not in ("FAILED", "RUNNING"):
                     raise ValueError("research clock points to an already completed report")
                 job = json.loads(encoded)
                 if digest(job) != key:
                     raise ValueError("research job digest mismatch")
+                if previous is not None and previous["status"] == "RUNNING" and previous["attempts"] >= MAX_ABANDONED:
+                    # A worker that was stopped this often will be stopped again; stop asking until an operator retries.
+                    alert = _result(kind="RESEARCH_FAILED", job_id=key, due_at=due, status="FAILED", attempts=previous["attempts"],
+                                    error_type="Abandoned", retry_at=None, retryable=False, error_code="REPLAY_ABANDONED",
+                                    message="The paper replay was stopped before finishing on every attempt. Narrow its lookback, then resume the job.")
+                    self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(alert)))
+                    self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(alert), _json(alert)))
+                    failed.append(alert)
+                    continue
                 end = parse_ts(due)
                 attempt = 1 + (previous["attempts"] if previous else 0)
                 claim = _result(status="RUNNING", claim_id=uuid4().hex, attempts=attempt,
