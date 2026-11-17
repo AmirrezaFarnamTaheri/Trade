@@ -88,6 +88,13 @@ window.gymPortfolio = (() => {
         `<details data-key="portfolio-symbols-${esc(row.run_id)}"><summary>${esc(row.inputs.symbols.length)} · ${esc(row.inputs.symbols[0]?.endsWith('USDT') ? 'USDT' : 'TMN')}</summary><p dir="ltr">${esc(row.inputs.symbols.join(', '))}</p></details>`, `${stamp(row.inputs.from)} → ${stamp(row.inputs.to)}`])));
       $('portfolio-saved').querySelectorAll('[data-portfolio]').forEach(button => { button.onclick = () => act(async () => { record = await call('portfolio-read', {run_id: button.dataset.portfolio}); checkpoint = null; $('portfolio-recovery-status').textContent = ''; render(); }); });
     }
+    // Count the reasons due rebalances did not trade, e.g. 'within band 12 · strategy not holding 3'.
+    const whyNoRebalance = events => {
+      const counts = {};
+      for (const event of events || []) if (event.kind === 'REBALANCE_SKIPPED') counts[event.reason] = (counts[event.reason] || 0) + 1;
+      const parts = Object.entries(counts).map(([reason, n]) => `${esc(reason.replace(/_/g, ' ').toLowerCase())} ${esc(n)}`);
+      return parts.length ? parts.join(' · ') : text(T.en.pfEveryRebalanceTraded, T.fa.pfEveryRebalanceTraded);
+    };
     function render() {
       if (!record) return;
       const result = record.result, end = result.end, valuation = result.valuation;
@@ -103,7 +110,8 @@ window.gymPortfolio = (() => {
       setHTML('portfolio-result', `<h3>${esc(record.run_id)} · ${esc(result.quote)}</h3>` + (result.policy_state ? keyValues([
         [text(T.en.pfPortfolioRiskLatch, T.fa.pfPortfolioRiskLatch), esc(result.policy_state.risk || 'CLEAR')],
         [text(T.en.pfAllocationReadiness, T.fa.pfAllocationReadiness), esc(result.policy_state.weights.status)],
-        [text(T.en.pfPolicyScope, T.fa.pfPolicyScope), esc(result.policy_state.scope)]]) : '') + keyValues([
+        [text(T.en.pfPolicyScope, T.fa.pfPolicyScope), esc(result.policy_state.scope)],
+        [text(T.en.pfWhyNoRebalance, T.fa.pfWhyNoRebalance), whyNoRebalance(result.policy_events)]]) : '') + keyValues([
         [text(T.en.pfEquityRecordedBidMarks, T.fa.pfEquityRecordedBidMarks), amount(end.equity)], [text(T.en.pfNet, T.fa.pfNet), amount(end.net)],
         [text(T.en.pfHeldPriceFreshness, T.fa.pfHeldPriceFreshness), esc(end.valuation_status || 'UNKNOWN')],
         [text(T.en.pfRemainingCash, T.fa.pfRemainingCash), amount(result.balances?.[result.quote])],

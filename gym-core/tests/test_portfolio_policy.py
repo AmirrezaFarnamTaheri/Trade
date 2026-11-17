@@ -286,3 +286,15 @@ def test_cost_aware_rebalance_requires_explicit_rebalance_and_boolean():
                    {"rebalance": True, "cost_aware_rebalance": 1}):
         with pytest.raises(ValueError):
             PortfolioPolicy(params, ["BTCUSDT", "ETHUSDT"])
+
+
+def test_a_due_rebalance_that_does_not_trade_says_why(tmp_path):
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
+    try:
+        out = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=25), resolution="1min",
+                        policy={"rebalance": True, "rebalance_seconds": 300, "rebalance_threshold": "0.9"})
+        skipped = [e for e in out["result"]["policy_events"] if e["kind"] == "REBALANCE_SKIPPED"]
+        assert skipped and {e["reason"] for e in skipped} <= {"WITHIN_BAND", "STRATEGY_NOT_HOLDING", "STRATEGY_BLOCKS_ENTRY"}
+        assert all(e["symbol"] in ("BTCUSDT", "ETHUSDT") and e["at"] for e in skipped)
+    finally:
+        db.c.close()

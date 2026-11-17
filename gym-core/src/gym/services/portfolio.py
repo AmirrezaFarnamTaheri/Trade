@@ -204,16 +204,23 @@ class _Replay:
             band = _cost_band(controller, self.sessions[symbol].cost, symbol, self.sessions[symbol].last_quote, delta, self.equity(), band,
                               self.policy_events)
             if band is None:
-                return action, fraction, reasons
+                return self._skip(symbol, "NO_FRESH_QUOTE_TO_PRICE_COST", delta, action, fraction, reasons)
         if self.equity() > 0 and abs(delta) > self.equity() * band:
             if delta > 0 and action != "BUY_REQUEST":
                 strategy = self.sessions[symbol].strategy
                 if (held <= 0 or not getattr(strategy, "entry_allowed", True)
                         or getattr(strategy, "execution_limits", None) is not None):
-                    return action, fraction, reasons
+                    why = "STRATEGY_NOT_HOLDING" if held <= 0 else "STRATEGY_BLOCKS_ENTRY"
+                    return self._skip(symbol, why, delta, action, fraction, reasons)
             if delta > 0:
                 return "BUY_REQUEST", Decimal(1), ("PORTFOLIO_REBALANCE",)
             return "SELL_REQUEST", min(Decimal(1), -delta / held), ("PORTFOLIO_REBALANCE",)
+        return self._skip(symbol, "WITHIN_BAND", delta, action, fraction, reasons)
+
+    def _skip(self, symbol, why, delta, action, fraction, reasons):
+        """Record why a due rebalance did not trade, so a report can answer 'why no rebalance?'."""
+        self.policy_events.append({"at": iso(self.controller.previous_at), "kind": "REBALANCE_SKIPPED", "symbol": symbol,
+                                   "reason": why, "target_gap_quote": str(delta)})
         return action, fraction, reasons
 
     def _needs_history(self):
