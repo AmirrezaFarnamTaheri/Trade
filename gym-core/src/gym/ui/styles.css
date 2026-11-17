@@ -257,6 +257,7 @@ svg.tracking .chart-cursor { opacity: .7; }
 .overview-bottom { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; }
 .answer-panel { margin-block-end: 20px; } .answer-headline { font-size: 1.15rem; font-weight: 600; margin: 0 0 16px; max-width: 70ch; }
 .answer-panel .answer-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-block-end: 12px; } .answer-trials summary { cursor: pointer; padding-block: 8px; }
+.forward-title { font-size: 1rem; margin-block: 16px 8px; }
 .answer-trials td { vertical-align: top; } .answer-trials td small { white-space: nowrap; } .answer-trials td:nth-child(2) { white-space: normal; }
 @media (max-width: 720px) { .answer-panel .answer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .overview-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
