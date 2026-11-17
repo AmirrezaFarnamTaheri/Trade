@@ -400,7 +400,7 @@ Object.assign(vocabulary, {
   exitSignal: ["Exit signal", "سیگنال خروج"], attributionTrades: ["Trades", "معاملات"], attributionWins: ["Wins", "بردها"],
   attributionAvgReturn: ["Average return", "میانگین بازده"],
   perfTitle: ["Risk and return", "ریسک و بازده"], totalReturn: ["Total return", "بازده کل"], maxDrawdown: ["Max drawdown", "بیشترین افت"],
-  sharpePeriod: ["Sharpe · per period", "شارپ · هر دوره"], psr: ["P(true Sharpe > 0)", "احتمال شارپ واقعی بیش از صفر"],
+  sharpePeriod: ["Sharpe · per period", "شارپ · هر دوره"], psr: ["P(true Sharpe > 0)", "احتمال شارپ واقعی بیش از صفر"], couldNotAct: ["Could not act", "امکان اقدام نبود"], runsDiffer: ["These runs differ in", "این اجراها در این موارد متفاوت‌اند"], quoteCurrency: ["quote currency", "ارز مبنا"], feeRate: ["fee rate", "نرخ کارمزد"], engine: ["engine version", "نسخهٔ موتور"], store: ["data store", "مخزن داده"], resolution: ["bar size", "اندازهٔ کندل"], cash: ["starting cash", "نقد اولیه"], holdReturn: ["Holding the coin instead", "در صورت نگه‌داری رمزارز"], matchedHold: ["Holding, scaled to time in market", "نگه‌داری، به نسبت زمان حضور در بازار"], returnPerTurnover: ["Return per 1× turnover", "بازده به ازای هر بار گردش سرمایه"], psrBlock: ["with dependent returns", "با بازده‌های وابسته"],
   winRate: ["Win rate", "نرخ برد"], closedTrades: ["closed trades", "معاملهٔ بسته‌شده"],
   annualReturn: ["Annualized return", "بازده سالانه"], needs30: ["Needs a 30-day window", "نیازمند بازهٔ ۳۰ روزه"],
   volatility: ["Volatility per period", "نوسان هر دوره"], sortino: ["Sortino · annualized", "سورتینو · سالانه"], calmar: ["Calmar ratio", "نسبت کالمار"],

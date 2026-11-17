@@ -11,8 +11,13 @@ function performancePanel(perf, quote) {
     [t("profitFactor"), ratio(tr.profit_factor)], [t("expectancy"), `${money(tr.expectancy)} ${code(quote)}`],
     [t("avgWin"), money(tr.average_win)], [t("avgLoss"), money(tr.average_loss)], [t("avgHolding"), ratio(tr.average_holding_hours, 1)],
     [t("losingStreak"), num(tr.longest_losing_streak)], [t("turnover"), `${num(rounded(tr.turnover, 2))}×`], [t("exposure"), percent(tr.exposure, 0)],
-    ...(tr.kelly_fraction != null ? [[t("kelly"), percent(tr.kelly_fraction)]] : []), [t("openPosition"), amount(tr.open_position?.quantity)],
+    ...(tr.kelly_fraction != null ? [[t("kelly"), `${percent(tr.kelly_fraction)} <small class="muted">${digits(tr.closed_trades ?? 0)} ${esc(t("closedTrades"))}</small>`]] : []), [t("openPosition"), amount(tr.open_position?.quantity)],
     [t("avgCostPnl"), money(tr.average_cost_realized_pnl)]];
+  const activity = perf.activity;
+  if (activity) rows.push([t("holdReturn"), pct(activity.hold_return_pct)], [t("matchedHold"), pct(activity.exposure_matched_hold_pct)],
+    [t("returnPerTurnover"), percent(activity.return_per_turnover, 3)]);
+  const withheld = Object.entries(perf.abstentions || {});
+  rows.push([t("couldNotAct"), withheld.length ? withheld.map(([reason, n]) => `${esc(reason.replace(/_/g, " ").toLowerCase())} ${num(n)}`).join(" · ") : esc(t("none"))]);
   const boot = r.bootstrap_90, bench = perf.benchmark;
   if (boot) rows.push([t("sharpeRange"), `${ratio(boot.sharpe_per_period[0], 3)} … ${ratio(boot.sharpe_per_period[1], 3)}`],
     [t("returnRange"), `${percent(boot.total_return[0], 2)} … ${percent(boot.total_return[1], 2)}`]);
@@ -21,7 +26,7 @@ function performancePanel(perf, quote) {
   const trades = list(perf.ledger).map(trade => [stampHtml(trade.opened_at), stampHtml(trade.closed_at), ratio(trade.holding_seconds / 3600, 1),
     money(trade.quantity, 8), money(trade.cost), money(trade.proceeds), `<span class="${signed(trade.pnl)}">${money(trade.pnl)}</span>`, percent(trade.return, 2)]);
   const heads = [t("opened"), t("closed"), t("holding"), t("quantity"), t("cost"), t("proceeds"), t("pnl"), t("tradeReturn")], numeric = [2, 3, 4, 5, 6, 7];
-  return `<section class="panel"><h3 class="panel-title">${esc(t("perfTitle"))}</h3><div class="stats stats-4">${stat(t("totalReturn"), pct(perf.total_return_pct))}${stat(t("maxDrawdown"), pct(perf.max_drawdown_pct, false))}${stat(t("sharpePeriod"), ratio(r.sharpe_per_period, 3), `${t("psr")}: ${percent(r.probabilistic_sharpe)}`)}${stat(t("winRate"), percent(tr.win_rate, 0), `${digits(tr.closed_trades ?? 0)} ${t("closedTrades")}`)}</div>
+  return `<section class="panel"><h3 class="panel-title">${esc(t("perfTitle"))}</h3><div class="stats stats-4">${stat(t("totalReturn"), pct(perf.total_return_pct))}${stat(t("maxDrawdown"), pct(perf.max_drawdown_pct, false))}${stat(t("sharpePeriod"), ratio(r.sharpe_per_period, 3), `${t("psr")}: ${percent(r.probabilistic_sharpe)}${r.bootstrap_90?.probability_sharpe_positive == null ? "" : ` · ${t("psrBlock")}: ${percent(r.bootstrap_90.probability_sharpe_positive)}`}`)}${stat(t("winRate"), percent(tr.win_rate, 0), `${digits(tr.closed_trades ?? 0)} ${t("closedTrades")}`)}</div>
     ${keyValues(rows)}<p class="field-help">${esc(t("perfNote"))}</p>
     <details class="disclosure" data-key="metric-glossary"><summary>${esc(t("glossaryTitle"))}</summary><ul class="glossary">${GLOSSARY.map(key => `<li>${esc(t(key))}</li>`).join("")}</ul></details></section>
     <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("tradesTitle"))} <span class="muted">${esc(quote)}</span></h3>${trades.length ? `<button type="button" class="button button-small" data-csv="trades">${esc(t("downloadCsv"))}</button>` : ""}</div><div class="cards">${table(heads, trades.slice(0, 25), t("noTrades"), numeric)}</div>${trades.length > 25 ? `<details class="disclosure" data-key="trades-more"><summary>${esc(t("showMore"))} · ${digits(trades.length - 25)}</summary>${table(heads, trades.slice(25), "", numeric)}</details>` : ""}</section>${attributionPanel(perf, quote)}`;
@@ -120,7 +125,12 @@ function renderSavedComparison(records) {
       `<span class="${signed(end.net)}">${money(end.net)}</span> ${code(record.result?.quote)}`, pct(perf.total_return_pct), pct(perf.max_drawdown_pct, false),
       ratio(r.sharpe_per_period, 3), percent(r.probabilistic_sharpe), num(record.result?.fills),
       `<button type="button" class="button button-small" data-run="${esc(record.run_id)}">${esc(t("inspectRun"))}</button>`]; });
-  setHTML("run-detail", `<section class="panel"><h2 class="panel-title">${esc(t("savedComparisonTitle"))}</h2><p class="field-help">${esc(t("savedComparisonNote"))}</p>
+  // Net results side by side only mean something when the runs share these inputs; name every one that differs.
+  const facets = { window: r => `${r.inputs?.from}|${r.inputs?.to}`, quoteCurrency: r => r.result?.quote, feeRate: r => r.inputs?.cost?.fee_rate,
+    engine: r => r.inputs?.engine, store: r => r.inputs?.store, resolution: r => r.inputs?.resolution, cash: r => r.inputs?.cash };
+  const differs = Object.keys(facets).filter(key => new Set(records.map(facets[key])).size > 1);
+  const mismatch = differs.length ? `<p class="banner banner-warn">${esc(t("runsDiffer"))}: ${differs.map(key => esc(t(key))).join(", ")}</p>` : "";
+  setHTML("run-detail", `<section class="panel"><h2 class="panel-title">${esc(t("savedComparisonTitle"))}</h2><p class="field-help">${esc(t("savedComparisonNote"))}</p>${mismatch}
     ${overlayFigure(records.map(record => ({ name: `${record.inputs?.symbol} · ${record.inputs?.strategy} · ${record.run_id}`, curve: record.result?.curve })))}
     ${table([t("strategy"), t("window"), t("net"), t("totalReturn"), t("maxDrawdown"), t("sharpePeriod"), t("psr"), t("fills"), t("inspectRun")], rows, "", [2, 3, 4, 5, 6, 7])}</section>`);
 }

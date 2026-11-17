@@ -258,3 +258,28 @@ def test_signal_attribution_groups_trades_by_entry_and_exit_reasons():
     rows = {(r["entry"], r["exit"]): r for r in signal_attribution(result)}
     assert rows[("cross up", "cross down")]["wins"] == 1 and rows[("cross up", "cross down")]["pnl"] == "10"
     assert rows[("breakout", "untagged")]["trades"] == 1 and rows[("breakout", "untagged")]["wins"] == 0
+
+
+def test_block_bootstrap_probability_separates_steady_gains_from_steady_losses():
+    from gym.domain.performance import _bootstrap
+    gains = [0.01 if i % 4 else -0.004 for i in range(200)]
+    assert _bootstrap(gains)["probability_sharpe_positive"] == 1.0
+    assert _bootstrap([-r for r in gains])["probability_sharpe_positive"] == 0.0
+    mixed = _bootstrap([0.01, -0.01] * 100)["probability_sharpe_positive"]
+    assert 0.0 <= mixed <= 1.0
+
+
+def test_activity_compares_with_a_holding_scaled_to_time_in_market():
+    from gym.domain.performance import _activity
+    out = {"total_return_pct": "2.0000"}
+    result = {"decisions": [{"bid": "100"}, {"bid": "110"}]}
+    assert _activity(out, result, {"exposure": 0.5, "turnover": "4"}) == {
+        "return_per_turnover": 0.005, "hold_return_pct": 10.0, "exposure_matched_hold_pct": 5.0}
+    assert _activity({"total_return_pct": None}, result, {"exposure": 0.5, "turnover": "0"}) is None
+
+
+def test_abstentions_count_withheld_decisions_skipped_periods_and_nonfills():
+    from gym.domain.performance import _abstentions
+    result = {"decisions": [{"action": "ABSTAIN_WARMUP"}, {"action": "BUY"}, {"action": "ABSTAIN_WARMUP"}, {"action": "ABSTAIN_NO_QUOTE"}],
+              "session": {"skipped": [{"reason": "VENUE_CLOSED"}]}, "nonfills": {"LIMIT_EXPIRED": 2}}
+    assert _abstentions(result) == {"ABSTAIN_NO_QUOTE": 1, "ABSTAIN_WARMUP": 2, "NONFILL_LIMIT_EXPIRED": 2, "SKIPPED_VENUE_CLOSED": 1}
