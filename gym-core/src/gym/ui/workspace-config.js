@@ -142,6 +142,8 @@ const vocabulary = {
   observations: ["Qualified observations", "مشاهدات معتبر"], strategy: ["Strategy", "راهبرد"],
   equityCurve: ["Paper equity", "ارزش سبد آزمایشی"], curveNote: ["Marked at the observed bid. Chart geometry is approximate; values retain source precision.", "ارزش‌گذاری با خرید مشاهده‌شده. شکل نمودار تقریبی است؛ مقادیر با دقت منبع نمایش داده می‌شوند."],
   noCurve: ["No equity observations in this run.", "این اجرا مشاهده‌ای برای ارزش سبد ندارد."],
+  whyWon: ["Made money. Largest term: {term}. Price moves earned {moved} {quote}; costs took {paid} {quote}.", "سودآور بود. بزرگ‌ترین جزء: {term}. حرکت قیمت {moved} {quote} آورد؛ هزینه‌ها {paid} {quote} بردند."],
+  whyLost: ["Lost money. Largest term: {term}. Price moves earned {moved} {quote}; costs took {paid} {quote}.", "زیان‌ده بود. بزرگ‌ترین جزء: {term}. حرکت قیمت {moved} {quote} آورد؛ هزینه‌ها {paid} {quote} بردند."],
   costWaterfall: ["From gross to net", "از ناخالص تا خالص"], directional: ["Directional result", "نتیجهٔ تغییر قیمت"],
   spread: ["Spread cost", "هزینهٔ اسپرد"], fees: ["Fees", "کارمزد"], latency_drift: ["Latency drift", "اثر تأخیر"],
   noCost: ["No closing cost breakdown is available.", "تفکیک هزینهٔ پایانی در دسترس نیست."],
