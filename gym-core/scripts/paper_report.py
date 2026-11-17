@@ -160,6 +160,11 @@ liquid = [r for r in traded if r["max_drawdown_pct"] < 99]
 water = [(name, st.median(r[k + "_pct"] for r in traded), "of starting cash, median run")
          for name, k in (("Price moved against it", "directional"), ("Spread paid", "spread"), ("Fees paid", "fees"))]
 enough = [r for r in traded if (r["closed_trades"] or 0) >= 3]
+def share_profitable(spread_share, fee_share):
+    return 100 * sum(1 for r in enough if f(r, "directional") + f(r, "latency_drift") + spread_share * f(r, "spread") + fee_share * f(r, "fees") > 0) / len(enough)
+
+
+cost_grid = [(f"{int(100 * sp)}% of spread", *(f"{share_profitable(sp, fe):.1f}%" for fe in (1, 0.5, 0))) for sp in (1, 0.5, 0)]
 winners = sorted(enough, key=lambda r: -r["return_pct"])[:10]
 ruined = [r for r in traded if r["max_drawdown_pct"] >= 99]
 hold_usdt = [r["hold_pct"] for r in markets if r["quote"] == "USDT"]
@@ -213,6 +218,11 @@ The market fell hard in that window. Buying lost on almost every market, with or
 <figure>{bars(water, label_w=200)}</figure>
 <div class="take">{len(ruined)} runs on {len({r['symbol'] for r in ruined})} thin markets lost nearly all their cash. They crossed a wide spread again and again.
 On COOKIEUSDT one run paid more in spread than it started with. A spread filter before entry is the cheapest fix available.</div>
+
+<h2>Would cheaper trading have saved them?</h2>
+<p class="sub">Share of the {len(enough):,} runs with 3 or more closed trades that end in profit if the same trades paid less spread or lower fees.</p>
+<figure>{table(["", "Full fees", "Half fees", "No fees"], cost_grid)}</figure>
+<div class="take">Even trading for free, most runs still lose: the price moves went against the decisions. Lower costs alone would not have produced an edge in this window.</div>
 
 <h2>Buy, sell short and leverage</h2>
 <p class="sub">One position per margin market, opened at the first quote and held to the end, at each credit ratio.
