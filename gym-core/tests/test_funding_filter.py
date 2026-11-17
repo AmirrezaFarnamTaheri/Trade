@@ -9,6 +9,7 @@ sys.path.insert(0, str(SCRIPTS))
 spec = importlib.util.spec_from_file_location("funding_filter", SCRIPTS / "funding_filter.py")
 funding = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(funding)
+import binance_archive as funding_archive  # noqa: E402
 
 DAYS = [(date(2021, 1, 1) + timedelta(days=i)).isoformat() for i in range(500)]
 
@@ -45,6 +46,6 @@ def test_a_coin_that_turns_illiquid_is_sold_and_charged_then_skipped():
 
 
 def test_liquidity_needs_thirty_prior_days_above_the_floor():
-    volumes = [funding.MIN_VOLUME * 2] * 40 + [1.0] * 40
-    flags = funding.liquid(volumes)
+    volumes = [funding_archive.MIN_VOLUME * 2] * 40 + [1.0] * 40
+    flags = funding_archive.liquid(volumes)
     assert flags[29] is False and flags[30] is True and flags[75] is False
