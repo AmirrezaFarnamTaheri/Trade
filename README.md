@@ -4,8 +4,10 @@ A research and paper-trading observatory for the Wallex exchange (TMN and USDT s
 
 ## Current state
 
-- **Observation and paper research only.** Funded execution is **DISARMED**: there is no order-submission,
-  cancellation or protective-exit transport, and the funded-loss budget is zero.
+- **Observation and paper research only.** Funded execution is **DISARMED** and the funded-loss budget is zero.
+  A one-shot LIMIT order path exists in source behind an owner arm step; it is not installed, not qualified and
+  not armed. There is no cancellation or protective-exit transport. Stages are defined in
+  [capabilities](gym-core/docs/capabilities.md#stages).
 - **No established edge.** Acceptance gates are open and no paper strategy has a positive result that survived
   the validation protocol. Paper results cannot authorize capital.
   See the [trial log](gym-core/docs/trial-log.md).

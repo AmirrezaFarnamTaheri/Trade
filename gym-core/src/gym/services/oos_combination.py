@@ -1,8 +1,8 @@
-"""Item 28: chronological inverse-error combination of matched USDT paper curves.
+"""Chronological inverse-variance combination of matched USDT paper curves.
 
-The error proxy is a strategy's squared realized return relative to a
-zero-return USDT cash benchmark. Weights use only *earlier* OOS marks. This
-does not model shared-cash fills or prove predictive forecast calibration.
+Each strategy's weight is the inverse of the variance of its recent returns, so steady gains are not penalised the
+way a squared-return error would penalise them. Weights use only *earlier* OOS marks. This does not model
+shared-cash fills or prove predictive forecast calibration.
 """
 from decimal import Decimal, localcontext
 from itertools import pairwise
@@ -78,8 +78,8 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
         for i in range(lookback + 1, len(stamps)):
             # Excludes returns[i] itself, whose bar had not yet closed when the
             # weights were chosen. A later change cannot affect earlier weights.
-            errors = [sum((r * r for r in row[i-lookback:i]), Decimal(0)) /
-                      lookback for row in returns]
+            windows = [row[i-lookback:i] for row in returns]
+            errors = [sum(((r - sum(w, Decimal(0)) / lookback) ** 2 for r in w), Decimal(0)) / lookback for w in windows]
             inverse = [Decimal(1) / (e + floor) for e in errors]
             total = sum(inverse, Decimal(0))
             allocation = [w / total for w in inverse]
@@ -101,7 +101,7 @@ def combine_oos_curves(components, *, lookback=6, rebalance_cost_bps=None):
                   "net_usdt_from_common_active_window": str(
                       +(opening * (curve[-1] / curve[lookback] - 1)))}
                  for name, key, curve in zip(names, ids, marks)]
-        result = {"schema": "oos-strategy-combination/1",
+        result = {"schema": "oos-strategy-combination/2",
                   "status": "MODELED_PROXY_ONLY" if charge is not None else "COST_UNAVAILABLE",
                   "source_run_ids": ids, "lookback": lookback,
                   "error_definition": "PAST_SQUARED_NET_RETURN_VS_CASH_BENCHMARK",

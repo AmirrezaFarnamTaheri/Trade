@@ -4,6 +4,19 @@ The [architecture](architecture.md) identifies implementation owners and browser
 locations. The [roadmap](roadmap.md) lists open work. This page describes
 the supported product boundary.
 
+## Stages
+
+Every capability statement names one of these stages. A later stage is never implied by an earlier one.
+
+| Stage | Meaning |
+| --- | --- |
+| In source | Merged on master with local tests; not built into the installed bundle |
+| Installed | The exact binary bundle on this host, identified by its published hashes |
+| Qualified | Installed and exercised on this host against its recorded checks (custody, STOP, recovery, venue reads) |
+| Armed | An owner has armed the qualified installation; only then can a funded order be sent |
+
+Today the funded LIMIT path is **in source** only. The installed service predates it. Nothing is qualified or armed.
+
 | Capability | Current scope | Evidence limit |
 | --- | --- | --- |
 | Market collection | Catalogue-wide public spot observations, recorded depth/trades/candles, SQL publication and raw archive | Selection is not freshness; per-market gaps and stale quotes remain visible |
@@ -17,7 +30,7 @@ the supported product boundary.
 | Screening and diagnostics | Comparable recorded markets, exact supplied-data models and return/cost diagnostics | Supplied holdings/fills/forecasts are unauthenticated; scoring is not prediction |
 | Margin paper | Public rules/previews and recorded LONG/SHORT positions using venue credit grids | No real loan, position or protective order is submitted |
 | Account observations | Sanitized journal and separately protected read-only transport contracts | Observation is not completeness, spendability or settlement |
-| Protected executor | Native source connects custody, review, receipts, holds, elevated approval, one-shot LIMIT orders, settlement and independent STOP | Installed evidence is dated; new source is unpublished and unqualified. Service stays disarmed; browser cannot arm or submit |
+| Protected executor | In source: custody, review, receipts, holds, elevated approval, one-shot LIMIT orders, settlement and independent STOP | Installed bundle predates the LIMIT path; nothing is qualified or armed; browser cannot arm or submit |
 | Backups | Encrypted native backup/restore and append-only receipt history | Receipt presence does not prove current archives or runtime readiness |
 
 Predictive ML/RL training is paper-only; models may be fitted on historical data, with every fit registered and counted as a trial (see PRODUCT.md). Unrelated donor runtimes and automatic paid requests are outside accepted scope.

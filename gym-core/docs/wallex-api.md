@@ -46,9 +46,9 @@ or an empty page does not prove that an order is absent or a balance is spendabl
 See [account contract](../../contracts/v2/account-read-v2.md) and
 [service observations](../../executor/docs/account-observations.md).
 
-Funded submission, cancellation, borrowing, sub-account transfers and protective
-venue orders require the separately implemented and qualified protected transport.
-They are unavailable in the current application. Exact intent must be durable
+Funded submission requires the protected LIMIT path, which exists in source but is not installed,
+qualified or armed. Cancellation, borrowing, sub-account transfers and protective venue orders have no transport.
+None is available in the current application. Exact intent must be durable
 before first send, unresolved sends must survive restart, and unknown orders must
 retain reservations until reconciliation. Withdrawals and account-money movement
 are outside ordinary strategy authority. The wiring order is in
