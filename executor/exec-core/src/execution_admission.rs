@@ -1,6 +1,6 @@
 //! C-series pure admission *advice*, not an Executor permission or venue POST.
 //!
-//! Callers may assert that a method or T1 approval was verified, but a plain
+//! Callers may assert that a method or operator approval was verified, but a plain
 //! Rust value carries no principal/credential proof. No combination of these
 //! booleans yields funded authority. The separate restricted service must
 //! authenticate and re-evaluate each money action with durable reservations.
@@ -58,7 +58,7 @@ pub struct EntryCheck {
     pub has_unknown_order: bool,
 }
 
-/// Preflight vetoes are useful even before real T1/T2 attestation is built.
+/// Preflight vetoes are useful even before real operator/administrator attestation is built.
 /// A DISARMED startup cannot send, even if every asserted value is true.
 pub fn assess_entry(c: EntryCheck) -> Advisory {
     use Blocker::*;

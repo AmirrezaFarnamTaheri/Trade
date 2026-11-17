@@ -131,8 +131,8 @@ pub mod windows_pipe;
 #[cfg(windows)]
 pub mod windows_control;
 
-/// Runs the privileged (T2) thread body and applies the fail-closed rule (OD-5): a panic or an error marks the
-/// service failed, and any return stops the whole service, T0 included. Only an orderly credential-recovery run
+/// Runs the privileged (administrator) thread body and applies the fail-closed rule: a panic or an error marks the
+/// service failed, and any return stops the whole service, the STOP listener included. Only an orderly credential-recovery run
 /// ends without the failure flag. A restart builds a fresh `StopGate`, which is always `Disarmed`.
 pub fn supervise_privileged<F>(
     credential_recovery: bool,
@@ -149,7 +149,7 @@ pub fn supervise_privileged<F>(
     stop.store(true, Ordering::SeqCst);
 }
 
-/// Exit codes reported to the service manager on stop: (Win32 code, service-specific phase code when T2 failed).
+/// Exit codes reported to the service manager on stop: (Win32 code, service-specific phase code when the administrator thread failed).
 pub fn stopped_exit(
     listener_failed: bool,
     privileged_failed: bool,
@@ -416,7 +416,7 @@ impl StopGate {
     }
 }
 
-/// Durably replayed, offline-only B2 intents; never grants money authority.
+/// Durably replayed, offline-only intents; never grants money authority.
 pub mod offline_recovery;
 
 /// Exact service account observations; never spendable balances or permission proof.

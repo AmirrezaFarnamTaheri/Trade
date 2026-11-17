@@ -1,7 +1,7 @@
-"""C2 *offline only* exact-decimal assisted-ticket preview and review queue.
+"""*Offline only* exact-decimal assisted-ticket preview and review queue.
 
 This models a quote-fee, marketable-limit BUY entry or SELL protective exit.
-It does NOT construct a funded order, client_id, T1 approval, request body or
+It does NOT construct a funded order, client_id, operator approval, request body or
 venue transport. Only the independently isolated Executor may implement those.
 """
 from __future__ import annotations

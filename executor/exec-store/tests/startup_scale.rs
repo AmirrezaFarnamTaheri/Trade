@@ -41,7 +41,7 @@ fn open_and_full_replay_of_200k_rows_fits_well_inside_the_startup_wait() {
     let (_ledger, replayed) = Ledger::open_and_replay(&path).unwrap();
     let total = started.elapsed();
     assert_eq!(replayed.len(), 200_000);
-    eprintln!("A-5 measurement: 200k rows of 300 B: open+verify+replay {total:?}");
+    eprintln!("Startup scale measurement: 200k rows of 300 B: open+verify+replay {total:?}");
     assert!(
         total.as_secs_f64() < 20.0,
         "startup cost regressed: {total:?}"

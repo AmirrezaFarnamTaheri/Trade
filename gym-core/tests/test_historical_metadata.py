@@ -1,4 +1,4 @@
-"""Historical public Wallex metadata remains point-in-time and lossless (DATA-02)."""
+"""Historical public Wallex metadata remains point-in-time and lossless."""
 import asyncio
 import hashlib
 import json

@@ -1,4 +1,4 @@
-//! Exact, bounded T0 stop-only wire contract. Does not authenticate a caller;
+//! Exact, bounded stop-only wire contract. Does not authenticate a caller;
 //! Windows pipe DACL and client-token restrictions remain mandatory.
 #![forbid(unsafe_code)]
 use std::convert::TryInto;

@@ -253,7 +253,7 @@ pub async fn serve(
                         Request::Account(resource, correlation, receipts) => {
                             // The vault lock is held only to copy the key out and to record the result,
                             // never across the venue read, so a slow venue cannot stall review or ceiling
-                            // requests. Independent authenticated T0 never waits on this thread at all.
+                            // requests. The independent authenticated STOP listener never waits on this thread at all.
                             let epoch = operator.gate.runtime_epoch();
                             let observed = exec_svc::read_outside_lock(
                                 &vault,

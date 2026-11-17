@@ -1,4 +1,4 @@
-"""B3 offline ledger restore verification never overwrites an active ledger."""
+"""Offline ledger restore verification never overwrites an active ledger."""
 import hashlib
 import sqlite3
 from pathlib import Path

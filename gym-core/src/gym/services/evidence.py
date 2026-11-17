@@ -10,6 +10,8 @@ from pathlib import Path
 from .allocation import journal
 
 TRIAL_LOG = Path(__file__).resolve().parents[3] / "docs" / "trial-log.md"
+# A registered trial: a lower-case hyphenated name, then the registration date.
+REGISTERED_ROW = re.compile(r"\| [a-z0-9]+(?:-[a-z0-9]+)* \| \d{4}-\d{2}-\d{2} \|")
 
 
 def _verdict(result: str) -> str:
@@ -21,7 +23,7 @@ def trials(path: Path = TRIAL_LOG) -> list[dict]:
     if not path.exists():
         return []
     rows = ([cell.strip() for cell in line.strip().strip("|").split("|")]
-            for line in path.read_text(encoding="utf-8").splitlines() if re.match(r"\| T\d+ \|", line))
+            for line in path.read_text(encoding="utf-8").splitlines() if REGISTERED_ROW.match(line))
     return [{"id": row[0], "registered": row[1], "hypothesis": row[2], "verdict": _verdict(row[5])}
             for row in rows if len(row) == 6]
 

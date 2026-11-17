@@ -267,7 +267,7 @@ Object.assign(vocabulary, {
   answerDays: ["days", "روز"],
   answerInMarket: ["holding the coin", "در حال نگه‌داری رمزارز"], answerInCash: ["waiting in USDT", "منتظر در تتر"],
   forwardTitle: ["Daily trend rule, forward record", "قانون روند روزانه، سابقهٔ رو به جلو"],
-  forwardHistorical: ["Historical test (T6)", "آزمون تاریخی (T6)"],
+  forwardHistorical: ["Historical test, 2024 to 2026", "آزمون تاریخی، ۲۰۲۴ تا ۲۰۲۶"],
   forwardDays: ["Days", "روزها"],
   forwardDaysValue: ["{days} decided · {missing} missing · {withheld} withheld", "{days} تصمیم · {missing} از دست رفته · {withheld} خودداری"],
   forwardTrades: ["Trades", "معامله‌ها"], forwardFees: ["in fees", "کارمزد"],

@@ -2,7 +2,7 @@
 
 **Status:** paper-only implementation. This does **not** complete Workstream C
 controlled integration, grant funded authority, or establish an executable
-venue route. The T1/T2, authenticated observation, real manual lifecycle,
+venue route. The operator/administrator, authenticated observation, real manual lifecycle,
 venue protection, service-principal isolation, settlement, and operator consent
 gates remain open in [the controlled integration runbook](controlled-integration-runbook.md).
 

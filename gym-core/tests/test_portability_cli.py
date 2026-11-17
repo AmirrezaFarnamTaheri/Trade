@@ -1,4 +1,4 @@
-"""Synthetic encrypted B3 backup works from a CLI, including no-overwrite."""
+"""Synthetic encrypted backup works from a CLI, including no-overwrite."""
 import subprocess
 import sys
 from pathlib import Path
@@ -25,7 +25,7 @@ def test_cli_can_produce_and_restore_an_authenticated_synthetic_ledger(tmp_path)
     )
     assert second.returncode == 0, second.stderr
     assert inspect_ledger(restored)["sequence"] == 2
-    assert "PASS: B3 synthetic restored" in second.stdout
+    assert "PASS: synthetic backup restored" in second.stdout
 
 
 def test_cli_fails_closed_if_restore_target_preexists(tmp_path):

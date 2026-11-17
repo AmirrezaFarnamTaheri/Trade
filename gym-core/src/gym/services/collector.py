@@ -294,7 +294,7 @@ class Collector:
         return json.dumps([[[str(p), str(q)] for p, q in bids], [[str(p), str(q)] for p, q in asks]], separators=(",", ":"))
 
     def watch_units(self, now: datetime):
-        """DATA-04: a ×10^k jump in every IRT price at once freezes new IRT entries. Stored rows stay as observed."""
+        """A ×10^k jump in every IRT price at once freezes new IRT entries. Stored rows stay as observed."""
         mids = {(self.insts[s].base, self.insts[s].quote): (t.bid + t.ask) / 2
                 for s, t in self.tops.items() if qualified(t)}
         event = self.units.observe(mids)
@@ -528,7 +528,7 @@ class Collector:
             await asyncio.sleep(backoff)
 
     async def fetch_candles(self, session, symbol: str, resolution: str, start: datetime, end: datetime) -> int:
-        """Venue candles for the DATA-05 cross-check; raw responses go to the segment like every other source."""
+        """Venue candles for the trade-bar cross-check; raw responses go to the segment like every other source."""
         now = now_utc()
         try:
             raw = await self.rest_text(session, "/v1/udf/history", symbol=symbol, resolution=wallex.UDF_RESOLUTIONS[resolution],

@@ -1,4 +1,4 @@
-"""C1 immutable, non-authoritative venue evidence and fail-closed capability registry."""
+"""Immutable, non-authoritative venue evidence and fail-closed capability registry."""
 import hashlib
 import sqlite3
 

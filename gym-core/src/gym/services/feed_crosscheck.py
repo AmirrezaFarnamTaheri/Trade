@@ -1,4 +1,4 @@
-"""DATA-05 cross-check: internal LAST bars built from collected trades against the venue's own candles."""
+"""Cross-check: internal LAST bars built from collected trades against the venue's own candles."""
 from datetime import datetime, timedelta
 from decimal import Decimal
 

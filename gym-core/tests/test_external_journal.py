@@ -1,4 +1,4 @@
-"""B1 external Journal: durable, monotone, never authoritative money fills."""
+"""External journal: durable, monotone, never authoritative money fills."""
 import sqlite3
 
 import pytest

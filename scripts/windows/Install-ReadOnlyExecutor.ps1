@@ -2,7 +2,7 @@
 <#
 Install a DISABLED, read-only Windows SCM bootstrap (not funded, not a live
 stop-protection service). Run explicitly from an elevated PowerShell window.
-No secrets, network access, or venue APIs are provisioned. T2 pipe ACL is created
+No secrets, network access, or venue APIs are provisioned. The administrator pipe ACL is created
 by the service: SYSTEM/service full access, Administrators data-only (no pipe-create).
 Do not change the service to automatic start as part of this script.
 #>

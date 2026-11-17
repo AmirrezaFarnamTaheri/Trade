@@ -1,4 +1,4 @@
-"""B3 independently pinned backup manifest: cryptographic identity != remote proof."""
+"""Independently pinned backup manifest: cryptographic identity != remote proof."""
 import hashlib
 import json
 import sqlite3

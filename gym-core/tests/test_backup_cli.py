@@ -1,4 +1,4 @@
-"""Manual B3 single-pass command keeps backup phrases out of arguments/logs."""
+"""Manual single-pass command keeps backup phrases out of arguments/logs."""
 from argparse import Namespace
 
 import pytest

@@ -1,4 +1,4 @@
-"""B1 offline manual order provenance is visible but never money-authoritative."""
+"""Offline manual order provenance is visible but never money-authoritative."""
 import asyncio
 import json
 from pathlib import Path

@@ -8,7 +8,7 @@ from aiohttp import web
 
 log = logging.getLogger(__name__)
 LOOPBACK = {"127.0.0.1", "localhost"}
-# Same-origin scripts and styles only; chart geometry is set through the DOM style API, never inline (S-13).
+# Same-origin scripts and styles only; chart geometry is set through the DOM style API, never inline.
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                                "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",

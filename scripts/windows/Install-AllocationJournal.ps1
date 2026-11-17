@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 <# Once a day, fetch the latest daily candles and append one paper decision per market to the allocation journal
-   (trial T6 in gym-core/docs/trial-log.md: hold the market only while its daily close is above the 50-day average).
+   (trial btc-daily-trend in gym-core/docs/trial-log.md: hold the market only while its daily close is above the 50-day average).
    Paper only: nothing is sent to the venue. A missed day is not back-filled; the next run decides on the latest
    completed candle. A fill needs a fresh quote, so the collector must be running.
    Preview with -WhatIf; remove with -Uninstall.
@@ -28,7 +28,7 @@ $data = [IO.Path]::GetFullPath($DataDirectory)
 $uv = (Get-Command uv -ErrorAction Stop).Source
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $markets = $Symbols -join ' '
-# The T6 rule is all-in or all-out: a volatility target of 5 never binds and the band is off.
+# The btc-daily-trend rule is all-in or all-out: a volatility target of 5 never binds and the band is off.
 $command = "`$from = (Get-Date).ToUniversalTime().AddDays(-5).ToString('yyyy-MM-ddT00:00:00Z'); " +
     "& '$uv' run --no-sync gymctl --data '$data' history $markets --resolution 1d --from `$from | Out-Null; " +
     "& '$uv' run --no-sync gymctl --data '$data' allocate $markets --vol-target 5 --band 0 | Out-Null"

@@ -227,7 +227,7 @@ class _WorkspaceApi:
         return web.json_response(result)
 
     async def venue_facts_api(self, req):
-        # C1 is a private operator history. Never return raw venue payloads,
+        # Venue facts are a private operator history. Never return raw venue payloads,
         # account credentials or a claim that a write method is certified.
         facts = [] if self.venue_facts is None else self.venue_facts.facts()
         return web.json_response({
@@ -247,7 +247,7 @@ class _WorkspaceApi:
 
     async def automation_safety(self, req):
         # This is a conservative description of THIS unprivileged process.
-        # Never infer T2 service state from a browser-supplied claim.
+        # Never infer administrator service state from a browser-supplied claim.
         return web.json_response({
             "mode": "DISARMED", "protection": "UNAVAILABLE",
             "venue_stops": "NOT_CERTIFIED",
@@ -455,7 +455,7 @@ class _WorkspaceApi:
         return web.json_response(record)
 
     async def chaos_report_api(self, req):
-        # B2 Fake Venue chaos-suite report written by `gym-chaos`; read-only evidence, never authority.
+        # Fake Venue chaos-suite report written by `gym-chaos`; read-only evidence, never authority.
         try:
             raw = self.chaos_report.read_bytes() if self.chaos_report else None
         except FileNotFoundError:

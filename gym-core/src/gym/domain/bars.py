@@ -324,7 +324,7 @@ def trade_bars(symbol: str, spec: BarSpec, trades, until: datetime) -> list[Bar]
 
 
 def quote_bars(symbol: str, spec: BarSpec, tops: list[BookTop], period=None) -> list[Bar]:
-    """Batch form of the same consolidator (DATA-05 parity: identical input, identical bars)."""
+    """Batch form of the same consolidator (parity: identical input, identical bars)."""
     c, out = Consolidator(symbol, spec, period), []
     for top in tops:
         out += c.update_quote(top)

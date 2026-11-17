@@ -1,6 +1,6 @@
-"""T9 of docs/trial-log.md: does spreading the T6 trend rule over ten coins, sized by volatility, beat it on one?
+"""ten-coin-trend of docs/trial-log.md: does spreading the btc-daily-trend trend rule over ten coins, sized by volatility, beat it on one?
 
-T6 passed on one coin and one good year. This asks whether the same rule held across more coins, each sized so a
+btc-daily-trend passed on one coin and one good year. This asks whether the same rule held across more coins, each sized so a
 calm coin gets more and a wild one less, earns a steadier result. Every number is net of the cost of each change
 in weight. Floating point is used; a pass must be replayed in the exact paper engine before it counts.
 
@@ -106,7 +106,7 @@ def verdict(series: dict[str, dict[str, float]]) -> bool:
                 rows = portfolio(series, window, sizing, cost)
                 cells.append({"window": window, "sizing": sizing, "rows": rows, **summary(split(rows)[0])})
         variance = pvariance([cell["sharpe"] for cell in cells])
-        print(f"T9 trend portfolio, {name} cost {100 * cost:.2f}% per side; {len(series)} coins; ranked before {SPLIT}")
+        print(f"ten-coin-trend trend portfolio, {name} cost {100 * cost:.2f}% per side; {len(series)} coins; ranked before {SPLIT}")
         for cell in cells:
             cell["deflated"] = deflated_sharpe(cell["sharpe"], cell["days"], *cell["moments"], len(cells), variance) or 0.0
             print(f"  {cell['window']:3}-day {cell['sizing']:5}: {cell['days']} days, total {100 * cell['total']:8.1f}%, yearly Sharpe "
@@ -131,7 +131,7 @@ def verdict(series: dict[str, dict[str, float]]) -> bool:
             rows = [row for row in held_rows if row[0][:4] == year]
             print(f"    {year}: {100 * summary(rows)['total']:6.1f}% over {len(rows)} days")
         passed = passed or (ok and name == "account")
-    print(f"T9 VERDICT: {'PASS' if passed else 'FAIL'}")
+    print(f"ten-coin-trend VERDICT: {'PASS' if passed else 'FAIL'}")
     return passed
 
 

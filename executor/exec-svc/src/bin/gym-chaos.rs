@@ -1,4 +1,4 @@
-//! B2 chaos-suite report: runs every seeded Fake Venue fixture and writes JSON.
+//! Chaos-suite report: runs every seeded Fake Venue fixture and writes JSON.
 //! Usage: gym-chaos OUT.json [SEEDS]. Exit 1 if any invariant is violated.
 use exec_core::fake_venue::{run, Outcome, FIXTURES};
 

@@ -1,7 +1,6 @@
-# Workstream C1 — read-only venue evidence (development slice)
+# Read-only venue evidence
 
-This branch starts **C1** as specified in Master Specification §15.4.
-It adds a local, **non-authoritative** `VenueFacts` evidence journal and
+TradingGYM keeps a local, **non-authoritative** `VenueFacts` evidence journal and
 a truthful capability/status view in Health. It does **not** read private
 Wallex endpoints using a key, initiate a probe order, or enable a funded mode.
 
@@ -49,15 +48,15 @@ can turn an order, stop or Autopilot capability into a certified method.
 
 ## Missing acceptance (NOT production-ready)
 
-- B1: actual T2 service-owned, no-withdrawal read credential, Windows
+- Separated principals: actual administrator service-owned, no-withdrawal read credential, Windows
   identity/DPAPI/ACL and operator/worker negative acceptance.
-- B2: durable money reservation/reconciliation and live venue transport
-  safety; Fake Venue scenarios and installed-Windows SEC-02 evidence.
-- C1: authorized, fresh Wallex private **GET** requests inside the
+- Money authority: durable money reservation/reconciliation and live venue transport
+  safety; Fake Venue scenarios and installed-Windows principal evidence.
+- Venue facts: authorized, fresh Wallex private **GET** requests inside the
   credential-isolated Executor; order status/fee/pagination/shape tests
   against a real account; independent timestamped provenance and external
-  exposure; a budgeted probe with explicit operator consent only after B.
-- C2/C3: an actual service-issued approval, verified protective order,
+  exposure; a budgeted probe with explicit operator consent only after the two items above.
+- Tickets and exits: an actual service-issued approval, verified protective order,
   capped real conversion or Autopilot session and evidence of live
   reconciliation. Do not infer any of these from a Health display.
 

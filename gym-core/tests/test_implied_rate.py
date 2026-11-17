@@ -1,4 +1,4 @@
-"""T10's arithmetic: the gap to the implied rate, acting one close after the signal, cost on both sides."""
+"""implied-toman-rate's arithmetic: the gap to the implied rate, acting one close after the signal, cost on both sides."""
 import importlib.util
 from datetime import UTC, datetime, timedelta
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""T14: hold only the strongest qualifying coin, reviewed weekly, or USDT when none qualifies.
+"""strongest-coin-or-cash: hold only the strongest qualifying coin, reviewed weekly, or USDT when none qualifies.
 
 Registered in docs/trial-log.md before this script ran. Ranks 3 settings on Binance days before 2024-01-01, then
 scores the best once on Wallex margin markets no trial has scored.
@@ -68,14 +68,14 @@ def verdict(rank_source, held_source) -> bool:
                       "cash": sum(r[2] is None for r in rows[first:]) / len(series),
                       "switches": sum(a[2] != b[2] for a, b in zip(rows[first:], rows[first + 1:], strict=False))})
     variance = pvariance([c["sharpe"] for c in cells])
-    print(f"T14 ranked before {SPLIT}; {100 * COST:.2f}% per side on every rotation")
+    print(f"strongest-coin-or-cash ranked before {SPLIT}; {100 * COST:.2f}% per side on every rotation")
     for c in cells:
         c["deflated"] = deflated_sharpe(c["sharpe"], len(c["series"]), *c["moments"], len(cells), variance) or 0.0
         print(f"  {c['lookback']:3}-day strength: {len(c['series'])} days, total {100 * total(c['series']):10.1f}%, in USDT {100 * c['cash']:4.0f}% of days, "
               f"{c['switches']} changes, yearly Sharpe {c['sharpe'] * sqrt(365):5.2f}, deflated {c['deflated']:.3f}")
     best = max(cells, key=lambda c: c["deflated"])
     if best["deflated"] < 0.95:
-        print(f"T14 FAIL on ranking days (best {best['lookback']}-day, deflated {best['deflated']:.3f}); held-out markets not scored")
+        print(f"strongest-coin-or-cash FAIL on ranking days (best {best['lookback']}-day, deflated {best['deflated']:.3f}); held-out markets not scored")
         return False
     rows = rotate(held_source, best["lookback"])
     counts = {}
@@ -90,7 +90,7 @@ def verdict(rank_source, held_source) -> bool:
     mean, deviation, _, _ = _moments(held)
     print(f"  held out from {start}, {best['lookback']}-day strength: {len(held)} days, total {100 * total(held):.1f}%, "
           f"yearly Sharpe {mean / deviation * sqrt(365) if deviation else 0:.2f}, block-bootstrap probability Sharpe > 0: {chance:.3f}")
-    print(f"T14 VERDICT: {'PASS' if chance >= 0.90 else 'FAIL'}")
+    print(f"strongest-coin-or-cash VERDICT: {'PASS' if chance >= 0.90 else 'FAIL'}")
     return chance >= 0.90
 
 

@@ -1,8 +1,8 @@
-# T6 exact-accounting replay - 2026-11-16 Tehran
+# `btc-daily-trend` exact-accounting replay - 2026-11-16 Tehran
 
 The fixed BTCUSDT 50-day close-above-mean rule was replayed through `PaperSession`,
 `market_order` and `CashBook` using exact Decimal postings. No settings were selected
-and no statistical score was recalculated on the already consumed T6 data.
+and no statistical score was recalculated on the already consumed `btc-daily-trend` data.
 
 - Engine: `paper-session/10`; local immutable artifact: `data/research/daily-trend-replay/142b9e014757fb99.json`.
 - Window: 1,049 traded venue daily candles, 2024-01-01 through 2026-11-14; 50 earlier closes for warmup.

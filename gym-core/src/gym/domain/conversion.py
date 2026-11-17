@@ -1,4 +1,4 @@
-"""C2 cost-aware conversion research and deterministic Fake Venue shortfall.
+"""Cost-aware conversion research and deterministic Fake Venue shortfall.
 
 This unit has no live order method. All fills are explicitly synthetic; prices,
 fees and balances are never posted to the Executor or treated as settled money.

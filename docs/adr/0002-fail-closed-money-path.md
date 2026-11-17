@@ -4,7 +4,7 @@ Status: Accepted (owner decision OD-5, 2026-11-09)
 
 ## Context
 
-The privileged executor thread (T2) holds custody and the journals. An uncertain journal commit, a venue
+The privileged executor thread (administrator) holds custody and the journals. An uncertain journal commit, a venue
 observation that may be stale, or two journals that disagree all leave the executor unsure what it owns.
 
 ## Decision

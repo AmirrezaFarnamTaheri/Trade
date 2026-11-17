@@ -1,4 +1,4 @@
-//! B2 typed reservations and authority tiers; no venue network or funded order API.
+//! Typed reservations and authority tiers; no venue network or funded order API.
 use exec_core::authority::{permits, Action, AuthorityTier};
 use exec_core::orders::{
     Attempt, BalanceSnapshot, EconomicEffect, Event, Lifecycle, OrderError, ReservationBook,
@@ -198,19 +198,31 @@ fn reservation_rejects_duplicate_intents_and_unverified_or_empty_balance_snapsho
 
 #[test]
 fn authority_tiers_are_monotone_and_high_impact_actions_require_t2() {
-    assert!(permits(AuthorityTier::T0, Action::PauseEntries));
-    assert!(permits(AuthorityTier::T0, Action::ExitOnly));
-    assert!(permits(AuthorityTier::T0, Action::Halt));
-    assert!(!permits(AuthorityTier::T0, Action::ApproveProposal));
-    assert!(!permits(AuthorityTier::T0, Action::Flatten));
-    assert!(permits(AuthorityTier::T1, Action::ApproveProposal));
-    assert!(permits(AuthorityTier::T1, Action::Flatten));
-    assert!(!permits(AuthorityTier::T1, Action::ProvisionCredential));
-    assert!(!permits(AuthorityTier::T1, Action::ResolveUnknownOrder));
-    assert!(!permits(AuthorityTier::T1, Action::HardStop));
-    assert!(permits(AuthorityTier::T2, Action::ProvisionCredential));
-    assert!(permits(AuthorityTier::T2, Action::ResolveUnknownOrder));
-    assert!(permits(AuthorityTier::T2, Action::HardStop));
+    assert!(permits(AuthorityTier::Observer, Action::PauseEntries));
+    assert!(permits(AuthorityTier::Observer, Action::ExitOnly));
+    assert!(permits(AuthorityTier::Observer, Action::Halt));
+    assert!(!permits(AuthorityTier::Observer, Action::ApproveProposal));
+    assert!(!permits(AuthorityTier::Observer, Action::Flatten));
+    assert!(permits(AuthorityTier::Operator, Action::ApproveProposal));
+    assert!(permits(AuthorityTier::Operator, Action::Flatten));
+    assert!(!permits(
+        AuthorityTier::Operator,
+        Action::ProvisionCredential
+    ));
+    assert!(!permits(
+        AuthorityTier::Operator,
+        Action::ResolveUnknownOrder
+    ));
+    assert!(!permits(AuthorityTier::Operator, Action::HardStop));
+    assert!(permits(
+        AuthorityTier::Administrator,
+        Action::ProvisionCredential
+    ));
+    assert!(permits(
+        AuthorityTier::Administrator,
+        Action::ResolveUnknownOrder
+    ));
+    assert!(permits(AuthorityTier::Administrator, Action::HardStop));
 }
 
 #[test]

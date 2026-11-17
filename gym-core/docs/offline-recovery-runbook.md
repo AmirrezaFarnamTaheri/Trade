@@ -1,4 +1,4 @@
-# B3 offline recovery runbook (draft; not production acceptance)
+# Offline recovery runbook (not production acceptance)
 
 This workflow is **not** a privileged scheduler, remote-backup system, production
 updater, or approval to trade. Keep the Executor DISARMED. Never put credentials
@@ -43,7 +43,7 @@ variables or chat.
   authenticated off-machine manifest. Existing receipt fields report
   trusted_origin=false: the passphrase does not establish provenance.
 - Reprovision read-only venue credentials under the actual dedicated service
-  principal only after B1 T2 service ACL and DPAPI acceptance. Startup remains
+  principal only after the administrator service ACL and DPAPI acceptance. Startup remains
   DISARMED. Reconcile every ambiguous order from authenticated venue evidence.
 - Capture actual restore time, event count/head hash, ACL/negative
   probes, provenance proof and Health evidence for release review. Record fixture scope explicitly; synthetic CI does not certify actual venue state.
@@ -62,8 +62,8 @@ Restart DISARMED and reconcile the venue before considering future authority.
 
 **Not yet implemented:** automated privileged off-machine schedule/retention,
 independent manifest attestation, signed migration installation and rollback,
-and B1 service-owned credentials. Cross-OS restore was rehearsed in WSL2.
-Do not close B3 or merge for funded trading on synthetic results alone.
+and service-owned credentials. Cross-OS restore was rehearsed in WSL2.
+Do not accept recovery for funded trading on synthetic results alone.
 
 
 ## Detached manifest and independent verification
@@ -92,4 +92,4 @@ credentials, safe migration, or live trading authority. The verifier always
 reports `off_machine_verified: false` and `install_authorized: false`.
 
 Retain authenticated receipts for storage, key custody, elapsed restore time, release
-version, negative checks and actual Windows operator/worker principals before closing B3.
+version, negative checks and actual Windows operator/worker principals before accepting recovery.

@@ -1,4 +1,4 @@
-"""C2 dry-run order ticket semantics; never grants real venue money authority."""
+"""Dry-run order ticket semantics; never grants real venue money authority."""
 import copy
 
 import pytest

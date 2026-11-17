@@ -1,4 +1,4 @@
-"""B3 pure update admission policy. It executes NO service update.
+"""Pure update admission policy. It executes NO service update.
 
 Only an independently verified protection plan or a separately recorded
 operator outage acceptance allows an update with open positions. Neither
@@ -34,7 +34,7 @@ def assess_update(*, open_positions: int, unknown_orders: int,
         "UNPROTECTED_ACCEPTED"
     )
     # This is an *admission recommendation*. The actual service updater must
-    # re-read authoritative state under its own lock, journal the T2 consent,
+    # re-read authoritative state under its own lock, journal the administrator consent,
     # refuse later activity, then restart DISARMED and reconcile.
     return {
         "allowed": True, "mode_after": "DISARMED",

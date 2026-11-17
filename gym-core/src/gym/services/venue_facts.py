@@ -1,4 +1,4 @@
-"""C1 VenueFacts: immutable sanitized observation metadata, NOT money authority.
+"""VenueFacts: immutable sanitized observation metadata, NOT money authority.
 
 No venue session, credential, raw response, POST, or order transport exists here.
 A hash chain detects local history mutation, but neither a hash nor a caller's
@@ -64,7 +64,7 @@ PRAGMA user_version=1;
 
 
 class VenueFactsUnsafe(ValueError):
-    """Unsafe, ambiguous or unsupported C1 evidence, or ledger corruption."""
+    """Unsafe, ambiguous or unsupported venue-fact evidence, or ledger corruption."""
 
 
 def validate_venue_fact(value: dict) -> dict:

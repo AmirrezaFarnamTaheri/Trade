@@ -1,4 +1,4 @@
-"""Offline B3 encrypted backup rotation, requiring an independently mounted volume.
+"""Offline encrypted backup rotation, requiring an independently mounted volume.
 
 This is a single bounded maintenance *invocation*, intended for a future
 service-owned scheduler. A distinct filesystem device is necessary but NOT

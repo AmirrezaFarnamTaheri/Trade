@@ -1,4 +1,4 @@
-//! Arm records and kill rules (owner decision OD-2). Pure policy: it cannot arm anything by itself.
+//! Arm records and kill rules (owner decision on arming). Pure policy: it cannot arm anything by itself.
 //!
 //! The native arm controller calls `approve` with the owner's policy
 //! file and a preflight computed service-side, and then `check` / `admit_order` on every tick and order. Kill rules

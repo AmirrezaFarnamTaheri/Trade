@@ -20,7 +20,7 @@ and the pure `exec_core::step` still cannot raise authority.
    fault, a reconciliation mismatch, loss at the kill level or the cap, stale data and too many open orders.
    `admit_order` also enforces symbol, per-order notional, orders per day and open orders.
 3. **Privileged fault stops the service** (unchanged behaviour, now tested): `exec_svc::supervise_privileged`
-   marks the service failed on any T2 panic, error or unexpected return and stops T0 with it; restart builds a fresh
+   marks the service failed on any administrator panic, error or unexpected return and stops the STOP listener with it; restart builds a fresh
    `StopGate`, which is always `Disarmed`; `stopped_exit` reports the failing phase (`tests/privileged_fault.rs`).
 4. **Verified available** (`exec_core::available::verified_available`): the pure rule now follows the
    [ADR 0008](0008-balance-observation-ordering.md) receipt contract. It requires two reads at the current

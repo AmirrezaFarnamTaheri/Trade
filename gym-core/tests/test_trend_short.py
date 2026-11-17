@@ -1,4 +1,4 @@
-"""T11 shorts below the average, pays carry on borrowed amounts, and stops at the ranking mark."""
+"""trend-with-short-side shorts below the average, pays carry on borrowed amounts, and stops at the ranking mark."""
 import importlib.util
 import sys
 from pathlib import Path

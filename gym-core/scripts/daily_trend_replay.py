@@ -1,7 +1,7 @@
-"""Replay the fixed T6 rule in PaperSession; candle-derived quotes are assumptions, not historical books.
+"""Replay the fixed btc-daily-trend rule in PaperSession; candle-derived quotes are assumptions, not historical books.
 
 Run from gym-core: python scripts/daily_trend_replay.py --db ../data/live/market.db --out ../data/research/daily-trend-replay
-This checks exact accounting, not a new holdout score. The scoring window is frozen to the original T6 run.
+This checks exact accounting, not a new holdout score. The scoring window is frozen to the original btc-daily-trend run.
 """
 import argparse
 import json
@@ -25,8 +25,8 @@ DAY = timedelta(days=1)
 SPLIT, END = parse_ts("2024-01-01T00:00:00Z"), parse_ts("2026-11-15T00:00:00Z")
 
 
-class T6:
-    name, params = "t6-fixed", {"lookback": 50}
+class FixedDailyTrend:
+    name, params = "btc-daily-trend-fixed", {"lookback": 50}
 
     def __init__(self):
         self.closes, self.feature_values = deque(maxlen=50), {}
@@ -45,7 +45,7 @@ def replay(portal, candles):
         raise ValueError("daily closes must be strictly ordered")
     cash = Decimal(1000)
     cost = CostModel(fee_rate=Decimal("0.001"), latency=timedelta(0))
-    session = PaperSession(portal, lambda _: [], T6(), "BTCUSDT", candles[0][0], "1day", cash, cost)
+    session = PaperSession(portal, lambda _: [], FixedDailyTrend(), "BTCUSDT", candles[0][0], "1day", cash, cost)
     session.consolidator.period = Fixed(DAY)  # Wallex's downloaded daily candles use UTC boundaries.
     session.warmup_until = SPLIT - timedelta(microseconds=1)
     tops = []
@@ -58,13 +58,13 @@ def replay(portal, candles):
             tops.append(top)
     session.finish(tops[-1].ts_avail)  # mark the terminal close without opening a new position beyond the window
     result = session_result(session, tops, cash)
-    inputs = {"engine": ENGINE_VERSION, "kind": "t6-accounting-replay", "symbol": "BTCUSDT",
+    inputs = {"engine": ENGINE_VERSION, "kind": "btc-daily-trend-accounting-replay", "symbol": "BTCUSDT",
               "from": iso(SPLIT), "to_exclusive": iso(END), "cost": cost.describe(), "cash": str(cash),
-              "data": digest(candles), "strategy": T6.name, "params": T6.params,
+              "data": digest(candles), "strategy": FixedDailyTrend.name, "params": FixedDailyTrend.params,
               "quotes": "daily close +/- 0.10%; immediate fill; unknown historical liquidity and constraints"}
     return {"run_id": digest(inputs)[:16], "mode": "PAPER", "inputs": inputs, "result": result,
             "outputs_digest": digest(result)[:16],
-            "limitations": ["Reuses already scored T6 data; no new selection or probability calculation.",
+            "limitations": ["Reuses already scored btc-daily-trend data; no new selection or probability calculation.",
                             "Candle-derived spread and liquidity assumptions cannot qualify historical fills.",
                             "Starts in 1000 USDT at the scoring boundary; no inherited pre-2024 position.",
                             "Historical rules unavailable; known dated lot constraints apply. No terminal forced sale."]}
@@ -82,7 +82,7 @@ def main():
         warm = [row for row in rows if row[0] < SPLIT][-50:]
         scored = [row for row in rows if row[0] >= SPLIT]
         if len(warm) != 50 or not scored or scored[0][0] != SPLIT or scored[-1][0] + DAY != END:
-            raise ValueError("T6's frozen window or its warmup is incomplete")
+            raise ValueError("btc-daily-trend's frozen window or its warmup is incomplete")
         out = replay(DataPortal(SimpleNamespace(c=connection)), [*warm, *scored])
     path = save_run(out, args.out)
     print(json.dumps({"path": str(path), "run_id": out["run_id"], "engine": ENGINE_VERSION,

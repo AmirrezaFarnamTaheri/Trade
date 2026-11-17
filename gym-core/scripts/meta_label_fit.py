@@ -1,4 +1,4 @@
-"""Trial T8 of docs/trial-log.md, run exactly as registered: does a logistic gate on the daily feature table
+"""Trial logistic-entry-gate of docs/trial-log.md, run exactly as registered: does a logistic gate on the daily feature table
 beat taking every proposal, net of costs, on days it never saw?
 
 The "proposal" is the simplest base: every symbol-day is a candidate 5-day hold. The model may only gate
@@ -150,7 +150,7 @@ def main(argv: list[str]) -> int:
         writer.writerows((day, symbol, f"{p:.4f}", "TAKE" if p > THRESHOLD else "ABSTAIN", net)
                          for p, _, net, symbol, day in rows)
 
-    print(f"T8: fit on {len(train)} rows before {args.split}; scored once on {len(held)} rows; "
+    print(f"logistic-entry-gate: fit on {len(train)} rows before {args.split}; scored once on {len(held)} rows; "
           f"gate p > {THRESHOLD}; receipts -> {args.receipts}")
     print("decile  n     predicted  observed")
     for decile, count, predicted, observed in deciles:
@@ -162,7 +162,7 @@ def main(argv: list[str]) -> int:
     for name, passed in marks.items():
         print(f"{name}: {'pass' if passed else 'FAIL'}")
     print("overlapping 5-day labels understate the confidence-bound variance; the bound is optimistic")
-    print(f"T8 VERDICT: {'PASS' if all(marks.values()) else 'FAIL'}")
+    print(f"logistic-entry-gate VERDICT: {'PASS' if all(marks.values()) else 'FAIL'}")
     return 0
 
 

@@ -1,7 +1,7 @@
 """Per-user Windows DPAPI storage for Wallex API keys. Never prints or logs a key.
 
-ponytail: current-user DPAPI, not the plan's service-owned T2 store; move to
-service-context DPAPI behind the Executor T2 pipe when the service is installed.
+ponytail: current-user DPAPI, not the plan's service-owned administrator store; move to
+service-context DPAPI behind the Executor administrator pipe when the service is installed.
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def _sid_text(sid) -> str:
 
 
 def _protect(path: Path) -> None:
-    """Protected DACL granting only this user full access: no inherited ACEs from the profile folder (S-12)."""
+    """Protected DACL granting only this user full access: no inherited ACEs from the profile folder."""
     if os.name != "nt":
         os.chmod(path, 0o600)
         return

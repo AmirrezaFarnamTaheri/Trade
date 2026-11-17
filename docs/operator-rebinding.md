@@ -1,9 +1,9 @@
 # Runbook: "operator logon SID changed" (finding S-9)
 
-The executor's stop pipe (T0) accepts only the operator logon session recorded in
+The executor's stop pipe accepts only the operator logon session recorded in
 `C:\Program Files\TradingGYM\Executor\stop-logon.sid`, plus the operator account in `stop-user.sid`. A logon SID
 belongs to one Windows sign-in, so after you sign out and back in (or reboot) the stored value no longer matches and
-T0 refuses your stop requests. That is by design: a stale binding must not keep working.
+The stop pipe refuses your stop requests. That is by design: a stale binding must not keep working.
 
 ## Symptoms
 

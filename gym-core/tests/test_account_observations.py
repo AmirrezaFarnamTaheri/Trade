@@ -1,4 +1,4 @@
-"""B1 manual account observations never become funded balances or fills."""
+"""Manual account observations never become funded balances or fills."""
 import pytest
 
 from gym.domain.account_observations import (

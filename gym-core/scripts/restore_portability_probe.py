@@ -38,7 +38,7 @@ def main(args):
             receipt = create_backup(ledger, Path(args[1]), passphrase=TEST_PHRASE)
         if receipt["encrypted"] is not True or receipt["sequence"] != 2:
             raise RuntimeError("fixture backup verification failed")
-        print("PASS: B3 synthetic encrypted bundle created")
+        print("PASS: synthetic encrypted bundle created")
         return 0
     if len(args) == 3 and args[0] == "restore":
         destination = Path(args[2])
@@ -51,7 +51,7 @@ def main(args):
         if receipt["sequence"] != 2 or receipt["head_hash"] != evidence["head_hash"] \
                 or tuple(row[0] for row in rows) != EVENTS:
             raise RuntimeError("fixture restore mismatch")
-        print("PASS: B3 synthetic restored and verified on fresh runner")
+        print("PASS: synthetic backup restored and verified on fresh runner")
         return 0
     raise ValueError("expected produce BUNDLE or restore BUNDLE DEST")
 
