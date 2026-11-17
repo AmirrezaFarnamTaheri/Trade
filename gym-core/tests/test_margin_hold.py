@@ -27,3 +27,17 @@ def test_the_first_extreme_past_the_floor_liquidates_each_side():
 
 def test_a_falling_price_pays_the_short():
     assert margin.hold("short", 1, 100.0, [(60, 90.0, 100.0)], 90.0)["ret"] > 0.09
+
+
+def test_venue_terms_set_fees_and_liquidate_at_the_quoted_price(tmp_path):
+    preview = {"rule": {"symbol": "CAKEUSDT", "base": "CAKE", "quote": "USDT"},
+               "request": {"side": "long", "risk_coef": "2"},
+               "answer": {"success": True, "result": {"open_price": "2", "loan": {"value": "200", "currency": "USDT"},
+                          "trade_fee": {"value": "0.25", "currency": "CAKE"}, "extend_fee": {"value": "0.03", "currency": "USDT"},
+                          "extend_time": 14400, "liquidity_price": "1.2"}}}
+    path = tmp_path / "margin-terms.jsonl"
+    path.write_text(__import__("json").dumps(preview) + "\n", encoding="utf-8")
+    terms = margin.venue_terms([path])[("CAKEUSDT", "long", 2.0)]
+    assert terms == pytest.approx({"entry_fee": 0.0025, "loan_fee": 0.00015, "period": 14400, "liquidation": 0.6})
+    assert margin.hold("long", 2, 100.0, [(60, 61.0, 100.0)], 100.0, terms)["liquidated_h"] is None
+    assert margin.hold("long", 2, 100.0, [(3600, 60.0, 100.0)], 100.0, terms)["liquidated_h"] == 1.0
