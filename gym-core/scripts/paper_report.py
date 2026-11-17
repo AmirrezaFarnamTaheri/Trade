@@ -43,6 +43,12 @@ for r in ok:
         r[k + "_pct"] = 100 * f(r, k) / cash[r["quote"]]
 markets = list({r["symbol"]: r for r in ok if f(r, "hold_net")}.values())  # a hold that never filled says nothing
 lev = json.loads(args.holds.read_text(encoding="utf-8"))["rows"]
+lev_markets = {r["symbol"] for r in lev}
+quoted = [r for r in lev if r.get("terms") == "venue"]
+venue_note = (f"Every cell uses the venue's own margin quote for that market, side and ratio; the venue refused "
+              f"{sum(1 for m in lev_markets for x in (5, 10) if not any(r['symbol'] == m and r['ratio'] == x for r in lev))} "
+              f"market and ratio pairs above 3x, which are left out." if quoted and len(quoted) == len(lev)
+              else "Fees follow the venue's margin previews at 2x; other ratios reuse those rates.")
 
 
 def live_jobs():
@@ -184,7 +190,7 @@ The market fell hard in that window. Buying lost on almost every market, with or
 <div class="card"><b>{len(ok):,}</b><span>paper runs across {len({r['symbol'] for r in ok})} markets, {len(meta['strategies'])} strategies, {len(meta['resolutions'])} bar sizes</span></div>
 <div class="card"><b style="color:{BAD}">{sum(f(r, 'net') > 0 for r in enough)} of {len(enough):,}</b><span>runs with 3 or more closed trades ended in profit</span></div>
 <div class="card"><b style="color:{BAD}">{st.median(hold_all):+.1f}%</b><span>median result of simply buying and holding a market</span></div>
-<div class="card"><b style="color:{GOOD}">{100 * st.mean(r['ret'] for r in lev if r['side'] == 'short' and r['ratio'] == 1):+.1f}%</b><span>average result of a 1x short on the 36 margin markets</span></div>
+<div class="card"><b style="color:{GOOD}">{100 * st.mean(r['ret'] for r in lev if r['side'] == 'short' and r['ratio'] == 1):+.1f}%</b><span>average result of a 1x short on the {len(lev_markets)} margin markets</span></div>
 </div>
 
 <h2>The backdrop: almost everything fell</h2>
@@ -205,9 +211,9 @@ On COOKIEUSDT one run paid more in spread than it started with. A spread filter 
 
 <h2>Buy, sell short and leverage</h2>
 <p class="sub">One position per margin market, opened at the first quote and held to the end, at each credit ratio.
-Liquidation is checked against every one-minute low and high. Fees are the venue's own margin previews. This model matches the exact margin engine on 55 stored previews, and its liquidation prices sit within 0.3% of the venue's.</p>
+Liquidation is checked against every one-minute low and high. {venue_note} This model matches the exact margin engine on 55 stored previews, and its liquidation prices sit within 0.3% of the venue's.</p>
 <figure>{bars(lev_rows, label_w=150)}</figure>
-<div class="take">A 3x long was liquidated on {sum(r['liquidated_h'] is not None for r in lev if r['side'] == 'long' and r['ratio'] == 3)} of 36 markets and a 5x long on {len(first_liq)}.
+<div class="take">A 3x long was liquidated on {sum(r['liquidated_h'] is not None for r in lev if r['side'] == 'long' and r['ratio'] == 3)} of {len(lev_markets)} markets and a 5x long on {len(first_liq)} of {sum(1 for r in lev if r['side'] == 'long' and r['ratio'] == 5)}.
 The fastest 5x liquidation took {first_liq[0]['liquidated_h']:.0f} hours ({first_liq[0]['symbol']}). Leverage did not change which side won. It changed how fast the losing side was wiped out.</div>
 
 <h2>The few that made money</h2>
