@@ -30,7 +30,7 @@ window.gymMargin = (() => {
       ${field('margin-exit-fee', text(T.en.mgAssumedExitFeeQuoteCurrencyDecimal, T.fa.mgAssumedExitFeeQuoteCurrencyDecimal), 'required type="text" inputmode="decimal"')}
       ${field('margin-holding', text(T.en.mgCloseAfterSecondsOptional, T.fa.mgCloseAfterSecondsOptional), 'type="number" min="1" step="1"')}
       </div><div class="actions"><button id="margin-cutoff" type="button" class="button">${text(T.en.mgUseCurrentCutoff, T.fa.mgUseCurrentCutoff)}</button><button type="submit" class="button button-primary">${text(T.en.mgReplayPaperPosition, T.fa.mgReplayPaperPosition)}</button></div></fieldset></form>
-      <p id="margin-status" role="status"></p><div id="margin-result" aria-live="polite"></div>`;
+      <p id="margin-blocked" class="field-help"></p><p id="margin-status" role="status"></p><div id="margin-result" aria-live="polite"></div>`;
     const call = (action, value) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, 130000);
     function receipt(value, kind) {
       if (value?.schema !== 'wallex-margin/1' || value.kind !== kind || !/^[0-9a-f]{16}$/.test(value.run_id || '')) throw new Error('invalid paper receipt');
@@ -44,6 +44,8 @@ window.gymMargin = (() => {
       $('margin-load').disabled = busy || demo;
       $('margin-preview-fields').disabled = busy || !catalogue;
       $('margin-replay-fields').disabled = busy || !preview;
+      const blocked = busy ? null : demo ? 'mgBlockedDemo' : !catalogue ? 'mgBlockedRules' : !preview ? 'mgBlockedPreview' : null;
+      $('margin-blocked').textContent = blocked ? text(T.en[blocked], T.fa[blocked]) : '';
     }
     async function act(fn) {
       if (busy || demo) return;
