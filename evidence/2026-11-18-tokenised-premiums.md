@@ -1,8 +1,7 @@
 # Wallex tokenised assets against what they track - 2026-11-18
 
 Daily Wallex closes (00:00 UTC) of the tokenised assets divided by the Yahoo Finance close of the asset each token tracks
-(New York close, about 21:00 UTC). Descriptive only; no strategy is scored. Script: inline study in the session; numbers
-reproduce with `scripts/passive_mix.py`'s `fetch` and `venue_candles`.
+(New York close, about 21:00 UTC). Descriptive only; no strategy is scored. Reproduce with `gym-core/scripts/token_premium.py`.
 
 | Token | Tracks | Days | Median premium | 10% to 90% of days | Day-to-day persistence | Half-life |
 | --- | --- | --- | --- | --- | --- | --- |
