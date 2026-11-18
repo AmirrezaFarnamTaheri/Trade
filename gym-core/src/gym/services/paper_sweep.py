@@ -114,7 +114,7 @@ def _strategy(strategy_id: str):
 def _metrics(main: dict, t0: datetime, t1: datetime, symbol: str, baselines: dict) -> dict:
     from ..domain.performance import performance, sampled_drawdown
     record = {"result": main, "inputs": {"from": iso(t0), "to": iso(t1), "symbol": symbol}, "baselines": baselines}
-    perf = performance(record, sampled_drawdown(record))
+    perf = performance(record, sampled_drawdown(record), bootstrap=False)  # no sweep column uses the bootstrap
     trades = perf.get("trades") or {}
     returns = perf.get("returns") or {}
 
