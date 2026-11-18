@@ -240,6 +240,13 @@ function stop(child) {
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'overview does not overflow');
   await evaluate('document.querySelector("#overview-answer details").open = true');
   await screenshot('overview-answer.png');
+  // Persian desktop view of the densest tables, for a human RTL review; layout must hold without overflow.
+  await evaluate('document.querySelector("#language-toggle").click()');
+  await until(() => evaluate('document.documentElement.lang === "fa" && document.documentElement.dir === "rtl"'), 'Persian overview');
+  await evaluate('document.querySelector("#overview-answer details").open = true');
+  assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Persian overview does not overflow');
+  await screenshot('overview-answer-fa.png');
+  await evaluate('document.querySelector("#language-toggle").click()');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
     accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus,
