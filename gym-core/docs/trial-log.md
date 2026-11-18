@@ -41,6 +41,9 @@ rates from `/v2/structured-fee` (Toman markets 0.25% maker, 0.30% taker; USDT ma
 - Power (2026-11-18, `evidence/2026-11-18-detectable-edge.md`): no daily test so far could detect an edge below 10 bps a day
   (about 44% a year), far above a realistic 1 to 5 bps. Their FAILs mean "not proven". New registrations state their smallest
   detectable edge, computed with `scripts/detectable_edge.py`, before they run.
+- `passive-multi-asset-mix` used futures as stand-ins for silver, oil and copper; the Wallex tokens track the funds SLV, USO
+  and COPX. Rerun on those funds as a sensitivity check (not a new score): +306.6%, Sharpe 0.98, probability 0.999
+  (`evidence/2026-11-18-tokenised-premiums.md`).
 - Programme score: the overview corrects the best result for every completed trial (Benjamini-Hochberg). A trial with no
   stated probability enters as p = 1.
 - Sweeps (`gymctl paper-sweep`) are exploration, not trials. The 2026-11-17 sweep ran 20,345 configurations: 16 strategies, 4 bar sizes, every market, 31 Oct to 16 Nov 2026. It has no pass mark, and its best rows are what luck produces at that count. An idea taken from a sweep becomes a trial only when it is registered here, with data the sweep did not use; `trend-with-short-side` was registered that way.
