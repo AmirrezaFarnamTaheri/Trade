@@ -37,6 +37,11 @@ rates from `/v2/structured-fee` (Toman markets 0.25% maker, 0.30% taker; USDT ma
 - `btc-daily-trend` trades at the daily close with an assumed 0.10% for half the spread. The rule family (trend on the two largest coins) was chosen in 2026 by someone who knows those coins rose; the trial count does not correct for that.
 - `ten-coin-trend` and `btc-daily-trend` agree on the weak point: outside 2024 the trend rule lost money in both later years, on one coin and on ten. The `btc-daily-trend` pass is one year's result.
 - The screens use floating point. Anything that passes is replayed in the exact paper engine before it counts.
+- Power (2026-11-18, `evidence/2026-11-18-detectable-edge.md`): no daily test so far could detect an edge below 10 bps a day
+  (about 44% a year), far above a realistic 1 to 5 bps. Their FAILs mean "not proven". New registrations state their smallest
+  detectable edge, computed with `scripts/detectable_edge.py`, before they run.
+- Programme score: the overview corrects the best result for every completed trial (Benjamini-Hochberg). A trial with no
+  stated probability enters as p = 1.
 - Sweeps (`gymctl paper-sweep`) are exploration, not trials. The 2026-11-17 sweep ran 20,345 configurations: 16 strategies, 4 bar sizes, every market, 31 Oct to 16 Nov 2026. It has no pass mark, and its best rows are what luck produces at that count. An idea taken from a sweep becomes a trial only when it is registered here, with data the sweep did not use; `trend-with-short-side` was registered that way.
 
 ## Why they lost

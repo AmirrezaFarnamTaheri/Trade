@@ -266,6 +266,7 @@ Object.assign(vocabulary, {
   answerForward: ["Forward paper record", "سابقهٔ آزمایشی رو به جلو"], answerForwardNone: ["Not started", "آغاز نشده"],
   answerDays: ["days", "روز"],
   answerInMarket: ["holding the coin", "در حال نگه‌داری رمزارز"], answerInCash: ["waiting in USDT", "منتظر در تتر"],
+  programmeLine: ["Best result: {best} (probability {p}). Corrected for all {count} completed trials, the chance it is a false discovery is about {q}.", "بهترین نتیجه: {best} (احتمال {p}). با اصلاح برای همهٔ {count} آزمون انجام‌شده، احتمال کشف کاذب بودن آن حدود {q} است."],
   forwardTitle: ["Daily trend rule, forward record", "قانون روند روزانه، سابقهٔ رو به جلو"],
   forwardHistorical: ["Historical test, 2024 to 2026", "آزمون تاریخی، ۲۰۲۴ تا ۲۰۲۶"],
   forwardDays: ["Days", "روزها"],
