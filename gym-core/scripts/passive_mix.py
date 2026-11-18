@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from detectable_edge import bootstrap_test, smallest  # noqa: E402
 from rule_selector import block_probability, total  # noqa: E402
 
+from gym.domain.mix import inverse_vol_targets  # noqa: E402
 from gym.domain.performance import _moments  # noqa: E402
 
 ASSETS = {"gold": "GC=F", "silver": "SI=F", "oil": "CL=F", "copper": "HG=F", "apple": "AAPL", "btc": "BTC-USD"}
@@ -56,15 +57,7 @@ def aligned(closes_by_asset):
 
 
 def targets(returns, i):
-    """Inverse-volatility weights over the last 60 days, scaled to 15% yearly volatility, at most fully invested."""
-    names = list(returns)
-    window = {a: returns[a][i - LOOKBACK:i] for a in names}
-    vols = {a: math.sqrt(sum(x * x for x in window[a]) / LOOKBACK) or 1e-9 for a in names}
-    raw = {a: (1 / vols[a]) / sum(1 / v for v in vols.values()) for a in names}
-    daily = [sum(raw[a] * window[a][k] for a in names) for k in range(LOOKBACK)]
-    portfolio_vol = math.sqrt(sum(x * x for x in daily) / LOOKBACK) * math.sqrt(365)
-    scale = min(1.0, TARGET_VOL / portfolio_vol) if portfolio_vol else 1.0
-    return {a: raw[a] * scale for a in names}
+    return inverse_vol_targets(returns, i, LOOKBACK, TARGET_VOL)
 
 
 def run(days, prices):

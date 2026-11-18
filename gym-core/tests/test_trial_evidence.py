@@ -101,3 +101,14 @@ def test_the_last_stage_reached_supplies_the_probability():
     assert _final_probability("**FAIL**: deflated 0.994; held out probability 0.586.") == 0.586
     assert _final_probability("**FAIL** on ranking, deflated 0.723; not scored.") == 0.723
     assert _final_probability("**FAIL**: no market met every condition.") is None
+
+
+def test_the_mix_record_reports_equity_from_1000_usdt_and_the_invested_share(tmp_path):
+    from gym.services.evidence import forward_mix
+    (tmp_path / "allocation").mkdir()
+    rows = [{"day": "2026-11-17T00:00:00Z", "at": "2026-11-18T00:15:00Z", "status": "READY", "equity": "990", "usdt": "396"},
+            {"day": "2026-11-18T00:00:00Z", "at": "2026-11-19T00:15:00Z", "status": "READY", "equity": "1010", "usdt": "404"}]
+    (tmp_path / "allocation/mix-journal.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
+    assert forward_mix(tmp_path) == {"started": "2026-11-17", "latest": "2026-11-19T00:15:00Z", "days": 2,
+                                     "equity": "1010.00", "net_pct": "1.00", "invested_pct": "60.0"}
+    assert forward_mix(tmp_path / "missing") is None

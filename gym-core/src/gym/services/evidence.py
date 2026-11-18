@@ -80,8 +80,22 @@ def forward(root: Path) -> dict | None:
             "withheld": sum(1 for row in entries if row["status"] != "READY")}
 
 
+def forward_mix(root: Path) -> dict | None:
+    """The passive mix's forward paper record on Wallex prices; None before its first entry."""
+    from .mix_journal import journal as mix_entries
+    entries = [e for e in mix_entries(root) if e.get("status") == "READY"]
+    if not entries:
+        return None
+    start, last = Decimal(1000), entries[-1]
+    equity = Decimal(last["equity"])
+    return {"started": entries[0]["day"][:10], "latest": last["at"], "days": len(entries), "equity": str(equity.quantize(Decimal("0.01"))),
+            "net_pct": str(((equity / start - 1) * 100).quantize(Decimal("0.01"))),
+            "invested_pct": str(((1 - Decimal(last["usdt"]) / equity) * 100).quantize(Decimal("0.1"))) if equity else None}
+
+
 def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:
     rows = trials(path)
     count = {name: sum(1 for row in rows if row["verdict"] == name) for name in ("FAIL", "NARROW_PASS", "PASS", "OPEN")}
     return {"state": "READY" if rows else "NO_TRIAL_LOG", "trials": rows, "tally": {"registered": len(rows), **count},
-            "forward": forward(root) if root is not None else None, "programme": programme(rows), "funded_authority": False}
+            "forward": forward(root) if root is not None else None, "forward_mix": forward_mix(root) if root is not None else None,
+            "programme": programme(rows), "funded_authority": False}
