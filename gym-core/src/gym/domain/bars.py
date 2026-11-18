@@ -24,6 +24,17 @@ MAX_SPREAD_OF_MID = Decimal("0.2")
 
 
 def qualified(top: BookTop) -> bool:
+    # A quote is immutable and a replay asks about it once per run and per bar: answer once, store on the instance.
+    cache = getattr(top, "__dict__", None)
+    if cache is None:
+        return _qualified(top)
+    answer = cache.get("_qualified")
+    if answer is None:
+        answer = cache["_qualified"] = _qualified(top)
+    return answer
+
+
+def _qualified(top: BookTop) -> bool:
     return (top.bid is not None and top.ask is not None
             and top.bid.is_finite() and top.ask.is_finite()
             and 0 < top.bid < top.ask and not (top.flags & DISQUALIFY)
