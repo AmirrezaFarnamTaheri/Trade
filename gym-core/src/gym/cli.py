@@ -27,6 +27,7 @@ from .commands.common import (
     FEE_HELP,
     default_data_root,
     open_db,
+    store_root,
 )
 from .commands.daemon import demo_seed, serve
 from .commands.maintenance import (
@@ -71,6 +72,37 @@ from .domain.bars import FIXED_RESOLUTIONS, RESOLUTIONS
 from .domain.model import InstrumentId, now_utc, parse_ts
 from .services.collector import parse_asset_count
 from .services.rules import RuleService
+
+
+def _crash_log(args) -> None:
+    """The scheduled collector runs under pythonw, which discards stderr: keep the traceback where doctor can see it."""
+    import traceback
+
+    from .domain.model import iso
+    root = store_root(args)
+    root.mkdir(parents=True, exist_ok=True)
+    with open(root / "collector-crash.log", "a", encoding="utf-8") as f:
+        f.write(f"=== {iso(now_utc())}\n{traceback.format_exc()}\n")
+
+
+def _run_collector(args) -> int:
+    """Collector, local API and UI until stopped; a low-disk stop exits 2, a crash is logged then raised."""
+    from .adapters.store import DiskLow
+    try:
+        asyncio.run(serve(args))
+    except KeyboardInterrupt:
+        pass
+    except BaseExceptionGroup as group:  # the collector TaskGroup wraps a low-disk stop
+        low = group.subgroup(DiskLow)
+        if low is None:
+            _crash_log(args)
+            raise
+        print(f"error: {low.exceptions[0]}", file=sys.stderr)
+        return 2
+    except Exception:
+        _crash_log(args)
+        raise
+    return 0
 
 
 def main(argv=None):
@@ -390,18 +422,7 @@ def main(argv=None):
             print(f"error: {e}", file=sys.stderr)
             return 2
     if args.cmd == "run":
-        from .adapters.store import DiskLow
-        try:
-            asyncio.run(serve(args))
-        except KeyboardInterrupt:
-            pass
-        except BaseExceptionGroup as group:  # the collector TaskGroup wraps a low-disk stop
-            low = group.subgroup(DiskLow)
-            if low is None:
-                raise
-            print(f"error: {low.exceptions[0]}", file=sys.stderr)
-            return 2
-        return 0
+        return _run_collector(args)
 
     svc, now = RuleService(open_db(args)), now_utc()
     def out(value):
