@@ -339,6 +339,18 @@ def convert_route_cmd(args) -> int:
     return 0
 
 
+def mix_journal_cmd(args) -> int:
+    """Append today's passive-mix decision and paper fills to its forward journal."""
+    from ..services.mix_journal import run_mix_day
+
+    db = open_db(args)
+    try:
+        print(json.dumps(run_mix_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
+    finally:
+        db.c.close()
+    return 0
+
+
 def calibrate_cmd(args) -> int:
     """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta

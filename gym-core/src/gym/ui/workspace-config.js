@@ -267,6 +267,8 @@ Object.assign(vocabulary, {
   answerDays: ["days", "روز"],
   answerInMarket: ["holding the coin", "در حال نگه‌داری رمزارز"], answerInCash: ["waiting in USDT", "منتظر در تتر"],
   programmeLine: ["Best result: {best} (probability {p}). Corrected for all {count} completed trials, the chance it is a false discovery is about {q}.", "بهترین نتیجه: {best} (احتمال {p}). با اصلاح برای همهٔ {count} آزمون انجام‌شده، احتمال کشف کاذب بودن آن حدود {q} است."],
+  mixTitle: ["Passive multi-asset mix, forward record on Wallex prices", "سبد چنددارایی غیرفعال، سابقهٔ رو به جلو با قیمت‌های والکس"],
+  mixSince: ["since", "از"], mixEquity: ["Paper equity from 1,000 USDT", "ارزش آزمایشی از ۱٬۰۰۰ تتر"], mixInvested: ["Invested", "سرمایه‌گذاری‌شده"],
   forwardTitle: ["Daily trend rule, forward record", "قانون روند روزانه، سابقهٔ رو به جلو"],
   forwardHistorical: ["Historical test, 2024 to 2026", "آزمون تاریخی، ۲۰۲۴ تا ۲۰۲۶"],
   forwardDays: ["Days", "روزها"],

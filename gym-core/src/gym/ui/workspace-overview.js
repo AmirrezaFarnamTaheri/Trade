@@ -39,10 +39,19 @@ function renderAnswer() {
     + stat(t("answerNarrowCount"), num(tally.NARROW_PASS + tally.PASS), t("answerNarrowNote"))
     + stat(t("answerForward"), forward ? `${num(forward.days)} <small>${esc(t("answerDays"))}</small>` : esc(t("none")),
       forward ? `${forward.symbol} · ${t(forward.in_market ? "answerInMarket" : "answerInCash")} · ${change} USDT` : t("answerForwardNone"))
-    + `</div>${programmeLine(value.programme)}${forwardRecord(forward, value.trials.find(row => row.id === "btc-daily-trend"), kinds)}<details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
+    + `</div>${programmeLine(value.programme)}${forwardRecord(forward, value.trials.find(row => row.id === "btc-daily-trend"), kinds)}${mixRecord(value.forward_mix)}<details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
     + table([t("answerTrial"), t("answerHypothesis"), t("answerVerdict")], value.trials.map(row => [
       `${code(row.id)} <small class="muted">${esc(row.registered)}</small>`, `<span dir="ltr">${plain(row.hypothesis)}</span>`,
       chip(t(`verdict${row.verdict}`), kinds[row.verdict])]), t("nothing")) + "</details>");
+}
+
+/** The passive mix's forward record on Wallex prices, beside the trend rule's. */
+function mixRecord(mix) {
+  if (!mix) return "";
+  return `<h3 class="forward-title">${esc(t("mixTitle"))}</h3>` + keyValues([
+    [t("forwardDays"), `${num(mix.days)} · ${esc(t("mixSince"))} ${esc(mix.started)}`],
+    [t("mixEquity"), `<span class="${signed(mix.net_pct)}">${digits(mix.equity)} USDT · ${digits(mix.net_pct)}%</span>`],
+    [t("mixInvested"), `${digits(mix.invested_pct ?? "")}%`], [t("forwardLatest"), stampHtml(mix.latest)]]);
 }
 
 /** The best result after correcting for every trial run: a q-value near 1 means it is as likely luck as not. */
