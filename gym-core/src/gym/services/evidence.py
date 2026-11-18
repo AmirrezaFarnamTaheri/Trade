@@ -43,14 +43,11 @@ def programme(rows: list[dict]) -> dict | None:
     done = [row for row in rows if row["verdict"] != "OPEN"]
     if not done:
         return None
+    from ..domain.multiple_testing import bh_q
     p = sorted((1 - row["probability"] if row["probability"] is not None else 1.0, row["id"]) for row in done)
-    m, running, q = len(p), 1.0, {}
-    for rank in range(m, 0, -1):
-        value, name = p[rank - 1]
-        running = min(running, value * m / rank)
-        q[name] = running
+    q = bh_q({name: value for value, name in p})
     best = p[0][1]
-    return {"completed": m, "best": best, "best_probability": round(1 - p[0][0], 3), "best_q": round(q[best], 3)}
+    return {"completed": len(p), "best": best, "best_probability": round(1 - p[0][0], 3), "best_q": round(q[best], 3)}
 
 
 def forward(root: Path) -> dict | None:

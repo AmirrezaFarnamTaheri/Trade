@@ -416,6 +416,21 @@ def paper_sweep_cmd(args) -> int:
     return _sweep_report(out)
 
 
+def _print_league(conn, top: int = 12) -> None:
+    from ..services.paper_sweep import league
+    rows = [{"symbol": s, "resolution": r, "strategy": g, "net": n, "hold": h, "trades": t or 0}
+            for s, r, g, n, h, t in conn.execute(
+                "SELECT symbol, resolution, strategy, CAST(net_usdt_eq AS REAL), CAST(hold_net_usdt_eq AS REAL), "
+                "fills FROM runs WHERE status='OK' AND net_usdt_eq IS NOT NULL AND hold_net_usdt_eq IS NOT NULL")]
+    cells = league(rows)
+    print(f"\nleague: markets where trading beat max(hold the coin, hold cash), USDT-eq; {len(cells)} cells, "
+          "q = Benjamini-Hochberg over all cells; markets co-move, so q ranks rather than proves")
+    for c in cells[:top]:
+        median = "n/a" if c["median_excess"] is None else f"{c['median_excess']:+9.2f}"
+        print(f"  {c['strategy']:<22} {c['resolution']:<6} won {c['wins']:>3} lost {c['losses']:>3} tie {c['ties']:>3} "
+              f"idle {c['abstained']:>3}  median excess {median}  p {c['p']:.3f}  q {c['q']:.3f}")
+
+
 def _sweep_report(out: Path) -> int:
     conn = sqlite3.connect(f"file:{out.as_posix()}?mode=ro", uri=True)
     try:
@@ -434,6 +449,7 @@ def _sweep_report(out: Path) -> int:
             for row in conn.execute(query + f"ORDER BY eq {order} LIMIT 10"):
                 print(f"  {row[0]:<12} {row[1]:<7} {row[2]:<22} net {row[3]:>9.2f}  hold {row[4] or 0:>9.2f}  "
                       f"fills {row[5]:>4}  trades {row[6] or 0:>3}  maxDD {row[7] or 0:>6.2f}%")
+        _print_league(conn)
         print("\nPAPER ONLY. Every configuration is a recorded trial; a best row out of thousands is expected luck.")
     finally:
         conn.close()
