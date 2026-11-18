@@ -1,8 +1,11 @@
 # Paper costs and strategy stops
 
-New runs use `paper-session/14` (market) or `/15` (limit). Existing saved runs,
+New runs use `paper-session/16` (market) or `/17` (limit). Existing saved runs,
 their identities and results stay intact. A frozen hypothesis requiring an older
 engine must use that engine; it is not silently upgraded.
+
+Versions 16/17 stop treating a stub book as a price: a quote whose spread exceeds 20% of mid (a lone
+resting order on an empty side, such as bid 29 under ask 12037) never becomes a bar or a fill.
 
 Versions 12/13 introduced this batch. Versions 14/15 correct the combination of a
 waiting venue stop and a due time exit: the stop no longer suppresses that exit

@@ -37,7 +37,7 @@ def case(seed):
     mid = d(rng, 100, 90000, 2)
     tops = []
     for i in range(rng.randint(1, 4)):
-        half = d(rng, 0.01, 50, 2)
+        half = d(rng, 0.01, min(50, float(mid) * 0.09), 2)  # inside the stub-book spread bound
         bid, ask = mid - half, mid + half
         depth = None
         if walk or rng.random() < 0.3:

@@ -18,12 +18,16 @@ PRICE_TYPES = ("BID", "ASK", "MID", "LAST")
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 # A quote that fails these checks never becomes a bar or a fill.
 DISQUALIFY = frozenset({"STALE", "CROSSED", "ZERO_SPREAD", "NON_FINITE", "NON_POSITIVE"})
+# A spread wider than this share of mid is a stub order on an empty side, not a price: its mid fakes a crash
+# and a market order against it fills at a figure no one would accept.
+MAX_SPREAD_OF_MID = Decimal("0.2")
 
 
 def qualified(top: BookTop) -> bool:
     return (top.bid is not None and top.ask is not None
             and top.bid.is_finite() and top.ask.is_finite()
-            and 0 < top.bid < top.ask and not (top.flags & DISQUALIFY))
+            and 0 < top.bid < top.ask and not (top.flags & DISQUALIFY)
+            and (top.ask - top.bid) * 2 <= MAX_SPREAD_OF_MID * (top.ask + top.bid))
 
 
 @dataclass(frozen=True)
