@@ -30,6 +30,7 @@ from pathlib import Path
 
 from ..adapters.store import MarketDB
 from ..domain.model import dec, iso, parse_ts
+from ..domain.multiple_testing import bh_q, sign_test_p
 from ..domain.registry import STRATEGIES, create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import BuyAndHold, digest
@@ -266,6 +267,34 @@ def sweep(root: Path, out: Path, t0: datetime, t1: datetime, *, symbols=None, re
                "seconds": round(time.perf_counter() - started, 1), "output": str(out)}
     conn.close()
     return summary
+
+
+def league(rows: list[dict]) -> list[dict]:
+    """Per strategy and resolution: on how many markets did trading beat the better of holding the coin and cash?
+
+    Each row is one market: {symbol, strategy, resolution, net, hold, trades (fills)} in one numeraire. A run that never
+    traded abstained and is left out; a run that ended exactly at the benchmark is a tie and leaves the sign test.
+    Markets move together, so the sign test's independence is optimistic: read q as a ranking, not a proof.
+    """
+    cells: dict = {}
+    for r in rows:
+        cells.setdefault((r["strategy"], r["resolution"]), []).append(r)
+    out = []
+    for (strategy, resolution), group in cells.items():
+        traded = [r for r in group if r["trades"]]
+        excess = sorted(r["net"] - max(r["hold"], 0.0) for r in traded)
+        wins, losses = sum(e > 0 for e in excess), sum(e < 0 for e in excess)
+        mid = len(excess) // 2
+        median = None if not excess else excess[mid] if len(excess) % 2 else (excess[mid - 1] + excess[mid]) / 2
+        out.append({"strategy": strategy, "resolution": resolution, "traded": len(traded),
+                    "abstained": len(group) - len(traded), "wins": wins, "losses": losses,
+                    "ties": len(traded) - wins - losses, "median_excess": median,
+                    "p": sign_test_p(wins, wins + losses)})
+    q = bh_q({(c["strategy"], c["resolution"]): c["p"] for c in out})
+    for c in out:
+        c["q"] = q[(c["strategy"], c["resolution"])]
+    # Cells that decided nothing (every run idle or tied) go last, whatever their q.
+    return sorted(out, key=lambda c: (c["wins"] + c["losses"] == 0, c["q"], -(c["median_excess"] or 0.0)))
 
 
 def _record_trials(root: Path, conn, t0, t1) -> None:
