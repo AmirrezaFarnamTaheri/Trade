@@ -29,3 +29,9 @@ def test_a_new_low_closes_an_open_long():
     closes = [100.0] * 60 + [110.0, 111.0, 60.0, 61.0, 62.0]
     rule, _ = followups.breakout_long(bars(closes), [True] * len(closes))
     assert rule[-1][1] == 0.0 and rule[-2][1] == 0.0  # sold at the new low, then flat
+
+
+def test_the_forward_record_refuses_to_score_before_its_last_day_has_passed():
+    import pytest
+    with pytest.raises(SystemExit, match="unfinished days"):
+        followups.forward(today="2027-02-08")

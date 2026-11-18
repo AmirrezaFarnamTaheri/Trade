@@ -8,9 +8,8 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 - Follow the BTCUSDT 50-day trend rule (`btc-daily-trend`) on paper every day until the 2027-02-08 checkpoint.
 - Later trials use information the failed ones did not: order-book imbalance, the implied Toman premium and
   recorded-quote microstructure, with expected value and position size as outputs.
-- Candidate forward record: `funding-confirmed-trend` was positive where the plain trend rule lost, but missed its pass mark
-  (probability 0.759). Running it forward on paper needs daily funding observations, which the public archive publishes
-  only as monthly files; collect daily funding before starting it.
+- Score `funding-confirmed-trend-forward` after 2027-02-08, once the archive's monthly funding files cover that day:
+  `scripts/binance_archive.py fetch`, then `scripts/held_out_followups.py --forward`.
 - The broad Binance held-out set (2024 to 2026, about 450 coins) is consumed for daily trend and breakout rules. New trials
   need new data: intraday bars, order-book data, or the forward record.
 - Research budget: at most two registered trials open at a time, each with new information or new data.
