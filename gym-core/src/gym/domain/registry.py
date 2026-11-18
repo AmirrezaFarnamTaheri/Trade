@@ -2,6 +2,8 @@
 import re
 
 from .bars import FIXED_RESOLUTIONS
+from .blend_strategies import FORMS as BLEND_FORMS
+from .blend_strategies import blend_from_names
 from .channel_strategies import CompressionBreakout, DonchianBreakout
 from .compound_strategies import PARAMETERS as COMPOUND_PARAMETERS
 from .compound_strategies import AdaptiveChannel, TrendPullback
@@ -76,6 +78,15 @@ STRATEGIES = {
 }
 
 
+STRATEGIES["signal-blend"] = (blend_from_names, "Blend of single-market rules (vote, confirm, calm-vote)", {
+    "members": {"type": "string", "default": "ema-trend,macd-cross,keltner-breakout,rsi-rebound",
+                "pattern": "^[a-z]+(-[a-z]+)*(,[a-z]+(-[a-z]+)*){0,7}$"},
+    "form": {"type": "string", "default": "vote", "enum": list(BLEND_FORMS)},
+    "enter_pct": {"type": "integer", "default": 67, "minimum": 1, "maximum": 100},
+    "exit_pct": {"type": "integer", "default": 34, "minimum": 0, "maximum": 99},
+    "min_hold_bars": {"type": "integer", "default": 0, "minimum": 0, "maximum": 500},
+    "calm_bars": {"type": "integer", "default": 24, "minimum": 2, "maximum": 500},
+})
 def catalog():
     """Expose the paper-only, versioned strategy parameter catalog."""
     return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
@@ -124,7 +135,7 @@ def create_strategy(name="ema-trend", params=None):
         if spec["type"] == "integer":
             valid = type(value) is int and spec["minimum"] <= value <= spec["maximum"]
         else:
-            valid = isinstance(value, str) and (value in spec["enum"] if "enum" in spec else re.fullmatch("[A-Z0-9]{2,24}", value) is not None)
+            valid = isinstance(value, str) and (value in spec["enum"] if "enum" in spec else re.fullmatch(spec.get("pattern", "[A-Z0-9]{2,24}"), value) is not None)
         if not valid:
             raise ValueError(f"invalid strategy parameter: {key}")
     strategy = constructor(**values)
