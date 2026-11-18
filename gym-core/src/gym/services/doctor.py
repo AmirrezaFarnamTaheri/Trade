@@ -140,6 +140,22 @@ def _research_backup(root: Path, now: datetime):
                   f"last snapshot {age.total_seconds() / 3600:.1f} h ago to {where}; {last.get('segments_total')} segments stored")
 
 
+def _crash(root: Path, now: datetime):
+    """The newest traceback the scheduled collector left in collector-crash.log, if any."""
+    path = root / "collector-crash.log"
+    if not path.is_file():
+        return _check("collector_crash", PASS, "no collector crash recorded")
+    lines = path.read_text("utf-8", errors="replace").splitlines()
+    headers = [i for i, line in enumerate(lines) if line.startswith("=== ")]
+    if not headers:
+        return _check("collector_crash", WARN, f"{path.name} has no readable entry")
+    at = datetime.fromisoformat(lines[headers[-1]][4:].strip().replace("Z", "+00:00"))
+    error = next((line for line in reversed(lines[headers[-1]:]) if line.strip()), "")
+    recent = now - at <= timedelta(days=7)
+    return _check("collector_crash", WARN if recent else PASS,
+                  f"{len(headers)} crash(es) logged; newest {at.isoformat(timespec='seconds')}: {error.strip()[:160]}")
+
+
 def _keys(today):
     from ..adapters import secret_store
     out = []
@@ -159,6 +175,7 @@ def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Pa
     checks = []
     checks += _market(root, now, full, archives or [], quick)
     checks.append(_disk(root))
+    checks.append(_crash(root, now))
     if quick:
         checks.append(_backup(root, now))
         checks.append(_research_backup(root, now))
