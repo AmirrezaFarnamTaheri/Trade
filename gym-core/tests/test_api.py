@@ -43,7 +43,7 @@ def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
         db = MarketDB(tmp_path / "market.db")
         col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT", "ETHUSDT", "LTCUSDT"])
         now = datetime.now(UTC)
-        for symbol, bid, ask in (("BTCUSDT", "1E-8", "2E-8"), ("ETHUSDT", "2E-8", "1E-8")):
+        for symbol, bid, ask in (("BTCUSDT", "1E-8", "1.1E-8"), ("ETHUSDT", "2E-8", "1E-8")):
             col.on_depth(symbol, "bid", [(Decimal(bid), Decimal(1))], now, "fixture")
             col.on_depth(symbol, "ask", [(Decimal(ask), Decimal(2))], now, "fixture")
         col.tick(now)
@@ -54,7 +54,7 @@ def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
                 rows = {row["symbol"]: row for row in (await response.json())["markets"]}
                 assert rows["BTCUSDT"]["qualified"] is True
                 assert rows["BTCUSDT"]["bid"] == "1E-8"
-                assert rows["BTCUSDT"]["ask"] == "2E-8"
+                assert rows["BTCUSDT"]["ask"] == "1.1E-8"
                 assert rows["ETHUSDT"]["qualified"] is False
                 assert "CROSSED" in rows["ETHUSDT"]["flags"]
                 assert rows["LTCUSDT"]["qualified"] is False

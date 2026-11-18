@@ -44,5 +44,5 @@ def test_price_band_reference_is_explicitly_an_estimate(tmp_path):
     assert reference["status"] == "ESTIMATED"
     assert reference["basis"] == "FIRST_OBSERVED_TEHRAN_DAY_MID"
     assert reference["venue_reference_documented"] is False
-    assert ENGINE_VERSION == "paper-session/14"  # default-market identities are frozen per version
-    assert LIMIT_ENGINE_VERSION == "paper-session/15"
+    assert ENGINE_VERSION == "paper-session/16"  # default-market identities are frozen per version
+    assert LIMIT_ENGINE_VERSION == "paper-session/17"

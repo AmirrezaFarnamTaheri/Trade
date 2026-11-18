@@ -13,8 +13,8 @@ from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
 # 14/15: a waiting venue stop must not suppress a due closed-bar time exit. Older artifacts keep their identity.
-ENGINE_VERSION = "paper-session/14"
-LIMIT_ENGINE_VERSION = "paper-session/15"
+ENGINE_VERSION = "paper-session/16"
+LIMIT_ENGINE_VERSION = "paper-session/17"
 
 
 @dataclass

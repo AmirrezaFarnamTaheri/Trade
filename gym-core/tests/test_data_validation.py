@@ -37,6 +37,13 @@ def test_invalid_quote_is_not_eligible_even_without_quality_flags(bid, ask):
     assert not qualified(quote(START, bid, ask))
 
 
+def test_stub_book_quote_is_not_a_price():
+    # Recorded EDUTMN book: a resting bid of 29 under a 12037 ask made a fake crash and sold at 29.
+    assert not qualified(quote(START, "29", "12037"))
+    assert qualified(quote(START, "11678", "11875"))
+    assert qualified(quote(START, "100", "120"))  # an 18% spread is awful but still a price
+
+
 @pytest.mark.parametrize("argument", ["--cash", "--fee"])
 def test_invalid_cli_decimal_reports_an_error_instead_of_a_traceback(tmp_path, capsys, argument):
     root = tmp_path / "live"
