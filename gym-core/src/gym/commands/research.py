@@ -326,6 +326,19 @@ def allocate_cmd(args) -> int:
     return 0
 
 
+def convert_route_cmd(args) -> int:
+    """Print the cheapest Toman/USDT conversion route at the latest recorded quotes. Places no order."""
+    from ..services.conversion_route import recommend
+
+    db = open_db(args)
+    try:
+        direction = "TMN_TO_USDT" if args.to == "USDT" else "USDT_TO_TMN"
+        print(json.dumps(recommend(db, Decimal(args.amount), direction, now_utc(), Decimal(args.fee)), indent=2))
+    finally:
+        db.c.close()
+    return 0
+
+
 def calibrate_cmd(args) -> int:
     """Produce measured execution assumptions without enabling live trading."""
     from datetime import timedelta
