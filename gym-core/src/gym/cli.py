@@ -55,6 +55,7 @@ from .commands.research import (
     allocate_cmd,
     calibrate_cmd,
     candles_cmd,
+    convert_route_cmd,
     evidence_cmd,
     history_cmd,
     market_statistics_cmd,
@@ -198,6 +199,10 @@ def main(argv=None):
     hist.add_argument("--from", dest="start", required=True, help="oldest time to fetch, e.g. 2020-01-01T00:00:00Z")
     hist.add_argument("--to", dest="end", help="default: now")
     hist.add_argument("--demo", action="store_true")
+    route = sub.add_parser("convert-route", help="cheapest way to convert between Toman and USDT now (proposal only)")
+    route.add_argument("amount", help="amount to convert, in the currency you hold")
+    route.add_argument("--to", choices=("USDT", "TMN"), default="USDT", help="currency you want")
+    route.add_argument("--fee", default="0.001", help="fee rate per leg")
     alloc = sub.add_parser("allocate", help="daily trend allocation paper journal: one decision per completed daily candle")
     alloc.add_argument("symbols", nargs="+", help="markets such as BTCUSDT ETHUSDT")
     alloc.add_argument("--cash", default="1000", help="starting paper cash per market, in its quote currency")
@@ -372,7 +377,7 @@ def main(argv=None):
 
     commands = {"summary": summary_cmd, "research": research_cmd, "paper-research": paper_research_cmd, "key": key_cmd, "account": account_cmd, "ticket-queue-add": ticket_queue_add_cmd, "ticket-queue-review": ticket_queue_review_cmd, "probe-budget-stage": probe_budget_stage_cmd, "conversion-report": conversion_report_cmd, "ticket-preview": ticket_preview_cmd, "venue-fact-import": venue_fact_import_cmd, "verify-backup-manifest": verify_backup_manifest_cmd, "backup-once": backup_once_cmd, "restore-backup": restore_backup_cmd, "restore-drill": restore_drill_cmd, "update-check": update_check_cmd, "external-observe": external_observe_cmd, "evidence": evidence_cmd, "session": session_cmd, "paper": replay_cmd, "compare": replay_cmd, "portfolio": replay_cmd,
                 "demo-seed": demo_seed, "spreads": market_statistics_cmd, "trade-flow": market_statistics_cmd,
-                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "arm-preflight": arm_preflight_cmd, "timeline": timeline_cmd, "paper-sweep": paper_sweep_cmd, "actions": actions_cmd, "arm-policy": arm_policy_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
+                "candles": candles_cmd, "history": history_cmd, "allocate": allocate_cmd, "convert-route": convert_route_cmd, "validate": replay_cmd, "technicals": technical_report_cmd, "raw-move": raw_move_cmd, "compact": compact_cmd, "verify-segments": verify_segments_cmd, "doctor": doctor_cmd, "arm-preflight": arm_preflight_cmd, "timeline": timeline_cmd, "paper-sweep": paper_sweep_cmd, "actions": actions_cmd, "arm-policy": arm_policy_cmd, "recover-segments": recover_segments_cmd, "drift": drift_cmd, "release-keygen": release_cmd, "release-sign": release_cmd, "release-verify": release_cmd, "backup-research": backup_research_cmd, "research-restore-drill": research_restore_drill_cmd, "restore-research": restore_research_cmd,
                 "calibrate": calibrate_cmd}
     commands["operator-review"] = operator_review_cmd
     if args.cmd in commands:
