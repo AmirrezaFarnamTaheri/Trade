@@ -365,7 +365,7 @@ def signal_attribution(result: dict) -> list[dict]:
     return sorted(rows, key=lambda r: (-r["trades"], r["entry"], r["exit"]))
 
 
-def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = False) -> dict:
+def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = False, bootstrap: bool = True) -> dict:
     """Risk, return and trade statistics for one saved paper run."""
     result, inputs = record["result"], record["inputs"]
     if result.get("start_cash") is None:
@@ -402,7 +402,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     # Annualizing a few days of marks turns noise into extreme ratios; per-period Sharpe and P(Sharpe>0) stay honest.
     long_enough = (end - start).total_seconds() >= 30 * 86400
     out["returns"] = _sharpe_block(returns, periods_per_year if long_enough else None, enhanced=enhanced) if len(returns) >= 3 else None
-    if len(returns) >= 20:
+    if bootstrap and len(returns) >= 20:
         out["returns"]["bootstrap_90"] = _bootstrap(returns)
     out["benchmark"] = _benchmark(record, periods_per_year if long_enough else None)
     if drawdown and drawdown.get("status") == "AVAILABLE":

@@ -41,9 +41,14 @@ class DataPortal:
                 return None
             return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
 
-        return [BookTop(symbol, parse_ts(r[0]), optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
-                        optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), depth(r[6]))
-                for r in rows if not any(start <= parse_ts(r[0]) < end for start, end in self.excluded)]
+        excluded, out = self.excluded, []
+        for r in rows:
+            t = parse_ts(r[0])
+            if excluded and any(start <= t < end for start, end in excluded):
+                continue
+            out.append(BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
+                               optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), depth(r[6])))
+        return out
 
     def publication(self):
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
