@@ -84,3 +84,20 @@ def test_evidence_api_needs_the_session_token(tmp_path):
     finally:
         seg.close()
         db.c.close()
+
+
+def test_programme_score_adjusts_the_best_result_for_everything_tried():
+    from gym.services.evidence import programme
+    rows = [{"id": "a", "verdict": "NARROW_PASS", "probability": 0.95},
+            {"id": "b", "verdict": "FAIL", "probability": 0.50},
+            {"id": "c", "verdict": "FAIL", "probability": None},
+            {"id": "d", "verdict": "OPEN", "probability": None}]
+    assert programme(rows) == {"completed": 3, "best": "a", "best_probability": 0.95, "best_q": 0.15}
+    assert programme([{"id": "x", "verdict": "OPEN", "probability": None}]) is None
+
+
+def test_the_last_stage_reached_supplies_the_probability():
+    from gym.services.evidence import _final_probability
+    assert _final_probability("**FAIL**: deflated 0.994; held out probability 0.586.") == 0.586
+    assert _final_probability("**FAIL** on ranking, deflated 0.723; not scored.") == 0.723
+    assert _final_probability("**FAIL**: no market met every condition.") is None

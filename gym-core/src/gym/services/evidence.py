@@ -24,8 +24,33 @@ def trials(path: Path = TRIAL_LOG) -> list[dict]:
         return []
     rows = ([cell.strip() for cell in line.strip().strip("|").split("|")]
             for line in path.read_text(encoding="utf-8").splitlines() if REGISTERED_ROW.match(line))
-    return [{"id": row[0], "registered": row[1], "hypothesis": row[2], "verdict": _verdict(row[5])}
-            for row in rows if len(row) == 6]
+    return [{"id": row[0], "registered": row[1], "hypothesis": row[2], "verdict": _verdict(row[5]),
+             "probability": _final_probability(row[5])} for row in rows if len(row) == 6]
+
+
+def _final_probability(result: str) -> float | None:
+    """The probability from the last stage a trial reached: a held-out probability outranks a ranking score."""
+    held = re.findall(r"probability[^0-9]{0,40}?([01]\.\d{3})", result)
+    ranking = re.findall(r"deflated[^0-9]{0,40}?([01]\.\d{3})", result)
+    return float(held[-1]) if held else float(ranking[0]) if ranking else None
+
+
+def programme(rows: list[dict]) -> dict | None:
+    """Benjamini-Hochberg across every completed trial: how likely the best result is luck, given everything tried.
+
+    A trial with no stated probability (an early screen that failed on counts or costs) enters as p = 1.
+    """
+    done = [row for row in rows if row["verdict"] != "OPEN"]
+    if not done:
+        return None
+    p = sorted((1 - row["probability"] if row["probability"] is not None else 1.0, row["id"]) for row in done)
+    m, running, q = len(p), 1.0, {}
+    for rank in range(m, 0, -1):
+        value, name = p[rank - 1]
+        running = min(running, value * m / rank)
+        q[name] = running
+    best = p[0][1]
+    return {"completed": m, "best": best, "best_probability": round(1 - p[0][0], 3), "best_q": round(q[best], 3)}
 
 
 def forward(root: Path) -> dict | None:
@@ -59,4 +84,4 @@ def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:
     rows = trials(path)
     count = {name: sum(1 for row in rows if row["verdict"] == name) for name in ("FAIL", "NARROW_PASS", "PASS", "OPEN")}
     return {"state": "READY" if rows else "NO_TRIAL_LOG", "trials": rows, "tally": {"registered": len(rows), **count},
-            "forward": forward(root) if root is not None else None, "funded_authority": False}
+            "forward": forward(root) if root is not None else None, "programme": programme(rows), "funded_authority": False}
