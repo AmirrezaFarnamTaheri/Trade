@@ -6,6 +6,8 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 ## Evidence
 
 - Follow the passive multi-asset mix on Wallex prices daily (`gymctl mix-journal`); it is the only trial that passed with power to spare.
+- Follow `breadth-trend-forward` daily at 15:00 Tehran (`gymctl breadth-journal --refresh`, task `TradingGYM Breadth
+  Journal`); score it after 2027-05-19 against USDT and an equal-weight hold of the same coins.
 - Follow the BTCUSDT 50-day trend rule (`btc-daily-trend`) on paper every day until the 2027-02-08 checkpoint.
 - Later trials use information the failed ones did not: order-book imbalance, the implied Toman premium and
   recorded-quote microstructure, with expected value and position size as outputs.
