@@ -83,3 +83,19 @@ def test_no_cash_means_no_zero_quantity_buy(tmp_path):
     assert entry["trades"] == []
     assert set(entry["decisions"].values()) <= {"CASH", "SKIP_NO_CASH"}
     db.c.close()
+
+
+def test_a_failed_refresh_still_records_the_day_from_stored_candles(tmp_path, monkeypatch):
+    import gym.commands.research as research
+    from gym.cli import main
+
+    db = store(tmp_path / "live", {"AAAUSDT": up("1.01"), "BBBUSDT": up("1.01"), "CCCUSDT": up("0.99")})
+    db.c.close()
+
+    def unreachable(args):
+        raise OSError("venue unreachable")
+
+    monkeypatch.setattr(research, "history_cmd", unreachable)
+    monkeypatch.setattr(research, "now_utc", lambda: NOW)
+    assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 0
+    assert journal(tmp_path / "live")[0]["day"] == "2026-10-19T00:00:00.000000Z"

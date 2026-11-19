@@ -365,7 +365,10 @@ def breadth_journal_cmd(args) -> int:
         finally:
             reader.c.close()
         since = (now_utc() - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
-        history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None))
+        try:
+            history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None))
+        except (ValueError, OSError, sqlite3.Error) as error:  # the venue is often unreachable here: decide on stored candles
+            print(f"refresh failed, deciding on stored candles: {error}", file=sys.stderr)
     db = open_db(args)
     try:
         print(json.dumps(run_breadth_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
