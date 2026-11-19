@@ -52,9 +52,16 @@ without paper support is a gap to close, not a boundary. Funded use of every row
 | Margin LONG / SHORT positions | Margin trading | Public rules, loan and dry-run previews; replay with opening, trade and 4-hour extension fees, liquidation, call warning, stop-loss, take-profit, expiry and timed exit | Stop-loss, take-profit and collateral changes during a position; account level limits (`/user/levels` needs a key) |
 | Margin long/short ratio | Margin trading | None | `GET /public/ratio/{market}` is public and not collected |
 | Trading credit packages and sub-accounts | Trading credit | `credit-packages` saves the public package list; `credit-replay` holds one asset in one package on recorded quotes with the daily fee, the warning level, liquidation and expiry | The limits are assumed to apply to the whole account value; renewal, wallet top-up and trading inside the package are not modeled |
-| Per-account maker and taker fees | Account | Recent start-known account rates feed the paper cost model by market, with dated provenance | Rates are frozen at replay start; `/v2/structured-fee` is not collected |
+| Per-account maker and taker fees | Account | Replay uses recent start-known rates by market. Live-data `session` uses the same read-only fee receipts for taker fills unless `--fee` is set. Both record provenance. | Rates are frozen at start. `/v2/structured-fee` is not collected. Live-data `session` does not model maker fills. |
 | Catalogue product flags (`is_margin`, `is_otc`, `max_leverage`, `leverage_step`, `is_zero_fee`) | Public market data | Stored/shown by catalogue version; a start-known boolean zero-fee flag applies in paper replay | In-run flag changes are not reconstructed; absent flags remain unknown |
 | Fair price | Public market data, Websocket | Observed and stored | None known |
 | Candles, depth and trades | Public market data, Websocket | Collected | `GET /depth/all` and `public:all@price` are unused; not needed while per-market channels run |
 | Deposits, withdrawals, IBANs and cards | Account | None | Out of scope: custody, not trading |
+
+### Integration order
+
+1. Bring recorded depth, market-order guards, and limit queue handling from historical replay into live-data spot paper. Verify both paths on the same recorded quotes and trades before comparing returns.
+2. Capture missing point-in-time inputs: margin ratios and terms, fee and catalogue changes, and OTC quotes only if an approved scope allows them. Missing quotes cannot produce OTC fills.
+3. Extend paper accounting for stop-limit orders, multi-day margin positions, and credit balances. Cover borrow extensions, liquidation, expiry, and partial fills before using these models to rank strategies.
+4. Qualify each funded order type independently. Paper support is not proof of account eligibility, venue behavior, or authority to trade.
 

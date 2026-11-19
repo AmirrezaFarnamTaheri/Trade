@@ -13,6 +13,27 @@ from gym.services.data_portal import DataPortal
 from tests.support import START, market_db, quote, quote_history
 
 
+@pytest.mark.parametrize("flags,expected", [([], "0.0027"), (["--fee", "0.0031"], "0.0031")])
+def test_session_cli_uses_observed_taker_fee_unless_overridden(tmp_path, monkeypatch, flags, expected):
+    from gym.cli import main
+    from gym.services import cost_defaults
+
+    root = tmp_path / "live"
+    root.mkdir()
+    market_db(root, []).c.close()
+    fee_receipt = (Decimal("0.0012"), Decimal("0.0027"), iso(START),
+                   {"BTCUSDT": {"maker": "0.0012", "taker": "0.0027"}})
+    monkeypatch.setattr(cost_defaults, "_recent_fees", lambda *_: fee_receipt)
+    observed = []
+
+    async def record_cost(_db, _root, symbol, _duration, _resolution, _cash, _demo, _subscriptions, cost, **_):
+        observed.append(cost.for_market(symbol).fee_rate)
+
+    monkeypatch.setattr(live_paper, "watch", record_cost)
+    assert main(["--data", str(tmp_path), "session", "btcusdt", *flags]) == 0
+    assert observed == [Decimal(expected)]
+
+
 def test_tick_publishes_all_markets_and_watermark_in_one_transaction(tmp_path, monkeypatch):
     db = market_db(tmp_path, [])
     observer = MarketDB(tmp_path/"market.db", readonly=True)

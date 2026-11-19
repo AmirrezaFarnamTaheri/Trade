@@ -16,7 +16,7 @@ const browserPath = [process.env.GYM_BROWSER,
   '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].find(candidate => candidate && fs.existsSync(candidate));
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tradinggym-ui-'));
-const artifacts = path.resolve(core, '..', '.pi', 'ui-verification');
+const artifacts = path.resolve(process.env.GYM_SCREENSHOT_DIR || path.join(core, '..', '.pi', 'ui-verification'));
 const errors = [];
 let browser, server, socket;
 let diagnostic = async () => ({});
@@ -130,11 +130,58 @@ function stop(child) {
   await evaluate('document.querySelector("nav [data-view=markets]").click()');
   await evaluate('document.fonts.ready.then(() => true)');
   assert(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'desktop horizontal overflow');
+  const screenshots = [];
   async function screenshot(name) {
     const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     fs.writeFileSync(path.join(artifacts, name), Buffer.from(shot.data, 'base64'));
+    screenshots.push(name);
   }
   await screenshot('markets-desktop.png');
+  async function openMarketDepth() {
+    await until(() => evaluate(`document.querySelector('[data-market="BTCUSDT"]')`), 'BTCUSDT row');
+    await evaluate(`(() => {
+      const button = document.querySelector('[data-market="BTCUSDT"]');
+      if (button.getAttribute('aria-expanded') !== 'true') { button.focus(); button.click(); }
+    })()`);
+    await until(() => evaluate('document.querySelectorAll(".depth-track").length === 6'), 'observed demo book depth');
+    assert(await evaluate(`(() => {
+      const cells = [...document.querySelectorAll('.depth-row [role=cell]')];
+      const band = state.markets.markets.find(row => row.symbol === 'BTCUSDT').liquidity.bands[0];
+      return cells[0].textContent === digits(band.bid_base) &&
+        Math.max(...cells.map(cell => Number(cell.querySelector('rect + rect').getAttribute('width')))) === 100;
+    })()`), 'depth displays exact amounts and shares one scale');
+    assert(await evaluate(`(() => {
+      const chart = document.querySelector('.depth-figure');
+      chart.scrollIntoView({block:'center', inline:'nearest'});
+      const {left, right} = chart.getBoundingClientRect();
+      return left >= -1 && right <= innerWidth + 1;
+    })()`), 'depth chart fits without sideways scrolling');
+  }
+  await openMarketDepth();
+  assert.equal(await evaluate('document.activeElement?.dataset.market'), 'BTCUSDT', 'pair keeps keyboard focus');
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('market-depth-desktop-en.png');
+  await evaluate(`(() => {
+    const market = state.markets.markets.find(row => row.symbol === 'BTCUSDT');
+    window.__restoreDepth = () => { market.liquidity = original; renderMarkets(); };
+    const original = market.liquidity;
+    market.liquidity = {status: 'UNAVAILABLE', bands: []};
+    renderMarkets();
+  })()`);
+  assert(await evaluate(`document.querySelector('.depth-section').textContent.includes('No usable order book depth') &&
+    !document.querySelector('.depth-track')`), 'missing depth shows a message, not a zero bar');
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('market-depth-unavailable.png');
+  await evaluate('window.__restoreDepth(); delete window.__restoreDepth');
+  await evaluate(`(() => { const select = document.querySelector('#market-sort');
+    select.value = 'spread'; select.dispatchEvent(new Event('change', {bubbles:true}));
+    document.querySelector('[data-market="BTCUSDT"]').click(); window.scrollTo(0, 0);
+  })()`);
+  if (process.env.GYM_SCREENSHOTS === '1') {
+    for (const route of routes) {
+      await evaluate(`document.querySelector('nav [data-view="${route}"]').click()`);
+      await evaluate('refresh()');
+      await screenshot(`desktop-${route}.png`);
+    }
+  }
   await evaluate('document.querySelector("nav [data-view=research]").click()');
   await evaluate('document.querySelector("#tab-compare").click()');
   await until(() => evaluate('!document.querySelector("#comparison-fields").disabled'), 'research catalog');
@@ -177,7 +224,14 @@ function stop(child) {
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'mobile RTL horizontal overflow');
   await screenshot('markets-mobile-fa.png');
+  assert.equal(await evaluate('document.querySelector("#market-sort").value'), 'spread', 'market sort survives reload');
+  await openMarketDepth();
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('market-depth-mobile-fa-dark.png');
   await evaluate('document.querySelector("#language-toggle").click()');
+  await evaluate('document.querySelector("#theme-toggle").click()');
+  await openMarketDepth();
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('market-depth-mobile-en-light.png');
+  await evaluate(`document.querySelector('[data-market="BTCUSDT"]').click(); window.scrollTo(0, 0);`);
   assert.equal(await evaluate('document.documentElement.dir'), 'ltr');
   await screenshot('markets-mobile-en.png');
   const mobileTargets = [];
@@ -202,6 +256,10 @@ function stop(child) {
           assert(geometry.controls.length > 0, `${route}: no visible action controls checked`);
           assert.deepEqual(geometry.controls.filter(control => control.height < 43.99), [],
             `${width}px ${language} ${selectedTheme} ${route}: action, tab and market-selection targets below 44px`);
+          if (process.env.GYM_SCREENSHOTS === '1' && route === 'overview') {
+            await evaluate('refresh()');
+            await screenshot(`overview-${width}-${language}-${selectedTheme}.png`);
+          }
           mobileTargets.push({ width, language, theme: selectedTheme, route,
             controls: geometry.controls.length, minimumHeight: Math.min(...geometry.controls.map(control => control.height)) });
         }
@@ -236,9 +294,40 @@ function stop(child) {
   await until(() => evaluate('!document.querySelector("#connection-error").hidden && document.querySelector("#connection-error-detail").textContent.includes("markets")'), 'named failing source');
   await evaluate('window.__restoreFetch(); document.querySelector("#retry").click()');
   await until(() => evaluate('document.querySelector("#connection-error").hidden'), 'banner clears after recovery');
-  await until(() => evaluate('document.querySelectorAll("#overview-answer .answer-stats .stat").length === 4 && document.querySelectorAll("#overview-answer .answer-trials tbody tr").length >= 9'), 'answer panel lists every registered trial');
+  await until(() => evaluate('document.querySelectorAll("#overview-answer .trial-counts li").length === 4 && document.querySelectorAll("#overview-answer .answer-trials tbody tr").length >= 9'), 'outcome chart and trial register');
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'overview does not overflow');
-  await evaluate('document.querySelector("#overview-answer details").open = true');
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.__restoreFetch = () => { window.fetch = original; };
+    window.fetch = (url, init) => String(url).includes('/api/evidence') ? Promise.reject(new TypeError('offline')) : original(url, init);
+    const summary = document.querySelector('#overview-answer summary');
+    summary.focus();
+    summary.click();
+  })()`);
+  await evaluate('refresh()');
+  assert.ok(await evaluate(`document.querySelector('#overview-answer').textContent.includes('Showing evidence last loaded at')`));
+  assert.ok(await evaluate(`document.querySelector('#overview-answer details').open && document.activeElement.matches('#overview-answer summary')`));
+  await evaluate('window.__restoreFetch(); document.querySelector("#retry").click()');
+  await until(() => evaluate(`!document.querySelector('#overview-answer').textContent.includes('Showing evidence last loaded at')`), 'evidence freshness recovers');
+  assert.ok(await evaluate('document.querySelector("#overview-answer details").open'));
+  await evaluate(`(() => {
+    const filter = document.querySelector('#trial-verdict-filter');
+    filter.focus();
+    filter.value = 'OPEN';
+    filter.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  assert.ok(await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.answer-trials tbody tr')];
+    return rows.length > 0 && rows.every(row => row.cells[2].textContent === 'Not run') && document.activeElement.id === 'trial-verdict-filter';
+  })()`), 'filter shows only open trials and keeps focus');
+  await evaluate('refresh()');
+  assert.equal(await evaluate('document.querySelector("#trial-verdict-filter").value'), 'OPEN');
+  await evaluate(`(() => {
+    const filter = document.querySelector('#trial-verdict-filter');
+    filter.value = '';
+    filter.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  assert.ok(await evaluate(`document.querySelectorAll('.answer-trials tbody tr').length >= 9`), 'all verdicts restores the register');
   await screenshot('overview-answer.png');
   // Persian desktop view of the densest tables, for a human RTL review; layout must hold without overflow.
   await evaluate('document.querySelector("#language-toggle").click()');
@@ -246,10 +335,27 @@ function stop(child) {
   await evaluate('document.querySelector("#overview-answer details").open = true');
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Persian overview does not overflow');
   await screenshot('overview-answer-fa.png');
-  await evaluate('document.querySelector("#language-toggle").click()');
+  await evaluate('document.querySelector("#language-toggle").click(); refresh()');
+  await evaluate(`(() => {
+    const prior = state.evidence, original = window.fetch;
+    const fixture = { ...prior, forward: {
+      symbol: 'BTCUSDT', net: '-12.50', hold_net: '8.25', days: 4, missing_days: 0,
+      withheld: 0, trades: 2, fees: '0.25', latest: '2026-11-18T12:00:00Z'
+    } };
+    window.fetch = (url, init) => String(url) === '/api/evidence'
+      ? Promise.resolve(Response.json(fixture)) : original(url, init);
+    window.__restoreEvidence = () => { window.fetch = original; };
+  })()`);
+  await until(() => evaluate('document.querySelectorAll(".forward-comparison li").length === 3'), 'synthetic forward comparison');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.forward-comparison li')].map(row => [row.querySelector('bdi').textContent, Number(row.querySelector('rect:nth-child(2)').getAttribute('x'))])`), [['-12.50', 0], ['0', 50], ['8.25', 50]], 'benchmark compares losses, cash and gains on one scale');
+  if (process.env.GYM_SCREENSHOTS === '1') {
+    await evaluate('document.querySelector(".answer-trials").open = false; document.querySelector(".trial-forward").scrollIntoView()');
+    await screenshot('overview-forward-demo.png');
+  }
+  await evaluate('window.__restoreEvidence()');
   assert.deepEqual(errors, [], 'browser exceptions');
   const report = { mode: 'DEMO', routes, comparison_id: comparison.comparison_id,
-    accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus,
+    accessibility: axeSource ? accessibility : 'axe-core not installed', mobileTargets, keyboardFocus, screenshots,
     checks: [`${routes.length} real views`, 'real paired replay and result rendering', 'identical decision/data windows', 'persisted form inputs', 'theme switch', 'EN/FA RTL switch', 'desktop/mobile overflow', '44px mobile action, tab and market-selection targets at 375px/600px in both languages and themes', 'keyboard focus', 'confirmation dialog cancel', 'named failing source and recovery', 'no JavaScript exceptions'] };
   fs.writeFileSync(path.join(artifacts, 'browser-report.json'), JSON.stringify(report, null, 2));
   console.log(`PASS: real browser UI (${path.basename(browserPath)}); screenshots/report: ${artifacts}`);

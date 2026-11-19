@@ -23,7 +23,6 @@ from .commands.account import (
     venue_fact_import_cmd,
 )
 from .commands.common import (
-    DEFAULT_FEE,
     FEE_HELP,
     default_data_root,
     open_db,
@@ -332,7 +331,7 @@ def main(argv=None):
     se.add_argument("--strategy", choices=[entry["id"] for entry in catalog()], default="ema-trend")
     se.add_argument("--params", help="strategy parameters as JSON; uses registry defaults when omitted")
     se.add_argument("--cash")
-    se.add_argument("--fee", default=DEFAULT_FEE, help=FEE_HELP)
+    se.add_argument("--fee", help=FEE_HELP + "; if omitted, use recent read-only fee snapshot if available")
     se.add_argument("--latency-ms", type=int, default=500)
     sub.add_parser("demo-seed", help="write synthetic DEMO history into data/demo").add_argument("--hours", type=int, default=72)
     cal = sub.add_parser("calibrate", help="feed latency and paper fill quality, to set --latency-ms and judge costs")

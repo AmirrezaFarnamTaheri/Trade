@@ -42,6 +42,7 @@ class Element {
     }
   }
   get innerHTML() { return this._html; }
+  get options() { return this.querySelectorAll("option"); }
   setAttribute(key, value) {
     this.attributes[key] = String(value ?? "");
     if (key.startsWith("data-")) this.dataset[key.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = String(value ?? "");

@@ -20,7 +20,14 @@ async function collectView(name, healthTask) {
     try {
       await settled([["markets", api("/api/markets").then(data => { state.markets = data; renderMarkets(); })],
         ["saved runs", api("/api/runs?limit=50&offset=0").then(data => { state.overviewRuns = list(data); })], ["operate", operate()],
-        ["evidence", api("/api/evidence").then(data => { state.evidence = data; })]]);
+        ["evidence", api("/api/evidence").then(data => {
+          state.evidence = data;
+          state.evidenceFetchedAt = new Date().toISOString();
+          state.evidenceFailed = false;
+        }, error => {
+          state.evidenceFailed = true;
+          throw error;
+        })]]);
     } finally { renderOverview(); }
   }
   if (name === "markets") { state.markets = await api("/api/markets"); renderMarkets(); }

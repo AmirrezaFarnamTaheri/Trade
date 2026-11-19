@@ -5,7 +5,7 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 
 ## Evidence
 
-- Follow the passive multi-asset mix on Wallex prices daily (`gymctl mix-journal`); it is the only trial that passed with power to spare.
+- Track the passive multi-asset mix on Wallex prices daily (`gymctl mix-journal`). A historical pass does not establish a Wallex edge.
 - Follow `breadth-trend-forward` daily at 15:00 Tehran (`gymctl breadth-journal --refresh`, task `TradingGYM Breadth
   Journal`); score it after 2027-05-19 against USDT and an equal-weight hold of the same coins.
 - Follow the BTCUSDT 50-day trend rule (`btc-daily-trend`) on paper every day until the 2027-02-08 checkpoint.

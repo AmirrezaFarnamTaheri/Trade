@@ -30,6 +30,23 @@ def test_a_spot_long_earns_the_move_after_the_spot_cost():
     assert counts["OPEN_LONG"] == 1 and counts["HOLD"] == 1
 
 
+def test_closing_a_spot_long_pays_the_spot_rate():
+    r, counts = simulate(panel([[100], [100], [100]]), np.array([[1.0], [0.0], [0.0]]))
+    assert r.tolist() == pytest.approx([0.0, -SPOT_COST, -SPOT_COST])
+    assert counts["OPEN_LONG"] == counts["CLOSE"] == 1
+
+
+@pytest.mark.parametrize("side", [1, -1])
+def test_reversing_pays_for_both_legs(side):
+    weights = np.array([[0.25 * side], [-0.25 * side], [0.0]])
+    r, counts = simulate(panel([[100], [100], [100]]), weights)
+    carry = 0.25 * BORROW_PER_DAY if side > 0 else 0.0
+    old_exposure = 0.25 / (1 + r[1])
+    close_rate, open_rate = (SPOT_COST, MARGIN_COST) if side > 0 else (MARGIN_COST, SPOT_COST)
+    assert r[2] == pytest.approx(-(old_exposure * close_rate + 0.25 * open_rate + carry))
+    assert counts["FLIP"] == 1 and counts["CLOSE"] == 0
+
+
 def test_a_short_pays_the_margin_cost_and_a_day_of_borrowing():
     p = panel([[100], [90]])
     r, counts = simulate(p, np.array([[-1.0], [0.0]]))
@@ -44,6 +61,22 @@ def test_a_levered_short_into_a_spike_is_liquidated_at_the_floor():
     assert counts["LIQUIDATED"] == 1 and counts["LEVERED_DAYS"] == 1
     lost = 1.0 / 2 * (1 - FLOOR)
     assert r[1] == pytest.approx(-lost - 2 * (0.5 * SPOT_COST + 0.5 * MARGIN_COST) * 0.5 - MARGIN_COST - 1.0 * BORROW_PER_DAY, abs=0.002)
+
+
+def test_breadth_counts_only_complete_windows_including_today():
+    from portfolio_lab import breadth
+
+    p = panel([[1, 5, 3], [2, 4, float("nan")], [3, 3, 1], [4, 2, 2], [5, 1, 3]])
+    p["liquid"][4, 0] = False
+    assert breadth(p, lookback=3).tolist() == pytest.approx([0, 0, .5, .5, .5])
+
+
+def test_breadth_does_not_open_on_flat_prices_or_missing_history():
+    from portfolio_lab import breadth
+
+    p = panel([[0.1, float("nan")]] * 6)
+    with np.errstate(all="raise"):
+        assert breadth(p, lookback=3).tolist() == [0] * 6
 
 
 def test_xs_momentum_is_dollar_neutral_and_only_rebalances_weekly():

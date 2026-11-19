@@ -28,33 +28,55 @@ function applyLang() {
 /** The governing question first: the tally of tested ideas, the forward paper record, then each idea's verdict. */
 function renderAnswer() {
   const value = state.evidence;
-  if (!value || value.state !== "READY") return setHTML("overview-answer", empty(t(value ? "answerNoLog" : "loading")));
-  const tally = value.tally, forward = value.forward, kinds = { FAIL: "bad", NARROW_PASS: "warn", PASS: "ok", OPEN: "warn" };
-  const headline = tally.PASS ? "answerPassed" : tally.NARROW_PASS ? "answerNarrow" : "answerNone";
-  const plain = text => esc(String(text).replace(/\*\*|`/g, ""));
-  const change = forward?.net == null ? t("unavailable") : digits(rounded(forward.net, 2));
-  setHTML("overview-answer", `<p class="answer-headline">${esc(t(headline))}</p><div class="stats answer-stats">`
-    + stat(t("answerRegistered"), num(tally.registered), t("answerRegisteredNote"))
-    + stat(t("answerFailed"), num(tally.FAIL), t("answerFailedNote"))
-    + stat(t("answerNarrowCount"), num(tally.NARROW_PASS + tally.PASS), t("answerNarrowNote"))
-    + stat(t("answerForward"), forward ? `${num(forward.days)} <small>${esc(t("answerDays"))}</small>` : esc(t("none")),
-      forward ? `${forward.symbol} · ${t(forward.in_market ? "answerInMarket" : "answerInCash")} · ${change} USDT` : t("answerForwardNone"))
-    + `</div>${programmeLine(value.programme)}${forwardRecord(forward, value.trials.find(row => row.id === "btc-daily-trend"), kinds)}${mixRecord(value.forward_mix)}<details class="answer-trials"><summary>${esc(t("answerShowTrials"))}</summary>`
-    + table([t("answerTrial"), t("answerHypothesis"), t("answerVerdict")], value.trials.map(row => [
-      `${code(row.id)} <small class="muted">${esc(row.registered)}</small>`, `<span dir="ltr">${plain(row.hypothesis)}</span>`,
-      chip(t(`verdict${row.verdict}`), kinds[row.verdict])]), t("nothing")) + "</details>");
+  const failed = state.evidenceFailed;
+  if (value?.state !== "READY") {
+    return setHTML("overview-answer", empty(t(failed ? "answerFetchFailed" : value ? "answerNoLog" : "answerLoading")));
+  }
+  const stale = failed ? `<p class="field-help">${esc(t("answerStale"))} ${stampHtml(state.evidenceFetchedAt)}</p>` : "";
+  const { tally, forward, trials } = value;
+  const kinds = { PASS: "ok", NARROW_PASS: "warn", FAIL: "bad", OPEN: "neutral" };
+  const verdicts = Object.keys(kinds);
+  const selected = state.trialVerdict || "";
+  const filtered = trials.filter(row => !selected || row.verdict === selected);
+  const journals = forwardRecord(forward, trials.find(row => row.id === "btc-daily-trend"), kinds) + mixRecord(value.forward_mix);
+  const headline = tally.PASS || tally.NARROW_PASS ? "answerPassed" : "answerNone";
+  setHTML("overview-answer", `${stale}<p class="answer-headline">${esc(t(headline))}</p>${trialOutcomes(tally, verdicts)}`
+    + `<details class="answer-trials" data-key="trial-register"><summary data-focus="trial-register">${esc(t("answerShowTrials"))}</summary>`
+    + `<label class="trial-filter" for="trial-verdict-filter">${esc(t("answerVerdict"))}<select id="trial-verdict-filter" data-focus="trial-filter">`
+    + ["", ...verdicts].map(key => `<option value="${key}"${key === selected ? " selected" : ""}>${esc(t(key ? `verdict${key}` : "answerAllVerdicts"))}</option>`).join("")
+    + `</select></label>${programmeLine(value.programme)}`
+    + table([t("answerTrial"), t("answerHypothesis"), t("answerVerdict")], filtered.map(row => [
+      `${code(row.id)} <small class="muted">${esc(row.registered)}</small>`, `<span dir="ltr">${esc(String(row.hypothesis).replace(/\*\*|`/g, ""))}</span>`,
+      chip(t(`verdict${row.verdict}`), kinds[row.verdict])]), t("answerNoMatches"))
+    + `</details><section class="trial-forward"><h3>${esc(t("answerForward"))}</h3>${journals || `<p class="muted">${esc(t("answerForwardNone"))}</p>`}</section>`);
+}
+
+function trialOutcomes(tally, verdicts) {
+  const counts = verdicts.map(verdict => Number.isSafeInteger(tally[verdict]) && tally[verdict] > 0 ? tally[verdict] : 0);
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  if (!total) return empty(t("answerNoMatches"));
+  let x = 0;
+  const parts = verdicts.map((verdict, i) => {
+    const width = counts[i];
+    const rect = `<rect class="trial-${verdict}" x="${x}" width="${width}" y="0" height="12"/>`;
+    x += width;
+    return rect;
+  }).join("");
+  return `<figure class="trial-outcomes"><figcaption>${num(total)} ${esc(t("answerRegistered"))}</figcaption>`
+    + `<svg viewBox="0 0 ${total} 12" preserveAspectRatio="none" aria-hidden="true">${parts}</svg>`
+    + `<ul class="trial-counts">${verdicts.map((verdict, i) => `<li><span class="trial-swatch trial-${verdict}" aria-hidden="true"></span><strong>${num(counts[i])}</strong> ${esc(t(`verdict${verdict}`))}</li>`).join("")}</ul></figure>`;
 }
 
 /** The passive mix's forward record on Wallex prices, beside the trend rule's. */
 function mixRecord(mix) {
   if (!mix) return "";
-  return `<h3 class="forward-title">${esc(t("mixTitle"))}</h3>` + keyValues([
+  return `<h4 class="forward-title">${esc(t("mixTitle"))}</h4>` + keyValues([
     [t("forwardDays"), `${num(mix.days)} · ${esc(t("mixSince"))} ${esc(mix.started)}`],
     [t("mixEquity"), `<span class="${signed(mix.net_pct)}">${digits(mix.equity)} USDT · ${digits(mix.net_pct)}%</span>`],
     [t("mixInvested"), `${digits(mix.invested_pct ?? "")}%`], [t("forwardLatest"), stampHtml(mix.latest)]]);
 }
 
-/** The best result after correcting for every trial run: a q-value near 1 means it is as likely luck as not. */
+/** Show the adjusted score without treating it as an individual probability of error. */
 function programmeLine(value) {
   if (!value) return "";
   return `<p class="field-help">${esc(t("programmeLine").replace("{best}", value.best).replace("{p}", digits(value.best_probability.toFixed(3)))
@@ -64,15 +86,29 @@ function programmeLine(value) {
 /** The prospective record beside the historical verdict it follows; amounts only, no profit claim. */
 function forwardRecord(forward, historical, kinds) {
   if (!forward) return "";
-  const usdt = value => value == null ? esc(t("unavailable")) : `<span class="${signed(value)}">${digits(rounded(value, 2))} USDT</span>`;
-  return `<h3 class="forward-title">${esc(t("forwardTitle"))}</h3>` + keyValues([
+  return `<h4 class="forward-title">${esc(t("forwardTitle"))}</h4>${forwardComparison(forward)}` + keyValues([
     [t("forwardHistorical"), historical ? chip(t(`verdict${historical.verdict}`), kinds[historical.verdict]) : esc(t("none"))],
     [t("forwardDays"), esc(t("forwardDaysValue").replace("{days}", forward.days).replace("{missing}", forward.missing_days).replace("{withheld}", forward.withheld))],
     [t("forwardTrades"), `${num(forward.trades)} · ${digits(rounded(forward.fees, 2))} USDT ${esc(t("forwardFees"))}`],
-    [t("forwardVsUsdt"), usdt(forward.net)],
-    [t("forwardVsHold").replace("{coin}", forward.symbol.replace(/USDT$/, "")), usdt(forward.hold_net)],
     [t("forwardLatest"), stampHtml(forward.latest)],
   ]);
+}
+
+function forwardComparison(forward) {
+  const rows = [[t("forwardStrategy"), forward.net], [t("forwardCash"), "0"],
+    [t("forwardVsHold").replace("{coin}", forward.symbol.replace(/USDT$/, "")), forward.hold_net]];
+  const values = rows.map(([, value]) => value == null ? NaN : Number(value));
+  const scale = Math.max(0, ...values.filter(Number.isFinite).map(Math.abs)) || 1;
+  return `<figure class="trial-outcomes"><figcaption>${esc(t("forwardChange"))}</figcaption><ul class="forward-comparison">`
+    + rows.map(([label, value], i) => {
+      const delta = values[i], valid = Number.isFinite(delta);
+      const width = valid ? 50 * Math.abs(delta) / scale : 0;
+      const x = delta < 0 ? 50 - width : 50;
+      return `<li><span>${esc(label)}</span><bdi>${valid ? esc(num(value)) : esc(t("unavailable"))}</bdi>`
+        + `<svg viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true"><rect class="forward-track" width="100" height="12"/>`
+        + `<rect class="${delta < 0 ? "trial-FAIL" : "trial-PASS"}" x="${x}" width="${width}" height="12"/>`
+        + `<line class="forward-zero" x1="50" x2="50" y1="0" y2="12"/></svg></li>`;
+    }).join("") + `</ul><p class="field-help">${esc(t("forwardHoldNoCosts"))}</p></figure>`;
 }
 
 /** Summarize qualified markets and saved paper evidence without making profit claims. */

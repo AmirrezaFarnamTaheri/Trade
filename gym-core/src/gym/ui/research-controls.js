@@ -120,7 +120,7 @@ async function research() {
   renderRunList();
   if (state.savedComparison) return;
   if (!state.selectedRun) {
-    setHTML("run-detail", `<section class="panel">${empty(t("noRuns"), t("noRunsHelp"))}<div class="actions"><button type="button" class="button button-primary" data-goto-tab="compare">${esc(t("startCompare"))}</button></div><p class="field-help">${esc(t("demoRunHelp"))}</p><pre class="output mono" dir="ltr">uv run gymctl demo-seed\nuv run gymctl paper BTCTMN --demo</pre></section>`);
+    setHTML("run-detail", `<section class="panel">${empty(t("noRuns"), t("noRunsHelp"))}<div class="actions"><button type="button" class="button button-primary" data-goto-tab="compare">${esc(t("startCompare"))}</button></div></section>`);
     return;
   }
   if (state.record?.run_id === state.selectedRun) { renderRun(state.record); return; }

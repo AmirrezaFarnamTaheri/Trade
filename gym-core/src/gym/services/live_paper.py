@@ -90,7 +90,11 @@ async def watch(db, root, symbol, duration, resolution, cash, demo=False, subscr
                "baselines": {}, "fx": None, "numeraire": result["quote"],
                "outputs_digest": digest(result)[:16],
                "warnings": ["Live paper session: baselines/USDT attribution require a separate matched replay.",
-                            "Assumed example fees; no depth/queue-position model; no capital authorization."]}
+                            "Live paper uses top-of-book fills, not book depth or queue position; no capital authorization."]}
+        if session.cost.zero_fee:
+            out["warnings"].append("Zero-fee catalogue flag at session start; later changes are not modeled.")
+        elif not (cost.calibration or {}).get("fee_source"):
+            out["warnings"].append("No observed account fee applied; fees use the configured or fallback rate.")
         if demo:
             out["warnings"].append("DEMO: never gate evidence.")
         if session.execution_limits is not None:
