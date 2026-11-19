@@ -97,18 +97,7 @@ function forwardRecord(forward, historical, kinds) {
 function forwardComparison(forward) {
   const rows = [[t("forwardStrategy"), forward.net], [t("forwardCash"), "0"],
     [t("forwardVsHold").replace("{coin}", forward.symbol.replace(/USDT$/, "")), forward.hold_net]];
-  const values = rows.map(([, value]) => value == null ? NaN : Number(value));
-  const scale = Math.max(0, ...values.filter(Number.isFinite).map(Math.abs)) || 1;
-  return `<figure class="trial-outcomes"><figcaption>${esc(t("forwardChange"))}</figcaption><ul class="forward-comparison">`
-    + rows.map(([label, value], i) => {
-      const delta = values[i], valid = Number.isFinite(delta);
-      const width = valid ? 50 * Math.abs(delta) / scale : 0;
-      const x = delta < 0 ? 50 - width : 50;
-      return `<li><span>${esc(label)}</span><bdi>${valid ? esc(num(value)) : esc(t("unavailable"))}</bdi>`
-        + `<svg viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true"><rect class="forward-track" width="100" height="12"/>`
-        + `<rect class="${delta < 0 ? "trial-FAIL" : "trial-PASS"}" x="${x}" width="${width}" height="12"/>`
-        + `<line class="forward-zero" x1="50" x2="50" y1="0" y2="12"/></svg></li>`;
-    }).join("") + `</ul><p class="field-help">${esc(t("forwardHoldNoCosts"))}</p></figure>`;
+  return netBars(rows, t("forwardChange"), t("forwardHoldNoCosts"));
 }
 
 /** Summarize qualified markets and saved paper evidence without making profit claims. */

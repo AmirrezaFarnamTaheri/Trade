@@ -277,6 +277,10 @@ svg.tracking .chart-cursor { opacity: .7; }
 .forward-comparison { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .forward-comparison li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; }
 .forward-comparison li svg { grid-column: 1 / -1; }
+.forward-comparison li bdi { overflow-wrap: anywhere; }
+.run-benchmark { max-inline-size: 64ch; }
+.run-benchmark .trial-outcomes { margin-block-start: 8px; }
+#run-detail [data-key="run-benchmarks"] > summary { min-height: 44px; padding-block: 12px; }
 .forward-track { --trial-color: var(--surface-raised); }
 .forward-zero { stroke: var(--text-muted); vector-effect: non-scaling-stroke; }
 .trial-counts { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; padding: 0; margin: 8px 0 0; }

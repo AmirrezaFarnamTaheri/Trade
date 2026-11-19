@@ -6,6 +6,21 @@ const tick = value => new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en-GB", M
   ? { notation: "compact", maximumFractionDigits: 2 } : { maximumFractionDigits: 2 }).format(value);
 const chartData = new Map();  // chart id -> points with x in viewBox units, for the read-out
 let chartCount = 0;
+function netBars(rows, title, note) {
+  const values = rows.map(([, raw]) => raw == null || raw === "" ? NaN : Number(raw));
+  const scale = Math.max(0, ...values.filter(Number.isFinite).map(Math.abs)) || 1;
+  return `<figure class="trial-outcomes"><figcaption>${esc(title)}</figcaption><ul class="forward-comparison">`
+    + rows.map(([label, raw], i) => {
+      const value = values[i];
+      const valid = Number.isFinite(value);
+      const width = valid ? 50 * (Math.abs(value) / scale) : 0;
+      const x = value < 0 ? 50 - width : 50;
+      return `<li><span>${esc(label)}</span>${valid ? amount(raw) : `<bdi>${esc(t("unavailable"))}</bdi>`}`
+        + (valid ? `<svg viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true"><rect class="forward-track" width="100" height="12"/>`
+          + `<rect class="${value < 0 ? "trial-FAIL" : "trial-PASS"}" x="${x}" width="${width}" height="12"/>`
+          + `<line class="forward-zero" x1="50" x2="50" y1="0" y2="12"/></svg>` : "") + "</li>";
+    }).join("") + `</ul><p class="field-help">${esc(note)}</p></figure>`;
+}
 function chartPoints(curve) {
   return list(curve).filter(point => Array.isArray(point) && point.length > 1 && point[1] != null && point[1] !== "" && Number.isFinite(Number(point[1])) && Number.isFinite(Date.parse(point[0])))
     .map(point => ({ t: point[0], ms: Date.parse(point[0]), raw: String(point[1]), v: Number(point[1]) }));

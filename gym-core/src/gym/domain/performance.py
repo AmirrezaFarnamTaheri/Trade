@@ -195,11 +195,18 @@ def _bootstrap(returns: list[float], seed: int = 0) -> dict:
     sims = max(100, min(500, 400_000 // n))
     block = max(1, round(n ** (1 / 3)))
     rng, sharpes, totals = Random(seed), [], []
+    restart = 1 / block
+    random, randrange = rng.random, rng.randrange
     for _ in range(sims):
-        sample, index = [], rng.randrange(n)
+        sample, index = [], randrange(n)
         for _ in range(n):
             sample.append(returns[index])
-            index = rng.randrange(n) if rng.random() < 1 / block else (index + 1) % n
+            if random() < restart:
+                index = randrange(n)
+            else:
+                index += 1
+                if index == n:
+                    index = 0
         mu = fmean(sample)
         sd = math.sqrt(sum((r - mu) ** 2 for r in sample) / (n - 1))
         sharpes.append(mu / sd if sd else 0.0)
@@ -436,9 +443,12 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         "exposure": _exposure(filled, start, end, result.get("base") or ""),
         "open_position": ledger["open"],
     }
-    if wins and losses and len(trades) >= 20:
-        win_rate, payoff = len(wins) / len(trades), float(gross_win / len(wins)) / float(gross_loss / len(losses))
+    nonflat = len(wins) + len(losses)
+    if wins and losses and nonflat >= 20:
+        win_rate = len(wins) / nonflat
+        payoff = float((gross_win / len(wins)) / (gross_loss / len(losses)))
         stats["kelly_fraction"] = round(max(0.0, win_rate - (1 - win_rate) / payoff), 4)
+        stats["kelly_trades"] = nonflat
     out["trades"] = stats
     out["activity"] = _activity(out, result, stats)
     out["abstentions"] = _abstentions(result)

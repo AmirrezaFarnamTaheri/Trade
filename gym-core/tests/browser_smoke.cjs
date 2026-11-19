@@ -212,6 +212,31 @@ function stop(child) {
   assert.equal(comparison.runs[0].inputs.snapshots, comparison.runs[1].inputs.snapshots);
   await until(() => evaluate('document.querySelector("#compare-result").textContent.includes("ema-trend")'), 'rendered paper result');
   await screenshot('research-desktop.png');
+  await evaluate(`location.hash = '#research/runs/${comparison.runs[0].run_id}'`);
+  await until(() => evaluate('!!document.querySelector("#run-detail .run-benchmark")'), 'saved demo run benchmark');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('#run-detail .run-benchmark li svg line')].map(line => line.getAttribute('x1'))`), ['50', '50']);
+  assert.equal(await evaluate('Number(document.querySelector("#run-detail .run-benchmark li:last-child bdi").textContent)'), 0);
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-desktop-en.png');
+  await evaluate(`(() => {
+    const summary = document.querySelector('[data-key="run-benchmarks"] summary');
+    summary.focus(); summary.click(); renderRun(state.record);
+  })()`);
+  assert.ok(await evaluate('document.querySelector("[data-key=run-benchmarks]").open && document.activeElement.dataset.focus === "run-benchmarks"'));
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-details-en.png');
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await evaluate(`document.querySelector('#language-toggle').click();
+    if (document.documentElement.dataset.theme !== 'dark') document.querySelector('#theme-toggle').click();
+    document.querySelector('[data-key="run-benchmarks"]').open = false;
+    document.querySelector('.run-benchmark').closest('section').scrollIntoView();`);
+  assert.ok(await evaluate(`document.documentElement.dir === 'rtl' && document.documentElement.scrollWidth <= innerWidth + 1 &&
+    document.querySelector('[data-key="run-benchmarks"] summary').getBoundingClientRect().height >= 44`));
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-mobile-fa-dark.png');
+  await evaluate(`renderRun({ ...state.record, baselines: {} }); document.querySelector('[data-key="run-benchmarks"]').closest('section').scrollIntoView()`);
+  assert.ok(await evaluate(`!document.querySelector('.run-benchmark') && document.querySelector('#run-detail').textContent.includes(t('baselineMissing'))`));
+  if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-unavailable-fa.png');
+  await send('Emulation.clearDeviceMetricsOverride');
+  await evaluate(`document.querySelector('#language-toggle').click(); document.querySelector('#theme-toggle').click();
+    document.querySelector('#tab-compare').click();`);
   await send('Page.reload');
   await until(() => evaluate('document.querySelector("#compare-fee")?.value === "0.001" && !document.querySelector("#comparison-fields")?.disabled'), 'persisted research inputs');
   const theme = await evaluate('document.documentElement.dataset.theme');

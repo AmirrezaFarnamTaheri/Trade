@@ -11,7 +11,7 @@ function performancePanel(perf, quote) {
     [t("profitFactor"), ratio(tr.profit_factor)], [t("expectancy"), `${money(tr.expectancy)} ${code(quote)}`],
     [t("avgWin"), money(tr.average_win)], [t("avgLoss"), money(tr.average_loss)], [t("avgHolding"), ratio(tr.average_holding_hours, 1)],
     [t("losingStreak"), num(tr.longest_losing_streak)], [t("turnover"), `${num(rounded(tr.turnover, 2))}×`], [t("exposure"), percent(tr.exposure, 0)],
-    ...(tr.kelly_fraction != null ? [[t("kelly"), `${percent(tr.kelly_fraction)} <small class="muted">${digits(tr.closed_trades ?? 0)} ${esc(t("closedTrades"))}</small>`]] : []), [t("openPosition"), amount(tr.open_position?.quantity)],
+    ...(tr.kelly_fraction != null && tr.kelly_trades != null ? [[t("kelly"), `${percent(tr.kelly_fraction)} <small class="muted">${digits(tr.kelly_trades)} ${esc(t("kellySample"))}</small>`]] : []), [t("openPosition"), amount(tr.open_position?.quantity)],
     [t("avgCostPnl"), money(tr.average_cost_realized_pnl)]];
   const activity = perf.activity;
   if (activity) rows.push([t("holdReturn"), pct(activity.hold_return_pct)], [t("matchedHold"), pct(activity.exposure_matched_hold_pct)],
@@ -70,6 +70,11 @@ function renderRun(record) {
   const costs = entries.length ? keyValues(entries.map(([key, value]) => [t(key), `<span class="${signed(value)}">${amount(value)}</span>`])) : empty(t("noCost"));
   const baselines = Object.entries({ strategy: result, ...(record.baselines || {}) }).map(([name, baseline]) => [esc(name),
     baseline.end ? `${money(baseline.end.net)} ${code(quote)}` : `${esc(t("unavailable"))}<span class="sub">${esc(baseline.unavailable || "")}</span>`, money(baseline.end?.net_usdt_eq), num(baseline.fills)]);
+  const usdtKey = quote === "USDT" ? "net" : "net_usdt_eq";
+  const benchmarkRows = [[t("baselineStrategy"), end[usdtKey]], [t("baselineHold"), record.baselines?.["hold USDT"]?.end?.[usdtKey]]];
+  const benchmarkChart = benchmarkRows.every(([, value]) => typeof value === "string" && value !== "" && Number.isFinite(Number(value)))
+    ? `<div class="run-benchmark">${netBars(benchmarkRows, t(quote === "USDT" ? "baselineNet" : "baselineNetConverted"), t("baselineNote"))}</div>`
+    : `<p class="field-help">${esc(t("baselineMissing"))}</p>`;
   const ranking = record.ranking || {};
   const evidence = record.evidence;
   const orders = new Map(list(result.orders).map(order => [order.ref, order]));
@@ -79,10 +84,12 @@ function renderRun(record) {
   const decisionHeads = [t("time"), t("decisionAction"), t("reasons"), t("status")];
   setHTML("run-detail", `<header class="run-heading"><div><h2>${code(result.symbol || inputs.symbol)} <span class="muted">${esc(result.strategy || "")}</span></h2><p class="field-help">${stampHtml(inputs.from)} → ${stampHtml(inputs.to)} · ${code(inputs.resolution)} · ${code(result.session?.state || record.mode || "PAPER")} · ${esc(inputs.store === "demo" ? t("synthetic") : t("paperOnly"))}</p></div>${chip(t("noCapital"))}</header>
     <div class="stats stats-4">${stat(t("equity"), `${money(end.equity)} <small>${esc(quote)}</small>`)}${stat(t("net"), `<span class="${signed(end.net)}">${money(end.net)}</span> <small>${esc(quote)}</small>`)}${stat(t("fills"), num(result.fills))}${stat(t("observations"), `${num(result.qualified)} <small>/ ${num(result.observations)}</small>`)}</div>
+    <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3>${benchmarkChart}
+      <details class="disclosure" data-key="run-benchmarks"><summary data-focus="run-benchmarks">${esc(t("baselineDetails"))}</summary>
+      ${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines, "", [1, 2, 3])}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</details></section>
     <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
     ${valuationPanel(result)}${performancePanel(evidence?.performance, quote)}
     <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${why}${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${stampHtml(end.mark_time)}</p></section>
-    <section class="panel"><h3 class="panel-title">${esc(t("baselineTitle"))}</h3><p class="field-help">${esc(t("baselineNote"))}</p>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines, "", [1, 2, 3])}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), money(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"), [2, 3])}
       ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), money(row.net_quote), money(row.net_usdt_eq)]), "", [1, 2])}` : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("evidenceTitle"))}</h3>${evidence ? `<p>${esc(evidence.primary_limitation)}</p>${keyValues([[t("roundTrips"), num(evidence.completed_round_trips)], [t("claimCeiling"), code(evidence.claim_ceiling)], [t("evidenceGate"), esc(t(evidence.gate_eligible === true ? "yes" : "no"))]])}` : `<p>${esc(t("noEvidence"))}</p>`}

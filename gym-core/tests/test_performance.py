@@ -101,6 +101,23 @@ def test_economic_report_counts_every_closed_trade_not_only_the_last_buy():
     assert perf["trades"]["turnover"] == "0.6600"
 
 
+@pytest.mark.parametrize(("wins", "flat"), [(12, 0), (12, 4), (12, 16), (11, 10)])
+def test_kelly_estimate_does_not_treat_break_even_as_a_loss(wins, flat):
+    prices = ["120"] * wins + ["90"] * 8 + ["100"] * flat
+    orders = [order for i, price in enumerate(prices)
+              for order in (fill("BUY", "1", "100", "0", 2 * i), fill("SELL", "1", price, "0", 2 * i + 1))]
+    out = {"inputs": {"from": iso(START), "to": iso(START + timedelta(hours=2))},
+           "result": {"quote": "USDT", "base": "BTC", "start_cash": "1000", "orders": orders}}
+    trades = performance(out)["trades"]
+    assert trades["win_rate"] == round(wins / len(prices), 4)
+    if wins == 12:
+        assert trades["kelly_fraction"] == 0.4
+        assert trades["kelly_trades"] == 20
+    else:
+        assert "kelly_fraction" not in trades
+        assert "kelly_trades" not in trades
+
+
 def test_equity_path_statistics_and_annualization_guard():
     curve = [(iso(START + timedelta(hours=i)), str(1000 + (5 if i % 2 else -3) * i)) for i in range(1, 49)]
     out = {"inputs": {"from": iso(START), "to": iso(START + timedelta(hours=49))},
