@@ -3,6 +3,12 @@ $("zone-toggle").onclick = () => { zone = zone === "UTC" ? "Asia/Tehran" : "UTC"
 $("theme-toggle").onclick = () => { theme = theme === "light" ? "dark" : "light"; remember("theme", theme); applyLang(); };
 $("refresh-data").onclick = () => refresh();
 $("retry").onclick = () => refresh();
+$("overview-answer").onchange = event => {
+  if (event.target.id !== "trial-verdict-filter") return;
+  state.trialVerdict = event.target.value;
+  remember("trialVerdict", state.trialVerdict);
+  renderAnswer();
+};
 
 $("demo-banner").hidden = !DEMO;
 $("session-key-missing").hidden = Boolean(TOKEN);

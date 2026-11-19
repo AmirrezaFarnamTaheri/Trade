@@ -84,3 +84,37 @@ def test_registry_builds_named_members_and_hashes_the_blend():
         create_strategy("signal-blend", {"members": "lead-lag,ema-trend"})
     with pytest.raises(ValueError, match="exit_pct"):
         create_strategy("signal-blend", {"enter_pct": 50, "exit_pct": 60})
+
+
+def test_donchian_remembers_a_breakout_during_a_long_plateau():
+    from gym.domain.blend_strategies import SignalMember
+
+    member = SignalMember("donchian")
+    for close in [100] * 20 + [101] * 510:
+        bar = SimpleNamespace(close=Decimal(close), high=Decimal(close), low=Decimal(close), volume=Decimal(1))
+        action = member.decide(SimpleNamespace(bar=bar), False)[0]
+    assert action == "BUY_REQUEST"
+
+
+def test_signal_members_match_batch_signals():
+    import random
+    from datetime import UTC, datetime, timedelta
+
+    from gym.domain.blend_strategies import SIGNAL_MEMBERS, SignalMember
+    from gym.domain.signals import SIGNALS
+
+    rng = random.Random(7)
+    closes, price = [], 100.0
+    for _ in range(1200):  # more than twice the 500-bar window
+        price *= 1 + rng.gauss(0.0005, 0.02)
+        closes.append(price)
+    for name in SIGNAL_MEMBERS:
+        member, full = SignalMember(name), SIGNALS[name]
+        history = {"close": [], "high": [], "low": [], "volume": []}
+        for i, c in enumerate(closes):
+            bar = SimpleNamespace(close=Decimal(str(c)), high=Decimal(str(c * 1.01)), low=Decimal(str(c * 0.99)),
+                                  volume=Decimal(str(1000 + i % 37)), start=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=i))
+            for key, value in (("close", bar.close), ("high", bar.high), ("low", bar.low), ("volume", bar.volume)):
+                history[key].append(float(value))
+            member.decide(SimpleNamespace(bar=bar, bid=Decimal(1), ask=Decimal(1)), False)
+            assert member.last == full(history)[-1], (name, i)

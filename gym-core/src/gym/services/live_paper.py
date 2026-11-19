@@ -13,6 +13,14 @@ from .rules import RuleService
 from .session import ENGINE_VERSION, PaperSession
 
 
+def _fee_warnings(session_cost, configured_cost):
+    if session_cost.zero_fee:
+        return ["Zero-fee catalogue flag at session start; later changes are not modeled."]
+    if not (configured_cost.calibration or {}).get("fee_source"):
+        return ["No observed account fee applied; fees use the configured or fallback rate."]
+    return []
+
+
 async def watch(db, root, symbol, duration, resolution, cash, demo=False, subscriptions=(),
                 cost=None, strategy_id="ema-trend", params=None):
     if duration <= 0:
@@ -90,7 +98,8 @@ async def watch(db, root, symbol, duration, resolution, cash, demo=False, subscr
                "baselines": {}, "fx": None, "numeraire": result["quote"],
                "outputs_digest": digest(result)[:16],
                "warnings": ["Live paper session: baselines/USDT attribution require a separate matched replay.",
-                            "Assumed example fees; no depth/queue-position model; no capital authorization."]}
+                            "Live paper uses top-of-book fills, not book depth or queue position; no capital authorization."]}
+        out["warnings"].extend(_fee_warnings(session.cost, cost))
         if demo:
             out["warnings"].append("DEMO: never gate evidence.")
         if session.execution_limits is not None:

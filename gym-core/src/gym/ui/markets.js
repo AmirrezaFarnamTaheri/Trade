@@ -23,6 +23,20 @@ function verdictDetails(title, verdict) {
       [t("quotaRemaining"), amount(verdict.quota_remaining)], [t("ruleVersion"), num(verdict.ruleset_version)]])}
     <p class="field-help">${esc(t("changeNote"))}</p></section>`;
 }
+function depthFigure(market) {
+  const bands = list(market.liquidity?.bands);
+  if (market.liquidity?.status !== "AVAILABLE" || !bands.length) return empty(t("depthMissing"));
+  const scale = Math.max(0, ...bands.flatMap(band => [Number(band.bid_base), Number(band.ask_base)]));
+  const bar = (value, side) => {
+    const width = Number.isFinite(scale) && scale > 0 ? Math.max(0, Number(value) / scale * 100) : 0;
+    return `<svg class="depth-track ${side}" aria-hidden="true" viewBox="0 0 100 8" preserveAspectRatio="none"><rect width="100" height="8"/><rect width="${width}" height="8"/></svg>`;
+  };
+  return `<figure class="depth-figure"><figcaption class="field-help">${esc(t("depthNote"))} ${code(market.base)}</figcaption>
+    <div class="depth-grid" role="table" aria-label="${esc(t("observedDepth"))}">
+      <div class="depth-row depth-heading" role="row"><span role="columnheader">${esc(t("depthBand"))}</span><span role="columnheader">${esc(t("bidDepth"))}</span><span role="columnheader">${esc(t("askDepth"))}</span></div>
+      ${bands.map(band => `<div class="depth-row" role="row"><strong role="rowheader"><bdi>${esc(digits(band.width_bps / 100))}%</bdi></strong><span role="cell">${amount(band.bid_base)}${bar(band.bid_base, "depth-bid")}</span><span role="cell">${amount(band.ask_base)}${bar(band.ask_base, "depth-ask")}</span></div>`).join("")}
+    </div></figure>`;
+}
 function renderMarkets() {
   const data = state.markets;
   if (!data) return;
@@ -85,7 +99,7 @@ function renderMarkets() {
       ${expanded ? `<tr class="market-detail-row"><td colspan="8"><section class="market-detail" id="${esc(id)}" aria-label="${esc(t("pairDetails") + " " + market.symbol)}">
         ${keyValues([[t("bestBidQuantity"), `${amount(market.bid_qty)} ${code(market.base)}`], [t("bestAskQuantity"), `${amount(market.ask_qty)} ${code(market.base)}`],
           [t("absoluteSpread"), `${amount(market.spread)} ${code(market.quote)}`], ...(market.unit ? [[t("unitEpoch"), `${code(market.unit.code)} · ${num(market.unit.epoch)}`]] : [])])}
-        <h3>${esc(t("observedDepth"))}</h3><p class="field-help">${esc(t("depthNote"))}</p>${market.liquidity?.status === "AVAILABLE" ? table([t("depthBand"), `${t("bidDepth")} · ${market.base}`, `${t("askDepth")} · ${market.base}`, t("imbalance")], market.liquidity.bands.map(band => [num(band.width_bps), amount(band.bid_base), amount(band.ask_base), amount(band.imbalance)])) : empty(t("unavailable"))}
+        <section class="depth-section"><div class="depth-title"><h3>${esc(t("observedDepth"))}</h3>${data.demo ? chip(t("demoLabel"), "warn") : ""}</div>${depthFigure(market)}</section>
         <div class="detail-grid">${verdictDetails(t("entry"), market.act?.entry)}${verdictDetails(t("exit"), market.act?.exit)}</div></section></td></tr>` : ""}`;
   }).join(""));
 }

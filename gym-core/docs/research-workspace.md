@@ -33,6 +33,22 @@ JSON workbench for the full schema. After uncertain delivery, inspect the saved 
 before another mutation. A completed calculation does not establish transferability,
 settlement, real fills, independent evaluation custody or prospective profitability.
 
+## Compare a saved run with holding USDT
+
+Open a saved run to see its net result next to holding USDT over the same window.
+The bars share a zero line. Runs quoted in another currency use the saved USDT
+conversion for both values. If either value is missing, no bars appear. Open
+**All comparisons and exchange rates** for the other benchmarks and any saved
+conversion details.
+
+## Paper-run sizing estimate
+
+The Runs page reports a simple Kelly estimate from average gains and losses in
+quote currency. Break-even closes count in the displayed win rate, but not in
+this estimate. The estimate needs at least 20 closes with a gain or loss and at
+least one of each. Older reports without the sample count do not show it. This
+statistic does not set order size or replace the fractional-sizing diagnostic.
+
 ## Entry risk and fractional sizing
 
 `entry_risk_bps` is 0..200 and requires a positive `exit_stop_bps` when enabled.

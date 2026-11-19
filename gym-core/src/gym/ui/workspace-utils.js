@@ -34,7 +34,7 @@ function systemTheme() {
 let theme = saved("theme", systemTheme(), ["light", "dark"]);
 /** Timestamps follow a stored zone preference (Tehran, the venue's calendar, or UTC, as exports use). */
 let zone = saved("zone", "Asia/Tehran", ["Asia/Tehran", "UTC"]);
-const state = { view: "overview", markets: null, quote: "", filter: "", expanded: "", overviewRuns: null, runs: [], runOffset: 0, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
+const state = { view: "overview", trialVerdict: saved("trialVerdict", "", ["", "PASS", "NARROW_PASS", "FAIL", "OPEN"]), markets: null, quote: "", filter: "", expanded: "", overviewRuns: null, runs: [], runOffset: 0, runFilter: "", pickedRuns: new Set(), overlays: new Map(),
   selectedRun: "", record: null, health: null, rules: null, apiError: false, savingRules: false,
   researchSetup: null, researchState: null, researchBusy: false, comparison: null, comparing: false, candidateParams: {} };
 let comparisonRevision = 0;

@@ -20,7 +20,6 @@ from .common import (
     _strict_offline_json,
     open_db,
     store_root,
-    timedelta_ms,
 )
 
 
@@ -440,17 +439,18 @@ def evidence_cmd(args):
 
 def session_cmd(args):
     """Start a bounded paper session with no funded execution authority."""
-    from ..domain.sim import CostModel
+    from ..services.cost_defaults import calibrated_cost
     from ..services.live_paper import watch
 
     if not (store_root(args) / "market.db").exists():
         raise ValueError("start the collector first")
-    cash = Decimal(args.cash or (300_000_000 if args.symbol.upper().endswith("TMN") else 1000))
+    root, symbol = store_root(args), args.symbol.upper()
+    cash = Decimal(args.cash or (300_000_000 if symbol.endswith("TMN") else 1000))
     subscriptions = tuple(x.strip() for x in args.subscribe.split(",") if x.strip())
-    cost = CostModel(Decimal(args.fee), timedelta_ms(args.latency_ms))
+    cost = calibrated_cost(root, symbol, fee=args.fee, latency_ms=args.latency_ms)
     db = open_db(args)
     try:
-        asyncio.run(watch(db, store_root(args) / "runs", args.symbol.upper(), args.seconds,
+        asyncio.run(watch(db, root / "runs", symbol, args.seconds,
                           args.res, cash, args.demo, subscriptions, cost,
                           strategy_id=args.strategy, params=json.loads(args.params) if args.params else None))
     finally:

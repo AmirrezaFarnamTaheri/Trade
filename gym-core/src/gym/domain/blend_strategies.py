@@ -23,6 +23,8 @@ RULES = ("ema-trend", "sma-cross", "sma-reversion", "bollinger-reversion", "rsi-
 # Signed bar signals from domain/signals.py; on spot a short condition means cash.
 SIGNAL_MEMBERS = ("ema-cross", "tsmom", "donchian", "efficiency", "obv", "rsi-reversion")
 MEMBERS = RULES + SIGNAL_MEMBERS
+WINDOWED_SIGNALS = {"tsmom", "efficiency", "donchian"}
+WINDOW_BARS = 21
 TARGET = {"BUY_REQUEST": True, "SELL_REQUEST": False}
 
 
@@ -95,13 +97,18 @@ class SignalMember:
     def __init__(self, name):
         from .signals import SIGNALS
         self.name, self.signal, self.params = name, SIGNALS[name], {}
-        self.bars = {"close": [], "high": [], "low": [], "volume": []}
+        self.closes = deque(maxlen=WINDOW_BARS if name in WINDOWED_SIGNALS else None)
+        self.volume = []
+        self.last = None
 
     def decide(self, snap, holding):
-        bar = snap.bar
-        for key, value in (("close", bar.close), ("high", bar.high), ("low", bar.low), ("volume", bar.volume)):
-            self.bars[key].append(float(value))
-        target = self.signal(self.bars)[-1]
+        self.closes.append(float(snap.bar.close))
+        if self.name == "obv":
+            self.volume.append(float(snap.bar.volume))
+        target = self.signal({"close": list(self.closes), "volume": self.volume})[-1]
+        if self.name == "donchian" and target == 0 and self.last is not None:
+            target = self.last
+        self.last = target
         if target is None:
             return "ABSTAIN_WARMUP", Decimal(0), ("signal warming up",), ""
         if target > 0 and not holding:

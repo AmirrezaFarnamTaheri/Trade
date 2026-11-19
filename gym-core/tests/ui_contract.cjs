@@ -42,6 +42,7 @@ class Element {
     }
   }
   get innerHTML() { return this._html; }
+  get options() { return this.querySelectorAll("option"); }
   setAttribute(key, value) {
     this.attributes[key] = String(value ?? "");
     if (key.startsWith("data-")) this.dataset[key.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = String(value ?? "");
@@ -371,6 +372,13 @@ const click = async id => {
   assert.ok(byId("run-detail").innerHTML.includes("83.123456789012345678"), "Chart rounding must not round the exact net statistic");
   assert.ok(byId("run-detail").innerHTML.includes("1.12345678"));
   assert.ok(byId("run-detail").innerHTML.includes('data-export-run="1234567890abcdef"'));
+  const tmn = { quote: "TMN", end: { net: "-9000000", net_usdt_eq: "-53.3627" } };
+  const holdUsdt = { end: { net: "2947495", net_usdt_eq: "-9.2665" } };
+  app.renderRun({ result: tmn, baselines: { "hold USDT": holdUsdt } });
+  const benchmarkHtml = byId("run-detail").innerHTML;
+  assert.match(benchmarkHtml, /class="run-benchmark"[\s\S]*-53\.3627[\s\S]*-9\.2665[\s\S]*data-key="run-benchmarks"/);
+  app.renderRun({ result: tmn, baselines: { "hold USDT": { end: { net: "0" } } } });
+  assert.doesNotMatch(byId("run-detail").innerHTML, /class="run-benchmark"/);
   for (const language of ["en", "fa"]) {
     if (sandbox.document.documentElement.lang !== language) await click("language-toggle");
     const result = {symbol:"BTCTMN",quote:"TMN",curve:[],valuation:{pair:"USDTTMN",basis:"<img> valuation",
@@ -384,6 +392,14 @@ const click = async id => {
     assert.ok(html.includes(language === "en" ? "123.000000000000001" : "۱۲۳.۰۰۰۰۰۰۰۰۰۰۰۰۰۰۱"));
     assert.ok(html.includes("&lt;img&gt; valuation"));
     assert.ok(!html.includes('<polyline class="chart-line"'), "Unavailable FX cannot be joined across missing marks");
+    for (const kelly_trades of [undefined, 20]) {
+      app.renderRun({inputs:{store:"live"},result,evidence:{performance:{status:"AVAILABLE",trades:{
+        closed_trades:36,kelly_fraction:0.4,kelly_trades,
+      }}}});
+      const runHtml = byId("run-detail").innerHTML;
+      const sample = language === "en" ? "20" : "۲۰";
+      assert.equal(runHtml.includes(`<small class="muted">${sample} ${app.T[language].kellySample}</small>`), kelly_trades === 20);
+    }
   }
   if (sandbox.document.documentElement.lang !== "en") await click("language-toggle");
   replies.set("/api/runs/1234567890abcdef/summary", {});

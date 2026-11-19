@@ -1,4 +1,6 @@
-# Portfolio lab: cross-section, volatility, market-neutral and strategy blends (2026-11-19)
+# Portfolio lab exploration (2026-11-19)
+
+These tables record the original exploration, not current model output. The lab now excludes a coin from the breadth calculation unless it has a complete daily price window. The first full window counts. The change does not alter the registered Wallex forward rule or its score.
 
 Exploration, not a trial. Binance daily candles before 2024-01-01, 279 coins with 120 or more days of history,
 2,328 days. The 2024-2026 days were not read. Script: `gym-core/scripts/portfolio_lab.py`; output

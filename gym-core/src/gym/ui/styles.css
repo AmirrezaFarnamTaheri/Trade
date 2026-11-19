@@ -178,7 +178,20 @@ table.data { width: 100%; border-collapse: collapse; font-size: 12px; }
 .token-mark { width: 31px; height: 31px; border-radius: 6px; border: 1px solid var(--border); color: var(--accent); background: var(--page); display: grid; place-items: center; font-size: 14px; font-weight: 700; }
 .market-table .is-expanded > td { background: var(--accent-soft); }
 .market-detail-row > td { background: var(--page); padding: 20px !important; }
-.market-detail { display: flex; flex-direction: column; gap: 16px; }
+.table-wrap:has(> .market-table) { container-type: inline-size; }
+.market-detail { display: flex; flex-direction: column; gap: 16px; position: sticky; inset-inline-start: 20px; max-inline-size: calc(100cqi - 40px); }
+.depth-section { border-block: 1px solid var(--border); padding-block: 16px; }
+.depth-title { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.depth-figure { margin: 8px 0 0; }
+.depth-grid { margin-block-start: 12px; }
+.depth-row { display: grid; grid-template-columns: minmax(64px, .65fr) repeat(2, minmax(0, 1fr)); align-items: center; gap: clamp(8px, 2vw, 24px); padding-block: 8px; font-variant-numeric: tabular-nums; border-block-end: 1px solid var(--border); }
+.depth-row:last-child { border-block-end: 0; }
+.depth-heading { color: var(--text-muted); font-size: 12px; }
+.depth-row [role="cell"] { min-inline-size: 0; overflow-wrap: anywhere; }
+.depth-track { display: block; inline-size: 100%; block-size: 6px; margin-block-start: 4px; border-radius: 2px; fill: var(--border); }
+.depth-track.depth-bid rect + rect { fill: var(--chart-blue); }
+.depth-track.depth-ask rect + rect { fill: var(--accent); }
+.depth-track:dir(rtl) { transform: scaleX(-1); }
 .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .detail-grid section { display: flex; flex-direction: column; gap: 12px; }
 .rule-references { margin: 0; padding-inline-start: 16px; display: grid; gap: 12px; }
@@ -257,10 +270,34 @@ svg.tracking .chart-cursor { opacity: .7; }
 .overview-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: start; }
 .overview-bottom { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; }
 .answer-panel { margin-block-end: 20px; } .answer-headline { font-size: 1.15rem; font-weight: 600; margin: 0 0 16px; max-width: 70ch; }
-.answer-panel .answer-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-block-end: 12px; } .answer-trials summary { cursor: pointer; padding-block: 8px; }
-.forward-title { font-size: 1rem; margin-block: 16px 8px; }
+.trial-outcomes { margin: 0 0 12px; }
+.trial-outcomes figcaption { font-size: .875rem; font-weight: 650; margin-block-end: 8px; }
+.trial-outcomes svg { display: block; width: 100%; height: 12px; border-radius: 2px; }
+[dir="rtl"] .trial-outcomes > svg { transform: scaleX(-1); }
+.forward-comparison { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.forward-comparison li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; }
+.forward-comparison li svg { grid-column: 1 / -1; }
+.forward-comparison li bdi { overflow-wrap: anywhere; }
+.run-benchmark { max-inline-size: 64ch; }
+.run-benchmark .trial-outcomes { margin-block-start: 8px; }
+#run-detail [data-key="run-benchmarks"] > summary { min-height: 44px; padding-block: 12px; }
+.forward-track { --trial-color: var(--surface-raised); }
+.forward-zero { stroke: var(--text-muted); vector-effect: non-scaling-stroke; }
+.trial-counts { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; padding: 0; margin: 8px 0 0; }
+.trial-counts li { display: inline-flex; align-items: baseline; gap: 4px; font-size: .875rem; }
+.trial-swatch { width: .6em; height: .6em; flex: none; background: var(--trial-color); border-radius: 2px; }
+.trial-outcomes rect { fill: var(--trial-color); }
+.trial-PASS { --trial-color: var(--positive); }
+.trial-NARROW_PASS { --trial-color: var(--caution); }
+.trial-FAIL { --trial-color: var(--negative); }
+.trial-OPEN { --trial-color: var(--text-muted); }
+.answer-trials summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
+.answer-trials summary:hover { text-decoration: underline; }
+.trial-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.trial-filter select { min-height: 44px; max-inline-size: 100%; }
+.trial-forward { border-block-start: 1px solid var(--border); margin-block-start: 12px; padding-block-start: 12px; }
+.forward-title { font-size: .875rem; margin-block: 16px 8px; }
 .answer-trials td { vertical-align: top; } .answer-trials td small { white-space: nowrap; } .answer-trials td:nth-child(2) { white-space: normal; }
-@media (max-width: 720px) { .answer-panel .answer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .overview-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .overview-stats .stat { padding: 16px 20px; }
 .safety-callout { background: var(--negative-soft); color: var(--negative); border-radius: 6px; padding: 16px; }
@@ -317,7 +354,9 @@ svg.tracking .chart-cursor { opacity: .7; }
   .search-field { max-width: none; flex-basis: 100%; } .segmented { width: 100%; } .segmented button { flex: 1; }
   .panel { padding: 16px; } .panel-title { font-size: 14px; } .board-footer { padding: 12px 16px; }
   .research { grid-template-columns: 1fr; } .run-panel { position: static; max-height: 210px; }
-  .detail-grid, #rule-rows { grid-template-columns: 1fr; }
+  .detail-grid, #rule-rows { grid-template-columns: minmax(0, 1fr); }
+  .market-detail-row > td { padding: 12px !important; }
+  .market-detail { inset-inline-start: 12px; max-inline-size: calc(100cqi - 24px); }
   .overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-stats .stat:nth-child(3) { border-inline-start: 0; } .overview-stats .stat:nth-child(n+3) { border-top: 1px solid var(--border); }
   .overview-stats .stat { padding: 16px; }
@@ -352,3 +391,4 @@ svg.tracking .chart-cursor { opacity: .7; }
 .replay-frame .chart-x { grid-row: 2; flex-wrap: wrap; overflow-wrap: anywhere; }
 #portfolio-form { display: grid; gap: 16px; min-width: 0; }
 .market-table th:first-child, .market-table tr:not(.market-detail-row) > td:first-child { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--surface); }
+.market-table tr.is-expanded > td:first-child { background: var(--accent-soft); }
