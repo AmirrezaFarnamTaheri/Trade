@@ -6,6 +6,7 @@ import json
 import math
 import sqlite3
 import sys
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -346,6 +347,28 @@ def mix_journal_cmd(args) -> int:
     db = open_db(args)
     try:
         print(json.dumps(run_mix_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
+    finally:
+        db.c.close()
+    return 0
+
+
+def breadth_journal_cmd(args) -> int:
+    """Append today's breadth-trend-forward decision and paper fills to its forward journal."""
+    from types import SimpleNamespace
+
+    from ..services.breadth_journal import run_breadth_day
+
+    if args.refresh:  # the decision needs yesterday's daily candle for every USDT market
+        reader = open_db(args)
+        try:
+            symbols = [r[0] for r in reader.c.execute("SELECT symbol FROM instruments WHERE quote='USDT' ORDER BY symbol")]
+        finally:
+            reader.c.close()
+        since = (now_utc() - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
+        history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None))
+    db = open_db(args)
+    try:
+        print(json.dumps(run_breadth_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
     finally:
         db.c.close()
     return 0
