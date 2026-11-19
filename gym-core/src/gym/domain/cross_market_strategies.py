@@ -54,6 +54,8 @@ class TomanPremium:
         times = [snap.quote_time, *[q.ts_avail for q in legs]]
         if max(times) - min(times) > timedelta(seconds=self.params["max_skew_seconds"]):
             return self.answer("ABSTAIN_REFERENCE_SKEW", "observed quote clocks exceed declared alignment bound")
+        if snap.execution is None or snap.execution.get("fee_rate") is None:
+            return self.answer("ABSTAIN_NO_EXECUTION_CONTEXT", "fee assumption required")
         fee = Decimal(snap.execution["fee_rate"])
         cost = (1 / (1 - fee)**2 - 1) * 10000 + self.params["conversion_cost_bps"]
         fair_bid, fair_ask = legs[0].bid * legs[1].bid, legs[0].ask * legs[1].ask
@@ -138,6 +140,8 @@ class LeadLag:
         else:
             self.history.append((snap.bar.close, (reference.bid + reference.ask) / 2))
             if len(self.history) == self.history.maxlen:
+                if snap.execution is None or snap.execution.get("fee_rate") is None:
+                    return "ABSTAIN_NO_EXECUTION_CONTEXT", Decimal(0), ("fee assumption required",), digest(self.feature_values)[:16]
                 primary = (snap.bar.close / self.history[-(self.params["lookback"] + 1)][0] - 1) * 10000
                 leader_end = self.history[-(self.delay_bars + 1)][1]
                 leader_start = self.history[-(self.delay_bars + self.params["lookback"] + 1)][1]

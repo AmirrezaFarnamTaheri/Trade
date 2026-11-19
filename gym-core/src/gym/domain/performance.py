@@ -293,7 +293,7 @@ def minimum_track_record_length(sharpe: float, skew: float, kurtosis: float, *,
 
 
 def _lo_factor(returns: list[float], periods_per_year: float, max_lags: int = 20) -> tuple[float | None, int]:
-    """Lo (2002) long-run variance with measured lags, zero beyond the capped sample."""
+    """Lo annualization with a Bartlett taper when the lag window is truncated."""
     if len(returns) < 3 or periods_per_year <= 0 or max_lags < 1:
         return None, 0
     avg = fmean(returns)
@@ -301,9 +301,12 @@ def _lo_factor(returns: list[float], periods_per_year: float, max_lags: int = 20
     total = sum(r * r for r in centered)
     if total <= 0:
         return None, 0
-    lags = min(max_lags, len(returns) - 1, max(0, math.ceil(periods_per_year) - 1))
+    horizon_lags = math.ceil(periods_per_year) - 1
+    lags = min(max_lags, len(returns) - 1, horizon_lags)
+    taper = 1 / (lags + 1) if lags < horizon_lags else 0
     factor = periods_per_year + 2 * sum(
-        (periods_per_year - k) * sum(map(mul, islice(centered, k, None), centered)) / total
+        (periods_per_year - k) * (1 - k * taper)
+        * sum(map(mul, islice(centered, k, None), centered)) / total
         for k in range(1, lags + 1)
     )
     return (factor if factor > 0 else None), lags
@@ -334,12 +337,14 @@ def _sharpe_block(returns: list[float], periods_per_year: float | None, *, enhan
     if enhanced:
         minimum = minimum_track_record_length(sharpe, skew, kurt) if sharpe is not None else None
         factor, used = _lo_factor(returns, periods_per_year) if periods_per_year else (None, 0)
+        truncated = bool(periods_per_year and used < math.ceil(periods_per_year) - 1)
+        method = "bartlett-autocorrelation/20-lag-cap" if truncated else "autocorrelation/full-horizon"
         result.update(minimum_track_record=minimum,
                       track_record_status="SUFFICIENT" if minimum is not None and len(returns) >= minimum
                       else "NOT_ENOUGH_DATA",
                       sharpe_annualized_lo=lo_annualized_sharpe(returns, periods_per_year) if periods_per_year else None,
-                      lo_lags_used=used, lo_lags_truncated=bool(periods_per_year and used < periods_per_year - 1),
-                      lo_method="autocorrelation/20-lag-cap" if factor else "UNAVAILABLE")
+                      lo_lags_used=used, lo_lags_truncated=truncated,
+                      lo_method=method if factor else "UNAVAILABLE")
     return result
 
 
@@ -380,7 +385,8 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     start, end = parse_ts(inputs["from"]), parse_ts(inputs["to"])
     cash = Decimal(result["start_cash"])
     final = result.get("end") if (result.get("end") or {}).get("equity") is not None else None
-    out: dict = {"status": "AVAILABLE", "currency": result["quote"], "starting_cash": str(cash), "window_days": (end - start).total_seconds() / 86400}
+    status = "PROVISIONAL" if final and final.get("valuation_status") == "STALE_VALUATION" else "AVAILABLE"
+    out: dict = {"status": status, "currency": result["quote"], "starting_cash": str(cash), "window_days": (end - start).total_seconds() / 86400}
 
     # Equity path: starting cash, each recorded mark, then the end mark.
     points = [(start, cash)] + [(parse_ts(t), Decimal(v)) for t, v in result.get("curve", [])]
@@ -393,6 +399,12 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
             points.append(terminal)
     returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(points) if a > 0]
     gaps = sorted((tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(points) if tb > ta)
+    if enhanced:
+        out["mark_spacing"] = {
+            "positive_intervals": len(gaps), "nonpositive_intervals": len(points) - 1 - len(gaps),
+            "median_seconds": median(gaps) if gaps else None,
+            "max_seconds": gaps[-1] if gaps else None,
+        }
     periods_per_year = YEAR_SECONDS / median(gaps) if gaps else None
     open_calendar = (market_open_annualization(start, end, median(gaps),
                      result.get("session", {}).get("skipped", []))
@@ -427,7 +439,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         streak = streak + 1 if p < 0 else 0
         longest = max(longest, streak)
     filled = [o for o in result.get("orders", []) if o.get("status") == "FILLED"]
-    turnover = sum((Decimal(o["qty"]) * Decimal(o["price"]) for o in filled), Decimal(0))
+    markets = result.get("markets") if inputs.get("kind") == "portfolio" else None
+    turnover_fills = (o for market in markets.values() for o in market["orders"]
+                      if o.get("status") == "FILLED") if markets is not None else filled
+    turnover = sum((Decimal(o["qty"]) * Decimal(o["price"]) for o in turnover_fills), Decimal(0))
     stats = {
         "closed_trades": len(trades), "winning": len(wins), "losing": len(losses),
         "win_rate": round(len(wins) / len(trades), 4) if trades else None,
@@ -440,7 +455,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         "average_holding_hours": round(fmean(t["holding_seconds"] for t in trades) / 3600, 3) if trades else None,
         "longest_losing_streak": longest,
         "turnover": str((turnover / cash).quantize(Decimal("0.0001"))),
-        "exposure": _exposure(filled, start, end, result.get("base") or ""),
+        "exposure": _exposure(filled, start, end, result.get("base") or "") if markets is None else None,
         "open_position": ledger["open"],
     }
     nonflat = len(wins) + len(losses)
@@ -451,6 +466,8 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         stats["kelly_trades"] = nonflat
     out["trades"] = stats
     out["activity"] = _activity(out, result, stats)
+    if markets is not None and out["activity"] is not None:
+        out["activity"]["turnover"] = stats["turnover"]
     out["abstentions"] = _abstentions(result)
     out["attribution"] = signal_attribution(result)
     out["ledger"] = trades

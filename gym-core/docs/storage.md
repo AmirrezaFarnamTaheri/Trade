@@ -49,7 +49,9 @@ commit in one SQLite transaction. A failed tick rolls back its normalized writes
 and restores its cached tops/unit state. Prospective readers use one read snapshot
 for the watermark, quotes, specifications and rules, and do not infer that a
 wall-clock deadline proves the collector has published through that time.
-Read-only opens require the current market schema (5). Upgrade older stores
+Market schema 6 adds indexes for trade event windows and cross-market quote
+windows. It does not rewrite observations.
+Read-only opens require the current market schema (6). Upgrade older stores
 through the normal writable open, after preserving a consistent backup; read-only
 access never runs migrations. Future schema versions are refused in both modes.
 DataPortal uses the current depth, publication and candle-vintage schema directly,

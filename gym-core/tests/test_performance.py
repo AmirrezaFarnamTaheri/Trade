@@ -8,6 +8,7 @@ from gym.domain.model import iso
 from gym.domain.performance import (
     deflated_sharpe,
     expected_max_sharpe,
+    lo_annualized_sharpe,
     performance,
     probabilistic_sharpe,
     sampled_drawdown,
@@ -16,6 +17,24 @@ from gym.domain.performance import (
 )
 from gym.services.reports import economic_report
 from tests.support import START
+
+
+def test_enhanced_performance_discloses_irregular_mark_spacing():
+    stamps = [START + timedelta(minutes=m) for m in (1, 2, 10)]
+    record = {
+        "inputs": {"from": iso(START), "to": iso(stamps[-1])},
+        "result": {"quote": "USDT", "start_cash": "100",
+                   "curve": [(iso(t), str(101 + i)) for i, t in enumerate(stamps)]},
+    }
+    assert performance(record, enhanced=True)["mark_spacing"] == {
+        "positive_intervals": 3, "nonpositive_intervals": 0,
+        "median_seconds": 60.0, "max_seconds": 480.0,
+    }
+
+
+def test_lo_annualization_tapers_lags_for_alternating_returns():
+    # A hard one-lag cutoff makes the variance factor negative for this series.
+    assert lo_annualized_sharpe([0.03, -0.01] * 50, 365, max_lags=1) == pytest.approx(84.298816)
 
 
 @pytest.mark.parametrize("result", [{}, {"start_cash": "1", "curve": []}])

@@ -6,7 +6,7 @@ import json
 import os
 import re
 import sqlite3
-from decimal import Decimal, DecimalException
+from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 
@@ -298,42 +298,42 @@ class _WorkspaceApi:
             raise ValueError("validation folds must be an integer from 1 to 5")
         if any(key in body and not isinstance(body[key], str) for key in ("symbol", "resolution", "rules_mode")):
             raise ValueError("comparison symbol, resolution and rules_mode must be strings")
+        if not all(isinstance(body.get(key), str) for key in ("from", "to")):
+            raise ValueError("zoned timestamp strings required")
+        cash_text = body.get("cash", "1000")
+        fee_text = body.get("fee_rate", os.environ.get("GYM_FEE_RATE", "0.001"))
+        if any(not isinstance(value, str) or len(value) > 64 or not re.fullmatch(r"[0-9]+(?:[.][0-9]+)?", value)
+               for value in (cash_text, fee_text)):
+            raise ValueError("bounded decimal strings required")
         try:
-            if not all(isinstance(body.get(key), str) for key in ("from", "to")):
-                raise ValueError("zoned timestamp strings required")
-            cash_text = body.get("cash", "1000")
-            fee_text = body.get("fee_rate", os.environ.get("GYM_FEE_RATE", "0.001"))
-            if any(not isinstance(value, str) or len(value) > 64 or not re.fullmatch(r"[0-9]+(?:[.][0-9]+)?", value)
-                   for value in (cash_text, fee_text)):
-                raise ValueError("bounded decimal strings required")
             start, end = parse_ts(body["from"]), parse_ts(body["to"])
-            cash, fee = Decimal(cash_text), Decimal(fee_text)
-            latency = body.get("latency_ms", 500)
-            if type(latency) is not int or not 0 <= latency <= 60000 or end > now_utc():
-                raise ValueError("invalid comparison bounds")
-            if not cash.is_finite() or cash <= 0:
-                raise ValueError("cash must be positive and finite")
-            from datetime import timedelta
-            participation = body.get("participation")
-            if participation is not None and (not isinstance(participation, str) or not re.fullmatch(r"0?\.[0-9]{1,6}|1(?:\.0+)?", participation)):
-                raise ValueError("participation must be a decimal string in (0, 1]")
-            flags = {key: body.get(key, False) for key in ("walk_depth", "carry_remainder")}
-            if any(type(value) is not bool for value in flags.values()):
-                raise ValueError("walk_depth and carry_remainder must be booleans")
-            sizing = {key: body.get(key) for key in ("max_fraction", "vol_target")}
-            if any(value is not None and (not isinstance(value, str) or not re.fullmatch(r"0?\.[0-9]{1,6}|1(?:\.0+)?", value))
-                   for value in sizing.values()):
-                raise ValueError("max_fraction and vol_target must be decimal strings in (0, 1]")
-            order_type, maker = body.get("order_type", "market"), body.get("maker_fee_rate")
-            if order_type not in ("market", "limit") or maker is not None and (
-                    not isinstance(maker, str) or not re.fullmatch(r"0?\.[0-9]{1,6}", maker)):
-                raise ValueError("order_type must be market or limit; maker_fee_rate a decimal string below 1")
-            cost = CostModel(fee, timedelta(milliseconds=latency), order_type=order_type,
-                             maker_fee_rate=Decimal(maker) if maker is not None else None,
-                             max_participation=Decimal(participation) if participation is not None else None, **flags,
-                             **{key: Decimal(value) for key, value in sizing.items() if value is not None})
-        except (ValueError, TypeError, KeyError, DecimalException):
-            raise ValueError("invalid comparison window, cash or costs") from None
+        except (ValueError, OverflowError):
+            raise ValueError("from and to must be zoned ISO timestamps") from None
+        cash, fee = Decimal(cash_text), Decimal(fee_text)
+        latency = body.get("latency_ms", 500)
+        if type(latency) is not int or not 0 <= latency <= 60000 or end > now_utc():
+            raise ValueError("invalid comparison bounds")
+        if not cash.is_finite() or cash <= 0:
+            raise ValueError("cash must be positive and finite")
+        from datetime import timedelta
+        participation = body.get("participation")
+        if participation is not None and (not isinstance(participation, str) or not re.fullmatch(r"0?\.[0-9]{1,6}|1(?:\.0+)?", participation)):
+            raise ValueError("participation must be a decimal string in (0, 1]")
+        flags = {key: body.get(key, False) for key in ("walk_depth", "carry_remainder")}
+        if any(type(value) is not bool for value in flags.values()):
+            raise ValueError("walk_depth and carry_remainder must be booleans")
+        sizing = {key: body.get(key) for key in ("max_fraction", "vol_target")}
+        if any(value is not None and (not isinstance(value, str) or not re.fullmatch(r"0?\.[0-9]{1,6}|1(?:\.0+)?", value))
+               for value in sizing.values()):
+            raise ValueError("max_fraction and vol_target must be decimal strings in (0, 1]")
+        order_type, maker = body.get("order_type", "market"), body.get("maker_fee_rate")
+        if order_type not in ("market", "limit") or maker is not None and (
+                not isinstance(maker, str) or not re.fullmatch(r"0?\.[0-9]{1,6}", maker)):
+            raise ValueError("order_type must be market or limit; maker_fee_rate a decimal string below 1")
+        cost = CostModel(fee, timedelta(milliseconds=latency), order_type=order_type,
+                         maker_fee_rate=Decimal(maker) if maker is not None else None,
+                         max_participation=Decimal(participation) if participation is not None else None, **flags,
+                         **{key: Decimal(value) for key, value in sizing.items() if value is not None})
         if self.market_path.resolve() != (self.runs.parent / "market.db").resolve():
             raise ValueError("comparison market/run stores must share a root")
         normalized = {"symbol": body.get("symbol"), "from": iso(start), "to": iso(end),

@@ -1,16 +1,29 @@
 """Outcome maturity, diagnostic results and capital-claim restrictions."""
 import json
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 
 from gym.adapters.run_store import record_decision, run_path
-from gym.domain.model import iso
+from gym.domain.model import InstrumentId, iso
 from gym.services.diagnostics import diagnostics, first_divergence
 from gym.services.paper import paper
 from gym.services.reports import economic_report
 from gym.services.session import outcome_marks
 from tests.support import START, market_db, quote, quote_history
+
+
+def test_paper_warns_when_only_some_historical_constraints_are_known(tmp_path):
+    db = market_db(tmp_path, quote_history(n=120))
+    try:
+        db.upsert_instrument(InstrumentId("wallex", "BTCUSDT", "BTC", "USDT"), {},
+                             {"stepSize": 6, "minNotional": "10"}, "test", START)
+        run = paper(db, "BTCUSDT", START, START + timedelta(minutes=20),
+                    resolution="1min", fast=2, slow=3, cash=Decimal(1000))
+        assert "Historical order constraints unknown at window start: minimum quantity; not enforced." in run["warnings"]
+    finally:
+        db.c.close()
 
 
 def test_marks_do_not_mature_early():

@@ -1,4 +1,5 @@
 """Point-in-time premium and lead-lag contract tests."""
+from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 
@@ -57,6 +58,17 @@ def _snap(i, primary_mid, reference=Decimal(100)):
                     Decimal(10), Decimal(10), frozenset()),
         ),
     )
+
+
+def test_cross_market_signals_abstain_without_fee_context():
+    premium = create_strategy("toman-premium")
+    snapshot = replace(_snap(0, Decimal(9000)), execution=None)
+    assert premium.decide(snapshot, False)[0] == "ABSTAIN_NO_EXECUTION_CONTEXT"
+    lead = create_strategy("lead-lag", {"reference": "BTCUSDT", "lookback": 2})
+    for i in range(2):
+        lead.decide(_lag_snap(i, 100, 100 + i), False)
+    snapshot = replace(_lag_snap(2, 100, 102), execution=None)
+    assert lead.decide(snapshot, False)[0] == "ABSTAIN_NO_EXECUTION_CONTEXT"
 
 
 def test_z_premium_is_opt_in_and_uses_prior_history_for_entry():

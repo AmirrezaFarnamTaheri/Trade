@@ -2,6 +2,7 @@
 import asyncio
 import json
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
@@ -50,6 +51,24 @@ def test_native_portfolio_saved_read_and_integrity(tmp_path):
     path.write_text(json.dumps(changed), "utf-8")
     with pytest.raises(ValueError, match="digest mismatch"):
         load_verified_run(path.parent, out["run_id"], store="live")
+
+
+def test_stale_held_mark_keeps_accounting_but_makes_performance_provisional(tmp_path):
+    market_db(tmp_path, quote_history(n=120, turn=1) + quote_history(n=180, sym="ETHUSDT", turn=1)).c.close()
+    receipt = research_action(tmp_path, "portfolio-replay", request())
+    path = tmp_path / "runs" / "portfolios" / (receipt["run_id"] + ".json")
+    out = json.loads(path.read_text("utf-8"))
+    result = out["result"]
+    assert Decimal(result["markets"]["BTCUSDT"]["holding"]) > 0
+    assert result["markets"]["BTCUSDT"]["mark_status"] == "STALE"
+    assert result["markets"]["ETHUSDT"]["mark_status"] == "CURRENT"
+    assert result["end"]["valuation_status"] == "STALE_VALUATION"
+    assert Decimal(result["end"]["equity"]) > 0 and result["markets"]["BTCUSDT"]["orders"]
+    assert out["performance"]["status"] == "PROVISIONAL"
+    assert out["performance"]["total_return_pct"] is not None
+    loaded = research_action(tmp_path, "portfolio-read", {"run_id": out["run_id"]})
+    assert loaded["performance"] == out["performance"]
+    assert loaded["outputs_digest"] == out["outputs_digest"]
 
 
 @pytest.mark.parametrize("change", [

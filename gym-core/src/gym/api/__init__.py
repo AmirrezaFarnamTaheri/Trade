@@ -42,8 +42,7 @@ def _deepest_package_module(error: BaseException) -> str:
 def guard(token: str):
     key = [token]  # replaced by POST /api/session/rotate; every other tab and printed link stops working
 
-    @web.middleware
-    async def middleware(req: web.Request, handler):
+    async def dispatch(req: web.Request, handler):
         # DNS-rebinding and CSRF defence: loopback Host only; the per-run token on every write and private read.
         if (req.host or "").rsplit(":", 1)[0] not in LOOPBACK:
             return web.json_response({"error": "loopback only"}, status=403)
@@ -65,12 +64,25 @@ def guard(token: str):
             else:
                 log.exception("unhandled KeyError in %s %s", req.method, req.path)
                 response = web.json_response({"error": "internal error"}, status=500)
-        for name, value in SECURITY_HEADERS.items():
-            response.headers.setdefault(name, value)
-        if req.path.startswith("/api/"):
-            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    @web.middleware
+    async def middleware(req: web.Request, handler):
+        try:
+            response = await dispatch(req, handler)
+        except web.HTTPException as exc:
+            _response_headers(req, exc)
+            raise
+        _response_headers(req, response)
         return response
     return middleware
+
+
+def _response_headers(req: web.Request, response: web.StreamResponse) -> None:
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    if req.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
 
 
 async def finish(coro):

@@ -8,7 +8,7 @@ from statistics import fmean
 from ..domain.model import parse_ts
 
 
-def stationary_spa(excess: dict[str, list[float]], *, simulations: int = 199, seed: int = 0) -> dict:
+def stationary_spa(excess: dict[str, list[float]], *, simulations: int | None = None, seed: int = 0) -> dict:
     """Studentized max excess over buy/hold, with block-preserved candidate dependence."""
     if not 2 <= len(excess) <= 8:
         raise ValueError("SPA requires 2..8 candidates")
@@ -16,7 +16,10 @@ def stationary_spa(excess: dict[str, list[float]], *, simulations: int = 199, se
     n = len(arrays[0])
     if n < 20 or n > 10000 or any(len(values) != n or any(not math.isfinite(x) for x in values) for values in arrays):
         return {"status": "INSUFFICIENT_DATA", "periods": n}
-    if not 100 <= simulations <= 1000 or n * len(arrays) * simulations > 10_000_000:
+    budget = 10_000_000 // (n * len(arrays))
+    if simulations is None:
+        simulations = min(499, budget)
+    if not 100 <= simulations <= min(1000, budget):
         raise ValueError("SPA simulation budget exceeded")
     block, rng = max(2, round(n ** (1 / 3))), Random(seed)
     means = [fmean(values) for values in arrays]

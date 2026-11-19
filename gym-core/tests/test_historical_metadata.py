@@ -157,12 +157,9 @@ def test_asset_count_boundaries_and_429_backoff(monkeypatch, tmp_path):
         collector_module.select_universe([], 501)
     assert collector_module.select_universe([], 500)[0] == []
 
-    class Gate:
-        interval = 0.25
+    class Gate(collector_module.RestRate):
         async def wait(self):
             pass
-        async def penalize(self):
-            self.interval *= 2
 
     calls = 0
     async def get_text(_session, _path, **_params):
@@ -177,7 +174,7 @@ def test_asset_count_boundaries_and_429_backoff(monkeypatch, tmp_path):
 
     db = MarketDB(tmp_path / "rate.db")
     collector = Collector(db, _Segments(), ["BTCUSDT"])
-    collector.rest_rate = Gate()
+    collector.rest_rate = Gate(requests_per_second=4)
     monkeypatch.setattr(collector_module.wallex, "get_text", get_text)
     monkeypatch.setattr(collector_module.asyncio, "sleep", no_sleep)
 
