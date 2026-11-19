@@ -213,6 +213,27 @@ def test_crash_tails_are_registered_with_their_readable_range_and_left_unchanged
     assert db.quality(5)[0][2] == "SEGMENT_RECOVERED"
 
 
+def test_recovery_does_not_hash_closed_segments(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+
+    from gym.adapters.store import MarketDB, SegmentWriter, recover_segments
+
+    db = MarketDB(tmp_path / "market.db")
+    try:
+        raw = tmp_path / "raw"
+        writer = SegmentWriter(raw, db)
+        writer.write("ws", "closed", START)
+        writer.close()
+
+        def unexpected_hash(*args, **kwargs):
+            pytest.fail("recovery hashed an unrelated closed segment")
+
+        monkeypatch.setattr("gym.adapters.store.hashlib.file_digest", unexpected_hash)
+        assert recover_segments(db, raw, datetime.now(UTC)) == []
+    finally:
+        db.c.close()
+
+
 def test_no_tracked_file_is_also_ignored():
     """An ignore rule that matches tracked files means the rules are not enforced."""
     import shutil

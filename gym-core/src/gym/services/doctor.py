@@ -5,6 +5,7 @@ executor ledger is not read: it belongs to the service account and has its own `
 """
 from __future__ import annotations
 
+import json
 import shutil
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -156,6 +157,27 @@ def _crash(root: Path, now: datetime):
                   f"{len(headers)} crash(es) logged; newest {at.isoformat(timespec='seconds')}: {error.strip()[:160]}")
 
 
+def _research_engine(root: Path):
+    """Enabled hourly jobs whose frozen hypothesis needs an engine version this build no longer runs."""
+    from .research_ledger import ResearchLedger
+    from .session import ENGINE_VERSION
+    path = root / "research.sqlite3"
+    if not path.is_file():
+        return _check("research_engine", SKIP, "no research ledger yet")
+    try:
+        with ResearchLedger(path, readonly=True) as ledger:
+            rows = ledger.conn.execute("SELECT h.body FROM jobs j LEFT JOIN hypotheses h ON h.id = json_extract(j.body, '$.hypothesis_id') "
+                                       "WHERE j.enabled = 1").fetchall()
+        hypotheses = [json.loads(body) if body is not None else {} for (body,) in rows]
+        stale = [h for h in hypotheses if h.get("engine") != ENGINE_VERSION]
+    except (ValueError, OSError, sqlite3.Error) as error:
+        return _check("research_engine", WARN, f"could not inspect research jobs: {error}")
+    if not stale:
+        return _check("research_engine", PASS, f"{len(rows)} enabled research jobs on {ENGINE_VERSION}")
+    return _check("research_engine", WARN, f"{len(stale)} of {len(rows)} enabled research jobs pinned to an older engine than "
+                  f"{ENGINE_VERSION} ({', '.join(h.get('symbol', '?') for h in stale)}); they fail every tick: register them again")
+
+
 def _keys(today):
     from ..adapters import secret_store
     out = []
@@ -176,6 +198,7 @@ def diagnose(root: Path, now: datetime, *, full: bool = False, archives: list[Pa
     checks += _market(root, now, full, archives or [], quick)
     checks.append(_disk(root))
     checks.append(_crash(root, now))
+    checks.append(_research_engine(root))
     if quick:
         checks.append(_backup(root, now))
         checks.append(_research_backup(root, now))

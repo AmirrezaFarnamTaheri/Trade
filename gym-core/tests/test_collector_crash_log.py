@@ -37,3 +37,25 @@ def test_a_clean_stop_writes_no_crash_log(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "serve", interrupted)
     assert cli.main(["--data", str(tmp_path), "run", "--no-browser"]) == 0
     assert not (tmp_path / "live" / "collector-crash.log").exists()
+
+
+def test_doctor_warns_when_an_enabled_research_job_is_pinned_to_an_old_engine(tmp_path):
+    import json
+    import sqlite3
+
+    from gym.services.doctor import _research_engine
+    from gym.services.research_ledger import ResearchLedger
+    from gym.services.session import ENGINE_VERSION
+
+    assert _research_engine(tmp_path)["status"] == "SKIP"
+    with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+        current = ledger.register({"symbol": "BTCUSDT", "strategy": "ema-trend", "params": {}})["hypothesis_id"]
+    conn = sqlite3.connect(tmp_path / "research.sqlite3")
+    conn.execute("INSERT INTO hypotheses VALUES('old', ?)", (json.dumps({"engine": "paper-session/14", "symbol": "ETHUSDT"}),))
+    for job, hypothesis in (("j1", current), ("j2", "old")):
+        conn.execute("INSERT INTO jobs VALUES(?,?,?,1)", (job, json.dumps({"hypothesis_id": hypothesis}), "2026-11-19T00:00:00Z"))
+    conn.commit()
+    conn.close()
+    check = _research_engine(tmp_path)
+    assert check["status"] == "WARN"
+    assert check["detail"] == f"1 of 2 enabled research jobs pinned to an older engine than {ENGINE_VERSION} (ETHUSDT); they fail every tick: register them again"

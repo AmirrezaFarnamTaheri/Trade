@@ -79,6 +79,26 @@ def test_vol_target_scales_by_the_held_coins_volatility_not_the_books_past():
     assert scaled[100, 0] < 1.5 and scaled[:100].sum() == 0
 
 
+def test_vol_target_retains_covariance_for_a_signed_book():
+    from portfolio_lab import vol_target
+
+    moves = np.array([[0.0, 0.0], [0.02, 0.01], [-0.01, 0.03], [0.03, -0.02]])
+    prices = 100 * np.cumprod(1 + moves, axis=0)
+    weights = np.tile([0.5, -0.5], (len(prices), 1))
+    covariance = np.cov(moves[1:], rowvar=False)
+    annual_vol = np.sqrt(365 * (weights[-1] @ covariance @ weights[-1]))
+    actual = vol_target(panel(prices.tolist()), weights, target=0.4, lookback=3)
+    assert actual[-1] == pytest.approx(weights[-1] * min(3.0, 0.4 / annual_vol))
+
+
+def test_drawdown_counts_a_loss_on_the_first_scored_day():
+    from portfolio_lab import stats
+
+    result = stats(np.array([0.5, -0.2, 0.1, 0.0]), {}, start=1)
+    assert result["max_drawdown_pct"] == pytest.approx(20.0)
+    assert result["total_pct"] == pytest.approx(-12.0)
+
+
 def test_an_unlevered_book_never_borrows_to_pay_its_costs():
     rng = np.random.default_rng(3)
     closes = np.cumprod(1 + rng.normal(0, 0.03, (60, 5)), axis=0) * 100

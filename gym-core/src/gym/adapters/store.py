@@ -299,20 +299,27 @@ def compact_quotes(db: MarketDB, before: datetime, bucket: str, now: datetime) -
     return removed
 
 
+def _unregistered_segments(root: Path, known: set[str], since: str = "") -> list[str]:
+    import re
+
+    if not root.is_dir():
+        return []
+    return sorted(f"{day.name}/{item.name}" for day in root.iterdir()
+                  if day.is_dir() and re.fullmatch(r"[0-9]{8}", day.name) and day.name >= since[:8]
+                  for item in day.glob("*.jsonl.zst") if f"{day.name}/{item.name}" not in known)
+
+
 def verify_segments(db: MarketDB, roots: list[Path], since: str = "") -> dict:
     """Re-hash closed raw segments against the manifest; `roots` are the raw folder and any archive folders.
 
     `unclosed` lists rows opened but never completed (the live file, or a crash tail with no hash yet);
     `unregistered` lists segment files on disk that have no manifest row at all.
     """
-    import re
     report = {"checked": 0, "missing": [], "mismatched": [], "unclosed": [], "unregistered": []}
     rows = db.c.execute("SELECT seg_id, sha256, bytes FROM segments WHERE seg_id >= ? ORDER BY seg_id", (since,)).fetchall()
     known = {row[0] for row in rows}
     for root in roots:
-        days = (d for d in root.iterdir() if d.is_dir() and re.fullmatch(r"[0-9]{8}", d.name) and d.name >= since[:8])             if root.is_dir() else ()
-        report["unregistered"] += sorted(f"{d.name}/{f.name}" for d in days for f in d.glob("*.jsonl.zst")
-                                         if f"{d.name}/{f.name}" not in known)
+        report["unregistered"] += _unregistered_segments(root, known, since)
     for seg_id, sha, size in rows:
         if sha is None:
             report["unclosed"].append(seg_id)
@@ -382,9 +389,10 @@ def recover_segments(db: MarketDB, root: Path, now: datetime, *, apply: bool = F
     Each gets its real hash and the sequence range of its readable records, plus a SEGMENT_RECOVERED quality
     event saying how much was readable. Run only while no collector is writing to `root`.
     """
-    report = verify_segments(db, [root])
+    manifest = dict(db.c.execute("SELECT seg_id, sha256 IS NULL FROM segments ORDER BY seg_id"))
+    candidates = _unregistered_segments(root, set(manifest)) + [seg_id for seg_id, unclosed in manifest.items() if unclosed]
     out = []
-    for seg_id in report["unregistered"] + report["unclosed"]:
+    for seg_id in candidates:
         path = root / seg_id
         # A file touched in the last ten minutes may belong to a running collector: never register it.
         if not path.is_file() or now.timestamp() - path.stat().st_mtime < 600:

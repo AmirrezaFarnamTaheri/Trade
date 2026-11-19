@@ -12,8 +12,8 @@ Ideas tested, each built on information a single coin's chart does not carry:
 
 Every strategy is a signed weight matrix W[day, coin] set at the close and earning the next day's return.
 Costs: turnover at the spot rate for long exposure up to 1x and at the margin rate for shorts and leverage;
-the 4-hourly loan fee on borrowed notional; a position whose intraday adverse move breaches the 15% equity floor
-at the book's leverage loses its collateral (LIQUIDATED). One decision per coin-day is logged.
+the 4-hourly loan fee on borrowed notional. Liquidation uses a fresh one-day margin position at the book's
+leverage as a proxy. It does not track entry collateral or accrued carry across days.
 
     uv run --no-sync python scripts/portfolio_lab.py [--coins N]
 """
@@ -29,6 +29,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from binance_archive import liquid, spot_daily, universe  # noqa: E402
 from margin_hold import ENTRY_FEE, FLOOR, LOAN_FEE, PERIOD  # noqa: E402
+from signal_lab import Position  # noqa: E402
 
 from gym.domain.performance import _moments, deflated_sharpe  # noqa: E402
 from gym.domain.signals import blend  # noqa: E402
@@ -64,6 +65,13 @@ def load_panel(coins):
     return panel
 
 
+def _breached(side, ratio, entry_close, low, high, close):
+    """Check the floor for a fresh position using the same fees as the single-position lab."""
+    position = Position(side, ratio, entry_close)
+    position.step(low, high, close)
+    return position.liquidated
+
+
 def simulate(panel, weights):
     """Daily book returns after costs, plus the decision log. weights[t] is held from close t to close t+1."""
     close, high, low = panel["close"], panel["high"], panel["low"]
@@ -83,10 +91,11 @@ def simulate(panel, weights):
         cost = (delta * np.where(target > 0, spot_part * SPOT_COST + (1 - spot_part) * MARGIN_COST, MARGIN_COST)).sum()
         borrowed = max(longs - 1 - EPS, 0.0) + (-target.clip(max=0)).sum()
         move = np.nan_to_num(close[t + 1] / close[t] - 1)
-        adverse = np.where(target > 0, np.nan_to_num(low[t + 1] / close[t] - 1), -np.nan_to_num(high[t + 1] / close[t] - 1))
         levered = gross > 1 + EPS
         ratio = gross if levered else 1.0
-        burst = (target != 0) & (adverse * ratio <= -(1 - FLOOR)) & ((target < 0) | levered)
+        burst = np.array([bool(w_c) and (w_c < 0 or levered) and not np.isnan(close[t + 1, c]) and _breached(
+            1 if w_c > 0 else -1, ratio, close[t, c], low[t + 1, c], high[t + 1, c], close[t + 1, c])
+            for c, w_c in enumerate(target)])
         pnl = np.where(burst, -np.abs(target) / ratio * (1 - FLOOR), target * move)
         returns[t + 1] = pnl.sum() - cost - borrowed * BORROW_PER_DAY
         for prev, now, b in zip(held, target, burst, strict=True):
@@ -140,7 +149,8 @@ def breadth_gated(panel, weights, level=0.5):
 def vol_target(panel, weights, target=0.40, cap=3.0, lookback=30):
     """Scale the book to `target` yearly volatility, estimated ex ante from the coins it holds now.
 
-    sqrt(w' S w) with S the trailing covariance of the held coins' daily returns. A book's own past returns would
+    Project trailing asset returns onto today's weights before computing volatility, equivalent to sqrt(w' S w).
+    A book's own past returns would
     read near zero while it sat in cash and send it to the cap exactly when it re-enters: that was the bug here.
     """
     close = panel["close"]
@@ -151,8 +161,7 @@ def vol_target(panel, weights, target=0.40, cap=3.0, lookback=30):
         if not len(held):
             continue
         window = np.nan_to_num(rets[t - lookback + 1:t + 1][:, held])
-        cov = np.atleast_2d(np.cov(window, rowvar=False))
-        vol = sqrt(max(float(weights[t, held] @ cov @ weights[t, held]), 0.0) * YEAR)
+        vol = float(np.std(window @ weights[t, held], ddof=1)) * sqrt(YEAR)
         out[t] = weights[t] * (min(cap, target / vol) if vol > 0 else 0.0)
     return out
 
@@ -193,7 +202,7 @@ def strategy_blend(panel, books, lookback=60):
 def stats(returns, counts, start):
     r = returns[start:]
     mean, sd, skew, kurt = _moments(list(r))
-    curve = np.cumprod(1 + r)
+    curve = np.cumprod(np.r_[1.0, 1 + r])
     return {"total_pct": 100 * (curve[-1] - 1), "yearly_sharpe": mean / sd * sqrt(YEAR) if sd else 0.0,
             "max_drawdown_pct": 100 * float(np.max(1 - curve / np.maximum.accumulate(curve))),
             "sharpe": mean / sd if sd else 0.0, "moments": (skew, kurt), "days": len(r), "decisions": counts}
