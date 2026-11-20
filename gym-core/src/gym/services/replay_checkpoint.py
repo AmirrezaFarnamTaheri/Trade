@@ -129,7 +129,8 @@ def portfolio_checkpoint(registry, db, request, *, saved):
     options = {"resolution": inputs["resolution"], "cash": Decimal(inputs["cash"]), "cost": CostModel.from_description(inputs["cost"]),
         "strategy_id": inputs["strategy"], "params": inputs["params"], "rules_mode": inputs["rules_mode"],
         "store": registry.store, "policy": inputs.get("policy"),
-        "universe_selection": inputs.get("universe_selection")}
+        "universe_selection": inputs.get("universe_selection"),
+        "booked_accounting": inputs.get("trade_accounting") == "booked-notional/1"}
     checkpoint = {"quote_count": count}
     rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
     if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):

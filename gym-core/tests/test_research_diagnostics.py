@@ -105,7 +105,7 @@ def test_summary_is_allowlisted_authenticated_and_references_the_original_run(tm
                 assert response.headers["Cache-Control"] == "no-store"
                 assert "attachment" in response.headers["Content-Disposition"]
                 saved = await response.json()
-                assert saved["schema"] == "paper-summary/2" and "funded_authority" not in saved and saved["summary_digest"] == checksum
+                assert saved["schema"] == "paper-summary/3" and "funded_authority" not in saved and saved["summary_digest"] == checksum
                 assert "private-canary" not in json.dumps(saved)
                 assert (await client.get("/api/runs/not-a-run/summary", headers={"X-Gym-Token": "tok"})).status == 400
                 assert (await client.get("/api/runs/" + "0"*16 + "/summary", headers={"X-Gym-Token": "tok"})).status == 404

@@ -121,15 +121,18 @@ def test_backup_and_restore_scope_raw_segments_to_the_market_snapshot(tmp_path, 
         assert not container.exists()
         later = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START + timedelta(days=1))
         assert later["open_segments_excluded"] == [] and container.is_file()
-        Path(later["snapshot"]).rename(tmp_path / "later-snapshot")
+        snapshot_id = Path(first["snapshot"]).name
         target = tmp_path / "restored"
-        restored = restore_research(dest, target, passphrase=PHRASE, expected_manifest_sha256=first["manifest_sha256"])
+        restored = restore_research(dest, target, passphrase=PHRASE, expected_manifest_sha256=first["manifest_sha256"],
+                                    snapshot_id=snapshot_id)
         assert restored["open_segments_excluded"] == [open_id]
         assert restored["segment_coverage"] == {"status": "COMPLETE", "missing": []}
         assert not (target / "raw" / open_id).exists()
-        rehearsal = drill(dest, passphrase=PHRASE)
+        rehearsal = drill(dest, passphrase=PHRASE, snapshot_id=snapshot_id, segment_sample=1)
+        assert restored["segment_integrity"] == {"scope": "FULL_RESTORE", "verified": 2, "expected": 2}
+        assert rehearsal["segment_integrity"] == {"scope": "SAMPLED_DRILL", "verified": 1, "expected": 2}
         assert rehearsal["open_segments_excluded"] == [open_id]
-        assert rehearsal["segments_stored"] == rehearsal["segments_verified"] == 2
+        assert rehearsal["segments_stored"] == 2 and rehearsal["segments_verified"] == 1
     finally:
         writer.close()
         db.c.close()

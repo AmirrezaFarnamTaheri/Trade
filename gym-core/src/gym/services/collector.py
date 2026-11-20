@@ -270,7 +270,7 @@ class Collector:
             return
         if previous and ticks[0].ts_event > previous:
             self.quality(now, symbol, "GAP", f"REST trades do not cover {iso(previous)} to {iso(ticks[0].ts_event)}")
-        first = max(previous, ticks[0].ts_event) if previous else ticks[0].ts_event
+        first = ticks[0].ts_event
         existing = self.db.c.execute(
             "SELECT ts_event, price, qty, aggressor FROM trades WHERE instrument_id=? AND ts_event BETWEEN ? AND ?",
             (f"wallex:{symbol}", iso(first), iso(ticks[-1].ts_event)),
@@ -279,8 +279,6 @@ class Collector:
         # prints in the same second can survive, while an unchanged REST batch does not add duplicate rows.
         overlap = Counter((at, Decimal(price), Decimal(qty), side) for at, price, qty, side in existing)
         for tick in ticks:
-            if tick.ts_event < first:
-                continue
             key = (iso(tick.ts_event), tick.price, tick.qty, tick.aggressor)
             if overlap[key]:
                 overlap[key] -= 1

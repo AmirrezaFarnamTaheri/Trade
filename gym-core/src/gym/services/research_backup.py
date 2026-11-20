@@ -318,8 +318,13 @@ def _prune(folder: Path, keep: int) -> list[str]:
     return [p.name for p in gone]
 
 
-def latest_snapshot(destination: Path) -> Path:
+def latest_snapshot(destination: Path, snapshot_id: str | None = None) -> Path:
     stamps = _complete_snapshots(destination / "snapshots")
+    if snapshot_id is not None:
+        for stamp in stamps:
+            if stamp.name == snapshot_id:
+                return stamp
+        raise BackupUnsafe("requested snapshot is not retained")
     if not stamps:
         raise BackupUnsafe(f"no research snapshots in {destination}")
     return stamps[-1]
@@ -389,11 +394,11 @@ def _restore_manifest(snapshot: Path, passphrase: str, expected_digest: str | No
 
 
 def restore_research(destination: Path, target: Path, *, passphrase: str, segments: bool = True,
-                     expected_manifest_sha256: str | None = None) -> dict:
+                     expected_manifest_sha256: str | None = None, snapshot_id: str | None = None) -> dict:
     """Rebuild a data root from the newest snapshot (and the segment archive) into an empty or new folder."""
     if target.exists() and any(target.iterdir()):
         raise BackupUnsafe(f"{target} is not empty; restore never overwrites")
-    snapshot = latest_snapshot(destination)
+    snapshot = latest_snapshot(destination, snapshot_id)
     entries, manifest_status, manifest_digest = _restore_manifest(snapshot, passphrase, expected_manifest_sha256)
     target.mkdir(parents=True, exist_ok=True)
     restored = []
@@ -432,7 +437,9 @@ def restore_research(destination: Path, target: Path, *, passphrase: str, segmen
         coverage = _coverage(closed, containers)
     return {"snapshot": snapshot.name, "restored": restored, "segments": len(containers),
             "segment_coverage": coverage, "open_segments_excluded": opened, "target": str(target), "manifest_status": manifest_status,
-            "manifest_sha256": manifest_digest}
+            "manifest_sha256": manifest_digest,
+            "segment_integrity": {"scope": "FULL_RESTORE" if segments else "NOT_CHECKED", "verified": len(containers),
+                                  "expected": len(closed)}, "cross_host_verified": False}
 
 
 def status(root: Path) -> dict | None:
@@ -444,13 +451,13 @@ def status(root: Path) -> dict | None:
 
 
 def drill(destination: Path, *, passphrase: str, segment_sample: int = 24,
-          expected_manifest_sha256: str | None = None) -> dict:
+          expected_manifest_sha256: str | None = None, snapshot_id: str | None = None) -> dict:
     """Prove the newest snapshot restores (every database and the files archive) plus the newest segments."""
     if type(segment_sample) is not int or segment_sample < 0:
         raise BackupUnsafe("segment sample must be a nonnegative integer")
     with tempfile.TemporaryDirectory(prefix=".tg-research-drill-", dir=destination) as scratch:
         report = restore_research(destination, Path(scratch) / "root", passphrase=passphrase, segments=False,
-                                  expected_manifest_sha256=expected_manifest_sha256)
+                                  expected_manifest_sha256=expected_manifest_sha256, snapshot_id=snapshot_id)
         closed, _ = _segment_inventory(Path(scratch) / "root" / "market.db")
         containers = _snapshot_segments(destination / "segments", closed)
         report["segment_coverage"] = _coverage(closed, containers)
@@ -459,4 +466,5 @@ def drill(destination: Path, *, passphrase: str, segment_sample: int = 24,
             decrypt(container, Path(scratch) / f"seg-{secrets.token_hex(4)}", passphrase,
                     expected_header={"kind": "segment", "name": seg_id, "plaintext_sha256": closed[seg_id]})
         return {**report, "target": "deleted after verification", "segments": None,
+                "segment_integrity": {"scope": "SAMPLED_DRILL", "verified": len(sample), "expected": len(closed)},
                 "segments_verified": min(len(containers), segment_sample), "segments_stored": len(containers)}

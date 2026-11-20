@@ -40,6 +40,11 @@ Raw coverage applies to the segments already closed in the saved market database
 `open_segments_excluded` list records what was still open at that cut. A segment that closes afterward
 belongs to a later capture. Restoring an earlier cut never imports that later segment from the shared archive.
 
+Pass `--snapshot <id>` with `--expect-manifest-sha256` to select a retained cut and check its digest.
+`segment_coverage` reports inventory completeness. `segment_integrity` reports the verification scope
+and the number of segments decrypted. A sampled drill covers only the selected sample. Cross-host
+recovery requires a separate rehearsal on the recovery host.
+
 Research backup container version 2 authenticates its header and payload with AES-256-GCM. It records
 scrypt `n=32768`, `r=8`, and `p=1`, with a fresh 16-byte salt per container. Version 1 used the same fixed
 parameters implicitly. Use a recovery passphrase of at least 12 characters. The reader rejects unsupported

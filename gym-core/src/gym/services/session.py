@@ -8,7 +8,7 @@ from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.market_models import decimal
 from ..domain.model import TEHRAN, UTC, iso, parse_ts
 from ..domain.portfolio import portfolio_sizing
-from ..domain.rules import closures, is_closed, session_period, tehran_day
+from ..domain.rules import closures, evaluate, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
@@ -41,6 +41,8 @@ class PaperSession:
         self.rules_for = rules_for
         self.strategy = strategy
         self.observed_obv_volume = strategy.params.get("obv_volume_policy") == "require-positive"
+        self.inventory_model = strategy.params.get("position_model")
+        self.exact_inventory = self.inventory_model in ("inventory/1", "inventory/2")
         self.symbol = symbol
         self.instrument = portal.instrument(symbol)
         metadata = portal.metadata_at(symbol, start)
@@ -125,6 +127,59 @@ class PaperSession:
         return (snapshot, snapshot.evidence_id(self.strategy.config_hash, volume_evidence["digest"]),
                 {"volume_evidence": volume_evidence})
 
+    def inventory_at(self, quantity, quote, at):
+        if not self.exact_inventory:
+            return {}
+        status, sellable = "FLAT", Decimal(0)
+        if quantity > 0:
+            status, sellable = "HELD_UNKNOWN", None
+            if quote is not None:
+                spec = self.portal.spec_at(self.symbol, at)
+                lot = sellable_quantity(quantity, quote.bid, spec)
+                if lot == 0:
+                    status, sellable = "HELD_DUST", lot
+                elif None not in (spec.qty_decimals, spec.min_qty, spec.min_notional):
+                    status, sellable = "HELD_SELLABLE", lot
+        pending = self.pending
+        working = None if pending is None else {"ref": pending.record["ref"], "side": pending.record["side"],
+            "status": pending.record["status"], "remaining_qty": str(pending.max_qty) if pending.max_qty is not None else None}
+        return {"position_known": {"state": status, "asset": self.instrument.base, "quantity": str(quantity),
+            "sellable_quantity_at_bid": str(sellable) if sellable is not None else None, "working_order": working,
+            **({"exit_check": self._exit_check(status, sellable, quote, at)} if self.inventory_model == "inventory/2" else {})}}
+
+    def _exit_check(self, status, lot, quote, at):
+        if status == "FLAT":
+            return "NO_HOLDING"
+        if self.pending is not None:
+            return "WORKING_ORDER"
+        rules = self.rules_for(at)
+        if not evaluate(rules, self.instrument, "SELL", "EXIT", at, live=False,
+                        used=self.quota.get(tehran_day(at), Decimal(0))).allowed:
+            return "BLOCKED_BY_RULE"
+        if status == "HELD_DUST":
+            return "BELOW_LOT_OR_MINIMUM"
+        if (status != "HELD_SELLABLE" or quote is None or not qualified(quote)
+                or not timedelta(0) <= at - quote.ts_avail <= timedelta(seconds=120)):
+            return "UNKNOWN"
+        metadata = self.portal.metadata_at(self.symbol, at)
+        raw = metadata["raw"] if metadata else {}
+        market_enabled = raw.get("isMarketTypeEnable", raw.get("is_market_type_enable"))
+        if self.cost.order_type != "market":
+            return "UNKNOWN"
+        if market_enabled is False:
+            return "BLOCKED_BY_MARKET_STATUS"
+        if (market_enabled is not True or quote.bid_qty is None or quote.bid_qty < lot
+                or (self.cost.walk_depth and not quote.depth)):
+            return "UNKNOWN"
+        # Use the same recorded day reference and quota as modeled settlement.
+        day_open = self.day_open.get(tehran_day(at))
+        change = None if day_open is None else (((quote.bid + quote.ask) / 2 - day_open) / day_open * 100).quantize(Decimal("0.01"))
+        verdict = evaluate(rules, self.instrument, "SELL", "EXIT", at, live=False,
+                           used=self.quota.get(tehran_day(at), Decimal(0)), day_change_pct=change)
+        if not verdict.allowed or (verdict.quota_remaining is not None and verdict.quota_remaining < lot):
+            return "BLOCKED_BY_RULE"
+        return "UNKNOWN" if verdict.warnings else "PAPER_CHECKS_PASS"
+
     def scan(self, at):
         closed_bars = self.closes.scan(at)
         for bar in closed_bars:
@@ -149,8 +204,8 @@ class PaperSession:
                 if latest is not None:
                     auxiliary.append(latest)
             execution = None
+            quantity = self.book.get(self.instrument.base)
             if self.track_positions:
-                quantity = self.book.get(self.instrument.base)
                 tradable = sellable_quantity(quantity,quote.bid,self.portal.spec_at(self.symbol,bar.avail)) if quote else quantity
                 holding = quantity>0 and (not self.position_closed or tradable>0)
                 execution = {"equity":self.book.equity(self.instrument,quote.bid) if quote else None,
@@ -169,8 +224,8 @@ class PaperSession:
                             execution[key] = None
             snapshot, snapshot_id, bar_evidence = self._decision_snapshot(bar, quote, context, reference, execution, auxiliary)
             if execution is None:
-                holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
-            action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
+                holding = bool(quote) and quantity*quote.bid>self.book.equity(self.instrument,quote.bid)/100
+            action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, quantity > 0 if self.exact_inventory else holding)
             if self.warmup_until is not None and bar.avail <= self.warmup_until:
                 action, fraction, reasons = "ABSTAIN_WARMUP", Decimal(0), (*reasons, "pre-test indicators only; no orders")
             if self.decision_filter is not None:
@@ -188,7 +243,7 @@ class PaperSession:
                 self.transition("RUNNING", bar.avail)
             decision = {"t": iso(bar.avail), "snapshot": snapshot_id, "close": str(bar.close), "action": action,
                    "reasons": list(reasons), "features": feature_hash, "bid": quote and str(quote.bid), "ask": quote and str(quote.ask),
-                   "quote_time": quote and iso(quote.ts_avail)}
+                   "quote_time": quote and iso(quote.ts_avail), **self.inventory_at(quantity, quote, bar.avail)}
             decision["feature_values"] = self.strategy.feature_values
             if execution is not None:
                 decision["execution_known"] = execution
