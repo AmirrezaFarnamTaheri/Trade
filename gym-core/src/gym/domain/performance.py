@@ -470,7 +470,13 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     out["trades"] = stats
     out["activity"] = _activity(out, result, stats)
     if markets is not None:
-        out["trade_statistics_status"] = "NOT_APPLICABLE"
+        out["trade_statistics_status"] = "PARTIAL"
+        out["portfolio_trades"] = {
+            "currency": result["quote"],
+            "closed_trades": sum(market["closed_trades"] for market in markets.values()),
+            "realized_pnl": str(sum((Decimal(market["realized_pnl"]) for market in markets.values()), Decimal(0))),
+            "exposure": None,
+        }
         out.pop("trades")
         if out["activity"] is not None:
             out["activity"]["turnover"] = stats["turnover"]
