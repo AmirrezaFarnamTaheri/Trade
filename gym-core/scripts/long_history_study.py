@@ -526,6 +526,16 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
     """
     bars_per_day = BARS_PER_DAY[interval]
     year = 365 * bars_per_day
+    if end != "9999":
+        # Diagnostics must use the same exclusive end as the recorded look, including forward labels.
+        scoped = {}
+        for symbol, (times, closes) in data.items():
+            stop = bisect.bisect_left(times, end)
+            if stop:
+                scoped[symbol] = (times[:stop], closes[:stop])
+        if not scoped:
+            raise ValueError("study end precedes every observation")
+        data = scoped
     costs = costs if isinstance(costs, dict) else dict.fromkeys(data, costs)
     grid = Grid(data)
     first = grid.times[0]
