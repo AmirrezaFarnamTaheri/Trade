@@ -543,7 +543,8 @@ def selection_check(candidates: dict[str, dict], trials: int | None = None) -> d
     Sharpe dispersion still comes from the candidates measured here.
     """
     usable = {name: p["returns"] for name, p in candidates.items()
-              if p.get("returns") and p["returns"]["sharpe_per_period"] is not None}
+              if p.get("return_sampling") != "IRREGULAR_INTERVALS"
+              and p.get("returns") and p["returns"]["sharpe_per_period"] is not None}
     if len(usable) < 2:
         return None
     trials = max(len(usable), trials or 0)

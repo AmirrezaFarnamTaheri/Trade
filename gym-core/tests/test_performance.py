@@ -52,6 +52,7 @@ def test_irregular_marks_do_not_produce_annualized_sharpe_or_bootstrap():
     assert report["returns"]["sharpe_annualized"] is None
     assert report["returns"]["probabilistic_sharpe"] is None
     assert "bootstrap_90" not in report["returns"]
+    assert selection_check({"first": report, "second": report}) is None
 
 
 def test_lo_annualization_tapers_lags_for_alternating_returns():
