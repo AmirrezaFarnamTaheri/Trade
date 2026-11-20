@@ -2,6 +2,7 @@
 import json
 import sqlite3
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 
@@ -43,6 +44,7 @@ def test_backup_restores_byte_identical_data_and_copies_segments_once(tmp_path):
     restored = tmp_path / "restored"
     report = restore_research(dest, restored, passphrase=PHRASE)
     assert report["segments"] == 2 and (restored / "runs" / "abc.json").read_text("utf-8") == '{"run_id": "abc"}'
+    assert report["manifest_status"] == "AUTHENTICATED"
     assert not (restored / "wallex-read.dpapi").exists()
     for seg in (root / "raw").rglob("*.jsonl.zst"):
         assert (restored / "raw" / seg.relative_to(root / "raw")).read_bytes() == seg.read_bytes()
@@ -95,6 +97,47 @@ def test_restore_reports_missing_segments_without_claiming_complete_archive(tmp_
     assert rehearsal["segments_verified"] == 1
 
 
+def test_backup_and_restore_scope_raw_segments_to_the_market_snapshot(tmp_path, monkeypatch):
+    from gym.services import research_backup
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    db = MarketDB(root / "market.db")
+    writer = SegmentWriter(root / "raw", db)
+    open_id = writer.write("ws", "still open at capture", START + timedelta(hours=2)).split("#")[0]
+    original = research_backup._snapshot_sqlite
+
+    def copy_with_rollover(source, target):
+        original(source, target)
+        if source == root / "market.db":
+            writer.close()  # this segment closes while the rest of the backup is still running
+
+    monkeypatch.setattr(research_backup, "_snapshot_sqlite", copy_with_rollover)
+    try:
+        first = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START)
+        assert first["open_segments_excluded"] == [open_id]
+        assert first["segments_total"] == 2
+        container = dest / "segments" / f"{open_id}.tgfile"
+        assert not container.exists()
+        later = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START + timedelta(days=1))
+        assert later["open_segments_excluded"] == [] and container.is_file()
+        snapshot_id = Path(first["snapshot"]).name
+        target = tmp_path / "restored"
+        restored = restore_research(dest, target, passphrase=PHRASE, expected_manifest_sha256=first["manifest_sha256"],
+                                    snapshot_id=snapshot_id)
+        assert restored["open_segments_excluded"] == [open_id]
+        assert restored["segment_coverage"] == {"status": "COMPLETE", "missing": []}
+        assert not (target / "raw" / open_id).exists()
+        rehearsal = drill(dest, passphrase=PHRASE, snapshot_id=snapshot_id, segment_sample=1)
+        assert restored["segment_integrity"] == {"scope": "FULL_RESTORE", "verified": 2, "expected": 2}
+        assert rehearsal["segment_integrity"] == {"scope": "SAMPLED_DRILL", "verified": 1, "expected": 2}
+        assert rehearsal["open_segments_excluded"] == [open_id]
+        assert rehearsal["segments_stored"] == 2 and rehearsal["segments_verified"] == 1
+    finally:
+        writer.close()
+        db.c.close()
+
+
 def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_path):
     from gym.services.research_backup import _encrypt, read_header
 
@@ -109,6 +152,41 @@ def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_p
     _encrypt(wrong, container, PHRASE, {"kind": "segment", "name": header["name"]}, False)
     with pytest.raises(BackupAuthenticationError, match="market.db segment digest"):
         restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+    with pytest.raises(BackupAuthenticationError, match="market.db segment digest"):
+        drill(dest, passphrase=PHRASE)
+
+
+def test_restore_pins_independent_receipt_and_rejects_a_rolled_back_snapshot(tmp_path):
+    import shutil
+    from pathlib import Path
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START)
+    latest = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START + timedelta(days=1))
+    digest = latest["manifest_sha256"]
+    assert drill(dest, passphrase=PHRASE, expected_manifest_sha256=digest)["manifest_status"] == "PINNED"
+    shutil.rmtree(Path(latest["snapshot"]))
+    with pytest.raises(BackupAuthenticationError, match="trusted manifest digest"):
+        restore_research(dest, tmp_path / "restored", passphrase=PHRASE, expected_manifest_sha256=digest)
+    assert not (tmp_path / "restored").exists()
+
+
+def test_manifest_tampering_has_no_plaintext_fallback(tmp_path):
+    from gym.services.research_backup import LEGACY_MANIFEST, MANIFEST, latest_snapshot
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True)
+    snapshot = latest_snapshot(dest)
+    manifest = snapshot / MANIFEST
+    data = bytearray(manifest.read_bytes())
+    data[-17] ^= 1
+    manifest.write_bytes(data)
+    (snapshot / LEGACY_MANIFEST).write_text('{"entries": []}', encoding="utf-8")
+    with pytest.raises(BackupAuthenticationError, match="modified backup"):
+        restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+    assert not (tmp_path / "restored").exists()
 
 
 def test_wrong_passphrase_tampering_and_swapped_files_are_refused(tmp_path):

@@ -7,7 +7,7 @@ from random import Random
 from ..adapters.run_store import load_verified_run
 from ..domain.market_models import decimal, fields, instant
 from ..domain.model import iso
-from ..domain.performance import trade_ledger
+from ..domain.performance import result_trade_ledger
 from ..domain.strategy import digest
 from .return_bootstrap import return_bootstrap
 
@@ -121,7 +121,7 @@ def robustness(root, request, *, store):
                                               if k not in ("run_ids", "partitions")}, store=store)
         except ValueError as error:
             blocks = {"status": "UNAVAILABLE", "reason": str(error)}
-        trades = trade_ledger(out["result"]["orders"], out["result"]["base"])["trades"]
+        trades = result_trade_ledger(out["result"])["trades"]
         reports.append({"run_id": out["run_id"], "outputs_digest": out["outputs_digest"], "excluded_gap_intervals": excluded,
             "return_blocks": blocks, "regimes": {"status": "RECORDED" if any(k != "NOT_RECORDED" for k in groups) else "NOT_RECORDED",
                 "groups": {k: {"intervals": len(v), "mean_simple_return": str(sum(v, Decimal(0)) / len(v))} for k, v in sorted(groups.items())}},

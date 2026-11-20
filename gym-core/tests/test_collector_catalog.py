@@ -89,6 +89,38 @@ def test_current_rest_success_is_distinguished_from_retained_metadata(tmp_path, 
         db.c.close()
 
 
+def test_rule_metadata_becomes_visible_only_after_both_responses(tmp_path, monkeypatch):
+    from gym.services import collector as module
+    from gym.services.data_portal import DataPortal
+
+    db = market_db(tmp_path, [])
+    seg = SegmentWriter(tmp_path / "raw", db)
+    collector = Collector(db, seg, None)
+    catalog_at = START + timedelta(seconds=10)
+    rules_at = START + timedelta(seconds=20)
+    current = START
+
+    async def observed(_session, path):
+        nonlocal current
+        if path == CATALOG_PATH:
+            current = catalog_at
+            return json.dumps({"result": {"markets": catalogue()}})
+        current = rules_at
+        return json.dumps({"result": {"symbols": {"BTCUSDT": {"minNotional": "15"}}}})
+
+    monkeypatch.setattr(collector, "rest_text", observed)
+    monkeypatch.setattr(module, "now_utc", lambda: current)
+    try:
+        asyncio.run(collector.load_catalog(None))
+        portal = DataPortal(db)
+        assert collector.catalog_received_at == catalog_at
+        assert portal.metadata_at("BTCUSDT", catalog_at) is None
+        assert portal.metadata_at("BTCUSDT", rules_at)["raw"]["minNotional"] == "15"
+    finally:
+        seg.close()
+        db.c.close()
+
+
 @pytest.mark.parametrize("raw", [b"invalid", "x" * (4 * 1024 * 1024 + 1)])
 def test_retained_catalogue_rejects_invalid_storage_types_and_oversized_rows(tmp_path, raw):
     db = market_db(tmp_path, [])

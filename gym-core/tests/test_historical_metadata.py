@@ -37,18 +37,20 @@ def test_historical_public_metadata(monkeypatch, tmp_path):
         "stepSize": "5",
         "minNotional": "10",
     }
-    snapshots = iter((first, second))
+    later = START + timedelta(days=1)
+    snapshots = iter(((START, first), (later, second)))
+    current_time = START
 
     async def get_text(_session, path):
+        nonlocal current_time
         if path == "/v1/markets":  # the order-limit source: nothing extra known in this test
             return json.dumps({"result": {"symbols": {}}})
         assert path == "/hector/web/v1/markets"
-        return json.dumps({"result": {"markets": [next(snapshots)]}})
+        current_time, row = next(snapshots)
+        return json.dumps({"result": {"markets": [row]}})
 
-    later = START + timedelta(days=1)
-    times = iter((START, later))
     monkeypatch.setattr(collector_module.wallex, "get_text", get_text)
-    monkeypatch.setattr(collector_module, "now_utc", lambda: next(times))
+    monkeypatch.setattr(collector_module, "now_utc", lambda: current_time)
 
     db = MarketDB(tmp_path / "market.db")
     collector = Collector(db, _Segments(), ["BTCUSDT"])

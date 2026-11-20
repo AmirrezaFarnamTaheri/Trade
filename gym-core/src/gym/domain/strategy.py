@@ -48,6 +48,7 @@ class Snapshot:
     reference: BookTop | None = None
     execution: dict | None = None
     auxiliary_quotes: tuple[BookTop, ...] = ()
+    observed_trade_volume: Decimal | None = None
 
     @property
     def id(self) -> str:
@@ -59,6 +60,21 @@ class Snapshot:
         if self.auxiliary_quotes:
             cut += [[(q.symbol, q.ts_avail, q.bid, q.ask) for q in self.auxiliary_quotes]]
         return digest(cut)[:16]
+
+    def evidence_id(self, config_hash: str, volume_digest: str) -> str:
+        """Bind a decision to the observed bar, quote context and versioned strategy configuration."""
+        def bar_values(bar):
+            return (bar.symbol, bar.spec.resolution, bar.spec.price_type, bar.start, bar.end, bar.avail,
+                    bar.open, bar.high, bar.low, bar.close, bar.volume, bar.count, bar.forming)
+
+        def quote_values(quote):
+            return (quote.symbol, quote.ts_avail, quote.bid, quote.ask, quote.bid_qty, quote.ask_qty,
+                    sorted(quote.flags), quote.depth)
+
+        return digest(["snapshot-evidence/1", config_hash, self.as_of, self.symbol, bar_values(self.bar),
+                       self.bid, self.ask, self.quote_time, [bar_values(b) for b in self.context_bars],
+                       quote_values(self.reference) if self.reference else None, self.execution,
+                       [quote_values(quote) for quote in self.auxiliary_quotes], self.observed_trade_volume, volume_digest])[:16]
 
 
 @dataclass(frozen=True)

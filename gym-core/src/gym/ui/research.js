@@ -274,6 +274,15 @@ window.gymResearch = (() => {
       catch { $('research-workspace-status').textContent = text(T.en.rsRequestFailedRefreshTheSavedState, T.fa.rsRequestFailedRefreshTheSavedState); }
       finally { button.disabled = button.id === 'replay-previous' ? offset === 0 : button.id === 'replay-next' ? offset + 1 >= total : false; }
     }
+    function positionDetails(position) {
+      if (!position) return '';
+      const label = 'paperPosition' + position.state;
+      const order = position.working_order;
+      return `<p>${esc(T[language][label] ?? position.state)}</p>
+        <p>${T[language].rsSellableAtRecordedBid} <bdi>${esc(position.sellable_quantity_at_bid ?? '—')} ${esc(position.asset)}</bdi></p>` +
+        (position.exit_check ? `<p>${esc(T[language]['paperExit' + position.exit_check] ?? position.exit_check)}</p>` : '') +
+        (order ? `<p>${T[language].rsModeledWorkingOrder} <bdi>${esc(order.side)} · ${esc(order.ref)}</bdi></p>` : '');
+    }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;
     $('guided-model').onchange = () => {
       const choice = $('guided-model').value === 'execution-choice-preview';
@@ -488,7 +497,7 @@ window.gymResearch = (() => {
       const start = Math.max(0, offset - 149);
       const result = await call('replay', {run_id: runId, offset: start, limit: offset - start + 1}); total = result.total;
       const row = result.decisions.at(-1);
-      $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text(T.en.rsKnownAtDecision, T.fa.rsKnownAtDecision)}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text(T.en.rsBidAsk, T.fa.rsBidAsk)}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text(T.en.rsHoldingsBeforeDecision, T.fa.rsHoldingsBeforeDecision)}</h3><p>${esc(row.balance_status)}</p>${json(row.balances_before)}<details><summary>${text(T.en.rsIndicatorValuesAndReadiness, T.fa.rsIndicatorValuesAndReadiness)}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text(T.en.rsRecordedRules, T.fa.rsRecordedRules)}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text(T.en.rsBarAndReferenceObservations, T.fa.rsBarAndReferenceObservations)}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text(T.en.rsLaterModeledOrderOutcomeNotKnown, T.fa.rsLaterModeledOrderOutcomeNotKnown)}</summary>${json(row.subsequent_modeled_order)}</details>` : text(T.en.rsNoRecordedDecisions, T.fa.rsNoRecordedDecisions);
+      $('replay-decision').innerHTML = row ? `<p>${offset + 1} / ${total} · ${esc(row.known_at_decision.t)} · ${esc(row.known_at_decision.action)}</p><h3>${text(T.en.rsKnownAtDecision, T.fa.rsKnownAtDecision)}</h3><p>${esc((row.known_at_decision.reasons ?? []).join(' · '))}</p><p dir="ltr">${text(T.en.rsBidAsk, T.fa.rsBidAsk)}: ${esc(row.known_at_decision.bid ?? 'UNKNOWN')} / ${esc(row.known_at_decision.ask ?? 'UNKNOWN')} · ${esc(row.known_at_decision.quote_time ?? 'UNKNOWN')}</p><h3>${text(T.en.rsHoldingsBeforeDecision, T.fa.rsHoldingsBeforeDecision)}</h3><p>${esc(row.balance_status)}</p>${positionDetails(row.known_at_decision.position_known)}${json(row.balances_before)}<details><summary>${text(T.en.rsIndicatorValuesAndReadiness, T.fa.rsIndicatorValuesAndReadiness)}</summary>${json(row.known_at_decision.feature_values)}</details><details><summary>${text(T.en.rsRecordedRules, T.fa.rsRecordedRules)}</summary>${json(row.known_at_decision.rules_known)}</details><details><summary>${text(T.en.rsBarAndReferenceObservations, T.fa.rsBarAndReferenceObservations)}</summary>${json({bar: row.known_at_decision.bar_known, context: row.known_at_decision.context_known, reference: row.known_at_decision.reference_known, skipped: row.known_at_decision.skipped})}</details><details><summary>${text(T.en.rsLaterModeledOrderOutcomeNotKnown, T.fa.rsLaterModeledOrderOutcomeNotKnown)}</summary>${json(row.subsequent_modeled_order)}</details>` : text(T.en.rsNoRecordedDecisions, T.fa.rsNoRecordedDecisions);
        $('replay-decision').insertAdjacentHTML('afterbegin', window.GymReplayChart.render(result.decisions, offset, result.quote_currency, esc, language === 'fa'));
       if (row) {
         const features = Object.keys(row.known_at_decision.feature_values ?? {}).filter(key => {

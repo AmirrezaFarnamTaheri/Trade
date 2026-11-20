@@ -54,10 +54,15 @@ class DataPortal:
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
         return parse_ts(row[0]) if row else None
 
-    def trades_by_event(self, symbol: str, t0: datetime, t1: datetime) -> list[TradeTick]:
+    def trades_by_event(self, symbol: str, t0: datetime, t1: datetime, *, as_of: datetime | None = None) -> list[TradeTick]:
+        available = " AND ts_avail<=?" if as_of is not None else ""
+        params = (f"wallex:{symbol}", iso(t0), iso(t1)) + ((iso(as_of),) if as_of is not None else ())
         rows = self.db.c.execute("select ts_event, ts_avail, price, qty, aggressor from trades where instrument_id=? "
-                                 "and ts_event>=? and ts_event<? order by ts_event, rowid", (f"wallex:{symbol}", iso(t0), iso(t1)))
-        return [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
+                                 f"and ts_event>=? and ts_event<?{available} order by ts_event, rowid", params)
+        ticks = [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
+        if as_of is not None and self.excluded:
+            return [t for t in ticks if not any(start <= t.ts_avail < end for start, end in self.excluded)]
+        return ticks
 
     def trades_by_availability(self, symbol, after, through):
         rows = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "

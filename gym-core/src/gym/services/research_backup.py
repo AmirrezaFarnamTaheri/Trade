@@ -7,7 +7,7 @@ Layout under the destination folder:
 
     snapshots/<UTC stamp>/<name>.tgfile   one consistent SQLite snapshot per database, zstd then AES-256-GCM
     snapshots/<UTC stamp>/files.tar.tgfile  every other file in the data root (runs, studies, journals)
-    snapshots/<UTC stamp>/MANIFEST.json   names, plaintext SHA-256 and sizes; no secrets
+    snapshots/<UTC stamp>/MANIFEST.tgfile authenticated snapshot inventory, bound to the snapshot stamp
     segments/<YYYYMMDD>/<file>.tgfile     each closed raw segment, encrypted once and never rewritten
 
 Each container authenticates its own header (name, kind, plaintext hash), so a renamed or swapped file fails.
@@ -35,6 +35,9 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from ..adapters.atomic_text import write_text
 from .encrypted_backup import (
+    _SCRYPT_N,
+    _SCRYPT_P,
+    _SCRYPT_R,
     BackupAuthenticationError,
     BackupUnsafe,
     _derive_key,
@@ -44,11 +47,15 @@ from .encrypted_backup import (
 MAGIC = b"TGBKFIL1"
 _LEN = struct.Struct(">I")
 _TAG = 16
-_STAMP = re.compile(r"[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}\Z")
+_STAMP = re.compile(r"[0-9]{8}T[0-9]{6}Z-(?:z[0-9]{6}-)?[0-9a-f]{6}\Z")
 SQLITE_SUFFIXES = (".db", ".sqlite3")
 # Never copied: SQLite side files (the snapshot already includes them), process locks and key material.
 SKIP_NAMES = re.compile(r".*(-wal|-shm|-journal)\Z|.*\.(dpapi|tmp)\Z|\Aprocesses\Z|\Araw\Z")
 STATUS_FILE = "research_backup_status.json"
+MANIFEST = "MANIFEST.tgfile"
+LEGACY_MANIFEST = "MANIFEST.json"
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_KDF_PARAMETERS = {"n": _SCRYPT_N, "r": _SCRYPT_R, "p": _SCRYPT_P}
 
 
 def _encrypt(source: Path, output: Path, passphrase: str, header: dict, compress: bool) -> dict:
@@ -60,7 +67,8 @@ def _encrypt(source: Path, output: Path, passphrase: str, header: dict, compress
         while chunk := stream.read(1 << 20):
             digest.update(chunk)
             size += len(chunk)
-    header = {**header, "format_version": 1, "cipher": "AES-256-GCM", "kdf": "scrypt", "salt": salt.hex(),
+    header = {**header, "format_version": 2, "cipher": "AES-256-GCM", "kdf": "scrypt", "salt": salt.hex(),
+              "kdf_parameters": _KDF_PARAMETERS,
               "nonce": nonce.hex(), "compression": "zstd" if compress else "none",
               "plaintext_sha256": digest.hexdigest(), "plaintext_size": size}
     raw = json.dumps(header, sort_keys=True, separators=(",", ":")).encode("ascii")
@@ -110,18 +118,31 @@ def read_header(container: Path) -> tuple[dict, bytes]:
         header = json.loads(raw.decode("ascii"))
     except (UnicodeDecodeError, ValueError):
         raise BackupAuthenticationError(f"{container.name}: malformed header") from None
-    if not isinstance(header, dict) or header.get("format_version") != 1 or header.get("compression") not in ("zstd", "none"):
+    if (not isinstance(header, dict) or header.get("format_version") not in (1, 2)
+            or header.get("compression") not in ("zstd", "none")
+            or header.get("cipher") != "AES-256-GCM" or header.get("kdf") != "scrypt"
+            or (header.get("format_version") == 2 and header.get("kdf_parameters") != _KDF_PARAMETERS)):
         raise BackupAuthenticationError(f"{container.name}: unsupported header")
+    for field, length in (("salt", 32), ("nonce", 24), ("plaintext_sha256", 64)):
+        value = header.get(field)
+        if not isinstance(value, str) or not re.fullmatch(rf"[0-9a-f]{{{length}}}", value):
+            raise BackupAuthenticationError(f"{container.name}: invalid {field}")
+    if type(header.get("plaintext_size")) is not int or header["plaintext_size"] < 0:
+        raise BackupAuthenticationError(f"{container.name}: invalid plaintext size")
     return header, MAGIC + raw_len + raw
 
 
-def decrypt(container: Path, output: Path, passphrase: str) -> dict:
+def decrypt(container: Path, output: Path, passphrase: str, *, expected_header: dict | None = None) -> dict:
     """Authenticate and decrypt one container to `output` (must not exist); verifies the plaintext hash."""
     header, aad = read_header(container)
+    if expected_header and any(header.get(field) != value for field, value in expected_header.items()):
+        raise BackupAuthenticationError(f"{container.name}: does not match the snapshot manifest")
     if output.exists():
         raise BackupUnsafe(f"{output} already exists")
     key = _derive_key(passphrase, bytes.fromhex(header["salt"]))
     total = container.stat().st_size
+    if total < len(aad) + _TAG:
+        raise BackupAuthenticationError(f"{container.name}: truncated")
     with open(container, "rb") as stream:
         stream.seek(total - _TAG)
         tag = stream.read(_TAG)
@@ -151,7 +172,7 @@ def decrypt(container: Path, output: Path, passphrase: str) -> dict:
                     decryptor.finalize()
                 except InvalidTag:
                     raise BackupAuthenticationError(f"{container.name}: wrong passphrase or modified backup") from None
-            if digest.hexdigest() != header["plaintext_sha256"]:
+            if staged.stat().st_size != header["plaintext_size"] or digest.hexdigest() != header["plaintext_sha256"]:
                 raise BackupAuthenticationError(f"{container.name}: plaintext hash mismatch")
             os.replace(staged, output)
         except BaseException:
@@ -181,22 +202,28 @@ def backup_research(root: Path, destination: Path, *, passphrase: str, keep: int
     _passphrase_bytes(passphrase)
     if type(keep) is not int or not 2 <= keep <= 365:
         raise BackupUnsafe("retention must keep between 2 and 365 snapshots")
-    if not root.is_dir() or not (root / "market.db").is_file():
+    if not root.is_dir() or not (root / "market.db").is_file() or (root / "market.db").is_symlink():
         raise BackupUnsafe(f"{root} is not a data root with market.db")
     if destination.is_symlink() or not destination.is_dir():
         raise BackupUnsafe("destination must be an existing, unlinked folder")
+    if destination.resolve().is_relative_to(root.resolve()):
+        raise BackupUnsafe("destination must be outside the data root")
     if not allow_same_device and not _independent(root, destination):
         raise BackupUnsafe("destination is on the same volume as the data; use another drive, or pass "
                            "--allow-same-device for a cloud-synced folder that leaves the machine by sync")
-    now = now or datetime.now(UTC)
-    stamp = f"{now:%Y%m%dT%H%M%SZ}-{secrets.token_hex(3)}"
+    now = now.astimezone(UTC) if now is not None else datetime.now(UTC)
+    # The z prefix sorts these after legacy snapshots made in the same second.
+    stamp = f"{now:%Y%m%dT%H%M%SZ}-z{now:%f}-{secrets.token_hex(3)}"
     snapshot = destination / "snapshots" / stamp
     snapshot.mkdir(parents=True)
     entries = []
+    closed_segments, open_segments = {}, []
     with tempfile.TemporaryDirectory(prefix=".tg-research-", dir=destination) as scratch:
         for db in sorted(p for p in root.iterdir() if p.suffix in SQLITE_SUFFIXES and p.is_file() and not p.is_symlink()):
             copy = Path(scratch) / db.name
             _snapshot_sqlite(db, copy)
+            if db.name == "market.db":
+                closed_segments, open_segments = _segment_inventory(copy)
             header = _encrypt(copy, snapshot / f"{db.name}.tgfile", passphrase, {"kind": "sqlite", "name": db.name}, True)
             copy.unlink()
             entries.append({k: header[k] for k in ("kind", "name", "plaintext_sha256", "plaintext_size")})
@@ -224,29 +251,41 @@ def backup_research(root: Path, destination: Path, *, passphrase: str, keep: int
                 copy.unlink()
         header = _encrypt(archive, snapshot / "files.tar.tgfile", passphrase, {"kind": "files", "name": "files.tar"}, True)
         entries.append({k: header[k] for k in ("kind", "name", "plaintext_sha256", "plaintext_size")})
-    segments = _backup_segments(root, destination, passphrase)
-    manifest = {"created_at": now.isoformat(timespec="seconds"), "root": str(root), "entries": entries,
-                "segments_total": segments["total"], "contains_secrets": False}
-    write_text(snapshot / "MANIFEST.json", json.dumps(manifest, indent=2))
+    segments = _backup_segments(root, destination, passphrase, closed_segments)
+    manifest = {"version": 1, "snapshot": stamp, "created_at": now.isoformat(timespec="seconds"),
+                "root": str(root), "entries": entries,
+                "segments_total": segments["total"], "open_segments_excluded": open_segments, "contains_secrets": False}
+    with tempfile.TemporaryDirectory(prefix=".tg-manifest-", dir=destination) as scratch:
+        source = Path(scratch) / LEGACY_MANIFEST
+        source.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+        manifest_header = _encrypt(source, snapshot / MANIFEST, passphrase,
+                                   {"kind": "manifest", "name": stamp}, False)
     pruned = _prune(destination / "snapshots", keep)
     report = {"snapshot": str(snapshot), "databases": [e["name"] for e in entries if e["kind"] == "sqlite"],
+              "manifest_sha256": manifest_header["plaintext_sha256"],
               "files_bytes": entries[-1]["plaintext_size"], "segments_added": segments["added"],
               "segments_total": segments["total"], "segments_refused": segments["refused"], "pruned": pruned,
+              "open_segments_excluded": open_segments,
               "same_device": not _independent(root, destination), "off_machine_verified": False}
     write_text(root / STATUS_FILE, json.dumps({"at": now.isoformat(timespec="seconds"), "destination": str(destination),
-                                              "snapshot": stamp, **{k: report[k] for k in ("segments_total", "same_device")}}))
+                                              "snapshot": stamp, **{k: report[k] for k in ("segments_total", "same_device", "manifest_sha256")}}))
     return report
 
 
-def _backup_segments(root: Path, destination: Path, passphrase: str) -> dict:
-    """Copy each closed segment once, after re-checking it against its manifest hash."""
-    db = sqlite3.connect((root / "market.db").resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
+def _segment_inventory(market_db: Path) -> tuple[dict[str, str], list[str]]:
+    db = sqlite3.connect(market_db.resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
     try:
-        rows = db.execute("SELECT seg_id, sha256 FROM segments WHERE sha256 IS NOT NULL ORDER BY seg_id").fetchall()
+        rows = db.execute("SELECT seg_id, sha256 FROM segments ORDER BY seg_id").fetchall()
     finally:
         db.close()
+    return ({seg_id: sha for seg_id, sha in rows if sha is not None},
+            [seg_id for seg_id, sha in rows if sha is None])
+
+
+def _backup_segments(root: Path, destination: Path, passphrase: str, closed: dict[str, str]) -> dict:
+    """Copy only segments already closed in the saved SQLite snapshot."""
     added, refused, total = 0, [], 0
-    for seg_id, sha in rows:
+    for seg_id, sha in closed.items():
         target = destination / "segments" / f"{seg_id}.tgfile"
         source = root / "raw" / seg_id
         if target.exists():
@@ -264,39 +303,113 @@ def _backup_segments(root: Path, destination: Path, passphrase: str) -> dict:
     return {"added": added, "total": total, "refused": refused}
 
 
+def _complete_snapshots(folder: Path) -> list[Path]:
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.iterdir() if p.is_dir() and not p.is_symlink() and _STAMP.fullmatch(p.name)
+                  and ((p / MANIFEST).is_file() or (p / LEGACY_MANIFEST).is_file()))
+
+
 def _prune(folder: Path, keep: int) -> list[str]:
-    stamps = sorted(p for p in folder.iterdir() if p.is_dir() and _STAMP.fullmatch(p.name) and (p / "MANIFEST.json").is_file())
+    stamps = _complete_snapshots(folder)
     gone = stamps[:-keep]
     for old in gone:
         shutil.rmtree(old)
     return [p.name for p in gone]
 
 
-def latest_snapshot(destination: Path) -> Path:
-    folder = destination / "snapshots"
-    stamps = sorted(p for p in folder.iterdir() if p.is_dir() and _STAMP.fullmatch(p.name) and (p / "MANIFEST.json").is_file()) \
-        if folder.is_dir() else []
+def latest_snapshot(destination: Path, snapshot_id: str | None = None) -> Path:
+    stamps = _complete_snapshots(destination / "snapshots")
+    if snapshot_id is not None:
+        for stamp in stamps:
+            if stamp.name == snapshot_id:
+                return stamp
+        raise BackupUnsafe("requested snapshot is not retained")
     if not stamps:
         raise BackupUnsafe(f"no research snapshots in {destination}")
     return stamps[-1]
 
 
-def restore_research(destination: Path, target: Path, *, passphrase: str, segments: bool = True) -> dict:
+def _snapshot_segments(archive: Path, expected: dict[str, str]) -> dict[str, Path]:
+    """Verify archive headers only for segments that belong to the selected cut."""
+    containers = {}
+    for container in sorted(archive.rglob("*.tgfile")):
+        seg_id = container.relative_to(archive).as_posix().removesuffix(".tgfile")
+        if seg_id not in expected:
+            continue
+        header, _ = read_header(container)
+        if header.get("kind") != "segment" or header.get("name") != seg_id:
+            raise BackupAuthenticationError(f"{container.name}: segment name does not match its header")
+        if header["plaintext_sha256"] != expected[seg_id]:
+            raise BackupAuthenticationError(f"{container.name}: does not match market.db segment digest")
+        containers[seg_id] = container
+    return containers
+
+
+def _coverage(expected, containers):
+    missing = sorted(expected.keys() - containers.keys())
+    return {"status": "INCOMPLETE" if missing else "COMPLETE", "missing": missing}
+
+
+def _restore_manifest(snapshot: Path, passphrase: str, expected_digest: str | None) -> tuple[list[dict], str, str | None]:
+    container = snapshot / MANIFEST
+    manifest_digest = None
+    if container.exists() or container.is_symlink():
+        with tempfile.TemporaryDirectory(prefix=".tg-manifest-") as scratch:
+            source = Path(scratch) / LEGACY_MANIFEST
+            header = decrypt(container, source, passphrase)
+            if header.get("kind") != "manifest" or header.get("name") != snapshot.name:
+                raise BackupAuthenticationError("research backup manifest does not belong to this snapshot")
+            manifest_digest = header["plaintext_sha256"]
+            raw = source.read_bytes()
+    else:
+        raw = (snapshot / LEGACY_MANIFEST).read_bytes()
+    if expected_digest is not None and manifest_digest != expected_digest:
+        raise BackupAuthenticationError("research backup does not match the trusted manifest digest")
+    try:
+        manifest = json.loads(raw)
+    except (UnicodeDecodeError, ValueError):
+        raise BackupAuthenticationError("invalid research backup manifest") from None
+    if not isinstance(manifest, dict) or (manifest_digest is not None and
+            (manifest.get("version") != 1 or manifest.get("snapshot") != snapshot.name)):
+        raise BackupAuthenticationError("invalid research backup manifest identity")
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        raise BackupAuthenticationError("invalid research backup manifest entries")
+    names = set()
+    for entry in entries:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if (not isinstance(name, str) or name in names or re.search(r'[/\\:\x00]', name)
+                or not isinstance(entry.get("plaintext_sha256"), str)
+                or not _SHA256.fullmatch(entry["plaintext_sha256"])
+                or type(entry.get("plaintext_size")) is not int or entry["plaintext_size"] < 0
+                or not ((entry.get("kind") == "sqlite" and Path(name).suffix in SQLITE_SUFFIXES)
+                        or (entry.get("kind") == "files" and name == "files.tar"))):
+            raise BackupAuthenticationError("invalid research backup manifest entry")
+        names.add(name)
+    if not {"market.db", "files.tar"} <= names:
+        raise BackupAuthenticationError("research backup manifest is missing required entries")
+    status = "PINNED" if expected_digest is not None else "AUTHENTICATED" if manifest_digest else "LEGACY_UNVERIFIED"
+    return entries, status, manifest_digest
+
+
+def restore_research(destination: Path, target: Path, *, passphrase: str, segments: bool = True,
+                     expected_manifest_sha256: str | None = None, snapshot_id: str | None = None) -> dict:
     """Rebuild a data root from the newest snapshot (and the segment archive) into an empty or new folder."""
     if target.exists() and any(target.iterdir()):
         raise BackupUnsafe(f"{target} is not empty; restore never overwrites")
-    snapshot = latest_snapshot(destination)
-    manifest = json.loads((snapshot / "MANIFEST.json").read_text("utf-8"))
+    snapshot = latest_snapshot(destination, snapshot_id)
+    entries, manifest_status, manifest_digest = _restore_manifest(snapshot, passphrase, expected_manifest_sha256)
     target.mkdir(parents=True, exist_ok=True)
     restored = []
-    for entry in manifest["entries"]:
+    for entry in entries:
         container = snapshot / f"{entry['name']}.tgfile"
-        header, _ = read_header(container)
-        if header.get("name") != entry["name"] or header.get("plaintext_sha256") != entry["plaintext_sha256"]:
-            raise BackupAuthenticationError(f"{container.name}: does not match the snapshot manifest")
+        expected = {field: entry[field] for field in ("kind", "name", "plaintext_sha256", "plaintext_size")}
+        if manifest_status == "LEGACY_UNVERIFIED":
+            expected["format_version"] = 1
         if entry["kind"] == "sqlite":
             out = target / entry["name"]
-            decrypt(container, out, passphrase)
+            decrypt(container, out, passphrase, expected_header=expected)
             conn = sqlite3.connect(out.resolve().as_uri() + "?mode=ro", uri=True)
             try:
                 check = conn.execute("PRAGMA integrity_check").fetchone()[0]
@@ -306,34 +419,27 @@ def restore_research(destination: Path, target: Path, *, passphrase: str, segmen
                 raise BackupAuthenticationError(f"{entry['name']}: restored database failed integrity_check")
         else:
             tar_path = target / ".files.tar"
-            decrypt(container, tar_path, passphrase)
+            decrypt(container, tar_path, passphrase, expected_header=expected)
             with tarfile.open(tar_path) as tar:
                 tar.extractall(target, filter="data")
             tar_path.unlink()
         restored.append(entry["name"])
-    count = 0
+    closed, opened = _segment_inventory(target / "market.db")
+    containers = {}
     coverage = {"status": "NOT_CHECKED", "missing": []}
     if segments:
-        market = sqlite3.connect((target / "market.db").resolve().as_uri() + "?mode=ro", uri=True)
-        try:
-            expected = dict(market.execute("SELECT seg_id, sha256 FROM segments WHERE sha256 IS NOT NULL"))
-        finally:
-            market.close()
-        for container in sorted((destination / "segments").rglob("*.tgfile")):
-            header, _ = read_header(container)
-            seg_id = container.relative_to(destination / "segments").as_posix()[: -len(".tgfile")]
-            if header.get("kind") != "segment" or header.get("name") != seg_id:
-                raise BackupAuthenticationError(f"{container.name}: segment name does not match its header")
-            if seg_id in expected and header.get("plaintext_sha256") != expected[seg_id]:
-                raise BackupAuthenticationError(f"{container.name}: does not match market.db segment digest")
+        containers = _snapshot_segments(destination / "segments", closed)
+        for seg_id, container in containers.items():
             out = target / "raw" / seg_id
             out.parent.mkdir(parents=True, exist_ok=True)
-            decrypt(container, out, passphrase)
-            expected.pop(seg_id, None)
-            count += 1
-        coverage = {"status": "INCOMPLETE" if expected else "COMPLETE", "missing": sorted(expected)}
-    return {"snapshot": snapshot.name, "restored": restored, "segments": count,
-            "segment_coverage": coverage, "target": str(target)}
+            decrypt(container, out, passphrase,
+                    expected_header={"kind": "segment", "name": seg_id, "plaintext_sha256": closed[seg_id]})
+        coverage = _coverage(closed, containers)
+    return {"snapshot": snapshot.name, "restored": restored, "segments": len(containers),
+            "segment_coverage": coverage, "open_segments_excluded": opened, "target": str(target), "manifest_status": manifest_status,
+            "manifest_sha256": manifest_digest,
+            "segment_integrity": {"scope": "FULL_RESTORE" if segments else "NOT_CHECKED", "verified": len(containers),
+                                  "expected": len(closed)}, "cross_host_verified": False}
 
 
 def status(root: Path) -> dict | None:
@@ -344,20 +450,21 @@ def status(root: Path) -> dict | None:
         return None
 
 
-def drill(destination: Path, *, passphrase: str, segment_sample: int = 24) -> dict:
+def drill(destination: Path, *, passphrase: str, segment_sample: int = 24,
+          expected_manifest_sha256: str | None = None, snapshot_id: str | None = None) -> dict:
     """Prove the newest snapshot restores (every database and the files archive) plus the newest segments."""
+    if type(segment_sample) is not int or segment_sample < 0:
+        raise BackupUnsafe("segment sample must be a nonnegative integer")
     with tempfile.TemporaryDirectory(prefix=".tg-research-drill-", dir=destination) as scratch:
-        report = restore_research(destination, Path(scratch) / "root", passphrase=passphrase, segments=False)
-        containers = sorted((destination / "segments").rglob("*.tgfile")) if (destination / "segments").is_dir() else []
-        market = sqlite3.connect((Path(scratch) / "root" / "market.db").as_uri() + "?mode=ro", uri=True)
-        try:
-            expected = {row[0] for row in market.execute("SELECT seg_id FROM segments WHERE sha256 IS NOT NULL")}
-        finally:
-            market.close()
-        archived = {p.relative_to(destination / "segments").as_posix().removesuffix(".tgfile") for p in containers}
-        missing = sorted(expected - archived)
-        report["segment_coverage"] = {"status": "INCOMPLETE" if missing else "COMPLETE", "missing": missing}
-        for container in containers[-segment_sample:] if segment_sample else []:
-            decrypt(container, Path(scratch) / f"seg-{secrets.token_hex(4)}", passphrase)
+        report = restore_research(destination, Path(scratch) / "root", passphrase=passphrase, segments=False,
+                                  expected_manifest_sha256=expected_manifest_sha256, snapshot_id=snapshot_id)
+        closed, _ = _segment_inventory(Path(scratch) / "root" / "market.db")
+        containers = _snapshot_segments(destination / "segments", closed)
+        report["segment_coverage"] = _coverage(closed, containers)
+        sample = list(containers.items())[-segment_sample:] if segment_sample else []
+        for seg_id, container in sample:
+            decrypt(container, Path(scratch) / f"seg-{secrets.token_hex(4)}", passphrase,
+                    expected_header={"kind": "segment", "name": seg_id, "plaintext_sha256": closed[seg_id]})
         return {**report, "target": "deleted after verification", "segments": None,
+                "segment_integrity": {"scope": "SAMPLED_DRILL", "verified": len(sample), "expected": len(closed)},
                 "segments_verified": min(len(containers), segment_sample), "segments_stored": len(containers)}
