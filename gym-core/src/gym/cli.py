@@ -247,6 +247,8 @@ def main(argv=None):
     alloc.add_argument("--lookback", type=int, default=50, help="days in the moving average")
     alloc.add_argument("--vol-target", type=float, default=0.4, help="annualised volatility the position is sized to")
     alloc.add_argument("--band", type=float, default=0.2, help="skip exposure changes smaller than this")
+    alloc.add_argument("--journal-version", type=int, choices=(1, 2), default=1,
+                       help="2 starts a separate bid-marked journal with fees in the received asset")
     alloc.add_argument("--demo", action="store_true")
     bk = sub.add_parser("backup-once", help="manual offline encrypted ledger backup on a separate mounted volume")
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
