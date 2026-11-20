@@ -421,12 +421,19 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         years = (end - start).total_seconds() / YEAR_SECONDS
         # Compounding a few days to a year exaggerates; report it only for windows of 30+ days.
         out["annualized_return_pct"] = str(round(((1 + float(total)) ** (1 / years) - 1) * 100, 4)) if years >= 30 / 365 and total > -1 else None
-    # Annualizing a few days of marks turns noise into extreme ratios; per-period Sharpe and P(Sharpe>0) stay honest.
+    # Annualizing a few days of marks turns noise into extreme ratios.
     long_enough = (end - start).total_seconds() >= 30 * 86400
-    out["returns"] = _sharpe_block(returns, periods_per_year if long_enough else None, enhanced=enhanced) if len(returns) >= 3 else None
-    if bootstrap and len(returns) >= 20:
+    irregular = len(set(sample_gaps)) > 1
+    out["return_sampling"] = "IRREGULAR_INTERVALS" if irregular else "EVEN_INTERVALS" if sample_gaps else "UNAVAILABLE"
+    annual_scale = periods_per_year if long_enough and not irregular else None
+    out["returns"] = _sharpe_block(returns, annual_scale, enhanced=enhanced) if len(returns) >= 3 else None
+    if irregular and out["returns"] is not None:
+        out["returns"]["probabilistic_sharpe"] = None
+        if enhanced:
+            out["returns"].update(minimum_track_record=None, track_record_status="IRREGULAR_INTERVALS")
+    if bootstrap and not irregular and len(returns) >= 20:
         out["returns"]["bootstrap_90"] = _bootstrap(returns)
-    out["benchmark"] = _benchmark(record, periods_per_year if long_enough else None)
+    out["benchmark"] = _benchmark(record, annual_scale)
     if drawdown and drawdown.get("status") == "AVAILABLE":
         out["max_drawdown_pct"] = drawdown["maximum_percent"]
         if out.get("annualized_return_pct") is not None and Decimal(drawdown["maximum_percent"]) > 0:
