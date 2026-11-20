@@ -6,7 +6,7 @@ import copy
 import json
 import random
 import time
-from collections import deque
+from collections import Counter, deque
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -253,16 +253,39 @@ class Collector:
         self.books[sym][side] = BookSide(lv, now)  # each message is a full side snapshot: replace
         self.depth_ref[sym] = ref
 
-    def on_trade(self, sym, d, now, ref, only_after: datetime | None = None) -> bool:
-        t = TradeTick.wallex(sym, d, now)
-        if only_after and t.ts_event <= only_after:
-            return False
+    def on_trade(self, sym, d, now, ref):
+        self._record_trade(TradeTick.wallex(sym, d, now), ref)
+
+    def _record_trade(self, t: TradeTick, ref: str):
         # Identical prints stay: the official API has no trade id in /v1/trades or SYMBOL@trade (checked 2026-11-08).
+        sym = t.symbol
         self.db.add_trade(t, ref)
         self.trades[sym].appendleft(t)
         if sym not in self.last_trade_ts or t.ts_event > self.last_trade_ts[sym]:
             self.last_trade_ts[sym] = t.ts_event
-        return True
+
+    def _seed_trades(self, symbol, rows, now, ref, previous):
+        ticks = sorted((TradeTick.wallex(symbol, row, now) for row in reversed(rows)), key=lambda t: t.ts_event)
+        if not ticks:
+            return
+        if previous and ticks[0].ts_event > previous:
+            self.quality(now, symbol, "GAP", f"REST trades do not cover {iso(previous)} to {iso(ticks[0].ts_event)}")
+        first = max(previous, ticks[0].ts_event) if previous else ticks[0].ts_event
+        existing = self.db.c.execute(
+            "SELECT ts_event, price, qty, aggressor FROM trades WHERE instrument_id=? AND ts_event BETWEEN ? AND ?",
+            (f"wallex:{symbol}", iso(first), iso(ticks[-1].ts_event)),
+        )
+        # Overlap counts are estimates without venue trade IDs. Match multiplicities so distinct or repeated
+        # prints in the same second can survive, while an unchanged REST batch does not add duplicate rows.
+        overlap = Counter((at, Decimal(price), Decimal(qty), side) for at, price, qty, side in existing)
+        for tick in ticks:
+            if tick.ts_event < first:
+                continue
+            key = (iso(tick.ts_event), tick.price, tick.qty, tick.aggressor)
+            if overlap[key]:
+                overlap[key] -= 1
+            else:
+                self._record_trade(tick, ref)
 
     def tick(self, now: datetime):
         previous = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
@@ -367,15 +390,16 @@ class Collector:
         return result
 
     async def load_catalog(self, session):
-        now = now_utc()
         received = True
         try:
             raw = await self.rest_text(session, CATALOG_PATH)
+            now = now_utc()
             self.seg.write("rest:" + CATALOG_PATH, raw, now)
             rows = loads(raw)["result"]["markets"]
             if not isinstance(rows, list):
                 raise ValueError("catalog markets is not a list")
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError) as e:
+            now = now_utc()
             self.quality(now, None, "SOURCE_ERROR", f"catalog: {type(e).__name__}: {e}")
             rows = self.retained_catalog(now)
             if not rows:
@@ -391,7 +415,9 @@ class Collector:
         rows = list(catalog.values())
         self.catalog, self.catalog_received_at = catalog, now if received else None
         self.catalog_source = "PUBLIC_REST" if received else "RETAINED_METADATA"
-        self._store_catalog(catalog, now, received, await self.trade_rules(session, now) if received else None)
+        if received:
+            rules = await self.trade_rules(session)
+            self._store_catalog(catalog, max(now, now_utc()), True, rules)
         if self.explicit_symbols is None:
             symbols, self.universe = select_universe(rows, self.asset_count)
         else:
@@ -410,15 +436,15 @@ class Collector:
         self.universe["custom_note"] = "custom additions are observed only and bypass ranking filters"
         self.configure(symbols, catalog)
 
-    async def trade_rules(self, session, now) -> dict:
+    async def trade_rules(self, session) -> dict:
         """Order limits per market, or {} when unreadable (stored specs then keep the limits they had)."""
         try:
             raw = await self.rest_text(session, RULES_PATH)
-            self.seg.write("rest:" + RULES_PATH, raw, now)
+            self.seg.write("rest:" + RULES_PATH, raw, now_utc())
             return {s.upper(): {k: m[k] for k in RULE_KEYS if m.get(k) not in (None, "")}
                     for s, m in loads(raw)["result"]["symbols"].items() if isinstance(m, dict)}
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, AttributeError) as e:
-            self.quality(now, None, "SOURCE_ERROR", f"trade rules: {type(e).__name__}: {e}")
+            self.quality(now_utc(), None, "SOURCE_ERROR", f"trade rules: {type(e).__name__}: {e}")
             return {}
 
     def _with_rules(self, symbol, row, rules):
@@ -446,16 +472,17 @@ class Collector:
 
     async def refresh_catalog(self, session):
         """Store the venue's current listing facts. The observed markets stay as chosen at start."""
-        now = now_utc()
         try:
             raw = await self.rest_text(session, CATALOG_PATH)
+            now = now_utc()
             self.seg.write("rest:" + CATALOG_PATH, raw, now)
             catalog = {m["symbol"].upper(): m for m in loads(raw)["result"]["markets"]
                        if isinstance(m, dict) and isinstance(m.get("symbol"), str) and m["symbol"].strip()}
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError) as e:
-            self.quality(now, None, "SOURCE_ERROR", f"catalog refresh: {type(e).__name__}: {e}")
+            self.quality(now_utc(), None, "SOURCE_ERROR", f"catalog refresh: {type(e).__name__}: {e}")
             return
-        self._store_catalog(catalog, now, True, await self.trade_rules(session, now))
+        rules = await self.trade_rules(session)
+        self._store_catalog(catalog, max(now, now_utc()), True, rules)
         self.catalog, self.catalog_received_at, self.catalog_source = catalog, now, "PUBLIC_REST"
 
     async def seed(self, session, symbols=None, trades=True):
@@ -467,20 +494,18 @@ class Collector:
             now = now_utc()
             try:
                 raw = await self.rest_text(session, "/v1/depth", symbol=s)
+                now = now_utc()
                 ref = self.seg.write("rest:/v1/depth", raw, now)
                 res = loads(raw)["result"]
                 self.on_depth(s, "bid", levels(res["bid"]), now, ref)
                 self.on_depth(s, "ask", levels(res["ask"]), now, ref)
                 if trades:
+                    prev = self.last_trade_ts.get(s)
                     raw = await self.rest_text(session, "/v1/trades", symbol=s)
+                    now = now_utc()
                     ref = self.seg.write("rest:/v1/trades", raw, now)
                     rows = loads(raw)["result"]["latestTrades"]
-                    prev = self.last_trade_ts.get(s)
-                    ticks = [TradeTick.wallex(s, d, now) for d in rows]
-                    if prev and ticks and min(t.ts_event for t in ticks) > prev:
-                        self.quality(now, s, "GAP", f"trades between {iso(prev)} and {iso(min(t.ts_event for t in ticks))} lost")
-                    for d in reversed(rows):
-                        self.on_trade(s, d, now, ref, only_after=prev)
+                    self._seed_trades(s, rows, now, ref, prev)
             except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, ArithmeticError) as e:
                 self.quality(now, s, "SOURCE_ERROR", f"REST seed: {type(e).__name__}: {e}")
             finally:

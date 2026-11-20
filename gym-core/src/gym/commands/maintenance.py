@@ -62,7 +62,8 @@ def research_restore_drill_cmd(args) -> int:
     from ..services.research_backup import drill
     phrase = _research_passphrase(args, "Research backup passphrase: ")
     try:
-        report = drill(Path(args.destination), passphrase=phrase, segment_sample=args.segments)
+        report = drill(Path(args.destination), passphrase=phrase, segment_sample=args.segments,
+                       expected_manifest_sha256=args.expect_manifest_sha256)
     finally:
         del phrase
     print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -73,7 +74,8 @@ def restore_research_cmd(args) -> int:
     from ..services.research_backup import restore_research
     phrase = _research_passphrase(args, "Research backup passphrase: ")
     try:
-        report = restore_research(Path(args.destination), Path(args.to), passphrase=phrase)
+        report = restore_research(Path(args.destination), Path(args.to), passphrase=phrase,
+                                  expected_manifest_sha256=args.expect_manifest_sha256)
     finally:
         del phrase
     print(json.dumps(report, ensure_ascii=False, indent=2))

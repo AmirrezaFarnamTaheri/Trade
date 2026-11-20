@@ -43,6 +43,7 @@ def test_backup_restores_byte_identical_data_and_copies_segments_once(tmp_path):
     restored = tmp_path / "restored"
     report = restore_research(dest, restored, passphrase=PHRASE)
     assert report["segments"] == 2 and (restored / "runs" / "abc.json").read_text("utf-8") == '{"run_id": "abc"}'
+    assert report["manifest_status"] == "AUTHENTICATED"
     assert not (restored / "wallex-read.dpapi").exists()
     for seg in (root / "raw").rglob("*.jsonl.zst"):
         assert (restored / "raw" / seg.relative_to(root / "raw")).read_bytes() == seg.read_bytes()
@@ -109,6 +110,41 @@ def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_p
     _encrypt(wrong, container, PHRASE, {"kind": "segment", "name": header["name"]}, False)
     with pytest.raises(BackupAuthenticationError, match="market.db segment digest"):
         restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+    with pytest.raises(BackupAuthenticationError, match="market.db segment digest"):
+        drill(dest, passphrase=PHRASE)
+
+
+def test_restore_pins_independent_receipt_and_rejects_a_rolled_back_snapshot(tmp_path):
+    import shutil
+    from pathlib import Path
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START)
+    latest = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START + timedelta(days=1))
+    digest = latest["manifest_sha256"]
+    assert drill(dest, passphrase=PHRASE, expected_manifest_sha256=digest)["manifest_status"] == "PINNED"
+    shutil.rmtree(Path(latest["snapshot"]))
+    with pytest.raises(BackupAuthenticationError, match="trusted manifest digest"):
+        restore_research(dest, tmp_path / "restored", passphrase=PHRASE, expected_manifest_sha256=digest)
+    assert not (tmp_path / "restored").exists()
+
+
+def test_manifest_tampering_has_no_plaintext_fallback(tmp_path):
+    from gym.services.research_backup import LEGACY_MANIFEST, MANIFEST, latest_snapshot
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True)
+    snapshot = latest_snapshot(dest)
+    manifest = snapshot / MANIFEST
+    data = bytearray(manifest.read_bytes())
+    data[-17] ^= 1
+    manifest.write_bytes(data)
+    (snapshot / LEGACY_MANIFEST).write_text('{"entries": []}', encoding="utf-8")
+    with pytest.raises(BackupAuthenticationError, match="modified backup"):
+        restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+    assert not (tmp_path / "restored").exists()
 
 
 def test_wrong_passphrase_tampering_and_swapped_files_are_refused(tmp_path):

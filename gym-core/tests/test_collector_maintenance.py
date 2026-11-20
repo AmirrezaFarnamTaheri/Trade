@@ -1,14 +1,48 @@
 """Slow public REST refresh cannot suspend freshness checks and raw-book heartbeats."""
 import asyncio
 import itertools
+import json
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
 
 from gym.adapters.store import SegmentWriter
+from gym.domain.model import iso
 from gym.services import collector
 from gym.services.collector import Collector
-from tests.support import market_db, quote_history
+from tests.support import START, market_db, quote_history
+
+
+def test_reseed_preserves_equal_time_prints_and_uses_response_availability(tmp_path, monkeypatch):
+    db = market_db(tmp_path, quote_history(n=3))
+    seg = SegmentWriter(tmp_path / "raw", db)
+    symbol = "BTCUSDT"
+    col = Collector(db, seg, [symbol])
+    depth_at = START + timedelta(seconds=2)
+    receipt = START + timedelta(seconds=7)
+    prints = [{"timestamp": iso(START), "price": price, "quantity": "1", "isBuyOrder": False}
+              for price in ("10", "10.00", "11")]
+    col.on_trade(symbol, prints[0], START, "ws:1")
+
+    clock = iter([START, depth_at, receipt, receipt, receipt, receipt])
+    monkeypatch.setattr(collector, "now_utc", lambda: next(clock))
+
+    async def rest(_session, path, **_params):
+        if path == "/v1/depth":
+            return json.dumps({"result": {"bid": [], "ask": []}})
+        return json.dumps({"result": {"latestTrades": list(reversed(prints))}})
+
+    monkeypatch.setattr(col, "rest_text", rest)
+    try:
+        asyncio.run(col.seed(object()))
+        assert col.books[symbol]["bid"].ts == depth_at
+        asyncio.run(col.seed(object()))
+        rows = db.c.execute("SELECT price, ts_avail FROM trades ORDER BY rowid").fetchall()
+        assert rows == [("10", iso(START)), ("10.00", iso(receipt)), ("11", iso(receipt))]
+    finally:
+        seg.close()
+        db.c.close()
 
 
 def test_maintenance_ticks_continue_during_a_blocked_reseed(tmp_path, monkeypatch):

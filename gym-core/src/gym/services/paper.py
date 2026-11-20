@@ -31,7 +31,8 @@ def run(portal: DataPortal, rules_for, strategy, symbol: str, t0: datetime, t1: 
         session.feed(top)
     session.finish(t1)
     key = None
-    if digest_cache is not None and cost.order_type != "limit" and not strategy.params.get("exit_venue_stop"):
+    if (digest_cache is not None and cost.order_type != "limit" and not strategy.params.get("exit_venue_stop")
+            and not session.observed_obv_volume):
         key = (symbol, t0, t1, bool(cost.walk_depth), len(tops))
     return session_result(session, tops, cash, digest_cache=digest_cache, digest_key=key)
 
@@ -101,7 +102,9 @@ def _data_digest(session, tops, cost, cache, key):
     value = digest([(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
                      *((x.depth,) if cost.walk_depth else ())) for x in tops]
                    + ([("limit_trades", session.limit_trades)] if cost.order_type == "limit" else [])
-                   + ([("stop_trades", session.venue_stop_trades)] if session.strategy.params.get("exit_venue_stop") else []))
+                   + ([("stop_trades", session.venue_stop_trades)] if session.strategy.params.get("exit_venue_stop") else [])
+                   + ([("obv_volume", [(d["t"], d["bar_known"]["volume_evidence"]["digest"]) for d in session.decisions])]
+                      if session.observed_obv_volume else []))
     if cache is not None and key is not None:
         cache[key] = value
     return value

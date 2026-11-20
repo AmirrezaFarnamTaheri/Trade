@@ -14,6 +14,7 @@ min_hold_bars keeps a position at least that many bars after entry: a direct cap
 from collections import deque
 from decimal import Decimal
 
+from .signals import SIGNALS, OnBalanceVolume
 from .strategy import digest
 
 FORMS = ("vote", "confirm", "calm-vote")
@@ -50,15 +51,18 @@ class SignalBlend:
         self.bars_held, self.feature_values = 0, {}
 
     def _observe(self, snap):
+        no_volume = False
         for i, member in enumerate(self.members):
             action = member.decide(snap, self.held[i])[0]
             if action.startswith("ABSTAIN"):
+                no_volume |= action == "ABSTAIN_NO_VOLUME"
                 self.targets[i] = None if action == "ABSTAIN_WARMUP" else self.targets[i]
                 self.flips[i].append(False)
                 continue
             target = TARGET.get(action, self.held[i])
             self.flips[i].append(self.targets[i] is not None and target != self.targets[i])
             self.held[i] = self.targets[i] = target
+        return no_volume
 
     def _consensus(self, members):
         if self.form == "calm-vote":
@@ -67,11 +71,16 @@ class SignalBlend:
         return Decimal(sum(bool(self.targets[i]) for i in members)) / len(members)
 
     def decide(self, snap, holding):
-        self._observe(snap)
+        no_volume = self._observe(snap)
         everyone = range(len(self.members))
         consensus = self._consensus(range(1, len(self.members)) if self.form == "confirm" else everyone)
         self.feature_values = {"consensus": float(consensus), "targets": list(self.targets), "bars_held": self.bars_held}
+        if no_volume:
+            self.feature_values["obv_volume"] = "MISSING" if snap.observed_trade_volume is None else "ZERO"
         fingerprint = digest(self.feature_values)[:16]
+        if no_volume:
+            self.bars_held = self.bars_held + 1 if holding else 0
+            return "ABSTAIN_NO_VOLUME", Decimal(0), ("OBV needs positive trade volume",), fingerprint
         if any(t is None for t in self.targets):
             return "ABSTAIN_WARMUP", Decimal(0), ("a member is warming up",), fingerprint
         if snap.bid is None:
@@ -94,18 +103,24 @@ class SignalMember:
     """A signed signal as a long/flat member: +1 long, -1 or a fresh 0 flat-or-keep, None warming up."""
     version = 1
 
-    def __init__(self, name):
-        from .signals import SIGNALS
+    def __init__(self, name, *, require_volume=False):
         self.name, self.signal, self.params = name, SIGNALS[name], {}
         self.closes = deque(maxlen=WINDOW_BARS if name in WINDOWED_SIGNALS else None)
-        self.volume = []
+        self.obv = OnBalanceVolume(require_volume=require_volume) if name == "obv" else None
         self.last = None
 
     def decide(self, snap, holding):
-        self.closes.append(float(snap.bar.close))
-        if self.name == "obv":
-            self.volume.append(float(snap.bar.volume))
-        target = self.signal({"close": list(self.closes), "volume": self.volume})[-1]
+        close = float(snap.bar.close)
+        if self.obv is not None:
+            observed = snap.observed_trade_volume if self.obv.require_volume else snap.bar.volume
+            volume = None if observed is None else float(observed)
+            target = self.obv.update(close, volume)
+            if self.obv.require_volume and not volume:
+                self.last = target
+                return "ABSTAIN_NO_VOLUME", Decimal(0), ("OBV needs positive trade volume",), ""
+        else:
+            self.closes.append(close)
+            target = self.signal({"close": list(self.closes)})[-1]
         if self.name == "donchian" and target == 0 and self.last is not None:
             target = self.last
         self.last = target
@@ -118,14 +133,20 @@ class SignalMember:
         return "HOLD", Decimal(0), (f"{self.name} {target:+d}",), ""
 
 
-def blend_from_names(members="ema-trend,macd-cross,keltner-breakout,rsi-rebound", **options):
+def blend_from_names(members="ema-trend,macd-cross,keltner-breakout,rsi-rebound", *, obv_volume_policy="legacy", **options):
     """Registry constructor: members by name, each at its registered default parameters."""
     from .registry import create_strategy
     names = [n.strip() for n in members.split(",") if n.strip()]
     if not names or len(set(names)) != len(names) or any(n not in MEMBERS for n in names):
         raise ValueError(f"invalid strategy parameter: members must be distinct names from {', '.join(MEMBERS)}")
-    members_ = [SignalMember(n) if n in SIGNAL_MEMBERS else create_strategy(n) for n in names]
-    return SignalBlend(members_, params={"members": ",".join(names), **options}, **options)
+    require_volume = obv_volume_policy == "require-positive"
+    if require_volume and "obv" not in names:
+        raise ValueError("obv_volume_policy requires an obv member")
+    members_ = [SignalMember(n, require_volume=require_volume) if n in SIGNAL_MEMBERS else create_strategy(n) for n in names]
+    params = {"members": ",".join(names), **options}
+    if require_volume:
+        params["obv_volume_policy"] = obv_volume_policy
+    return SignalBlend(members_, params=params, **options)
 
 
 blend_from_names.version = SignalBlend.version

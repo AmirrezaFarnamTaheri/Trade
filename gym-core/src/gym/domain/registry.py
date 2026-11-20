@@ -86,6 +86,7 @@ STRATEGIES["signal-blend"] = (blend_from_names, "Blend of single-market rules (v
     "exit_pct": {"type": "integer", "default": 34, "minimum": 0, "maximum": 99},
     "min_hold_bars": {"type": "integer", "default": 0, "minimum": 0, "maximum": 500},
     "calm_bars": {"type": "integer", "default": 24, "minimum": 2, "maximum": 500},
+    "obv_volume_policy": {"type": "string", "default": "legacy", "enum": ["legacy", "require-positive"]},
 })
 def catalog():
     """Expose the paper-only, versioned strategy parameter catalog."""

@@ -19,8 +19,8 @@ the disk.
 
 ## Drills (do these before trusting the backup)
 
-1. `gymctl research-restore-drill <folder>` decrypts the newest snapshot and the newest raw segments into a
-   temporary folder and verifies every database and hash. The nightly schedule already runs it after each
+1. `gymctl research-restore-drill <folder>` authenticates the snapshot inventory, verifies each restored database,
+   compares archived segment headers with the market database and decrypts the newest segment sample. The nightly schedule runs it after each
    backup; run it by hand after changing the destination.
 2. `gymctl restore-drill <folder>` does the same for the executor ledger and checks it against every anchor.
 3. Once a quarter, rebuild a data root on a clean folder and check it:
@@ -29,6 +29,17 @@ the disk.
        gymctl --data D:\restore-test doctor
 
    Record the time it took; that is the recovery time for the research store.
+
+The `backup-research` receipt includes `manifest_sha256`. To detect replacement of the newest snapshot with an
+older valid one, keep that digest in an independent location and pass it as `--expect-manifest-sha256` to
+`restore-research` or `research-restore-drill`. `PINNED` indicates a match to the supplied digest. `AUTHENTICATED`
+indicates the snapshot's inventory decrypted and matched its directory identity. Older plaintext inventories
+remain readable and report `LEGACY_UNVERIFIED`.
+
+Research backup container version 2 authenticates its header and payload with AES-256-GCM. It records
+scrypt `n=32768`, `r=8`, and `p=1`, with a fresh 16-byte salt per container. Version 1 used the same fixed
+parameters implicitly. Use a recovery passphrase of at least 12 characters. The reader rejects unsupported
+algorithms and parameter sets. New snapshots use version 2 and older segment containers remain readable.
 
 ## After losing the laptop or its disk
 

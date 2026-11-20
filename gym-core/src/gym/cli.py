@@ -350,6 +350,8 @@ def main(argv=None):
     rrs = sub.add_parser("restore-research", help="rebuild a data root from the newest research snapshot into an empty folder")
     rrs.add_argument("destination")
     rrs.add_argument("--to", required=True, help="new or empty folder; never overwrites")
+    for restore_parser in (rrd, rrs):
+        restore_parser.add_argument("--expect-manifest-sha256", help="require the manifest digest from an independent receipt")
     rk = sub.add_parser("release-keygen", help="create the executor update signing key (keep the private key off the build host)")
     rk.add_argument("--private", required=True)
     rk.add_argument("--public", required=True)

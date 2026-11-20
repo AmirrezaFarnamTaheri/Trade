@@ -118,3 +118,65 @@ def test_signal_members_match_batch_signals():
                 history[key].append(float(value))
             member.decide(SimpleNamespace(bar=bar, bid=Decimal(1), ask=Decimal(1)), False)
             assert member.last == full(history)[-1], (name, i)
+
+
+def test_obv_volume_policy_has_new_identity_and_abstains_on_zero_and_missing_volume():
+    config = {"members": "obv", "enter_pct": 100, "exit_pct": 0}
+    legacy = create_strategy("signal-blend", config)
+    guarded = create_strategy("signal-blend", {**config, "obv_volume_policy": "require-positive"})
+    assert "obv_volume_policy" not in legacy.params
+    assert guarded.config_hash != legacy.config_hash
+    assert create_strategy("signal-blend", guarded.params).config_hash == guarded.config_hash
+
+    def bar(close, volume):
+        return SimpleNamespace(bid=Decimal(1), observed_trade_volume=volume, bar=SimpleNamespace(close=Decimal(close)))
+
+    for close in range(1, 21):
+        result = guarded.decide(bar(close, Decimal(2)), holding=False)
+    assert result[0] == "BUY_REQUEST"
+    for volume, quality in [(Decimal(0), "ZERO"), (None, "MISSING")]:
+        assert guarded.decide(bar(19, volume), holding=True)[0] == "ABSTAIN_NO_VOLUME"
+        assert guarded.feature_values["obv_volume"] == quality
+    assert guarded.decide(bar(18, Decimal(100)), holding=True)[0] == "SELL_REQUEST"
+    assert len(guarded.members[0].obv.window) == 20
+    assert not guarded.members[0].closes
+
+
+def test_paper_replay_obv_uses_available_prints_and_hashes_them(tmp_path):
+    from datetime import timedelta
+
+    from gym.domain.model import TradeTick
+    from gym.domain.sim import CostModel
+    from gym.services.data_portal import DataPortal
+    from gym.services.paper import run
+    from tests.support import START, market_db, quote_history
+
+    db = market_db(tmp_path, quote_history(n=24, step=60, turn=1))
+    portal = DataPortal(db)
+    symbol = "BTCUSDT"
+    end = START + timedelta(minutes=23)
+    config = {"members": "obv", "obv_volume_policy": "require-positive"}
+
+    def replay():
+        strategy = create_strategy("signal-blend", config)
+        return run(portal, lambda _: (), strategy, symbol, START, end, "1min", Decimal(100), CostModel())
+
+    def trade(minute, delay):
+        event_at = START + timedelta(minutes=minute, seconds=10)
+        db.add_trade(TradeTick(symbol, event_at, event_at + timedelta(seconds=delay), Decimal(70000), Decimal(2), "BUY"), "raw")
+
+    try:
+        for minute in range(21):
+            trade(minute, 0)
+        first = replay()
+        trade(0, 60)  # after the close at which the bar was consumed
+        assert replay() == first
+        assert first["decisions"][0]["bar_known"]["volume_evidence"]["volume"] == "2"
+        assert any(d["action"] == "BUY_REQUEST" for d in first["decisions"])
+        assert first["decisions"][-1]["action"] == "ABSTAIN_NO_VOLUME"
+        trade(0, 0)
+        revised = replay()
+        assert revised["data_digest"] != first["data_digest"]
+        assert revised["decisions"][0]["snapshot"] != first["decisions"][0]["snapshot"]
+    finally:
+        db.c.close()
