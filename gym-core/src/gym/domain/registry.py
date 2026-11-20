@@ -88,7 +88,7 @@ STRATEGIES["signal-blend"] = (blend_from_names, "Blend of single-market rules (v
     "calm_bars": {"type": "integer", "default": 24, "minimum": 2, "maximum": 500},
     "obv_volume_policy": {"type": "string", "default": "legacy", "enum": ["legacy", "require-positive"]},
 })
-POSITION_MODEL = {"type": "string", "default": "legacy", "enum": ["legacy", "inventory/1"]}
+POSITION_MODEL = {"type": "string", "default": "legacy", "enum": ["legacy", "inventory/1", "inventory/2"]}
 
 
 def catalog():
@@ -152,7 +152,7 @@ def create_strategy(name="ema-trend", params=None):
         strategy = RegimeGate(strategy, gate, regime_model)
     if exits:
         strategy = ExitPolicy(strategy, exits)
-    if position_model == "inventory/1":
+    if position_model != "legacy":
         strategy.params = {**strategy.params, "position_model": position_model}
     strategy.config_hash = digest({"strategy": name, "version": strategy.version, "params": strategy.params})
     return strategy

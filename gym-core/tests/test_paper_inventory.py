@@ -1,13 +1,42 @@
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 from gym.adapters.run_store import save_run
 from gym.domain.model import InstrumentId
+from gym.domain.registry import create_strategy
 from gym.domain.sim import CostModel
+from gym.services.data_portal import DataPortal
 from gym.services.paper import paper
 from gym.services.portfolio import portfolio
 from gym.services.replay_debugger import replay_decisions
+from gym.services.session import PaperSession
 from tests.support import START, market_db, quote_history
+
+
+def test_exit_checks_are_separate_from_holding_and_lot_qualification(tmp_path):
+    symbol = "BTCUSDT"
+    db = market_db(tmp_path, [])
+    inst = InstrumentId.wallex(symbol)
+    rules = {"stepSize": 8, "minQty": "0.00000001", "minNotional": "1", "isMarketTypeEnable": True}
+    db.upsert_instrument(inst, {}, rules, "test", START)
+    stop = START + timedelta(minutes=1)
+    db.upsert_instrument(inst, {}, {**rules, "isMarketTypeEnable": False}, "test", stop)
+    db.upsert_instrument(inst, {}, {"isMarketTypeEnable": True}, "test", stop + timedelta(seconds=30))
+    strategy = create_strategy("ema-trend", {"position_model": "inventory/2"})
+    session = PaperSession(DataPortal(db), lambda _: (), strategy, symbol, START, "1min", Decimal(1000), CostModel())
+    quote = quote_history(n=1)[0]
+    quantity = Decimal("0.00007")
+    try:
+        for at, expected in [(START, "PAPER_CHECKS_PASS"), (stop, "BLOCKED_BY_MARKET_STATUS"),
+                             (stop + timedelta(seconds=30), "UNKNOWN"), (stop + timedelta(minutes=2), "UNKNOWN")]:
+            position = session.inventory_at(quantity, quote, at)["position_known"]
+            assert position["exit_check"] == expected and Decimal(position["quantity"]) == quantity
+        assert session.inventory_at(quantity, None, START)["position_known"]["exit_check"] == "UNKNOWN"
+        session.pending = SimpleNamespace(record={"ref": "BTCUSDT#1", "side": "SELL", "status": "PENDING"}, max_qty=None)
+        assert session.inventory_at(quantity, quote, START)["position_known"]["exit_check"] == "WORKING_ORDER"
+    finally:
+        db.c.close()
 
 
 def test_small_inventory_remains_held_when_rules_make_it_dust(tmp_path):

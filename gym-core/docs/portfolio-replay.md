@@ -19,6 +19,15 @@ and any working paper order. The portfolio shows the ending holding and its sell
 These checks do not assess venue halts, execution depth, or risk-policy approval. Missing or stale evidence leaves the check unresolved. Inventory below a known minimum remains in balances
 and marked equity. This model has a separate run identity. Legacy runs keep their recorded semantics.
 
+**Exact inventory with paper exit checks** (`inventory/2`) records a separate exit assessment. A pass
+requires a fresh qualified quote, known lot rules, recorded market-order availability, enough displayed
+bid size, and a passing paper-rule decision. A working order, a recorded block, or missing evidence
+has its own status. Passing these checks does not guarantee a fill or authorize a live order.
+
+Legacy position accounting remains the default for new runs. Choose an exact inventory model explicitly
+to give the run its own input identity. For modern paper artifacts, missing gross quote postings cause
+reporting to refuse the result. Only legacy artifacts without a posting ledger use receipt prices.
+
 ## Allocation and risk
 
 Equal weights are the default. Optional inverse-volatility and equal-risk-

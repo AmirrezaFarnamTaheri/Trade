@@ -280,6 +280,7 @@ window.gymResearch = (() => {
       const order = position.working_order;
       return `<p>${esc(T[language][label] ?? position.state)}</p>
         <p>${T[language].rsSellableAtRecordedBid} <bdi>${esc(position.sellable_quantity_at_bid ?? '—')} ${esc(position.asset)}</bdi></p>` +
+        (position.exit_check ? `<p>${esc(T[language]['paperExit' + position.exit_check] ?? position.exit_check)}</p>` : '') +
         (order ? `<p>${T[language].rsModeledWorkingOrder} <bdi>${esc(order.side)} · ${esc(order.ref)}</bdi></p>` : '');
     }
     const json = value => `<pre class="output" dir="ltr">${esc(JSON.stringify(value, null, 2))}</pre>`;

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from gym.adapters.store import SegmentWriter
+from gym.adapters.store import MarketDB, SegmentWriter
 from gym.domain.model import iso
 from gym.services import collector
 from gym.services.collector import Collector
@@ -61,6 +61,12 @@ def test_reseed_recovers_a_distinct_print_below_the_high_water_mark(tmp_path):
         rows = db.c.execute("SELECT price, ts_avail FROM trades ORDER BY ts_event").fetchall()
         assert rows == [("5", prints[0]["timestamp"]), ("7", iso(receipt)), ("10", prints[2]["timestamp"])]
         assert col.last_trade_ts[symbol] == START + timedelta(minutes=10)
+        db.c.close()
+        db = MarketDB(tmp_path / "market.db")
+        restarted = Collector(db, SegmentWriter(tmp_path / "raw", db), [symbol])
+        restarted._seed_trades(symbol, list(reversed(prints)), receipt + timedelta(minutes=1), "rest:2",
+                               restarted.last_trade_ts[symbol])
+        assert db.c.execute("SELECT price, ts_avail FROM trades ORDER BY ts_event").fetchall() == rows
     finally:
         seg.close()
         db.c.close()
