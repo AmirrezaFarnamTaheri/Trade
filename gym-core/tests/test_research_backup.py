@@ -2,6 +2,7 @@
 import json
 import sqlite3
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 
@@ -94,6 +95,44 @@ def test_restore_reports_missing_segments_without_claiming_complete_archive(tmp_
     rehearsal = drill(dest, passphrase=PHRASE)
     assert rehearsal["segment_coverage"] == report["segment_coverage"]
     assert rehearsal["segments_verified"] == 1
+
+
+def test_backup_and_restore_scope_raw_segments_to_the_market_snapshot(tmp_path, monkeypatch):
+    from gym.services import research_backup
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    db = MarketDB(root / "market.db")
+    writer = SegmentWriter(root / "raw", db)
+    open_id = writer.write("ws", "still open at capture", START + timedelta(hours=2)).split("#")[0]
+    original = research_backup._snapshot_sqlite
+
+    def copy_with_rollover(source, target):
+        original(source, target)
+        if source == root / "market.db":
+            writer.close()  # this segment closes while the rest of the backup is still running
+
+    monkeypatch.setattr(research_backup, "_snapshot_sqlite", copy_with_rollover)
+    try:
+        first = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START)
+        assert first["open_segments_excluded"] == [open_id]
+        assert first["segments_total"] == 2
+        container = dest / "segments" / f"{open_id}.tgfile"
+        assert not container.exists()
+        later = backup_research(root, dest, passphrase=PHRASE, allow_same_device=True, now=START + timedelta(days=1))
+        assert later["open_segments_excluded"] == [] and container.is_file()
+        Path(later["snapshot"]).rename(tmp_path / "later-snapshot")
+        target = tmp_path / "restored"
+        restored = restore_research(dest, target, passphrase=PHRASE, expected_manifest_sha256=first["manifest_sha256"])
+        assert restored["open_segments_excluded"] == [open_id]
+        assert restored["segment_coverage"] == {"status": "COMPLETE", "missing": []}
+        assert not (target / "raw" / open_id).exists()
+        rehearsal = drill(dest, passphrase=PHRASE)
+        assert rehearsal["open_segments_excluded"] == [open_id]
+        assert rehearsal["segments_stored"] == rehearsal["segments_verified"] == 2
+    finally:
+        writer.close()
+        db.c.close()
 
 
 def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_path):
