@@ -43,6 +43,18 @@ def test_statistics_use_last_mark_at_each_timestamp_without_rewriting_curve():
     assert len(curve) == 4
 
 
+def test_benchmark_uses_last_equity_mark_at_each_bid_timestamp():
+    times = [iso(START + timedelta(days=i)) for i in range(1, 5)]
+    curve = list(zip(times, ["110", "121", "133.1", "146.41"]))
+    record = {"inputs": {"from": iso(START), "to": times[-1]},
+              "result": {"quote": "USDT", "start_cash": "100", "curve": [(times[0], "99"), *curve],
+                         "decisions": [{"t": t, "bid": str(100 + i)} for i, t in enumerate(times)]}}
+    actual = performance(record)["benchmark"]
+    record["result"]["curve"] = curve
+    assert actual["periods"] == 3
+    assert actual == performance(record)["benchmark"]
+
+
 def test_irregular_marks_do_not_produce_annualized_sharpe_or_bootstrap():
     timestamps = [START + timedelta(days=i + i // 2) for i in range(1, 31)]
     curve = [(iso(t), str(100 + i + i % 2)) for i, t in enumerate(timestamps, 1)]
@@ -281,8 +293,8 @@ def test_benchmark_tracking_error_does_linear_mean_work(monkeypatch):
     bids = [100 + i / 10 + (i % 7) / 10 for i in range(count)]
     out = {"result": {
         "base": "BTC",
-        "curve": [(str(i), str(value)) for i, value in enumerate(equity)],
-        "decisions": [{"t": str(i), "bid": str(value)} for i, value in enumerate(bids)],
+        "curve": [(iso(START + timedelta(seconds=i)), str(value)) for i, value in enumerate(equity)],
+        "decisions": [{"t": iso(START + timedelta(seconds=i)), "bid": str(value)} for i, value in enumerate(bids)],
     }}
     active = [equity[i] / equity[i - 1] - bids[i] / bids[i - 1] for i in range(1, count)]
     mean_work = 0
