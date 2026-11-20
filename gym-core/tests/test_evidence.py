@@ -69,6 +69,11 @@ def test_diagnostics_report_and_demo_capital_guard(tmp_path):
     assert all(v["status"] == "PASS" for v in diag["checks"].values())
     assert [r["cost_multiplier"] for r in diag["cost_stress"]] == ["0", "1", "1.25", "2", "3"]
     assert diag["cost_stress"][1]["net"] == out["result"]["end"]["net"]
+    scenario = diag["execution_scenarios"]
+    assert scenario["schema"] == "paper-latency-stress/1"
+    assert scenario["baseline"]["net"] == out["result"]["end"]["net"]
+    assert scenario["delayed"]["latency_ms"] > scenario["baseline"]["latency_ms"]
+    assert scenario["delayed"]["orders"] != scenario["baseline"]["orders"]
     assert set(diag["cost_stress"][2]["components"]) == {"spread", "fees", "latency_drift"}
     assert diag["warmup-stability"]["status"] == "PASS"
     assert diag["warmup-stability"]["prehistory_observations"] > 0
