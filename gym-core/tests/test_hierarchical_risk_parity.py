@@ -68,7 +68,7 @@ def test_hrp_native_portfolio_replay_has_an_opt_in_version(tmp_path):
     try:
         out = portfolio(db, symbols, START, START + timedelta(minutes=25),
                         resolution="1min", params={"fast": 2, "slow": 3},
-                        policy={"method": "hierarchical-risk-parity", "lookback": 3})
+                        policy={"method": "hierarchical-risk-parity", "lookback": 3}, legacy_holding=True)
         assert out["inputs"]["portfolio_version"] == 13
         assert any(event.get("hierarchical_risk_parity")
                    for event in out["result"]["policy_events"] if event["kind"] == "TARGETS")

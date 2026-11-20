@@ -32,6 +32,41 @@ def test_enhanced_performance_discloses_irregular_mark_spacing():
     }
 
 
+def test_statistics_use_last_mark_at_each_timestamp_without_rewriting_curve():
+    stamps = [iso(START + timedelta(minutes=i)) for i in (1, 2, 4)]
+    curve = [(stamps[0], "99"), (stamps[0], "110"), (stamps[1], "121"), (stamps[2], "133.1")]
+    report = performance({"inputs": {"from": iso(START), "to": stamps[2]},
+                          "result": {"quote": "USDT", "start_cash": "100", "curve": curve}}, enhanced=True)
+    assert report["returns"]["periods"] == 3
+    assert report["returns"]["mean_return"] == pytest.approx(0.1)
+    assert report["mark_spacing"]["nonpositive_intervals"] == 1
+    assert len(curve) == 4
+
+
+def test_benchmark_uses_last_equity_mark_at_each_bid_timestamp():
+    times = [iso(START + timedelta(days=i)) for i in range(1, 5)]
+    curve = list(zip(times, ["110", "121", "133.1", "146.41"]))
+    record = {"inputs": {"from": iso(START), "to": times[-1]},
+              "result": {"quote": "USDT", "start_cash": "100", "curve": [(times[0], "99"), *curve],
+                         "decisions": [{"t": t, "bid": str(100 + i)} for i, t in enumerate(times)]}}
+    actual = performance(record)["benchmark"]
+    record["result"]["curve"] = curve
+    assert actual["periods"] == 3
+    assert actual == performance(record)["benchmark"]
+
+
+def test_irregular_marks_do_not_produce_annualized_sharpe_or_bootstrap():
+    timestamps = [START + timedelta(days=i + i // 2) for i in range(1, 31)]
+    curve = [(iso(t), str(100 + i + i % 2)) for i, t in enumerate(timestamps, 1)]
+    report = performance({"inputs": {"from": iso(START), "to": iso(timestamps[-1])},
+                          "result": {"quote": "USDT", "start_cash": "100", "curve": curve}})
+    assert report["return_sampling"] == "IRREGULAR_INTERVALS"
+    assert report["returns"]["sharpe_annualized"] is None
+    assert report["returns"]["probabilistic_sharpe"] is None
+    assert "bootstrap_90" not in report["returns"]
+    assert selection_check({"first": report, "second": report}) is None
+
+
 def test_lo_annualization_tapers_lags_for_alternating_returns():
     # A hard one-lag cutoff makes the variance factor negative for this series.
     assert lo_annualized_sharpe([0.03, -0.01] * 50, 365, max_lags=1) == pytest.approx(84.298816)
@@ -258,8 +293,8 @@ def test_benchmark_tracking_error_does_linear_mean_work(monkeypatch):
     bids = [100 + i / 10 + (i % 7) / 10 for i in range(count)]
     out = {"result": {
         "base": "BTC",
-        "curve": [(str(i), str(value)) for i, value in enumerate(equity)],
-        "decisions": [{"t": str(i), "bid": str(value)} for i, value in enumerate(bids)],
+        "curve": [(iso(START + timedelta(seconds=i)), str(value)) for i, value in enumerate(equity)],
+        "decisions": [{"t": iso(START + timedelta(seconds=i)), "bid": str(value)} for i, value in enumerate(bids)],
     }}
     active = [equity[i] / equity[i - 1] - bids[i] / bids[i - 1] for i in range(1, count)]
     mean_work = 0

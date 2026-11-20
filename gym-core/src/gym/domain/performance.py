@@ -221,8 +221,9 @@ def _bootstrap(returns: list[float], seed: int = 0) -> dict:
 
 def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
     """Strategy against holding the base asset over the same equity marks (bid at each decision)."""
-    bids = {d["t"]: float(d["bid"]) for d in record["result"].get("decisions", []) if d.get("bid")}
-    marks = [(t, float(v), bids[t]) for t, v in record["result"].get("curve", []) if t in bids]
+    bids = {parse_ts(d["t"]): float(d["bid"]) for d in record["result"].get("decisions", []) if d.get("bid")}
+    equity = {parse_ts(t): float(v) for t, v in record["result"].get("curve", [])}
+    marks = [(t, equity[t], bids[t]) for t in sorted(equity.keys() & bids.keys())]
     pairs = [(e1 / e0 - 1, b1 / b0 - 1) for (_, e0, b0), (_, e1, b1) in pairwise(marks) if e0 > 0 and b0 > 0]
     if len(pairs) < 3:
         return None
@@ -397,7 +398,8 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
             points[-1] = terminal
         else:
             points.append(terminal)
-    returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(points) if a > 0]
+    statistical_marks = sorted(dict(points).items())
+    returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(statistical_marks) if a > 0]
     gaps = sorted((tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(points) if tb > ta)
     if enhanced:
         out["mark_spacing"] = {
@@ -405,10 +407,12 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
             "median_seconds": median(gaps) if gaps else None,
             "max_seconds": gaps[-1] if gaps else None,
         }
-    periods_per_year = YEAR_SECONDS / median(gaps) if gaps else None
-    open_calendar = (market_open_annualization(start, end, median(gaps),
+    sample_gaps = [(tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(statistical_marks)]
+    cadence = median(sample_gaps) if sample_gaps else None
+    periods_per_year = YEAR_SECONDS / cadence if cadence else None
+    open_calendar = (market_open_annualization(start, end, cadence,
                      result.get("session", {}).get("skipped", []))
-                     if enhanced and gaps else None)
+                     if enhanced and cadence else None)
     if enhanced and open_calendar and open_calendar["status"] == "AVAILABLE":
         periods_per_year = open_calendar["periods_per_year"]
         out["market_open_annualization"] = open_calendar
@@ -418,12 +422,19 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         years = (end - start).total_seconds() / YEAR_SECONDS
         # Compounding a few days to a year exaggerates; report it only for windows of 30+ days.
         out["annualized_return_pct"] = str(round(((1 + float(total)) ** (1 / years) - 1) * 100, 4)) if years >= 30 / 365 and total > -1 else None
-    # Annualizing a few days of marks turns noise into extreme ratios; per-period Sharpe and P(Sharpe>0) stay honest.
+    # Annualizing a few days of marks turns noise into extreme ratios.
     long_enough = (end - start).total_seconds() >= 30 * 86400
-    out["returns"] = _sharpe_block(returns, periods_per_year if long_enough else None, enhanced=enhanced) if len(returns) >= 3 else None
-    if bootstrap and len(returns) >= 20:
+    irregular = len(set(sample_gaps)) > 1
+    out["return_sampling"] = "IRREGULAR_INTERVALS" if irregular else "EVEN_INTERVALS" if sample_gaps else "UNAVAILABLE"
+    annual_scale = periods_per_year if long_enough and not irregular else None
+    out["returns"] = _sharpe_block(returns, annual_scale, enhanced=enhanced) if len(returns) >= 3 else None
+    if irregular and out["returns"] is not None:
+        out["returns"]["probabilistic_sharpe"] = None
+        if enhanced:
+            out["returns"].update(minimum_track_record=None, track_record_status="IRREGULAR_INTERVALS")
+    if bootstrap and not irregular and len(returns) >= 20:
         out["returns"]["bootstrap_90"] = _bootstrap(returns)
-    out["benchmark"] = _benchmark(record, periods_per_year if long_enough else None)
+    out["benchmark"] = _benchmark(record, annual_scale)
     if drawdown and drawdown.get("status") == "AVAILABLE":
         out["max_drawdown_pct"] = drawdown["maximum_percent"]
         if out.get("annualized_return_pct") is not None and Decimal(drawdown["maximum_percent"]) > 0:
@@ -467,7 +478,25 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     out["trades"] = stats
     out["activity"] = _activity(out, result, stats)
     if markets is not None:
-        out["trade_statistics_status"] = "NOT_APPLICABLE"
+        out["trade_statistics_status"] = "PARTIAL"
+        out["portfolio_trades"] = {
+            "currency": result["quote"],
+            "closed_trades": sum(market["closed_trades"] for market in markets.values()),
+            "realized_pnl": str(sum((Decimal(market["realized_pnl"]) for market in markets.values()), Decimal(0))),
+            "exposure": None,
+        }
+        instruments = inputs.get("instruments", {})
+        if all(symbol in instruments for symbol in markets):
+            pnl = [Decimal(trade["pnl"]) for symbol, market in markets.items()
+                   for trade in trade_ledger(market["orders"], instruments[symbol]["base"])["trades"]]
+            winning, losing = [value for value in pnl if value > 0], [value for value in pnl if value < 0]
+            gain, loss = sum(winning, Decimal(0)), -sum(losing, Decimal(0))
+            out["portfolio_trades"].update(
+                winning=len(winning), losing=len(losing), flat=len(pnl) - len(winning) - len(losing),
+                win_rate=round(len(winning) / len(pnl), 4) if pnl else None,
+                profit_factor=round(float(gain / loss), 4) if loss else None,
+                expectancy=str(Decimal(out["portfolio_trades"]["realized_pnl"]) / len(pnl)) if pnl else None,
+            )
         out.pop("trades")
         if out["activity"] is not None:
             out["activity"]["turnover"] = stats["turnover"]
@@ -515,7 +544,8 @@ def selection_check(candidates: dict[str, dict], trials: int | None = None) -> d
     Sharpe dispersion still comes from the candidates measured here.
     """
     usable = {name: p["returns"] for name, p in candidates.items()
-              if p.get("returns") and p["returns"]["sharpe_per_period"] is not None}
+              if p.get("return_sampling") != "IRREGULAR_INTERVALS"
+              and p.get("returns") and p["returns"]["sharpe_per_period"] is not None}
     if len(usable) < 2:
         return None
     trials = max(len(usable), trials or 0)

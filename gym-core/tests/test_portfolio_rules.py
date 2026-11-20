@@ -26,7 +26,7 @@ def test_rule_loading_is_bounded_by_vintages_and_future_rules_do_not_leak(tmp_pa
             "status": "VERIFIED"}, cutoff)
         after = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=49), **options)
         assert len(calls) <= 4
-        assert before["inputs"]["rules"] != after["inputs"]["rules"] and after["inputs"]["portfolio_version"] == 5
+        assert before["inputs"]["rules"] != after["inputs"]["rules"] and after["inputs"]["portfolio_version"] == 14
         prefix = lambda out: [p for p in out["result"]["curve"] if p[0] < iso(cutoff)]
         assert prefix(before) == prefix(after)
         assert any(o["status"] == "NONFILL" for o in after["result"]["markets"]["BTCUSDT"]["orders"])

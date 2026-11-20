@@ -109,15 +109,16 @@ def test_checkpoint_rejects_unsupported_engine_even_with_well_formed_evidence(tm
         db.c.close()
 
 
-def test_every_portfolio_identity_version_can_checkpoint_not_only_5_and_6(tmp_path):
+@pytest.mark.parametrize("legacy_holding", [False, True])
+def test_every_portfolio_identity_version_can_checkpoint_not_only_5_and_6(tmp_path, legacy_holding):
     """Versions 7..13 (vol target, FX risk, ES limit, cost-aware band, HRP) replay through the same
     engine; the checkpoint gate must not reject them."""
     db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
     try:
         out = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=30), resolution="1min",
                         params={"fast": 2, "slow": 3}, policy={"method": "hierarchical-risk-parity", "lookback": 3,
-                                                               "rebalance": True})
-        assert out["inputs"]["portfolio_version"] == 13
+                                                               "rebalance": True}, legacy_holding=legacy_holding)
+        assert out["inputs"]["portfolio_version"] == (13 if legacy_holding else 14)
         save_run(out, tmp_path / "runs" / "portfolios")
         record = research_action(tmp_path, "replay-checkpoint", {"run_id": out["run_id"], "quote_count": 39})["record"]
         assert record["kind"] == "PORTFOLIO_CHECKPOINT"

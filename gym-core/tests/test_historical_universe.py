@@ -65,7 +65,7 @@ def test_portfolio_opt_in_top_n_saved_identity_contains_selection_vintage(tmp_pa
              "quote_currency": "USDT", "lookback_hours": 1}
     record = research_action(tmp_path, "portfolio-replay", value)
     loaded = research_action(tmp_path, "portfolio-read", {"run_id": record["run_id"]})
-    assert loaded["inputs"]["portfolio_version"] == 6
+    assert loaded["inputs"]["portfolio_version"] == 14
     assert loaded["inputs"]["universe_selection"]["symbols"] == ["ETHUSDT", "BTCUSDT"]
     assert record["universe_selection"] == loaded["inputs"]["universe_selection"]
     assert loaded["inputs"]["store"] == "live"

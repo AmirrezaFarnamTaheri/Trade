@@ -32,9 +32,32 @@ def test_markets_share_one_cash_balance_and_equal_target_weights(tmp_path):
     assert Decimal(activity["turnover"]) == (notional / Decimal(1000)).quantize(Decimal("0.0001"))
     assert activity["return_per_turnover"] is not None
     assert activity["exposure_matched_hold_pct"] is None
-    assert out["performance"]["trade_statistics_status"] == "NOT_APPLICABLE"
+    summary = out["performance"]["portfolio_trades"]
+    assert summary["closed_trades"] == sum(m["closed_trades"] for m in result["markets"].values()) > 0
+    assert Decimal(summary["realized_pnl"]) == sum(Decimal(m["realized_pnl"]) for m in result["markets"].values()) != 0
+    assert summary["exposure"] is None
+    assert summary["winning"] + summary["losing"] + summary["flat"] == summary["closed_trades"]
+    assert Decimal(summary["expectancy"]) == Decimal(summary["realized_pnl"]) / summary["closed_trades"]
     assert out["run_id"] == portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1), resolution="1min",
                                       cash=Decimal(1000), params={"fast": 2, "slow": 3})["run_id"]
+
+
+def test_sellable_subpercent_portfolio_position_can_exit(tmp_path):
+    db = market_db(tmp_path, quote_history(n=500) + quote_history(n=500, sym="ETHUSDT"))
+    try:
+        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3},
+                   "policy": {"max_weight": "0.005"}}
+        args = (db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1))
+        current = portfolio(*args, **options)
+        assert current["inputs"]["portfolio_version"] == 14
+        for market in current["result"]["markets"].values():
+            assert any(order["side"] == "SELL" and order["status"] == "FILLED" for order in market["orders"])
+        legacy = portfolio(*args, **options, legacy_holding=True)
+        assert legacy["run_id"] != current["run_id"]
+        assert not any(order["side"] == "SELL" and order["status"] == "FILLED"
+                       for market in legacy["result"]["markets"].values() for order in market["orders"])
+    finally:
+        db.c.close()
 
 
 def test_portfolio_rejects_mixed_quote_currencies_and_single_markets(tmp_path):
