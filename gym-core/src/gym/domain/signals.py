@@ -53,15 +53,33 @@ def efficiency(bars, lookback=20, min_er_pct=40):
     return out
 
 
-def obv(bars, lookback=20):
-    """On-balance volume against its own mean: volume, not price, carries the vote."""
-    c, v, out, total, window = bars["close"], bars["volume"], [], 0.0, deque(maxlen=lookback)
-    for i in range(len(c)):
-        if i:
-            total += v[i] if c[i] > c[i - 1] else -v[i] if c[i] < c[i - 1] else 0.0
-        window.append(total)
-        out.append(None if len(window) < lookback else 1 if total > sum(window) / lookback else -1)
-    return out
+class OnBalanceVolume:
+    """Cumulative signed volume with a bounded window of levels for the comparison."""
+
+    def __init__(self, lookback=20, *, require_volume=False):
+        if lookback < 1:
+            raise ValueError("OBV lookback must be positive")
+        self.window = deque(maxlen=lookback)
+        self.require_volume = require_volume
+        self.total = 0.0
+        self.previous = None
+
+    def update(self, close, volume):
+        if self.previous is not None and volume is not None:
+            self.total += volume if close > self.previous else -volume if close < self.previous else 0.0
+        self.previous = close
+        self.window.append(self.total)
+        if len(self.window) < self.window.maxlen or (self.require_volume and volume is None):
+            return None
+        if self.require_volume and volume == 0:
+            return 0
+        return 1 if self.total > sum(self.window) / len(self.window) else -1
+
+
+def obv(bars, lookback=20, *, require_volume=False):
+    """On-balance volume against its own mean, with optional neutral votes on zero-volume bars."""
+    state = OnBalanceVolume(lookback, require_volume=require_volume)
+    return [state.update(close, volume) for close, volume in zip(bars["close"], bars["volume"], strict=True)]
 
 
 def rsi_reversion(bars, period=14, low=30, high=70):

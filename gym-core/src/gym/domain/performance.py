@@ -53,7 +53,7 @@ def sampled_drawdown(out):
             "continuous_path_verified": False}
 
 
-def trade_ledger(orders: list[dict], base: str, *, quote: str | None = None, postings=()) -> dict:
+def trade_ledger(orders: list[dict], base: str, *, quote: str | None = None, postings=None) -> dict:
     """Match filled sells to earlier buys first-in-first-out.
 
     Prefer the booked gross quote amount to reconstructing it from a rounded execution price.
@@ -62,9 +62,26 @@ def trade_ledger(orders: list[dict], base: str, *, quote: str | None = None, pos
     """
     with localcontext() as context:
         context.prec = 28  # the simulator's posting precision; a caller's wider context must not split dust
-        booked = {row["ref"]: Decimal(row["amount"]).copy_abs() for row in postings
-                  if quote and row.get("ccy") == quote and row.get("kind") in ("buy", "sell")}
-        return _ledger(orders, base, quote, booked)
+        return _ledger(orders, base, quote, booked_notionals(orders, quote, postings))
+
+
+def booked_notionals(orders, quote, postings):
+    """Resolve gross amounts, requiring a unique, correctly signed posting for each modern fill."""
+    fills = [order for order in orders if order.get("status") == "FILLED"]
+    if postings is None:
+        return {}
+    booked = {}
+    for row in postings:
+        kind = row.get("kind")
+        if not quote or row.get("ccy") != quote or kind not in ("buy", "sell"):
+            continue
+        ref, amount = row["ref"], Decimal(row["amount"])
+        if ref in booked or not amount.is_finite() or (amount >= 0 if kind == "buy" else amount <= 0):
+            raise ValueError("invalid or duplicate gross quote posting")
+        booked[ref] = kind, amount.copy_abs()
+    if any(booked.get(order.get("ref"), (None,))[0] != order["side"].lower() for order in fills):
+        raise ValueError("filled order is missing its gross quote posting")
+    return {ref: amount for ref, (_, amount) in booked.items()}
 
 
 def _base_fee(order, base, quote, fee):
@@ -80,7 +97,7 @@ def _base_fee(order, base, quote, fee):
 
 def result_trade_ledger(result: dict) -> dict:
     return trade_ledger(result.get("orders", []), result.get("base") or "", quote=result.get("quote"),
-                        postings=result.get("postings", ()))
+                        postings=result.get("postings"))
 
 
 def _ledger(orders, base, quote, booked):
@@ -416,6 +433,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     result, inputs = record["result"], record["inputs"]
     if result.get("start_cash") is None:
         return {"status": "UNAVAILABLE", "ledger": []}
+    if (inputs.get("trade_accounting") == "booked-notional/1" or
+            (inputs.get("kind") != "portfolio" and inputs.get("engine") in ("paper-session/16", "paper-session/17"))):
+        if result.get("postings") is None:
+            raise ValueError("modern paper result is missing its posting ledger")
     start, end = parse_ts(inputs["from"]), parse_ts(inputs["to"])
     cash = Decimal(result["start_cash"])
     final = result.get("end") if (result.get("end") or {}).get("equity") is not None else None
@@ -476,7 +497,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     markets = result.get("markets") if inputs.get("kind") == "portfolio" else None
     turnover_fills = (o for market in markets.values() for o in market["orders"]
                       if o.get("status") == "FILLED") if markets is not None else filled
-    turnover = sum((Decimal(o["qty"]) * Decimal(o["price"]) for o in turnover_fills), Decimal(0))
+    turnover_fills = list(turnover_fills)
+    booked = booked_notionals(turnover_fills, result.get("quote"), result.get("postings"))
+    turnover = sum((booked.get(o.get("ref"), Decimal(o["qty"]) * Decimal(o["price"]))
+                    for o in turnover_fills), Decimal(0))
     stats = {
         "closed_trades": len(trades), "winning": len(wins), "losing": len(losses),
         "win_rate": round(len(wins) / len(trades), 4) if trades else None,
