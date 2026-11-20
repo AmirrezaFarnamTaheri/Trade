@@ -1,9 +1,8 @@
 """Append-only custody of test (holdout) windows: each look is recorded, repeated looks are counted.
 
-A test window is scored "once" only if something remembers that it was scored. This ledger records every look
-at a window (its symbols, interval, bounds and a digest of the prices inside it), with the number of
-configurations whose selection led there. A second look is refused unless the caller asks to rescore, and the
-caller then deflates with the configurations tried across every look, not just the latest run.
+The price digest identifies a particular window. Per-market spans detect reused evidence even when a digest
+changes. Earlier entries without coverage count as potentially overlapping. An explicit rescore counts the
+configurations across all overlapping looks.
 """
 from __future__ import annotations
 
@@ -27,6 +26,16 @@ def window_id(symbols, interval: str, start: str, end: str, prices) -> str:
                        "start": start, "end": end, "prices": [[t, repr(p)] for t, p in prices]},
                       separators=(",", ":"))
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+def _overlaps(current: dict, previous: dict) -> bool:
+    if "coverage" not in previous or "coverage" not in current:
+        return True
+    return any(
+        start <= previous["coverage"][symbol][1] and previous["coverage"][symbol][0] <= end
+        for symbol, (start, end) in current["coverage"].items()
+        if symbol in previous["coverage"]
+    )
 
 
 class HoldoutRefused(ValueError):
@@ -53,14 +62,16 @@ class HoldoutLedger:
                 for s, spec, n, at, p in rows]
 
     def look(self, window: str, spec: dict, configurations: int, *, rescore: bool, now: datetime | None = None) -> dict:
-        """Record one look and return the custody state; refuses a repeat look unless `rescore`."""
+        """Record a look, refusing overlapping evidence unless explicitly rescored."""
         if type(configurations) is not int or configurations < 1:
             raise ValueError("a look needs the number of configurations behind it")
         self.conn.execute("BEGIN IMMEDIATE")
         try:
-            prior = self.looks(window)
+            rows = self.conn.execute("SELECT window, spec, configurations, at FROM looks ORDER BY seq")
+            prior = [(n, at) for key, previous, n, at in rows
+                     if key == window or _overlaps(spec, json.loads(previous))]
             if prior and not rescore:
-                raise HoldoutRefused(f"test window already scored {len(prior)} time(s), first at {prior[0]['at']}")
+                raise HoldoutRefused(f"overlapping or unscoped test evidence already scored {len(prior)} time(s), first at {prior[0][1]}")
             at = (now or datetime.now(UTC)).isoformat(timespec="seconds")
             self.conn.execute("INSERT INTO looks(window, spec, configurations, at, purpose) VALUES(?,?,?,?,?)",
                               (window, json.dumps(spec, sort_keys=True), configurations, at,
@@ -69,5 +80,5 @@ class HoldoutLedger:
         except BaseException:
             self.conn.execute("ROLLBACK")
             raise
-        return {"window": window, "look": len(prior) + 1, "first_at": prior[0]["at"] if prior else at,
-                "configurations_all_looks": sum(p["configurations"] for p in prior) + configurations}
+        return {"window": window, "look": len(prior) + 1, "first_at": prior[0][1] if prior else at,
+                "configurations_all_looks": sum(n for n, _ in prior) + configurations}

@@ -44,7 +44,7 @@ These are the commands CI runs ([validate.yml](.github/workflows/validate.yml)):
 cargo fmt --all --check
 cargo test --locked --workspace --all-targets
 cargo clippy --locked --workspace --all-targets -- -D warnings
-cd gym-core; uv sync --locked --group dev; uvx ruff==0.17.4 check src tests; uv run pytest -q
+./tasks.ps1 python
 ```
 
 Further reading: [decisions](docs/adr/README.md), [disaster recovery](gym-core/docs/disaster-recovery.md), [architecture](gym-core/docs/architecture.md), [capabilities](gym-core/docs/capabilities.md),

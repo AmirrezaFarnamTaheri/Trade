@@ -51,6 +51,10 @@ MIGRATIONS = [
     """
     alter table book_top add column depth text;
     """,
+    """
+    create index trades_event on trades(instrument_id, ts_event);
+    create index book_top_time on book_top(ts_avail);
+    """,
 ]
 
 

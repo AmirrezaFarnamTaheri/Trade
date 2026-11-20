@@ -36,6 +36,32 @@ def test_api_loopback_and_token(tmp_path):
     asyncio.run(go())
 
 
+def test_guard_headers_apply_to_rotation_refusals_and_router_errors(tmp_path):
+    from aiohttp.test_utils import TestClient, TestServer
+
+    from gym.api import SECURITY_HEADERS
+
+    async def check():
+        db = MarketDB(tmp_path / "market.db")
+        col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
+        try:
+            async with TestClient(TestServer(make_app(col, RuleService(db), "tok"))) as c:
+                for response, status in (
+                    (await c.get("/api/markets", headers={"Host": "invalid.example"}), 403),
+                    (await c.post("/api/session/rotate"), 403),
+                    (await c.get("/api/not-a-route", headers={"X-Gym-Token": "tok"}), 404),
+                    (await c.post("/api/session/rotate", headers={"X-Gym-Token": "tok"}), 200),
+                ):
+                    assert response.status == status
+                    assert response.headers["Cache-Control"] == "no-store"
+                    assert all(response.headers[key] == value for key, value in SECURITY_HEADERS.items())
+                assert (await c.post("/api/session/rotate", headers={"X-Gym-Token": "tok"})).status == 403
+        finally:
+            db.c.close()
+
+    asyncio.run(check())
+
+
 def test_market_api_uses_domain_qualification_without_rounding_quotes(tmp_path):
     from aiohttp.test_utils import TestClient, TestServer
 

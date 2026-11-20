@@ -26,7 +26,20 @@ cd gym-core; uv sync --locked --group dev; cd ..
 A pass ends with `All requested tasks passed.` CI (`.github/workflows/validate.yml`) runs the same steps plus the
 Windows VM service smoke, the cross-OS backup drills, the weekly mutation job and the SBOM job.
 
-## 3. Verify a workspace
+## 3. Run the observatory in DEMO mode
+
+```powershell
+cd gym-core
+uv run --locked gymctl demo-seed --hours 72
+uv run --locked gymctl run --demo
+```
+
+Open the printed loopback URL in your browser. Keep its `#t=...` fragment
+private: it grants access to this session's private reads and local writes.
+DEMO uses synthetic data and cannot authorize funded execution. Stop it with
+Ctrl+C.
+
+## Verify a workspace
 
 ```powershell
 cd gym-core

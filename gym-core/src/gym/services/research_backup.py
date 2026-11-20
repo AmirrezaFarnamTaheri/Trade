@@ -33,6 +33,7 @@ import zstandard as zstd
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from ..adapters.atomic_text import write_text
 from .encrypted_backup import (
     BackupAuthenticationError,
     BackupUnsafe,
@@ -200,26 +201,40 @@ def backup_research(root: Path, destination: Path, *, passphrase: str, keep: int
             copy.unlink()
             entries.append({k: header[k] for k in ("kind", "name", "plaintext_sha256", "plaintext_size")})
         archive = Path(scratch) / "files.tar"
+        nested_databases = []
+
+        def archive_member(info):
+            name = Path(info.name)
+            if (not (info.isfile() or info.isdir()) or SKIP_NAMES.fullmatch(name.name)
+                    or name.name == STATUS_FILE):
+                return None
+            if info.isfile() and name.suffix in SQLITE_SUFFIXES:
+                nested_databases.append(name)
+                return None
+            return info
+
         with tarfile.open(archive, "w") as tar:
             for item in sorted(root.iterdir()):
-                if item.is_symlink() or SKIP_NAMES.fullmatch(item.name) or item.suffix in SQLITE_SUFFIXES \
-                        or item.name == STATUS_FILE:
-                    continue
-                tar.add(item, arcname=item.name, filter=lambda info: None if info.issym() or info.islnk() else info)
+                if item.suffix not in SQLITE_SUFFIXES or item.is_dir():
+                    tar.add(item, arcname=item.name, filter=archive_member)
+            copy = Path(scratch) / "nested.sqlite3"
+            for name in nested_databases:
+                _snapshot_sqlite(root / name, copy)
+                tar.add(copy, arcname=name.as_posix())
+                copy.unlink()
         header = _encrypt(archive, snapshot / "files.tar.tgfile", passphrase, {"kind": "files", "name": "files.tar"}, True)
         entries.append({k: header[k] for k in ("kind", "name", "plaintext_sha256", "plaintext_size")})
     segments = _backup_segments(root, destination, passphrase)
     manifest = {"created_at": now.isoformat(timespec="seconds"), "root": str(root), "entries": entries,
                 "segments_total": segments["total"], "contains_secrets": False}
-    (snapshot / "MANIFEST.json").write_text(json.dumps(manifest, indent=2), "utf-8")
+    write_text(snapshot / "MANIFEST.json", json.dumps(manifest, indent=2))
     pruned = _prune(destination / "snapshots", keep)
     report = {"snapshot": str(snapshot), "databases": [e["name"] for e in entries if e["kind"] == "sqlite"],
               "files_bytes": entries[-1]["plaintext_size"], "segments_added": segments["added"],
               "segments_total": segments["total"], "segments_refused": segments["refused"], "pruned": pruned,
               "same_device": not _independent(root, destination), "off_machine_verified": False}
-    (root / STATUS_FILE).write_text(json.dumps({"at": now.isoformat(timespec="seconds"), "destination": str(destination),
-                                                "snapshot": stamp, **{k: report[k] for k in ("segments_total", "same_device")}}),
-                                    "utf-8")
+    write_text(root / STATUS_FILE, json.dumps({"at": now.isoformat(timespec="seconds"), "destination": str(destination),
+                                              "snapshot": stamp, **{k: report[k] for k in ("segments_total", "same_device")}}))
     return report
 
 
@@ -297,17 +312,28 @@ def restore_research(destination: Path, target: Path, *, passphrase: str, segmen
             tar_path.unlink()
         restored.append(entry["name"])
     count = 0
-    if segments and (destination / "segments").is_dir():
+    coverage = {"status": "NOT_CHECKED", "missing": []}
+    if segments:
+        market = sqlite3.connect((target / "market.db").resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            expected = dict(market.execute("SELECT seg_id, sha256 FROM segments WHERE sha256 IS NOT NULL"))
+        finally:
+            market.close()
         for container in sorted((destination / "segments").rglob("*.tgfile")):
             header, _ = read_header(container)
             seg_id = container.relative_to(destination / "segments").as_posix()[: -len(".tgfile")]
             if header.get("kind") != "segment" or header.get("name") != seg_id:
                 raise BackupAuthenticationError(f"{container.name}: segment name does not match its header")
+            if seg_id in expected and header.get("plaintext_sha256") != expected[seg_id]:
+                raise BackupAuthenticationError(f"{container.name}: does not match market.db segment digest")
             out = target / "raw" / seg_id
             out.parent.mkdir(parents=True, exist_ok=True)
             decrypt(container, out, passphrase)
+            expected.pop(seg_id, None)
             count += 1
-    return {"snapshot": snapshot.name, "restored": restored, "segments": count, "target": str(target)}
+        coverage = {"status": "INCOMPLETE" if expected else "COMPLETE", "missing": sorted(expected)}
+    return {"snapshot": snapshot.name, "restored": restored, "segments": count,
+            "segment_coverage": coverage, "target": str(target)}
 
 
 def status(root: Path) -> dict | None:
@@ -323,6 +349,14 @@ def drill(destination: Path, *, passphrase: str, segment_sample: int = 24) -> di
     with tempfile.TemporaryDirectory(prefix=".tg-research-drill-", dir=destination) as scratch:
         report = restore_research(destination, Path(scratch) / "root", passphrase=passphrase, segments=False)
         containers = sorted((destination / "segments").rglob("*.tgfile")) if (destination / "segments").is_dir() else []
+        market = sqlite3.connect((Path(scratch) / "root" / "market.db").as_uri() + "?mode=ro", uri=True)
+        try:
+            expected = {row[0] for row in market.execute("SELECT seg_id FROM segments WHERE sha256 IS NOT NULL")}
+        finally:
+            market.close()
+        archived = {p.relative_to(destination / "segments").as_posix().removesuffix(".tgfile") for p in containers}
+        missing = sorted(expected - archived)
+        report["segment_coverage"] = {"status": "INCOMPLETE" if missing else "COMPLETE", "missing": missing}
         for container in containers[-segment_sample:] if segment_sample else []:
             decrypt(container, Path(scratch) / f"seg-{secrets.token_hex(4)}", passphrase)
         return {**report, "target": "deleted after verification", "segments": None,

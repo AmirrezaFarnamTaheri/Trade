@@ -83,6 +83,10 @@ The private `/api/research/action` and `gymctl research` expose the same actions
   `strategy`, `params`, `rules_mode`, `cost`; optional `policy` selects controls.
 - `portfolio-list`: no input; saved references and end summaries.
 - `portfolio-read`: `{"run_id":"<16 lowercase hex digits>"}`; verified full record.
+  A stale held mark preserves the last-known equity and fills, but marks
+  performance `PROVISIONAL`. Activity turnover sums filled notional across
+  markets and divides by starting cash. A single-asset hold benchmark does not
+  apply to portfolios.
 - `replay-checkpoint`: `run_id`, `quote_count` (1..100000); works for native saved
   portfolios as well as single-market replays.
 - `replay-resume`: `checkpoint_id`; verifies the rebuilt history and full result.

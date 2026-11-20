@@ -263,8 +263,17 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
                    if camel not in metadata["raw"] and snake not in metadata["raw"]]
         if missing:
             w.append("Historical public metadata leaves " + ", ".join(missing) + " UNKNOWN; current values were not backfilled.")
-    if portal.spec_at(symbol, t0) == Spec():
+    spec = portal.spec_at(symbol, t0)
+    if spec == Spec():
         w.append("Precision and minimums unknown at the start of the window; not enforced.")
+    else:
+        missing_constraints = [label for label, value in (
+            ("quantity precision", spec.qty_decimals), ("minimum quantity", spec.min_qty),
+            ("minimum notional", spec.min_notional),
+        ) if value is None]
+        if missing_constraints:
+            w.append("Historical order constraints unknown at window start: "
+                     + ", ".join(missing_constraints) + "; not enforced.")
     compacted = portal.db.c.execute("SELECT detail FROM quality_events WHERE flag='COMPACTED' AND instrument_id IS NULL "
                                     "AND substr(detail, 8, 27) > ? ORDER BY rowid DESC LIMIT 1", (iso(t0),)).fetchone()
     if compacted:

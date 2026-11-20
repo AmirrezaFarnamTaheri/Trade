@@ -123,17 +123,30 @@ class RestRate:
         self.floor = 1 / requests_per_second
         self.interval = self.floor
         self.next = 0.0
+        self.recover_at = 0.0
         self.lock = asyncio.Lock()
 
     async def wait(self):
-        async with self.lock:
-            now = time.monotonic()
-            await asyncio.sleep(max(0, self.next - now))
-            self.next = max(now, self.next) + self.interval
+        while True:
+            async with self.lock:
+                now = time.monotonic()
+                delay = self.next - now
+                if delay <= 0:
+                    self.next = now + self.interval
+                    return
+            await asyncio.sleep(delay)
 
     async def penalize(self):
         async with self.lock:
             self.interval = min(self.interval * 2, 5.0)
+            self.recover_at = time.monotonic() + 60
+
+    async def reward(self):
+        async with self.lock:
+            now = time.monotonic()
+            if self.interval > self.floor and now >= self.recover_at:
+                self.interval = max(self.floor, self.interval / 2)
+                self.recover_at = now + 60
 
 
 class Collector:
@@ -308,11 +321,13 @@ class Collector:
         for attempt in range(4):
             await self.rest_rate.wait()
             try:
-                return await wallex.get_text(session, path, **params)
+                response = await wallex.get_text(session, path, **params)
             except aiohttp.ClientResponseError as e:
-                if e.status != 429 or attempt == 3:
+                if e.status != 429:
                     raise
                 await self.rest_rate.penalize()
+                if attempt == 3:
+                    raise
                 retry_after = (e.headers or {}).get("Retry-After")
                 try:
                     delay = max(float(retry_after or 0), 2 ** attempt)
@@ -321,6 +336,9 @@ class Collector:
                 self.quality(now_utc(), params.get("symbol"), "RATE_LIMIT",
                              f"{path} returned 429; retry in {delay:g}s; interval={self.rest_rate.interval:g}s")
                 await asyncio.sleep(delay)
+            else:
+                await self.rest_rate.reward()
+                return response
         raise AssertionError("unreachable")
 
     def retained_catalog(self, at):

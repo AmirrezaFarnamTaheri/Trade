@@ -66,7 +66,10 @@ def obv(bars, lookback=20):
 
 def rsi_reversion(bars, period=14, low=30, high=70):
     """Contrarian: long when oversold, short when overbought, neutral between."""
-    c, out, gain, loss = bars["close"], [None], None, None
+    c = bars["close"]
+    if not len(c):
+        return []
+    out, gain, loss = [None], None, None
     for i in range(1, len(c)):
         d = c[i] - c[i - 1]
         up, down = max(d, 0.0), max(-d, 0.0)

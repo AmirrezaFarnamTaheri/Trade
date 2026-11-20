@@ -14,6 +14,8 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from ..adapters.atomic_text import write_text
+
 STATE_FILE = "alert_state.json"
 _TOAST = r"""
 $title = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{title}'))
@@ -96,5 +98,5 @@ def notify(report: dict, root: Path, *, webhook_url: str | None = None, use_toas
             channels["webhook"] = f"failed: {type(error).__name__}"
     # Remember the state only once a channel delivered, so a failed send is retried next run.
     if any(v is True for v in channels.values()) or not channels:
-        path.write_text(json.dumps({"alerting": _signature(report), "at": report["as_of"]}), "utf-8")
+        write_text(path, json.dumps({"alerting": _signature(report), "at": report["as_of"]}))
     return {"sent": True, "title": title, "channels": channels}

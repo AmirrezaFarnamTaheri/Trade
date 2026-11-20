@@ -167,6 +167,24 @@ def test_invalid_comparisons_are_not_saved(research_app, fields):
     asyncio.run(check())
 
 
+def test_comparison_reports_field_errors_without_echoing_invalid_timestamps(research_app):
+    db, col, runs = research_app
+
+    async def check():
+        async with TestClient(TestServer(server.make_app(col, RuleService(db), "tok", runs))) as client:
+            for fields, message in (
+                ({"cash": "0"}, "cash must be positive and finite"),
+                ({"walk_depth": "yes"}, "walk_depth and carry_remainder must be booleans"),
+                ({"from": "private malformed value"}, "from and to must be zoned ISO timestamps"),
+            ):
+                response = await client.post("/api/compare", json=request_body() | fields,
+                                             headers={"X-Gym-Token": "tok"})
+                assert response.status == 400
+                assert (await response.json())["error"] == message
+
+    asyncio.run(check())
+
+
 def test_no_storage_and_non_object_requests(research_app):
     db, col, runs = research_app
 

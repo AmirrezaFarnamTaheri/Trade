@@ -27,8 +27,9 @@ def hierarchical_risk_parity(covariance):
         for i in range(n):
             for j in range(i):
                 corr = covariance[i][j] / (covariance[i][i] * covariance[j][j]).sqrt()
-                if not -1 <= corr <= 1:
+                if corr.copy_abs() > Decimal(1).next_plus():
                     raise ValueError("HRP correlation magnitude exceeds one")
+                corr = max(Decimal(-1), min(Decimal(1), corr))
                 distances[i][j] = distances[j][i] = ((1 - corr) / 2).sqrt()
         clusters = [(i,) for i in range(n)]
         while len(clusters) > 1:

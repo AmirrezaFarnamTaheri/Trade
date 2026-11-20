@@ -8,7 +8,7 @@ from statistics import fmean
 from ..domain.model import parse_ts
 
 
-def stationary_spa(excess: dict[str, list[float]], *, simulations: int = 199, seed: int = 0) -> dict:
+def stationary_spa(excess: dict[str, list[float]], *, simulations: int | None = None, seed: int = 0) -> dict:
     """Studentized max excess over buy/hold, with block-preserved candidate dependence."""
     if not 2 <= len(excess) <= 8:
         raise ValueError("SPA requires 2..8 candidates")
@@ -16,7 +16,10 @@ def stationary_spa(excess: dict[str, list[float]], *, simulations: int = 199, se
     n = len(arrays[0])
     if n < 20 or n > 10000 or any(len(values) != n or any(not math.isfinite(x) for x in values) for values in arrays):
         return {"status": "INSUFFICIENT_DATA", "periods": n}
-    if not 100 <= simulations <= 1000 or n * len(arrays) * simulations > 10_000_000:
+    budget = 10_000_000 // (n * len(arrays))
+    if simulations is None:
+        simulations = min(499, budget)
+    if not 100 <= simulations <= min(1000, budget):
         raise ValueError("SPA simulation budget exceeded")
     block, rng = max(2, round(n ** (1 / 3))), Random(seed)
     means = [fmean(values) for values in arrays]
@@ -44,10 +47,16 @@ def stationary_spa(excess: dict[str, list[float]], *, simulations: int = 199, se
     # Upper Wilson confidence bound accounts for simulation uncertainty instead
     # of overstating significance at a small finite bootstrap budget.
     count, z = simulations + 1, 3.090232306167813
-    upper = (raw + z * z / (2 * count) +
-             z * math.sqrt(raw * (1 - raw) / count + z * z / (4 * count * count))) / (1 + z * z / count)
-    return {"status": "EXPLORATORY", "periods": n, "candidates": len(valid),
-            "statistic": statistic, "p_value": upper, "raw_bootstrap_p": raw,
+    def wilson_upper(p):
+        return (p + z * z / (2 * count) +
+                z * math.sqrt(p * (1 - p) / count + z * z / (4 * count * count))) / (1 + z * z / count)
+
+    minimum = wilson_upper(1 / count)
+    threshold = 0.05
+    status = "INSUFFICIENT_SIMULATION_RESOLUTION" if minimum >= threshold else "EXPLORATORY"
+    return {"status": status, "periods": n, "candidates": len(valid),
+            "minimum_attainable_p": minimum, "decision_threshold": threshold,
+            "statistic": statistic, "p_value": wilson_upper(raw), "raw_bootstrap_p": raw,
             "simulations": simulations, "mean_block_length": block,
             "p_value_basis": "conservative_99.8pct_Wilson_upper_for_centered_stationary_bootstrap",
             "limitation": "SPA-style studentized max; finite-sample upper bound, not a guarantee of an edge or independent final evidence."}

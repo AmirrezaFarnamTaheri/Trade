@@ -177,19 +177,30 @@ def test_test_window_is_withheld_on_a_second_look_and_rescoring_counts_every_try
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         first = lhs.report(data, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger)
-        again = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger)  # a tweaked rerun
+        refused_output = io.StringIO()
+        with contextlib.redirect_stdout(refused_output):
+            again = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger)  # a tweaked rerun
+        assert "Test window withheld" in refused_output.getvalue()
+        assert "Ridge forecast skill" not in refused_output.getvalue()
+        assert "Walk-forward" not in refused_output.getvalue()
+        assert again["walk_forward"] == []
         rescored = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger, rescore=True)
     text = out.getvalue()
     assert first["validated"] and first["holdout"]["look"] == 1
-    assert not again["validated"] and again["holdout"] is None and "Test window withheld" in text
+    assert not again["validated"] and again["holdout"] is None
     assert rescored["holdout"]["look"] == 2
     assert rescored["holdout"]["configurations_all_looks"] == 2 * first["holdout"]["configurations_all_looks"]
     assert rescored["deflated_sharpe"] <= first["deflated_sharpe"]  # more tries, less credit for the best one
     assert "tries across 2 looks" in text
-    # Different test prices are a different window: no refusal.
+    # Revised prices do not make the same time and market exposure independent.
     other = {"A": (times, series(swing=0.1)), "B": (times, b)}
     with contextlib.redirect_stdout(io.StringIO()):
-        assert lhs.report(other, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger)["holdout"]["look"] == 1
+        revised = lhs.report(other, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger)
+        shifted = lhs.report(data, 0.003, "1d", "2020-01-01", "2021-01-02", holdout=ledger)
+        accepted = lhs.report(other, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger, rescore=True)
+    assert revised["holdout"] is None and shifted["holdout"] is None
+    assert accepted["holdout"]["look"] == 3
+    assert accepted["holdout"]["configurations_all_looks"] == 3 * first["holdout"]["configurations_all_looks"]
     import sqlite3
     with pytest.raises(sqlite3.DatabaseError, match="append-only"):
         ledger.conn.execute("DELETE FROM looks")

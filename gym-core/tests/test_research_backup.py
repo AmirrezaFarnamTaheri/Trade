@@ -55,6 +55,62 @@ def test_backup_restores_byte_identical_data_and_copies_segments_once(tmp_path):
     assert drill(dest, passphrase=PHRASE)["segments_verified"] == 2
 
 
+def test_nested_database_backup_restores_committed_wal_without_sidecars(tmp_path):
+    root = data_root(tmp_path)
+    nested = root / "sweeps" / "window.sqlite3"
+    nested.parent.mkdir()
+    dest = tmp_path / "backup"
+    dest.mkdir()
+    conn = sqlite3.connect(nested)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA wal_autocheckpoint=0")
+        conn.execute("CREATE TABLE results(value)")
+        conn.execute("INSERT INTO results VALUES (42)")
+        conn.commit()
+        assert nested.with_suffix(".sqlite3-wal").exists()
+        backup_research(root, dest, passphrase=PHRASE, allow_same_device=True)
+        restored = tmp_path / "restored"
+        restore_research(dest, restored, passphrase=PHRASE)
+        path = restored / "sweeps" / nested.name
+        assert sorted(p.name for p in path.parent.iterdir()) == [nested.name]
+        with sqlite3.connect(path) as copy:
+            assert copy.execute("SELECT value FROM results").fetchall() == [(42,)]
+    finally:
+        conn.close()
+
+
+def test_restore_reports_missing_segments_without_claiming_complete_archive(tmp_path):
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True)
+    container = next((dest / "segments").rglob("*.tgfile"))
+    missing = container.relative_to(dest / "segments").as_posix().removesuffix(".tgfile")
+    container.unlink()
+    report = restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+    assert report["segments"] == 1
+    assert report["segment_coverage"] == {"status": "INCOMPLETE", "missing": [missing]}
+    rehearsal = drill(dest, passphrase=PHRASE)
+    assert rehearsal["segment_coverage"] == report["segment_coverage"]
+    assert rehearsal["segments_verified"] == 1
+
+
+def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_path):
+    from gym.services.research_backup import _encrypt, read_header
+
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True)
+    container = next((dest / "segments").rglob("*.tgfile"))
+    header, _ = read_header(container)
+    wrong = tmp_path / "different-segment"
+    wrong.write_bytes(b"different content")
+    container.unlink()
+    _encrypt(wrong, container, PHRASE, {"kind": "segment", "name": header["name"]}, False)
+    with pytest.raises(BackupAuthenticationError, match="market.db segment digest"):
+        restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+
+
 def test_wrong_passphrase_tampering_and_swapped_files_are_refused(tmp_path):
     root, dest = data_root(tmp_path), tmp_path / "backup"
     dest.mkdir()

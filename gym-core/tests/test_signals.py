@@ -24,6 +24,10 @@ def test_donchian_holds_the_last_breakout_direction():
     assert donchian(bars([10, 11, 12, 11.5, 9, 10]), lookback=2) == [None, None, 1, 1, -1, -1]
 
 
+def test_rsi_empty_history_has_no_signal():
+    assert rsi_reversion(bars([])) == []
+
+
 def test_efficiency_trades_only_straight_paths():
     straight = efficiency(bars([1, 2, 3, 4, 5]), lookback=4, min_er_pct=40)
     choppy = efficiency(bars([1, 3, 1, 3, 1.5]), lookback=4, min_er_pct=40)

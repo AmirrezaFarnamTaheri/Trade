@@ -42,6 +42,12 @@ def test_hrp_is_opt_in_and_reports_cluster_order():
     assert PortfolioPolicy({}, symbols).description["method"] == "equal"
 
 
+def test_hrp_tolerates_rounding_at_the_correlation_boundary():
+    one = Decimal(1)
+    rounded = Decimal("1." + "0" * 68 + "1")
+    assert hierarchical_risk_parity([[one, rounded], [rounded, one]]) == ([Decimal("0.5")] * 2, [0, 1])
+
+
 def test_hrp_rejects_degenerate_matrix_and_unbounded_universe():
     with pytest.raises(ValueError):
         hierarchical_risk_parity([[Decimal(1), Decimal(2)], [Decimal(2), Decimal(1)]])

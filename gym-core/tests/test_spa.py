@@ -15,9 +15,25 @@ def test_stationary_spa_null_families_are_seldom_significant():
         rng = Random(seed)
         returns = {str(k): [rng.gauss(0, 1) for _ in range(100)] for k in range(4)}
         outcome = stationary_spa(returns, seed=seed)
-        assert outcome["simulations"] == 199 and outcome["status"] == "EXPLORATORY"
-        abstained += outcome["p_value"] > 0.1
+        assert outcome["simulations"] == 499 and outcome["status"] == "EXPLORATORY"
+        abstained += outcome["p_value"] > 0.05
     assert abstained >= 18
+
+
+def test_default_conservative_bootstrap_can_flag_a_large_effect():
+    excess = {"strong": [0.01, 0.02] * 50, "weak": [-0.01, 0.0] * 50}
+    default = stationary_spa(excess)
+    assert default["status"] == "EXPLORATORY"
+    assert default["p_value"] < 0.05
+    assert stationary_spa(excess, simulations=199)["p_value"] >= 0.05
+
+
+def test_largest_allowed_family_discloses_insufficient_resolution():
+    report = stationary_spa({str(i): [0.01, 0.02] * 5000 for i in range(8)})
+    assert report["simulations"] == 125
+    assert report["status"] == "INSUFFICIENT_SIMULATION_RESOLUTION"
+    assert report["minimum_attainable_p"] == pytest.approx(0.0845, abs=0.001)
+    assert report["decision_threshold"] == 0.05
 
 
 def test_stationary_spa_abstains_on_short_or_unchanging_samples():

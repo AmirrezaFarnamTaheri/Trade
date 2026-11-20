@@ -213,9 +213,16 @@ function stop(child) {
   await until(() => evaluate('document.querySelector("#compare-result").textContent.includes("ema-trend")'), 'rendered paper result');
   await screenshot('research-desktop.png');
   await evaluate(`location.hash = '#research/runs/${comparison.runs[0].run_id}'`);
-  await until(() => evaluate('!!document.querySelector("#run-detail .run-benchmark")'), 'saved demo run benchmark');
-  assert.deepEqual(await evaluate(`[...document.querySelectorAll('#run-detail .run-benchmark li svg line')].map(line => line.getAttribute('x1'))`), ['50', '50']);
-  assert.equal(await evaluate('Number(document.querySelector("#run-detail .run-benchmark li:last-child bdi").textContent)'), 0);
+  const benchmark = await until(() => evaluate(`(() => {
+    const chart = document.querySelector('#run-detail .run-benchmark');
+    if (state.record?.run_id !== '${comparison.runs[0].run_id}' || !chart) return null;
+    return {
+      zeros: [...chart.querySelectorAll('li svg line')].map(line => line.getAttribute('x1')),
+      cash: chart.querySelector('li:last-child bdi')?.textContent,
+    };
+  })()`), 'saved demo run benchmark');
+  assert.deepEqual(benchmark.zeros, ['50', '50']);
+  assert.equal(Number(benchmark.cash), 0);
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-desktop-en.png');
   await evaluate(`(() => {
     const summary = document.querySelector('[data-key="run-benchmarks"] summary');

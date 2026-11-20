@@ -65,8 +65,8 @@ durable offline cancellation evidence, with all-target tests, strict Clippy and
 release build. These new binaries are installed; current ordinary review,
 seven-target worker denial and STOP tests passed. Current custody recovery and
 venue behavior were not requalified.
-They do not add real order transport or certified protection. The failure history
-below records earlier attempts and is superseded only for the qualified set.
+That installed bundle did not add real order transport or certified protection.
+The failure history below is superseded only for the qualified set.
 
 Local unit tests, offline Windows builds, helper refusal probes and PowerShell parsing have passed for the implemented slices. Source/token checks are not a successful installed-service round trip.
 
@@ -98,4 +98,4 @@ Historical hosted Windows [run 41215249615](https://github.com/AmirrezaFarnamTah
 - [x] Measure independent STOP under the parked main loop and retained-handle containment under a suspended service on ACER; measured deadlines and DISARMED startup passed for the qualified set.
 - [ ] Verify an isolated restore, exact ledger chain and DISARMED startup. Service-owned DPAPI credentials must be reprovisioned when required, never exported as plaintext.
 
-Trusted operator approval, funded order transport, live reconciliation and certified protective exits remain missing integration code. No live order creation/cancellation, withdrawal, funded arming or capability promotion is enabled or claimed.
+The source-only approval and one-shot LIMIT path described above is not installed-host qualification. Live reconciliation, cancellation transport and certified protective exits remain open. The installed service remains disarmed; no funded authority is claimed.

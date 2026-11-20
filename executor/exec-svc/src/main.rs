@@ -1,5 +1,5 @@
 //! Disarmed service with an independent STOP listener and privileged custody/account/limit control.
-//! Custody and account GETs are implemented; funded orders and protective exits are not.
+//! Source includes one-shot LIMIT submission; installed-host qualification and protective exits remain open.
 #[cfg(windows)]
 mod credential_vault;
 #[cfg(windows)]

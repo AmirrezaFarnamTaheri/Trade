@@ -654,7 +654,7 @@ mod wipe_tests {
         assert_eq!(value, json!({}));
         let mut list = json!(["123|abc", ["x"]]);
         wipe(&mut list);
-        assert_eq!(list, json!(["       ", [" "]]));
+        assert_eq!(list, json!(["\0\0\0\0\0\0\0", ["\0"]]));
     }
 
     #[test]

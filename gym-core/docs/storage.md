@@ -31,7 +31,8 @@ ledgers, credentials, backups, immutable run artifacts and signed recovery
 evidence. Tracked design references remain project sources.
 
 Backup/restore receipts are append-only, bounded and sanitized. Current status
-selects the latest recorded time, independent of append order. A receipt does not
+selects the latest recorded time, independent of append order. Segment coverage in restore and drill reports counts only closed segments with a stored digest. Open segments are not copied.
+A receipt does not
 prove current archive availability, independent origin or runtime recovery.
 
 | Owner | Format | Contents |
@@ -39,6 +40,9 @@ prove current archive availability, independent origin or runtime recovery.
 | Market collector | `market.db`, SQLite WAL | Instruments, specifications, quotes, trades, candle vintages, quality, rule history and raw-segment manifests |
 | Research services | `research.sqlite3`, `research_protocol.sqlite3`, `experiments.sqlite3` | Hypotheses, jobs, alerts, evaluations, outcomes, observations and experiment events |
 | Operator journals | `external_journal.db`, `offline_reviews.db`, `venue_facts.db`, `backup_status.sqlite3` | Account/order observations, ticket reviews, venue facts and backup receipts |
+| Trial and fair-price journals | `trial_ledger.sqlite3`, `fair_price.sqlite3` | Research selection attempts and fair-price observations |
+| Paper sweep | `sweeps/<from>_<to>.sqlite3` by default | Local sweep results; `gymctl paper-sweep --out` can set another path |
+| Probe budget | `probe_budget.db` | Local probe loss limits and budget records |
 | Protected Executor | SQLite through `exec-store` | Native execution ledger; owned by the protected service |
 | Raw collector archive | `raw/YYYYMMDD/*.jsonl.zst` | Original public WebSocket/REST messages with sequence, receipt time and message hash |
 | Research artifacts and configuration | Individual JSON files | Immutable run receipts and portable declarative settings; not appendable JSONL journals |
@@ -49,7 +53,9 @@ commit in one SQLite transaction. A failed tick rolls back its normalized writes
 and restores its cached tops/unit state. Prospective readers use one read snapshot
 for the watermark, quotes, specifications and rules, and do not infer that a
 wall-clock deadline proves the collector has published through that time.
-Read-only opens require the current market schema (5). Upgrade older stores
+Market schema 6 adds indexes for trade event windows and cross-market quote
+windows. It does not rewrite observations.
+Read-only opens require the current market schema (6). Upgrade older stores
 through the normal writable open, after preserving a consistent backup; read-only
 access never runs migrations. Future schema versions are refused in both modes.
 DataPortal uses the current depth, publication and candle-vintage schema directly,
