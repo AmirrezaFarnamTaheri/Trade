@@ -163,8 +163,8 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     baseline_evidence = {}
     for name, s in base_syms.items():
         baseline = BuyAndHold()
-        if strategy.params.get("position_model") == "inventory/1":
-            baseline.params = {**baseline.params, "position_model": "inventory/1"}
+        if "position_model" in strategy.params:
+            baseline.params = {**baseline.params, "position_model": strategy.params["position_model"]}
         b = run(portal, rules_for, baseline, s, t0, t1, resolution, cash, cost, subscriptions, digest_cache=digests)
         # Keep raw-data and rule/spec-dependent results before reducing the baseline display.
         baseline_evidence[s] = digest(b)

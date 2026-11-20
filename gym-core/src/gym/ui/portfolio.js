@@ -118,7 +118,8 @@ window.gymPortfolio = (() => {
         [text(T.en.pfReturn, T.fa.pfReturn), amount(record.performance?.total_return_pct)],
         [text(T.en.pfDrawdownSampled, T.fa.pfDrawdownSampled), amount(record.performance?.max_drawdown_pct)]]) + curveFigure(result) + table(
         [text(T.en.pair, T.fa.pair), text(T.en.pfFills, T.fa.pfFills), text(T.en.pfClosedTrades, T.fa.pfClosedTrades), text(T.en.pfRealizedPL, T.fa.pfRealizedPL), text(T.en.pfHeldBaseUnits, T.fa.pfHeldBaseUnits), text(T.en.pfLastRecordedBid, T.fa.pfLastRecordedBid), text(T.en.pfPriceFreshness, T.fa.pfPriceFreshness), text(T.en.pfLastMarkTehran, T.fa.pfLastMarkTehran)],
-        Object.entries(result.markets).map(([s, row]) => [esc(s), esc(row.fills), esc(row.closed_trades), amount(row.realized_pnl), amount(row.holding) + (row.position_known ? `<br><small>${esc(T[language]['paperPosition' + row.position_known.state] ?? row.position_known.state)}</small>` : ''), amount(row.last_bid), esc(row.mark_status || 'UNKNOWN'), stamp(row.mark_time)])) +
+        Object.entries(result.markets).map(([s, row]) => [esc(s), esc(row.fills), esc(row.closed_trades), amount(row.realized_pnl), amount(row.holding) + (row.position_known ? `<br><small>${esc(T[language]['paperPosition' + row.position_known.state] ?? row.position_known.state)}</small>` +
+          (row.position_known.exit_check ? `<br><small>${esc(T[language]['paperExit' + row.position_known.exit_check] ?? row.position_known.exit_check)}</small>` : '') : ''), amount(row.last_bid), esc(row.mark_status || 'UNKNOWN'), stamp(row.mark_time)])) +
         conversion + `<details data-key="portfolio-receipt-${esc(record.run_id)}"><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(record, null, 2))}</pre></details>`);
     }
     $('portfolio-load').onclick = () => act(async () => {

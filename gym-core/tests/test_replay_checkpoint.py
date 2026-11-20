@@ -58,11 +58,14 @@ def test_actual_fill_exit_policy_rebuilds_identically_across_restart(tmp_path):
 
 
 @pytest.mark.parametrize("cost", [CostModel(), CostModel(order_type="limit")])
-def test_portfolio_restart_rebuilds_reservations_targets_and_loss_latches(tmp_path, cost):
+@pytest.mark.parametrize("booked_accounting", [False, True])
+def test_portfolio_restart_rebuilds_reservations_targets_and_loss_latches(tmp_path, cost, booked_accounting):
     db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
     try:
         out = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=30), resolution="1min",
-            params={"fast": 2, "slow": 3}, policy={"rebalance": True, "max_drawdown": "0.00001"}, cost=cost)
+            params={"fast": 2, "slow": 3}, policy={"rebalance": True, "max_drawdown": "0.00001"}, cost=cost,
+            booked_accounting=booked_accounting)
+        assert ("trade_accounting" in out["inputs"]) is booked_accounting
         save_run(out, tmp_path / "runs" / "portfolios")
         record = research_action(tmp_path, "replay-checkpoint", {"run_id": out["run_id"], "quote_count": 39})["record"]
         assert record["kind"] == "PORTFOLIO_CHECKPOINT" and record["state_digest"]

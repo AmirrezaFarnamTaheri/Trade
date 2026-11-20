@@ -8,7 +8,7 @@ from ..domain.bars import BarSpec, CloseSubscriptions, qualified
 from ..domain.market_models import decimal
 from ..domain.model import TEHRAN, UTC, iso, parse_ts
 from ..domain.portfolio import portfolio_sizing
-from ..domain.rules import closures, is_closed, session_period, tehran_day
+from ..domain.rules import closures, evaluate, is_closed, session_period, tehran_day
 from ..domain.sim import CashBook, market_order, sellable_quantity
 from ..domain.strategy import Snapshot, digest
 
@@ -41,7 +41,8 @@ class PaperSession:
         self.rules_for = rules_for
         self.strategy = strategy
         self.observed_obv_volume = strategy.params.get("obv_volume_policy") == "require-positive"
-        self.exact_inventory = strategy.params.get("position_model") == "inventory/1"
+        self.inventory_model = strategy.params.get("position_model")
+        self.exact_inventory = self.inventory_model in ("inventory/1", "inventory/2")
         self.symbol = symbol
         self.instrument = portal.instrument(symbol)
         metadata = portal.metadata_at(symbol, start)
@@ -143,7 +144,41 @@ class PaperSession:
         working = None if pending is None else {"ref": pending.record["ref"], "side": pending.record["side"],
             "status": pending.record["status"], "remaining_qty": str(pending.max_qty) if pending.max_qty is not None else None}
         return {"position_known": {"state": status, "asset": self.instrument.base, "quantity": str(quantity),
-            "sellable_quantity_at_bid": str(sellable) if sellable is not None else None, "working_order": working}}
+            "sellable_quantity_at_bid": str(sellable) if sellable is not None else None, "working_order": working,
+            **({"exit_check": self._exit_check(status, sellable, quote, at)} if self.inventory_model == "inventory/2" else {})}}
+
+    def _exit_check(self, status, lot, quote, at):
+        if status == "FLAT":
+            return "NO_HOLDING"
+        if self.pending is not None:
+            return "WORKING_ORDER"
+        rules = self.rules_for(at)
+        if not evaluate(rules, self.instrument, "SELL", "EXIT", at, live=False,
+                        used=self.quota.get(tehran_day(at), Decimal(0))).allowed:
+            return "BLOCKED_BY_RULE"
+        if status == "HELD_DUST":
+            return "BELOW_LOT_OR_MINIMUM"
+        if (status != "HELD_SELLABLE" or quote is None or not qualified(quote)
+                or not timedelta(0) <= at - quote.ts_avail <= timedelta(seconds=120)):
+            return "UNKNOWN"
+        metadata = self.portal.metadata_at(self.symbol, at)
+        raw = metadata["raw"] if metadata else {}
+        market_enabled = raw.get("isMarketTypeEnable", raw.get("is_market_type_enable"))
+        if self.cost.order_type != "market":
+            return "UNKNOWN"
+        if market_enabled is False:
+            return "BLOCKED_BY_MARKET_STATUS"
+        if (market_enabled is not True or quote.bid_qty is None or quote.bid_qty < lot
+                or (self.cost.walk_depth and not quote.depth)):
+            return "UNKNOWN"
+        # Use the same recorded day reference and quota as modeled settlement.
+        day_open = self.day_open.get(tehran_day(at))
+        change = None if day_open is None else (((quote.bid + quote.ask) / 2 - day_open) / day_open * 100).quantize(Decimal("0.01"))
+        verdict = evaluate(rules, self.instrument, "SELL", "EXIT", at, live=False,
+                           used=self.quota.get(tehran_day(at), Decimal(0)), day_change_pct=change)
+        if not verdict.allowed or (verdict.quota_remaining is not None and verdict.quota_remaining < lot):
+            return "BLOCKED_BY_RULE"
+        return "UNKNOWN" if verdict.warnings else "PAPER_CHECKS_PASS"
 
     def scan(self, at):
         closed_bars = self.closes.scan(at)

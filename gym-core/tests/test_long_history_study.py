@@ -168,6 +168,62 @@ def test_only_margin_markets_short_or_borrow(lhs):
     assert all(c[4] == "long" and c[5] == 1.0 for c, _ in plain)  # no margin markets: no duplicate configurations
 
 
+def test_failed_validation_withholds_all_holdout_output(lhs, tmp_path, monkeypatch):
+    from gym.services.holdout_ledger import HoldoutLedger
+
+    train_end, test_start = "2020-01-01", "2021-01-01"
+    times = days(1500)
+    closes = series()
+    monkeypatch.setattr(lhs, "passes", lambda *_: False)
+    ledger = HoldoutLedger(tmp_path / "holdout.sqlite3")
+
+    def report(prices):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            result = lhs.report({"A": (times, prices)}, 0.003, "1d", train_end, test_start, holdout=ledger)
+        return result, out.getvalue()
+
+    try:
+        result, output = report(closes)
+        assert report(shocked(closes, times, test_start + "T00:00")) == (result, output)
+        assert result["validated"] is False
+        assert result["holdout"] is None
+        assert result["walk_forward"] == []
+        assert "Ridge forecast skill" not in output
+        assert "Walk-forward" not in output
+        assert ledger.conn.execute("SELECT count(*) FROM looks").fetchone() == (0,)
+    finally:
+        ledger.close()
+
+
+def test_recorded_look_cannot_expose_prices_past_its_end(lhs, tmp_path, monkeypatch):
+    from gym.services.holdout_ledger import HoldoutLedger
+
+    times = days(1700)
+    closes = series(len(times))
+    end = "2022-01-01"
+    monkeypatch.setattr(lhs, "passes", lambda *_: True)
+
+    def report(name, prices):
+        ledger = HoldoutLedger(tmp_path / name)
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                result = lhs.report({"A": (times, prices)}, 0.003, "1d", "2020-01-01", "2021-01-01",
+                                    end=end, holdout=ledger)
+            return result, out.getvalue()
+        finally:
+            ledger.close()
+
+    result, output = report("first.sqlite3", closes)
+    revised, revised_output = report("revised.sqlite3", shocked(closes, times, end + "T00:00"))
+    assert result["validated"] and revised["validated"]
+    assert result["holdout"]["window"] == revised["holdout"]["window"]
+    assert result["walk_forward"] == revised["walk_forward"]
+    assert revised_output == output
+    assert "Ridge forecast skill" in output and "Walk-forward" in output
+
+
 def test_test_window_is_withheld_on_a_second_look_and_rescoring_counts_every_try(lhs, tmp_path):
     from gym.services.holdout_ledger import HoldoutLedger
     a, b = series(), series(phase=1.0)

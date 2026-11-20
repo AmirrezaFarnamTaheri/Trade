@@ -13,8 +13,8 @@ def paper_summary(out):
     """Portable allowlisted run card; private notes and arbitrary evidence stay local."""
     inputs, result = out["inputs"], out["result"]
     evidence = economic_report(out)
-    # v2: adds risk/return performance; drops the constant funded_authority/order_submitted flags.
-    card = {"schema": "paper-summary/2", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
+    # v3 identifies the booked-notional accounting semantics in derived performance.
+    card = {"schema": "paper-summary/3", "run_id": out["run_id"], "outputs_digest": out["outputs_digest"],
             "authority": "PAPER_ONLY",
             "inputs": {k: inputs[k] for k in ("engine", "symbol", "from", "to", "resolution", "strategy",
                                               "strategy_version", "config_hash", "rules_mode", "store", "data", "snapshots")},

@@ -8,7 +8,7 @@ from random import Random
 from statistics import fmean
 
 from ..domain.model import parse_ts
-from ..domain.performance import trade_ledger
+from ..domain.performance import result_trade_ledger
 
 
 def random_entry_percentile(marks, trades, *, seeds=200, seed=0):
@@ -52,7 +52,7 @@ def random_entry_report(out):
     result = out["result"]
     if out.get("mode") != "PAPER":
         return {"status": "INSUFFICIENT_DATA", "reason": "NATIVE_PAPER_ONLY"}
-    ledger = trade_ledger(result.get("orders", []), result.get("base") or "")
+    ledger = result_trade_ledger(result)
     marks = sorted((parse_ts(row["t"]).timestamp(), float(row["bid"]))
                    for row in result.get("decisions", []) if row.get("bid"))
     times = [t for t, _ in marks]

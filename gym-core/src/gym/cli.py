@@ -351,6 +351,7 @@ def main(argv=None):
     rrs.add_argument("destination")
     rrs.add_argument("--to", required=True, help="new or empty folder; never overwrites")
     for restore_parser in (rrd, rrs):
+        restore_parser.add_argument("--snapshot", help="retained snapshot ID; defaults to newest")
         restore_parser.add_argument("--expect-manifest-sha256", help="require the manifest digest from an independent receipt")
     rk = sub.add_parser("release-keygen", help="create the executor update signing key (keep the private key off the build host)")
     rk.add_argument("--private", required=True)
