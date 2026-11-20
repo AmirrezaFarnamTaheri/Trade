@@ -434,6 +434,15 @@ def evidence_cmd(args):
     if args.diagnostics and diag is None:
         diag = {"status": "NOT_RUN", "reason": "Live-session matched replay is required."}
     report = economic_report(out, diag)
+    if getattr(args, "execution_evidence", False):
+        from ..services.data_portal import DataPortal
+        from ..services.execution_evidence import historical_execution_evidence
+
+        db = MarketDB(store_root(args) / "market.db", readonly=True)
+        try:
+            report["execution_evidence"] = historical_execution_evidence(DataPortal(db), out)
+        finally:
+            db.c.close()
     (root / (args.run_id + ".evidence.json")).write_text(json.dumps(report, ensure_ascii=False, indent=2), "utf-8")
     path = root / (args.run_id + ".evidence.md")
     path.write_text(markdown(report), "utf-8")

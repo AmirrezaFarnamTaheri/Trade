@@ -317,6 +317,7 @@ def main(argv=None):
     ev = sub.add_parser("evidence", help="economic report and optional immutable claim/capital decision (never arms trading)")
     ev.add_argument("run_id")
     ev.add_argument("--demo", action="store_true")
+    ev.add_argument("--execution-evidence", action="store_true", help="audit point-in-time constraints on historical fills")
     ev.add_argument("--diagnostics", action="store_true", help="run repeatability, truncation, warmup and total-cost stress")
     ev.add_argument("--decide", choices=["NONE", "EXPERIMENTAL"])
     ev.add_argument("--cap", default="0")
