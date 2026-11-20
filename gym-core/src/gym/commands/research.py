@@ -319,7 +319,8 @@ def allocate_cmd(args) -> int:
     db = open_db(args)
     try:
         entries = run_day(db, store_root(args), [s.upper() for s in args.symbols], now_utc(),
-                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band)
+                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band,
+                          version=args.journal_version)
     finally:
         db.c.close()
     print(json.dumps(entries, indent=2))
