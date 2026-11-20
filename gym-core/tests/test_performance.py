@@ -32,6 +32,17 @@ def test_enhanced_performance_discloses_irregular_mark_spacing():
     }
 
 
+def test_statistics_use_last_mark_at_each_timestamp_without_rewriting_curve():
+    stamps = [iso(START + timedelta(minutes=i)) for i in (1, 2, 4)]
+    curve = [(stamps[0], "99"), (stamps[0], "110"), (stamps[1], "121"), (stamps[2], "133.1")]
+    report = performance({"inputs": {"from": iso(START), "to": stamps[2]},
+                          "result": {"quote": "USDT", "start_cash": "100", "curve": curve}}, enhanced=True)
+    assert report["returns"]["periods"] == 3
+    assert report["returns"]["mean_return"] == pytest.approx(0.1)
+    assert report["mark_spacing"]["nonpositive_intervals"] == 1
+    assert len(curve) == 4
+
+
 def test_lo_annualization_tapers_lags_for_alternating_returns():
     # A hard one-lag cutoff makes the variance factor negative for this series.
     assert lo_annualized_sharpe([0.03, -0.01] * 50, 365, max_lags=1) == pytest.approx(84.298816)

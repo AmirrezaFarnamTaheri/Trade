@@ -397,7 +397,8 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
             points[-1] = terminal
         else:
             points.append(terminal)
-    returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(points) if a > 0]
+    statistical_marks = sorted(dict(points).items())
+    returns = [float(b / a - 1) for (_, a), (_, b) in pairwise(statistical_marks) if a > 0]
     gaps = sorted((tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(points) if tb > ta)
     if enhanced:
         out["mark_spacing"] = {
@@ -405,10 +406,12 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
             "median_seconds": median(gaps) if gaps else None,
             "max_seconds": gaps[-1] if gaps else None,
         }
-    periods_per_year = YEAR_SECONDS / median(gaps) if gaps else None
-    open_calendar = (market_open_annualization(start, end, median(gaps),
+    sample_gaps = [(tb - ta).total_seconds() for (ta, _), (tb, _) in pairwise(statistical_marks)]
+    cadence = median(sample_gaps) if sample_gaps else None
+    periods_per_year = YEAR_SECONDS / cadence if cadence else None
+    open_calendar = (market_open_annualization(start, end, cadence,
                      result.get("session", {}).get("skipped", []))
-                     if enhanced and gaps else None)
+                     if enhanced and cadence else None)
     if enhanced and open_calendar and open_calendar["status"] == "AVAILABLE":
         periods_per_year = open_calendar["periods_per_year"]
         out["market_open_annualization"] = open_calendar
