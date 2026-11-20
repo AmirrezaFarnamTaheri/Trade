@@ -547,11 +547,14 @@ def _market_summaries(sessions, instruments, tops, book, marks, mark_times, t1):
     for s, session in sessions.items():
         orders = session.orders
         ledger = trade_ledger(orders, instruments[s].base)
+        quantity = book.get(instruments[s].base)
+        age = t1 - mark_times[s] if s in mark_times else None
+        freshness = "UNAVAILABLE" if age is None else "STALE" if age > timedelta(seconds=120) else "CURRENT"
         markets[s] = {"fills": sum(o["status"] == "FILLED" for o in orders), "orders": orders,
                       "observations": len(tops[s]), "qualified": sum(qualified(top) for top in tops[s]),
                       "running_at": iso(session.running_at), "session_state": session.state,
                       "closed_trades": len(ledger["trades"]), "realized_pnl": str(sum((Decimal(t["pnl"]) for t in ledger["trades"]), Decimal(0))),
-                      "holding": str(book.get(instruments[s].base)), "last_bid": str(marks.get(s)) if s in marks else None,
-                      "mark_time": iso(mark_times.get(s)), "mark_age_seconds": (t1 - mark_times[s]).total_seconds() if s in mark_times else None,
-                      "mark_status": "UNAVAILABLE" if s not in mark_times else "STALE" if t1 - mark_times[s] > timedelta(seconds=120) else "CURRENT"}
+                      "holding": str(quantity), "last_bid": str(marks.get(s)) if s in marks else None,
+                      "mark_time": iso(mark_times.get(s)), "mark_age_seconds": age.total_seconds() if age is not None else None,
+                      "mark_status": freshness, **session.inventory_at(quantity, session.last_quote if freshness == "CURRENT" else None, t1)}
     return markets

@@ -88,12 +88,16 @@ STRATEGIES["signal-blend"] = (blend_from_names, "Blend of single-market rules (v
     "calm_bars": {"type": "integer", "default": 24, "minimum": 2, "maximum": 500},
     "obv_volume_policy": {"type": "string", "default": "legacy", "enum": ["legacy", "require-positive"]},
 })
+POSITION_MODEL = {"type": "string", "default": "legacy", "enum": ["legacy", "inventory/1"]}
+
+
 def catalog():
     """Expose the paper-only, versioned strategy parameter catalog."""
     return [{"id": name, "title": title, "version": getattr(constructor,"version",1), "mode": "PAPER_ONLY",
              "parameters": {"type": "object", "properties": {**properties, "regime_gate": REGIME_GATE,
                             "regime_volatility_model": REGIME_VOLATILITY_MODEL,
-                            "exit_volatility_model": EXIT_VOLATILITY_MODEL, **EXIT_PARAMETERS}, "additionalProperties": False},
+                            "exit_volatility_model": EXIT_VOLATILITY_MODEL, "position_model": POSITION_MODEL,
+                            **EXIT_PARAMETERS}, "additionalProperties": False},
              "constraints": ["fast < slow"] if "fast" in properties else []}
             for name, (constructor, title, properties) in STRATEGIES.items()]
 
@@ -108,6 +112,9 @@ def create_strategy(name="ema-trend", params=None):
     if not isinstance(params, dict):
         raise ValueError("unsupported strategy parameters")
     params = dict(params)
+    position_model = params.pop("position_model", POSITION_MODEL["default"])
+    if position_model not in POSITION_MODEL["enum"]:
+        raise ValueError("invalid strategy parameter: position_model")
     gate = params.pop("regime_gate", "ANY")
     if gate not in REGIME_GATE["enum"]:
         raise ValueError("invalid strategy parameter: regime_gate")
@@ -145,5 +152,7 @@ def create_strategy(name="ema-trend", params=None):
         strategy = RegimeGate(strategy, gate, regime_model)
     if exits:
         strategy = ExitPolicy(strategy, exits)
+    if position_model == "inventory/1":
+        strategy.params = {**strategy.params, "position_model": position_model}
     strategy.config_hash = digest({"strategy": name, "version": strategy.version, "params": strategy.params})
     return strategy

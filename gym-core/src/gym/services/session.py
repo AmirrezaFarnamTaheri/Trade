@@ -41,6 +41,7 @@ class PaperSession:
         self.rules_for = rules_for
         self.strategy = strategy
         self.observed_obv_volume = strategy.params.get("obv_volume_policy") == "require-positive"
+        self.exact_inventory = strategy.params.get("position_model") == "inventory/1"
         self.symbol = symbol
         self.instrument = portal.instrument(symbol)
         metadata = portal.metadata_at(symbol, start)
@@ -125,6 +126,25 @@ class PaperSession:
         return (snapshot, snapshot.evidence_id(self.strategy.config_hash, volume_evidence["digest"]),
                 {"volume_evidence": volume_evidence})
 
+    def inventory_at(self, quantity, quote, at):
+        if not self.exact_inventory:
+            return {}
+        status, sellable = "FLAT", Decimal(0)
+        if quantity > 0:
+            status, sellable = "HELD_UNKNOWN", None
+            if quote is not None:
+                spec = self.portal.spec_at(self.symbol, at)
+                lot = sellable_quantity(quantity, quote.bid, spec)
+                if lot == 0:
+                    status, sellable = "HELD_DUST", lot
+                elif None not in (spec.qty_decimals, spec.min_qty, spec.min_notional):
+                    status, sellable = "HELD_SELLABLE", lot
+        pending = self.pending
+        working = None if pending is None else {"ref": pending.record["ref"], "side": pending.record["side"],
+            "status": pending.record["status"], "remaining_qty": str(pending.max_qty) if pending.max_qty is not None else None}
+        return {"position_known": {"state": status, "asset": self.instrument.base, "quantity": str(quantity),
+            "sellable_quantity_at_bid": str(sellable) if sellable is not None else None, "working_order": working}}
+
     def scan(self, at):
         closed_bars = self.closes.scan(at)
         for bar in closed_bars:
@@ -149,8 +169,8 @@ class PaperSession:
                 if latest is not None:
                     auxiliary.append(latest)
             execution = None
+            quantity = self.book.get(self.instrument.base)
             if self.track_positions:
-                quantity = self.book.get(self.instrument.base)
                 tradable = sellable_quantity(quantity,quote.bid,self.portal.spec_at(self.symbol,bar.avail)) if quote else quantity
                 holding = quantity>0 and (not self.position_closed or tradable>0)
                 execution = {"equity":self.book.equity(self.instrument,quote.bid) if quote else None,
@@ -169,8 +189,8 @@ class PaperSession:
                             execution[key] = None
             snapshot, snapshot_id, bar_evidence = self._decision_snapshot(bar, quote, context, reference, execution, auxiliary)
             if execution is None:
-                holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
-            action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
+                holding = bool(quote) and quantity*quote.bid>self.book.equity(self.instrument,quote.bid)/100
+            action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, quantity > 0 if self.exact_inventory else holding)
             if self.warmup_until is not None and bar.avail <= self.warmup_until:
                 action, fraction, reasons = "ABSTAIN_WARMUP", Decimal(0), (*reasons, "pre-test indicators only; no orders")
             if self.decision_filter is not None:
@@ -188,7 +208,7 @@ class PaperSession:
                 self.transition("RUNNING", bar.avail)
             decision = {"t": iso(bar.avail), "snapshot": snapshot_id, "close": str(bar.close), "action": action,
                    "reasons": list(reasons), "features": feature_hash, "bid": quote and str(quote.bid), "ask": quote and str(quote.ask),
-                   "quote_time": quote and iso(quote.ts_avail)}
+                   "quote_time": quote and iso(quote.ts_avail), **self.inventory_at(quantity, quote, bar.avail)}
             decision["feature_values"] = self.strategy.feature_values
             if execution is not None:
                 decision["execution_known"] = execution

@@ -71,12 +71,13 @@ test('replay cursor and uncertain annotation identity survive language changes w
   const calls = [];
   const p = page(async (_path, options) => {
     const body = JSON.parse(options.body); calls.push(body);
-    if (body.action === 'replay') return {total: 3, run_id: body.value.run_id, outputs_digest: 'c'.repeat(64), quote_currency: 'USDT', decisions: [{index: body.value.limit - 1, known_at_decision: {t: '2026-11-16T00:00:00Z', action: 'WAIT', feature_values: {close: '1'}}}]};
+    if (body.action === 'replay') return {total: 3, run_id: body.value.run_id, outputs_digest: 'c'.repeat(64), quote_currency: 'USDT', decisions: [{index: body.value.limit - 1, known_at_decision: {t: '2026-11-16T00:00:00Z', action: 'WAIT', feature_values: {close: '1'}, position_known: {state: 'HELD_DUST', asset: 'BTC', sellable_quantity_at_bid: '0'}}}]};
     if (body.action === 'annotation-list') return {through: 0, next_after: null, events: []};
     if (body.action === 'annotation-add') throw new Error('Receipt unavailable');
     return {};
   });
   p.node('replay-run').value = 'a'.repeat(16); submit(p.node('replay-form')); await settle();
+  assert.ok(p.node('replay-decision').innerHTML.includes(T.en.paperPositionHELD_DUST));
   p.node('replay-next').onclick({target: p.node('replay-next')}); await settle();
   assert.equal(calls.filter(row => row.action === 'replay').at(-1).value.limit, 2);
   const note = p.node('replay-annotation-text'); note.value = 'Keep this exact note';
@@ -93,4 +94,5 @@ test('replay cursor and uncertain annotation identity survive language changes w
   assert.equal(retry.value.decision_index, 1);
   p.node('replay-next').onclick({target: p.node('replay-next')}); await settle();
   assert.equal(calls.filter(row => row.action === 'replay').at(-1).value.limit, 3);
+  assert.ok(p.node('replay-decision').innerHTML.includes(T.fa.paperPositionHELD_DUST));
 });

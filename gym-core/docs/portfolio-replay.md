@@ -12,6 +12,13 @@ latency and point-in-time rules. The CLI/API also accept supported native limit,
 participation, depth, remainder and sizing assumptions. Compound strategies reject
 unsupported limit/remainder configurations explicitly.
 
+Select **Exact inventory** under **Position accounting**, or pass `"position_model": "inventory/1"`
+in the strategy parameters, to treat every positive base balance as held. The decision inspector
+reports recorded inventory, the modeled lot sellable at the qualified bid under the known minimums,
+and any working paper order. The portfolio shows the ending holding and its sellability status.
+Missing or stale evidence leaves sellability unknown. Inventory below a known minimum remains in balances
+and marked equity. This model has a separate run identity. Legacy runs keep their recorded semantics.
+
 ## Allocation and risk
 
 Equal weights are the default. Optional inverse-volatility and equal-risk-

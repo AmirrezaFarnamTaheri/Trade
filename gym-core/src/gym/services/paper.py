@@ -162,7 +162,10 @@ def paper(db: MarketDB, symbol: str, t0: datetime, t1: datetime, *, resolution: 
     baselines = {f"hold {inst.quote}": {"end": {"equity": str(cash), "net": "0"}, "fills": 0}}
     baseline_evidence = {}
     for name, s in base_syms.items():
-        b = run(portal, rules_for, BuyAndHold(), s, t0, t1, resolution, cash, cost, subscriptions, digest_cache=digests)
+        baseline = BuyAndHold()
+        if strategy.params.get("position_model") == "inventory/1":
+            baseline.params = {**baseline.params, "position_model": "inventory/1"}
+        b = run(portal, rules_for, baseline, s, t0, t1, resolution, cash, cost, subscriptions, digest_cache=digests)
         # Keep raw-data and rule/spec-dependent results before reducing the baseline display.
         baseline_evidence[s] = digest(b)
         baselines[name] = {k: b[k] for k in ("symbol", "end", "fills", "nonfills")} if b["end"] else {"unavailable": f"no qualified {s} quotes"}
