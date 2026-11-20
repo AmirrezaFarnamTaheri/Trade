@@ -221,8 +221,9 @@ def _bootstrap(returns: list[float], seed: int = 0) -> dict:
 
 def _benchmark(record: dict, periods_per_year: float | None) -> dict | None:
     """Strategy against holding the base asset over the same equity marks (bid at each decision)."""
-    bids = {d["t"]: float(d["bid"]) for d in record["result"].get("decisions", []) if d.get("bid")}
-    marks = [(t, float(v), bids[t]) for t, v in record["result"].get("curve", []) if t in bids]
+    bids = {parse_ts(d["t"]): float(d["bid"]) for d in record["result"].get("decisions", []) if d.get("bid")}
+    equity = {parse_ts(t): float(v) for t, v in record["result"].get("curve", [])}
+    marks = [(t, equity[t], bids[t]) for t in sorted(equity.keys() & bids.keys())]
     pairs = [(e1 / e0 - 1, b1 / b0 - 1) for (_, e0, b0), (_, e1, b1) in pairwise(marks) if e0 > 0 and b0 > 0]
     if len(pairs) < 3:
         return None
