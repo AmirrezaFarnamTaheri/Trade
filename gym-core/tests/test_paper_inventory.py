@@ -3,8 +3,9 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from gym.adapters.run_store import save_run
-from gym.domain.model import InstrumentId
+from gym.domain.model import InstrumentId, iso
 from gym.domain.registry import create_strategy
+from gym.domain.rules import parse_rule
 from gym.domain.sim import CostModel
 from gym.services.data_portal import DataPortal
 from gym.services.paper import paper
@@ -35,6 +36,13 @@ def test_exit_checks_are_separate_from_holding_and_lot_qualification(tmp_path):
         assert session.inventory_at(quantity, None, START)["position_known"]["exit_check"] == "UNKNOWN"
         session.pending = SimpleNamespace(record={"ref": "BTCUSDT#1", "side": "SELL", "status": "PENDING"}, max_qty=None)
         assert session.inventory_at(quantity, quote, START)["position_known"]["exit_check"] == "WORKING_ORDER"
+        session.pending = None
+        halt = parse_rule({"id": "halt", "family": "PairSuspension", "class": "VENUE", "action": "BLOCK_ALL",
+                           "scope": {"symbols": [symbol]}, "effective_from": iso(START),
+                           "source": "operator", "status": "VERIFIED"})
+        session.rules_for = lambda _: (halt,)
+        halted = session.inventory_at(quantity, quote, START)["position_known"]
+        assert halted["state"] == "HELD_SELLABLE" and halted["exit_check"] == "BLOCKED_BY_RULE"
     finally:
         db.c.close()
 
