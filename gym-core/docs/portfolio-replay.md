@@ -14,9 +14,9 @@ unsupported limit/remainder configurations explicitly.
 
 Select **Exact inventory** under **Position accounting**, or pass `"position_model": "inventory/1"`
 in the strategy parameters, to treat every positive base balance as held. The decision inspector
-reports recorded inventory, the modeled lot sellable at the qualified bid under the known minimums,
+reports recorded inventory, the quantity passing known lot and minimum checks at the recorded bid,
 and any working paper order. The portfolio shows the ending holding and its sellability status.
-Missing or stale evidence leaves sellability unknown. Inventory below a known minimum remains in balances
+These checks do not assess venue halts, execution depth, or risk-policy approval. Missing or stale evidence leaves the check unresolved. Inventory below a known minimum remains in balances
 and marked equity. This model has a separate run identity. Legacy runs keep their recorded semantics.
 
 ## Allocation and risk
