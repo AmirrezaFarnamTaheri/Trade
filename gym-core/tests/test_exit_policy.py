@@ -63,6 +63,41 @@ def test_venue_stop_uses_received_trades_keeps_waiting_balance_free_and_works_pa
         db.c.close()
 
 
+@pytest.mark.parametrize("entry_fee,exit_fee", [("0", "0"), ("0.02", "0.04"), ("0", "0.04")])
+def test_profit_target_reconciles_fee_adjusted_basis_after_partial_sale(entry_fee, exit_fee):
+    from gym.domain.model import BookTop
+    from gym.domain.performance import trade_ledger
+
+    book = CashBook({"USDT": Decimal(100)})
+    inst = InstrumentId.wallex("BTCUSDT")
+
+    def fill(side, price, fee, seconds, max_qty=None):
+        at = START + timedelta(seconds=seconds)
+        top = BookTop("BTCUSDT", at, price if side == "SELL" else price - 1,
+                      price + 1 if side == "SELL" else price, Decimal(10), Decimal(10), frozenset())
+        order = market_order(book, inst, side, Decimal(1), at - timedelta(seconds=1), price,
+                             [top], 0, CostModel(fee_rate=Decimal(fee)), Spec(), [], {}, str(seconds), max_qty=max_qty)
+        assert order["status"] == "FILLED"
+        return order
+
+    buy = fill("BUY", Decimal(100), entry_fee, 0)
+    received = book.get("BTC")
+    entry = Decimal(100) / received
+    strategy = create_strategy("ema-trend", {"exit_profit_bps": 100, "exit_stop_bps": 100})
+    snap = replace(snapshot(1, 100), execution={"entry_price": str(entry), "entry_time": START.isoformat(),
+                   "position_id": "actual-fill", "fee_rate": exit_fee})
+    strategy.decide(snap, True)
+    target = Decimal(strategy.feature_values["exit_target_price"])
+    stop = Decimal(strategy.feature_values["exit_stop_price"])
+    assert abs(stop * received * (1 - Decimal(exit_fee)) - Decimal(99)) < Decimal("1e-22")
+    half = fill("SELL", target, exit_fee, 2, received / 2)
+    rest = fill("SELL", target, exit_fee, 3)
+    pnl = sum(Decimal(t["pnl"]) for t in trade_ledger([buy, half, rest], "BTC")["trades"])
+    assert book.get("BTC") == 0
+    assert abs(book.get("USDT") - Decimal(101)) < Decimal("1e-22")
+    assert abs(pnl - Decimal(1)) < Decimal("1e-22")
+
+
 def test_sub_precision_entry_cannot_spend_cash_without_receiving_base():
     book = CashBook({"USDT": Decimal(1000), "BTC": Decimal(1)})
     top = quote_history(n=1)[0]
