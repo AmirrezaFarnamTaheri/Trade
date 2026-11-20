@@ -55,6 +55,13 @@ def economic_report(out, diag=None):
     strongest = max(baselines, key=lambda baseline: baseline[1]) if baselines else None
     is_demo = inputs["store"] == "demo"
     valuation = run_valuation(out)
+    estimate = (result.get("end") or {}).get("net_liquidation_estimate")
+    liquidation = {
+        "status": "MODEL_ONLY" if estimate is not None else "UNAVAILABLE",
+        "basis": "RECORDED_BID_LESS_MODELED_FEE" if estimate is not None else None,
+        "equity_estimate": estimate, "mark_status": valuation["status"],
+        "as_of": valuation["as_of"], "currency": result["quote"], "depth_validated": False,
+    }
     limitation = ("Synthetic DEMO data is never capital evidence." if is_demo else
                   "No independent out-of-sample evidence; dependent trades and assumed fees prevent validated claims.")
     if valuation["status"] == "STALE":
@@ -76,6 +83,7 @@ def economic_report(out, diag=None):
         "iid_sample_estimate": sample_estimate,
         "strongest_baseline": {"name": strongest[0], "net": str(strongest[1])} if strongest else None,
         "valuation": valuation,
+        "liquidation": liquidation,
         "sampled_drawdown": drawdown,
         "performance": perf,
         "claim_ceiling": "NONE" if is_demo else "EXPERIMENTAL",
@@ -136,8 +144,11 @@ def text_report(out: dict) -> str:
         lines.append(f"Gross-to-net waterfall ({currency}, mark-to-bid at {end['mark_time']}):")
         for name, value in end["waterfall"].items():
             lines.append(f"  {name:<16}{money(value)}")
-        lines.append(f"  {'equity':<16}{money(end['equity'])}   net liquidation estimate (modeled) "
-                     f"{money(end['net_liquidation_estimate']).strip()}")
+        lines.append(f"  {'equity':<16}{money(end['equity'])}")
+        liquidation = report["liquidation"]
+        if liquidation["status"] == "MODEL_ONLY":
+            lines.append(f"  Fee-adjusted bid estimate: {money(liquidation['equity_estimate']).strip()} "
+                         "(displayed depth not checked; not executable proceeds).")
         perf = report["performance"]
         if perf.get("status") == "AVAILABLE":
             trades, ret = perf["trades"], perf.get("returns") or {}

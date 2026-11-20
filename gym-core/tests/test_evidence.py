@@ -26,6 +26,29 @@ def test_paper_warns_when_only_some_historical_constraints_are_known(tmp_path):
         db.c.close()
 
 
+def test_evidence_command_closes_diagnostic_database_on_failure(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from gym.commands import research
+
+    (tmp_path / "runs").mkdir()
+    key = "a" * 16
+    (tmp_path / "runs" / (key + ".json")).write_text('{"inputs": {}}', encoding="utf-8")
+    db = market_db(tmp_path, [])
+    monkeypatch.setattr(research, "store_root", lambda args: tmp_path)
+    monkeypatch.setattr(research, "open_db", lambda args: db)
+
+    def fail(*_):
+        raise ValueError("diagnostic failed")
+
+    monkeypatch.setattr("gym.services.diagnostics.diagnostics", fail)
+    with pytest.raises(ValueError, match="diagnostic failed"):
+        research.evidence_cmd(SimpleNamespace(run_id=key, diagnostics=True))
+    import sqlite3
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        db.c.execute("SELECT 1")
+
+
 def test_marks_do_not_mature_early():
     decisions = [{"t": iso(START)}]
     rows = [quote(START + timedelta(minutes=16), "100", "101"), quote(START + timedelta(minutes=65), "105", "106")]
@@ -51,6 +74,13 @@ def test_diagnostics_report_and_demo_capital_guard(tmp_path):
     assert diag["warmup-stability"]["prehistory_observations"] > 0
     report = economic_report(out, diag)
     assert report["claim_ceiling"] == "NONE" and not report["gate_eligible"]
+    assert report["liquidation"] == {
+        "status": "MODEL_ONLY", "basis": "RECORDED_BID_LESS_MODELED_FEE",
+        "equity_estimate": out["result"]["end"]["net_liquidation_estimate"],
+        "mark_status": report["valuation"]["status"],
+        "as_of": out["result"]["end"]["mark_time"], "currency": "USDT",
+        "depth_validated": False,
+    }
     with pytest.raises(ValueError):
         record_decision(tmp_path, out, "EXPERIMENTAL", "1", "USDT", "test", START)
     with pytest.raises(ValueError):
@@ -76,6 +106,7 @@ def test_evidence_discloses_end_price_age(age, status):
     report = economic_report(out)
     assert report["valuation"] == {"status": status, "as_of": iso(START), "age_seconds": age}
     assert report["gate_eligible"] is False
+    assert report["liquidation"]["status"] == "UNAVAILABLE"
     if status == "STALE":
         assert "stale" in report["primary_limitation"].lower()
 

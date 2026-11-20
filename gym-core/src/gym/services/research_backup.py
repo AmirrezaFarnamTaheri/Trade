@@ -200,12 +200,27 @@ def backup_research(root: Path, destination: Path, *, passphrase: str, keep: int
             copy.unlink()
             entries.append({k: header[k] for k in ("kind", "name", "plaintext_sha256", "plaintext_size")})
         archive = Path(scratch) / "files.tar"
+        nested_databases = []
+
+        def archive_member(info):
+            name = Path(info.name)
+            if (not (info.isfile() or info.isdir()) or SKIP_NAMES.fullmatch(name.name)
+                    or name.name == STATUS_FILE):
+                return None
+            if info.isfile() and name.suffix in SQLITE_SUFFIXES:
+                nested_databases.append(name)
+                return None
+            return info
+
         with tarfile.open(archive, "w") as tar:
             for item in sorted(root.iterdir()):
-                if item.is_symlink() or SKIP_NAMES.fullmatch(item.name) or item.suffix in SQLITE_SUFFIXES \
-                        or item.name == STATUS_FILE:
-                    continue
-                tar.add(item, arcname=item.name, filter=lambda info: None if info.issym() or info.islnk() else info)
+                if item.suffix not in SQLITE_SUFFIXES or item.is_dir():
+                    tar.add(item, arcname=item.name, filter=archive_member)
+            copy = Path(scratch) / "nested.sqlite3"
+            for name in nested_databases:
+                _snapshot_sqlite(root / name, copy)
+                tar.add(copy, arcname=name.as_posix())
+                copy.unlink()
         header = _encrypt(archive, snapshot / "files.tar.tgfile", passphrase, {"kind": "files", "name": "files.tar"}, True)
         entries.append({k: header[k] for k in ("kind", "name", "plaintext_sha256", "plaintext_size")})
     segments = _backup_segments(root, destination, passphrase)
@@ -298,11 +313,18 @@ def restore_research(destination: Path, target: Path, *, passphrase: str, segmen
         restored.append(entry["name"])
     count = 0
     if segments and (destination / "segments").is_dir():
+        market = sqlite3.connect((target / "market.db").resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            expected = dict(market.execute("SELECT seg_id, sha256 FROM segments WHERE sha256 IS NOT NULL"))
+        finally:
+            market.close()
         for container in sorted((destination / "segments").rglob("*.tgfile")):
             header, _ = read_header(container)
             seg_id = container.relative_to(destination / "segments").as_posix()[: -len(".tgfile")]
             if header.get("kind") != "segment" or header.get("name") != seg_id:
                 raise BackupAuthenticationError(f"{container.name}: segment name does not match its header")
+            if seg_id in expected and header.get("plaintext_sha256") != expected[seg_id]:
+                raise BackupAuthenticationError(f"{container.name}: does not match market.db segment digest")
             out = target / "raw" / seg_id
             out.parent.mkdir(parents=True, exist_ok=True)
             decrypt(container, out, passphrase)

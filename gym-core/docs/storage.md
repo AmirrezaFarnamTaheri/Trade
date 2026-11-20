@@ -39,6 +39,9 @@ prove current archive availability, independent origin or runtime recovery.
 | Market collector | `market.db`, SQLite WAL | Instruments, specifications, quotes, trades, candle vintages, quality, rule history and raw-segment manifests |
 | Research services | `research.sqlite3`, `research_protocol.sqlite3`, `experiments.sqlite3` | Hypotheses, jobs, alerts, evaluations, outcomes, observations and experiment events |
 | Operator journals | `external_journal.db`, `offline_reviews.db`, `venue_facts.db`, `backup_status.sqlite3` | Account/order observations, ticket reviews, venue facts and backup receipts |
+| Trial and fair-price journals | `trial_ledger.sqlite3`, `fair_price.sqlite3` | Research selection attempts and fair-price observations |
+| Paper sweep | `sweeps/<from>_<to>.sqlite3` by default | Local sweep results; `gymctl paper-sweep --out` can set another path |
+| Probe budget | `probe_budget.db` | Local probe loss limits and budget records |
 | Protected Executor | SQLite through `exec-store` | Native execution ledger; owned by the protected service |
 | Raw collector archive | `raw/YYYYMMDD/*.jsonl.zst` | Original public WebSocket/REST messages with sequence, receipt time and message hash |
 | Research artifacts and configuration | Individual JSON files | Immutable run receipts and portable declarative settings; not appendable JSONL journals |

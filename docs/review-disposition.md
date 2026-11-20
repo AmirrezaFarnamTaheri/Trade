@@ -2,6 +2,8 @@
 
 Source reviews: `GPT Review.md` and `gemini review.txt`. This is a prioritized implementation pass against `dd04de5` and the existing working tree, not a checklist claiming that every proposal was reproduced or implemented.
 
+[Review coverage](review-coverage.md) maps the full line ranges of both source reports.
+
 ## Implemented
 
 - **Stale terminal portfolio valuation (GPT §5.1).** Performance is `PROVISIONAL` when any held market has a stale terminal mark. Last-known equity, per-market freshness, fills and output digests are preserved. A regression covers both newly saved and verified reloaded results.
@@ -21,6 +23,17 @@ Source reviews: `GPT Review.md` and `gemini review.txt`. This is a prioritized i
 
 - **Market query indexes (Gemini 401–412).** Schema 6 indexes trades by instrument and event time, and quotes by availability time. A scratch schema 5 upgrade verifies both query plans and preserves replay order for equal-time trades. No production store was migrated.
 
+- **Local holdout reuse (Gemini 140-155; GPT §7.3).** The long-history study records each market's observed time span under the existing ledger lock. Shifted windows and revised prices do not reset the look count. Explicit rescoring counts overlapping looks. Old ledger entries lack coverage, so they conservatively count as potentially overlapping.
+
+- **HRP correlation rounding (Gemini 140-155, 777-784).** Accept one working-precision unit of rounding at the correlation boundary. Materially invalid correlations still fail.
+- **Diagnostic database lifetime (Gemini 421-433).** `gymctl evidence --diagnostics` closes its market connection even if diagnostics fail.
+- **Public REST provenance (Gemini 401-412).** Reject redirects before reading a response body. A local server test confirms the redirected endpoint is not called.
+- **Rust test source hygiene (Gemini 678-690, 2633-2647).** Replace literal NUL source bytes with equivalent Rust escapes. The zeroing assertion still checks the same bytes.
+
+- **Liquidation estimate labeling (GPT §3.2).** Economic evidence reports separate the fee-adjusted bid estimate from marked equity and identify its mark freshness. The estimate does not validate depth or executable proceeds. Saved run bytes and digests are unchanged.
+
+- **Nested SQLite backup (Gemini 401-412).** Nested research databases use SQLite snapshots before encryption. A scratch restore preserved committed WAL data without copying the live sidecars. The archive layout still accepts older backups.
+
 ## Already addressed or not reproduced as reported
 
 - **`update-check` always exits zero.** The command dispatcher already maps policy refusal to exit code 2. Existing regression coverage includes unresolved orders, open positions without protection, and a damaged ledger. Changing the successful return would not fix a defect.
@@ -31,9 +44,9 @@ Source reviews: `GPT Review.md` and `gemini review.txt`. This is a prioritized i
 ## Still open
 
 - **Paper execution evidence:** unknown historical venue constraints, date-aware fee schedules, queue/latency sensitivity, and divergence between quote marks and executable liquidation. Add these under versioned replay inputs rather than silently reinterpret frozen trials. Audit entry/exit fee and small-position semantics with exact ledger fixtures before changing execution logic.
-- **Research qualification:** the centered bootstrap and Wilson upper bound in `spa.py` are deliberately conservative; a result below 5% does not constitute independent validation. A Hansen SPA replacement needs separate calibration and method labeling. Holdout overlap policy, tail-risk reliability, CPCV/PBO, sequential testing and prospective journals need their own protocols and tests. Do not rescore frozen trials.
+- **Research qualification:** the centered bootstrap and Wilson upper bound in `spa.py` are deliberately conservative; a result below 5% does not constitute independent validation. A Hansen SPA replacement needs separate calibration and method labeling. Independent holdout custody, trial-family counting, tail-risk reliability, CPCV/PBO, sequential testing and prospective journals need their own protocols and tests. Do not rescore frozen trials.
 - **Protected executor and local API:** no settlement, vault lock, authorization policy, cancellation, or recovery code was changed or qualified here. The proposed lock split needs a preserved STOP/disarm linearization point and durable handling of uncertain sends; a synthetic concurrency test is not installed-host evidence. Global browser Origin rules and making saved runs private change a documented admission contract. UI hot-asset hashing and synchronous API reads remain separate work; startup-only hashes would break the current asset-refresh test.
-- **Storage and operations:** measure segment rollover, tick lag, and write amplification before moving writes or changing publication ordering. Use point-in-time fixtures for REST reseeding and spec versioning. Add a quality-event index only when a traced query justifies its write cost. Parquet, a writer actor and database consolidation need migration, crash-recovery and restore evidence. Nested SQLite backup consistency and manifest authenticity need format and restore tests. Off-device scheduling requires an owner decision; this pass did not enable it.
+- **Storage and operations:** measure segment rollover, tick lag, and write amplification before moving writes or changing publication ordering. Use point-in-time fixtures for REST reseeding and spec versioning. Add a quality-event index only when a traced query justifies its write cost. Parquet, a writer actor and database consolidation need migration, crash-recovery and restore evidence. Restore checks archived segments against the restored market database when it has a recorded digest. Archive completeness, manifest authenticity, and rollback detection remain open. Off-device scheduling requires an owner decision; this pass did not enable it.
 - **UI, maintenance and research expansion:** leave the scorecard, timeline, wider portfolio controls, accessibility work, ES-module migration, cleanup and peer-system adoption as separate changes. Preserve historical reproducers and evidence. Project licensing requires an owner decision.
 
 ### Closure criteria for open review groups

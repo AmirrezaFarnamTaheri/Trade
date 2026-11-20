@@ -295,7 +295,7 @@ def ridge(data, inputs, vols, bars_per_day, lambdas):
 def signals(data, bars_per_day):
     """{(family, param): {symbol: exposure in [0, 1] or None}} for every family the data supports."""
     out, vols, inputs, scores = {}, {}, {}, {}
-    for symbol, (times, closes) in data.items():
+    for symbol, (_, closes) in data.items():
         vols[symbol] = vol = realized_vol(closes, bars_per_day)
         vols[symbol, "moves"] = [0.0] + [b / a - 1 for a, b in pairwise(closes)]
         for family, values in trend_signals(closes, bars_per_day).items():
@@ -578,10 +578,14 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
     custody = None
     if valid and holdout is not None:
         from gym.services.holdout_ledger import HoldoutRefused, window_id
-        prices = [(f"{sym}@{t}", p) for sym, (times, closes) in sorted(data.items())
-                  for t, p in zip(times, closes) if test_start <= t < end]
+        prices, coverage = [], {}
+        for symbol, (times, closes) in sorted(data.items()):
+            observed = [(t, p) for t, p in zip(times, closes) if test_start <= t < end]
+            if observed:
+                coverage[symbol] = [min(t for t, _ in observed), max(t for t, _ in observed)]
+                prices.extend((f"{symbol}@{t}", p) for t, p in observed)
         spec = {"costs": costs, "margin": sorted(margin), "terms": terms, "train_end": train_end,
-                "chosen": label(chosen)}
+                "chosen": label(chosen), "coverage": coverage}
         try:
             custody = holdout.look(window_id(data, interval, test_start, end, prices), spec, len(candidates),
                                    rescore=rescore)

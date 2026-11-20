@@ -75,7 +75,11 @@ def connect_cmds(chs: list[str]) -> list[str]:
 
 
 async def get_text(session: aiohttp.ClientSession, path: str, **params) -> str:
-    async with session.get(REST + path, params=params, timeout=aiohttp.ClientTimeout(total=15)) as r:
+    async with session.get(REST + path, params=params, timeout=aiohttp.ClientTimeout(total=15),
+                           allow_redirects=False) as r:
+        if 300 <= r.status < 400:
+            raise aiohttp.ClientResponseError(r.request_info, r.history, status=r.status,
+                                              message="unexpected redirect", headers=r.headers)
         r.raise_for_status()
         body = bytearray()
         async for chunk in r.content.iter_chunked(65536):  # read(n) returns one chunk, not the whole body

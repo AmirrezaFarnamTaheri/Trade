@@ -424,7 +424,13 @@ def evidence_cmd(args):
 
     root = store_root(args) / "runs"
     out = json.loads(run_path(root, args.run_id).read_text("utf-8"))
-    diag = diagnostics(open_db(args), out) if args.diagnostics and out["inputs"].get("kind") != "live-session" else None
+    diag = None
+    if args.diagnostics and out["inputs"].get("kind") != "live-session":
+        db = open_db(args)
+        try:
+            diag = diagnostics(db, out)
+        finally:
+            db.c.close()
     if args.diagnostics and diag is None:
         diag = {"status": "NOT_RUN", "reason": "Live-session matched replay is required."}
     report = economic_report(out, diag)
