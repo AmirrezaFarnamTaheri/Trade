@@ -70,6 +70,7 @@ def scorecard_spa(rows: list[dict], verified: dict[str, dict]) -> list[dict]:
     reports = []
     for (window, scenario), group in sorted(grouped.items()):
         observed, identity, excess = [], None, {}
+        repeated_mark = False
         for row in group:
             out = verified.get(row["attempt_id"])
             if out is None:
@@ -82,15 +83,20 @@ def scorecard_spa(rows: list[dict], verified: dict[str, dict]) -> list[dict]:
             identity = matched
             bids = {decision["t"]: float(decision["bid"]) for decision in out["result"].get("decisions", [])
                     if decision.get("bid") is not None}
-            marks = {parse_ts(at): (float(equity), bids[at])
-                     for at, equity in out["result"].get("curve", []) if at in bids}
-            points = [(at, *values) for at, values in sorted(marks.items())]
+            marks = [(parse_ts(at), float(equity), bids[at])
+                     for at, equity in out["result"].get("curve", []) if at in bids]
+            points = sorted(marks, key=itemgetter(0))
+            repeated_mark |= any(left[0] == right[0] for left, right in pairwise(points))
             deltas = {(a[0], b[0]): b[1] / a[1] - b[2] / a[2]
                       for a, b in pairwise(points) if a[1] > 0 and a[2] > 0}
             observed.append(set(deltas))
             excess[str(row["trial"])] = deltas
         else:
             common = sorted(set.intersection(*observed)) if len(observed) >= 2 else []
+            if repeated_mark:
+                reports.append({"window": window, "scenario": scenario, "registered_candidates": len(group),
+                                "status": "IRREGULAR_INTERVALS", "limitation": "Matched equity marks repeat an instant."})
+                continue
             if len(common) >= 20 and len(excess) >= 2 and all(len(v) == len(common) for v in excess.values()):
                 if len({end - start for start, end in common}) != 1 or any(
                         left[1] != right[0] for left, right in pairwise(common)):

@@ -8,13 +8,17 @@ from gym.services import spa
 from gym.services.spa import stationary_spa
 
 
-def test_scorecard_withholds_inference_for_matched_but_uneven_intervals():
+@pytest.mark.parametrize("irregularity", ["uneven", "duplicate"])
+def test_scorecard_withholds_inference_for_irregular_matched_intervals(irregularity):
     from datetime import timedelta
 
     from gym.domain.model import iso
     from tests.support import START
 
-    times = [iso(START + timedelta(minutes=i + i // 2)) for i in range(21)]
+    times = [iso(START + timedelta(minutes=i + (i // 2 if irregularity == "uneven" else 0)))
+             for i in range(21)]
+    if irregularity == "duplicate":
+        times.insert(4, times[4])
     record = {"inputs": {}, "result": {"curve": [(t, "100") for t in times],
               "decisions": [{"t": t, "bid": "100"} for t in times]}}
     rows = [{"window": "w", "scenario": "s", "attempt_id": i, "trial": i} for i in range(2)]
