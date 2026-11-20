@@ -8,7 +8,7 @@ from random import Random
 from ..adapters.run_store import load_verified_run, run_path
 from ..domain.market_models import fields, rate
 from ..domain.model import parse_ts
-from ..domain.performance import trade_ledger
+from ..domain.performance import result_trade_ledger
 from ..domain.registry import create_strategy
 from ..domain.strategy import digest
 from .reports import economic_report
@@ -70,7 +70,7 @@ def fractional_sizing(protocol, request):
             "Sizing uses the fifth percentile of resampled fractions before the supplied multiplier and hard cap.",
             "No correction for searched strategies, unobserved tail loss, feed gaps, execution failure or distribution shift.",
             "Local preregistration is not independent custody. No replay or funded allocation is changed automatically."]}
-    ledger = trade_ledger(out["result"]["orders"], out["result"]["base"])
+    ledger = result_trade_ledger(out["result"])
     trades = ledger["trades"]
     simple = simple_roundtrips(out["result"]["orders"], trades)
     if not simple:

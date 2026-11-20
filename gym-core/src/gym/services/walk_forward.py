@@ -91,9 +91,9 @@ def chained_out_of_sample(folds, records, starting_cash):
                 or fold["test"]["state"] != "COMPLETED" or fold["test"].get("valuation") != "CURRENT"):
             return {"status": "INCOMPLETE", "completed_folds": index,
                     "limitation": "Missing or unready test evidence prevents a chained economic claim."}
-        from ..domain.performance import trade_ledger
+        from ..domain.performance import result_trade_ledger
 
-        for trade in trade_ledger(record["result"]["orders"], record["result"]["base"])["trades"]:
+        for trade in result_trade_ledger(record["result"])["trades"]:
             losing = losing + 1 if Decimal(trade["pnl"]) < 0 else 0
             longest = max(longest, losing)
         for stamp, balance in record["result"]["curve"]:

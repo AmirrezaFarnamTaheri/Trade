@@ -85,6 +85,39 @@ def test_buy_fee_in_base_raises_unit_cost_and_sell_fee_reduces_proceeds():
     assert Decimal(trade["cost"]) == 100 and Decimal(trade["proceeds"]) == Decimal("98.901")
 
 
+def test_fee_currency_controls_partial_fifo_cost_inventory_and_exposure():
+    orders = [{**fill("BUY", "2", "100", "4", 0), "fee_ccy": "USDT"},
+              fill("BUY", "2", "150", "0.5", 10),
+              {**fill("SELL", "2", "200", "0.25", 20), "fee_ccy": "BTC"},
+              fill("SELL", "1.25", "160", "-1", 30)]
+    partial = trade_ledger(orders[:-1], "BTC", quote="USDT")
+    sale = partial["trades"][0]
+    assert Decimal(sale["quantity"]) == 2 and Decimal(sale["base_debit"]) == Decimal("2.25")
+    assert Decimal(sale["cost"]) == 254 and Decimal(sale["proceeds"]) == 400
+    assert Decimal(sale["average_cost_pnl"]) == 76
+    assert Decimal(partial["open"]["quantity"]) == Decimal("1.25")
+    assert Decimal(partial["open"]["cost"]) == 250
+    report = performance({"inputs": {"from": iso(START), "to": iso(START + timedelta(hours=1))},
+                          "result": {"start_cash": "1000", "base": "BTC", "quote": "USDT", "orders": orders}})
+    stats = report["trades"]
+    assert Decimal(stats["open_position"]["quantity"]) == 0
+    assert Decimal(stats["realized_pnl"]) == Decimal(stats["average_cost_realized_pnl"]) == 97
+    assert stats["exposure"] == 0.5
+
+
+def test_trade_statistics_use_booked_quote_amount_instead_of_rounded_price():
+    orders = [fill("BUY", "3", "33.33333333333333333333333333", "0", 0),
+              fill("SELL", "3", "40", "0", 30)]
+    postings = [{"ref": "o0", "ccy": "USDT", "kind": "buy", "amount": "-100"},
+                {"ref": "o30", "ccy": "USDT", "kind": "sell", "amount": "120"}]
+    assert Decimal(trade_ledger(orders, "BTC")["trades"][0]["cost"]) < 100
+    report = performance({"inputs": {"from": iso(START), "to": iso(START + timedelta(hours=1))},
+                          "result": {"start_cash": "1000", "base": "BTC", "quote": "USDT", "orders": orders,
+                                     "postings": postings}})
+    assert report["ledger"][0]["cost"] == "100"
+    assert report["trades"]["realized_pnl"] == report["attribution"][0]["pnl"] == "20"
+
+
 def test_selling_more_than_was_bought_is_an_error():
     with pytest.raises(ValueError, match="exceeds"):
         trade_ledger([fill("SELL", "1", "100", "0", 0)], "BTC")
