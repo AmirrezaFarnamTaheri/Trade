@@ -36,6 +36,8 @@ Source reviews: `GPT Review.md` and `gemini review.txt`. This is a prioritized i
 
 - **Atomic status publication (Gemini 401-412).** Backup manifests, research backup status, and alert state now publish complete files by replacement. A failed replacement preserves the previous file. This does not authenticate manifests or detect rollback.
 
+- **Prospective allocation journal (Gemini 140-155).** `gymctl allocate --journal-version 2` writes a separate paper journal. It uses the paper cash book, fees in the received asset, and bid marks when available. Both versions refuse competing local writers. Existing v1 records and the default version remain unchanged.
+
 ## Already addressed or not reproduced as reported
 
 - **`update-check` always exits zero.** The command dispatcher already maps policy refusal to exit code 2. Existing regression coverage includes unresolved orders, open positions without protection, and a damaged ledger. Changing the successful return would not fix a defect.

@@ -247,6 +247,8 @@ def main(argv=None):
     alloc.add_argument("--lookback", type=int, default=50, help="days in the moving average")
     alloc.add_argument("--vol-target", type=float, default=0.4, help="annualised volatility the position is sized to")
     alloc.add_argument("--band", type=float, default=0.2, help="skip exposure changes smaller than this")
+    alloc.add_argument("--journal-version", type=int, choices=(1, 2), default=1,
+                       help="2 starts a separate bid-marked journal with fees in the received asset")
     alloc.add_argument("--demo", action="store_true")
     bk = sub.add_parser("backup-once", help="manual offline encrypted ledger backup on a separate mounted volume")
     bk.add_argument("ledger", help="Executor ledger database file; no keys or secrets.dat")
@@ -317,6 +319,7 @@ def main(argv=None):
     ev = sub.add_parser("evidence", help="economic report and optional immutable claim/capital decision (never arms trading)")
     ev.add_argument("run_id")
     ev.add_argument("--demo", action="store_true")
+    ev.add_argument("--execution-evidence", action="store_true", help="audit point-in-time constraints on historical fills")
     ev.add_argument("--diagnostics", action="store_true", help="run repeatability, truncation, warmup and total-cost stress")
     ev.add_argument("--decide", choices=["NONE", "EXPERIMENTAL"])
     ev.add_argument("--cap", default="0")
