@@ -2,11 +2,13 @@
 // Native comparison setup, coverage and scheduled paper controls.
 function strategyFields(entry, prefix, values = {}, slot = '') {
   const names = { fast: "parameterFast", slow: "parameterSlow", lookback: "parameterLookback", entry_bps: "parameterEntry", confirmation: "parameterConfirmation", reference: "parameterReference", deviations: "parameterDeviations",
+    position_model: "parameterPositionModel",
     risk_bps: "parameterRisk", allocation_bps: "parameterAllocation", max_spread_bps: "parameterMaxSpread", participation_bps: "parameterParticipation", stop_atr: "parameterStopAtr", reward_risk: "parameterRewardRisk", cooldown_bars: "parameterCooldown", max_holding_bars: "parameterMaxHolding", max_drawdown_bps: "parameterMaxDrawdown" };
   const fields = Object.entries(entry.parameters.properties).map(([key, spec]) => {
     const id = `${prefix}-${key}`, value = values[key] ?? spec.default;
     const attrs = `id="${id}" data-slot="${slot}" data-parameter="${esc(key)}" required dir="ltr"`;
-    const input = spec.enum ? `<select ${attrs}>${spec.enum.map(option => `<option${option === value ? " selected" : ""}>${esc(option)}</option>`).join("")}</select>`
+    const label = option => key === 'position_model' ? t(({legacy: 'positionModelLegacy', 'inventory/1': 'positionModelInventory', 'inventory/2': 'positionModelExitChecks'})[option] ?? option) : option;
+    const input = spec.enum ? `<select ${attrs}>${spec.enum.map(option => `<option value="${esc(option)}"${option === value ? " selected" : ""}>${esc(label(option))}</option>`).join("")}</select>`
       : `<input class="input" ${attrs} type="${spec.type === "integer" ? "number" : "text"}" value="${esc(value)}" ${spec.type === "integer" ? `min="${spec.minimum}" max="${spec.maximum}" step="1"` : `pattern="[A-Z0-9]{2,24}" maxlength="24"`}>`;
     return {key, html: `<label for="${id}"><span>${esc(t(names[key] || key))}</span>${input}</label>`};
   });

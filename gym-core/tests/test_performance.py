@@ -85,6 +85,71 @@ def test_buy_fee_in_base_raises_unit_cost_and_sell_fee_reduces_proceeds():
     assert Decimal(trade["cost"]) == 100 and Decimal(trade["proceeds"]) == Decimal("98.901")
 
 
+def test_fee_currency_controls_partial_fifo_cost_inventory_and_exposure():
+    orders = [{**fill("BUY", "2", "100", "4", 0), "fee_ccy": "USDT"},
+              fill("BUY", "2", "150", "0.5", 10),
+              {**fill("SELL", "2", "200", "0.25", 20), "fee_ccy": "BTC"},
+              fill("SELL", "1.25", "160", "-1", 30)]
+    partial = trade_ledger(orders[:-1], "BTC", quote="USDT")
+    sale = partial["trades"][0]
+    assert Decimal(sale["quantity"]) == 2 and Decimal(sale["base_debit"]) == Decimal("2.25")
+    assert Decimal(sale["cost"]) == 254 and Decimal(sale["proceeds"]) == 400
+    assert Decimal(sale["average_cost_pnl"]) == 76
+    assert Decimal(partial["open"]["quantity"]) == Decimal("1.25")
+    assert Decimal(partial["open"]["cost"]) == 250
+    report = performance({"inputs": {"from": iso(START), "to": iso(START + timedelta(hours=1))},
+                          "result": {"start_cash": "1000", "base": "BTC", "quote": "USDT", "orders": orders}})
+    stats = report["trades"]
+    assert Decimal(stats["open_position"]["quantity"]) == 0
+    assert Decimal(stats["realized_pnl"]) == Decimal(stats["average_cost_realized_pnl"]) == 97
+    assert stats["exposure"] == 0.5
+
+
+def test_trade_statistics_use_booked_quote_amount_instead_of_rounded_price():
+    orders = [fill("BUY", "3", "33.33333333333333333333333333", "0", 0),
+              fill("SELL", "3", "40", "0", 30)]
+    postings = [{"ref": "o0", "ccy": "USDT", "kind": "buy", "amount": "-100"},
+                {"ref": "o30", "ccy": "USDT", "kind": "sell", "amount": "120"}]
+    assert Decimal(trade_ledger(orders, "BTC")["trades"][0]["cost"]) < 100
+    report = performance({"inputs": {"from": iso(START), "to": iso(START + timedelta(hours=1))},
+                          "result": {"start_cash": "1000", "base": "BTC", "quote": "USDT", "orders": orders,
+                                     "postings": postings}})
+    assert report["ledger"][0]["cost"] == "100"
+    assert report["trades"]["realized_pnl"] == report["attribution"][0]["pnl"] == "20"
+
+
+def test_incomplete_modern_postings_do_not_fall_back_to_rounded_fills():
+    orders = [fill("BUY", "1", "100", "0", 0)]
+    assert trade_ledger(orders, "BTC", quote="USDT")["open"]["cost"] == "100"
+    with pytest.raises(ValueError, match="missing its gross quote posting"):
+        trade_ledger(orders, "BTC", quote="USDT", postings=[])
+
+
+def test_portfolio_and_standalone_posted_costs_reconcile():
+    from types import SimpleNamespace
+
+    from gym.domain.model import InstrumentId
+    from gym.domain.sim import CashBook
+    from gym.services.portfolio import _market_summaries
+
+    symbol = "BTCUSDT"
+    orders = [fill("BUY", "3", "33.33", "0", 0, ref=f"{symbol}#1"),
+              fill("SELL", "3", "40", "0", 30, ref=f"{symbol}#2")]
+    postings = [{"ref": orders[0]["ref"], "ccy": "USDT", "kind": "buy", "amount": "-100"},
+                {"ref": orders[1]["ref"], "ccy": "USDT", "kind": "sell", "amount": "120"}]
+    end = START + timedelta(hours=1)
+    inputs = {"from": iso(START), "to": iso(end)}
+    result = {"start_cash": "100", "base": "BTC", "quote": "USDT", "orders": orders, "postings": postings}
+    standalone = performance({"inputs": inputs, "result": result})
+    session = SimpleNamespace(orders=orders, state="DONE", running_at=START, inventory_at=lambda *_: {})
+    markets = _market_summaries({symbol: session}, {symbol: InstrumentId.wallex(symbol)}, {symbol: []},
+                                CashBook({}, postings), {}, {}, end, booked_accounting=True)
+    shared = performance({"inputs": {**inputs, "kind": "portfolio", "trade_accounting": "booked-notional/1"},
+                          "result": {**result, "orders": [], "markets": markets, "end": {"equity": "120"}}})
+    assert markets[symbol]["realized_pnl"] == standalone["attribution"][0]["pnl"] == "20"
+    assert shared["activity"]["turnover"] == standalone["trades"]["turnover"] == "2.2000"
+
+
 def test_selling_more_than_was_bought_is_an_error():
     with pytest.raises(ValueError, match="exceeds"):
         trade_ledger([fill("SELL", "1", "100", "0", 0)], "BTC")

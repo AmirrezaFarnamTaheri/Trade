@@ -53,20 +53,54 @@ def sampled_drawdown(out):
             "continuous_path_verified": False}
 
 
-def trade_ledger(orders: list[dict], base: str) -> dict:
+def trade_ledger(orders: list[dict], base: str, *, quote: str | None = None, postings=None) -> dict:
     """Match filled sells to earlier buys first-in-first-out.
 
-    A buy pays `qty * price` quote and receives `qty - fee` base when its fee is in the base asset.
-    A sell gives up `qty` base and receives `qty * price - fee` quote. Each filled sell becomes one
-    closed trade with its own cost, proceeds, holding time and return, so scaled entries and partial
-    exits are exact.
+    Prefer the booked gross quote amount to reconstructing it from a rounded execution price.
+    Fees and rebates affect either base inventory or quote cash according to their currency.
+    Positions represented only by order receipts use the receipt quantity and price.
     """
     with localcontext() as context:
         context.prec = 28  # the simulator's posting precision; a caller's wider context must not split dust
-        return _ledger(orders, base)
+        return _ledger(orders, base, quote, booked_notionals(orders, quote, postings))
 
 
-def _ledger(orders, base):
+def booked_notionals(orders, quote, postings):
+    """Resolve gross amounts, requiring a unique, correctly signed posting for each modern fill."""
+    fills = [order for order in orders if order.get("status") == "FILLED"]
+    if postings is None:
+        return {}
+    booked = {}
+    for row in postings:
+        kind = row.get("kind")
+        if not quote or row.get("ccy") != quote or kind not in ("buy", "sell"):
+            continue
+        ref, amount = row["ref"], Decimal(row["amount"])
+        if ref in booked or not amount.is_finite() or (amount >= 0 if kind == "buy" else amount <= 0):
+            raise ValueError("invalid or duplicate gross quote posting")
+        booked[ref] = kind, amount.copy_abs()
+    if any(booked.get(order.get("ref"), (None,))[0] != order["side"].lower() for order in fills):
+        raise ValueError("filled order is missing its gross quote posting")
+    return {ref: amount for ref, (_, amount) in booked.items()}
+
+
+def _base_fee(order, base, quote, fee):
+    currency = order.get("fee_ccy")
+    if currency is None:
+        return order["side"] == "BUY"  # older modeled receipts used fee-in-received-asset
+    if currency == base:
+        return True
+    if quote and currency != quote and fee:
+        raise ValueError("trade fee currency is outside the instrument pair")
+    return False
+
+
+def result_trade_ledger(result: dict) -> dict:
+    return trade_ledger(result.get("orders", []), result.get("base") or "", quote=result.get("quote"),
+                        postings=result.get("postings"))
+
+
+def _ledger(orders, base, quote, booked):
     lots: deque[list] = deque()  # [base quantity left, quote cost left, opened at]
     trades = []
     held, held_cost = Decimal(0), Decimal(0)  # average-cost view of the same position
@@ -74,24 +108,28 @@ def _ledger(orders, base):
         if order.get("status") != "FILLED":
             continue
         qty, price, fee = Decimal(order["qty"]), Decimal(order["price"]), Decimal(order["fee"])
+        fee_in_base = _base_fee(order, base, quote, fee)
+        gross = booked.get(order.get("ref"), qty * price)
         at = parse_ts(order["fill_time"])
         if order["side"] == "BUY":
             # Match the cash book's separate gross-credit and fee-debit postings.
             balance = held + qty
-            if order.get("fee_ccy", base) == base:
+            if fee_in_base:
                 balance -= fee
+            cost = gross if fee_in_base else gross + fee
             received = balance - held
             if received > 0:
-                lots.append([received, qty * price, at])
-                held, held_cost = balance, held_cost + qty * price
+                lots.append([received, cost, at])
+                held, held_cost = balance, held_cost + cost
             elif lots:
-                lots[-1][1] += qty * price
-                held_cost += qty * price
+                lots[-1][1] += cost
+                held_cost += cost
             continue
-        if qty > held:
+        consumed = qty + fee if fee_in_base else qty
+        if qty > held or consumed > held or consumed <= 0:
             raise ValueError(f"sell {order.get('ref')} exceeds the quantity bought earlier")
-        proceeds, left, cost, opened = qty * price - fee, qty, Decimal(0), None
-        if qty == held:
+        proceeds, left, cost, opened = gross if fee_in_base else gross - fee, consumed, Decimal(0), None
+        if consumed == held:
             cost = sum((lot[1] for lot in lots), Decimal(0))
             opened = lots[0][2] if lots else None
             lots.clear()
@@ -110,13 +148,14 @@ def _ledger(orders, base):
                 lots.popleft()
         if left > 0:
             raise ValueError(f"sell {order.get('ref')} exceeds the quantity bought earlier")
-        average = held_cost if qty == held else held_cost * qty / held
-        held, held_cost = held - qty, held_cost - average
+        average = held_cost if consumed == held else held_cost * consumed / held
+        held, held_cost = held - consumed, held_cost - average
         trades.append({"ref": order.get("ref"), "opened_at": iso(opened), "closed_at": iso(at),
                        "holding_seconds": (at - opened).total_seconds(), "quantity": str(qty),
                        "cost": str(cost), "proceeds": str(proceeds), "pnl": str(proceeds - cost),
                        "return": str((proceeds - cost) / cost) if cost else None,
-                       "average_cost_pnl": str(proceeds - average)})
+                       "average_cost_pnl": str(proceeds - average),
+                       **({"base_debit": str(consumed)} if fee_in_base else {})})
     open_qty = sum((lot[0] for lot in lots), Decimal(0))
     open_cost = sum((lot[1] for lot in lots), Decimal(0))
     return {"trades": trades, "open": {"quantity": str(open_qty), "cost": str(open_cost),
@@ -162,8 +201,14 @@ def deflated_sharpe(sharpe: float, observations: int, skew: float, kurtosis: flo
     return probabilistic_sharpe(sharpe, observations, skew, kurtosis, expected_max_sharpe(trials, sharpe_variance))
 
 
-def _exposure(orders: list[dict], start: datetime, end: datetime, base: str) -> float | None:
+def _exposure(orders: list[dict], start: datetime, end: datetime, base: str, quote: str | None) -> float | None:
     """Share of the window with a nonzero position, from fills alone."""
+    with localcontext() as context:
+        context.prec = 28
+        return _position_time(orders, start, end, base, quote)
+
+
+def _position_time(orders, start, end, base, quote):
     span = (end - start).total_seconds()
     if span <= 0:
         return None
@@ -173,13 +218,19 @@ def _exposure(orders: list[dict], start: datetime, end: datetime, base: str) -> 
             continue
         at = parse_ts(order["fill_time"])
         qty, fee = Decimal(order["qty"]), Decimal(order["fee"])
-        change = qty - (fee if order.get("fee_ccy", base) == base else 0) if order["side"] == "BUY" else -qty
-        if held <= 0 < held + change:
+        fee_in_base = _base_fee(order, base, quote, fee)
+        if order["side"] == "BUY":
+            balance = held + qty
+            if fee_in_base:
+                balance -= fee
+        else:
+            balance = held - (qty + fee if fee_in_base else qty)
+        if held <= 0 < balance:
             since = at
-        elif held > 0 >= held + change and since is not None:
+        elif held > 0 >= balance and since is not None:
             total += (at - since).total_seconds()
             since = None
-        held += change
+        held = balance
     if held > 0 and since is not None:
         total += (end - since).total_seconds()
     return min(1.0, total / span)
@@ -348,7 +399,7 @@ def _sharpe_block(returns: list[float], periods_per_year: float | None, *, enhan
     return result
 
 
-def signal_attribution(result: dict) -> list[dict]:
+def signal_attribution(result: dict, *, ledger=None) -> list[dict]:
     """Closed trades grouped by the reasons of the decision that opened them and of the one that closed them."""
     def at(text):
         try:
@@ -365,7 +416,7 @@ def signal_attribution(result: dict) -> list[dict]:
         return "; ".join(reasons.get(at(order.get("decision_time")), [])) or "untagged"
 
     groups: dict[tuple[str, str], list[dict]] = {}
-    for trade in trade_ledger(result.get("orders", []), result.get("base") or "")["trades"]:
+    for trade in (result_trade_ledger(result) if ledger is None else ledger)["trades"]:
         key = (tag(fills.get(("BUY", at(trade["opened_at"])))), tag(fills.get(("SELL", at(trade["closed_at"])))))
         groups.setdefault(key, []).append(trade)
     rows = []
@@ -382,6 +433,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     result, inputs = record["result"], record["inputs"]
     if result.get("start_cash") is None:
         return {"status": "UNAVAILABLE", "ledger": []}
+    if (inputs.get("trade_accounting") == "booked-notional/1" or
+            (inputs.get("kind") != "portfolio" and inputs.get("engine") in ("paper-session/16", "paper-session/17"))):
+        if result.get("postings") is None:
+            raise ValueError("modern paper result is missing its posting ledger")
     start, end = parse_ts(inputs["from"]), parse_ts(inputs["to"])
     cash = Decimal(result["start_cash"])
     final = result.get("end") if (result.get("end") or {}).get("equity") is not None else None
@@ -429,7 +484,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         if out.get("annualized_return_pct") is not None and Decimal(drawdown["maximum_percent"]) > 0:
             out["calmar"] = round(float(out["annualized_return_pct"]) / float(drawdown["maximum_percent"]), 4)
 
-    ledger = trade_ledger(result.get("orders", []), result.get("base") or "")
+    ledger = result_trade_ledger(result)
     trades = ledger["trades"]
     pnls = [Decimal(t["pnl"]) for t in trades]
     wins, losses = [p for p in pnls if p > 0], [p for p in pnls if p < 0]
@@ -442,7 +497,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     markets = result.get("markets") if inputs.get("kind") == "portfolio" else None
     turnover_fills = (o for market in markets.values() for o in market["orders"]
                       if o.get("status") == "FILLED") if markets is not None else filled
-    turnover = sum((Decimal(o["qty"]) * Decimal(o["price"]) for o in turnover_fills), Decimal(0))
+    turnover_fills = list(turnover_fills)
+    booked = booked_notionals(turnover_fills, result.get("quote"), result.get("postings"))
+    turnover = sum((booked.get(o.get("ref"), Decimal(o["qty"]) * Decimal(o["price"]))
+                    for o in turnover_fills), Decimal(0))
     stats = {
         "closed_trades": len(trades), "winning": len(wins), "losing": len(losses),
         "win_rate": round(len(wins) / len(trades), 4) if trades else None,
@@ -455,7 +513,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         "average_holding_hours": round(fmean(t["holding_seconds"] for t in trades) / 3600, 3) if trades else None,
         "longest_losing_streak": longest,
         "turnover": str((turnover / cash).quantize(Decimal("0.0001"))),
-        "exposure": _exposure(filled, start, end, result.get("base") or "") if markets is None else None,
+        "exposure": _exposure(filled, start, end, result.get("base") or "", result.get("quote")) if markets is None else None,
         "open_position": ledger["open"],
     }
     nonflat = len(wins) + len(losses)
@@ -472,7 +530,7 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         if out["activity"] is not None:
             out["activity"]["turnover"] = stats["turnover"]
     out["abstentions"] = _abstentions(result)
-    out["attribution"] = signal_attribution(result)
+    out["attribution"] = signal_attribution(result, ledger=ledger)
     out["ledger"] = trades
     return out
 

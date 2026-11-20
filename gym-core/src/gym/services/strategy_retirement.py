@@ -72,7 +72,7 @@ def screen_verified_retirement(root, request, *, store):
 
     from ..adapters.run_store import load_verified_run
     from ..domain.market_models import fields
-    from ..domain.performance import trade_ledger
+    from ..domain.performance import result_trade_ledger
     from .random_entry import random_entry_report
     from .reports import run_valuation
 
@@ -95,7 +95,7 @@ def screen_verified_retirement(root, request, *, store):
     for run in runs:
         result = run["result"]
         baseline = random_entry_report(run)
-        trades = trade_ledger(result.get("orders", []), result.get("base") or "")
+        trades = result_trade_ledger(result)
         valuation = run_valuation(run)
         rows.append({"strategy": inp["strategy"], "symbol": run["inputs"]["symbol"],
                      "closed_trades": len(trades["trades"]),
