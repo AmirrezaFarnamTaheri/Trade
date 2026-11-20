@@ -33,6 +33,7 @@ import zstandard as zstd
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from ..adapters.atomic_text import write_text
 from .encrypted_backup import (
     BackupAuthenticationError,
     BackupUnsafe,
@@ -226,15 +227,14 @@ def backup_research(root: Path, destination: Path, *, passphrase: str, keep: int
     segments = _backup_segments(root, destination, passphrase)
     manifest = {"created_at": now.isoformat(timespec="seconds"), "root": str(root), "entries": entries,
                 "segments_total": segments["total"], "contains_secrets": False}
-    (snapshot / "MANIFEST.json").write_text(json.dumps(manifest, indent=2), "utf-8")
+    write_text(snapshot / "MANIFEST.json", json.dumps(manifest, indent=2))
     pruned = _prune(destination / "snapshots", keep)
     report = {"snapshot": str(snapshot), "databases": [e["name"] for e in entries if e["kind"] == "sqlite"],
               "files_bytes": entries[-1]["plaintext_size"], "segments_added": segments["added"],
               "segments_total": segments["total"], "segments_refused": segments["refused"], "pruned": pruned,
               "same_device": not _independent(root, destination), "off_machine_verified": False}
-    (root / STATUS_FILE).write_text(json.dumps({"at": now.isoformat(timespec="seconds"), "destination": str(destination),
-                                                "snapshot": stamp, **{k: report[k] for k in ("segments_total", "same_device")}}),
-                                    "utf-8")
+    write_text(root / STATUS_FILE, json.dumps({"at": now.isoformat(timespec="seconds"), "destination": str(destination),
+                                              "snapshot": stamp, **{k: report[k] for k in ("segments_total", "same_device")}}))
     return report
 
 
@@ -312,7 +312,8 @@ def restore_research(destination: Path, target: Path, *, passphrase: str, segmen
             tar_path.unlink()
         restored.append(entry["name"])
     count = 0
-    if segments and (destination / "segments").is_dir():
+    coverage = {"status": "NOT_CHECKED", "missing": []}
+    if segments:
         market = sqlite3.connect((target / "market.db").resolve().as_uri() + "?mode=ro", uri=True)
         try:
             expected = dict(market.execute("SELECT seg_id, sha256 FROM segments WHERE sha256 IS NOT NULL"))
@@ -328,8 +329,11 @@ def restore_research(destination: Path, target: Path, *, passphrase: str, segmen
             out = target / "raw" / seg_id
             out.parent.mkdir(parents=True, exist_ok=True)
             decrypt(container, out, passphrase)
+            expected.pop(seg_id, None)
             count += 1
-    return {"snapshot": snapshot.name, "restored": restored, "segments": count, "target": str(target)}
+        coverage = {"status": "INCOMPLETE" if expected else "COMPLETE", "missing": sorted(expected)}
+    return {"snapshot": snapshot.name, "restored": restored, "segments": count,
+            "segment_coverage": coverage, "target": str(target)}
 
 
 def status(root: Path) -> dict | None:

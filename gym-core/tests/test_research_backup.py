@@ -80,6 +80,18 @@ def test_nested_database_backup_restores_committed_wal_without_sidecars(tmp_path
         conn.close()
 
 
+def test_restore_reports_missing_segments_without_claiming_complete_archive(tmp_path):
+    root, dest = data_root(tmp_path), tmp_path / "backup"
+    dest.mkdir()
+    backup_research(root, dest, passphrase=PHRASE, allow_same_device=True)
+    container = next((dest / "segments").rglob("*.tgfile"))
+    missing = container.relative_to(dest / "segments").as_posix().removesuffix(".tgfile")
+    container.unlink()
+    report = restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
+    assert report["segments"] == 1
+    assert report["segment_coverage"] == {"status": "INCOMPLETE", "missing": [missing]}
+
+
 def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_path):
     from gym.services.research_backup import _encrypt, read_header
 
