@@ -109,6 +109,22 @@ class PaperSession:
         self.state = state
         self.events.append({"state": state, "t": iso(at), "reason": reason})
 
+    def _decision_snapshot(self, bar, quote, context, reference, execution, auxiliary):
+        volume_evidence, observed = None, None
+        if self.observed_obv_volume:
+            prints = self.portal.trades_by_event(self.symbol, bar.start, bar.end, as_of=bar.avail)
+            supported = [p for p in prints if p.ts_event <= p.ts_avail and p.qty.is_finite() and p.qty > 0]
+            observed = sum((p.qty for p in supported), Decimal(0)) if supported else None
+            volume_evidence = {"volume": str(observed) if observed is not None else None, "observations": len(supported),
+                               "digest": digest([(iso(p.ts_event), iso(p.ts_avail), p.price, p.qty, p.aggressor)
+                                                 for p in supported]), "basis": "OBSERVED_PRINTS"}
+        snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
+                            quote and quote.ts_avail, context, reference, execution, tuple(auxiliary), observed)
+        if volume_evidence is None:
+            return snapshot, snapshot.id, {}
+        return (snapshot, snapshot.evidence_id(self.strategy.config_hash, volume_evidence["digest"]),
+                {"volume_evidence": volume_evidence})
+
     def scan(self, at):
         closed_bars = self.closes.scan(at)
         for bar in closed_bars:
@@ -151,17 +167,7 @@ class PaperSession:
                             execution[key] = format(decimal(value,key),"f")
                         except ValueError:
                             execution[key] = None
-            volume_evidence = None
-            observed = None
-            if self.observed_obv_volume:
-                prints = self.portal.trades_by_event(self.symbol, bar.start, bar.end, as_of=bar.avail)
-                supported = [p for p in prints if p.ts_event <= p.ts_avail and p.qty.is_finite() and p.qty > 0]
-                observed = sum((p.qty for p in supported), Decimal(0)) if supported else None
-                volume_evidence = {"volume": str(observed) if observed is not None else None, "observations": len(supported),
-                                   "digest": digest([(iso(p.ts_event), iso(p.ts_avail), p.price, p.qty, p.aggressor)
-                                                     for p in supported]), "basis": "OBSERVED_PRINTS"}
-            snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
-                                quote and quote.ts_avail, context, reference, execution, tuple(auxiliary), observed)
+            snapshot, snapshot_id, bar_evidence = self._decision_snapshot(bar, quote, context, reference, execution, auxiliary)
             if execution is None:
                 holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
@@ -180,8 +186,6 @@ class PaperSession:
             if self.state == "WARMING_UP" and getattr(self.strategy,"ready",action not in ("ABSTAIN_WARMUP", "ABSTAIN_NO_REFERENCE", "ABSTAIN_NO_VOLUME")):
                 self.running_at = bar.avail
                 self.transition("RUNNING", bar.avail)
-            snapshot_id = (snapshot.evidence_id(self.strategy.config_hash, volume_evidence["digest"])
-                           if volume_evidence is not None else snapshot.id)
             decision = {"t": iso(bar.avail), "snapshot": snapshot_id, "close": str(bar.close), "action": action,
                    "reasons": list(reasons), "features": feature_hash, "bid": quote and str(quote.bid), "ask": quote and str(quote.ask),
                    "quote_time": quote and iso(quote.ts_avail)}
@@ -191,9 +195,7 @@ class PaperSession:
                 decision["execution_snapshot"] = digest([snapshot_id,execution])[:16]
             decision["balances_before"] = {k: str(v) for k, v in self.book.balances.items()}
             decision["bar_known"] = {"start": iso(bar.start), "end": iso(bar.end), "available_at": iso(bar.avail),
-                                     "open": str(bar.open), "high": str(bar.high), "low": str(bar.low)}
-            if volume_evidence is not None:
-                decision["bar_known"]["volume_evidence"] = volume_evidence
+                                     "open": str(bar.open), "high": str(bar.high), "low": str(bar.low), **bar_evidence}
             decision["context_known"] = [{"resolution": b.spec.resolution, "start": iso(b.start), "end": iso(b.end),
                 "available_at": iso(b.avail), "open": str(b.open), "high": str(b.high), "low": str(b.low), "close": str(b.close)} for b in context]
             decision["reference_known"] = None if reference is None else {"symbol": reference.symbol,
