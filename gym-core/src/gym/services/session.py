@@ -34,10 +34,19 @@ class PendingOrder:
 
 
 class PaperSession:
+    def _holding_without_context(self, quote, at):
+        if quote is None:
+            return False
+        quantity = self.book.get(self.instrument.base)
+        if self.use_sellable_holding:
+            return quantity > 0 and sellable_quantity(quantity, quote.bid, self.portal.spec_at(self.symbol, at)) > 0
+        return quantity * quote.bid > self.book.equity(self.instrument, quote.bid) / 100
+
     def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None, auxiliary_symbols=()):
         if not cash.is_finite() or cash <= 0:
             raise ValueError("cash must be positive and finite")
         self.portal = portal
+        self.use_sellable_holding = False
         self.rules_for = rules_for
         self.strategy = strategy
         self.symbol = symbol
@@ -153,7 +162,7 @@ class PaperSession:
             snapshot = Snapshot(bar.avail, self.symbol, bar, quote and quote.bid, quote and quote.ask,
                                 quote and quote.ts_avail, context, reference, execution, tuple(auxiliary))
             if execution is None:
-                holding = bool(quote) and self.book.get(self.instrument.base)*quote.bid>self.book.equity(self.instrument,quote.bid)/100
+                holding = self._holding_without_context(quote, bar.avail)
             action, fraction, reasons, feature_hash = self.strategy.decide(snapshot, holding)
             if self.warmup_until is not None and bar.avail <= self.warmup_until:
                 action, fraction, reasons = "ABSTAIN_WARMUP", Decimal(0), (*reasons, "pre-test indicators only; no orders")

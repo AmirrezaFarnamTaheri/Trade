@@ -31,7 +31,7 @@ MAX_MARKETS = 500
 def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, resolution: str = "15min",
               cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), strategy_id: str = "ema-trend",
               params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
-              checkpoint: dict | None = None, universe_selection: dict | None = None) -> dict:
+              checkpoint: dict | None = None, universe_selection: dict | None = None, legacy_holding: bool = False) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
@@ -39,18 +39,18 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
     try:
         return _portfolio(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost,
                           strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
-                          policy=policy, checkpoint=checkpoint, universe_selection=universe_selection)
+                          policy=policy, checkpoint=checkpoint, universe_selection=universe_selection, legacy_holding=legacy_holding)
     finally:
         db.c.rollback()
 
 
 def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
-               universe_selection):
+               universe_selection, legacy_holding):
     """Replay strictly prior market observations against a shared simulated cash book."""
     _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection)
     return _Replay(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost, strategy_id=strategy_id,
                    params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint,
-                   universe_selection=universe_selection).run()
+                   universe_selection=universe_selection, legacy_holding=legacy_holding).run()
 
 
 class _Replay:
@@ -60,11 +60,12 @@ class _Replay:
     """
 
     def __init__(self, db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
-                 checkpoint, universe_selection):
+                 checkpoint, universe_selection, legacy_holding):
         self.db, self.symbols, self.t0, self.t1 = db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
         self.universe_selection = universe_selection
+        self.legacy_holding = legacy_holding
         self.portal = DataPortal(db)
         self.rules_for, self.rule_evidence = _rule_timeline(db, rules_mode)
         self.instruments = {s: self.portal.instrument(s) for s in symbols}
@@ -92,6 +93,7 @@ class _Replay:
             strategy = create_strategy(strategy_id, params)
             session = PaperSession(self.portal, self.rules_for, strategy, s, t0, resolution, cash, cost)
             session.book = self.book
+            session.use_sellable_holding = not legacy_holding
             session.allocation = lambda fraction, symbol=s: self.allocate(symbol, fraction)
             session.decision_filter = (lambda action, fraction, reasons, symbol=s:
                                        self.filter_decision(symbol, action, fraction, reasons))
@@ -388,7 +390,8 @@ class _Replay:
         if controller.usdt_fx_risk:
             inputs["fx_risk_data"] = digest([(iso(top.ts_avail), top.bid, top.ask, sorted(top.flags))
                                              for top in self.fx_risk_tops])
-        inputs["portfolio_version"] = _portfolio_version(controller, cost, self.policy, self.universe_selection)
+        inputs["portfolio_version"] = (_portfolio_version(controller, cost, self.policy, self.universe_selection)
+                                       if self.legacy_holding else 14)
         if first.params.get("exit_venue_stop"):
             inputs["stop_trades"] = digest({s: session.venue_stop_trades for s, session in sessions.items()})
         return inputs

@@ -91,5 +91,10 @@ The private `/api/research/action` and `gymctl research` expose the same actions
   portfolios as well as single-market replays.
 - `replay-resume`: `checkpoint_id`; verifies the rebuilt history and full result.
 
+Portfolio replay version 14 recognizes sellable lots regardless of their share
+of equity. Precision and minimums determine whether a balance is dust. That
+balance still contributes to marked equity. Checkpoint replay preserves the
+original holding rule for saved versions 5 through 13.
+
 Decimal financial inputs are strings. This workflow cannot borrow, place funded
 orders, establish authenticated holdings/settlement, or prove profitability.

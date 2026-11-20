@@ -477,6 +477,18 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
             "realized_pnl": str(sum((Decimal(market["realized_pnl"]) for market in markets.values()), Decimal(0))),
             "exposure": None,
         }
+        instruments = inputs.get("instruments", {})
+        if all(symbol in instruments for symbol in markets):
+            pnl = [Decimal(trade["pnl"]) for symbol, market in markets.items()
+                   for trade in trade_ledger(market["orders"], instruments[symbol]["base"])["trades"]]
+            winning, losing = [value for value in pnl if value > 0], [value for value in pnl if value < 0]
+            gain, loss = sum(winning, Decimal(0)), -sum(losing, Decimal(0))
+            out["portfolio_trades"].update(
+                winning=len(winning), losing=len(losing), flat=len(pnl) - len(winning) - len(losing),
+                win_rate=round(len(winning) / len(pnl), 4) if pnl else None,
+                profit_factor=round(float(gain / loss), 4) if loss else None,
+                expectancy=str(Decimal(out["portfolio_trades"]["realized_pnl"]) / len(pnl)) if pnl else None,
+            )
         out.pop("trades")
         if out["activity"] is not None:
             out["activity"]["turnover"] = stats["turnover"]

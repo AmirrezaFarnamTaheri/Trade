@@ -35,7 +35,7 @@ def test_prior_fraction_is_consumed_by_portfolio_action_and_saved_with_provenanc
     receipt = portfolio_action(tmp_path, "portfolio-replay", request, store="demo")
     saved = load_verified_run(tmp_path / "runs" / "portfolios", receipt["run_id"], store="demo")
     applied = saved["inputs"]["cost"]
-    assert saved["inputs"]["portfolio_version"] == 12
+    assert saved["inputs"]["portfolio_version"] == 14
     assert applied["max_fraction"] == "0.12"
     assert applied["calibration"]["fractional_sizing_report_id"] == reference
     assert applied["calibration"]["source_run_id"] == source["run_id"]
