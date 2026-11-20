@@ -53,6 +53,40 @@ def test_run_day_buys_at_the_ask_once_per_completed_day(tmp_path):
     assert again["status"] == "ALREADY_DECIDED" and len(journal(tmp_path)) == 1
 
 
+def test_v2_journal_is_separate_and_marks_net_received_base_at_bid(tmp_path):
+    db = seed(tmp_path, closes())
+    try:
+        run_day(db, tmp_path, ["BTCUSDT"], NOW)
+        legacy = journal(tmp_path)
+        entry = run_day(db, tmp_path, ["BTCUSDT"], NOW, version=2)[0]
+        assert journal(tmp_path) == legacy
+        assert journal(tmp_path, version=2) == [entry]
+        fill = entry["fill"]
+        net_base = Decimal(fill["qty"]) - Decimal(fill["fee"])
+        cash = Decimal(1000) - Decimal(fill["qty"]) * Decimal(fill["price"])
+        assert fill["fee_ccy"] == "BTC"
+        assert Decimal(entry["holdings"]["base"]) == net_base
+        assert Decimal(entry["holdings"]["quote"]) == cash
+        assert Decimal(entry["equity"]) == cash + net_base * Decimal("99.9")
+        assert entry["mark"]["basis"] == "BID"
+    finally:
+        db.c.close()
+
+
+def test_daily_journal_refuses_a_second_writer(tmp_path):
+    from gym.services.process_owner import ProcessOwner
+
+    db = seed(tmp_path, closes())
+    try:
+        with ProcessOwner(tmp_path, "allocation-journal", store="live"):
+            with pytest.raises(ValueError, match="another local process"):
+                run_day(db, tmp_path, ["BTCUSDT"], NOW)
+        assert journal(tmp_path) == []
+        assert run_day(db, tmp_path, ["BTCUSDT"], NOW)[0]["status"] == "READY"
+    finally:
+        db.c.close()
+
+
 def test_no_quote_means_no_fill_and_later_vintages_are_invisible(tmp_path):
     db = seed(tmp_path, closes(), with_quote=False)
     entry = run_day(db, tmp_path, ["BTCUSDT"], NOW)[0]

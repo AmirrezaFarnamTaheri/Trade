@@ -8,6 +8,23 @@ from gym.services import spa
 from gym.services.spa import stationary_spa
 
 
+@pytest.mark.parametrize("irregularity", ["uneven", "duplicate"])
+def test_scorecard_withholds_inference_for_irregular_matched_intervals(irregularity):
+    from datetime import timedelta
+
+    from gym.domain.model import iso
+    from tests.support import START
+
+    times = [iso(START + timedelta(minutes=i + (i // 2 if irregularity == "uneven" else 0)))
+             for i in range(21)]
+    if irregularity == "duplicate":
+        times.insert(4, times[4])
+    record = {"inputs": {}, "result": {"curve": [(t, "100") for t in times],
+              "decisions": [{"t": t, "bid": "100"} for t in times]}}
+    rows = [{"window": "w", "scenario": "s", "attempt_id": i, "trial": i} for i in range(2)]
+    assert spa.scorecard_spa(rows, dict.fromkeys(range(2), record))[0]["status"] == "IRREGULAR_INTERVALS"
+
+
 def test_stationary_spa_null_families_are_seldom_significant():
     """Pure Gaussian noise must fail to reject the null in >=90% of seeded families."""
     abstained = 0
