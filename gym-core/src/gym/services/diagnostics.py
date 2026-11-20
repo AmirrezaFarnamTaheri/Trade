@@ -1,4 +1,6 @@
 """Reproducibility, lookahead, warmup and total-cost checks for paper replays."""
+from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal
 
 from ..domain.bars import BarSpec
@@ -40,7 +42,7 @@ def diagnostics(db, out):
 
     def replay(end=t1, model=cost):
         return run(portal, rules, strategy(), inp["symbol"], t0, end, inp["resolution"],
-                   Decimal(inp["cash"]), model, subscriptions, reference)
+                   Decimal(inp["cash"]), model, subscriptions, reference, tuple(inp.get("auxiliary_symbols", ())))
 
     main = out["result"]
     repeat = replay()
@@ -88,7 +90,19 @@ def diagnostics(db, out):
                            "fills": main["fills"]})
         else:
             stress.append({"cost_multiplier": factor_text, "net": None, "components": None, "fills": main["fills"]})
-    return {"checks": {k: {"status": "FAIL" if v else "PASS", "first_divergence": v} for k, v in checks.items()},
+    latency = cost.latency + timedelta(seconds=10)
+    delayed_cost = replace(cost, latency=latency, max_wait=cost.max_wait + timedelta(seconds=10))
+    delayed = replay(model=delayed_cost)
+    scenarios = {"schema": "paper-latency-stress/1"}
+    for name, result, model in (("baseline", repeat, cost), ("delayed", delayed, delayed_cost)):
+        scenarios[name] = {"latency_ms": model.latency // timedelta(milliseconds=1),
+                           "max_wait_s": model.max_wait.total_seconds(),
+                           "net": (result.get("end") or {}).get("net"),
+                           "orders": [{key: order[key] for key in
+                                       ("ref", "side", "status", "fill_time", "price", "qty", "reason") if key in order}
+                                      for order in result["orders"]]}
+    return {"execution_scenarios": scenarios,
+            "checks": {k: {"status": "FAIL" if v else "PASS", "first_divergence": v} for k, v in checks.items()},
             "warmup-stability": warmup, "cost_stress": stress,
             "limitation": "Mode parity shares an engine. Cost stress is matched-filled-path attribution; it scales observed spread, fees and latency drift without changing fills, depth or decisions."}
 
