@@ -177,11 +177,17 @@ def test_test_window_is_withheld_on_a_second_look_and_rescoring_counts_every_try
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         first = lhs.report(data, 0.003, "1d", "2020-01-01", "2021-01-01", holdout=ledger)
-        again = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger)  # a tweaked rerun
+        refused_output = io.StringIO()
+        with contextlib.redirect_stdout(refused_output):
+            again = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger)  # a tweaked rerun
+        assert "Test window withheld" in refused_output.getvalue()
+        assert "Ridge forecast skill" not in refused_output.getvalue()
+        assert "Walk-forward" not in refused_output.getvalue()
+        assert again["walk_forward"] == []
         rescored = lhs.report(data, 0.004, "1d", "2020-01-01", "2021-01-01", holdout=ledger, rescore=True)
     text = out.getvalue()
     assert first["validated"] and first["holdout"]["look"] == 1
-    assert not again["validated"] and again["holdout"] is None and "Test window withheld" in text
+    assert not again["validated"] and again["holdout"] is None
     assert rescored["holdout"]["look"] == 2
     assert rescored["holdout"]["configurations_all_looks"] == 2 * first["holdout"]["configurations_all_looks"]
     assert rescored["deflated_sharpe"] <= first["deflated_sharpe"]  # more tries, less credit for the best one

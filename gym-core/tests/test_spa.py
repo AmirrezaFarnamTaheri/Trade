@@ -28,6 +28,14 @@ def test_default_conservative_bootstrap_can_flag_a_large_effect():
     assert stationary_spa(excess, simulations=199)["p_value"] >= 0.05
 
 
+def test_largest_allowed_family_discloses_insufficient_resolution():
+    report = stationary_spa({str(i): [0.01, 0.02] * 5000 for i in range(8)})
+    assert report["simulations"] == 125
+    assert report["status"] == "INSUFFICIENT_SIMULATION_RESOLUTION"
+    assert report["minimum_attainable_p"] == pytest.approx(0.0845, abs=0.001)
+    assert report["decision_threshold"] == 0.05
+
+
 def test_stationary_spa_abstains_on_short_or_unchanging_samples():
     """Do not assign confidence to unobserved or zero-variance excess paths."""
     short = {"A": [0.001] * 10, "B": [0.002] * 10}

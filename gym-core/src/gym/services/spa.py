@@ -47,10 +47,16 @@ def stationary_spa(excess: dict[str, list[float]], *, simulations: int | None = 
     # Upper Wilson confidence bound accounts for simulation uncertainty instead
     # of overstating significance at a small finite bootstrap budget.
     count, z = simulations + 1, 3.090232306167813
-    upper = (raw + z * z / (2 * count) +
-             z * math.sqrt(raw * (1 - raw) / count + z * z / (4 * count * count))) / (1 + z * z / count)
-    return {"status": "EXPLORATORY", "periods": n, "candidates": len(valid),
-            "statistic": statistic, "p_value": upper, "raw_bootstrap_p": raw,
+    def wilson_upper(p):
+        return (p + z * z / (2 * count) +
+                z * math.sqrt(p * (1 - p) / count + z * z / (4 * count * count))) / (1 + z * z / count)
+
+    minimum = wilson_upper(1 / count)
+    threshold = 0.05
+    status = "INSUFFICIENT_SIMULATION_RESOLUTION" if minimum >= threshold else "EXPLORATORY"
+    return {"status": status, "periods": n, "candidates": len(valid),
+            "minimum_attainable_p": minimum, "decision_threshold": threshold,
+            "statistic": statistic, "p_value": wilson_upper(raw), "raw_bootstrap_p": raw,
             "simulations": simulations, "mean_block_length": block,
             "p_value_basis": "conservative_99.8pct_Wilson_upper_for_centered_stationary_bootstrap",
             "limitation": "SPA-style studentized max; finite-sample upper bound, not a guarantee of an edge or independent final evidence."}

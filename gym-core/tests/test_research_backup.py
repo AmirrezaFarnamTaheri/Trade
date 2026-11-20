@@ -90,6 +90,9 @@ def test_restore_reports_missing_segments_without_claiming_complete_archive(tmp_
     report = restore_research(dest, tmp_path / "restored", passphrase=PHRASE)
     assert report["segments"] == 1
     assert report["segment_coverage"] == {"status": "INCOMPLETE", "missing": [missing]}
+    rehearsal = drill(dest, passphrase=PHRASE)
+    assert rehearsal["segment_coverage"] == report["segment_coverage"]
+    assert rehearsal["segments_verified"] == 1
 
 
 def test_restore_refuses_segment_that_disagrees_with_snapshotted_market_db(tmp_path):

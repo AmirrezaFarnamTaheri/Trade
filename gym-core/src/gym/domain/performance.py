@@ -466,8 +466,11 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         stats["kelly_trades"] = nonflat
     out["trades"] = stats
     out["activity"] = _activity(out, result, stats)
-    if markets is not None and out["activity"] is not None:
-        out["activity"]["turnover"] = stats["turnover"]
+    if markets is not None:
+        out["trade_statistics_status"] = "NOT_APPLICABLE"
+        out.pop("trades")
+        if out["activity"] is not None:
+            out["activity"]["turnover"] = stats["turnover"]
     out["abstentions"] = _abstentions(result)
     out["attribution"] = signal_attribution(result)
     out["ledger"] = trades

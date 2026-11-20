@@ -1,6 +1,6 @@
 # GPT and Gemini review coverage
 
-The ranges below partition both source files. This index groups recommendations by the evidence needed to close them. It does not mark an untested proposal as a fix. See [review disposition](review-disposition.md) for implemented changes and regressions.
+The source reports, `GPT Review.md` and `gemini review.txt`, were supplied privately and are not stored in this repository. The ranges below partition those supplied files. This index groups recommendations by the evidence needed to close them. It does not mark an untested proposal as a fix. See [review disposition](review-disposition.md) for implemented changes and regressions.
 
 ## GPT Review.md
 

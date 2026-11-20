@@ -349,6 +349,14 @@ def drill(destination: Path, *, passphrase: str, segment_sample: int = 24) -> di
     with tempfile.TemporaryDirectory(prefix=".tg-research-drill-", dir=destination) as scratch:
         report = restore_research(destination, Path(scratch) / "root", passphrase=passphrase, segments=False)
         containers = sorted((destination / "segments").rglob("*.tgfile")) if (destination / "segments").is_dir() else []
+        market = sqlite3.connect((Path(scratch) / "root" / "market.db").as_uri() + "?mode=ro", uri=True)
+        try:
+            expected = {row[0] for row in market.execute("SELECT seg_id FROM segments WHERE sha256 IS NOT NULL")}
+        finally:
+            market.close()
+        archived = {p.relative_to(destination / "segments").as_posix().removesuffix(".tgfile") for p in containers}
+        missing = sorted(expected - archived)
+        report["segment_coverage"] = {"status": "INCOMPLETE" if missing else "COMPLETE", "missing": missing}
         for container in containers[-segment_sample:] if segment_sample else []:
             decrypt(container, Path(scratch) / f"seg-{secrets.token_hex(4)}", passphrase)
         return {**report, "target": "deleted after verification", "segments": None,

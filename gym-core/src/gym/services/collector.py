@@ -127,10 +127,14 @@ class RestRate:
         self.lock = asyncio.Lock()
 
     async def wait(self):
-        async with self.lock:
-            now = time.monotonic()
-            await asyncio.sleep(max(0, self.next - now))
-            self.next = max(now, self.next) + self.interval
+        while True:
+            async with self.lock:
+                now = time.monotonic()
+                delay = self.next - now
+                if delay <= 0:
+                    self.next = now + self.interval
+                    return
+            await asyncio.sleep(delay)
 
     async def penalize(self):
         async with self.lock:

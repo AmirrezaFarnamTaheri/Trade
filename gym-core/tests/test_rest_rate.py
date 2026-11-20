@@ -21,3 +21,27 @@ def test_rest_rate_recovers_gradually_without_crossing_its_floor(monkeypatch):
             assert rate.interval == expected
 
     asyncio.run(check())
+
+
+def test_wait_does_not_block_a_rate_penalty(monkeypatch):
+    async def check():
+        rate = collector.RestRate(requests_per_second=4)
+        now = 100.0
+        delays = []
+
+        async def sleep(delay):
+            nonlocal now
+            delays.append(delay)
+            assert not rate.lock.locked()
+            if len(delays) == 1:
+                await rate.penalize()
+            now += delay
+
+        monkeypatch.setattr(collector.time, "monotonic", lambda: now)
+        monkeypatch.setattr(collector.asyncio, "sleep", sleep)
+        await rate.wait()
+        await rate.wait()
+        assert delays == [0.25]
+        assert rate.interval == 0.5
+
+    asyncio.run(check())

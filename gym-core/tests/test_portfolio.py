@@ -32,6 +32,7 @@ def test_markets_share_one_cash_balance_and_equal_target_weights(tmp_path):
     assert Decimal(activity["turnover"]) == (notional / Decimal(1000)).quantize(Decimal("0.0001"))
     assert activity["return_per_turnover"] is not None
     assert activity["exposure_matched_hold_pct"] is None
+    assert out["performance"]["trade_statistics_status"] == "NOT_APPLICABLE"
     assert out["run_id"] == portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1), resolution="1min",
                                       cash=Decimal(1000), params={"fast": 2, "slow": 3})["run_id"]
 

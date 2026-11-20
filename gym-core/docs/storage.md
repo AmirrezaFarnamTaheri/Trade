@@ -31,7 +31,8 @@ ledgers, credentials, backups, immutable run artifacts and signed recovery
 evidence. Tracked design references remain project sources.
 
 Backup/restore receipts are append-only, bounded and sanitized. Current status
-selects the latest recorded time, independent of append order. A receipt does not
+selects the latest recorded time, independent of append order. Segment coverage in restore and drill reports counts only closed segments with a stored digest. Open segments are not copied.
+A receipt does not
 prove current archive availability, independent origin or runtime recovery.
 
 | Owner | Format | Contents |
