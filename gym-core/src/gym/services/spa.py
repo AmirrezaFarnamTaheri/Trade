@@ -82,8 +82,9 @@ def scorecard_spa(rows: list[dict], verified: dict[str, dict]) -> list[dict]:
             identity = matched
             bids = {decision["t"]: float(decision["bid"]) for decision in out["result"].get("decisions", [])
                     if decision.get("bid") is not None}
-            points = [(parse_ts(at), float(equity), bids[at])
-                      for at, equity in out["result"].get("curve", []) if at in bids]
+            marks = {parse_ts(at): (float(equity), bids[at])
+                     for at, equity in out["result"].get("curve", []) if at in bids}
+            points = [(at, *values) for at, values in sorted(marks.items())]
             deltas = {(a[0], b[0]): b[1] / a[1] - b[2] / a[2]
                       for a, b in pairwise(points) if a[1] > 0 and a[2] > 0}
             observed.append(set(deltas))
@@ -91,7 +92,11 @@ def scorecard_spa(rows: list[dict], verified: dict[str, dict]) -> list[dict]:
         else:
             common = sorted(set.intersection(*observed)) if len(observed) >= 2 else []
             if len(common) >= 20 and len(excess) >= 2 and all(len(v) == len(common) for v in excess.values()):
-                report = stationary_spa({k: [values[t] for t in common] for k, values in excess.items()})
+                if len({end - start for start, end in common}) != 1 or any(
+                        left[1] != right[0] for left, right in pairwise(common)):
+                    report = {"status": "IRREGULAR_INTERVALS", "periods": len(common)}
+                else:
+                    report = stationary_spa({k: [values[t] for t in common] for k, values in excess.items()})
                 reports.append({"window": window, "scenario": scenario, "registered_candidates": len(group), **report})
                 continue
         reports.append({"window": window, "scenario": scenario, "registered_candidates": len(group),
