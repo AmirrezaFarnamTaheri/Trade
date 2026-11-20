@@ -522,6 +522,7 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
 
     `holdout` (a HoldoutLedger) records each look at the test window; a repeat look is withheld unless
     `rescore`, and then the deflated Sharpe counts the configurations tried across every look.
+    A ledger-backed report with no recorded look stops at validation diagnostics.
     """
     bars_per_day = BARS_PER_DAY[interval]
     year = 365 * bars_per_day
@@ -576,7 +577,6 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
                           sum((s - mean) ** 2 for s in per_period) / (len(per_period) - 1))
     valid = passes(score(portfolio[chosen], splits[1]), score(portfolio[HOLD], splits[1]))
     custody = None
-    refused_look = False
     if valid and holdout is not None:
         from gym.services.holdout_ledger import HoldoutRefused, window_id
         prices, coverage = [], {}
@@ -594,7 +594,6 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
             print(f"\nTest window withheld: {refused}. Rerun with --rescore-holdout to look again; the look is "
                   "recorded and every configuration tried at this window counts toward the deflated Sharpe.")
             valid = False
-            refused_look = True
         if custody and custody["look"] > 1:
             dsr = deflated_sharpe(train_sharpe[chosen] / math.sqrt(year), len(train_returns), skew, kurt,
                                   custody["configurations_all_looks"],
@@ -623,7 +622,8 @@ def report(data, costs, interval, train_end, test_start, end="9999", margin=froz
     if better and valid:
         print(line("tailored (test)", score(mixed, splits[2])))
 
-    if refused_look:
+    # Even pre-test forecasts can have forward labels that extend into the test window.
+    if holdout is not None and custody is None:
         return {"chosen": label(chosen), "validated": False, "deflated_sharpe": dsr, "holdout": None,
                 "tailoring_better": bool(better), "walk_forward": []}
 
