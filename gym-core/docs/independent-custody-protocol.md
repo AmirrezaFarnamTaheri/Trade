@@ -14,9 +14,9 @@ A **genuine final-data custodian** requires physical or account-level separation
 | **Researcher (normal operator)** | Read/write training and validation data; submit frozen evaluation packages (code SHA, strategy config hash, cost/fee/benchmark model, universe, window, criterion); receive signed release bundles only after cutoff | Cannot read unreleased final-window raw segments/candles; cannot edit, delete, or backfill consumption receipts; cannot alter pass marks post-registration |
 | **Final-data custodian (separate OS account / host / external runner)** | Sole write custody of the append-only consumption ledger; sole read access to sealed future/final evaluation datasets until release; executes the pinned code digest and emits a signed release bundle | Never tunes parameters; never drops failed/aborted runs; never backfills a "fresh" consumption receipt after results were seen |
 
-### Minimum viable separation on a single-owner project
+### Preregistered public-data evaluation on a single-owner project
 
-When no third-party human reviewer is available, acceptable custodian separation uses **future-time sealing + external anchoring**:
+Future-time preregistration and external anchoring establish a prospective protocol. Once public market outcomes exist, the researcher can inspect them independently of the scoring runner. Classify this workflow as **forward registered** unless a separately controlled evaluator provides evidence of the access restrictions in the table above.
 1. **Preregistration anchor before data exists:** Commit the frozen evaluation identity JSON (section 2) to a signed Git tag / remote commit whose timestamp strictly precedes `test_from`.
 2. **Untouched future window:** Outcomes are generated strictly by future calendar days (`now < test_from < test_to`) fetched from verifiable public archives (e.g. SHA-256-checked Binance monthly archives or timestamped Wallex recordings) after `test_to`.
 3. **Separate execution identity:** Run final scoring in a clean, read-only CI workflow or isolated Windows account against the pinned commit SHA and archive checksums, publishing the immutable workflow log/artifact as the external release receipt.
@@ -53,6 +53,10 @@ Every read path in TradingGYM that could expose unreleased final-window data bef
 1. **Pre-read monotonicity:** `CONSUMED` (or `looks` row insertion) commits durably **before** the first byte of withheld test data is queried. Cancellation, exception, or missing data transitions to `FAILED` or `INCOMPLETE` — never back to `REGISTERED`.
 2. **Release bundle contents:** Every completed, failed, or aborted final evaluation emits an immutable JSON receipt containing: evaluation identity, code/data SHA-256 digests, cumulative family attempt count across all looks, exact sample counts and missing/stale counts, decision metric vs frozen criterion, refusal/unknown flags, and independent signature or external CI/Git anchor.
 3. **Retention of negative evidence (`E009`):** Failed and invalidated evaluations remain append-only and reconstructible; deleting run files never resets selection counts.
+
+For local verification, `verify_release_attestation` accepts a detached Ed25519 signature, a raw 32-byte public key obtained through a separate trust channel, and the expected SHA-256 from the release receipt. The signer signs the bytes `TradingGYM release-bundle/1`, followed by one zero byte and the raw 32-byte bundle digest. The verifier checks the payload and both digest values before validating the 64-byte signature. A valid signature authenticates the pinned payload to that key. Custodian independence still requires access-control evidence and separate sign-off.
+
+Run `gymctl research verify-release-attestation packet.json` with `bundle`, `signature_hex`, `trusted_public_key_hex` and `expected_digest`. An unauthenticated result exits nonzero. Supply the trusted public key and digest through the separate trust channel described above.
 
 ## 5. Two-trial concurrency budget (`E022`)
 

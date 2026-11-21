@@ -43,6 +43,35 @@ def test_frozen_consume_once_protocol_persists_success_and_rejects_overlap(tmp_p
         db.c.close()
 
 
+def test_registration_budget_serializes_concurrent_writers_and_retains_supersession(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    def clock():
+        return START - timedelta(minutes=5)
+
+    with ResearchProtocol(tmp_path, clock=clock) as ledger:
+        original = ledger.register(request())["evaluation_id"]
+    ready = Barrier(2, timeout=10)
+
+    def register(symbol):
+        with ResearchProtocol(tmp_path, clock=clock) as ledger:
+            ready.wait()
+            try:
+                return ledger.register({**request(), "symbol": symbol})["evaluation_id"]
+            except ValueError as error:
+                assert "trial budget full" in str(error)
+                return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sum(key is not None for key in pool.map(register, ("ETHUSDT", "SOLUSDT"))) == 1
+    with ResearchProtocol(tmp_path, clock=clock) as ledger:
+        replacement = ledger.register({**request(), "symbol": "ADAUSDT", "supersedes": original})
+        assert ledger.evaluation(original)["result"]["superseded_by"] == replacement["evaluation_id"]
+        assert ledger.evaluation(original)["result"]["verdict"] == "ABORTED"
+        assert ledger.register({**request(), "symbol": "ADAUSDT", "supersedes": original}) == replacement
+
+
 def test_failed_and_interrupted_evaluations_remain_consumed(tmp_path, monkeypatch):
     import gym.services.research_protocol as protocol
     db = market_db(tmp_path, [])

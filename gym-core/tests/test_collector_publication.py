@@ -1,5 +1,7 @@
 """A prospective clock can advance only after the whole collector tick is visible."""
 import asyncio
+import sqlite3
+from contextlib import closing
 from datetime import timedelta
 from decimal import Decimal
 
@@ -81,6 +83,26 @@ def test_failed_tick_does_not_publish_partial_rows_or_advance_cached_state(tmp_p
         monkeypatch.setattr(db,"add_book_top",insert)
         collector.tick(START)
         assert db.c.execute("SELECT count(*) FROM book_top").fetchone()[0] == 2
+    finally:
+        db.c.close()
+
+
+def test_scheduled_publication_yields_on_writer_lock_and_records_gap_on_recovery(tmp_path):
+    db = market_db(tmp_path, [])
+    collector = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"])
+    try:
+        with closing(sqlite3.connect(tmp_path / "market.db")) as other:
+            other.execute("BEGIN IMMEDIATE")
+            collector._try_publication_tick(START)
+            assert DataPortal(db).publication() is None
+            assert collector.status["publication_delayed_since"] == iso(START)
+            assert not db.c.in_transaction
+            assert db.c.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
+        later = START + timedelta(seconds=2)
+        collector._try_publication_tick(later)
+        assert DataPortal(db).publication() == later
+        assert "publication_delayed_since" not in collector.status
+        assert [row[2] for row in db.quality(20)].count("GAP") == 1
     finally:
         db.c.close()
 

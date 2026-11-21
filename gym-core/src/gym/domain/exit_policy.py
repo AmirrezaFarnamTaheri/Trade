@@ -10,7 +10,8 @@ EXIT_PARAMETERS = {key: {"type": "integer", "default": 0, "minimum": 0, "maximum
                    for key, maximum in (("exit_stop_bps", 9999), ("exit_profit_bps", 100000),
                                         ("exit_atr_multiple", 10), ("exit_after_bars", 100000))}
 EXIT_PARAMETERS["entry_risk_bps"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 200}
-EXIT_PARAMETERS["exit_venue_stop"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 1}
+# 1 preserves fixed-stop replay. 2 activates a trailing stop on received trades.
+EXIT_PARAMETERS["exit_venue_stop"] = {"type": "integer", "default": 0, "minimum": 0, "maximum": 2}
 EXIT_VOLATILITY_MODEL = {"type": "string", "default": "atr", "enum": ["atr", "parkinson-ewma"]}
 
 
@@ -19,9 +20,9 @@ class ExitPolicy:
 
     def __init__(self, strategy, controls):
         if controls.get("exit_venue_stop") and not controls.get("exit_stop_bps"):
-            raise ValueError("venue stop requires a fixed exit stop")
+            raise ValueError("venue stop requires a fixed exit stop or trailing distance in exit_stop_bps")
         if controls.get("exit_venue_stop") and controls.get("exit_atr_multiple"):
-            raise ValueError("venue stop supports a fixed stop only")
+            raise ValueError("venue stop mode 1 supports a fixed stop only; mode 2 uses a bps trail without ATR")
         if controls.get("entry_risk_bps") and not controls.get("exit_stop_bps"):
             raise ValueError("entry risk sizing requires an explicit fixed exit stop")
         self.strategy, self.controls = strategy, controls

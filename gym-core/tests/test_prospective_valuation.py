@@ -1,5 +1,6 @@
 """Prospective comparisons require a current terminal valuation, not just an end row."""
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -22,6 +23,8 @@ def test_comparison_discloses_terminal_valuation(tmp_path, monkeypatch, valuatio
         "selection_end": (START - timedelta(hours=1)).isoformat(),
         "test_from": START.isoformat(), "test_to": cutoff.isoformat(),
         "resolution": "1min", "cash": "1000", "fee_rate": "0.001",
+        "study_intent": {"hypothesis": "Net gain over cash", "minimum_net_uplift_bps": "25",
+                         "benchmark": "HOLD_QUOTE_CASH"},
     }
     if valuation == "UNAVAILABLE":
         native_paper = prospective_comparisons.paper
@@ -37,6 +40,7 @@ def test_comparison_discloses_terminal_valuation(tmp_path, monkeypatch, valuatio
         with ExperimentRegistry(tmp_path, store="demo") as registry:
             frozen = prospective_comparisons.register_comparison(
                 registry, request, now=START - timedelta(minutes=1))
+            assert frozen["configuration"]["study_intent"]["evidence_use"] == "LOCAL_MODELED_PAPER"
             result = prospective_comparisons.evaluate_comparison(
                 registry, frozen["id"], db, now=cutoff + timedelta(minutes=1))
             report = result["report"]
@@ -47,6 +51,11 @@ def test_comparison_discloses_terminal_valuation(tmp_path, monkeypatch, valuatio
                 assert row["valuation"]["status"] == valuation
                 assert row["net_available"] is (valuation == "CURRENT")
                 assert (row["net"] is not None) is (valuation == "CURRENT")
+                if valuation == "CURRENT":
+                    assert Decimal(row["net_uplift_over_cash_bps"]) == Decimal(row["net"]) * 10
+                    assert row["modeled_target_met"] == (Decimal(row["net_uplift_over_cash_bps"]) >= 25)
+                else:
+                    assert row["modeled_target_met"] is None
             assert report["funded_authority"] is False
             assert report["order_submitted"] is False
             with pytest.raises(ValueError, match="consumed"):

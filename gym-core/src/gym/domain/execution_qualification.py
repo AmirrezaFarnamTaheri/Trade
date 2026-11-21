@@ -18,6 +18,22 @@ EVIDENCE_LADDER = (
 )
 
 
+def _order_size_reasons(quantity, spec, price, depth_levels):
+    reasons = []
+    step = Decimal(1).scaleb(-int(spec["stepSize"]))
+    rounded = quantity.quantize(step, rounding=ROUND_DOWN)
+    if not rounded or rounded < Decimal(str(spec["minQty"])) or rounded * price < Decimal(str(spec["minNotional"])):
+        reasons.append("BELOW_MIN_LOT_OR_NOTIONAL")
+    if depth_levels is not None:
+        available = sum((size for level, size in depth_levels if level.is_finite() and level > 0
+                         and size.is_finite() and size > 0), Decimal(0))
+        if available <= 0:
+            reasons.append("EMPTY_DEPTH")
+        elif available < rounded:
+            reasons.append("PARTIAL_DEPTH_ONLY")
+    return reasons
+
+
 def qualify_executable_net(
     *,
     side: str,
@@ -29,7 +45,10 @@ def qualify_executable_net(
     quote: BookTop | None,
     depth_levels: tuple[tuple[Decimal, Decimal], ...] | None = None,
     is_zero_fee: bool = False,
-    halted: bool = False,
+    halted: bool | None = None,
+    execution_at: datetime | None = None,
+    market_status_at: datetime | None = None,
+    max_evidence_age: timedelta = timedelta(seconds=120),
 ) -> dict:
     """Enforce strict executable-net gate: missing as-of inputs yield REFUSED/UNKNOWN, never implied fill (X001, X002)."""
     if side not in ("BUY", "SELL") or order_type not in ("MARKET", "LIMIT"):
@@ -39,6 +58,15 @@ def qualify_executable_net(
     reasons = []
     if halted:
         reasons.append("MARKET_HALTED")
+    if order_type == "MARKET":
+        if execution_at is None:
+            reasons.append("UNKNOWN_EXECUTION_TIME")
+        if halted is None or market_status_at is None:
+            reasons.append("UNKNOWN_MARKET_STATUS")
+        elif execution_at is not None and not timedelta(0) <= execution_at - market_status_at <= max_evidence_age:
+            reasons.append("UNKNOWN_AS_OF_MARKET_STATUS")
+        if depth_levels is None:
+            reasons.append("UNKNOWN_DISPLAYED_DEPTH")
     if not isinstance(spec, dict) or not {"stepSize", "minQty", "minNotional"} <= spec.keys():
         reasons.append("UNKNOWN_MARKET_SPEC")
     elif order_type == "MARKET" and spec.get("isMarketTypeEnable") is not True:
@@ -51,18 +79,11 @@ def qualify_executable_net(
         reasons.append("MISSING_QUOTE")
     elif not qualified(quote):
         reasons.append("UNQUALIFIED_OR_STALE_QUOTE")
+    elif execution_at is not None and not timedelta(0) <= execution_at - quote.ts_avail <= max_evidence_age:
+        reasons.append("UNQUALIFIED_OR_STALE_QUOTE")
     if not reasons:
         price = quote.ask if side == "BUY" else quote.bid
-        step = Decimal(1).scaleb(-int(spec["stepSize"]))
-        rounded = quantity.quantize(step, rounding=ROUND_DOWN)
-        if rounded < Decimal(str(spec["minQty"])) or rounded * price < Decimal(str(spec["minNotional"])):
-            reasons.append("BELOW_MIN_LOT_OR_NOTIONAL")
-        if depth_levels is not None:
-            avail = sum((size for _, size in depth_levels), Decimal(0))
-            if avail <= 0:
-                reasons.append("EMPTY_DEPTH")
-            elif avail < rounded:
-                reasons.append("PARTIAL_DEPTH_ONLY")
+        reasons.extend(_order_size_reasons(quantity, spec, price, depth_levels))
     if reasons:
         status = "UNKNOWN" if any(r.startswith("UNKNOWN_") or r == "MISSING_QUOTE" for r in reasons) else "REFUSED"
         return {"status": status, "qualified": False, "reasons": reasons, "evidence_tier": "UNQUALIFIED"}
@@ -179,11 +200,12 @@ def maker_queue_fill(
     seen_prints: set[tuple[datetime, Decimal, Decimal, str]] = set()
     unambiguous_ahead, unambiguous_filled = queue_ahead, Decimal(0)
 
-    for tick in sorted(trades, key=lambda t: (t.ts_event, t.ts_avail)):
-        if tick.ts_event < active_at:
+    aggressor = "SELL" if side == "BUY" else "BUY"
+    for tick in sorted(trades, key=lambda t: (t.ts_avail, t.ts_event)):
+        if min(tick.ts_event, tick.ts_avail) < active_at or tick.aggressor != aggressor:
             continue
-        if cancel_effective_at is not None and tick.ts_event >= cancel_effective_at:
-            break
+        if cancel_effective_at is not None and max(tick.ts_event, tick.ts_avail) >= cancel_effective_at:
+            continue
         qualifies = tick.price <= limit_price if side == "BUY" else tick.price >= limit_price
         if not qualifies:
             continue
@@ -229,16 +251,22 @@ def simulate_trailing_stop(
     quotes: list[BookTop],
     fee_rate: Decimal,
     halted_at: datetime | None = None,
+    activation_delay: timedelta = timedelta(0),
+    reference_price: Decimal | None = None,
 ) -> dict:
     """Causal trailing-stop paper contract: non-guaranteed exit on gap, halt, or insufficient depth (X014, X016)."""
     if side != "SELL" or quantity <= 0 or not Decimal(0) < trail_fraction < Decimal(1):
         raise ValueError("trailing stop supports SELL with positive quantity and trail_fraction in (0, 1)")
-    high_water: Decimal | None = None
+    if activation_delay < timedelta(0):
+        raise ValueError("activation_delay must be nonnegative")
+    if reference_price is not None and (not reference_price.is_finite() or reference_price <= 0):
+        raise ValueError("reference_price must be positive and finite")
+    high_water = reference_price
     trigger_trade: TradeTick | None = None
-    trigger_level: Decimal | None = None
+    trigger_level = high_water * (Decimal(1) - trail_fraction) if high_water is not None else None
 
-    for tick in sorted(trades, key=lambda t: t.ts_event):
-        if halted_at is not None and tick.ts_event >= halted_at:
+    for tick in sorted(trades, key=lambda t: (t.ts_avail, t.ts_event)):
+        if halted_at is not None and tick.ts_avail >= halted_at:
             return {"model": "trailing-stop/1", "status": "HALTED_EXPOSED", "high_water": str(high_water) if high_water else None,
                     "trigger_level": str(trigger_level) if trigger_level else None, "unfilled_qty": str(quantity)}
         if high_water is None or tick.price > high_water:
@@ -253,20 +281,29 @@ def simulate_trailing_stop(
                 "high_water": str(high_water) if high_water else None,
                 "trigger_level": str(trigger_level) if trigger_level else None, "unfilled_qty": str(quantity)}
 
-    next_quote = next((q for q in quotes if q.ts_avail >= trigger_trade.ts_event and qualified(q)), None)
+    active_at = trigger_trade.ts_avail + activation_delay
+    next_quote = min((q for q in quotes if q.symbol == trigger_trade.symbol
+                      and q.ts_avail >= active_at and qualified(q)), key=lambda q: q.ts_avail, default=None)
+    timing = {"triggered_at": iso(trigger_trade.ts_avail), "trigger_event_at": iso(trigger_trade.ts_event),
+              "active_at": iso(active_at)}
+    if halted_at is not None and (next_quote is None or next_quote.ts_avail >= halted_at):
+        return {"model": "trailing-stop/1", "status": "HALTED_EXPOSED", **timing,
+                "trigger_level": str(trigger_level), "unfilled_qty": str(quantity)}
     if next_quote is None:
         return {"model": "trailing-stop/1", "status": "TRIGGERED_NO_QUOTE",
-                "triggered_at": iso(trigger_trade.ts_event), "trigger_price": str(trigger_trade.price),
+                **timing, "trigger_price": str(trigger_trade.price),
                 "trigger_level": str(trigger_level), "unfilled_qty": str(quantity)}
 
-    levels = next_quote.depth[0] if next_quote.depth else ((next_quote.bid, next_quote.bid_qty),)
+    levels = next_quote.depth[0] if next_quote.depth else None
+    if levels is None and next_quote.bid_qty is not None and next_quote.bid_qty.is_finite():
+        levels = ((next_quote.bid, next_quote.bid_qty),)
     liq = depth_walk_liquidation("SELL", quantity, levels, fee_rate=fee_rate, quote_at=next_quote.ts_avail)
     return {
         "model": "trailing-stop/1",
         "status": "FILLED" if liq["status"] == "FULL" else "PARTIAL_EXPOSED" if liq["status"] == "PARTIAL" else "TRIGGERED_UNFILLED",
         "high_water": str(high_water),
         "trigger_level": str(trigger_level),
-        "triggered_at": iso(trigger_trade.ts_event),
+        **timing,
         "trigger_price": str(trigger_trade.price),
         "liquidation": liq,
         "unfilled_qty": liq["residual_qty"],
@@ -292,3 +329,78 @@ def paired_cost_ladder(scenarios: list[dict]) -> dict:
             "cost_drag_bps": str(Decimal(str(item.get("cost_drag_bps", "0")))),
         })
     return {"schema": "paired-cost-ladder/1", "creates_selection_trial": False, "scenarios": rows}
+
+
+def venue_guard_transition_check(
+    *,
+    reference_price: Decimal | None,
+    bid: Decimal | None,
+    ask: Decimal | None,
+    reference_age_s: float | None,
+    max_age_s: float = 120.0,
+    max_jump_bps: Decimal = Decimal("500"),
+    depth_levels: tuple[tuple[Decimal, Decimal], ...] | None = None,
+    halted: bool = False,
+) -> dict:
+    """Detect venue price-band discontinuities, stale surrogates, empty depth, and halts (X013)."""
+    reasons = []
+    if halted:
+        reasons.append("MARKET_HALTED")
+    if reference_price is None or reference_price <= 0:
+        reasons.append("UNKNOWN_REFERENCE_PRICE")
+    if reference_age_s is None or reference_age_s > max_age_s:
+        reasons.append("STALE_REFERENCE_SURROGATE")
+    if bid is None or ask is None or bid <= 0 or ask <= 0 or bid >= ask:
+        reasons.append("INVALID_OR_CROSSED_QUOTE")
+    if depth_levels is not None and sum((s for _, s in depth_levels), Decimal(0)) <= 0:
+        reasons.append("EMPTY_DEPTH")
+    jump_bps = None
+    if reference_price and reference_price > 0 and bid and ask and bid < ask:
+        mid = (bid + ask) / Decimal(2)
+        jump_bps = (abs(mid - reference_price) / reference_price * Decimal("10000")).quantize(Decimal("0.01"))
+        if jump_bps > max_jump_bps:
+            reasons.append("REFERENCE_DISCONTINUITY")
+    if reasons:
+        status = "UNKNOWN" if any(r.startswith("UNKNOWN_") for r in reasons) else "REFUSED"
+        return {"status": status, "pass": False, "reasons": reasons, "jump_bps": str(jump_bps) if jump_bps is not None else None}
+    return {"status": "PASS", "pass": True, "reasons": [], "jump_bps": str(jump_bps)}
+
+
+def build_fill_audit_trail(
+    *,
+    decision_at: datetime,
+    symbol: str,
+    side: str,
+    order_type: str,
+    requested_qty: Decimal,
+    filled_qty: Decimal,
+    fill_price: Decimal | None,
+    fee_rate: Decimal | None,
+    fee_source: str | None,
+    rule_vintage_at: datetime | None,
+    latency_phases: dict | None = None,
+    matched_trade_count: int = 0,
+    queue_ahead_remaining: Decimal | None = None,
+    nonfill_reason: str | None = None,
+    cash_postings: list[dict] | None = None,
+) -> dict:
+    """Emit a deterministic per-fill audit trail linking decision, vintage, queue, latency, and postings (X020)."""
+    return {
+        "schema": "fill-audit/1",
+        "decision_cutoff": iso(decision_at),
+        "symbol": symbol,
+        "side": side,
+        "order_type": order_type,
+        "requested_qty": str(requested_qty),
+        "filled_qty": str(filled_qty),
+        "fill_price": str(fill_price) if fill_price is not None else None,
+        "fee_rate": str(fee_rate) if fee_rate is not None else None,
+        "fee_source": fee_source or "UNKNOWN",
+        "rule_vintage_at": iso(rule_vintage_at) if rule_vintage_at else None,
+        "latency_phases": latency_phases,
+        "matched_trade_count": matched_trade_count,
+        "queue_ahead_remaining": str(queue_ahead_remaining) if queue_ahead_remaining is not None else None,
+        "nonfill_reason": nonfill_reason,
+        "cash_postings": list(cash_postings or []),
+        "authenticated_venue_fill": False,
+    }

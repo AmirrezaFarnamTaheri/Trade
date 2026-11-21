@@ -6,6 +6,8 @@ from decimal import Decimal
 from random import Random
 from statistics import fmean
 
+from .model import iso, parse_ts
+
 _DEFAULT_SPANS = ((16, 64), (32, 128), (64, 256))
 
 
@@ -99,10 +101,17 @@ def edge_of_band_target(current_weight: Decimal, target_weight: Decimal, band: D
 
 
 def _ranks(vals: list[float]) -> list[float]:
+    from itertools import groupby
+
     order = sorted(range(len(vals)), key=vals.__getitem__)
     ranks = [0.0] * len(vals)
-    for pos, idx in enumerate(order, 1):
-        ranks[idx] = float(pos)
+    first = 1
+    for _, group in groupby(order, key=vals.__getitem__):
+        indices = list(group)
+        rank = first + (len(indices) - 1) / 2
+        for idx in indices:
+            ranks[idx] = rank
+        first += len(indices)
     return ranks
 
 
@@ -127,7 +136,8 @@ def factor_ic_analysis(
     if purge_step < 1:
         raise ValueError("purge_step must be >= 1")
     common_dates = sorted(set(factor_by_date) & set(forward_returns_by_date))[::purge_step]
-    ics, placebo_ics = [], []
+    ics, pearson_ics, placebo_ics = [], [], []
+    quartile_returns = [[] for _ in range(4)]
     rng = Random(seed)
     for d in common_dates:
         f_map, r_map = factor_by_date[d], forward_returns_by_date[d]
@@ -136,26 +146,82 @@ def factor_ic_analysis(
             continue
         fv = [float(f_map[a]) for a in assets]
         rv = [float(r_map[a]) for a in assets]
-        ic = _pearson(_ranks(fv), _ranks(rv))
+        ranks = _ranks(fv)
+        ic = _pearson(ranks, _ranks(rv))
         if ic is not None:
             ics.append(ic)
+            pearson_ic = _pearson(fv, rv)
+            if pearson_ic is not None:
+                pearson_ics.append(pearson_ic)
+            daily = [[] for _ in quartile_returns]
+            for rank, outcome in zip(ranks, rv):
+                daily[int((rank - 0.5) * 4 / len(ranks))].append(outcome)
+            for quartile, values in zip(quartile_returns, daily):
+                if values:
+                    quartile.append(fmean(values))
             shuf = list(rv)
             rng.shuffle(shuf)
             pic = _pearson(_ranks(fv), _ranks(shuf))
             if pic is not None:
                 placebo_ics.append(pic)
     if len(ics) < 3:
-        return {"status": "INSUFFICIENT_DATES", "dates_evaluated": len(ics), "registered_trial": False}
+        return {"status": "INSUFFICIENT_DATES", "dates_evaluated": len(ics), "mean_rank_ic": None,
+                "registered_trial": False}
     mean_ic = fmean(ics)
     sd = math.sqrt(math.fsum((x - mean_ic) ** 2 for x in ics) / (len(ics) - 1))
-    t_stat = mean_ic / (sd / math.sqrt(len(ics))) if sd > 0 else 0.0
+    t_stat = mean_ic / (sd / math.sqrt(len(ics))) if sd > 0 else None
     return {
         "status": "DIAGNOSTIC_ONLY",
         "dates_evaluated": len(ics),
         "purge_step": purge_step,
         "mean_rank_ic": round(mean_ic, 6),
-        "ic_t_stat": round(t_stat, 4),
+        "mean_pearson_ic": round(fmean(pearson_ics), 6) if pearson_ics else None,
+        "ic_t_stat": round(t_stat, 4) if t_stat is not None else None,
+        "calibration_by_rank_quartile": [
+            {"quartile": i, "dates": len(values), "mean_forward_return": fmean(values) if values else None}
+            for i, values in enumerate(quartile_returns, start=1)
+        ],
         "placebo_mean_rank_ic": round(fmean(placebo_ics), 6) if placebo_ics else None,
         "registered_trial": False,
         "paper_only": True,
     }
+
+
+def factor_ic_lab(observations, as_of, *, seed=0):
+    """Use only complete, disjoint forward-label intervals supplied to this diagnostic."""
+    if not isinstance(observations, list) or not 1 <= len(observations) <= 2000:
+        raise ValueError("factor lab requires 1..2000 observation rows")
+    if type(seed) is not int or not 0 <= seed < 2**32:
+        raise ValueError("factor lab seed must be an unsigned 32-bit integer")
+    rows, starts = [], set()
+    for row in observations:
+        if not isinstance(row, dict) or set(row) != {"at", "label_end", "factors", "forward_returns"}:
+            raise ValueError("factor rows require at, label_end, factors and forward_returns")
+        if not isinstance(row["at"], str) or not isinstance(row["label_end"], str):
+            raise ValueError("factor and label clocks must be ISO strings")
+        start, end = parse_ts(row["at"]), parse_ts(row["label_end"])
+        if not start < end <= as_of or start in starts:
+            raise ValueError("factor rows require distinct snapshots and complete forward labels")
+        starts.add(start)
+        for key in ("factors", "forward_returns"):
+            values = row[key]
+            if (not isinstance(values, dict) or len(values) > 500 or
+                    any(not isinstance(asset, str) or not asset or len(asset) > 24 or type(value) not in (float, int)
+                        or abs(value) > 1e100 or not math.isfinite(value) for asset, value in values.items())):
+                raise ValueError("factor and return maps require at most 500 assets with finite values")
+        rows.append((start, end, row))
+
+    factors, returns, windows, purged = {}, {}, [], 0
+    last_end = None
+    for start, end, row in sorted(rows):
+        if last_end is not None and start < last_end:
+            purged += 1
+            continue
+        at = iso(start)
+        factors[at], returns[at] = row["factors"], row["forward_returns"]
+        windows.append({"at": at, "label_end": iso(end)})
+        last_end = end
+    report = factor_ic_analysis(factors, returns, seed=seed)
+    return {**report, "schema": "factor-ic-lab/1", "as_of": iso(as_of), "seed": seed,
+            "overlapping_rows_purged": purged, "retained_windows": windows, "paper_only": True,
+            "input_provenance": "CALLER_SUPPLIED", "funded_authority": False}

@@ -30,7 +30,7 @@ def simulate_stop(instrument, reference_price, trades, quotes, spec, created, en
     if not created < end or end - created > timedelta(days=1) or len(trades) > MAX_ROWS or len(quotes) > MAX_ROWS:
         raise ValueError("a stop replay needs a positive window of at most one day")
     falls = stop_price < reference_price
-    out = {"schema": "paper-stop/1", "store": store, "symbol": instrument.symbol, "side": side, "type": order_type,
+    out = {"schema": "paper-stop/2", "store": store, "symbol": instrument.symbol, "side": side, "type": order_type,
            "quantity": str(quantity), "stop_price": str(stop_price), "limit_price": limit_price and str(limit_price),
            "created": iso(created), "reference_trade_price": str(reference_price),
            "activates": "AT_OR_BELOW" if falls else "AT_OR_ABOVE", "status": "NOT_ACTIVATED", "activation": None,
@@ -38,27 +38,28 @@ def simulate_stop(instrument, reference_price, trades, quotes, spec, created, en
            "order_submitted": False, "funded_authority": False,
            "scope": "Recorded trades and quotes only. A fill takes at most the displayed touch size, or walks stored "
                     "depth when the quote has it. Venue trading rules and the queue for a resting limit are not modeled."}
-    hit = next((x for x in trades if created <= x.ts_event < end
-                and (x.price <= stop_price if falls else x.price >= stop_price)), None)
+    hit = min((x for x in trades if x.symbol == instrument.symbol and created <= x.ts_avail < end
+               and (x.price <= stop_price if falls else x.price >= stop_price)),
+              key=lambda x: (x.ts_avail, x.ts_event), default=None)
     if hit is None:
         return out
-    out.update(status="ACTIVATED_UNFILLED", activation={"time": iso(hit.ts_event), "price": str(hit.price)})
+    out.update(status="ACTIVATED_UNFILLED", activation={"time": iso(hit.ts_avail), "price": str(hit.price)})
 
     def reachable(top):
-        if not qualified(top) or top.ts_avail < hit.ts_event:
+        if top.symbol != instrument.symbol or not qualified(top) or not hit.ts_avail <= top.ts_avail < end:
             return False
         return limit_price is None or (top.ask <= limit_price if side == "BUY" else top.bid >= limit_price)
 
-    top = next((x for x in quotes if reachable(x)), None)
+    top = min((x for x in quotes if reachable(x)), key=lambda x: x.ts_avail, default=None)
     if top is None:
         return out
     walk = limit_price is None and top.depth is not None
-    cost = CostModel(fee_rate=rate(str(fee_rate)), latency=timedelta(0), max_wait=end - hit.ts_event,
+    cost = CostModel(fee_rate=rate(str(fee_rate)), latency=timedelta(0), max_wait=end - hit.ts_avail,
                      walk_depth=walk, max_participation=None if walk else Decimal(1))
     touch = top.ask if side == "BUY" else top.bid
     # Twice the touch notional: the quantity cap binds, not a rounding of cash divided by price.
     book = CashBook({instrument.quote: quantity * touch * 2} if side == "BUY" else {instrument.base: quantity})
-    fill = market_order(book, instrument, side, Decimal(1), hit.ts_event, touch, [top], 0, cost, spec, [], {},
+    fill = market_order(book, instrument, side, Decimal(1), hit.ts_avail, touch, [top], 0, cost, spec, [], {},
                         "paper-stop", max_qty=quantity)
     out["fill"] = {key: fill[key] for key in ("status", "reason", "fill_time", "qty", "price", "fee", "fee_ccy") if key in fill}
     if fill["status"] != "FILLED":

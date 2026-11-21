@@ -353,10 +353,16 @@ def storage_forecast(db: MarketDB, raw: Path, now: datetime) -> dict:
             "hours_to_floor": round(max(0, free - MIN_FREE_BYTES) / per_hour, 1) if per_hour else None}
 
 
-def read_segment(path: Path) -> list[dict]:
+def iter_segment(path: Path):
     with open(path, "rb") as f:
-        text = io.TextIOWrapper(zstd.ZstdDecompressor().stream_reader(f, read_across_frames=True), "utf-8")
-        return [json.loads(line) for line in text if line.strip()]
+        with io.TextIOWrapper(zstd.ZstdDecompressor().stream_reader(f, read_across_frames=True), "utf-8") as stream:
+            for line in stream:
+                if line.strip():
+                    yield json.loads(line)
+
+
+def read_segment(path: Path) -> list[dict]:
+    return list(iter_segment(path))
 
 
 def readable_prefix(path: Path) -> tuple[int, int | None, int | None, bool]:

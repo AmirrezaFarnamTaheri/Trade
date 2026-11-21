@@ -54,7 +54,17 @@ def test_portfolio_trade_stats_timeline_attribution_and_es_tail_qualification(tm
         assert len(tl) == 2 and {r["symbol"] for r in tl} == set(syms)
 
         attr = economic_portfolio_attribution(out)
+        assert out["performance"]["economic_attribution"] == attr
         assert attr["reconciled"] is True and attr["reconciliation_residual"] == "0" and attr["causal_alpha_claim"] is False
+        direction = attr["directional_attribution"]
+        assert Decimal(direction["signed_fees_at_terminal_bid"]) < 0
+        assert Decimal(direction["gross_directional_quote"]) + Decimal(direction["signed_fees_at_terminal_bid"]) == Decimal(attr["net_change"])
+        out["result"]["end"]["equity"] = str(Decimal(attr["end_equity"]) + 1)
+        assert economic_portfolio_attribution(out)["reconciled"] is False
+        assert Decimal(economic_portfolio_attribution(out)["directional_attribution"]["unexplained_quote"]) == 1
+        out["result"]["end"]["equity"] = attr["end_equity"]
+        out["result"]["balances"][attr["currency"]] = str(Decimal(attr["end_cash"]) + 1)
+        assert economic_portfolio_attribution(out)["reconciled"] is False
     finally:
         db.c.close()
 

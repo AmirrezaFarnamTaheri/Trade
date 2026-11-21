@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from gym.domain.model import parse_ts
+from gym.domain.portfolio_diagnostics import economic_portfolio_attribution
 from gym.services.portfolio import portfolio
 from tests.support import START, market_db, quote, quote_history
 
@@ -30,6 +31,11 @@ def test_portfolio_fx_curve_never_reads_a_later_rate(tmp_path):
         assert valuation["end"]["status"] == "STALE"
         expected = Decimal(out["result"]["end"]["equity"]) / 200 - Decimal(1000) / 100
         assert Decimal(out["result"]["end"]["net_usdt_eq"]) == expected.quantize(Decimal("0.0001"))
+        fx = out["performance"]["economic_attribution"]["fx_attribution"]
+        assert fx["close_rate_status"] == "STALE"
+        assert Decimal(fx["translation_residual_usdt"]) == 0
+        out["result"]["end"]["net_usdt_eq"] = str(expected.quantize(Decimal("0.0001")) + 1)
+        assert Decimal(economic_portfolio_attribution(out)["fx_attribution"]["translation_residual_usdt"]) == -1
         old_id = out["run_id"]
         db.add_book_top(rate(1750, 300), None)
         changed = replay(db)
@@ -47,6 +53,7 @@ def test_future_only_fx_cannot_value_start_or_net(tmp_path):
         assert valuation["start"]["status"] == "UNAVAILABLE"
         assert out["result"]["end"]["net_usdt_eq"] is None
         assert valuation["curve"][0]["equity_usdt_eq"] is None
+        assert out["performance"]["economic_attribution"]["fx_attribution"]["status"] == "MISSING_FX_EVIDENCE"
     finally:
         db.c.close()
 

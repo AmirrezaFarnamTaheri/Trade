@@ -367,23 +367,27 @@ def breadth_journal_cmd(args) -> int:
 
     from ..services.breadth_journal import run_breadth_day
 
+    scheduled_at = now_utc()
     if args.refresh:  # the decision needs yesterday's daily candle for every USDT market
         reader = open_db(args)
         try:
             symbols = [r[0] for r in reader.c.execute("SELECT symbol FROM instruments WHERE quote='USDT' ORDER BY symbol")]
         finally:
             reader.c.close()
-        since = (now_utc() - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
+        since = (scheduled_at - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
         try:
             history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None, best_effort=True))
         except (ValueError, OSError, sqlite3.Error) as error:  # the venue is often unreachable here: decide on stored candles
             print(f"refresh failed, deciding on stored candles: {error}", file=sys.stderr)
     db = open_db(args)
     try:
-        print(json.dumps(run_breadth_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
+        now = now_utc()
+        required_day = scheduled_at.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        result = run_breadth_day(db, store_root(args), now, cash=Decimal(args.cash), required_day=required_day)
+        print(json.dumps(result, indent=2))
     finally:
         db.c.close()
-    return 0
+    return 0 if result["status"] in {"READY", "ALREADY_DECIDED"} else 1
 
 
 def calibrate_cmd(args) -> int:
@@ -518,7 +522,8 @@ def research_cmd(args):
             print(json.dumps(error.report, ensure_ascii=False))
             return 3
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-    return 3 if "error" in result or (args.action == "claim-check" and not result["all_matched"]) else 0
+    result_gate = {"claim-check": "all_matched", "verify-release-attestation": "authenticated_signature"}.get(args.action)
+    return 3 if "error" in result or (result_gate and not result[result_gate]) else 0
 
 
 # The foreground scheduler is owned by the CLI; no separate pass-through module.

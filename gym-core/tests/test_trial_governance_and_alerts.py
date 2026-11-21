@@ -15,6 +15,7 @@ from gym.services.trial_governance import (
     enforce_two_trial_budget,
     journal_continuity_report,
     record_analyst_peek,
+    verify_release_attestation,
 )
 
 
@@ -36,7 +37,19 @@ def test_two_trial_budget_rejects_third_active_trial_without_supersession():
         enforce_two_trial_budget(live_rows, "new-maker-imbalance", supersedes="nonexistent-trial")
 
 
-def test_release_bundle_binds_digests_and_retains_aborted_or_failed_outcomes():
+def test_continuity_distinguishes_allocation_symbol_days_from_portfolio_days():
+    from gym.services.trial_governance import _summarize_journal
+
+    day = datetime(2026, 11, 21, tzinfo=UTC).date()
+    entries = [{"day": "2026-11-20", "symbol": symbol} for symbol in ("BTCUSDT", "ETHUSDT")]
+    allocation = _summarize_journal("allocation", entries, day, check_parity=True)
+    assert allocation["evidence_status"] == "CURRENT"
+    assert _summarize_journal("mix", entries, day)["evidence_status"] == "BROKEN_DUPLICATE"
+    assert _summarize_journal("allocation", entries + entries[:1], day,
+                              check_parity=True)["evidence_status"] == "BROKEN_DUPLICATE"
+
+
+def test_release_bundle_binds_digests_and_retains_aborted_or_failed_outcomes(tmp_path, capsys):
     """E008, E009, E018: immutable release bundle binds code/data digests and requires reasons for aborts."""
     at = datetime(2027, 2, 8, 12, 0, tzinfo=UTC)
     bundle = build_release_bundle(
@@ -56,7 +69,35 @@ def test_release_bundle_binds_digests_and_retains_aborted_or_failed_outcomes():
     )
     assert len(bundle["bundle_sha256"]) == 64
     assert bundle["funded_authority"] is False
+    assert bundle["independent_custody"] is False
     assert bundle["family_attempts_total"] == 14
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    key = Ed25519PrivateKey.generate()
+    expected = bundle["bundle_sha256"]
+    signature = key.sign(b"TradingGYM release-bundle/1\x00" + bytes.fromhex(expected))
+    public = key.public_key().public_bytes_raw()
+    attestation = verify_release_attestation(bundle, signature, public, expected_digest=expected)
+    assert attestation["authenticated_signature"] and not attestation["independent_custody"]
+    assert not verify_release_attestation({**bundle, "verdict": "PASS"}, signature, public,
+                                          expected_digest=expected)["authenticated_signature"]
+    assert not verify_release_attestation(bundle, signature, public, expected_digest="0" * 64)["authenticated_signature"]
+    unrelated_key = Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+    assert not verify_release_attestation(bundle, signature, unrelated_key,
+                                          expected_digest=expected)["authenticated_signature"]
+    from gym.cli import main
+
+    path = tmp_path / "release.json"
+    packet = {"bundle": bundle, "signature_hex": signature.hex(), "trusted_public_key_hex": public.hex(),
+              "expected_digest": expected}
+    cmd = ["--data", str(tmp_path / "data"), "research", "verify-release-attestation", str(path)]
+    path.write_text(json.dumps(packet))
+    assert main(cmd) == 0
+    assert json.loads(capsys.readouterr().out)["authenticated_signature"]
+    path.write_text(json.dumps({**packet, "trusted_public_key_hex": unrelated_key.hex()}))
+    assert main(cmd) == 3
+    assert not json.loads(capsys.readouterr().out)["authenticated_signature"]
 
     with pytest.raises(ValueError, match="failure_reason"):
         build_release_bundle(

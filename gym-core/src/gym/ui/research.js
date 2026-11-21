@@ -36,7 +36,7 @@ window.gymResearch = (() => {
   actions['margin-pairs-replay'] = [T.en.rsSimulateAMatchedLongShortMargin, T.fa.rsSimulateAMatchedLongShortMargin, 'long_preview_id, short_preview_id, from, to, exit_fee_rate, holding_seconds, max_skew_seconds (0..120); public archived quotes only, USDT scorecard if both USDT and settled; never venue orders'];
   actions['lead-lag-research'] = [T.en.rsTestCausalLeadLagAlignment, T.fa.rsTestCausalLeadLagAlignment, 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
   actions['twap-preview'] = [T.en.rsPreviewPaperTwapChildFills, T.fa.rsPreviewPaperTwapChildFills, 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
-  actions['stop-preview'] = [T.en.rsPreviewPaperStopOrder, T.fa.rsPreviewPaperStopOrder, 'symbol, from (order time), to, side (BUY/SELL), quantity, stop_price, type (STOP_MARKET/STOP_LIMIT), limit_price (null for STOP_MARKET), fee_rate; paper-only'];
+  actions['stop-preview'] = [T.en.rsPreviewPaperStopOrder, T.fa.rsPreviewPaperStopOrder, 'symbol, from, to, side, quantity, fee_rate, type. STOP_MARKET/STOP_LIMIT: stop_price, limit_price (null for STOP_MARKET). TRAILING_STOP (SELL): trail_fraction, activation_delay_ms; paper-only'];
   actions['arm-policy-read'] = [T.en.rsReadArmPolicyAndPreflight, T.fa.rsReadArmPolicyAndPreflight, 'null; shows the saved owner policy, the ADR 0007 defaults and the READY/BLOCKED checklist'];
   actions['arm-policy-save'] = [T.en.rsSaveArmPolicy, T.fa.rsSaveArmPolicy, 'the full policy object; see the default from arm-policy-read. Saving arms nothing: the executor stays disarmed'];
   actions['credit-packages'] = [T.en.rsReadCreditPackages, T.fa.rsReadCreditPackages, 'null; reads the public package list and saves a receipt'];
@@ -223,6 +223,9 @@ window.gymResearch = (() => {
       <details><summary>${text(T.en.rsFrozenProspectiveComparisonPaperOnly, T.fa.rsFrozenProspectiveComparisonPaperOnly)}</summary>
         <p class="field-help">${text(T.en.rsFreezeTwoToFourStrategyConfigurations, T.fa.rsFreezeTwoToFourStrategyConfigurations)}</p>
         <form id="prospective-register-form" class="ticket-fields">
+          <label>${text(T.en.rsStudyHypothesis, T.fa.rsStudyHypothesis)}<input id="prospective-hypothesis" maxlength="480" required></label>
+          <label>${text(T.en.rsStudyMinimumUplift, T.fa.rsStudyMinimumUplift)}<input id="prospective-minimum-uplift" inputmode="decimal" maxlength="64" required dir="ltr"></label>
+          <p class="field-help">${text(T.en.rsStudyEvidenceScope, T.fa.rsStudyEvidenceScope)}</p>
           <label>${text(T.en.rsMarketSymbol, T.fa.rsMarketSymbol)}<input id="prospective-symbol" pattern="[A-Z0-9]{2,24}" autocomplete="off" required dir="ltr" placeholder="BTCUSDT"></label>
           <label>${text(T.en.rsSelectionCutoffUtc, T.fa.rsSelectionCutoffUtc)}<input id="prospective-selection-end" type="datetime-local" step="60" required dir="ltr"></label>
           <label>${text(T.en.rsFutureEvaluationStartUtc, T.fa.rsFutureEvaluationStartUtc)}<input id="prospective-test-from" type="datetime-local" step="60" required dir="ltr"></label>
@@ -431,8 +434,13 @@ window.gymResearch = (() => {
           throw new Error(text(T.en.rsSelectTwoToFourDistinctCandidate, T.fa.rsSelectTwoToFourDistinctCandidate));
         const symbol = $('prospective-symbol').value.trim();
         if (!/^[A-Z0-9]{2,24}$/.test(symbol)) throw new Error(text(T.en.rsEnterAValidUppercaseMarketSymbol, T.fa.rsEnterAValidUppercaseMarketSymbol));
+        const hypothesis = $('prospective-hypothesis').value.trim();
+        const uplift = $('prospective-minimum-uplift').value.trim();
+        if (!hypothesis || !prospectiveNumberPattern.test(uplift) || !(Number(uplift) > 0 && Number(uplift) <= 10000))
+          throw new Error(text(T.en.rsStudyIntentValidation, T.fa.rsStudyIntentValidation));
         prospectiveCall(event.target.querySelector('button'), 'prospective-register',
-          {symbol, candidates, selection_end, test_from, test_to, resolution, cash, fee_rate});
+          {symbol, candidates, selection_end, test_from, test_to, resolution, cash, fee_rate,
+           study_intent: {hypothesis, benchmark: 'HOLD_QUOTE_CASH', minimum_net_uplift_bps: uplift}});
       } catch (error) { prospectiveError(error.message || text(T.en.rsInvalidRegistration, T.fa.rsInvalidRegistration)); }
     };
     const prospectiveSavedId = () => {

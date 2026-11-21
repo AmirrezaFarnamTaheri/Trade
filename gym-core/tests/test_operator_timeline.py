@@ -38,3 +38,14 @@ def test_rejects_bad_limits_and_unknown_sources(tmp_path):
         timeline(tmp_path, limit=0)
     with pytest.raises(ValueError):
         timeline(tmp_path, sources={"nope"})
+
+
+def test_feed_timeline_filters_quality_noise_and_shows_recorded_source(tmp_path):
+    _db(tmp_path / "market.db", "CREATE TABLE quality_events(ts, instrument_id, flag, detail);",
+        ("INSERT INTO quality_events VALUES (?,?,?,?)",
+         [("2026-11-21T10:00:00Z", "wallex:BTCUSDT", "GAP", "publication delayed"),
+          ("2026-11-21T11:00:00Z", "wallex:ETHUSDT", "STALE", "excluded from timeline")]))
+    report = timeline(tmp_path, sources={"feed-quality"})
+    assert report["sources"] == {"feed-quality": 1}
+    assert report["events"] == [{"source": "feed-quality", "at": "2026-11-21T10:00:00+00:00",
+                                 "kind": "GAP", "summary": "wallex:BTCUSDT: publication delayed"}]

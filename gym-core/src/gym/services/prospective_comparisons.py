@@ -5,6 +5,7 @@ Not independent custody. This does not authorize funded execution or certify an 
 import json
 import re
 from datetime import timedelta
+from decimal import Decimal
 
 from ..adapters.run_store import save_run
 from ..domain.bars import BarSpec
@@ -23,6 +24,20 @@ REQUIRED = "symbol candidates selection_end test_from test_to resolution cash fe
 
 def register_comparison(registry, request, *, now):
     """Freeze a unique future matched-paper window before observations occur."""
+    intent = request.get("study_intent") if type(request) is dict else None
+    if type(request) is dict and "study_intent" in request:
+        request = {key: value for key, value in request.items() if key != "study_intent"}
+        fields(intent, "hypothesis benchmark minimum_net_uplift_bps")
+        hypothesis = intent["hypothesis"]
+        if not isinstance(hypothesis, str) or not 1 <= len(hypothesis.strip()) <= 480 or any(ord(c) < 32 for c in hypothesis):
+            raise ValueError("study hypothesis must be a single line of 1..480 characters")
+        if intent["benchmark"] != "HOLD_QUOTE_CASH":
+            raise ValueError("prospective comparisons use the matched hold-quote-cash benchmark")
+        uplift = decimal(intent["minimum_net_uplift_bps"], "minimum_net_uplift_bps", positive=True)
+        if uplift > 10000:
+            raise ValueError("minimum net uplift must be at most 10000 bps")
+        intent = {"hypothesis": hypothesis.strip(), "benchmark": "HOLD_QUOTE_CASH",
+                  "minimum_net_uplift_bps": str(uplift), "evidence_use": "LOCAL_MODELED_PAPER"}
     fields(request, REQUIRED)
     if type(request["symbol"]) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", request["symbol"]):
         raise ValueError("invalid comparison symbol")
@@ -52,6 +67,8 @@ def register_comparison(registry, request, *, now):
             "cash": str(cash), "fee_rate": str(fee), "engine_digest": _engine_digest(),
             "configuration_hash": digest({"candidates": frozen, "symbol": request["symbol"],
                                            "start": iso(start), "end": iso(end)})}
+    if intent is not None:
+        body["study_intent"] = intent
     # Serialize registrations so a second local window cannot reuse the same
     # held-out observations behind a different event identity.
     registry.conn.execute("BEGIN IMMEDIATE")
@@ -140,6 +157,11 @@ def evaluate_comparison(registry, key, db, *, now):
                                 "net_available": net_available, "valuation": valuation,
                                 "no_trade": run["result"]["fills"] == 0,
                                 "last_mark_at": valuation["as_of"]})
+                if intent := config.get("study_intent"):
+                    observed = (Decimal(end["net"]) / Decimal(config["cash"]) * 10000) if net_available else None
+                    results[-1]["net_uplift_over_cash_bps"] = str(observed) if observed is not None else None
+                    results[-1]["modeled_target_met"] = (observed >= Decimal(intent["minimum_net_uplift_bps"])
+                                                         if observed is not None else None)
         finally:
             db.c.rollback()
         report = {"schema": "prospective-comparison/1", "attempt_id": attempt["id"],

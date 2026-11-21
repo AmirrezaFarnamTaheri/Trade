@@ -56,8 +56,33 @@ function valuationPanel(result) {
     ${table([t("time"), t("usdtEquivalent"), t("fxState"), t("fxAge")], curve.slice(-25).map(row =>
       [stampHtml(row.at), amount(row.equity_usdt_eq), label(row.fx?.status), num(row.fx?.age_seconds)]), t("noCurve"), [1, 3])}</section>`;
 }
+function makerTimeline(orders, selectedStatus = "") {
+  const maker = list(orders).filter(order => order.maker === true || order.placed_at)
+    .sort((a, b) => String(b.placed_at || b.decision_time).localeCompare(String(a.placed_at || a.decision_time)));
+  if (!maker.length) return "";
+  const statuses = [...new Set(maker.map(order => order.status).filter(Boolean))].sort();
+  const matching = selectedStatus ? maker.filter(order => order.status === selectedStatus) : maker;
+  const shown = value => value == null ? esc(t("unknown")) : amount(value);
+  const time = value => value ? stampHtml(value) : esc(t("unknown"));
+  return `<details class="panel disclosure" data-key="maker-timeline"><summary data-focus="maker-timeline">${esc(t("makerTimeline"))}</summary>
+    <p class="field-help">${esc(t("makerTimelineScope"))}</p>
+    <label>${esc(t("status"))}<select data-maker-status data-focus="maker-status"><option value="">${esc(t("makerAllStatuses"))}</option>
+      ${statuses.map(status => `<option value="${esc(status)}"${status === selectedStatus ? " selected" : ""}>${esc(status)}</option>`).join("")}</select></label>
+    ${table([t("makerOrderRef"), t("makerPlacement"), t("makerQueue"), t("makerPrints"), t("makerDuplicateCapacity"),
+      t("makerOutcome")], matching.slice(0, 100).map(order => [
+      code(order.parent ? `${order.parent} → ${order.ref}` : order.ref),
+      time(order.placed_at), shown(order.queue_ahead), shown(order.limit_prints_considered),
+      `${shown(order.identical_print_capacity_qty)} <span class="sub">${esc(t("makerDuplicateCount"))} ${shown(order.suspected_identical_prints)}</span>`,
+      `${label(order.status)} <span class="sub">${time(order.fill_time || order.cancelled_at)}</span>
+        <span class="sub">${esc(t("makerFilledBase"))} ${shown(order.qty)} · ${esc(t("makerRemainingBase"))} ${shown(order.remaining_qty)}</span>
+        ${order.reason ? `<span class="sub">${esc(order.reason)}</span>` : ""}`,
+    ]))}</details>`;
+}
+
 function renderRun(record) {
   if (!record) return;
+  const existingFilter = $("run-detail").querySelector?.("[data-maker-status]");
+  const makerStatus = existingFilter?.dataset.runId === record.run_id ? existingFilter?.value : "";
   const result = record.result || {}, inputs = record.inputs || {}, end = result.end || {}, quote = result.quote || "";
   const entries = Object.entries(end.waterfall || {});
   // One sentence answering "why did it win or lose": the largest term, and whether price moves beat the costs.
@@ -88,15 +113,20 @@ function renderRun(record) {
       <details class="disclosure" data-key="run-benchmarks"><summary data-focus="run-benchmarks">${esc(t("baselineDetails"))}</summary>
       ${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent"), t("fills")], baselines, "", [1, 2, 3])}${record.fx ? keyValues([[t("fxLabel"), `${amount(record.fx.start)} → ${amount(record.fx.end)}`], [t("status"), `${label(record.fx.start_status)} → ${label(record.fx.end_status)}`], [t("source"), esc(record.fx.basis)]]) : ""}</details></section>
     <section class="panel"><h3 class="panel-title">${esc(t("equityCurve"))}</h3>${curveFigure(result)}${keyValues([[t("sampledDrawdown"), evidence?.sampled_drawdown?.status === "AVAILABLE" ? `${amount(evidence.sampled_drawdown.maximum_percent)} %` : esc(t("unavailable"))]])}<p class="field-help">${esc(t("drawdownNote"))}</p></section>
-    ${valuationPanel(result)}${performancePanel(evidence?.performance, quote)}
+    ${valuationPanel(result)}${performancePanel(evidence?.performance, quote)}${makerTimeline(result.orders, makerStatus)}
     <section class="panel"><h3 class="panel-title">${esc(t("costWaterfall"))} <span class="muted">${esc(quote)}</span></h3>${why}${waterfallFigure(entries, quote)}<h4>${esc(t("exactValues"))}</h4>${costs}<p class="field-help">${esc(t("updated"))} ${stampHtml(end.mark_time)}</p></section>
     <section class="panel"><h3 class="panel-title">${esc(t("rankingTitle"))}</h3><p class="field-help">${esc(t("rankingNote"))}</p>${table([t("rank"), t("strategy"), t("usdtEquivalent"), t("fills")], list(ranking.active).map(row => [num(row.rank), esc(row.name), money(row.net_usdt_eq), num(row.fills)]), t("noActiveRank"), [2, 3])}
       ${list(ranking.abstainers).length ? `<h4>${esc(t("abstainers"))}</h4>${table([t("strategy"), `${t("net")} · ${quote}`, t("usdtEquivalent")], ranking.abstainers.map(row => [esc(row.name), money(row.net_quote), money(row.net_usdt_eq)]), "", [1, 2])}` : ""}</section>
     <section class="panel"><h3 class="panel-title">${esc(t("evidenceTitle"))}</h3>${evidence ? `<p>${esc(evidence.primary_limitation)}</p>${keyValues([[t("roundTrips"), num(evidence.completed_round_trips)], [t("claimCeiling"), code(evidence.claim_ceiling)], [t("evidenceGate"), esc(t(evidence.gate_eligible === true ? "yes" : "no"))]])}` : `<p>${esc(t("noEvidence"))}</p>`}
       ${list(record.warnings || evidence?.warnings).length ? `<ul class="evidence-warnings">${list(record.warnings || evidence?.warnings).map(warning => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-      <div class="actions"><button type="button" class="button" data-export-run="${esc(record.run_id)}">${esc(t("exportSummary"))}</button><button type="button" class="button" data-export-run="${esc(record.run_id)}" data-format="html">${esc(t("exportHtml"))}</button></div><p class="field-help">${esc(t("summaryNote"))}</p>
+      <div class="actions"><button type="button" class="button" data-export-run="${esc(record.run_id)}">${esc(t("exportSummary"))}</button><button type="button" class="button" data-export-run="${esc(record.run_id)}" data-format="html">${esc(t("exportHtml"))}</button><button type="button" class="button" data-cost-lab="${esc(record.run_id)}">${esc(t("costLabBtn"))}</button></div><p class="field-help">${esc(t("summaryNote"))}</p><div id="cost-lab-output" role="status" aria-live="polite"></div>
       ${disclosure(t("reportDetails"), { report: evidence || null, capital_decisions: record.capital_decisions || [] }, "economic-evidence")}${disclosure(t("runInputs"), { inputs, session: result.session, fx: record.fx, outputs_digest: record.outputs_digest }, "run-inputs")}${record.provenance ? disclosure(t("modelProvenance"), record.provenance, "run-provenance") : ""}</section>
     <section class="panel"><div class="panel-heading"><h3 class="panel-title">${esc(t("lastDecisions"))}</h3>${decisions.length ? `<button type="button" class="button button-small" data-csv="decisions">${esc(t("downloadCsv"))}</button>` : ""}</div><p class="field-help">${esc(t("decisionHelp"))}</p>${table(decisionHeads, decisions.slice(0, 15).map(decisionRow), t("noDecisions"))}${decisions.length > 15 ? `<details class="disclosure" data-key="decisions-more"><summary>${esc(t("showMore"))} · ${digits(decisions.length - 15)}</summary>${table(decisionHeads, decisions.slice(15).map(decisionRow))}</details>` : ""}${decisions.length ? disclosure(t("decisionLog"), decisions.map(decision => ({ ...decision, order: orders.get(decision.order) || null })), "decision-log") : ""}</section>`);
+  const filter = $("run-detail").querySelector?.("[data-maker-status]");
+  if (filter) {
+    filter.dataset.runId = record.run_id;
+    filter.onchange = () => renderRun(record);
+  }
 }
 function renderComparison() {
   $("compare-submit").textContent = t(state.comparing ? "comparing" : "compareAction");

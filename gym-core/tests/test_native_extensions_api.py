@@ -1,17 +1,18 @@
 """Authenticated GUI actions exercise actual native stores, evidence and replay engines."""
 import asyncio
 from datetime import timedelta
+from decimal import Decimal
 
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.adapters.run_store import save_run
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
-from gym.domain.model import iso, now_utc
+from gym.domain.model import TradeTick, iso, now_utc
 from gym.services.collector import Collector
 from gym.services.paper import paper
 from gym.services.rules import RuleService
-from tests.support import START, market_db, quote_history
+from tests.support import START, market_db, quote, quote_history
 from tests.test_depth_sequence import request as depth_request
 from tests.test_depth_sequence import snapshot
 from tests.test_venue_facts import sample
@@ -68,6 +69,41 @@ def test_all_native_extension_workflows_share_real_services_and_token_boundary(t
             converted = await action("unit-convert", {"value": reference("value", "TMN"), "factor": reference("factor", "TMN/TMN"),
                 "from_epoch": "old", "to_epoch": "new", "target_unit": "TMN", "as_of": iso(now_utc()), "max_age_seconds": 2678400, "max_skew_seconds": 0})
             assert converted["status"] == "AVAILABLE" and converted["value"] == "100.0"
+    try:
+        asyncio.run(check())
+    finally:
+        db.c.close()
+
+
+def test_trailing_stop_preview_uses_only_received_trades_and_post_activation_quotes(tmp_path):
+    seconds = timedelta(seconds=1)
+    db = market_db(tmp_path, [quote(START + offset * seconds, bid, "101")
+                             for offset, bid in ((2, "99"), (4, "97"), (6, "88"))])
+    for event, received, price in ((-2, -1, "110"), (1, 3, "100"), (-1, 9, "130")):
+        db.add_trade(TradeTick("BTCUSDT", START + event * seconds, START + received * seconds,
+                               Decimal(price), Decimal(1), "SELL"), "test")
+    collector = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT"], demo=True)
+
+    async def check():
+        async with TestClient(TestServer(make_app(collector, RuleService(db), "tok", tmp_path / "runs"))) as client:
+            value = {"symbol": "BTCUSDT", "from": iso(START), "to": iso(START + 8 * seconds), "side": "SELL",
+                     "quantity": "2", "fee_rate": "0", "type": "TRAILING_STOP", "trail_fraction": "0.05",
+                     "activation_delay_ms": 2000}
+            headers = {"X-Gym-Token": "tok"}
+            response = await client.post("/api/research/action", json={"action": "stop-preview", "value": value},
+                                         headers=headers)
+            assert response.status == 200, await response.text()
+            result = await response.json()
+            assert result["triggered_at"] == iso(START + 3 * seconds)
+            assert result["liquidation"]["quote_at"] == iso(START + 6 * seconds)
+            assert result["status"] == "PARTIAL_EXPOSED" and Decimal(result["unfilled_qty"]) == 1
+            assert result["evidence_tier"] == "MODELED_PAPER_REFERENCE" and not result["order_submitted"]
+            value["to"] = iso(START + 6 * seconds)
+            response = await client.post("/api/research/action", json={"action": "stop-preview", "value": value},
+                                         headers=headers)
+            assert response.status == 200, await response.text()
+            assert (await response.json())["status"] == "TRIGGERED_NO_QUOTE"
+
     try:
         asyncio.run(check())
     finally:

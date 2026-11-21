@@ -4,7 +4,7 @@ import os
 import re
 import tempfile
 import threading
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from ..domain.model import iso
@@ -44,11 +44,51 @@ def save_run(out: dict, root: Path) -> Path:
 
 
 _RUN_FILE = re.compile(r"[0-9a-f]{16}\.json")
-_SUMMARIES: dict[str, tuple[int, dict]] = {}  # run rows keyed by path, valid while mtime matches
+_SUMMARIES: dict[str, tuple[int, dict, dict]] = {}  # run rows and filter metadata, valid while mtime matches
 _SUMMARY_LOCK = threading.Lock()
+RUN_FILTER_FIELDS = ("date_from", "date_to", "model", "fee_rate", "evidence_stage", "benchmark", "data_gaps", "status")
 
 
-def list_runs(root: Path, limit: int = 50, offset: int = 0, symbol: str | None = None, strategy: str | None = None) -> list[dict]:
+def _run_filter_metadata(record):
+    inputs, result = record["inputs"], record["result"]
+    end = result.get("end") or {}
+    cost = inputs.get("cost") or {}
+    evidence = record.get("evidence") or {}
+    return {
+        "date": (inputs.get("from") or "")[:10],
+        "model": inputs.get("position_model") or (inputs.get("params") or {}).get("position_model") or inputs.get("engine"),
+        "fee_rate": cost.get("fee_rate", inputs.get("fee_rate")),
+        "evidence_stage": evidence.get("evidence_tier") or record.get("evidence_tier"),
+        "benchmark": tuple((record.get("baselines") or {}).keys()),
+        "data_gaps": evidence.get("data_gap_status") or result.get("data_gap_status"),
+        "status": end.get("valuation_status") or result.get("status"),
+    }
+
+
+def _matches_run_filters(metadata, filters):
+    for field, value in filters.items():
+        if field == "date_from":
+            if not metadata["date"] or metadata["date"] < value:
+                return False
+        elif field == "date_to":
+            if not metadata["date"] or metadata["date"] > value:
+                return False
+        elif field == "benchmark":
+            if value.casefold() not in {str(name).casefold() for name in metadata["benchmark"] or ("UNKNOWN",)}:
+                return False
+        elif field == "fee_rate" and metadata[field] is not None:
+            try:
+                if Decimal(str(metadata[field])) != Decimal(value):
+                    return False
+            except InvalidOperation:
+                return False
+        elif str(metadata[field] if metadata[field] is not None else "UNKNOWN").casefold() != value.casefold():
+            return False
+    return True
+
+
+def list_runs(root: Path, limit: int = 50, offset: int = 0, symbol: str | None = None, strategy: str | None = None,
+              filters: dict | None = None) -> list[dict]:
     """Newest runs first, optionally filtered. Polled every few seconds: only changed files are parsed."""
     try:
         with os.scandir(root) as scan:  # DirEntry.stat() comes from the directory listing on Windows
@@ -56,7 +96,7 @@ def list_runs(root: Path, limit: int = 50, offset: int = 0, symbol: str | None =
     except FileNotFoundError:
         return []
     entries.sort(key=lambda entry: entry.stat().st_mtime_ns, reverse=True)
-    if symbol is None and strategy is None:
+    if symbol is None and strategy is None and not filters:
         entries = entries[offset:offset + limit]
         offset = 0
     rows = []
@@ -65,10 +105,13 @@ def list_runs(root: Path, limit: int = 50, offset: int = 0, symbol: str | None =
             stamp, cached = entry.stat().st_mtime_ns, _SUMMARIES.get(entry.path)
             if cached is None or cached[0] != stamp:
                 record = json.loads(Path(entry.path).read_text("utf-8"))
-                cached = stamp, {"run_id": record["run_id"], "inputs": record["inputs"], "end": record["result"]["end"]}
+                cached = (stamp, {"run_id": record["run_id"], "inputs": record["inputs"], "end": record["result"]["end"]},
+                          _run_filter_metadata(record))
                 _SUMMARIES[entry.path] = cached
             inputs = cached[1]["inputs"]
-            if (symbol is None or inputs.get("symbol") == symbol) and (strategy is None or inputs.get("strategy") == strategy):
+            if ((symbol is None or inputs.get("symbol") == symbol or symbol in (inputs.get("symbols") or ()))
+                    and (strategy is None or inputs.get("strategy") == strategy)
+                    and _matches_run_filters(cached[2], filters or {})):
                 if offset:
                     offset -= 1
                 elif len(rows) < limit:

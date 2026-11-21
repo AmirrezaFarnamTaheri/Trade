@@ -1,6 +1,7 @@
 """Paired uplift, Hansen SPA, purged CPCV/PBO, sequential e-process, and causal research prototypes (S006-S023, R001-R004)."""
 from __future__ import annotations
 
+import json
 import math
 from decimal import Decimal
 from random import Random
@@ -96,6 +97,39 @@ def test_sequential_e_process_enforces_lower_bound_controls_null_and_detects_sig
     pos_r = [max(-0.4, rng.gauss(0.02, 0.01)) for _ in range(200)]
     res = sequential_e_process(pos_r, lower_bound=0.5, alpha=0.05)
     assert res["rejected_null"] is True and res["rejected_at_step"] is not None
+
+
+def test_rank_ic_uses_average_ranks_and_ignores_constant_rows():
+    returns = {day: dict(A=1, B=2, C=3, D=4) for day in ("1", "2", "3")}
+    constant = {day: dict(A=1, B=1, C=1, D=1) for day in returns}
+    result = factor_ic_analysis(constant, returns)
+    assert result["dates_evaluated"] == 0 and result["mean_rank_ic"] is None
+    tied = {day: dict(A=1, B=1, C=2, D=2) for day in returns}
+    result = factor_ic_analysis(tied, returns)
+    assert result["mean_rank_ic"] == result["mean_pearson_ic"] == 0.894427
+    assert result["ic_t_stat"] is None
+    assert [row["mean_forward_return"] for row in result["calibration_by_rank_quartile"]] == [None, 1.5, None, 3.5]
+
+
+def test_factor_ic_lab_cli_purges_actual_overlapping_intervals(tmp_path, capsys):
+    from gym.cli import main
+
+    def row(start, end):
+        return {"at": f"2026-10-{start:02}T00:00:00Z", "label_end": f"2026-10-{end:02}T00:00:00Z",
+                "factors": {"A": 1, "B": 1, "C": 2, "D": 2}, "forward_returns": {"A": 1, "B": 2, "C": 3, "D": 4}}
+
+    request = tmp_path / "labels.json"
+    request.write_text(json.dumps({"observations": [row(9, 11), row(1, 4), row(2, 3), row(4, 6)], "seed": 17}))
+    cmd = ["--data", str(tmp_path / "data"), "research", "factor-ic-lab", str(request)]
+    assert main(cmd) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["overlapping_rows_purged"] == 1 and result["dates_evaluated"] == 3
+    assert result["mean_rank_ic"] == 0.894427 and not result["registered_trial"]
+    assert not (tmp_path / "data").exists()
+    future = {**row(9, 11), "label_end": "2099-01-01T00:00:00Z"}
+    request.write_text(json.dumps({"observations": [future], "seed": 17}))
+    assert main(cmd) != 0
+    assert "complete forward labels" in capsys.readouterr().err
 
 
 def test_causal_ewmac_vol_targeting_edge_of_band_and_factor_ic_prototypes():

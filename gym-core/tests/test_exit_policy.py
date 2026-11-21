@@ -13,13 +13,14 @@ from tests.support import START, market_db, quote_history
 from tests.test_channel_strategies import snapshot
 
 
-def test_venue_stop_uses_received_trades_keeps_waiting_balance_free_and_works_partial_fills(tmp_path):
+@pytest.mark.parametrize("mode", (1, 2))
+def test_venue_stop_uses_received_trades_keeps_waiting_balance_free_and_works_partial_fills(tmp_path, mode):
     from gym.domain.model import BookTop, TradeTick
     from gym.services.data_portal import DataPortal
     from gym.services.session import PaperSession
 
     class EnterOnce:
-        name, params = "probe", {"exit_venue_stop": 1, "exit_stop_bps": 500}
+        name, params = "probe", {"exit_venue_stop": mode, "exit_stop_bps": 500}
         requires_position_context = True
         feature_values = {}
         entered = False
@@ -40,21 +41,34 @@ def test_venue_stop_uses_received_trades_keeps_waiting_balance_free_and_works_pa
             feed(at)
         assert session.venue_stop and session.pending is None
         held = session.book.get("BTC")
+        if mode == 2:
+            # A high print raises the stop only after receipt. Its event time follows the later-received dip.
+            db.add_trade(TradeTick("BTCUSDT", START + timedelta(seconds=63), START + timedelta(seconds=63),
+                                   Decimal(110), Decimal(1), "BUY"), None)
         db.add_trade(TradeTick("BTCUSDT", START + timedelta(seconds=62), START + timedelta(seconds=64),
-                               Decimal(90), Decimal(1), "SELL"), None)
+                               Decimal(100 if mode == 2 else 90), Decimal(1), "SELL"), None)
         feed(63, "90")  # crossing quotes alone, and an unreceived trade, do not activate a venue stop
         assert session.book.get("BTC") == held and session.venue_stop["activation"] is None
+        if mode == 2:
+            assert session.venue_stop["price"] == Decimal("104.5")
         feed(64, "90", "1")
+        if mode == 2:
+            assert session.book.get("BTC") == held  # same-receipt quote precedes the modeled order
+            feed(65, "90", "1")
         assert session.book.get("BTC") == held - Decimal("0.25")
         assert session.venue_stop["activation"] == START + timedelta(seconds=64)
         feed(122, "89")
         assert Decimal(session.decisions[-1]["balances_before"]["BTC"]) == held - Decimal("0.25")
         assert session.decisions[-1]["t"] == (START + timedelta(seconds=120)).isoformat(timespec="microseconds").replace("+00:00", "Z")
         assert session.book.get("BTC") == 0 and session.venue_stop is None
-        stops = [o for o in session.orders if o.get("kind") == "VENUE_STOP_MARKET"]
+        kind = "VENUE_TRAILING_STOP_MARKET" if mode == 2 else "VENUE_STOP_MARKET"
+        stops = [o for o in session.orders if o.get("kind") == kind]
         assert len(stops) == 2 and all(o["status"] == "FILLED" for o in stops)
         assert all(Decimal(v) >= 0 for v in session.book.balances.values())
         assert stops[0]["trigger_event_time"] != stops[0]["trigger_available_at"]
+        if mode == 2:
+            assert stops[0]["high_water"] == "110"
+            assert stops[0]["active_at"] > stops[0]["trigger_available_at"]
         with pytest.raises(ValueError, match="fixed exit stop"):
             create_strategy("ema-trend", {"exit_venue_stop": 1})
         with pytest.raises(ValueError, match="fixed stop only"):

@@ -260,6 +260,8 @@ const click = async id => {
     control("prospective-test-to").value = "2099-01-03T00:00";
     control("prospective-resolution").value = "15min";
     control("prospective-cash").value = "1000.000000000000000001";
+    control("prospective-hypothesis").value = "A candidate improves on quote cash";
+    control("prospective-minimum-uplift").value = "25.5";
     control("prospective-fee").value = "0.001";
     control("prospective-strategy-first").value = "ema-trend";
     control("prospective-strategy-second").value = "sma-cross";
@@ -287,6 +289,8 @@ const click = async id => {
     assert.equal(registration.action, "prospective-register");
     assert.equal(registration.value.cash, "1000.000000000000000001", "Money must remain an exact decimal string");
     assert.equal(registration.value.test_from, "2099-01-02T00:00:00Z");
+    assert.equal(registration.value.study_intent.benchmark, "HOLD_QUOTE_CASH");
+    assert.equal(registration.value.study_intent.minimum_net_uplift_bps, "25.5");
     assert.deepEqual(JSON.parse(JSON.stringify(registration.value.candidates)), [
       {strategy: "ema-trend", params: {}}, {strategy: "sma-cross", params: {}}
     ], "Two distinct strategies with default canonical parameters");

@@ -1,6 +1,7 @@
 """Executable-net gate, depth-walk liquidation, latency/queue/stop contracts, and causal reconnect audits (X001-X022, M003-M005)."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 
@@ -30,6 +31,7 @@ def test_executable_net_gate_refuses_unknown_spec_fee_quote_halt_and_min_notiona
         side="BUY", order_type="MARKET", quantity=Decimal("0.1"),
         spec=_valid_spec(), fee_rate=Decimal("0.001"), fee_source="/v1/account/fee@2026-11-01",
         quote=q, depth_levels=((Decimal("101"), Decimal("1.0")),),
+        execution_at=q.ts_avail, market_status_at=q.ts_avail, halted=False,
     )
     assert ok["status"] == "QUALIFIED" and ok["evidence_tier"] == "HISTORICALLY_CONSTRAINED_PAPER"
 
@@ -44,6 +46,7 @@ def test_executable_net_gate_refuses_unknown_spec_fee_quote_halt_and_min_notiona
     zero_fee = qualify_executable_net(
         side="BUY", order_type="MARKET", quantity=Decimal("0.1"),
         spec=_valid_spec(), fee_rate=Decimal("0"), fee_source="catalogue:is_zero_fee", quote=q, is_zero_fee=True,
+        depth_levels=((q.ask, q.ask_qty),), execution_at=q.ts_avail, market_status_at=q.ts_avail, halted=False,
     )
     assert zero_fee["qualified"] is True
 
@@ -52,6 +55,7 @@ def test_executable_net_gate_refuses_unknown_spec_fee_quote_halt_and_min_notiona
         side="BUY", order_type="MARKET", quantity=Decimal("0.1"),
         spec={**_valid_spec(), "isMarketTypeEnable": False},
         fee_rate=Decimal("0.001"), fee_source="acct", quote=q,
+        depth_levels=((q.ask, q.ask_qty),), execution_at=q.ts_avail, market_status_at=q.ts_avail, halted=False,
     )
     assert no_mkt["status"] == "REFUSED" and "MARKET_ORDER_DISABLED" in no_mkt["reasons"]
 
@@ -59,6 +63,7 @@ def test_executable_net_gate_refuses_unknown_spec_fee_quote_halt_and_min_notiona
     dust = qualify_executable_net(
         side="SELL", order_type="MARKET", quantity=Decimal("0.01"),
         spec=_valid_spec(), fee_rate=Decimal("0.001"), fee_source="acct", quote=q,
+        depth_levels=((q.bid, q.bid_qty),), execution_at=q.ts_avail, market_status_at=q.ts_avail, halted=False,
     )
     assert dust["status"] == "REFUSED" and "BELOW_MIN_LOT_OR_NOTIONAL" in dust["reasons"]
 
@@ -68,6 +73,37 @@ def test_executable_net_gate_refuses_unknown_spec_fee_quote_halt_and_min_notiona
         spec=_valid_spec(), fee_rate=Decimal("0.001"), fee_source="acct", quote=q, halted=True,
     )
     assert halted["status"] == "REFUSED" and "MARKET_HALTED" in halted["reasons"]
+
+
+def test_market_qualification_requires_fresh_status_quote_and_capacity():
+    q = quote(START, "100", "101")
+    arguments = dict(side="BUY", order_type="MARKET", quantity=Decimal("0.1"), spec=_valid_spec(),
+                     fee_rate=Decimal("0.001"), fee_source="acct", quote=q, halted=False,
+                     execution_at=START, market_status_at=START, depth_levels=((q.ask, q.ask_qty),))
+    for overrides, reason in [
+        ({"depth_levels": None}, "UNKNOWN_DISPLAYED_DEPTH"),
+        ({"depth_levels": ((q.ask, Decimal("0.01")),)}, "PARTIAL_DEPTH_ONLY"),
+        ({"halted": None}, "UNKNOWN_MARKET_STATUS"),
+        ({"execution_at": START + timedelta(seconds=121),
+          "market_status_at": START + timedelta(seconds=121)}, "UNQUALIFIED_OR_STALE_QUOTE"),
+    ]:
+        report = qualify_executable_net(**(arguments | overrides))
+        assert not report["qualified"] and reason in report["reasons"]
+
+
+def test_trailing_stop_observes_receipts_before_using_quotes():
+    high = TradeTick("BTCUSDT", START + timedelta(seconds=1), START + timedelta(seconds=2), Decimal("110"), Decimal("1"), "BUY")
+    low = TradeTick("BTCUSDT", START, START + timedelta(seconds=10), Decimal("100"), Decimal("1"), "SELL")
+    early = quote(START + timedelta(seconds=5), "99", "100")
+    late = quote(START + timedelta(seconds=12), "90", "91")
+    arguments = dict(side="SELL", quantity=Decimal("0.1"), trail_fraction=Decimal("0.05"),
+                     trades=[low, high], fee_rate=Decimal(0), activation_delay=timedelta(seconds=2))
+    assert simulate_trailing_stop(quotes=[early], **arguments)["status"] == "TRIGGERED_NO_QUOTE"
+    report = simulate_trailing_stop(quotes=[late, early], **arguments)
+    assert report["status"] == "FILLED"
+    assert Decimal(report["liquidation"]["vwap"]) == Decimal("90")
+    report = simulate_trailing_stop(quotes=[replace(late, bid_qty=None)], **arguments)
+    assert report["status"] == "TRIGGERED_UNFILLED" and report["liquidation"]["status"] == "UNAVAILABLE"
 
 
 def test_depth_walk_liquidation_reports_full_partial_and_unavailable_without_extrapolation():
@@ -116,6 +152,11 @@ def test_latency_phases_and_maker_queue_post_only_cancel_race_and_duplicate_prin
     assert res["filled_qty"] == "2"
     assert res["unambiguous_filled_qty"] == "0"
     assert res["ambiguous_print_qty"] == "2"
+    delayed = TradeTick("BTCUSDT", t1.ts_event, t_after_cancel.ts_avail, t1.price, t1.qty, "SELL")
+    wrong_side = TradeTick("BTCUSDT", t1.ts_event, t1.ts_avail, t1.price, t1.qty, "BUY")
+    refused = maker_queue_fill(side="BUY", limit_price=t1.price, order_qty=t1.qty, queue_ahead=Decimal(0),
+                              trades=[delayed, wrong_side], active_at=START, cancel_effective_at=START + timedelta(seconds=4))
+    assert refused["filled_qty"] == "0"
 
 
 def test_stop_limit_and_causal_trailing_stop_contracts():

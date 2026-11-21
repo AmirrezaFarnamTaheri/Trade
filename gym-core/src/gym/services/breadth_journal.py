@@ -54,16 +54,23 @@ def _last_close(portal, symbol, now):
     return candles[-1]["c"] if candles else Decimal(0)
 
 
-def run_breadth_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"), max_quote_age=timedelta(minutes=5)):
+def run_breadth_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"), max_quote_age=timedelta(minutes=5),
+                    required_day=None):
     """Decide, paper-fill and append today's entry; returns it (or why nothing was recorded)."""
     path = root / JOURNAL
     with journal_lock(path):
-        return _run_breadth_day_locked(db, root, path, now, cash=cash, fee_rate=fee_rate, max_quote_age=max_quote_age)
+        return _run_breadth_day_locked(db, root, path, now, cash=cash, fee_rate=fee_rate, max_quote_age=max_quote_age,
+                                      required_day=required_day)
 
 
-def _run_breadth_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age):
+def _run_breadth_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age, required_day):
     portal, past = DataPortal(db), journal(root)
+    if required_day is not None and any(entry["day"] == iso(required_day) for entry in past):
+        return {"status": "ALREADY_DECIDED", "day": iso(required_day)}
     last_day, bars = _daily_bars(portal, db, now)
+    if required_day is not None and last_day != required_day:
+        return {"status": "MISSING_REQUIRED_DAY", "required_day": iso(required_day), "latest_available_day": iso(last_day),
+                "at": iso(now)}
     if last_day is None:
         return {"status": "NO_CANDLES", "at": iso(now)}
     if any(entry["day"] == iso(last_day) for entry in past):

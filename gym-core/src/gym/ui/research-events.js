@@ -49,7 +49,17 @@ $("compare-picked").addEventListener("click", async () => {
     renderSavedComparison(records);
   } catch (_) { setHTML("run-detail", empty(t("runReadError"))); }
 });
-$("run-filter").addEventListener("change", () => { state.runFilter = $("run-filter").value.trim().toUpperCase(); state.runOffset = 0; refresh(); });
+$("run-filter-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const query = new URLSearchParams();
+  for (const [key, value] of new FormData(event.currentTarget)) {
+    const cleaned = value.trim();
+    if (cleaned) query.set(key, key === "symbol" ? cleaned.toUpperCase() : cleaned);
+  }
+  state.runFilter = query.toString();
+  state.runOffset = 0;
+  refresh();
+});
 $("run-more").addEventListener("click", () => { state.runOffset = Math.min(1_000_000, state.runOffset + 50); refresh(); });
 $("run-previous").addEventListener("click", () => { state.runOffset = Math.max(0, state.runOffset - 50); refresh(); });
 $("run-detail").addEventListener("click", async event => {
@@ -57,6 +67,19 @@ $("run-detail").addEventListener("click", async event => {
   if (csvButton && state.record) { exportCsv(csvButton.dataset.csv, state.record); return; }
   const goto = event.target.closest?.("[data-goto-tab]");
   if (goto) { showResearchTab(goto.dataset.gotoTab, true); return; }
+  const costBtn = event.target.closest?.("[data-cost-lab]");
+  if (costBtn?.dataset.costLab) {
+    costBtn.disabled = true;
+    setHTML("cost-lab-output", empty(t("loading")));
+    try {
+      const data = await api(`/api/cost-lab?run_id=${encodeURIComponent(costBtn.dataset.costLab)}`);
+      setHTML("cost-lab-output", `<h4>${esc(t("costLabTitle"))}</h4><p class="field-help">${esc(t("costLabNote"))}</p>${table([t("costScenario"), t("evidenceTier"), t("totalReturn"), t("costDragBps")], list(data.scenarios).map(s => [
+        esc(s.name), label(s.evidence_tier), percent(s.net_return, 2), num(s.cost_drag_bps),
+      ]), t("nothing"))}`);
+    } catch (_) { setHTML("cost-lab-output", empty(t("requestError"))); }
+    finally { costBtn.disabled = false; }
+    return;
+  }
   const button = event.target.closest?.("[data-export-run]") || event.target;
   if (!button.dataset.exportRun) return;
   button.disabled = true;

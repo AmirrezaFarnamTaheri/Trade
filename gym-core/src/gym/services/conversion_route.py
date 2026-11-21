@@ -24,6 +24,14 @@ class Touch:
     at: str
 
 
+def _leg(symbol: str, touch: Touch, side: str) -> dict:
+    mid = (touch.bid + touch.ask) / 2
+    return {"symbol": symbol, "side": side, "bid": str(touch.bid), "ask": str(touch.ask),
+            "displayed_base_quantity": str(touch.ask_qty if side == "BUY" else touch.bid_qty),
+            "spread_bps": str(((touch.ask - touch.bid) / mid * 10000).quantize(Decimal("0.01"))),
+            "quote_at": touch.at}
+
+
 def routes(touches: dict[str, Touch], amount: Decimal, direction: str, fee: Decimal) -> list[dict]:
     """Every available route for `amount` (TMN or USDT, by direction), best first by amount received."""
     if direction not in DIRECTIONS or amount <= 0 or not 0 <= fee < 1:
@@ -36,22 +44,26 @@ def routes(touches: dict[str, Touch], amount: Decimal, direction: str, fee: Deci
             received, capacity = amount / direct.ask * keep, direct.ask_qty * direct.ask
         else:
             received, capacity = amount * direct.bid * keep, direct.bid_qty
-        found.append({"route": "USDTTMN", "legs": 1, "received": received, "capacity": capacity, "quotes_at": [direct.at]})
+        found.append({"route": "USDTTMN", "legs": 1, "received": received, "capacity": capacity, "quotes_at": [direct.at],
+                      "leg_details": [_leg("USDTTMN", direct, "BUY" if direction == "TMN_TO_USDT" else "SELL")]})
     coins = {symbol[:-3] for symbol in touches if symbol.endswith("TMN") and symbol != "USDTTMN"}
     for coin in sorted(coins):
         in_tmn, in_usdt = touches.get(coin + "TMN"), touches.get(coin + "USDT")
         if not in_tmn or not in_usdt:
             continue
         if direction == "TMN_TO_USDT":
+            legs = [_leg(coin + "TMN", in_tmn, "BUY"), _leg(coin + "USDT", in_usdt, "SELL")]
             units = amount / in_tmn.ask * keep
             received = units * in_usdt.bid * keep
             capacity = min(in_tmn.ask_qty, in_usdt.bid_qty) * in_tmn.ask  # in TMN spent
         else:
+            legs = [_leg(coin + "USDT", in_usdt, "BUY"), _leg(coin + "TMN", in_tmn, "SELL")]
             units = amount / in_usdt.ask * keep
             received = units * in_tmn.bid * keep
             capacity = min(in_usdt.ask_qty, in_tmn.bid_qty) * in_usdt.ask  # in USDT spent
         found.append({"route": f"{coin}TMN > {coin}USDT" if direction == "TMN_TO_USDT" else f"{coin}USDT > {coin}TMN",
-                      "legs": 2, "received": received, "capacity": capacity, "quotes_at": [in_tmn.at, in_usdt.at]})
+                      "legs": 2, "received": received, "capacity": capacity, "quotes_at": [in_tmn.at, in_usdt.at],
+                      "leg_details": legs})
     for row in found:
         row["fits_displayed_size"] = amount <= row["capacity"]
     return sorted(found, key=lambda row: (not row["fits_displayed_size"], -row["received"]))
@@ -81,12 +93,14 @@ def recommend(db, amount: Decimal, direction: str, at, fee: Decimal = Decimal("0
     found = routes(latest_touches(db, at), amount, direction, fee)
     direct = next((row for row in found if row["route"] == "USDTTMN"), None)
     best = found[0] if found else None
-    saving = (None if not (best and direct) or not best["fits_displayed_size"]
+    saving = (None if not (best and direct and best["fits_displayed_size"] and direct["fits_displayed_size"])
               else float((best["received"] / direct["received"] - 1) * 10000))
     as_text = lambda row: {**row, "received": str(row["received"].quantize(Decimal("0.000001"))),  # noqa: E731
                            "capacity": str(row["capacity"].quantize(Decimal("0.01")))}
     return {"direction": direction, "amount": str(amount), "at": iso(parse_ts(at) if isinstance(at, str) else at),
-            "fee_per_leg": str(fee), "direct_available": direct is not None,
+            "fee_per_leg": str(fee), "depth_scope": "TOP_OF_BOOK_ONLY", "max_quote_age_seconds": MAX_QUOTE_AGE_SECONDS,
+            "direct_available": direct is not None,
+            "direct_route": as_text(direct) if direct is not None else None,
             "saving_vs_direct_bps": None if saving is None else round(saving, 2),
             "routes": [as_text(row) for row in found[:top]], "order_submitted": False}
 

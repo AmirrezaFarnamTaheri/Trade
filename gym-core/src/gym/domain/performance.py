@@ -529,6 +529,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
         out.pop("trades")
         if out["activity"] is not None:
             out["activity"]["turnover"] = stats["turnover"]
+        if inputs.get("kind") == "portfolio" and inputs.get("trade_accounting") == "booked-notional/1":
+            from .portfolio_diagnostics import economic_portfolio_attribution
+
+            out["economic_attribution"] = economic_portfolio_attribution(record)
     out["abstentions"] = _abstentions(result)
     out["attribution"] = signal_attribution(result, ledger=ledger)
     out["ledger"] = trades

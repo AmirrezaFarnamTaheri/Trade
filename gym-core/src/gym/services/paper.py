@@ -79,7 +79,8 @@ def session_result(session, tops, cash, *, digest_cache=None, digest_key=None):
         result["session"]["venue_stop"] = None if session.venue_stop is None else {
             key: iso(v) if isinstance(v, datetime) else str(v) if isinstance(v, Decimal) else v
             for key, v in session.venue_stop.items()}
-        result["session"]["venue_stop_model"] = "received-trade-stop-market/1"
+        result["session"]["venue_stop_model"] = ("received-trade-trailing-stop-market/1"
+                                                  if strategy.params["exit_venue_stop"] == 2 else "received-trade-stop-market/1")
     if cost.order_type == "limit":
         result["session"]["price_band_reference"] = {
             "status": "ESTIMATED", "basis": "FIRST_OBSERVED_TEHRAN_DAY_MID",
@@ -290,7 +291,9 @@ def warnings(main, store, rules_mode, portal, symbol, t0, cost) -> list[str]:
         w.append("Price-band reference ESTIMATED from the first observed Tehran-day midpoint; Wallex does not publish a daily reference price or band.")
     effective = main.get("effective_cost", cost.describe())
     w.append(f"Modeled fee rate {Decimal(effective['fee_rate']) * 100}% per side; fee currency is an assumption. Confirm the account and pair fee.")
-    if main.get("params", {}).get("exit_venue_stop"):
+    if main.get("params", {}).get("exit_venue_stop") == 2:
+        w.append("Trailing paper stop-market: received trades raise the high-water mark and trigger the exit. The modeled delay and displayed quotes govern fills. No venue order is placed.")
+    elif main.get("params", {}).get("exit_venue_stop"):
         w.append("Fixed paper stop-market: received public trades trigger the exit; observed quotes supply fills. Gaps and insufficient depth can delay or prevent the exit; no venue order is placed.")
     if main["strategy"] in ("trend-pullback","adaptive-channel"):
         w.append("Compound paper policy: entry spread and displayed top-depth participation are checked at decision and fill; no queue or full-depth fill model. Baselines retain their original unconstrained execution model.")

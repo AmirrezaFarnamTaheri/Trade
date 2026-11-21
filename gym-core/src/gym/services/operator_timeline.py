@@ -13,6 +13,10 @@ from pathlib import Path
 
 # (source, file, SQL returning (at, kind, summary) newest first with one LIMIT parameter)
 SOURCES = (
+    ("feed-quality", "market.db",
+     ("SELECT ts, flag, coalesce(instrument_id || ': ', '') || coalesce(detail, '') "
+      "FROM quality_events WHERE flag IN ('GAP','SOURCE_ERROR','CLOCK_REGRESSION','MAINTENANCE_FAILED') "
+      "ORDER BY rowid DESC LIMIT ?")),
     ("experiments", "experiments.sqlite3",
      ("SELECT json_extract(body,'$.recorded_at'), kind, coalesce(json_extract(body,'$.run_id'), id) || "
       "coalesce(' ' || json_extract(body,'$.state'), '') || coalesce(' net ' || json_extract(body,'$.net_quote'), '') "

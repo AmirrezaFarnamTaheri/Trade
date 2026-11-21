@@ -58,3 +58,4 @@ $("rule-import-submit").onclick = async () => {
   } catch (_) { input.setAttribute("aria-invalid", "true"); $("rule-import-result").textContent = t("importError"); }
   finally { button.disabled = false; button.removeAttribute("aria-busy"); }
 };
+$("operator-timeline-form").addEventListener("submit", loadOperatorTimeline);

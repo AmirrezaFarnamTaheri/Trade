@@ -88,11 +88,31 @@ def build_release_bundle(
         "verdict": verdict,
         "failure_reason": failure_reason,
         "custodian": custodian,
-        "independent_custody": bool(independent_custody),
+        "independent_custody": False,
         "released_at": iso(released_at or datetime.now(UTC)),
         "funded_authority": False,
     }
     return {**body, "bundle_sha256": digest(body)}
+
+
+def verify_release_attestation(bundle: dict, signature: bytes, trusted_public_key: bytes, *, expected_digest: str) -> dict:
+    """Verify a detached Ed25519 signature over a pinned bundle digest, even for negative outcomes."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    body = {key: value for key, value in bundle.items() if key != "bundle_sha256"}
+    calculated = digest(body)
+    authenticated = False
+    if (body.get("schema") == "release-bundle/1" and bundle.get("bundle_sha256") == calculated == expected_digest
+            and len(signature) == 64 and len(trusted_public_key) == 32):
+        message = b"TradingGYM release-bundle/1\x00" + bytes.fromhex(calculated)
+        try:
+            Ed25519PublicKey.from_public_bytes(trusted_public_key).verify(signature, message)
+            authenticated = True
+        except (InvalidSignature, ValueError):
+            pass
+    return {"bundle_sha256": calculated, "authenticated_signature": authenticated,
+            "independent_custody": False, "funded_authority": False}
 
 
 def record_analyst_peek(
@@ -169,13 +189,18 @@ def _summarize_journal(name: str, entries: list[dict], as_of_day: date, *, check
             "stale_or_nonready_days": 0,
             "duplicate_days": [],
         }
-    raw_days = [row["day"][:10] for row in entries if row.get("day")]
+    days = set()
     seen, duplicates = set(), []
-    for d in raw_days:
-        if d in seen:
+    for row in entries:
+        if not row.get("day"):
+            continue
+        d = row["day"][:10]
+        key = (row.get("symbol"), d) if check_parity else d
+        if key in seen:
             duplicates.append(d)
-        seen.add(d)
-    ordered = sorted(seen)
+        seen.add(key)
+        days.add(d)
+    ordered = sorted(days)
     if ordered:
         first_d, last_d = date.fromisoformat(ordered[0]), date.fromisoformat(ordered[-1])
         span = (last_d - first_d).days + 1

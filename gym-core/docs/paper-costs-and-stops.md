@@ -46,6 +46,8 @@ The run retains trigger event/receipt times, fill/nonfill records, unfinished st
 state and consumed trade evidence in its identity, including shared-cash portfolios
 and replay checkpoints. Input budgets fail explicitly rather than dropping ticks.
 
+Set `exit_venue_stop=2` for a received-trade trailing stop. Set the positive trail distance in `exit_stop_bps`. The high-water mark starts at the actual entry fill and rises with eligible received prints. A triggering print freezes the stop and starts the modeled order delay from its receipt time. Replay uses the declared cost latency, with a minimum of one microsecond to exclude same-receipt quotes. Output records the high-water mark and activation time. Strategy and shared-cash replays use the existing quote and rule-bounded paper order path. This mode does not model a venue-native trailing order.
+
 This is a paper model of a fixed stop-market order. It does not install a venue
 order, certify activation/queue latency, or promise an exit across gaps, closures,
 unknown rules or insufficient liquidity. Historical candles cannot supply missing

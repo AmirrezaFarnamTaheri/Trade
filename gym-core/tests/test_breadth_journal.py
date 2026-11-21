@@ -99,6 +99,9 @@ def test_a_failed_refresh_still_records_the_day_from_stored_candles(tmp_path, mo
     monkeypatch.setattr(research, "now_utc", lambda: NOW)
     assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 0
     assert journal(tmp_path / "live")[0]["day"] == "2026-10-19T00:00:00.000000Z"
+    monkeypatch.setattr(research, "now_utc", lambda: NOW + timedelta(days=1))
+    assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 1
+    assert len(journal(tmp_path / "live")) == 1
 
 
 def test_best_effort_refresh_skips_one_failing_symbol_without_stalling_universe(tmp_path, monkeypatch):

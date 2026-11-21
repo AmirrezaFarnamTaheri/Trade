@@ -124,6 +124,23 @@ function stop(child) {
     }
   }
   const critical = Object.entries(accessibility).flatMap(([route, found]) => found.filter(v => v.impact === 'critical').map(v => `${route}: ${v.id} (${v.nodes}) ${v.help}`));
+  assert.equal(await evaluate("performance.getEntriesByType('resource').some(({name}) => name.includes('/operator-timeline.mjs'))"), false,
+    'evidence module stays off the startup path');
+  await evaluate(`(() => {
+    document.querySelector('nav [data-view="health"]').click();
+    document.querySelector('#operator-timeline-source').value = 'feed-quality';
+    document.querySelector('#operator-timeline-form').requestSubmit();
+  })()`);
+  await until(() => evaluate(`performance.getEntriesByType('resource').some(({name}) =>
+    name.includes('/api/timeline?') && new URL(name).searchParams.get('source') === 'feed-quality')
+    && document.querySelector('#operator-timeline-results').textContent.trim()
+    && !document.querySelector('#operator-timeline-form button').disabled
+    && !document.querySelector('#operator-timeline-results').textContent.includes(t('requestError'))`),
+  'filtered evidence timeline');
+  assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(({name}) => {
+    const url = new URL(name);
+    return url.pathname === '/operator-timeline.mjs' && /^[a-f0-9]{16}$/.test(url.searchParams.get('v'));
+  }).length`), 1, 'versioned evidence module loads on demand');
   for (const [route, found] of Object.entries(accessibility))
     for (const v of found.filter(v => v.impact === 'serious')) console.log(`a11y serious · ${route}: ${v.id} (${v.nodes}) ${v.help}`);
   assert.deepEqual(critical, [], 'critical accessibility violations');
@@ -137,6 +154,29 @@ function stop(child) {
     screenshots.push(name);
   }
   await screenshot('markets-desktop.png');
+  await evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.__restoreFxFetch = () => { window.fetch = original; };
+    window.fetch = (url, init) => String(url).includes('/api/fx-route?')
+      ? Promise.resolve(Response.json({
+        direction: 'TMN_TO_USDT', fee_per_leg: '0.001', depth_scope: 'TOP_OF_BOOK_ONLY', max_quote_age_seconds: 120,
+        routes: [{route: 'BTCTMN > BTCUSDT', legs: 2, received: '100.500000', capacity: '10000000',
+          fits_displayed_size: true, leg_details: [{symbol: 'BTCTMN', side: 'BUY', bid: '9000000', ask: '9001000',
+            displayed_base_quantity: '2', spread_bps: '1.11', quote_at: '2026-11-21T10:00:00.000000Z'}]}],
+        direct_available: true,
+        direct_route: {route: 'USDTTMN', legs: 1, received: '100.000000'},
+        saving_vs_direct_bps: 50,
+        order_submitted: false
+      })) : original(url, init);
+    document.querySelector('#fx-route-form').closest('details').open = true;
+    document.querySelector('#fx-route-submit').click();
+  })()`);
+  await until(() => evaluate(`(() => {
+    const text = document.querySelector('#fx-route-output').textContent;
+    return text.includes('BTCTMN > BTCUSDT') && text.includes('100') && text.includes('50')
+      && text.includes('2026-11-21T10:00:00.000000Z') && text.includes('120');
+  })()`), 'successful FX route, direct proceeds and quote evidence');
+  await evaluate("window.__restoreFxFetch(); document.querySelector('#fx-route-form').closest('details').open = false");
   async function openMarketDepth() {
     await until(() => evaluate(`document.querySelector('[data-market="BTCUSDT"]')`), 'BTCUSDT row');
     await evaluate(`(() => {
@@ -183,6 +223,27 @@ function stop(child) {
     }
   }
   await evaluate('document.querySelector("nav [data-view=research]").click()');
+  await evaluate(`(() => {
+    const form = document.querySelector("#run-filter-form");
+    form.elements.symbol.value = "btcusdt";
+    form.elements.strategy.value = "ema-trend";
+    form.elements.date_from.value = "2026-11-01";
+    form.elements.fee_rate.value = "0.001";
+    form.elements.evidence_stage.value = "UNKNOWN";
+    form.requestSubmit();
+  })()`);
+  await until(() => evaluate(`performance.getEntriesByType('resource').some(({name}) => {
+    if (!name.includes('/api/runs?')) return false;
+    const {searchParams: q} = new URL(name);
+    return q.get('symbol') === 'BTCUSDT' && q.get('strategy') === 'ema-trend'
+      && q.get('date_from') === '2026-11-01' && q.get('fee_rate') === '0.001'
+      && q.get('evidence_stage') === 'UNKNOWN' && q.get('offset') === '0';
+  })`), 'saved run filters submit to the real catalog endpoint');
+  await evaluate(`(() => {
+    const form = document.querySelector("#run-filter-form");
+    form.reset();
+    form.requestSubmit();
+  })()`);
   await evaluate('document.querySelector("#tab-compare").click()');
   await until(() => evaluate('!document.querySelector("#comparison-fields").disabled'), 'research catalog');
   await evaluate(`(() => {
@@ -223,6 +284,24 @@ function stop(child) {
   })()`), 'saved demo run benchmark');
   assert.deepEqual(benchmark.zeros, ['50', '50']);
   assert.equal(Number(benchmark.cash), 0);
+  assert.ok(await evaluate(`(() => {
+    const placed = '2026-11-21T10:00:00.000000Z';
+    const receipt = {ref: 'BTCUSDT#1', maker: true, placed_at: placed, status: 'FILLED', queue_ahead: '3',
+      limit_prints_considered: 2, suspected_identical_prints: 1, identical_print_capacity_qty: '0.2', qty: '0.5'};
+    renderRun({...state.record, result: {...state.record.result, orders: [receipt,
+      {ref: 'BTCUSDT#1.1', parent: 'BTCUSDT#1', placed_at: placed, status: 'CANCELLED', remaining_qty: '0.8'}]}});
+    const timeline = document.querySelector('[data-key="maker-timeline"]');
+    const passed = timeline.querySelectorAll('tbody tr').length === 2
+      && timeline.textContent.includes('BTCUSDT#1 → BTCUSDT#1.1')
+      && timeline.textContent.includes('0.2') && timeline.textContent.includes(t('unknown'));
+    const filter = timeline.querySelector('[data-maker-status]');
+    filter.value = 'CANCELLED';
+    filter.dispatchEvent(new Event('change', {bubbles: true}));
+    const filtered = document.querySelectorAll('[data-key="maker-timeline"] tbody tr');
+    const matched = filtered.length === 1 && filtered[0].textContent.includes('BTCUSDT#1.1');
+    renderRun(state.record);
+    return passed && matched;
+  })()`), 'maker timeline retains partial, duplicate and unknown evidence');
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-desktop-en.png');
   await evaluate(`(() => {
     const summary = document.querySelector('[data-key="run-benchmarks"] summary');
@@ -238,8 +317,11 @@ function stop(child) {
   assert.ok(await evaluate(`document.documentElement.dir === 'rtl' && document.documentElement.scrollWidth <= innerWidth + 1 &&
     document.querySelector('[data-key="run-benchmarks"] summary').getBoundingClientRect().height >= 44`));
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-mobile-fa-dark.png');
-  await evaluate(`renderRun({ ...state.record, baselines: {} }); document.querySelector('[data-key="run-benchmarks"]').closest('section').scrollIntoView()`);
-  assert.ok(await evaluate(`!document.querySelector('.run-benchmark') && document.querySelector('#run-detail').textContent.includes(t('baselineMissing'))`));
+  assert.ok(await evaluate(`(() => {
+    renderRun({ ...state.record, baselines: {} });
+    document.querySelector('[data-key="run-benchmarks"]').closest('section').scrollIntoView();
+    return !document.querySelector('.run-benchmark') && document.querySelector('#run-detail').textContent.includes(t('baselineMissing'));
+  })()`));
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-unavailable-fa.png');
   await send('Emulation.clearDeviceMetricsOverride');
   await evaluate(`document.querySelector('#language-toggle').click(); document.querySelector('#theme-toggle').click();

@@ -55,3 +55,23 @@ def test_run_list_pages_and_filters_newest_first(tmp_path):
     assert ids(list_runs(tmp_path, symbol="BTCTMN")) == [3, 1]
     assert ids(list_runs(tmp_path, limit=1, offset=1, symbol="ETHTMN")) == [2]
     assert list_runs(tmp_path, strategy="sma-reversion") == []
+
+
+def test_catalog_filters_apply_to_recorded_metadata_before_pagination(tmp_path):
+    for i in range(3):
+        record = {
+            "run_id": f"{i:016x}",
+            "inputs": {"from": f"2026-11-0{i + 1}T00:00:00Z", "strategy": "ema-trend",
+                       "cost": {"fee_rate": "0.0010"}, "params": {"position_model": "inventory/2"}},
+            "result": {"end": {"valuation_status": "STALE_VALUATION"}},
+            "evidence": {"data_gap_status": "GAPPED"},
+            "baselines": {"cash": {}},
+        }
+        os.utime(save_run(record, tmp_path), ns=(i * 10**9, i * 10**9))
+    filters = {"date_from": "2026-11-02", "date_to": "2026-11-03", "model": "inventory/2",
+               "fee_rate": "0.001", "evidence_stage": "UNKNOWN", "benchmark": "cash",
+               "data_gaps": "gapped", "status": "STALE_VALUATION"}
+    [row] = list_runs(tmp_path, limit=1, offset=1, strategy="ema-trend", filters=filters)
+    assert row["run_id"] == "0000000000000001"
+    assert list_runs(tmp_path, filters={**filters, "evidence_stage": "INDEPENDENTLY_RELEASED"}) == []
+    assert list_runs(tmp_path, filters={**filters, "fee_rate": "UNKNOWN"}) == []

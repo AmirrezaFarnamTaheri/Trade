@@ -100,11 +100,12 @@ def test_limit_print_changes_change_portfolio_identity(tmp_path):
         db.c.close()
 
 
-def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path):
+@pytest.mark.parametrize("mode", (1, 2))
+def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path, mode):
     rows = quote_history(n=100) + quote_history(n=100, sym="ETHUSDT")
     db = market_db(tmp_path, rows)
     try:
-        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3, "exit_stop_bps": 500, "exit_venue_stop": 1}}
+        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3, "exit_stop_bps": 500, "exit_venue_stop": mode}}
         before = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=17), **options)
         for q in rows:
             db.add_trade(TradeTick(q.symbol, q.ts_avail, q.ts_avail, q.bid * Decimal("0.9"), Decimal(1), "SELL"), "stop-print")
@@ -112,7 +113,8 @@ def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path):
         assert before["inputs"]["stop_trades"] != after["inputs"]["stop_trades"]
         assert before["run_id"] != after["run_id"]
         assert Decimal(after["result"]["balances"]["USDT"]) >= 0
-        assert any(o.get("kind") == "VENUE_STOP_MARKET" for market in after["result"]["markets"].values() for o in market["orders"])
+        kind = "VENUE_TRAILING_STOP_MARKET" if mode == 2 else "VENUE_STOP_MARKET"
+        assert any(o.get("kind") == kind for market in after["result"]["markets"].values() for o in market["orders"])
     finally:
         db.c.close()
 

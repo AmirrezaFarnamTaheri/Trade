@@ -208,6 +208,26 @@ async function sloDiagnostics() {
     ])}<h3>${esc(t("attentionQueue"))}</h3>${attentionHtml}`);
   } catch (_) { setHTML("health-slo", empty(t("sloError"))); throw new Error(t("requestError")); }
 }
+
+async function loadOperatorTimeline(event) {
+  event.preventDefault();
+  const form = event.currentTarget, button = form.querySelector("button");
+  const source = $("operator-timeline-source").value;
+  button.disabled = true;
+  setHTML("operator-timeline-results", empty(t("loading")));
+  try {
+    const {loadTimeline} = await import(form.dataset.module);
+    const {events, unavailable} = await loadTimeline(api, source);
+    setHTML("operator-timeline-results", table([t("time"), t("source"), t("status"), t("detail")],
+      events.map(row => [stampHtml(row.at), code(row.source), label(row.kind), esc(row.summary)]), t("nothing"))
+      + (unavailable.length ? keyValues(unavailable.map(([name, status]) =>
+        [name, esc(t(status === "absent" ? "timelineAbsent" : "timelineUnreadable"))])) : ""));
+  } catch (_) {
+    setHTML("operator-timeline-results", empty(t("requestError")));
+  } finally {
+    button.disabled = false;
+  }
+}
 async function chaos() {
   try {
     const report = await api("/api/chaos-report");

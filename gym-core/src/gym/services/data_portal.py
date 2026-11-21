@@ -20,6 +20,12 @@ from ..domain.rules import is_closed
 from ..domain.sim import Spec
 
 
+def parse_depth(text):
+    if text is None:
+        return None
+    return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
+
+
 class DataPortal:
     """Point-in-time reads: quotes in availability order; specs and rules as they were known at a time."""
 
@@ -36,18 +42,13 @@ class DataPortal:
         def optional_decimal(value):
             return None if value is None else dec(value)
 
-        def depth(text):
-            if text is None:
-                return None
-            return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
-
         excluded, out = self.excluded, []
         for r in rows:
             t = parse_ts(r[0])
             if excluded and any(start <= t < end for start, end in excluded):
                 continue
             out.append(BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
-                               optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), depth(r[6])))
+                               optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), parse_depth(r[6])))
         return out
 
     def publication(self):

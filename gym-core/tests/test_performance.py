@@ -148,6 +148,7 @@ def test_portfolio_and_standalone_posted_costs_reconcile():
                           "result": {**result, "orders": [], "markets": markets, "end": {"equity": "120"}}})
     assert markets[symbol]["realized_pnl"] == standalone["attribution"][0]["pnl"] == "20"
     assert shared["activity"]["turnover"] == standalone["trades"]["turnover"] == "2.2000"
+    assert shared["economic_attribution"]["errors"] == ["MISSING_TERMINAL_ACCOUNTING"]
 
 
 def test_selling_more_than_was_bought_is_an_error():

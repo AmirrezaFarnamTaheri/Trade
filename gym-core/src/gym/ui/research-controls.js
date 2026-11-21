@@ -110,8 +110,9 @@ async function submitComparison(event, validation = false) {
 
 async function research() {
   const offset = state.runOffset, filter = state.runFilter;
-  const query = new URLSearchParams({ limit: "50", offset: String(offset) });
-  if (filter) query.set("symbol", filter);
+  const query = new URLSearchParams(filter);
+  query.set("limit", "50");
+  query.set("offset", String(offset));
   const runs = list(await api("/api/runs?" + query));
   if (offset !== state.runOffset || filter !== state.runFilter) return;
   state.runs = runs;

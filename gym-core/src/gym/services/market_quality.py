@@ -4,14 +4,19 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from datetime import UTC, datetime, timedelta
+from collections import Counter, defaultdict
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
-from ..adapters.store import MIN_FREE_BYTES, MarketDB
-from ..domain.model import iso, parse_ts
+import zstandard as zstd
+
+from ..adapters.store import MIN_FREE_BYTES, MarketDB, iter_segment
+from ..adapters.wallex import parse_channel
+from ..domain.model import TradeTick, iso, loads, parse_ts
 
 _REQUIRED_SPEC_FIELDS = ("stepSize", "minQty", "minNotional", "isMarketTypeEnable")
+_TEHRAN = timezone(timedelta(hours=3, minutes=30))
 
 
 def _percentile(ordered: list[float], pct: float) -> float | None:
@@ -59,10 +64,32 @@ def ingestion_clock_metrics(db: MarketDB, *, symbol: str | None = None, since: d
 
 def _find_segment_file(seg_id: str, roots: list[Path]) -> Path | None:
     for root in roots:
-        candidate = root / seg_id
-        if candidate.is_file():
+        candidate = (root / seg_id).resolve()
+        if candidate.is_relative_to(root.resolve()) and candidate.is_file():
             return candidate
     return None
+
+
+def _raw_trade_keys(frame):
+    at = parse_ts(frame["t"])
+    def key(symbol, data):
+        tick = TradeTick.wallex(symbol, data, at)
+        return (f"wallex:{tick.symbol}", iso(tick.ts_event), iso(at), str(tick.price), str(tick.qty), tick.aggressor)
+
+    if frame["src"].startswith("rest:/v1/trades?symbol="):
+        symbol = frame["src"].split("=", 1)[1]
+        for data in loads(frame["raw"])["result"]["latestTrades"]:
+            yield key(symbol, data)
+        return
+    if frame["src"] != "ws":
+        return
+    for line in frame["raw"].splitlines():
+        if not line.strip():
+            continue
+        push = loads(line).get("push") or {}
+        channel = parse_channel(push.get("channel", ""))
+        if channel and channel[0] == "trade" and "pub" in push:
+            yield key(channel[1], push["pub"]["data"])
 
 
 def verify_raw_sql_provenance(db: MarketDB, raw_roots: list[Path], *, symbol: str | None = None, limit: int = 500) -> dict:
@@ -73,13 +100,30 @@ def verify_raw_sql_provenance(db: MarketDB, raw_roots: list[Path], *, symbol: st
     }
     where = " WHERE instrument_id=?" if symbol else ""
     params = (f"wallex:{symbol}", limit) if symbol else (limit,)
-    refs = db.c.execute(f"SELECT DISTINCT seg_ref FROM trades{where} ORDER BY rowid DESC LIMIT ?", params).fetchall()
-    checked, broken, unclosed, digest_cache = 0, [], [], {}
-    for (seg_ref,) in refs:
+    refs = [
+        (source, seg_ref, tuple(fields))
+        for source, columns in (("trades", "seg_ref,instrument_id,ts_event,ts_avail,price,qty,aggressor"), ("book_top", "depth_ref"))
+        for seg_ref, *fields in db.c.execute(
+            f"SELECT {columns} FROM {source}{where} ORDER BY ts_avail DESC, rowid DESC LIMIT ?", params
+        )
+    ]
+    checked, broken, unclosed = 0, [], []
+    sequences = defaultdict(set)
+    trades = defaultdict(Counter)
+    matched_trades = legacy_rest_trades = 0
+    for source, seg_ref, fields in refs:
         if not seg_ref:
+            broken.append({"source": source, "reason": "MISSING_REFERENCE"})
             continue
-        seg_id = seg_ref.split("#", 1)[0]
+        seg_id, marker, raw_sequence = seg_ref.partition("#")
         checked += 1
+        if not marker or not raw_sequence.isascii() or not raw_sequence.isdigit() or len(raw_sequence) > 18:
+            broken.append({"source": source, "seg_id": seg_id, "reason": "INVALID_FRAME_REFERENCE"})
+            continue
+        sequences[seg_id].add(int(raw_sequence))
+        if source == "trades":
+            trades[(seg_id, int(raw_sequence))][fields] += 1
+    for seg_id, wanted in sequences.items():
         meta = seg_rows.get(seg_id)
         if not meta:
             broken.append({"seg_id": seg_id, "reason": "UNREGISTERED_SEGMENT"})
@@ -87,21 +131,46 @@ def verify_raw_sql_provenance(db: MarketDB, raw_roots: list[Path], *, symbol: st
         if not meta["closed_at"]:
             unclosed.append(seg_id)
             continue
-        if seg_id not in digest_cache:
-            path = _find_segment_file(seg_id, raw_roots)
-            if path is None:
-                digest_cache[seg_id] = "MISSING_FILE"
-            else:
-                actual = hashlib.sha256(path.read_bytes()).hexdigest()
-                digest_cache[seg_id] = "OK" if actual == meta["sha256"] else "DIGEST_MISMATCH"
-        if digest_cache[seg_id] != "OK":
-            broken.append({"seg_id": seg_id, "reason": digest_cache[seg_id]})
+        path = _find_segment_file(seg_id, raw_roots)
+        if path is None:
+            broken.append({"seg_id": seg_id, "reason": "MISSING_FILE"})
+            continue
+        try:
+            with path.open("rb") as archive:
+                actual = hashlib.file_digest(archive, "sha256").hexdigest()
+            if actual != meta["sha256"]:
+                broken.append({"seg_id": seg_id, "reason": "DIGEST_MISMATCH"})
+                continue
+            seen = set()
+            for frame in iter_segment(path):
+                sequence = frame["seq"]
+                if sequence not in wanted:
+                    continue
+                if sequence in seen or hashlib.sha256(frame["raw"].encode()).hexdigest() != frame["sha256"]:
+                    broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "INVALID_RAW_FRAME"})
+                elif expected := trades.get((seg_id, sequence)):
+                    if frame["src"] == "rest:/v1/trades":
+                        legacy_rest_trades += expected.total()
+                    else:
+                        actual_trades = Counter(_raw_trade_keys(frame))
+                        matched_trades += (expected & actual_trades).total()
+                        if expected - actual_trades:
+                            broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "TRADE_CONTENT_MISMATCH"})
+                seen.add(sequence)
+            broken.extend({"seg_id": seg_id, "sequence": sequence, "reason": "MISSING_RAW_FRAME"}
+                          for sequence in sorted(wanted - seen))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, ArithmeticError, zstd.ZstdError):
+            broken.append({"seg_id": seg_id, "reason": "UNREADABLE_ARCHIVE"})
     return {
-        "status": "PASS" if not broken else "FAIL",
+        "status": "NO_EVIDENCE" if not refs else "FAIL" if broken or unclosed else "PASS",
+        "scope": "RECENT_SAMPLE_PER_SOURCE",
+        "sample_verified": checked > 0 and not broken and not unclosed,
         "references_checked": checked,
+        "trade_rows_content_matched": matched_trades,
+        "legacy_rest_trade_rows_missing_request_symbol": legacy_rest_trades,
         "broken": broken,
         "unclosed_referenced": sorted(set(unclosed)),
-        "qualified_for_replay": not broken and not unclosed,
+        "qualified_for_replay": False,
     }
 
 
@@ -267,4 +336,119 @@ def parse_margin_ratio(symbol: str, payload: dict, *, fetched_at: datetime) -> d
         "long_ratio": str(long_r),
         "short_ratio": str(short_r),
         "account_borrow_eligibility_established": False,
+    }
+
+
+def cross_check_feeds(
+    *,
+    primary_symbol: str,
+    secondary_symbol: str,
+    primary_quote: str,
+    secondary_quote: str,
+    primary_price: Decimal,
+    secondary_price: Decimal,
+    primary_at: datetime,
+    secondary_at: datetime,
+    max_clock_skew_s: float = 60.0,
+    max_diff_bps: Decimal = Decimal("50"),
+    corporate_action_note: str | None = None,
+) -> dict:
+    """Compare two feeds only after normalizing quote currency, event clocks, and corporate actions (M018)."""
+    if primary_price <= 0 or secondary_price <= 0:
+        raise ValueError("feed prices must be positive")
+    if primary_quote.upper() != secondary_quote.upper():
+        return {"status": "INCOMPARABLE_QUOTE_CURRENCY", "contradictory": False,
+                "primary": primary_symbol, "secondary": secondary_symbol,
+                "reason": f"{primary_quote} vs {secondary_quote} requires dated FX route"}
+    skew_s = abs((primary_at.astimezone(UTC) - secondary_at.astimezone(UTC)).total_seconds())
+    if skew_s > max_clock_skew_s:
+        return {"status": "CLOCK_MISMATCH", "contradictory": False,
+                "clock_skew_seconds": round(skew_s, 3), "max_clock_skew_s": max_clock_skew_s}
+    diff_bps = abs(primary_price - secondary_price) / secondary_price * Decimal("10000")
+    if corporate_action_note:
+        return {"status": "CORPORATE_ACTION_DISCLOSED", "contradictory": False,
+                "diff_bps": str(diff_bps.quantize(Decimal("0.01"))), "note": corporate_action_note}
+    contradictory = diff_bps > max_diff_bps
+    return {
+        "status": "DIVERGENT" if contradictory else "ALIGNED",
+        "contradictory": contradictory,
+        "clock_skew_seconds": round(skew_s, 3),
+        "diff_bps": str(diff_bps.quantize(Decimal("0.01"))),
+    }
+
+
+def time_of_day_liquidity_profile(db: MarketDB, symbol: str, *, days: int = 14, now: datetime | None = None) -> dict:
+    """Compute Tehran-hour spread bps and touch size medians with explicit sample counts (U013)."""
+    if type(days) is not int or not 1 <= days <= 90:
+        raise ValueError("days must be an integer in 1..90")
+    end = (now or datetime.now(UTC)).astimezone(UTC)
+    start_iso = iso(end - timedelta(days=days))
+    rows = db.c.execute(
+        "SELECT ts_avail, bid, ask, bid_qty, ask_qty FROM book_top "
+        "WHERE instrument_id=? AND ts_avail>=? AND (flags='' OR flags IS NULL) ORDER BY ts_avail DESC LIMIT 20000",
+        (f"wallex:{symbol}", start_iso),
+    ).fetchall()
+    buckets: dict[int, tuple[list[float], list[float], list[float]]] = {h: ([], [], []) for h in range(24)}
+    for ts_avail, bid_s, ask_s, bq_s, aq_s in rows:
+        if not bid_s or not ask_s:
+            continue
+        bid, ask = float(bid_s), float(ask_s)
+        if bid <= 0 or ask <= bid:
+            continue
+        hour = parse_ts(ts_avail).astimezone(_TEHRAN).hour
+        spread_bps = (ask - bid) / ((ask + bid) / 2.0) * 10000.0
+        buckets[hour][0].append(spread_bps)
+        buckets[hour][1].append(float(bq_s or 0))
+        buckets[hour][2].append(float(aq_s or 0))
+    hours = []
+    for h in range(24):
+        spreads, bids, asks = buckets[h]
+        spreads.sort()
+        bids.sort()
+        asks.sort()
+        hours.append({
+            "tehran_hour": h,
+            "samples": len(spreads),
+            "status": "QUALIFIED" if len(spreads) >= 3 else "INSUFFICIENT_SAMPLES",
+            "median_spread_bps": _percentile(spreads, 0.50),
+            "p90_spread_bps": _percentile(spreads, 0.90),
+            "median_bid_qty": _percentile(bids, 0.50),
+            "median_ask_qty": _percentile(asks, 0.50),
+        })
+    return {"symbol": symbol, "timezone": "Asia/Tehran", "days": days,
+            "total_qualified_quotes": sum(h["samples"] for h in hours), "hours": hours}
+
+
+def data_eligibility_preflight(db: MarketDB, symbol: str, *, days: int = 14, min_bars: int = 20, now: datetime | None = None) -> dict:
+    """Assess pre-research coverage, freshness, historical rule completeness, and prehistory (U017, M021)."""
+    at = (now or datetime.now(UTC)).astimezone(UTC)
+    cal = symbol_quality_calendar(db, symbol, days=days, now=at)
+    vintages = as_of_rule_index(db, symbol)
+    as_of_vintages = [v for v in vintages["vintages"] if parse_ts(v["valid_from"]) <= at]
+    observed_days = sum(1 for row in cal["calendar"] if row["completeness_status"] != "NO_DATA")
+    gapped_days = sum(1 for row in cal["calendar"] if row["completeness_status"] == "PARTIAL_GAPPED")
+    total_quotes = sum(row["quotes"] for row in cal["calendar"])
+    blockers = []
+    if not as_of_vintages:
+        blockers.append("NO_AS_OF_LISTING_OR_SPEC")
+    elif not as_of_vintages[-1]["complete"]:
+        blockers.append("INCOMPLETE_AS_OF_RULE_VINTAGE")
+    if total_quotes < min_bars:
+        blockers.append("INSUFFICIENT_HISTORY")
+    if cal["freshness_status"] != "FRESH":
+        blockers.append(f"QUOTE_FRESHNESS_{cal['freshness_status']}")
+    warnings = ["GAPPED_OBSERVATION_DAYS"] if gapped_days > 0 else []
+    status = "BLOCKED" if blockers else "ELIGIBLE_WITH_WARNINGS" if warnings else "ELIGIBLE"
+    return {
+        "symbol": symbol,
+        "as_of": iso(at),
+        "status": status,
+        "blockers": blockers,
+        "warnings": warnings,
+        "observed_days": observed_days,
+        "gapped_days": gapped_days,
+        "total_quotes": total_quotes,
+        "min_bars_required": min_bars,
+        "as_of_vintage_count": len(as_of_vintages),
+        "funded_authority": False,
     }

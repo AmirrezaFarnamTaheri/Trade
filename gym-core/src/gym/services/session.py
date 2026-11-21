@@ -495,7 +495,14 @@ class PaperSession:
             self.position_closed = False
             if self.strategy.params.get("exit_venue_stop"):
                 stop = self.position_entry * (1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000) / (1 - self.cost.fee_rate)
-                self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None}
+                if self.strategy.params["exit_venue_stop"] == 2:
+                    high = max(Decimal(order["price"]), (self.venue_stop or {}).get("high_water", Decimal(0)))
+                    trail = 1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000
+                    stop = high * trail
+                    self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None,
+                                       "high_water": high, "trail_multiplier": trail}
+                else:
+                    self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None}
         else:
             self.position_closed = sellable_quantity(quantity, top.bid, self.portal.spec_at(self.symbol, at)) == 0
             order["residual_base"] = str(quantity)
@@ -514,7 +521,16 @@ class PaperSession:
             self.venue_stop_trades.extend((iso(t.ts_event), iso(t.ts_avail), str(t.price), str(t.qty), t.aggressor) for t in ticks)
             if len(self.venue_stop_trades) > 200_000:
                 raise ValueError("venue stop trade budget exceeded")
-            hit = next((t for t in ticks if t.ts_event >= stop["created"] and t.price <= stop["price"]), None)
+            hit = None
+            for tick in ticks:
+                if tick.ts_event < stop["created"]:
+                    continue
+                if "high_water" in stop and tick.price > stop["high_water"]:
+                    stop["high_water"] = tick.price
+                    stop["price"] = tick.price * stop["trail_multiplier"]
+                if tick.price <= stop["price"]:
+                    hit = tick
+                    break
             if hit is None:
                 return
             stop["activation"] = hit.ts_avail
@@ -522,15 +538,21 @@ class PaperSession:
         if self.pending:
             self.pending.record.update(status="CANCELLED", reason="VENUE_STOP_ACTIVATED")
             self.pending = None
-        if not qualified(top):
+        trailing = "high_water" in stop
+        active_at = stop["activation"] + max(self.cost.latency, timedelta(microseconds=1)) if trailing else stop["activation"]
+        if at < active_at or not qualified(top):
             return
         previous_base, previous_cash = self.book.get(self.instrument.base), self.book.get(self.instrument.quote)
         ref = f"{self.symbol}#{len(self.orders) + 1}"
-        result = market_order(self.book, self.instrument, "SELL", Decimal(1), stop["activation"], stop["price"],
-            [top], 0, replace(self.cost, latency=timedelta(0), max_wait=at - stop["activation"], order_type="market"),
+        participation = (self.cost.max_participation or Decimal(1)) if trailing else self.cost.max_participation
+        result = market_order(self.book, self.instrument, "SELL", Decimal(1), active_at, stop["price"],
+            [top], 0, replace(self.cost, latency=timedelta(0), max_wait=at - active_at, order_type="market",
+                             max_participation=participation),
             self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, ref, self.day_open.get(tehran_day(at)))
         result.update(kind="VENUE_STOP_MARKET", stop_price=str(stop["price"]), created_at=iso(stop["created"]),
                       trigger_event_time=iso(stop["trigger_event"]), trigger_available_at=iso(stop["activation"]))
+        if trailing:
+            result.update(kind="VENUE_TRAILING_STOP_MARKET", high_water=str(stop["high_water"]), active_at=iso(active_at))
         if result["status"] == "FILLED":
             self.orders.append(result)
             self.record_position_fill(result, previous_base, previous_cash, top, at)

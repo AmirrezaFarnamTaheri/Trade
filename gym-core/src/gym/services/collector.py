@@ -5,6 +5,7 @@ import asyncio
 import copy
 import json
 import random
+import sqlite3
 import time
 from collections import Counter, deque
 from datetime import datetime, timedelta
@@ -299,6 +300,8 @@ class Collector:
         old_tops, old_written, old_units = self.tops.copy(), self.written.copy(), copy.deepcopy(self.units)
         self.db.c.execute("SAVEPOINT collector_tick")
         try:
+            if self.status.get("publication_delayed_since"):
+                self.quality(now, None, "GAP", f"SQLite writer delayed publication since {self.status['publication_delayed_since']}")
             self._publish_tick(now)
             self.db.c.execute("INSERT OR REPLACE INTO collector_publication VALUES(1,?)", (iso(now),))
             self.db.c.execute("RELEASE collector_tick")
@@ -307,6 +310,20 @@ class Collector:
             self.db.c.execute("RELEASE collector_tick")
             self.tops, self.written, self.units = old_tops, old_written, old_units
             raise
+        self.status.pop("publication_delayed_since", None)
+
+    def _try_publication_tick(self, now: datetime):
+        # Give the socket loop its turn when another connection already owns the writer lock.
+        timeout = self.db.c.execute("PRAGMA busy_timeout").fetchone()[0]
+        self.db.c.execute("PRAGMA busy_timeout=0")
+        try:
+            self.tick(now)
+        except sqlite3.OperationalError as error:
+            if getattr(error, "sqlite_errorcode", 0) & 0xFF != sqlite3.SQLITE_BUSY:
+                raise
+            self.status.setdefault("publication_delayed_since", iso(now))
+        finally:
+            self.db.c.execute(f"PRAGMA busy_timeout={timeout}")
 
     def _publish_tick(self, now: datetime):
         for sym, b in self.books.items():
@@ -497,7 +514,7 @@ class Collector:
             try:
                 raw = await self.rest_text(session, "/v1/depth", symbol=s)
                 now = now_utc()
-                ref = self.seg.write("rest:/v1/depth", raw, now)
+                ref = self.seg.write(f"rest:/v1/depth?symbol={s}", raw, now)
                 res = loads(raw)["result"]
                 self.on_depth(s, "bid", levels(res["bid"]), now, ref)
                 self.on_depth(s, "ask", levels(res["ask"]), now, ref)
@@ -505,7 +522,7 @@ class Collector:
                     prev = self.last_trade_ts.get(s)
                     raw = await self.rest_text(session, "/v1/trades", symbol=s)
                     now = now_utc()
-                    ref = self.seg.write("rest:/v1/trades", raw, now)
+                    ref = self.seg.write(f"rest:/v1/trades?symbol={s}", raw, now)
                     rows = loads(raw)["result"]["latestTrades"]
                     self._seed_trades(s, rows, now, ref, prev)
             except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, ArithmeticError) as e:
@@ -599,7 +616,7 @@ class Collector:
         while True:
             await asyncio.sleep(2)
             now = now_utc()
-            self.tick(now)
+            self._try_publication_tick(now)
             if background:
                 continue
             if time.monotonic() - last_quality > 600:

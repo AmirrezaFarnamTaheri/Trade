@@ -6,13 +6,14 @@ import json
 import os
 import re
 import sqlite3
+from datetime import date
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 
 from aiohttp import web
 
-from ..adapters.run_store import list_runs, load_run
+from ..adapters.run_store import RUN_FILTER_FIELDS, list_runs, load_run
 from ..adapters.store import MarketDB, storage_forecast
 from ..domain.account_observations import project_account
 from ..domain.assisted_ticket import prepare_preview_from_json
@@ -53,7 +54,7 @@ def _decimal_text(value):
 # Served next to index.html, each with a content-hash query so a browser never runs a stale copy.
 UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "charts.js", "runs.js", "replay-chart.js", "research.js", "margin.js", "portfolio.js", "native-review.js",
              "workspace-config.js", "workspace-utils.js", "workspace-overview.js", "workspace-alerts.js",
-             "markets-events.js", "research-events.js", "operator-events.js", "shell-events.js", "styles.css")
+             "markets-events.js", "research-events.js", "operator-events.js", "operator-timeline.mjs", "shell-events.js", "styles.css")
 
 class _WorkspaceApi:
     """Route handlers of `make_app`, one method each."""
@@ -365,13 +366,24 @@ class _WorkspaceApi:
 
     async def run_list(self, request):
         query = request.query
-        if set(query) - {"limit", "offset", "symbol", "strategy"}:
+        if set(query) - {"limit", "offset", "symbol", "strategy", *RUN_FILTER_FIELDS}:
             raise ValueError("unknown run list parameter")
         limit, offset = int(query.get("limit", "50")), int(query.get("offset", "0"))
         if not 1 <= limit <= 200 or not 0 <= offset <= 1_000_000:
             raise ValueError("limit must be 1..200 and offset 0..1000000")
+        filters = {key: query[key] for key in RUN_FILTER_FIELDS if query.get(key)}
+        if any(len(value) > 64 for value in filters.values()):
+            raise ValueError("run filter is too long")
+        for key in ("date_from", "date_to"):
+            if key in filters and date.fromisoformat(filters[key]).isoformat() != filters[key]:
+                raise ValueError("use YYYY-MM-DD for run dates")
+        if filters.get("date_from", "") > filters.get("date_to", "9999-12-31"):
+            raise ValueError("run start date range is inverted")
+        fee = filters.get("fee_rate")
+        if fee and fee.upper() != "UNKNOWN" and (not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", fee) or Decimal(fee) >= 1):
+            raise ValueError("fee rate must be a decimal in [0, 1) or UNKNOWN")
         return web.json_response([] if self.runs is None else await asyncio.to_thread(
-            list_runs, self.runs, limit, offset, query.get("symbol") or None, query.get("strategy") or None))
+            list_runs, self.runs, limit, offset, query.get("symbol") or None, query.get("strategy") or None, filters))
 
     def research_path(self):
         if self.runs is None or not (self.runs.parent / "research.sqlite3").exists():

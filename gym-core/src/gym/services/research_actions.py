@@ -46,10 +46,13 @@ WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research",
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
 LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
                   "claim-check", "review")
-MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic")
+MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic", "factor-ic-lab", "trend-replay", "verify-release-attestation")
 CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
                                    *WORKSPACE_ACTIONS)))
 CLI_ONLY_ACTIONS = {
+    "trend-replay": "bounded offline daily bid/ask and spot lot rules",
+    "factor-ic-lab": "bounded offline factor and forward-label JSON",
+    "verify-release-attestation": "trusted key and expected release digest are supplied offline",
     "tick": "scheduler step; the browser uses the dedicated research runner",
     "start": "long-running scheduler process",
     "pause": "browser pauses jobs through /api/research/jobs/{id}/pause",
@@ -63,7 +66,8 @@ CLI_ONLY_ACTIONS = {
     "shadow-drift-screen": "no browser form yet",
 }
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
-                           "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
+                           "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles", "factor-ic-lab",
+                           "verify-release-attestation", "trend-replay",
                            *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "credit-packages", "prospective-status", "prospective-evaluate", "arm-policy-read")]))
 
 
@@ -577,40 +581,94 @@ def _research_action_credit(root, action, value, store, at):
 
 
 def _research_action_stop_preview(root, action, value, store, at):
+    from ..domain.execution_qualification import simulate_trailing_stop
     from ..domain.market_models import instant
-    from .paper_stop import simulate_stop
-    fields(value, "symbol from to side quantity stop_price type limit_price fee_rate")
+    from .paper_stop import MAX_ROWS, simulate_stop
+
+    trailing = isinstance(value, dict) and value.get("type") == "TRAILING_STOP"
+    terms = "trail_fraction activation_delay_ms" if trailing else "stop_price limit_price"
+    fields(value, f"symbol from to side quantity type fee_rate {terms}")
     symbol = value["symbol"]
     if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol):
         raise ValueError("invalid stop market")
     start, end = instant(value["from"]), instant(value["to"])
-    if not start < end <= now_utc():
-        raise ValueError("a stop replay requires an observed past window")
+    if not start < end <= now_utc() or end - start > timedelta(days=1):
+        raise ValueError("a stop replay requires an observed past window of at most one day")
+    if trailing:
+        delay_ms = value["activation_delay_ms"]
+        if type(delay_ms) is not int or not 1 <= delay_ms <= 60000:
+            raise ValueError("activation_delay_ms must be an integer in 1..60000")
     db = _market_db(root)
     try:
         db.c.execute("BEGIN")
         portal, window = DataPortal(db), ("wallex:" + symbol, iso(start), iso(end))
-        for table, column in (("book_top", "ts_avail"), ("trades", "ts_event")):
-            if db.c.execute(f"SELECT count(*) FROM {table} WHERE instrument_id=? AND {column}>=? AND {column}<?", window).fetchone()[0] > 100000:
-                raise ValueError("too many stop replay observations")
-        last = db.c.execute("SELECT price FROM trades WHERE instrument_id=? AND ts_event<? ORDER BY ts_event DESC, rowid DESC LIMIT 1",
+        if db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? "
+                        "AND ts_avail>=? AND ts_avail<? LIMIT ?)", (*window, MAX_ROWS + 1)).fetchone()[0] > MAX_ROWS:
+            raise ValueError("too many stop replay observations")
+        last = db.c.execute("SELECT price FROM trades WHERE instrument_id=? AND ts_avail<? AND ts_event<=ts_avail "
+                            "ORDER BY ts_avail DESC, ts_event DESC, rowid DESC LIMIT 1",
                             window[:2]).fetchone()
         if last is None:
             raise ValueError("no trade was recorded before the order time")
+        reference = decimal(last[0], "last trade", positive=True)
+        quantity = decimal(value["quantity"], "quantity", positive=True)
+        fee = decimal(value["fee_rate"], "fee rate")
+        tick = timedelta(microseconds=1)
+        trades = portal.trades_by_availability(symbol, start - tick, end - tick)
+        quotes = portal.tops(symbol, start, end)
+        if trailing:
+            if not 0 <= fee < 1:
+                raise ValueError("fee rate must be in [0, 1)")
+            result = simulate_trailing_stop(side=value["side"], quantity=quantity,
+                                            trail_fraction=decimal(value["trail_fraction"], "trail fraction", positive=True),
+                                            trades=trades, quotes=quotes, fee_rate=fee, reference_price=reference,
+                                            activation_delay=timedelta(milliseconds=delay_ms))
+            return {**result, "symbol": symbol, "store": store, "type": value["type"],
+                    "reference_trade_price": str(reference), "evidence_tier": "MODELED_PAPER_REFERENCE",
+                    "authenticated_settlement": False, "order_submitted": False, "funded_authority": False,
+                    "scope": "Receipt-ordered trades and displayed bids. Venue status, rules and settlement are unverified."}
         limit = value["limit_price"]
-        return simulate_stop(portal.instrument(symbol), decimal(last[0], "last trade", positive=True),
-                             portal.trades_by_event(symbol, start, end), portal.tops(symbol, start, end),
+        return simulate_stop(portal.instrument(symbol), reference, trades, quotes,
                              portal.spec_at(symbol, start), start, end, side=value["side"],
-                             quantity=decimal(value["quantity"], "quantity", positive=True),
+                             quantity=quantity,
                              stop_price=decimal(value["stop_price"], "stop price", positive=True), order_type=value["type"],
                              limit_price=None if limit is None else decimal(limit, "limit price", positive=True),
-                             fee_rate=decimal(value["fee_rate"], "fee rate"), store=store)
+                             fee_rate=fee, store=store)
     finally:
         db.c.rollback()
         db.c.close()
 
 
+def _research_action_trend_replay(root, action, value, store, at):
+    from ..domain.trend_replay import trend_replay
+
+    return trend_replay(value, now_utc())
+
+
+def _research_action_factor_ic(root, action, value, store, at):
+    from ..domain.research_prototypes import factor_ic_lab
+
+    fields(value, "observations seed")
+    return factor_ic_lab(value["observations"], now_utc(), seed=value["seed"])
+
+
+def _research_action_verify_release(root, action, value, store, at):
+    from .trial_governance import verify_release_attestation
+
+    fields(value, "bundle signature_hex trusted_public_key_hex expected_digest")
+    if not isinstance(value["bundle"], dict):
+        raise ValueError("release bundle must be an object")
+    for name, length in (("signature_hex", 128), ("trusted_public_key_hex", 64), ("expected_digest", 64)):
+        if not isinstance(value[name], str) or len(value[name]) != length or not re.fullmatch("[0-9a-f]+", value[name]):
+            raise ValueError(f"{name} must contain {length} lowercase hex digits")
+    return verify_release_attestation(value["bundle"], bytes.fromhex(value["signature_hex"]),
+                                      bytes.fromhex(value["trusted_public_key_hex"]), expected_digest=value["expected_digest"])
+
+
 _RESEARCH_HANDLERS = (
+    (frozenset(("trend-replay",)), _research_action_trend_replay),
+    (frozenset(("factor-ic-lab",)), _research_action_factor_ic),
+    (frozenset(("verify-release-attestation",)), _research_action_verify_release),
     (frozenset(('premium-research', 'lead-lag-research')), _research_action_premium_research),
     (frozenset(('twap-preview', 'execution-choice-preview', 'adaptive-twap-preview')), _research_action_twap_preview),
     (frozenset(('stop-preview',)), _research_action_stop_preview),
