@@ -100,6 +100,8 @@ function renderMarkets() {
         ${keyValues([[t("bestBidQuantity"), `${amount(market.bid_qty)} ${code(market.base)}`], [t("bestAskQuantity"), `${amount(market.ask_qty)} ${code(market.base)}`],
           [t("absoluteSpread"), `${amount(market.spread)} ${code(market.quote)}`], ...(market.unit ? [[t("unitEpoch"), `${code(market.unit.code)} · ${num(market.unit.epoch)}`]] : [])])}
         <section class="depth-section"><div class="depth-title"><h3>${esc(t("observedDepth"))}</h3>${data.demo ? chip(t("demoLabel"), "warn") : ""}</div>${depthFigure(market)}</section>
+        <div class="actions"><button type="button" class="button button-small" data-quality-symbol="${esc(market.symbol)}">${esc(t("inspectQualityCalendar"))}</button></div>
+        <div id="quality-calendar-${esc(market.symbol)}" role="status" aria-live="polite"></div>
         <div class="detail-grid">${verdictDetails(t("entry"), market.act?.entry)}${verdictDetails(t("exit"), market.act?.exit)}</div></section></td></tr>` : ""}`;
   }).join(""));
 }

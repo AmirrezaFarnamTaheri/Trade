@@ -13,6 +13,7 @@ from decimal import ROUND_DOWN, Decimal
 from ..domain.bars import qualified
 from ..domain.breadth import breadth_targets
 from ..domain.model import UTC, iso
+from ._journal_lock import append_jsonl, journal_lock
 from .data_portal import DataPortal
 
 JOURNAL = "allocation/breadth-journal.jsonl"
@@ -55,6 +56,12 @@ def _last_close(portal, symbol, now):
 
 def run_breadth_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"), max_quote_age=timedelta(minutes=5)):
     """Decide, paper-fill and append today's entry; returns it (or why nothing was recorded)."""
+    path = root / JOURNAL
+    with journal_lock(path):
+        return _run_breadth_day_locked(db, root, path, now, cash=cash, fee_rate=fee_rate, max_quote_age=max_quote_age)
+
+
+def _run_breadth_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age):
     portal, past = DataPortal(db), journal(root)
     last_day, bars = _daily_bars(portal, db, now)
     if last_day is None:
@@ -103,9 +110,5 @@ def run_breadth_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.00
              "units": {s: str(q) for s, q in sorted(held.items()) if q > 0}, "breadth": round(plan["breadth"], 6),
              "gate_open": plan["gate_open"], "universe": plan["universe"], "trend_long": plan["trend_long"],
              "decisions": decisions, "trades": trades}
-    path = root / JOURNAL
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # shortcut: one writer assumed (a daily scheduled run); two concurrent runs could both append a day.
-    with path.open("a", encoding="utf-8") as file:
-        file.write(json.dumps(entry) + "\n")
+    append_jsonl(path, json.dumps(entry))
     return entry

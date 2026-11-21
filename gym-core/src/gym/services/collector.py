@@ -172,6 +172,7 @@ class Collector:
         self.names: dict[str, dict] = {}
         self.catalog: dict[str, dict] = {}
         self.catalog_received_at = None
+        self.rules_received_at = None
         self.catalog_source = "SYNTHETIC" if demo else "UNAVAILABLE"
         self.books: dict[str, dict[str, BookSide | None]] = {}
         self.depth_ref: dict[str, str] = {}
@@ -438,9 +439,12 @@ class Collector:
         """Order limits per market, or {} when unreadable (stored specs then keep the limits they had)."""
         try:
             raw = await self.rest_text(session, RULES_PATH)
-            self.seg.write("rest:" + RULES_PATH, raw, now_utc())
-            return {s.upper(): {k: m[k] for k in RULE_KEYS if m.get(k) not in (None, "")}
-                    for s, m in loads(raw)["result"]["symbols"].items() if isinstance(m, dict)}
+            received_at = now_utc()
+            self.seg.write("rest:" + RULES_PATH, raw, received_at)
+            parsed = {s.upper(): {k: m[k] for k in RULE_KEYS if m.get(k) not in (None, "")}
+                      for s, m in loads(raw)["result"]["symbols"].items() if isinstance(m, dict)}
+            self.rules_received_at = received_at
+            return parsed
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, AttributeError) as e:
             self.quality(now_utc(), None, "SOURCE_ERROR", f"trade rules: {type(e).__name__}: {e}")
             return {}

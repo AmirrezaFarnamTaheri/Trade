@@ -4,6 +4,16 @@ Source reviews: `GPT Review.md` and `gemini review.txt`. This is a prioritized i
 
 [Review coverage](review-coverage.md) maps the full line ranges of both source reports.
 
+## Integrated on master `8fba0b1` (2026-11-20, PRs #102–#107 — task `G003`)
+
+Six follow-up pull requests (#102–#107) closed several defects listed below in source. Do **not** re-open these as missing code without a new counterexample; remaining items are runtime evidence, coverage extensions, owner choices, or separate host qualification (tracked in the 2026-11-21 active task menu):
+
+- **REST reconnect overlap (`collector._seed_trades`, #102/#107):** Reconciles exact `(event_time, price, qty, aggressor)` multiplicity across the entire returned REST interval rather than truncating at the prior high-water timestamp, and uses response receipt time. Identical-field prints without venue trade IDs remain a documented source limitation.
+- **Unrecorded holdout diagnostics (`scripts/long_history_study.py`, #103):** Withholds ridge and walk-forward diagnostics when validation fails or no holdout look is recorded, and scopes diagnostics to the recorded finite `end`. Local ledgers remain accident prevention, not independent custody.
+- **Exact paper inventory (`inventory/1`, `inventory/2`, #104):** Opt-in exact base-ownership semantics (`position_model`) track dust and working orders separately from `exit_check` (`PAPER_CHECKS_PASS` reflects recorded minimum/rule/quote checks, not a venue fill guarantee). Legacy heuristic stays default pending owner decision (`F011`).
+- **Booked quote postings & `paper-summary/3` (#105):** `booked_notionals` requires a unique, correctly signed quote gross posting for every modern filled order across standalone and shared-cash portfolio summaries, preserving explicit legacy fallback for archived pre-posting receipts.
+- **Snapshot-scoped authenticated backups (`research_backup.py`, #102/#106):** Manifests and containers are AES-256-GCM authenticated (v2 KDF parameters recorded), raw segment coverage is scoped to segments closed in the copied `market.db` snapshot (`open_segments_excluded`), retained snapshots can be selected (`--snapshot`) and digest-pinned (`--expect-manifest-sha256`), and `segment_coverage` is reported separately from `segment_integrity` (`SAMPLED_DRILL` vs `FULL_RESTORE`, `cross_host_verified: false`).
+
 ## Implemented
 
 - **Stale terminal portfolio valuation (GPT §5.1).** Performance is `PROVISIONAL` when any held market has a stale terminal mark. Last-known equity, per-market freshness, fills and output digests are preserved. A regression covers both newly saved and verified reloaded results.

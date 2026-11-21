@@ -73,11 +73,12 @@ def _decimal_text(value) -> str | None:
 class MarketDB:
     def __init__(self, path: Path, *, readonly=False):
         if readonly:
-            self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None)
+            self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None, timeout=30.0)
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self.c = sqlite3.connect(path, isolation_level=None)
+            self.c = sqlite3.connect(path, isolation_level=None, timeout=30.0)
         try:
+            self.c.execute("pragma busy_timeout=30000")
             v = self.c.execute("pragma user_version").fetchone()[0]
             if not readonly and v <= len(MIGRATIONS):
                 enable_wal(self.c)

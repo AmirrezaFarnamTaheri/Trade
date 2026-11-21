@@ -190,6 +190,24 @@ async function venueFacts() {
       ${table([t("time"), t("status"), t("source"), t("evidenceId")], list(report.facts).slice(0, 20).map(fact => [stampHtml(fact.observed_at), `${esc(fact.kind)} · ${esc(fact.state)}`, esc(fact.source), code(fact.evidence_id)]))}`);
   } catch (_) { setHTML("venue-facts", empty(t("venueFactsError"))); throw new Error(t("requestError")); }
 }
+async function sloDiagnostics() {
+  try {
+    const data = await api("/api/slo");
+    const slo = data.slo || {}, clocks = slo.ingestion_clocks_24h || {}, lag = clocks.lag_ms || {};
+    const backup = data.backup_chronology || {}, attention = list(data.attention);
+    const statusChip = chip(t(slo.status || "UNKNOWN"), slo.status === "WITHIN_SLO" ? "ok" : "bad");
+    const attentionHtml = attention.length
+      ? `<ul class="event-list">${attention.map(item => `<li>${chip(item.severity, item.severity === "HIGH" ? "bad" : "warn")} ${code(item.source)} · ${code(item.code)}${item.missing_days ? ` (${num(item.missing_days)})` : ""}</li>`).join("")}</ul>`
+      : `<p class="field-help">${esc(t("noAttentionItems"))}</p>`;
+    setHTML("health-slo", `<h2 class="panel-title">${esc(t("sloTitle"))}</h2><p>${statusChip}</p>${keyValues([
+      [t("pubAgeSec"), slo.publication_age_seconds == null ? esc(t("unknown")) : num(slo.publication_age_seconds)],
+      [t("lagP95Ms"), lag.p95 == null ? esc(t("unknown")) : num(lag.p95)],
+      [t("backwardClocks"), num(clocks.backward_event_count ?? 0)],
+      [t("sourceErrors24h"), num(slo.source_errors_24h ?? 0)],
+      [t("offMachineBackup"), label(backup.off_machine_status || "UNKNOWN")],
+    ])}<h3>${esc(t("attentionQueue"))}</h3>${attentionHtml}`);
+  } catch (_) { setHTML("health-slo", empty(t("sloError"))); throw new Error(t("requestError")); }
+}
 async function chaos() {
   try {
     const report = await api("/api/chaos-report");
