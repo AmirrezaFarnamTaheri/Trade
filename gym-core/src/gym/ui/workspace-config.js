@@ -865,6 +865,16 @@ Object.assign(vocabulary, {
   navGroupWorkspace: ["Workspace", "محیط کار"], navGroupSettings: ["Settings & system", "تنظیمات و سامانه"],
   newerRuns: ["Newer runs", "اجراهای جدیدتر"], olderRuns: ["Older runs", "اجراهای قدیمی‌تر"],
   researchConsole: ["Advanced research console", "کنسول پژوهش پیشرفته"],
+  evidenceBadgePaper: ["Modeled paper only · no independent final custody", "فقط آزمایشی مدل‌شده · بدون نگهداری مستقل نهایی"],
+  evidenceBadgeDisarmed: ["Executor DISARMED · NOT CERTIFIED", "اجراگر غیرفعال · تأییدنشده"],
+  backupExceptionBadge: ["Off-machine backups canceled by owner (2026-11-16)", "پشتیبان برون‌دستگاهی با تصمیم مالک لغو شده (2026-11-16)"],
+  trialBudgetLabel: ["Active trial budget", "سقف آزمون‌های فعال"],
+  checkpointDateLabel: ["Funded checkpoint", "نقطهٔ تصمیم سرمایه"],
+  breadthTitle: ["Breadth trend forward (Wallex USDT)", "روند پهنای بازار آینده‌نگر (تتر والکس)"],
+  breadthGate: ["Breadth gate", "دروازهٔ پهنای بازار"],
+  breadthGateOpen: ["Open", "باز"],
+  breadthGateClosed: ["Closed (cash)", "بسته (نقد)"],
+  breadthUniverse: ["Liquid universe", "بازارهای نقدشونده"],
 });
 const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,

@@ -90,9 +90,50 @@ def forward_mix(root: Path) -> dict | None:
             "invested_pct": str(((1 - Decimal(last["usdt"]) / equity) * 100).quantize(Decimal("0.1"))) if equity else None}
 
 
+def forward_breadth(root: Path) -> dict | None:
+    """The breadth-trend forward paper record on Wallex prices; None before its first entry."""
+    from .breadth_journal import journal as breadth_entries
+    entries = [e for e in breadth_entries(root) if e.get("status") == "READY"]
+    if not entries:
+        return None
+    start, last = Decimal(1000), entries[-1]
+    equity = Decimal(last["equity"])
+    return {
+        "started": entries[0]["day"][:10],
+        "latest": last["at"],
+        "latest_day": last["day"][:10],
+        "days": len(entries),
+        "equity": str(equity.quantize(Decimal("0.01"))),
+        "net_pct": str(((equity / start - 1) * 100).quantize(Decimal("0.01"))),
+        "breadth": last.get("breadth"),
+        "gate_open": bool(last.get("gate_open")),
+        "universe_size": len(last.get("universe") or []),
+    }
+
+
 def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:
+    from .trial_governance import MAX_CONCURRENT_TRIALS, journal_continuity_report
+
     rows = trials(path)
     count = {name: sum(1 for row in rows if row["verdict"] == name) for name in ("FAIL", "NARROW_PASS", "PASS", "OPEN")}
-    return {"state": "READY" if rows else "NO_TRIAL_LOG", "trials": rows, "tally": {"registered": len(rows), **count},
-            "forward": forward(root) if root is not None else None, "forward_mix": forward_mix(root) if root is not None else None,
-            "programme": programme(rows), "funded_authority": False}
+    return {
+        "state": "READY" if rows else "NO_TRIAL_LOG",
+        "trials": rows,
+        "tally": {"registered": len(rows), **count},
+        "trial_budget": {"active": count["OPEN"], "limit": MAX_CONCURRENT_TRIALS,
+                         "remaining": max(0, MAX_CONCURRENT_TRIALS - count["OPEN"])},
+        "checkpoint": {
+            "date": "2027-02-08",
+            "breadth_score_after": "2027-05-19",
+            "evidence_stage": "MODELED_PAPER_ONLY",
+            "independent_final_evidence": False,
+            "host_status": "DISARMED_NOT_CERTIFIED",
+            "backup_policy_exception": "OFF_MACHINE_CANCELED_2026_11_16",
+        },
+        "forward": forward(root) if root is not None else None,
+        "forward_mix": forward_mix(root) if root is not None else None,
+        "forward_breadth": forward_breadth(root) if root is not None else None,
+        "journal_continuity": journal_continuity_report(root) if root is not None else None,
+        "programme": programme(rows),
+        "funded_authority": False,
+    }

@@ -12,6 +12,7 @@ from decimal import ROUND_DOWN, Decimal
 from ..domain.bars import qualified
 from ..domain.mix import LOOKBACK, inverse_vol_targets, needs_rebalance
 from ..domain.model import UTC, iso
+from ._journal_lock import append_jsonl, journal_lock
 from .data_portal import DataPortal
 
 JOURNAL = "allocation/mix-journal.jsonl"
@@ -47,6 +48,12 @@ def daily_returns(closes_by_token, last_day):
 
 def run_mix_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"), max_quote_age=timedelta(minutes=5)):
     """Decide, paper-fill and append today's entry; returns it (or why nothing was recorded)."""
+    path = root / JOURNAL
+    with journal_lock(path):
+        return _run_mix_day_locked(db, root, path, now, cash=cash, fee_rate=fee_rate, max_quote_age=max_quote_age)
+
+
+def _run_mix_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age):
     portal, past = DataPortal(db), journal(root)
     start = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - 400 * DAY
     closes = {}
@@ -99,9 +106,5 @@ def run_mix_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"),
              "units": {n: str(held[n]) for n in TOKENS}, "target_weights": {n: round(w, 6) for n, w in wanted.items()},
              "trades": trades, "stale_quotes": [TOKENS[n] for n in TOKENS if touches[n] is None],
              "stale_candles": [TOKENS[n] for n in TOKENS if n not in current]}
-    path = root / JOURNAL
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # shortcut: one writer assumed (a daily scheduled run); two concurrent runs could both append a day.
-    with path.open("a", encoding="utf-8") as file:
-        file.write(json.dumps(entry) + "\n")
+    append_jsonl(path, json.dumps(entry))
     return entry

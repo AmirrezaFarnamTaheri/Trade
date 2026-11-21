@@ -3,6 +3,14 @@
 One laptop holds the collector, the research data and the protected executor. This page lists what is lost
 with it, what brings it back, and how to prove the backups work before they are needed.
 
+> **Accepted operational exception (2026-11-16, tasks `G007` / `O002`):** The owner explicitly canceled
+> automated off-machine backup scheduling and second-machine restoration on 2026-11-16 (see
+> [roadmap.md](roadmap.md#L47-L49)). This accepts an unprotected data-loss window for everything created
+> after the last manual copy. Do **not** silently enable cloud or remote backup schedules without a fresh
+> owner approval. Local backup/restore drills verify decryption and snapshot integrity on this machine;
+> they do **not** establish cross-host survival (`cross_host_verified: false`). Reconsideration is
+> strongly recommended before any independently certified research release or funded-host qualification.
+
 ## What must exist before a loss
 
 | Item | How | Check |
