@@ -39,7 +39,7 @@ function renderAnswer() {
   const selected = state.trialVerdict || "";
   const filtered = trials.filter(row => !selected || row.verdict === selected);
   const journals = forwardRecord(forward, trials.find(row => row.id === "btc-daily-trend"), kinds)
-    + mixRecord(value.forward_mix) + breadthRecord(value.forward_breadth);
+    + mixRecord(value.forward_mix) + breadthRecord(value.forward_breadth) + continuityAlerts(value.journal_continuity);
   const headline = tally.PASS || tally.NARROW_PASS ? "answerPassed" : "answerNone";
   setHTML("overview-answer", `${stale}${checkpointBanner(value)}<p class="answer-headline">${esc(t(headline))}</p>${trialOutcomes(tally, verdicts)}`
     + `<details class="answer-trials" data-key="trial-register"><summary data-focus="trial-register">${esc(t("answerShowTrials"))}</summary>`
@@ -82,6 +82,19 @@ function checkpointBanner(value) {
   if (cp?.date) meta.push(`${esc(t("checkpointDateLabel"))}: <span dir="ltr">${esc(cp.date)}</span>`);
   if (budget) meta.push(`${esc(t("trialBudgetLabel"))}: <span dir="ltr">${digits(budget.active)}/${digits(budget.limit)}</span>`);
   return `<div class="checkpoint-strip" role="note"><p>${pills}</p>${meta.length ? `<p class="field-help">${meta.join(" · ")}</p>` : ""}</div>`;
+}
+
+/** Surface missing forward study days or duplicate-day defects honestly (U005, U008). */
+function continuityAlerts(continuity) {
+  if (!continuity) return "";
+  const issues = ["btc_daily_trend", "passive_mix", "breadth_trend"]
+    .map(key => continuity[key])
+    .filter(row => row && (row.evidence_status === "GAP_DETECTED" || row.evidence_status === "BROKEN_DUPLICATE"));
+  if (!issues.length) return "";
+  const items = issues.map(row => `<li>${esc(t("continuityGapLine")
+    .replace("{journal}", row.journal).replace("{status}", row.evidence_status)
+    .replace("{missing}", String(row.missing_days_through_yesterday ?? 0)))}</li>`).join("");
+  return `<div class="notice" role="status"><strong>${esc(t("continuityAttention"))}</strong><ul>${items}</ul></div>`;
 }
 
 /** The breadth-trend forward paper record on Wallex USDT markets (U005). */

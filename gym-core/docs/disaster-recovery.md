@@ -82,3 +82,14 @@ algorithms and parameter sets. New snapshots use version 2 and older segment con
 
 Rehearse a clean rebuild in an isolated folder or disposable VM, verify the restored chain and bytes,
 record elapsed time, and confirm DISARMED startup.
+
+## Incident safe-stop & operator runbook (`O023`, `O024`)
+
+| Incident condition | Mandatory safe behavior | Local diagnostic / recovery command |
+| --- | --- | --- |
+| **Collector stopped / feed stale (>10m)** | Mark live quotes `STALE`, halt new forward fills (`NO_QUOTE`), escalate alerts at `1h+/6h+/12h+/24h+` | `Start-ScheduledTask -TaskName "TradingGYM Collector"` then `gymctl --data ..\data doctor --quick` |
+| **Disk free space approaching 5 GiB floor** | Stop collection cleanly (`DiskLow`); never truncate or overwrite existing raw segments | Archive older `data\live\raw\YYYYMMDD` folders to secondary storage before restarting |
+| **Corrupt archive / bad manifest digest** | Refuse restore (`BackupAuthenticationError`), leave target untouched, never fall back to plaintext | Re-verify with `gymctl research-restore-drill <dir> --snapshot <id> --expect-manifest-sha256 <sha>` |
+| **Interrupted or partial restore** | Target directory is non-authoritative; delete scratch target and retry into an empty folder | `gymctl restore-research <dir> --to <empty-dir> --snapshot <id> --expect-manifest-sha256 <sha>` |
+| **Suspect account / unknown order / stale venue** | Keep `TradingGYMExecutor` **DISARMED**; never promote paper evidence or infer venue settlement | `gymctl --data ..\data doctor`; inspect `C:\Program Files\TradingGYM\Executor\operator-qualification.json` |
+| **Failed `2027-02-08` checkpoint** | Pause funded-path work permanently; observatory remains the product | Record decision in `evidence/2027-02-08-checkpoint-decision.md` |

@@ -875,6 +875,8 @@ Object.assign(vocabulary, {
   breadthGateOpen: ["Open", "باز"],
   breadthGateClosed: ["Closed (cash)", "بسته (نقد)"],
   breadthUniverse: ["Liquid universe", "بازارهای نقدشونده"],
+  continuityAttention: ["Forward continuity alerts", "هشدارهای پیوستگی آینده‌نگر"],
+  continuityGapLine: ["{journal}: {status} ({missing} missing trailing days)", "{journal}: {status} ({missing} روزِ اخیر ثبت‌نشده)"],
 });
 const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const T = Object.fromEntries(["en", "fa"].map((language, i) => [language,

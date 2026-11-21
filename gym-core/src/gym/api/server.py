@@ -38,6 +38,7 @@ from ..services.research_process import ResearchProcessFailure, calculate
 from ..services.rules import RuleService
 from ..services.venue_facts import VenueFactsJournal
 from . import finish, guard
+from .diagnostics import install as install_diagnostics
 from .offline_reviews import install as install_offline_reviews
 from .operator_reviews import install as install_operator_reviews
 from .research import install as install_research
@@ -528,6 +529,7 @@ def make_app(col: Collector, rules: RuleService, token: str, runs: Path | None =
         web.post("/api/presets/{name}", api.preset),
     ])
     install_operator_reviews(app, enabled=not col.demo)
+    install_diagnostics(app, api)
     install_research(app, runs.parent if runs is not None else None, store="demo" if col.demo else "live")
     review_path = (Path(offline_review_journal.conn.execute("PRAGMA database_list").fetchone()[2])
                    if offline_review_journal is not None else runs.parent / "offline_reviews.db" if runs is not None else None)

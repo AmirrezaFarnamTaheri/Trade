@@ -38,7 +38,7 @@
 | --- | --- | --- |
 | `M001` | **MEASURED ON LIVE ROOT** | Full 22-day live archive continuity audit (3 gaps >24h, 15 unclosed segments, collector crash on `2026-11-20T06:29Z`, `gymctl doctor` output) in `evidence/2026-11-21-baseline-and-sprint1-receipt.md` §3 + `MarketDB` `busy_timeout=30000` lock fix |
 | `M003`, `M004`, `M005`, `M013` | **VERIFIED & TESTED** | Reconnect overlap multiplicity & `GAP` detection tested in `tests/test_execution_qualification.py`; identical-print ambiguity sensitivity implemented in `maker_queue_fill`; causal availability & late-print fixtures verified across `test_collector*` and `test_no_peek_and_journal_idempotency.py` |
-| `M002`, `M006–M012`, `M014–M019`, `M021–M022` | **VERIFIED IN EXISTING SOURCE / MEASURED** | Raw↔SQL `seg_ref` provenance, response-receipt clocks, `CLOCK_REGRESSION` guard, rule vintages, historical universe causality, redirect refusal, and rollover/query timings verified via existing suite (`1,998+` tests) and `evidence/2026-11-21-performance-and-hygiene-audit.md`; structured `/v2/structured-fee` & `/public/ratio` remain documented venue-collection extensions (`gym-core/docs/capabilities.md`) |
+| `M002`, `M006–M012`, `M014–M019`, `M021–M022` | **IMPLEMENTED & TESTED** | `gym-core/src/gym/services/market_quality.py` & `tests/test_market_quality_and_diagnostics_api.py` implement `ingestion_clock_metrics` (p50/p95/p99 lag & backward-clock count), `verify_raw_sql_provenance` (SHA-256 raw↔SQL check), `as_of_rule_index` (explicit missingness per vintage), `symbol_quality_calendar` (completeness separate from freshness), `feed_slo_report`, `parse_structured_fee` (`/v2/structured-fee`), and `parse_margin_ratio` (`/public/ratio/{market}`) |
 | `M020` | **IMPLEMENTED & TESTED** | Outage duration (`1h+/6h+/12h+/24h+`) & disk pressure (`<15/<10/<5 GiB`) escalation buckets added to `gym-core/src/gym/services/alerts.py` & `tests/test_trial_governance_and_alerts.py` |
 
 ## Lane X — Historical Execution Qualification, Liquidity & Paper Orders (`X001–X024`)
@@ -55,7 +55,7 @@
 | --- | --- | --- |
 | `F001–F006`, `F008–F009`, `F012` | **IMPLEMENTED & TESTED** | Independent double-entry balance oracle + 400 randomized sequences across base/quote fees, rebates, dust, Decimal precision contexts (`12/28/50`), modern posting refusal, legacy fallback, and standalone-vs-portfolio parity in `gym-core/tests/test_financial_conservation_oracle.py` |
 | `F007` | **VERIFIED** | Built `exec-kernel 0.2.0` Rust wheel and passed all 19 differential tests (`2,000+` rational budget-walk vectors) in `tests/test_kernel_sizing.py` (`GYM_RUST_KERNEL=1`) |
-| `F010`, `F013–F015`, `F017–F025` | **VERIFIED & TESTED** | Multiple valuation bases (`depth_walk_liquidation` vs bid-mark vs authenticated), loss-latch monotonicity, ES/CVaR lookback & singular-covariance refusal, stale-mark provisional status, and symbol-order conservation verified in `tests/test_portfolio_and_margin_contracts.py` & existing `test_portfolio*.py` |
+| `F010`, `F013–F015`, `F017–F025` | **IMPLEMENTED & TESTED** | `gym-core/src/gym/domain/portfolio_diagnostics.py` & `tests/test_portfolio_token_and_fault_recovery.py` implement `aggregate_portfolio_trade_stats`, `portfolio_inventory_timeline`, exact-zero-residual `economic_portfolio_attribution`, and `qualify_es_tail` (`UNDERPOWERED_TAIL` vs `QUALIFIED_TAIL_SAMPLE` with bootstrap CI); loss-latch monotonicity and valuation bases tested in `tests/test_portfolio_and_margin_contracts.py` |
 | `F011`, `F016` | **CONSERVATIVE DEFAULTS ADOPTED** | Keep `legacy` default for frozen-run compatibility while recommending opt-in `inventory/2` for all new research (`F011`); retain deterministic symbol-sorted shared-cash allocation as canonical baseline unless a registered study specifies pro-rata (`F016`) |
 | `F026` | **DEFERRED (OPT)** | External portfolio-risk libraries (PyPortfolioOpt/skfolio/Riskfolio-Lib) deferred pending measured need and license/security review |
 
@@ -65,23 +65,22 @@
 | --- | --- | --- |
 | `S001`, `S002` | **IMPLEMENTED** | Canonical sampling contract, strict monotonicity, date-clustering, and MDE/prospective power gate published in `gym-core/docs/evidence-and-sampling-contract.md` |
 | `S003–S011`, `S018–S023` | **VERIFIED & TESTED** | Lo/HAC positive/negative autocorrelation oracles, PSR/DSR monotonicity & small-sample refusal, irregular/duplicate mark counting, SPA-style 2–8 scope + null/positive/placebo controls tested in `tests/test_statistical_calibration_oracles.py` + `test_spa.py` + `test_return_bootstrap.py` |
-| `S012–S017` | **DEFERRED (OPT)** | Full Hansen consistent SPA, >8 candidate expansion, label-purged CPCV/PBO, and sequential e-processes remain conditional OPT diagnostics per audit §7.1 (do not replace current honestly labeled `SPA-style` without a registered decision requiring them) |
+| `S012–S017` | **IMPLEMENTED & TESTED (DIAGNOSTIC-ONLY)** | `gym-core/src/gym/domain/statistical_inference.py` & `tests/test_statistical_inference_suite.py` implement calibrated Hansen (2005) consistent/liberal/conservative `hansen_spa`, label-interval `purged_cpcv_splits`, `pbo_rank_logit`, anytime-valid `sequential_e_process` with lower-bound refusal & optional-stopping null check, and date-clustered `paired_baseline_uplift` (preserving existing `stationary_spa` labels untouched) |
 
 ## Lane C — Margin, Financing, FX Routing & Tokenized Assets (`C001–C018`)
 
 | IDs | Status | Evidence / Artifact |
 | --- | --- | --- |
-| `C001–C007`, `C009–C016` | **VERIFIED & TESTED** | Debt/collateral currency safety, 4-hour financing across unsettled crash (`CLOSE_PENDING`), credit-subaccount vs margin separation (`LIQUIDATION_UNSETTLED`), directional FX spread/fee round-trip no-free-lunch & size-capacity bounds verified in `tests/test_portfolio_and_margin_contracts.py` + existing `test_margin*.py` + `test_conversion*.py` + `test_token_premium.py` |
-| `C008`, `C017` | **DOCUMENTED / VERIFIED** | Public `/public/ratio/{market}` collection remains tracked in `capabilities.md`; UI explicitly separates Wallex quotes, proxies, and read-only observations |
+| `C001–C008`, `C009–C017` | **IMPLEMENTED & TESTED** | `gym-core/src/gym/domain/token_and_margin_audit.py`, `market_quality.parse_margin_ratio`, and `tests/test_portfolio_token_and_fault_recovery.py` + `tests/test_portfolio_and_margin_contracts.py` verify 1x margin-vs-spot reconciliation, debt/collateral currency safety, 4h financing across unsettled crashes, credit-subaccount separation, directional FX spread/fee round-trip checks, `/public/ratio/{market}` parsing, and Wallex token tradability/premium/depth checks without proxy backfilling |
 | `C018` | **DEFERRED (OPT)** | Alternate currency/derivative/leveraged constructions deferred pending 2-trial budget availability |
 
 ## Lane U — Evidence-First Product, Guided Research, Accessibility & UX (`U001–U037`)
 
 | IDs | Status | Evidence / Artifact |
 | --- | --- | --- |
-| `U001`, `U002`, `U004`, `U005`, `U006`, `U031` | **IMPLEMENTED & TESTED** | Enriched `/api/evidence` + Overview checkpoint banner (`DISARMED`, `MODELED PAPER ONLY`, `2027-02-08`, trial budget `2/2`, 2026-11-16 backup exception) and `breadth-trend-forward` card in `workspace-overview.js` & `workspace-config.js` |
+| `U001–U008`, `U011–U012`, `U015`, `U019`, `U031` | **IMPLEMENTED & TESTED** | Enriched `/api/evidence` + new token-gated read-only routes (`GET /api/quality-calendar`, `/api/slo`, `/api/fx-route`, `/api/action-registry` in `gym-core/src/gym/api/diagnostics.py`) + Overview checkpoint banner, `breadth-trend-forward` card, and `continuityAlerts` attention strip in `workspace-overview.js` & `workspace-config.js` |
 | `U033`, `U034` | **VERIFIED & TESTED** | Automated EN/FA vocabulary & `{placeholder}` parity gate across all keys in `tests/test_security_and_drift_contracts.py`; `dir="ltr"` / `digits(...)` preserved for RTL numbers/ISO dates |
-| `U003`, `U007–U030`, `U032`, `U035–U037` | **VERIFIED IN CURRENT WORKSPACE / INCREMENTAL** | Existing SPA routes (`overview`, `markets`, `research`, `account`, `operate`, `rules`, `health`, `safety`, `backups`), keyboard focus, contrast, ARIA labels, offline 3-stage ticket review, and `414.8 KB` native bundle verified via `test_ui.py`, `ui_contract.cjs`, and real Windows `msedge.exe` `browser_smoke.cjs` (Linux Chrome remains CI-verified; further IA redesign stays incremental per audit §10) |
+| `U009–U010`, `U013–U014`, `U016–U018`, `U020–U030`, `U032`, `U035–U037` | **VERIFIED IN CURRENT WORKSPACE** | Existing SPA routes (`overview`, `markets`, `research`, `account`, `operate`, `rules`, `health`, `safety`, `backups`), keyboard focus, contrast, ARIA labels, offline 3-stage ticket review, and `414.8 KB` native bundle verified via `test_ui.py`, `ui_contract.cjs`, and real Windows `msedge.exe` `browser_smoke.cjs` |
 
 ## Lane O — Backups, Operational Diagnostics, Local API & Accepted-Risk Controls (`O001–O024`)
 
@@ -116,4 +115,5 @@
 
 | IDs | Status | Evidence / Artifact |
 | --- | --- | --- |
-| `R001–R013` | **DEFERRED (OPT — TRIAL BUDGET 2/2 FULL)** | Active trial budget is full (`funding-confirmed-trend-forward` + `breadth-trend-forward`). Per roadmap & `E022`, no 3rd registered trial or external production dependency (LEAN/Nautilus/hftbacktest/pysystemtrade/Hummingbot/Qlib/Freqtrade/Zipline/vectorbt/PyPortfolioOpt) is added without a measured gap, supersession, registration, and license/security review. |
+| `R001–R004` | **IMPLEMENTED & TESTED (UNREGISTERED PROTOTYPES)** | Causal multi-horizon `ewmac_forecast`, `vol_target_position` (zero-vol abstention & cost-of-speed gate), `edge_of_band_target`, and per-date `factor_ic_analysis` (with shuffled placebo control) implemented as unregistered paper-only building blocks in `gym-core/src/gym/domain/research_prototypes.py` & `tests/test_statistical_inference_suite.py` (trial budget stays 2/2) |
+| `R005–R013` | **DEFERRED (OPT — TRIAL BUDGET 2/2 FULL)** | Active trial budget is full (`funding-confirmed-trend-forward` + `breadth-trend-forward`). Per roadmap & `E022`, no 3rd registered trial or external production dependency (LEAN/Nautilus/hftbacktest/pysystemtrade/Hummingbot/Qlib/Freqtrade/Zipline/vectorbt/PyPortfolioOpt) is added without a measured gap, supersession, registration, and license/security review. |
