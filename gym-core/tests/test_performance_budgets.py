@@ -29,7 +29,8 @@ def test_coverage_of_a_large_market_stays_in_sql(tmp_path):
     rows = [("wallex:BTCTMN", (START + timedelta(seconds=i)).isoformat().replace("+00:00", "Z"), None, "1", "2", "1", "1", None,
              "STALE" if i % 997 == 0 else "", None) for i in range(200_000)]
     db.c.execute("BEGIN")
-    db.c.executemany("INSERT INTO book_top VALUES(?,?,?,?,?,?,?,?,?,?)", ((r[0], r[1], r[1], *r[3:]) for r in rows))
+    db.c.executemany("INSERT INTO book_top(instrument_id,ts_event,ts_avail,bid,ask,bid_qty,ask_qty,depth_ref,flags,depth) "
+                     "VALUES(?,?,?,?,?,?,?,?,?,?)", ((r[0], r[1], r[1], *r[3:]) for r in rows))
     db.c.execute("COMMIT")
     began = time.perf_counter()
     report = coverage(db, "BTCTMN")

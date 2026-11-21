@@ -95,6 +95,12 @@ class ResearchProtocol:
             raise
 
     def register(self, request):
+        from ._journal_lock import journal_lock
+
+        with journal_lock(self.root / "trial-registration"):
+            return self._register_locked(request)
+
+    def _register_locked(self, request):
         declared = request.get("cost_declaration") if isinstance(request, dict) else None
         supersedes = request.get("supersedes") if isinstance(request, dict) else None
         if isinstance(request, dict):
@@ -131,7 +137,7 @@ class ResearchProtocol:
         with self._write():
             existing = self.conn.execute("SELECT 1 FROM evaluations WHERE id=?", (key,)).fetchone()
             if not existing:
-                from .trial_governance import enforce_two_trial_budget
+                from .trial_governance import check_registration_budget
 
                 active = self.conn.execute("SELECT id, state, body FROM evaluations "
                                            "WHERE state IN ('REGISTERED','CONSUMED') "
@@ -140,8 +146,7 @@ class ResearchProtocol:
                                if state == "REGISTERED" and now < parse_ts(json.loads(encoded)["test_from"])}
                 if supersedes is not None and supersedes not in replaceable:
                     raise ValueError("only an active evaluation whose window has not started can be superseded")
-                enforce_two_trial_budget([{"id": row_id, "verdict": "OPEN"} for row_id, _, _ in active],
-                                         key, supersedes=supersedes)
+                check_registration_budget(self.root, self.store, now, key, supersedes=supersedes)
                 overlap = self.conn.execute("""SELECT 1 FROM evaluations
                     WHERE json_extract(body,'$.symbol')=? AND json_extract(body,'$.test_from')<?
                     AND json_extract(body,'$.test_to')>? LIMIT 1""", (body["symbol"], body["test_to"], body["test_from"])).fetchone()

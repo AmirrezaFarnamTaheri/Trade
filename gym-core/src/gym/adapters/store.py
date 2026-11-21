@@ -55,6 +55,10 @@ MIGRATIONS = [
     create index trades_event on trades(instrument_id, ts_event);
     create index book_top_time on book_top(ts_avail);
     """,
+    """
+    alter table book_top add column bid_ref text;
+    alter table book_top add column ask_ref text;
+    """,
 ]
 
 
@@ -86,7 +90,8 @@ class MarketDB:
                 self.c.execute("BEGIN IMMEDIATE")
                 # Reject future layouts before journal mutation; recheck under the migration lock.
                 v = self.c.execute("pragma user_version").fetchone()[0]
-            if v > len(MIGRATIONS) or (readonly and v != len(MIGRATIONS)):
+            # Schema 6 already has every replay column except the two new nullable side references.
+            if v > len(MIGRATIONS) or (readonly and v not in (6, len(MIGRATIONS))):
                 raise ValueError(f"unsupported market schema {v}; expected {len(MIGRATIONS)}. "
                                  "Older stores require a writable open to migrate before read-only use.")
             if not readonly:
@@ -122,10 +127,10 @@ class MarketDB:
         self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"wallex:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),
                        str(t.price), str(t.qty), t.aggressor, seg_ref))
 
-    def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None):
-        self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
+    def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None, *, side_refs=(None, None)):
+        self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
                        _decimal_text(b.bid), _decimal_text(b.ask), _decimal_text(b.bid_qty), _decimal_text(b.ask_qty),
-                       depth_ref, ",".join(sorted(b.flags)), depth))
+                       depth_ref, ",".join(sorted(b.flags)), depth, *side_refs))
 
     def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
         """Retain each fetch; latest projection may advance but cannot erase older knowledge."""

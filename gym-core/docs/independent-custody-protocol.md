@@ -1,7 +1,8 @@
 # Independent Final-Evaluation Custody & No-Peek Protocol
 
-**Status:** Active research governance specification (tasks `E001`, `E002`, `E003`, `E005`, `E008`, `E022`)  
-**Scope:** Elevating TradingGYM from local accident-prevention (`HoldoutLedger`, `ResearchProtocol`) to verifiable independent final-outcome custody.
+TradingGYM’s default workflow is local paper research. An operator can register a study, run it, inspect its results and publish code using the existing commands. These steps require no evaluator, signing key or signed release.
+
+Use the following protocol only when the operator explicitly commissions an independent final evaluation. Local results retain their paper-evidence label. The two-trial budget in section 5 also applies to ordinary registered research.
 
 ## 1. Current boundary vs genuine custodian (`E001`)
 
@@ -65,3 +66,5 @@ Per [roadmap.md](roadmap.md#L16-L22), at most **two registered trials** may be c
 2. `breadth-trend-forward` (registered 2026-11-19, score after 2027-05-19)
 
 No third registered trial may be opened unless one of the active trials completes or is formally superseded in `trial-log.md` with preserved negative/aborted evidence.
+
+Final-evaluation and prospective-comparison registration share the trial-registration file lock in the selected store. Under that lock each checks both SQLite registries, including consumed evaluations with unfinished outcomes. Live registrations also count the open trials in the programme log. Demo registrations share the local two-seat limit and use synthetic evidence. The wheel carries a snapshot of open programme trials for installations without the source documentation. A release test checks that snapshot against the published log. A manual closure or supersession requires updating the log and releasing the corresponding snapshot. Separate installations have separate SQLite ledgers.

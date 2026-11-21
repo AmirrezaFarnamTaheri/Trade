@@ -24,6 +24,13 @@ REQUIRED = "symbol candidates selection_end test_from test_to resolution cash fe
 
 def register_comparison(registry, request, *, now):
     """Freeze a unique future matched-paper window before observations occur."""
+    from ._journal_lock import journal_lock
+
+    with journal_lock(registry.root / "trial-registration"):
+        return _register_comparison_locked(registry, request, now)
+
+
+def _register_comparison_locked(registry, request, now):
     intent = request.get("study_intent") if type(request) is dict else None
     if type(request) is dict and "study_intent" in request:
         request = {key: value for key, value in request.items() if key != "study_intent"}
@@ -86,6 +93,9 @@ def register_comparison(registry, request, *, now):
                 else:
                     raise ValueError("prospective comparison overlaps an already frozen window")
         if record is None:
+            from .trial_governance import check_registration_budget
+
+            check_registration_budget(registry.root, registry.store, now, digest(body))
             record = registry.append("PROSPECTIVE_COMPARE", None, {"configuration": body})
         # Count before commit; a failed ledger append cannot freeze an uncounted window.
         with TrialLedger(registry.root) as ledger:

@@ -46,10 +46,11 @@ WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research",
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
 LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
                   "claim-check", "review")
-MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic", "factor-ic-lab", "trend-replay", "verify-release-attestation")
+MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic", "factor-ic-lab", "trend-replay", "verify-release-attestation", "raw-replay-audit")
 CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
                                    *WORKSPACE_ACTIONS)))
 CLI_ONLY_ACTIONS = {
+    "raw-replay-audit": "read-only archived frame comparison for a bounded receipt interval",
     "trend-replay": "bounded offline daily bid/ask and spot lot rules",
     "factor-ic-lab": "bounded offline factor and forward-label JSON",
     "verify-release-attestation": "trusted key and expected release digest are supplied offline",
@@ -67,7 +68,7 @@ CLI_ONLY_ACTIONS = {
 }
 OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
                            "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles", "factor-ic-lab",
-                           "verify-release-attestation", "trend-replay",
+                           "verify-release-attestation", "trend-replay", "raw-replay-audit",
                            *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "credit-packages", "prospective-status", "prospective-evaluate", "arm-policy-read")]))
 
 
@@ -639,6 +640,21 @@ def _research_action_stop_preview(root, action, value, store, at):
         db.c.close()
 
 
+def _research_action_raw_audit(root, action, value, store, at):
+    from ..domain.market_models import instant
+    from .replay_input_audit import audit_replay_inputs
+
+    fields(value, "symbol from to")
+    if not isinstance(value["symbol"], str):
+        raise ValueError("expected a market symbol")
+    db = _market_db(root)
+    try:
+        db.c.execute("BEGIN")
+        return audit_replay_inputs(db, [root / "raw"], value["symbol"], instant(value["from"]), instant(value["to"]))
+    finally:
+        db.c.close()
+
+
 def _research_action_trend_replay(root, action, value, store, at):
     from ..domain.trend_replay import trend_replay
 
@@ -666,6 +682,7 @@ def _research_action_verify_release(root, action, value, store, at):
 
 
 _RESEARCH_HANDLERS = (
+    (frozenset(("raw-replay-audit",)), _research_action_raw_audit),
     (frozenset(("trend-replay",)), _research_action_trend_replay),
     (frozenset(("factor-ic-lab",)), _research_action_factor_ic),
     (frozenset(("verify-release-attestation",)), _research_action_verify_release),

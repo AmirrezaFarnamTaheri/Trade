@@ -177,6 +177,7 @@ class Collector:
         self.catalog_source = "SYNTHETIC" if demo else "UNAVAILABLE"
         self.books: dict[str, dict[str, BookSide | None]] = {}
         self.depth_ref: dict[str, str] = {}
+        self.side_refs = {}
         self.tops = {}
         self.written: dict[str, tuple] = {}
         self.trades: dict[str, deque] = {}
@@ -200,6 +201,7 @@ class Collector:
         self.names = {}
         self.books = {s: {"bid": None, "ask": None} for s in symbols}
         self.depth_ref = {}
+        self.side_refs = {}
         self.tops = {}
         self.written = {}
         self.trades = {s: deque(maxlen=30) for s in symbols}
@@ -254,6 +256,7 @@ class Collector:
     def on_depth(self, sym, side, lv, now, ref):
         self.books[sym][side] = BookSide(lv, now)  # each message is a full side snapshot: replace
         self.depth_ref[sym] = ref
+        self.side_refs[sym, side] = ref
 
     def on_trade(self, sym, d, now, ref):
         self._record_trade(TradeTick.wallex(sym, d, now), ref)
@@ -334,7 +337,8 @@ class Collector:
             self.tops[sym] = top
             last = self.written.get(sym)
             if not last or last[0] != top.key() or (now - last[1]).total_seconds() >= HEARTBEAT_S:
-                self.db.add_book_top(top, self.depth_ref.get(sym), self.depth_text(b))
+                self.db.add_book_top(top, self.depth_ref.get(sym), self.depth_text(b),
+                                     side_refs=(self.side_refs.get((sym, "bid")), self.side_refs.get((sym, "ask"))))
                 self.written[sym] = (top.key(), now)
         self.watch_units(now)
 

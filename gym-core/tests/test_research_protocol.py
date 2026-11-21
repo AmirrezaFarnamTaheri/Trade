@@ -72,6 +72,35 @@ def test_registration_budget_serializes_concurrent_writers_and_retains_supersess
         assert ledger.register({**request(), "symbol": "ADAUSDT", "supersedes": original}) == replacement
 
 
+def test_protocol_and_comparison_share_forward_budget(tmp_path):
+    from gym.services.evidence import trials
+    from gym.services.experiment_registry import ExperimentRegistry
+    from gym.services.prospective_comparisons import register_comparison
+    from gym.services.trial_governance import PACKAGED_OPEN_FORWARD
+
+    assert sorted(PACKAGED_OPEN_FORWARD) == sorted((r["id"], r["registered"]) for r in trials() if r["verdict"] == "OPEN")
+    now = START - timedelta(minutes=5)
+    comparison = {k: v for k, v in request().items() if k not in ("strategy", "params")}
+    comparison["candidates"] = [{"strategy": "ema-trend", "params": {"fast": f, "slow": 5}} for f in (2, 3)]
+    with ExperimentRegistry(tmp_path, store="demo") as registry, ResearchProtocol(tmp_path, store="demo", clock=lambda: now) as protocol:
+        register_comparison(registry, comparison, now=now)
+        protocol.register(request())
+        with pytest.raises(ValueError, match="trial budget full"):
+            register_comparison(registry, {**comparison, "symbol": "ETHUSDT"}, now=now)
+        with pytest.raises(ValueError, match="trial budget full"):
+            protocol.register({**request(), "symbol": "ETHUSDT"})
+
+    # The separate live programme already holds both seats by November 19.
+    later = now + timedelta(days=30)
+    future = {name: (later + timedelta(minutes=n)).isoformat() for name, n in
+              (("selection_end", -5), ("test_from", 5), ("test_to", 30))}
+    with ExperimentRegistry(tmp_path, store="live") as registry, ResearchProtocol(tmp_path, clock=lambda: later) as protocol:
+        with pytest.raises(ValueError, match="funding-confirmed-trend-forward"):
+            register_comparison(registry, {**comparison, **future}, now=later)
+        with pytest.raises(ValueError, match="breadth-trend-forward"):
+            protocol.register({**request(), **future})
+
+
 def test_failed_and_interrupted_evaluations_remain_consumed(tmp_path, monkeypatch):
     import gym.services.research_protocol as protocol
     db = market_db(tmp_path, [])

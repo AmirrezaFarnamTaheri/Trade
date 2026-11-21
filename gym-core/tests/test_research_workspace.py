@@ -12,7 +12,7 @@ from gym.adapters.run_store import save_run
 from gym.adapters.store import SegmentWriter
 from gym.api.server import make_app
 from gym.cli import main
-from gym.domain.model import iso, now_utc
+from gym.domain.model import iso
 from gym.domain.portfolio import rebalance_preview
 from gym.services.collector import Collector
 from gym.services.experiment_registry import ExperimentRegistry
@@ -211,8 +211,8 @@ def test_crash_after_attempt_registration_stays_visible_without_retrying_automat
 
 def test_final_evaluation_link_requires_matching_selection_and_frozen_engine(tmp_path, artifact):
     db, _ = artifact
-    now = now_utc()
-    with ResearchProtocol(tmp_path, store="live") as protocol:
+    now = START + timedelta(days=2)
+    with ResearchProtocol(tmp_path, store="live", clock=lambda: now) as protocol:
         final = protocol.register({"symbol": "BTCUSDT", "strategy": "ema-trend", "params": {"fast": 2, "slow": 3},
             "selection_end": iso(START + timedelta(days=1)), "test_from": iso(now + timedelta(days=1)),
             "test_to": iso(now + timedelta(days=2)), "resolution": "1min", "cash": "1000", "fee_rate": "0.001"})

@@ -114,6 +114,37 @@ def test_raw_trade_receipts_match_rest_request_symbol_and_multiplicity(tmp_path)
         db.c.close()
 
 
+def test_replay_window_cli_matches_both_depth_sides_and_refuses_corruption(tmp_path, capsys):
+    from gym.cli import main
+
+    root = tmp_path / "live"
+    db = MarketDB(root / "market.db")
+    writer = SegmentWriter(root / "raw", db)
+    collector = Collector(db, writer, ["BTCUSDT"], depth_levels=2)
+    try:
+        for topic, prices in (("buyDepth", ("98", "99")), ("sellDepth", ("101", "102"))):
+            channel = f"orderbook:BTCUSDT@{topic}"
+            data = {"message": [{"price": p, "quantity": "2"} for p in prices]}
+            collector.handle_frame(json.dumps({"push": {"channel": channel, "pub": {"data": data}}}), START)
+        collector.tick(START)
+        writer.close()
+        path = tmp_path / "window.json"
+        path.write_text(json.dumps({"symbol": "BTCUSDT", "from": START.isoformat(), "to": (START + timedelta(seconds=1)).isoformat()}))
+        cmd = ["--data", str(tmp_path), "research", "raw-replay-audit", str(path)]
+        assert main(cmd) == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["book_sides_matched"] == 2 and result["book_rows"] == 1 and result["verified"]
+        db.c.execute("UPDATE book_top SET ask_ref=bid_ref")
+        assert main(cmd) != 0
+        assert json.loads(capsys.readouterr().out)["book_sides_matched"] == 1
+        db.c.execute("UPDATE book_top SET bid_ref=NULL")
+        assert main(cmd) != 0
+        assert json.loads(capsys.readouterr().out)["broken"][0]["reason"] == "MISSING_OR_INVALID_REFERENCE"
+    finally:
+        writer.close()
+        db.c.close()
+
+
 def test_structured_fee_and_public_margin_ratio_parsers():
     """M009 & C008: parse Wallex /v2/structured-fee and /public/ratio/{market} cleanly."""
     fee_v = parse_structured_fee(

@@ -92,6 +92,41 @@ def _raw_trade_keys(frame):
             yield key(channel[1], push["pub"]["data"])
 
 
+def _verified_frames(raw_roots, seg_rows, sequences, broken, unclosed):
+    for seg_id, wanted in sequences.items():
+        meta = seg_rows.get(seg_id)
+        if not meta:
+            broken.append({"seg_id": seg_id, "reason": "UNREGISTERED_SEGMENT"})
+            continue
+        if not meta["closed_at"]:
+            unclosed.append(seg_id)
+            continue
+        path = _find_segment_file(seg_id, raw_roots)
+        if path is None:
+            broken.append({"seg_id": seg_id, "reason": "MISSING_FILE"})
+            continue
+        try:
+            with path.open("rb") as archive:
+                actual = hashlib.file_digest(archive, "sha256").hexdigest()
+            if actual != meta["sha256"]:
+                broken.append({"seg_id": seg_id, "reason": "DIGEST_MISMATCH"})
+                continue
+            seen = set()
+            for frame in iter_segment(path):
+                sequence = frame["seq"]
+                if sequence not in wanted:
+                    continue
+                if sequence in seen or hashlib.sha256(frame["raw"].encode()).hexdigest() != frame["sha256"]:
+                    broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "INVALID_RAW_FRAME"})
+                else:
+                    yield seg_id, sequence, frame
+                seen.add(sequence)
+            broken.extend({"seg_id": seg_id, "sequence": sequence, "reason": "MISSING_RAW_FRAME"}
+                          for sequence in sorted(wanted - seen))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, ArithmeticError, zstd.ZstdError):
+            broken.append({"seg_id": seg_id, "reason": "UNREADABLE_ARCHIVE"})
+
+
 def verify_raw_sql_provenance(db: MarketDB, raw_roots: list[Path], *, symbol: str | None = None, limit: int = 500) -> dict:
     """Verify trades/book_top seg_ref pointers map to closed archived segments with intact SHA-256 digests (M006)."""
     seg_rows = {
@@ -123,44 +158,19 @@ def verify_raw_sql_provenance(db: MarketDB, raw_roots: list[Path], *, symbol: st
         sequences[seg_id].add(int(raw_sequence))
         if source == "trades":
             trades[(seg_id, int(raw_sequence))][fields] += 1
-    for seg_id, wanted in sequences.items():
-        meta = seg_rows.get(seg_id)
-        if not meta:
-            broken.append({"seg_id": seg_id, "reason": "UNREGISTERED_SEGMENT"})
-            continue
-        if not meta["closed_at"]:
-            unclosed.append(seg_id)
-            continue
-        path = _find_segment_file(seg_id, raw_roots)
-        if path is None:
-            broken.append({"seg_id": seg_id, "reason": "MISSING_FILE"})
-            continue
-        try:
-            with path.open("rb") as archive:
-                actual = hashlib.file_digest(archive, "sha256").hexdigest()
-            if actual != meta["sha256"]:
-                broken.append({"seg_id": seg_id, "reason": "DIGEST_MISMATCH"})
+    for seg_id, sequence, frame in _verified_frames(raw_roots, seg_rows, sequences, broken, unclosed):
+        if expected := trades.get((seg_id, sequence)):
+            if frame["src"] == "rest:/v1/trades":
+                legacy_rest_trades += expected.total()
                 continue
-            seen = set()
-            for frame in iter_segment(path):
-                sequence = frame["seq"]
-                if sequence not in wanted:
-                    continue
-                if sequence in seen or hashlib.sha256(frame["raw"].encode()).hexdigest() != frame["sha256"]:
-                    broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "INVALID_RAW_FRAME"})
-                elif expected := trades.get((seg_id, sequence)):
-                    if frame["src"] == "rest:/v1/trades":
-                        legacy_rest_trades += expected.total()
-                    else:
-                        actual_trades = Counter(_raw_trade_keys(frame))
-                        matched_trades += (expected & actual_trades).total()
-                        if expected - actual_trades:
-                            broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "TRADE_CONTENT_MISMATCH"})
-                seen.add(sequence)
-            broken.extend({"seg_id": seg_id, "sequence": sequence, "reason": "MISSING_RAW_FRAME"}
-                          for sequence in sorted(wanted - seen))
-        except (OSError, ValueError, KeyError, TypeError, AttributeError, ArithmeticError, zstd.ZstdError):
-            broken.append({"seg_id": seg_id, "reason": "UNREADABLE_ARCHIVE"})
+            try:
+                actual_trades = Counter(_raw_trade_keys(frame))
+            except (ValueError, TypeError, KeyError, ArithmeticError, AttributeError):
+                broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "INVALID_TRADE_FRAME"})
+                continue
+            matched_trades += (expected & actual_trades).total()
+            if expected - actual_trades:
+                broken.append({"seg_id": seg_id, "sequence": sequence, "reason": "TRADE_CONTENT_MISMATCH"})
     return {
         "status": "NO_EVIDENCE" if not refs else "FAIL" if broken or unclosed else "PASS",
         "scope": "RECENT_SAMPLE_PER_SOURCE",

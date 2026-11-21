@@ -15,7 +15,7 @@ REGISTERED_ROW = re.compile(r"\| [a-z0-9]+(?:-[a-z0-9]+)* \| \d{4}-\d{2}-\d{2} \
 
 
 def _verdict(result: str) -> str:
-    found = re.match(r"\*\*(PASS|FAIL)([^*]*)\*\*", result)
+    found = re.match(r"\*\*(PASS|FAIL|ABORTED|SUPERSEDED)([^*]*)\*\*", result)
     return "OPEN" if not found else "NARROW_PASS" if "narrowly" in found.group(2) else found.group(1)
 
 
@@ -112,16 +112,27 @@ def forward_breadth(root: Path) -> dict | None:
 
 
 def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:
-    from .trial_governance import MAX_CONCURRENT_TRIALS, journal_continuity_report
+    from .trial_governance import (
+        MAX_CONCURRENT_TRIALS,
+        PACKAGED_OPEN_FORWARD,
+        active_sqlite_trials,
+        journal_continuity_report,
+    )
 
     rows = trials(path)
     count = {name: sum(1 for row in rows if row["verdict"] == name) for name in ("FAIL", "NARROW_PASS", "PASS", "OPEN")}
+    for terminal in ("ABORTED", "SUPERSEDED"):
+        if value := sum(row["verdict"] == terminal for row in rows):
+            count[terminal] = value
+    forward_open = count["OPEN"] if path.is_file() or path != TRIAL_LOG else len(PACKAGED_OPEN_FORWARD)
+    sqlite_open = len(active_sqlite_trials(root, "live")) if root is not None else 0
+    active = forward_open + sqlite_open
     return {
         "state": "READY" if rows else "NO_TRIAL_LOG",
         "trials": rows,
         "tally": {"registered": len(rows), **count},
-        "trial_budget": {"active": count["OPEN"], "limit": MAX_CONCURRENT_TRIALS,
-                         "remaining": max(0, MAX_CONCURRENT_TRIALS - count["OPEN"])},
+        "trial_budget": {"active": active, "forward_open": forward_open, "local_live_open": sqlite_open,
+                         "limit": MAX_CONCURRENT_TRIALS, "remaining": max(0, MAX_CONCURRENT_TRIALS - active)},
         "checkpoint": {
             "date": "2027-02-08",
             "breadth_score_after": "2027-05-19",

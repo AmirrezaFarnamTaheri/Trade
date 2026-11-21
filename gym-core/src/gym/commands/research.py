@@ -508,7 +508,7 @@ def research_cmd(args):
         if args.action in OBJECT_ACTIONS:
             if not value:
                 raise ValueError("this research action requires an input JSON file")
-            value = _strict_offline_json(value, max_bytes=65536)
+            value = _strict_offline_json(value, max_bytes=2 * 1024 * 1024 if args.action == "trend-replay" else 65536)
         from ..services.research_process import (
             HEAVY_ACTIONS,
             ResearchProcessFailure,
@@ -522,7 +522,8 @@ def research_cmd(args):
             print(json.dumps(error.report, ensure_ascii=False))
             return 3
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-    result_gate = {"claim-check": "all_matched", "verify-release-attestation": "authenticated_signature"}.get(args.action)
+    result_gate = {"claim-check": "all_matched", "verify-release-attestation": "authenticated_signature",
+                   "raw-replay-audit": "verified"}.get(args.action)
     return 3 if "error" in result or (result_gate and not result[result_gate]) else 0
 
 

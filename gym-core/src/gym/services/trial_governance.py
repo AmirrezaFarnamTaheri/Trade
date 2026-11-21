@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+from contextlib import closing
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,6 +16,46 @@ from .breadth_journal import journal as breadth_journal
 from .mix_journal import journal as mix_journal
 
 MAX_CONCURRENT_TRIALS = 2
+# Installed wheels lack the source documentation. Release tests compare this snapshot with the log.
+PACKAGED_OPEN_FORWARD = (
+    ("funding-confirmed-trend-forward", "2026-11-18"),
+    ("breadth-trend-forward", "2026-11-19"),
+)
+
+
+def check_registration_budget(root, store, now, new_id, *, supersedes=None):
+    """Read both registries while the caller owns the shared registration lock."""
+    from .evidence import TRIAL_LOG, trials
+
+    active = []
+    if store == "live":
+        forward = PACKAGED_OPEN_FORWARD
+        if TRIAL_LOG.is_file():
+            parsed = trials(TRIAL_LOG)
+            if not parsed:
+                raise ValueError("cannot establish trial budget from an empty trial log")
+            forward = [(row["id"], row["registered"]) for row in parsed if row["verdict"] == "OPEN"]
+        active.extend(trial_id for trial_id, day in forward if day <= now.date().isoformat())
+    active.extend(active_sqlite_trials(root, store))
+    return enforce_two_trial_budget([{"id": key, "verdict": "OPEN"} for key in active], new_id, supersedes=supersedes)
+
+
+def active_sqlite_trials(root, store):
+    active = []
+    for filename, query in (
+        ("research_protocol.sqlite3", """SELECT id FROM evaluations WHERE state IN ('REGISTERED','CONSUMED')
+                                         AND json_extract(body,'$.store')=?"""),
+        ("experiments.sqlite3", """SELECT e.id FROM events e WHERE e.kind='PROSPECTIVE_COMPARE' AND json_extract(e.body,'$.store')=?
+                                  AND NOT EXISTS (SELECT 1 FROM events r WHERE r.parent=e.id
+                                                  AND r.kind IN ('PROSPECTIVE_RESULT','PROSPECTIVE_FAILURE'))"""),
+    ):
+        path = root / filename
+        if path.is_symlink():
+            raise ValueError("trial registry must be a regular file")
+        if path.exists():
+            with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+                active.extend(key for (key,) in conn.execute(query, (store,)))
+    return active
 
 
 def enforce_two_trial_budget(

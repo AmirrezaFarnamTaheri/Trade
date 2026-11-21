@@ -42,8 +42,8 @@ def test_tick_publishes_all_markets_and_watermark_in_one_transaction(tmp_path, m
     collector = Collector(db, SegmentWriter(tmp_path/"raw",db), ["BTCUSDT","ETHUSDT"])
     insert = db.add_book_top
     visible = []
-    def append(top, ref, depth=None):
-        insert(top, ref, depth)
+    def append(top, ref, depth=None, **kwargs):
+        insert(top, ref, depth, **kwargs)
         visible.append((observer.c.execute("SELECT count(*) FROM book_top").fetchone()[0],DataPortal(observer).publication()))
     monkeypatch.setattr(db,"add_book_top",append)
     try:
@@ -68,8 +68,8 @@ def test_failed_tick_does_not_publish_partial_rows_or_advance_cached_state(tmp_p
     db = market_db(tmp_path, [])
     collector = Collector(db, SegmentWriter(tmp_path/"raw",db), ["BTCUSDT","ETHUSDT"])
     insert = db.add_book_top
-    def fail(top,ref,depth=None):
-        insert(top,ref,depth)
+    def fail(top,ref,depth=None,**kwargs):
+        insert(top,ref,depth,**kwargs)
         if top.symbol == "ETHUSDT":
             raise OSError("write failed")
     monkeypatch.setattr(db,"add_book_top",fail)
