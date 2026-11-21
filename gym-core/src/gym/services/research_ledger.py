@@ -47,6 +47,14 @@ def _result(**values):
     return {**values, "authority": "PAPER_ONLY"}
 
 
+_SCHEDULE_LIMITS = ("max_fraction", "max_participation")
+
+
+def _scheduled_cost(job):
+    limits = {key: decimal(job[key], key, positive=True) for key in _SCHEDULE_LIMITS if key in job}
+    return CostModel(fee_rate=rate(job["fee_rate"], "fee_rate"), **limits)
+
+
 class HypothesisUnavailable(ValueError):
     pass
 
@@ -193,7 +201,9 @@ class ResearchLedger:
         return self.shadow(key)
 
     def schedule(self, request):
-        fields(request, "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate")
+        required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
+        optional = [key for key in _SCHEDULE_LIMITS if isinstance(request, dict) and key in request]
+        fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
         for name, maximum in (("every_seconds", 86400), ("lookback_seconds", 2678400)):
             if type(request[name]) is not int or not 60 <= request[name] <= maximum:
@@ -202,7 +212,7 @@ class ResearchLedger:
             raise ValueError("resolution and first_at must be strings")
         BarSpec(request["resolution"])
         decimal(request["cash"], "cash", positive=True)
-        rate(request["fee_rate"], "fee_rate")
+        _scheduled_cost(request)
         body = {**request, "first_at": iso(parse_ts(request["first_at"]))}
         key, encoded = digest(body), _json(body)
         with self._write():
@@ -307,7 +317,7 @@ class ResearchLedger:
                     result = paper(db, hypothesis["symbol"], end - timedelta(seconds=job["lookback_seconds"]), end,
                                    strategy_id=hypothesis["strategy"], params=hypothesis["params"],
                                    resolution=job["resolution"], cash=decimal(job["cash"], "cash", positive=True),
-                                   cost=CostModel(fee_rate=rate(job["fee_rate"])), store=store,
+                                   cost=_scheduled_cost(job), store=store,
                                    subscriptions=getattr(strategy, "required_resolutions", ()),
                                    reference_symbol=getattr(strategy, "reference_symbol", None))
                 finally:

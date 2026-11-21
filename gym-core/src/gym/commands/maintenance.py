@@ -425,7 +425,7 @@ def _print_league(conn, top: int = 12) -> None:
                 "SELECT symbol, resolution, strategy, CAST(net_usdt_eq AS REAL), CAST(hold_net_usdt_eq AS REAL), "
                 "fills FROM runs WHERE status='OK' AND net_usdt_eq IS NOT NULL AND hold_net_usdt_eq IS NOT NULL")]
     cells = league(rows)
-    print(f"\nleague: markets where trading beat max(hold the coin, hold cash), USDT-eq; {len(cells)} cells, "
+    print(f"\nleague: markets where trading beat both holding the coin and zero USDT-equivalent return; {len(cells)} cells, "
           "q = Benjamini-Hochberg over all cells; markets co-move, so q ranks rather than proves")
     for c in cells[:top]:
         median = "n/a" if c["median_excess"] is None else f"{c['median_excess']:+9.2f}"
@@ -447,10 +447,13 @@ def _sweep_report(out: Path) -> int:
                             "CAST(hold_net_usdt_eq AS REAL)").fetchone()[0]
         print(f"  positive net (USDT-eq): {positive}; beat hold-the-base: {beat}")
         for title, order in (("best", "DESC"), ("worst", "ASC")):
-            print(f"\n{title} 10 by USDT-equivalent net (start 1000 USDT or 300M TMN):")
+            print(f"\n{title} 10 by USDT-equivalent net:")
             for row in conn.execute(query + f"ORDER BY eq {order} LIMIT 10"):
-                print(f"  {row[0]:<12} {row[1]:<7} {row[2]:<22} net {row[3]:>9.2f}  hold {row[4] or 0:>9.2f}  "
-                      f"fills {row[5]:>4}  trades {row[6] or 0:>3}  maxDD {row[7] or 0:>6.2f}%")
+                hold = "n/a" if row[4] is None else f"{row[4]:.2f}"
+                trades = "n/a" if row[6] is None else str(row[6])
+                drawdown = "n/a" if row[7] is None else f"{row[7]:.2f}%"
+                print(f"  {row[0]:<12} {row[1]:<7} {row[2]:<22} net {row[3]:>9.2f}  hold {hold:>9}  "
+                      f"fills {row[5]:>4}  trades {trades:>3}  maxDD {drawdown:>7}")
         _print_league(conn)
         print("\nPAPER ONLY. Every configuration is a recorded trial; a best row out of thousands is expected luck.")
     finally:

@@ -20,10 +20,10 @@ def observation(at=START, *, status="OPEN", bid="99", ask="100"):
     return {"at": iso(at), "bid": bid, "ask": ask, "status": status, "qualified": True}
 
 
-def schedule(ledger):
+def schedule(ledger, **limits):
     return ledger.schedule({"hypothesis_id": hypothesis(ledger), "every_seconds": 3600,
                             "lookback_seconds": 3600, "first_at": iso(START + timedelta(hours=1)),
-                            "resolution": "1min", "cash": "1000", "fee_rate": "0.001"})
+                            "resolution": "1min", "cash": "1000", "fee_rate": "0.001", **limits})
 
 
 def test_shadow_survives_restart_and_closure_with_received_asset_fees(tmp_path):
@@ -73,23 +73,27 @@ def test_registry_and_schedule_reject_unregistered_unbounded_and_floating_inputs
                 "first_at": iso(START), "resolution": "1min", "cash": "1000", "fee_rate": "0.001"}
         for patch in ({"cash": 1000.0}, {"every_seconds": True}, {"lookback_seconds": 2678401},
                       {"fee_rate": "NaN"}, {"resolution": []}, {"first_at": None}, {"first_at": "2026-01-01T00:00:00"},
-                      {"hypothesis_id": "unknown"}, {"authority": "FUNDED"}):
+                      {"hypothesis_id": "unknown"}, {"authority": "FUNDED"}, {"max_fraction": "1.01"},
+                      {"max_fraction": 0.25}, {"max_participation": "0"}):
             with pytest.raises(ValueError):
                 ledger.schedule({**base, **patch})
 
 
-def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path):
+@pytest.mark.parametrize("limits", [{}, {"max_fraction": "0.25", "max_participation": "0.50"}])
+def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path, limits):
     db = market_db(tmp_path, quote_history())
     try:
         path = tmp_path / "research.sqlite3"
         with ResearchLedger(path) as ledger:
-            job = schedule(ledger)
+            job = schedule(ledger, **limits)
             due = START + timedelta(hours=1)
             out = ledger.run_due(db, iso(due))
             assert len(out["completed"]) == 1
             assert ledger.run_due(db, iso(due))["completed"] == []
             saved = json.loads(ledger.conn.execute("SELECT body FROM reports").fetchone()[0])
             assert saved["inputs"]["cost"]["fee_rate"] == "0.001"
+            for name in ("max_fraction", "max_participation"):
+                assert saved["inputs"]["cost"].get(name) == limits.get(name)
             assert "hold USDT" in saved["baselines"]
             assert not db.c.in_transaction
         with ResearchLedger(path) as ledger:

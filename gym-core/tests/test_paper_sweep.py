@@ -3,16 +3,39 @@ import sqlite3
 from datetime import timedelta
 from decimal import Decimal
 
+import pytest
+
 from gym.adapters.store import MarketDB
+from gym.commands.maintenance import _sweep_report
 from gym.domain.performance import performance, sampled_drawdown
 from gym.domain.sim import CostModel
 from gym.services.data_portal import DataPortal
 from gym.services.paper import paper
-from gym.services.paper_sweep import CachedPortal, FrozenRules, sweep, sweep_market
+from gym.services.paper_sweep import (
+    SCHEMA,
+    CachedPortal,
+    FrozenRules,
+    sweep,
+    sweep_market,
+)
 from gym.services.rules import RuleService
 from tests.support import START, market_db, quote_history
 
 END = START + timedelta(hours=5)
+
+
+def test_sweep_report_identifies_unknown_metrics(tmp_path, capsys):
+    path = tmp_path / "sweep.sqlite3"
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    conn.execute("INSERT INTO runs(symbol,resolution,strategy,status,net_usdt_eq,fills) "
+                 "VALUES('BTCUSDT','1h','ema-trend','OK','0',0)")
+    conn.commit()
+    conn.close()
+    assert _sweep_report(path) == 0
+    text = " ".join(capsys.readouterr().out.split())
+    assert "hold n/a fills 0 trades n/a maxDD n/a" in text
+    assert "zero USDT-equivalent return" in text
 
 
 def _db(tmp_path):
@@ -71,3 +94,13 @@ def test_sweep_resumes_records_trials_and_refuses_changed_settings(tmp_path):
     except ValueError as error:
         assert "different settings" in str(error)
     assert path.exists()
+    before = ledger.execute("SELECT count(*) FROM trial_attempts").fetchone()[0]
+    sweep(tmp_path, tmp_path / "other-cost.sqlite3", START, END, symbols=("BTCUSDT",),
+          resolutions=("15min",), strategies=("ema-trend",), fee=Decimal("0.002"), workers=1)
+    assert ledger.execute("SELECT count(*) FROM trial_attempts").fetchone()[0] == before + 1
+    ledger.close()
+    for symbols, reason in [(("BTCUSDT",), "outside the requested universe"),
+                            (("MISSING",), "no captured quotes")]:
+        with pytest.raises(ValueError, match=reason):
+            sweep(tmp_path, out, START, END, symbols=symbols, resolutions=("15min",),
+                  strategies=("ema-trend", "lead-lag"), workers=1)

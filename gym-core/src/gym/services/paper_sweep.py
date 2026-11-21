@@ -230,7 +230,11 @@ def sweep(root: Path, out: Path, t0: datetime, t1: datetime, *, symbols=None, re
             "GROUP BY instrument_id", (iso(t0), iso(t1))).fetchall())
     finally:
         reader.c.close()
-    targets = sorted((s for s in (symbols or counts) if counts.get(s)), key=lambda s: -counts[s])
+    requested = set(counts if symbols is None else symbols)
+    missing = requested.difference(counts)
+    if missing:
+        raise ValueError(f"no captured quotes for requested markets: {', '.join(sorted(missing))}")
+    targets = sorted(requested, key=lambda s: (-counts[s], s))
     out.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(out)
     conn.executescript(SCHEMA)
@@ -238,10 +242,14 @@ def sweep(root: Path, out: Path, t0: datetime, t1: datetime, *, symbols=None, re
             "engine": ENGINE_VERSION, "resolutions": list(resolutions), "strategies": list(strategies)}
     stored = dict(conn.execute("SELECT key, value FROM sweep").fetchall())
     if stored and json.loads(stored["meta"]) != meta:
+        conn.close()
         raise ValueError(f"{out} holds a sweep with different settings; choose another output file")
     conn.execute("INSERT OR IGNORE INTO sweep VALUES('meta', ?)", (json.dumps(meta),))
     conn.commit()
     finished = {row[0] for row in conn.execute("SELECT symbol FROM done")}
+    if finished.difference(targets):
+        conn.close()
+        raise ValueError(f"{out} contains markets outside the requested universe; choose another output file")
     todo = [s for s in targets if s not in finished]
     progress(f"{len(targets)} markets with quotes, {len(finished)} already done, {len(todo)} to run; "
              f"{len(resolutions)} resolutions x {len(strategies)} strategies each")
@@ -300,13 +308,20 @@ def league(rows: list[dict]) -> list[dict]:
 def _record_trials(root: Path, conn, t0, t1) -> None:
     """One trial per configuration that ran, in one transaction: the sweep's breadth is on the record."""
     from .trial_ledger import TrialLedger, _question
-    rows = conn.execute("SELECT symbol, resolution, strategy, config_hash FROM runs WHERE status='OK'").fetchall()
+    rows = conn.execute("SELECT symbol, resolution, strategy, config_hash, quote FROM runs WHERE status='OK'").fetchall()
+    settings = json.loads(conn.execute("SELECT value FROM sweep WHERE key='meta'").fetchone()[0])
     with TrialLedger(root) as ledger:
         now = iso(datetime.now().astimezone())
         ledger.conn.execute("BEGIN IMMEDIATE")
         try:
-            for symbol, resolution, strategy, config_hash in rows:
-                attempt = digest(["sweep", iso(t0), iso(t1), symbol, resolution, strategy, config_hash])[:32]
+            for symbol, resolution, strategy, config_hash, quote in rows:
+                identity = ["sweep", iso(t0), iso(t1), symbol, resolution, strategy, config_hash]
+                cash = Decimal(settings["cash_tmn" if quote == "TMN" else "cash_usdt"])
+                fee = Decimal(settings["fee"])
+                # Preserve historical default-cost identities when resuming archived sweeps.
+                if cash != (300_000_000 if quote == "TMN" else 1000) or fee != Decimal("0.001"):
+                    identity.extend((str(cash.normalize()), str(fee.normalize())))
+                attempt = digest(identity)[:32]
                 ledger.conn.execute(
                     "INSERT OR IGNORE INTO trial_attempts(attempt_id, question_id, source, config_hash, recorded_at) "
                     "VALUES (?, ?, 'experiment', ?, ?)",
