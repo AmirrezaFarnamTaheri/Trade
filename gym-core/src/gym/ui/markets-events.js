@@ -28,9 +28,47 @@ $("quote-filter").addEventListener("click", event => {
   const button = event.target.closest?.("[data-quote]") || event.target;
   if (button.dataset.quote !== undefined) { state.quote = button.dataset.quote; renderMarkets(); }
 });
-$("market-rows").addEventListener("click", event => {
+$("market-rows").addEventListener("click", async event => {
+  const qualBtn = event.target.closest?.("[data-quality-symbol]");
+  if (qualBtn?.dataset.qualitySymbol) {
+    const sym = qualBtn.dataset.qualitySymbol;
+    const targetId = `quality-calendar-${sym}`;
+    qualBtn.disabled = true;
+    setHTML(targetId, empty(t("loading")));
+    try {
+      const data = await api(`/api/quality-calendar?symbol=${encodeURIComponent(sym)}&days=14`);
+      const cal = data.calendar || {}, vintages = data.rule_vintages || {};
+      setHTML(targetId, `<h4>${esc(t("qualityCalendarTitle"))}</h4>${keyValues([
+        [t("freshnessState"), label(cal.freshness_status || "UNKNOWN")],
+        [t("ruleVintages"), num(vintages.vintage_count ?? 0)],
+      ])}${table([t("time"), t("completenessCol"), t("observedPairs"), t("attributionTrades")], list(cal.calendar).slice(-7).reverse().map(row => [
+        code(row.date), label(row.completeness_status), num(row.quotes), num(row.trades),
+      ]), t("nothing"))}`);
+    } catch (_) { setHTML(targetId, empty(t("requestError"))); }
+    finally { qualBtn.disabled = false; }
+    return;
+  }
   const button = event.target.closest?.("[data-market]") || event.target;
   if (!button.dataset.market) return;
   state.expanded = state.expanded === button.dataset.market ? "" : button.dataset.market;
   renderMarkets();
+});
+$("fx-route-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const btn = $("fx-route-submit");
+  const direction = $("fx-route-direction").value;
+  const amountText = $("fx-route-amount").value.trim();
+  btn.disabled = true;
+  setHTML("fx-route-output", empty(t("loading")));
+  try {
+    const data = await api(`/api/fx-route?direction=${encodeURIComponent(direction)}&amount=${encodeURIComponent(amountText)}`);
+    const best = data.best || data.recommended || null, direct = data.direct || null;
+    setHTML("fx-route-output", keyValues([
+      [t("status"), label(data.status || "UNKNOWN")],
+      [t("fxCheapestRoute"), best ? code(best.route || best.symbol || best.via || "—") : esc(t("unavailable"))],
+      [t("fxDirectRoute"), direct ? amount(direct.received ?? direct.output) : esc(t("unavailable"))],
+      [t("fxSavingBps"), data.saving_bps != null ? num(data.saving_bps) : esc(t("none"))],
+    ]));
+  } catch (_) { setHTML("fx-route-output", empty(t("requestError"))); }
+  finally { btn.disabled = false; }
 });

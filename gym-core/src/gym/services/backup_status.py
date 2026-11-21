@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..adapters.wallex_account_read import parse_account_json
 from ..domain.market_models import fields, instant
-from ..domain.model import iso, now_utc
+from ..domain.model import iso, now_utc, parse_ts
 
 
 def _validate(row):
@@ -51,6 +51,31 @@ def status(root):
     return {"state": "RECORDED" if any(rows.values()) else "NO_RECEIPTS", "latest": rows,
             "archive_availability_verified": False, "off_machine_verified": False, "origin_authenticated": False,
             "funded_authority": False, "limitation": "Local historical receipts only. Current archive presence, provenance and runtime readiness are not established."}
+
+
+def receipt_chronology(root, *, now=None) -> dict:
+    """Report local receipt ages while keeping unverifiable off-machine backup age explicitly UNKNOWN (O013)."""
+    at = now or now_utc()
+    snap = status(root)
+    latest = snap["latest"]
+
+    def _age_hours(row):
+        if not row or not row.get("recorded_at"):
+            return None
+        return round(max(0.0, (at - parse_ts(row["recorded_at"])).total_seconds() / 3600.0), 2)
+
+    return {
+        "as_of": iso(at),
+        "state": snap["state"],
+        "latest_local_backup_at": latest["BACKUP"]["recorded_at"] if latest["BACKUP"] else None,
+        "latest_local_restore_at": latest["RESTORE"]["recorded_at"] if latest["RESTORE"] else None,
+        "local_backup_age_hours": _age_hours(latest["BACKUP"]),
+        "local_restore_age_hours": _age_hours(latest["RESTORE"]),
+        "off_machine_status": "UNKNOWN",
+        "off_machine_backup_age_hours": None,
+        "owner_policy_exception": "Off-machine backup scheduling canceled by owner on 2026-11-16; local receipts do not verify off-machine availability.",
+        "funded_authority": False,
+    }
 
 
 def record(root, kind, report):

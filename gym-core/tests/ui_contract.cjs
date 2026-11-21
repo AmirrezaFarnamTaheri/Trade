@@ -104,6 +104,7 @@ const replies = new Map([
   ["/api/account-observations", { state: "NOT_CONFIGURED", authority: "READ_ONLY", balances: [], orders: [], exposure: [] }],
   ["/api/external-order-events", { events: [] }], ["/api/offline-ticket-reviews", { tickets: [], reviews: [] }],
   ["/api/venue-facts", { state: "NOT_CONFIGURED", facts: [], capabilities: {} }], ["/api/chaos-report", { state: "NOT_RUN" }],
+  ["/api/slo", { slo: { status: "WITHIN_SLO", breaches: [], publication_age_seconds: 1, ingestion_clocks_24h: { samples: 0, backward_event_count: 0, lag_ms: { p50: null, p95: null, p99: null, max: null }, clock_skew_warning: false }, source_errors_24h: 0, free_disk_gib: 50 }, journal_continuity: null, backup_chronology: { state: "NO_RECEIPTS", off_machine_status: "UNKNOWN", off_machine_backup_age_hours: null }, attention: [], read_only: true, funded_authority: false }],
 ]);
 let responseStatus = 200;
 let delayedTicket = null;

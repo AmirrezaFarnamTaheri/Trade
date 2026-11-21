@@ -38,7 +38,7 @@ async function collectView(name, healthTask) {
   if (name === "operate" || name === "safety") await operate();
   if (name === "rules") await rules();
   if (name === "health") {
-    await settled([["health", healthTask.then(renderHealth)], ["venue facts", venueFacts()], ["chaos report", chaos()]]);
+    await settled([["health", healthTask.then(renderHealth)], ["slo", sloDiagnostics()], ["venue facts", venueFacts()], ["chaos report", chaos()]]);
   }
 }
 

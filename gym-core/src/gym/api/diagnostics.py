@@ -9,6 +9,7 @@ from aiohttp import web
 
 from ..adapters.store import MarketDB
 from ..domain.model import now_utc
+from ..services.backup_status import receipt_chronology
 from ..services.conversion_route import DIRECTIONS, recommend
 from ..services.market_quality import (
     as_of_rule_index,
@@ -80,7 +81,8 @@ def install(app: web.Application, api) -> None:
         root = api.runs.parent if api.runs is not None else api.market_path.parent
         slo = await asyncio.to_thread(_with_readonly_market, api.market_path, lambda db: feed_slo_report(db, root, now=now))
         cont = await asyncio.to_thread(journal_continuity_report, root, now=now) if api.runs is not None else None
-        return web.json_response({"slo": slo, "journal_continuity": cont,
+        backup = await asyncio.to_thread(receipt_chronology, root, now=now)
+        return web.json_response({"slo": slo, "journal_continuity": cont, "backup_chronology": backup,
                                   "attention": _attention_items(slo, cont),
                                   "read_only": True, "funded_authority": False})
 

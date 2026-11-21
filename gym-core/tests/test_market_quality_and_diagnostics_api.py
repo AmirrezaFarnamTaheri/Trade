@@ -111,6 +111,8 @@ def test_diagnostics_api_routes_enforce_token_and_return_read_only_payloads(tmp_
 
             slo = await (await client.get("/api/slo", headers=headers)).json()
             assert slo["read_only"] is True and "breaches" in slo["slo"] and isinstance(slo["attention"], list)
+            assert slo["backup_chronology"]["off_machine_status"] == "UNKNOWN"
+            assert slo["backup_chronology"]["off_machine_backup_age_hours"] is None
 
             fx = await (await client.get("/api/fx-route?amount=100000&direction=TMN_TO_USDT", headers=headers)).json()
             assert fx["order_submitted"] is False and fx["funded_authority"] is False
@@ -124,6 +126,41 @@ def test_diagnostics_api_routes_enforce_token_and_return_read_only_payloads(tmp_
 
     try:
         asyncio.run(check())
+    finally:
+        seg.close()
+        db.c.close()
+
+
+def test_catalog_and_rules_preserve_separate_receipt_timestamps_and_backup_chronology(tmp_path, monkeypatch):
+    """M007 & O013: catalog/rules keep independent receipt times; off-machine backup age stays UNKNOWN (never 0)."""
+    import json
+
+    from gym.services import collector as collector_mod
+    from gym.services.backup_status import receipt_chronology
+
+    db = MarketDB(tmp_path / "market.db")
+    seg = SegmentWriter(tmp_path / "raw", db)
+    times = iter([START, START + timedelta(seconds=7), START + timedelta(seconds=8)])
+    monkeypatch.setattr(collector_mod, "now_utc", lambda: next(times))
+    col = Collector(db, seg, ["BTCUSDT"])
+
+    async def fake_rest(_session, path, **_params):
+        if path == collector_mod.CATALOG_PATH:
+            return json.dumps({"result": {"markets": [{"symbol": "BTCUSDT", "base_asset": "BTC", "quote_asset": "USDT", "is_spot": True}]}})
+        return json.dumps({"result": {"symbols": {"BTCUSDT": {"stepSize": 6, "minQty": "0.0001", "minNotional": "5"}}}})
+
+    monkeypatch.setattr(col, "rest_text", fake_rest)
+    try:
+        asyncio.run(col.load_catalog(object()))
+        assert col.catalog_received_at == START
+        assert col.rules_received_at == START + timedelta(seconds=7)
+        assert col.catalog_received_at != col.rules_received_at
+
+        chron = receipt_chronology(tmp_path, now=START + timedelta(hours=2))
+        assert chron["state"] == "NO_RECEIPTS"
+        assert chron["off_machine_status"] == "UNKNOWN"
+        assert chron["off_machine_backup_age_hours"] is None
+        assert chron["funded_authority"] is False
     finally:
         seg.close()
         db.c.close()

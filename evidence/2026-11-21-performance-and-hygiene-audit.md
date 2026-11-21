@@ -34,6 +34,7 @@ Measured read-only on `data/live/market.db` (**10,344.48 MiB**, schema v6, 469 i
 - **10-market shared-cash portfolio 30m replay (`I005`):** **391.31 ms**, 10 fills, peak Python traced allocation **3.05 MiB**
 - **UI static payload (`I014`):** **21 files, 414,752 bytes total** (largest: `workspace-config.js` 125.8 KB, `research.js` 59.1 KB, `styles.css` 34.6 KB, `index.html` 34.0 KB, `runs.js` 23.2 KB).
 - **Schema upgrade rehearsal (`I012`):** Restored scratch copy of schema-v5 `data/demo/market.db` migrated cleanly to schema v6 in **0.159s** and passed `gymctl doctor`.
+- **Raw segment rollover blocking benchmark (`M015`):** Synthetic 10 MiB NDJSON segment SHA-256 (`22.28 ms`) + zstd level-3 compression (`5.89 ms`) completed in **28.17 ms** total (`0.0001` ratio on repetitive quote fixture), well below collector event-loop warning thresholds.
 - **Python vs Rust financial kernel parity (`F007`):** Built `exec-kernel 0.2.0` (`maturin build --release -m executor/exec-kernel-py/Cargo.toml`) in **13.84s**; `GYM_RUST_KERNEL=1 uv run --no-sync pytest -q tests/test_kernel_sizing.py` passed **19/19 tests in 0.23s** (including 2,000 randomized rational budget-walk vectors, precision/rounding traps, overflow rejection, and dated fill/fee/posting parity).
 - **CycloneDX SBOM generation (`I020`):** `.\tasks.ps1 sbom` succeeded cleanly for both Python (CycloneDX 1.5, 16 runtime components) and Rust lockfiles.
 

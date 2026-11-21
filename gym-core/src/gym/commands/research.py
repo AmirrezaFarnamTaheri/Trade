@@ -278,10 +278,12 @@ def history_cmd(args) -> int:
     symbols = [s.upper() for s in args.symbols]
     db = MarketDB(store_root(args) / "market.db")
 
+    best_effort = bool(getattr(args, "best_effort", False))
+
     async def fetch():
         """Page backwards from --to; stop at --from or after three empty pages (before the market listed)."""
         seg = SegmentWriter(store_root(args) / "raw", db)
-        totals = {}
+        totals, failed_symbols = {}, {}
         try:
             async with wallex.public_session() as session:
                 collector = Collector(db, seg, symbols)
@@ -296,19 +298,27 @@ def history_cmd(args) -> int:
                                 break
                             await asyncio.sleep(2 * attempt)
                         else:
-                            raise ValueError(f"venue history unreadable for {symbol} at {iso(lo)}; stopped after {total} candles")
+                            msg = f"venue history unreadable for {symbol} at {iso(lo)}; stopped after {total} candles"
+                            if not best_effort:
+                                raise ValueError(msg)
+                            failed_symbols[symbol] = iso(lo)
+                            print(f"skipping failed symbol during best-effort refresh: {msg}", file=sys.stderr)
+                            break
                         total, empty, hi = total + got, 0 if got else empty + 1, lo
                     totals[symbol] = total
                     print(f"{symbol} {args.resolution}: {total} candles", file=sys.stderr)
         finally:
             seg.close()
-        return totals
+        return totals, failed_symbols
 
     try:
-        totals = asyncio.run(fetch())
+        totals, failed_symbols = asyncio.run(fetch())
     finally:
         db.c.close()
-    print(json.dumps({"resolution": args.resolution, "from": iso(start), "to": iso(end), "candles": totals}))
+    payload = {"resolution": args.resolution, "from": iso(start), "to": iso(end), "candles": totals}
+    if failed_symbols:
+        payload["failed_symbols"] = failed_symbols
+    print(json.dumps(payload))
     return 0
 
 
@@ -365,7 +375,7 @@ def breadth_journal_cmd(args) -> int:
             reader.c.close()
         since = (now_utc() - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
         try:
-            history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None))
+            history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None, best_effort=True))
         except (ValueError, OSError, sqlite3.Error) as error:  # the venue is often unreachable here: decide on stored candles
             print(f"refresh failed, deciding on stored candles: {error}", file=sys.stderr)
     db = open_db(args)
