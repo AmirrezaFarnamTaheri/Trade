@@ -34,6 +34,8 @@ def install(app, root, *, store):
         # Scheduled work uses the existing tick route and its separate batching lock.
         if body["action"] in ("tick", "start"):
             raise ValueError("use the dedicated research runner")
+        if body["action"] == "raw-replay-audit" and isinstance(body["value"], dict) and "archives" in body["value"]:
+            raise ValueError("raw archive directory selection requires the research CLI")
         inspection = body["action"] in ("list", "job-interrupt")
         if not inspection and lock.locked():
             return web.json_response({"error": "research action is already running"}, status=409)

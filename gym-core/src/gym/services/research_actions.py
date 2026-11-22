@@ -656,13 +656,17 @@ def _research_action_raw_audit(root, action, value, store, at):
     from ..domain.market_models import instant
     from .replay_input_audit import audit_replay_inputs
 
-    fields(value, "symbol from to")
+    fields(value, "symbol from to archives" if isinstance(value, dict) and "archives" in value else "symbol from to")
     if not isinstance(value["symbol"], str):
         raise ValueError("expected a market symbol")
+    archives = value.get("archives", [])
+    if not isinstance(archives, list) or any(not isinstance(path, str) or not path.strip() for path in archives):
+        raise ValueError("archives must be a list of archive directory paths")
     db = _market_db(root)
     try:
         db.c.execute("BEGIN")
-        return audit_replay_inputs(db, [root / "raw"], value["symbol"], instant(value["from"]), instant(value["to"]))
+        roots = [root / "raw", *(Path(path) for path in archives)]
+        return audit_replay_inputs(db, roots, value["symbol"], instant(value["from"]), instant(value["to"]))
     finally:
         db.c.close()
 

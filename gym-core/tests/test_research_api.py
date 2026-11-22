@@ -32,6 +32,23 @@ def request_body():
                            {"strategy": "sma-reversion", "params": {"lookback": 4}}]}
 
 
+def test_raw_replay_audit_archive_directories_are_cli_only(research_app):
+    db, col, runs = research_app
+    value = {"symbol": "BTCUSDT", "from": iso(START), "to": iso(START + timedelta(seconds=1))}
+
+    async def check():
+        async with TestClient(TestServer(server.make_app(col, RuleService(db), "tok", runs))) as client:
+            route, headers = "/api/research/action", {"X-Gym-Token": "tok"}
+            body = {"action": "raw-replay-audit", "value": value}
+            response = await client.post(route, json=body, headers=headers)
+            assert response.status == 200
+            body["value"] = {**value, "archives": [str(runs.parent)]}
+            response = await client.post(route, json=body, headers=headers)
+            assert response.status == 400 and "research CLI" in (await response.json())["error"]
+
+    asyncio.run(check())
+
+
 def test_setup_compare_and_saved_runs(research_app):
     db, col, runs = research_app
 

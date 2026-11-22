@@ -48,15 +48,19 @@ def audit_replay_inputs(db, roots, symbol, start, end, *, max_rows=10000):
     where = "WHERE instrument_id=? AND ts_avail>=? AND ts_avail<? ORDER BY ts_avail,rowid LIMIT ?"
     trades = db.c.execute("SELECT seg_ref,instrument_id,ts_event,ts_avail,price,qty,aggressor FROM trades " + where, params).fetchall()
     side_columns = "NULL,NULL" if db.c.execute("PRAGMA user_version").fetchone()[0] == 6 else "bid_ref,ask_ref"
-    tops = db.c.execute(f"SELECT ts_avail,bid,bid_qty,ask,ask_qty,depth,{side_columns} FROM book_top " + where, params).fetchall()
+    tops = db.c.execute(f"SELECT ts_avail,bid,bid_qty,ask,ask_qty,depth,depth_ref,{side_columns} FROM book_top " + where,
+                        params).fetchall()
     if max(len(trades), len(tops)) > max_rows:
         raise ValueError("window exceeds row bound; divide the receipt interval")
     expected_trades, expected_sides = defaultdict(Counter), defaultdict(list)
     for ref, *key in trades:
         expected_trades[ref][tuple(key)] += 1
-    for at, bid, bid_qty, ask, ask_qty, depth, bid_ref, ask_ref in tops:
-        expected_sides[bid_ref].append(("bid", (at, bid, bid_qty, depth)))
-        expected_sides[ask_ref].append(("ask", (at, ask, ask_qty, depth)))
+    for at, bid, bid_qty, ask, ask_qty, depth, depth_ref, bid_ref, ask_ref in tops:
+        # The old pointer tracked the last update across both sides. Count only sides found in
+        # that exact instrument-labelled frame. Keep explicit side references authoritative.
+        legacy_ref = depth_ref if bid_ref is None and ask_ref is None else None
+        expected_sides[bid_ref or legacy_ref].append(("bid", (at, bid, bid_qty, depth), legacy_ref is not None))
+        expected_sides[ask_ref or legacy_ref].append(("ask", (at, ask, ask_qty, depth), legacy_ref is not None))
     sequences, broken, unclosed = defaultdict(set), [], []
     for ref in expected_trades.keys() | expected_sides.keys():
         parts = re.fullmatch(r"([^#]+)#([0-9]{1,18})", ref or "")
@@ -69,7 +73,7 @@ def audit_replay_inputs(db, roots, symbol, start, end, *, max_rows=10000):
         row = db.c.execute("SELECT sha256,closed_at FROM segments WHERE seg_id=?", (seg_id,)).fetchone()
         if row:
             manifest[seg_id] = dict(sha256=row[0], closed_at=row[1])
-    matched_trades = matched_sides = 0
+    matched_trades = matched_sides = matched_legacy_sides = 0
     for seg_id, seq, frame in _verified_frames(roots, manifest, sequences, broken, unclosed):
         ref = f"{seg_id}#{seq}"
         try:
@@ -81,14 +85,18 @@ def audit_replay_inputs(db, roots, symbol, start, end, *, max_rows=10000):
             if sides := expected_sides.get(ref):
                 raw = _depth_messages(frame, symbol)
                 receipt = parse_ts(frame["t"])
-                matches = sum(_matches_side(raw, side, receipt, row) for side, row in sides)
+                matched = [legacy for side, row, legacy in sides if _matches_side(raw, side, receipt, row)]
+                matches = len(matched)
                 matched_sides += matches
+                matched_legacy_sides += sum(matched)
                 if matches != len(sides):
-                    broken.append({"reason": "BOOK_SIDE_MISMATCH", "ref": ref})
+                    reason = "UNBOUND_REST_SYMBOL" if frame["src"] == "rest:/v1/depth" else "BOOK_SIDE_MISMATCH"
+                    broken.append({"reason": reason, "ref": ref})
         except (ValueError, KeyError, IndexError, TypeError, ArithmeticError, AttributeError):
             broken.append({"reason": "INVALID_FRAME_CONTENT", "ref": ref})
     verified = bool(tops or trades) and not (broken or unclosed) and matched_trades == len(trades) and matched_sides == 2 * len(tops)
     return dict(schema="replay-input-audit/1", symbol=symbol, start=iso(start), end_exclusive=iso(end),
                 scope="STORED_TRADES_AND_BOOK_SIDES_BY_RECEIPT", trade_rows=len(trades), book_rows=len(tops),
-                trade_rows_matched=matched_trades, book_sides_matched=matched_sides, broken=broken,
+                trade_rows_matched=matched_trades, book_sides_matched=matched_sides,
+                legacy_book_sides_matched=matched_legacy_sides, broken=broken,
                 unclosed_segments=unclosed, verified=verified, qualified_for_replay=False)

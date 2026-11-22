@@ -109,7 +109,10 @@ def test_supervised_scheduler_selects_mixed_route_and_publishes_once(tmp_path):
 
 @pytest.mark.parametrize("first,attempts,remaining", [("OTC", 2, "0"), ("SPOT", 1, "0.25")])
 def test_partial_inventory_recovery_uses_disjoint_windows(tmp_path, first, attempts, remaining):
-    value = setup(tmp_path, first, "partial", range(95, 350, 5))
+    offsets = list(range(95, 350, 5))
+    if first == "OTC":
+        offsets.insert(0, 65.75)  # After OTC settlement, before the spot order can submit.
+    value = setup(tmp_path, first, "partial", offsets)
     value["fx_rebalance"]["residual_attempts"] = attempts
     response = research_action(tmp_path, "portfolio-replay", value)
     record = research_action(tmp_path, "portfolio-read", {"run_id": response["run_id"]})
@@ -124,8 +127,19 @@ def test_partial_inventory_recovery_uses_disjoint_windows(tmp_path, first, attem
         previous = order["released_at"]
     assert Decimal(result["balances"]["ADA"]) == Decimal(remaining)
     assert Decimal(result["mixed_route_residuals"].get("ADA", "0")) == Decimal(remaining)
-    checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": response["run_id"], "quote_count": 36})["record"]
-    assert research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})["status"] == "EXACT_MATCH"
+    route = result["fx_orders"][0]
+    checkpoints = [(26 + (first == "OTC"), route["released_at"], recovery[0]["released_at"])]
+    if first == "OTC":
+        otc_leg, spot_leg = route["legs"]
+        checkpoints.extend([
+            (15, route["decision_time"], otc_leg["submit_at"]),
+            (16, otc_leg["modeled_settle_at"], spot_leg["spot"]["submit_at"]),
+        ])
+    for count, after, before in checkpoints:
+        checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": response["run_id"], "quote_count": count})["record"]
+        assert after <= checkpoint["cursor"] < before
+        resumed = research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})
+        assert resumed["status"] == "EXACT_MATCH" and resumed["result_digest"] == response["outputs_digest"]
 
 
 def test_recovery_digest_independent_of_read_chunk_and_market_order(tmp_path, monkeypatch):
