@@ -152,7 +152,7 @@ class _Replay:
                 not self.multicurrency or strategy_id != "ema-trend" or cost.order_type != "market"
                 or cost.walk_depth or cost.max_participation is None or cost.market_fees
                 or cost.impact_models or cost.hourly_costs or cost.postfill_costs
-                or (params or {}).get("exit_venue_stop"))):
+                or (params or {}).get("exit_venue_stop", 0) not in (0, 3))):
             raise ValueError("dynamic routes require mixed-currency EMA and capped best-level spot execution")
         self.dynamic_routes = dynamic_routes
         self.route_changes = []
@@ -805,6 +805,9 @@ class _Replay:
         markets = _market_summaries(self.sessions, self.instruments, None, self.book, self.marks, self.mark_times, t1,
                                     booked_accounting=self.booked_accounting, quote_counts=self.quote_counts,
                                     trade_routes=self.trade_routes if self.dynamic_routes else None)
+        if inputs["params"].get("exit_venue_stop") == 3:
+            for symbol, session in self.sessions.items():
+                markets[symbol]["venue_stop"] = session.venue_stop_state()
         for symbol, route in self.reference_routes.items():
             count, usable = self.quote_counts[symbol]
             markets[symbol] = {"observations": count, "qualified": usable, "orders": [], "fills": 0,

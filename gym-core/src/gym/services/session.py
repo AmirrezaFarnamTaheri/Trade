@@ -61,6 +61,8 @@ class PaperSession:
         self.venue_stop_trades = []
         if strategy.params.get("exit_venue_stop") and self.execution_limits is not None:
             raise ValueError("venue stops require a single-rule strategy")
+        if strategy.params.get("exit_venue_stop") == 3 and (cost.impact_models or cost.hourly_costs or cost.postfill_costs):
+            raise ValueError("stop-limit replay requires recorded touch prices without modeled price adjustments")
         self.bar_spec = BarSpec(resolution, "MID")
         required = getattr(strategy, "required_resolutions", ())
         if any(BarSpec(r).step <= self.bar_spec.step for r in required):
@@ -496,6 +498,9 @@ class PaperSession:
             self.position_closed = False
             if self.strategy.params.get("exit_venue_stop"):
                 stop = self.position_entry * (1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000) / (1 - self.cost.fee_rate)
+                if self.strategy.params["exit_venue_stop"] == 3:
+                    self._place_stop_limit(order, at, stop)
+                    return
                 if self.strategy.params["exit_venue_stop"] == 2:
                     high = max(Decimal(order["price"]), (self.venue_stop or {}).get("high_water", Decimal(0)))
                     trail = 1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000
@@ -510,6 +515,24 @@ class PaperSession:
             if quantity == 0:
                 self.position_entry = self.position_stop = self.position_opened = self.position_id = None
                 self.venue_stop = None
+
+    def _place_stop_limit(self, entry, at, price):
+        """Protect a long only when a received reference establishes a downward trigger."""
+        self.venue_stop = None
+        reference = self.portal.last_trade_before(self.symbol, at)
+        if reference is None or not reference.price.is_finite() or reference.price <= 0:
+            entry["protection"] = {"status": "NO_VALID_PRIOR_TRADE", "kind": "VENUE_STOP_LIMIT"}
+            return
+        evidence = (iso(reference.ts_event), iso(reference.ts_avail), str(reference.price), str(reference.qty), reference.aggressor)
+        self.venue_stop_trades.append(evidence)
+        if price >= reference.price:
+            entry["protection"] = {"status": "NOT_BELOW_REFERENCE", "kind": "VENUE_STOP_LIMIT", "reference": evidence}
+            return
+        offset = Decimal(self.strategy.params.get("exit_stop_limit_offset_bps", 0)) / 10000
+        limit_price = price * (1 - offset)
+        self.venue_stop = {"created": at, "checked": at, "price": price, "activation": None, "limit_price": limit_price}
+        entry["protection"] = {"status": "WAITING_FOR_TRADE", "kind": "VENUE_STOP_LIMIT", "reference": evidence,
+                               "stop_price": str(price), "limit_price": str(limit_price)}
 
     def settle_venue_stop(self, top):
         """Waiting stops reserve no balance; received trades activate a market exit with working remainders."""
@@ -539,6 +562,9 @@ class PaperSession:
         if self.pending:
             self.pending.record.update(status="CANCELLED", reason="VENUE_STOP_ACTIVATED")
             self.pending = None
+        if "limit_price" in stop:
+            self._settle_stop_limit(top, stop)
+            return
         trailing = "high_water" in stop
         active_at = stop["activation"] + max(self.cost.latency, timedelta(microseconds=1)) if trailing else stop["activation"]
         if at < active_at or not qualified(top):
@@ -561,6 +587,43 @@ class PaperSession:
         elif result.get("reason") != stop.get("last_nonfill"):
             self.orders.append(result)
             stop["last_nonfill"] = result.get("reason")
+
+    def _settle_stop_limit(self, top, stop):
+        """Take available displayed bids at or above the limit on later open receipts."""
+        at = top.ts_avail
+        if at <= stop.get("examined_at", stop["activation"]) or "CLOSED" in top.flags or not qualified(top):
+            return
+        stop["examined_at"] = at
+        ref = f"{self.symbol}#{len(self.orders) + 1}"
+        activation, limit = stop["activation"], stop["limit_price"]
+        previous_base, previous_cash = self.book.get(self.instrument.base), self.book.get(self.instrument.quote)
+        if previous_base == 0:
+            self.venue_stop = None
+            return
+        if top.bid < limit:
+            result = {"ref": ref, "side": "SELL", "status": "NONFILL", "decision_time": iso(activation),
+                      "reason": "STOP_LIMIT_NOT_MARKETABLE", "observed_at": iso(at)}
+        else:
+            cost = replace(self.cost, latency=timedelta(0), max_wait=at - activation, order_type="market",
+                           walk_depth=False, max_participation=self.cost.max_participation or Decimal(1))
+            result = market_order(self.book, self.instrument, "SELL", Decimal(1), activation, limit, [top], 0, cost,
+                                  self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, ref,
+                                  self.day_open.get(tehran_day(at)))
+        result.update(kind="VENUE_STOP_LIMIT", created_at=iso(stop["created"]), stop_price=str(stop["price"]),
+                      limit_price=str(limit), trigger_event_time=iso(stop["trigger_event"]), trigger_available_at=iso(activation))
+        if result["status"] == "FILLED":
+            self.orders.append(result)
+            self.record_position_fill(result, previous_base, previous_cash, top, at)
+            self.curve.append((iso(at), str(self.book.equity(self.instrument, top.bid))))
+        elif result["reason"] != stop.get("last_nonfill"):
+            self.orders.append(result)
+            stop["last_nonfill"] = result["reason"]
+
+    def venue_stop_state(self):
+        if self.venue_stop is None:
+            return None
+        return {key: iso(value) if isinstance(value, datetime) else str(value) if isinstance(value, Decimal) else value
+                for key, value in self.venue_stop.items()}
 
     def risk_cash(self, quote):
         if self.risk_budget is not None:

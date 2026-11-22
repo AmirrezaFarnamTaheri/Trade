@@ -618,12 +618,10 @@ def _research_action_stop_preview(root, action, value, store, at):
         if db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? "
                         "AND ts_avail>=? AND ts_avail<? LIMIT ?)", (*window, MAX_ROWS + 1)).fetchone()[0] > MAX_ROWS:
             raise ValueError("too many stop replay observations")
-        last = db.c.execute("SELECT price FROM trades WHERE instrument_id=? AND ts_avail<? AND ts_event<=ts_avail "
-                            "ORDER BY ts_avail DESC, ts_event DESC, rowid DESC LIMIT 1",
-                            window[:2]).fetchone()
+        last = portal.last_trade_before(symbol, start)
         if last is None:
             raise ValueError("no trade was recorded before the order time")
-        reference = decimal(last[0], "last trade", positive=True)
+        reference = decimal(last.price, "last trade", positive=True)
         quantity = decimal(value["quantity"], "quantity", positive=True)
         fee = decimal(value["fee_rate"], "fee rate")
         tick = timedelta(microseconds=1)

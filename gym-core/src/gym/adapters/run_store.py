@@ -7,7 +7,7 @@ import threading
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from ..domain.model import iso
+from ..domain.model import iso, strict_loads
 from ..domain.strategy import digest
 
 
@@ -17,12 +17,24 @@ def run_path(root, run_id):
     return Path(root) / (run_id + ".json")
 
 
+def _same_run(path, text):
+    stored = path.read_text("utf-8")
+    if stored == text:
+        return True
+    # Direct and scheduled workflows can serialize the same mapping in different key orders.
+    try:
+        return json.dumps(strict_loads(stored), sort_keys=True, allow_nan=False) == json.dumps(
+            strict_loads(text), sort_keys=True, allow_nan=False)
+    except ValueError:
+        return False
+
+
 def save_run(out: dict, root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     path = run_path(root, out["run_id"])
     text = json.dumps(out, ensure_ascii=False, indent=1, default=str)
     if path.exists():
-        if path.read_text("utf-8") != text:
+        if not _same_run(path, text):
             raise ValueError(f"run {out['run_id']} already exists with different results")
         return path
     temporary = None
@@ -35,7 +47,7 @@ def save_run(out: dict, root: Path) -> Path:
         try:
             os.link(temporary, path)
         except FileExistsError:
-            if path.read_text("utf-8") != text:
+            if not _same_run(path, text):
                 raise ValueError(f"run {out['run_id']} already exists with different results") from None
     finally:
         if temporary is not None:

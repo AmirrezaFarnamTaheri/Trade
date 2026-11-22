@@ -77,6 +77,51 @@ def test_venue_stop_uses_received_trades_keeps_waiting_balance_free_and_works_pa
         db.c.close()
 
 
+def test_historical_stop_limit_waits_after_gap_and_recovers_without_double_spending(tmp_path):
+    from gym.adapters.run_store import save_run
+    from gym.domain.model import TradeTick, iso
+    from gym.services.research_actions import research_action
+    from tests.support import quote
+
+    def at(seconds):
+        return START + timedelta(seconds=seconds)
+
+    partial = replace(quote(at(210), "67000", "67100"), bid_qty=Decimal("0.02"))
+    tops = quote_history(n=20, turn=1) + [quote(at(200), "67000", "67100"), quote(at(205), "63000", "63100"),
+        quote(at(208), "67000", "67100", ("CLOSED",)), partial, replace(partial, bid_qty=Decimal(1)),
+        quote(at(220), "67000", "67100")]
+    db = market_db(tmp_path, tops)
+    try:
+        db.add_trade(TradeTick("BTCUSDT", at(185), at(185), Decimal("70050"), Decimal(1), "BUY"), None)
+        db.add_trade(TradeTick("BTCUSDT", at(195), at(200), Decimal("63000"), Decimal(1), "SELL"), None)
+        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3, "exit_venue_stop": 3,
+                   "exit_stop_bps": 500, "exit_stop_limit_offset_bps": 100},
+                   "cost": CostModel(fee_rate=Decimal(0), max_participation=Decimal("0.25"))}
+        result = paper(db, "BTCUSDT", START, at(240), **options)
+        order, gap, first, last = result["result"]["orders"]
+        assert order["protection"]["status"] == "WAITING_FOR_TRADE"
+        assert order["protection"]["reference"][1] == iso(at(185))
+        assert gap["reason"] == "STOP_LIMIT_NOT_MARKETABLE" and gap["observed_at"] == iso(at(205))
+        assert all(o["kind"] == "VENUE_STOP_LIMIT" for o in (gap, first, last))
+        assert first["trigger_event_time"] == iso(at(195)) and first["trigger_available_at"] == iso(at(200))
+        assert first["fill_time"] == iso(at(210)) and Decimal(first["qty"]) == Decimal("0.005")
+        assert last["fill_time"] == iso(at(220)) and Decimal(last["residual_base"]) == 0
+        assert all(Decimal(o["price"]) >= Decimal(o["limit_price"]) for o in (first, last))
+        assert result["result"]["session"]["venue_stop_model"] == "received-trade-marketable-stop-limit/1"
+        save_run(result, tmp_path / "runs")
+        for seconds in (200, 210):
+            count = sum(top.ts_avail <= at(seconds) for top in tops)
+            checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": result["run_id"], "quote_count": count})["record"]
+            assert checkpoint["cursor"] == iso(at(seconds))
+            assert research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})["status"] == "EXACT_MATCH"
+        db.c.execute("UPDATE trades SET price='65000' WHERE ts_avail=?", (iso(at(185)),))
+        refused = paper(db, "BTCUSDT", START, at(240), **options)
+        assert refused["run_id"] != result["run_id"]
+        assert refused["result"]["orders"][0]["protection"]["status"] == "NOT_BELOW_REFERENCE"
+    finally:
+        db.c.close()
+
+
 def test_sub_precision_entry_cannot_spend_cash_without_receiving_base():
     book = CashBook({"USDT": Decimal(1000), "BTC": Decimal(1)})
     top = quote_history(n=1)[0]

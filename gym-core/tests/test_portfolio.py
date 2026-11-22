@@ -119,6 +119,64 @@ def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path, mod
         db.c.close()
 
 
+def test_dynamic_route_retains_ownership_through_partial_stop_limit(tmp_path):
+    import asyncio
+
+    from gym.adapters.run_store import save_run
+    from gym.services.research_actions import research_action
+    from gym.services.research_ledger import ResearchLedger
+    from gym.services.research_process import calculate
+
+    def at(seconds):
+        return START + timedelta(seconds=seconds)
+
+    usdt = quote_history(n=33, turn=1)
+    usdt[20:] = [replace(q, bid=Decimal(63000), ask=Decimal(63100)) if q.ts_avail < at(240) else
+                 replace(q, bid=Decimal(67000), ask=Decimal(67100), bid_qty=Decimal("0.01") if q.ts_avail == at(240) else Decimal(1))
+                 for q in usdt[20:]]
+    tmn = [replace(q, symbol="BTCTMN", bid=q.bid * 120, ask=q.ask * 120) for q in quote_history(n=33, turn=1)]
+    # After activation the alternate becomes cheaper, but the first fill leaves inventory on the original route.
+    fx = [replace(usdt[0], symbol="USDTTMN", ts_avail=at(seconds), bid=Decimal(bid), ask=Decimal(bid + 2))
+          for seconds, bid in ((-1, 99), (100, 99), (190, 99), (230, 139))]
+    db = market_db(tmp_path, usdt + tmn + fx)
+    params = {"fast": 2, "slow": 3, "exit_stop_bps": 500, "exit_venue_stop": 3}
+    opening = {"USDT": "1000", "TMN": "100000"}
+    symbols = ["BTCUSDT", "BTCTMN"]
+    try:
+        db.add_trade(TradeTick("BTCUSDT", at(185), at(185), Decimal(70050), Decimal(1), "BUY"), None)
+        db.add_trade(TradeTick("BTCUSDT", at(195), at(200), Decimal(63000), Decimal(1), "SELL"), None)
+        out = portfolio(db, symbols, START, at(330), resolution="1min", dynamic_routes=True,
+                        cash_by_currency=opening, params=params,
+                        cost=CostModel(fee_rate=Decimal(0), max_participation=Decimal("0.25")))
+        result = out["result"]
+        stops = [o for o in result["markets"]["BTCUSDT"]["orders"] if o.get("kind") == "VENUE_STOP_LIMIT"]
+        assert [o["status"] for o in stops] == ["NONFILL", "FILLED", "FILLED"]
+        assert Decimal(stops[1]["residual_base"]) > 0 and Decimal(stops[2]["residual_base"]) == 0
+        assert all(row["decision_time"] > stops[2]["fill_time"] for row in result["markets"]["BTCTMN"]["orders"])
+        switch, = [row for row in result["route_changes"] if row["selected"] == "BTCTMN"]
+        assert switch["at"] > stops[2]["fill_time"]
+        direct_path = save_run(out, tmp_path / "runs" / "portfolios")
+        direct_bytes = direct_path.read_bytes()
+        count = sum(START <= q.ts_avail <= at(240) for q in usdt + tmn + fx)
+        checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": out["run_id"], "quote_count": count})["record"]
+        resumed = research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})
+        assert resumed["result_digest"] == out["outputs_digest"]
+        due = iso(at(330))
+        with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+            hypothesis = ledger.register({"symbol": "BTCUSDT", "strategy": "ema-trend", "params": params})
+            ledger.schedule({"hypothesis_id": hypothesis["hypothesis_id"], "first_at": due, "every_seconds": 3600,
+                             "lookback_seconds": 330, "resolution": "1min", "cash": "1000", "fee_rate": "0",
+                             "max_participation": "0.25", "dynamic_routes": True,
+                             "cash_by_currency": opening, "portfolio_symbols": symbols})
+        completed, = asyncio.run(calculate(tmp_path, "tick", at=due))["completed"]
+        assert completed["run_id"] == out["run_id"]
+        scheduled = research_action(tmp_path, "portfolio-read", {"run_id": completed["run_id"]})
+        assert scheduled["outputs_digest"] == out["outputs_digest"]
+        assert direct_path.read_bytes() == direct_bytes
+    finally:
+        db.c.close()
+
+
 def test_external_reference_changes_change_portfolio_identity(tmp_path):
     db = market_db(tmp_path, quote_history(n=100) + quote_history(n=100, sym="SOLUSDT"))
     try:

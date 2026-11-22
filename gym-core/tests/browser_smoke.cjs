@@ -292,6 +292,8 @@ function stop(child) {
   await until(() => evaluate('!document.querySelector("#portfolio-fields").disabled'), 'whole-market workbench setup');
   assert(await evaluate(`document.querySelector('#portfolio-universe').value === 'whole' &&
     document.querySelector('#portfolio-symbol-options').hidden && !document.querySelector('#portfolio-mixed-cash').hidden`));
+  assert(await evaluate(`document.querySelector('#portfolio-parameter-exit_venue_stop')?.max === '3' &&
+    document.querySelector('#portfolio-parameter-exit_stop_limit_offset_bps')?.labels[0].textContent.includes('Stop-limit offset')`));
   await evaluate(`(() => {
     document.querySelector('#portfolio-from').value = '${fixtureStart.toISOString().slice(0, 19)}';
     document.querySelector('#portfolio-to').value = '${fixtureEnd.toISOString().slice(0, 19)}';
@@ -327,6 +329,7 @@ function stop(child) {
   assert(await evaluate(`document.documentElement.dir === 'rtl' &&
     document.querySelector('#portfolio-universe').value === 'curated' &&
     document.querySelector('#portfolio-symbols').required &&
+    document.querySelector('#portfolio-parameter-exit_stop_limit_offset_bps')?.labels[0].textContent.includes('سفارش محدود') &&
     document.querySelector('.nav a[aria-current="page"]').getBoundingClientRect().height <= 64 &&
     document.documentElement.scrollWidth <= innerWidth + 1`));
   if (process.env.GYM_SCREENSHOTS === '1') {

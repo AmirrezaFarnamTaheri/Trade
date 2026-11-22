@@ -75,6 +75,14 @@ class DataPortal:
             return [t for t in ticks if not any(start <= t.ts_avail < end for start, end in self.excluded)]
         return ticks
 
+    def last_trade_before(self, symbol, at):
+        row = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "
+            "AND ts_avail<? AND ts_event<=ts_avail ORDER BY ts_avail DESC,ts_event DESC,rowid DESC LIMIT 1",
+            (self.instrument_key(symbol), iso(at))).fetchone()
+        if row is None:
+            return None
+        return TradeTick(symbol, parse_ts(row[0]), parse_ts(row[1]), dec(row[2]), dec(row[3]), row[4])
+
     def trades_by_availability(self, symbol, after, through):
         rows = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "
             "AND ts_avail>? AND ts_avail<=? ORDER BY ts_avail,ts_event,rowid LIMIT 100001",

@@ -37,6 +37,20 @@ def test_competing_save_never_overwrites_a_run(tmp_path, monkeypatch):
     assert len(list(tmp_path.iterdir())) == 1
 
 
+def test_idempotent_save_ignores_object_key_order_and_preserves_ordered_fills(tmp_path):
+    record = {"run_id": RUN_ID, "inputs": {"fast": 2, "slow": 3}, "result": {"orders": ["buy", "sell"]}}
+    path = save_run(record, tmp_path)
+    original = path.read_bytes()
+    reordered = {"result": record["result"], "inputs": {"slow": 3, "fast": 2}, "run_id": RUN_ID}
+    assert save_run(reordered, tmp_path) == path
+    assert path.read_bytes() == original
+    with pytest.raises(ValueError, match="different results"):
+        save_run({**reordered, "result": {"orders": ["sell", "buy"]}}, tmp_path)
+    path.write_text('{"run_id":"' + RUN_ID + '","inputs":{},"inputs":{"fast":2,"slow":3},"result":{"orders":["buy","sell"]}}', "utf-8")
+    with pytest.raises(ValueError, match="different results"):
+        save_run(reordered, tmp_path)
+
+
 @pytest.mark.parametrize("run_id", ["../escape", "ABCDEF0123456789", "0123456789abcde", "0123456789abcdef.json"])
 def test_invalid_run_ids_are_rejected(tmp_path, run_id):
     with pytest.raises(ValueError, match="16 lowercase hex"):
