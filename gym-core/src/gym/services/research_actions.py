@@ -344,6 +344,10 @@ def _research_action_universe_manifest(root, action, value, store, at):
     from .historical_universe import universe_manifest
     from .market_watchlists import load_watchlist
 
+    venue = "wallex"
+    if isinstance(value, dict) and "venue" in value:
+        value = dict(value)
+        venue = value.pop("venue")
     watchlist = None
     if isinstance(value, dict) and "watchlist_id" in value:
         fields(value, "as_of lookback_seconds watchlist_id")
@@ -352,7 +356,7 @@ def _research_action_universe_manifest(root, action, value, store, at):
     db = _market_db(root)
     try:
         db.c.execute("BEGIN")
-        return universe_manifest(db, value, store=store, watchlist=watchlist)
+        return universe_manifest(db, value, store=store, watchlist=watchlist, venue=venue)
     finally:
         db.c.close()
 

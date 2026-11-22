@@ -50,6 +50,7 @@ def _result(**values):
 
 
 _SCHEDULE_LIMITS = ("max_fraction", "max_participation")
+_PORTFOLIO_SELECTORS = {"portfolio_symbols", "watchlist_id", "cash_by_currency", "venue"}
 
 
 def _scheduled_cost(job):
@@ -57,25 +58,53 @@ def _scheduled_cost(job):
     return CostModel(fee_rate=rate(job["fee_rate"], "fee_rate"), **limits)
 
 
+def _normalize_schedule_selection(root, body):
+    if "venue" in body:
+        from .data_portal import validate_venue
+
+        if validate_venue(body["venue"]) != "wallex" and "cash_by_currency" in body:
+            raise ValueError("alternate venue replay requires a single quote currency")
+    if "watchlist_id" in body:
+        from .market_watchlists import load_watchlist
+
+        if "portfolio_symbols" in body:
+            raise ValueError("watchlist_id and portfolio_symbols are mutually exclusive")
+        start = parse_ts(body["first_at"]) - timedelta(seconds=body["lookback_seconds"])
+        watchlist = load_watchlist(root, body["watchlist_id"], start)
+        if len(watchlist["symbols"]) < 2:
+            raise ValueError("portfolio requires at least two supported markets")
+        body["watchlist_revision"] = watchlist
+    if "portfolio_symbols" in body:
+        from .portfolio import MAX_MARKETS
+
+        symbols = body["portfolio_symbols"]
+        if (type(symbols) is not list or not 2 <= len(symbols) <= MAX_MARKETS
+                or any(type(s) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", s) for s in symbols)
+                or len(set(symbols)) != len(symbols)):
+            raise ValueError("portfolio_symbols must contain distinct valid market symbols")
+        body["portfolio_symbols"] = sorted(symbols)
+
+
 def _scheduled_replay(db, job, hypothesis, end, store, root):
     start = end - timedelta(seconds=job["lookback_seconds"])
     options = {"strategy_id": hypothesis["strategy"], "params": hypothesis["params"],
                "resolution": job["resolution"], "cash": decimal(job["cash"], "cash", positive=True),
                "cost": _scheduled_cost(job), "store": store}
-    if {"portfolio_symbols", "watchlist_id", "cash_by_currency"} & job.keys():
+    if _PORTFOLIO_SELECTORS & job.keys():
         from .historical_universe import whole_window_spot_selection
         from .portfolio import portfolio
         from .portfolio_margin import load_margin_plans
 
         watchlist = job["watchlist_revision"] if "watchlist_id" in job else None
+        venue = job.get("venue", "wallex")
         selection = None if "portfolio_symbols" in job else whole_window_spot_selection(
-            db, start, end, store=store, watchlist=watchlist)
+            db, start, end, store=store, watchlist=watchlist, venue=venue)
         symbols = job["portfolio_symbols"] if selection is None else selection["symbols"]
         return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
                          universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),
                          fx_rebalance=job.get("fx_rebalance"),
                          margin_plans=load_margin_plans(root, job.get("margin_positions")),
-                         rank_gate=job.get("rank_gate")), "portfolios"
+                         rank_gate=job.get("rank_gate"), venue=venue), "portfolios"
     strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
     db.c.execute("BEGIN")
     try:
@@ -234,7 +263,7 @@ class ResearchLedger:
     def schedule(self, request):
         required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
         optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes",
-                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id")
+                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id", "venue")
                     if isinstance(request, dict) and key in request]
         fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
@@ -247,25 +276,7 @@ class ResearchLedger:
         decimal(request["cash"], "cash", positive=True)
         _scheduled_cost(request)
         body = {**request, "first_at": iso(parse_ts(request["first_at"]))}
-        if "watchlist_id" in body:
-            from .market_watchlists import load_watchlist
-
-            if "portfolio_symbols" in body:
-                raise ValueError("watchlist_id and portfolio_symbols are mutually exclusive")
-            start = parse_ts(body["first_at"]) - timedelta(seconds=body["lookback_seconds"])
-            watchlist = load_watchlist(self.path.parent, body["watchlist_id"], start)
-            if len(watchlist["symbols"]) < 2:
-                raise ValueError("portfolio requires at least two supported markets")
-            body["watchlist_revision"] = watchlist
-        if "portfolio_symbols" in body:
-            from .portfolio import MAX_MARKETS
-
-            symbols = body["portfolio_symbols"]
-            if (type(symbols) is not list or not 2 <= len(symbols) <= MAX_MARKETS
-                    or any(type(s) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", s) for s in symbols)
-                    or len(set(symbols)) != len(symbols)):
-                raise ValueError("portfolio_symbols must contain distinct valid market symbols")
-            body["portfolio_symbols"] = sorted(symbols)
+        _normalize_schedule_selection(self.path.parent, body)
         if "cash_by_currency" in body:
             opening = body["cash_by_currency"]
             if (type(opening) is not dict or opening.keys() != {"TMN", "USDT"}
@@ -292,7 +303,7 @@ class ResearchLedger:
         if "rank_gate" in body:
             from .portfolio_rank import PortfolioRank
 
-            if {"portfolio_symbols", "cash_by_currency", "watchlist_id"}.isdisjoint(body) or body["resolution"] == "session":
+            if _PORTFOLIO_SELECTORS.isdisjoint(body) or body["resolution"] == "session":
                 raise ValueError("rank_gate requires a portfolio with fixed-duration bars")
             PortfolioRank(body["rank_gate"], BarSpec(body["resolution"]).step)
         key, encoded = digest(body), _json(body)

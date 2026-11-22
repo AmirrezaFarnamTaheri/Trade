@@ -7,29 +7,31 @@ from decimal import Decimal
 from ..domain.market_models import fields, instant
 from ..domain.model import iso
 from ..domain.strategy import digest
+from .data_portal import DataPortal, validate_venue
 
 
-def _observed_receipts(db, begin, end):
+def _observed_receipts(db, prefix, begin, end):
     # Seek each instrument key and then its latest receipt instead of scanning all of its book rows.
-    return {key[7:]: receipt for key, receipt in db.c.execute("""
+    return {key[len(prefix):]: receipt for key, receipt in db.c.execute("""
         WITH RECURSIVE keys(symbol_key) AS (
-            SELECT min(instrument_id) FROM book_top WHERE instrument_id >= 'wallex:'
+            SELECT min(instrument_id) FROM book_top WHERE instrument_id >= :prefix
             UNION ALL
             SELECT (SELECT min(instrument_id) FROM book_top WHERE instrument_id > keys.symbol_key)
-            FROM keys WHERE symbol_key GLOB 'wallex:*'
+            FROM keys WHERE symbol_key GLOB :scope
         ), recent AS (
             SELECT symbol_key, (SELECT max(ts_avail) FROM book_top
-                WHERE instrument_id = keys.symbol_key AND ts_avail >= ? AND ts_avail <= ?) AS receipt
-            FROM keys WHERE symbol_key GLOB 'wallex:*'
+                WHERE instrument_id = keys.symbol_key AND ts_avail >= :begin AND ts_avail <= :end) AS receipt
+            FROM keys WHERE symbol_key GLOB :scope
         )
         SELECT symbol_key, receipt FROM recent WHERE receipt IS NOT NULL
-        """, (begin, end))}
+        """, {"prefix": prefix, "scope": prefix + "*", "begin": begin, "end": end})}
 
 
-def universe_manifest(db, request, *, store, watchlist=None):
+def universe_manifest(db, request, *, store, watchlist=None, venue="wallex"):
     """Resolve one decision cutoff from effective specs and observed receipt history."""
     fields(request, "as_of lookback_seconds" + (" symbols" if isinstance(request, dict) and "symbols" in request else ""))
     cutoff = instant(request["as_of"])
+    prefix = validate_venue(venue) + ":"
     if watchlist is not None:
         from .market_watchlists import watchlist_at
 
@@ -47,11 +49,11 @@ def universe_manifest(db, request, *, store, watchlist=None):
     end, begin = iso(cutoff), iso(cutoff - timedelta(seconds=seconds))
     specs = {}
     for instrument, version, raw in db.c.execute(
-            "SELECT instrument_id, valid_from, spec FROM instrument_specs WHERE instrument_id GLOB 'wallex:*' "
+            "SELECT instrument_id, valid_from, spec FROM instrument_specs WHERE instrument_id GLOB ? "
             "AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) ORDER BY instrument_id, valid_from DESC",
-            (end, end)):
-        specs.setdefault(instrument[7:], (version, raw))
-    observed = _observed_receipts(db, begin, end)
+            (prefix + "*", end, end)):
+        specs.setdefault(instrument[len(prefix):], (version, raw))
+    observed = _observed_receipts(db, prefix, begin, end)
     known = specs.keys() | observed.keys()
     unknown = sorted(set(curated) - known)
     if unknown:
@@ -68,44 +70,49 @@ def universe_manifest(db, request, *, store, watchlist=None):
               "mode": "CURATED" if curated else "WHOLE", "requested_symbols": sorted(curated),
               "coverage": {"resolved": len(rows), "with_effective_spec": sum(r["spec_effective_from"] is not None for r in rows),
                            "observed": sum(r["status"] == "OBSERVED" for r in rows), "catalogue_completeness": "UNKNOWN"},
-              "markets": rows, "funded_authority": False,
+              "markets": rows, "funded_authority": False, **({"venue": venue} if venue != "wallex" else {}),
               **({"watchlist": watchlist} if watchlist is not None else {})}
     return {**result, "manifest_id": digest(result)}
 
 
-def whole_spot_selection(db, cutoff, *, store, watchlist=None):
+def whole_spot_selection(db, cutoff, *, store, watchlist=None, venue="wallex"):
     """Resolve the discovered universe to the spot ledger's supported inputs."""
-    from .data_portal import DataPortal
-
-    manifest = universe_manifest(db, {"as_of": iso(cutoff), "lookback_seconds": 86400}, store=store, watchlist=watchlist)
-    portal = DataPortal(db)
+    manifest = universe_manifest(db, {"as_of": iso(cutoff), "lookback_seconds": 86400}, store=store,
+                                 watchlist=watchlist, venue=venue)
+    portal = DataPortal(db, venue=venue)
     symbols, excluded = [], {}
     for row in manifest["markets"]:
         symbol = row["symbol"]
         if row["products"]["spot"] is not True:
             excluded[symbol] = "SPOT_NOT_CONFIRMED"
-        elif portal.instrument(symbol).quote not in ("TMN", "USDT"):
+        elif venue == "wallex" and portal.instrument(symbol).quote not in ("TMN", "USDT"):
             excluded[symbol] = "UNSUPPORTED_QUOTE"
+        elif venue != "wallex" and not db.c.execute(
+                "SELECT 1 FROM instruments WHERE instrument_id=? AND kind='SPOT'", (portal.instrument_key(symbol),)).fetchone():
+            excluded[symbol] = "MISSING_SPOT_INSTRUMENT_TERMS"
         else:
             symbols.append(symbol)
     return {"schema": "whole-spot-universe/1", "manifest_id": manifest["manifest_id"],
-            "coverage": manifest["coverage"], "excluded": excluded, "symbols": symbols, "store": store}
+            "coverage": manifest["coverage"], "excluded": excluded, "symbols": symbols, "store": store,
+            **({"venue": venue} if venue != "wallex" else {})}
 
 
-def whole_window_spot_selection(db, start, end, *, store, watchlist=None):
+def whole_window_spot_selection(db, start, end, *, store, watchlist=None, venue="wallex"):
     """Freeze all confirmed spot availability intervals within the replay window."""
-    opening = whole_spot_selection(db, start, store=store, watchlist=watchlist)
+    opening = whole_spot_selection(db, start, store=store, watchlist=watchlist, venue=venue)
     requested = set(watchlist["symbols"]) if watchlist is not None else None
     start_at, end_at = iso(start), iso(end)
     windows, previous_end = {}, {}
-    rows = db.c.execute("""SELECT substr(s.instrument_id,8), s.valid_from, s.valid_to, json_type(s.spec, '$.is_spot')
+    rows = db.c.execute("""SELECT s.instrument_id, s.valid_from, s.valid_to, json_type(s.spec, '$.is_spot')
         FROM instrument_specs s LEFT JOIN instruments i USING (instrument_id)
-        WHERE s.instrument_id GLOB 'wallex:*'
-          AND (i.quote IN ('TMN','USDT') OR (i.quote IS NULL AND
-               (s.instrument_id GLOB '*TMN' OR s.instrument_id GLOB '*USDT')))
+        WHERE s.instrument_id GLOB ?
+          AND ((?='wallex' AND (i.quote IN ('TMN','USDT') OR (i.quote IS NULL AND
+               (s.instrument_id GLOB '*TMN' OR s.instrument_id GLOB '*USDT'))))
+               OR (?<>'wallex' AND i.kind='SPOT'))
           AND s.valid_from<? AND (s.valid_to IS NULL OR s.valid_to>?)
-        ORDER BY s.instrument_id,s.valid_from,s.rowid""", (end_at, start_at))
-    for symbol, begin, through, spot in rows:
+        ORDER BY s.instrument_id,s.valid_from,s.rowid""", (venue + ":*", venue, venue, end_at, start_at))
+    for instrument, begin, through, spot in rows:
+        symbol = instrument[len(venue) + 1:]
         if requested is not None and symbol not in requested:
             continue
         begin, through = max(start_at, begin), min(end_at, through or end_at)
@@ -122,7 +129,7 @@ def whole_window_spot_selection(db, start, end, *, store, watchlist=None):
         else:
             intervals.append([begin, through])
     symbols = sorted(windows)
-    if watchlist is None and symbols == opening["symbols"] and all(
+    if venue == "wallex" and watchlist is None and symbols == opening["symbols"] and all(
             value == [[start_at, end_at]] for value in windows.values()):
         return opening
     return {**opening, "schema": "whole-spot-universe/2" if watchlist is None else "watchlist-spot-universe/1",

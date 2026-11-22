@@ -27,15 +27,19 @@ def parse_depth(text):
     return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
 
 
+def validate_venue(venue):
+    if not isinstance(venue, str) or re.fullmatch("[a-z][a-z0-9_-]{0,31}", venue) is None:
+        raise ValueError("invalid market venue")
+    return venue
+
+
 class DataPortal:
     """Point-in-time reads: quotes in availability order; specs and rules as they were known at a time."""
 
     def __init__(self, db: MarketDB, *, excluded=(), venue="wallex"):
-        if not isinstance(venue, str) or re.fullmatch("[a-z][a-z0-9_-]{0,31}", venue) is None:
-            raise ValueError("invalid market venue")
         self.db = db
         self.excluded = tuple(excluded)
-        self.venue = venue
+        self.venue = validate_venue(venue)
 
     def instrument_key(self, symbol):
         return f"{self.venue}:{symbol}"

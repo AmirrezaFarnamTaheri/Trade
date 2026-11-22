@@ -87,8 +87,8 @@ def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, 
                universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance,
                margin_plans, rank_gate):
     """Replay strictly prior market observations against a shared simulated cash book."""
-    if portal.venue != "wallex" and (cash_by_currency is not None or universe_selection is not None):
-        raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
+    if portal.venue != "wallex" and cash_by_currency is not None:
+        raise ValueError("alternate venue replay requires a single quote currency")
     _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection,
                    multicurrency=cash_by_currency is not None)
     if rank_gate is not None:
@@ -946,17 +946,18 @@ def _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection
             whole_window_spot_selection,
         )
 
-        if universe_selection.get("schema") == "whole-spot-universe/1":
-            actual = whole_spot_selection(db, t0, store=universe_selection["store"])
-        elif universe_selection.get("schema") == "whole-spot-universe/2":
-            actual = whole_window_spot_selection(db, t0, t1, store=universe_selection["store"])
-        elif universe_selection.get("schema") == "watchlist-spot-universe/1":
+        schema = universe_selection.get("schema")
+        if schema == "whole-spot-universe/1":
+            actual = whole_spot_selection(db, t0, store=universe_selection["store"], venue=portal.venue)
+        elif schema in ("whole-spot-universe/2", "watchlist-spot-universe/1"):
             actual = whole_window_spot_selection(db, t0, t1, store=universe_selection["store"],
-                                                 watchlist=universe_selection["watchlist"])
-        else:
+                                                 watchlist=universe_selection.get("watchlist"), venue=portal.venue)
+        elif portal.venue == "wallex":
             actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
                                      top_n=universe_selection["requested_top_n"],
                                      lookback_hours=universe_selection["lookback_hours"])
+        else:
+            raise ValueError("unsupported historical universe selection for this venue")
         if actual != universe_selection or actual.get("status", "AVAILABLE") != "AVAILABLE" or actual["symbols"] != symbols:
             raise ValueError("historical universe selection evidence changed")
     placeholders = ",".join("?" for _ in symbols)

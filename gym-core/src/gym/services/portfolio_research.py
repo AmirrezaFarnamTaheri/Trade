@@ -11,7 +11,7 @@ from ..domain.model import now_utc
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .attribution import toman_attribution
-from .data_portal import DataPortal
+from .data_portal import DataPortal, validate_venue
 from .data_quality_gate import recorded_bar_coverage
 from .portfolio import MAX_MARKETS, portfolio
 from .portfolio_margin import load_margin_plans
@@ -22,7 +22,7 @@ def _resolve_selection(db, value, symbols, start, end, *, whole_request, watchli
     if whole_request or watchlist is not None:
         from .historical_universe import whole_window_spot_selection
 
-        selection = whole_window_spot_selection(db, start, end, store=store, watchlist=watchlist)
+        selection = whole_window_spot_selection(db, start, end, store=store, watchlist=watchlist, venue=venue)
     elif "top_n" in value:
         from .historical_universe import select_universe
 
@@ -47,11 +47,12 @@ def _universe_request(value):
     watchlist_request = "watchlist_id" in value
     if watchlist_request and {"symbols", "top_n"} & value.keys():
         raise ValueError("watchlist_id, symbols and top_n are mutually exclusive")
-    whole_request = not watchlist_request and "symbols" not in value and "cash_by_currency" in value and "top_n" not in value
+    whole_request = (not {"cash_by_currency", "venue"}.isdisjoint(value)
+                     and {"watchlist_id", "symbols", "top_n"}.isdisjoint(value))
     as_of_request = "top_n" in value or whole_request or watchlist_request
-    venue = value.get("venue", "wallex")
-    if venue != "wallex" and (as_of_request or "cash_by_currency" in value):
-        raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
+    venue = validate_venue(value.get("venue", "wallex"))
+    if venue != "wallex" and ("top_n" in value or "cash_by_currency" in value):
+        raise ValueError("alternate venue replay needs a single quote currency and a catalogue or explicit selection")
     if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
             or (as_of_request and symbols != [])
             or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)

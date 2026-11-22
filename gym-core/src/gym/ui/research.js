@@ -5,7 +5,7 @@ window.gymResearch = (() => {
     register: [T.en.rsRegisterHypothesis, T.fa.rsRegisterHypothesis, 'symbol, strategy, params'],
     'shadow-open': [T.en.rsOpenPaperShadow, T.fa.rsOpenPaperShadow, 'position_id, hypothesis_id, quote, gross_quantity, fee_rate'],
     'shadow-close': [T.en.rsClosePaperShadow, T.fa.rsClosePaperShadow, 'position_id, quote'],
-    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: max_fraction, max_participation, portfolio_symbols or watchlist_id, cash_by_currency, dynamic_routes, fx_rebalance, margin_positions)'],
+    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: venue, max_fraction, max_participation, portfolio_symbols or watchlist_id, cash_by_currency, dynamic_routes, fx_rebalance, margin_positions)'],
     list: [T.en.rsResearchLedger, T.fa.rsResearchLedger, ''],
     review: [T.en.rsReviewSavedRuns, T.fa.rsReviewSavedRuns, 'run_ids'],
     'claim-check': [T.en.rsCheckNumericClaims, T.fa.rsCheckNumericClaims, 'claims'],
@@ -46,7 +46,7 @@ window.gymResearch = (() => {
   actions['prospective-status'] = [T.en.rsInspectFrozenComparison, T.fa.rsInspectFrozenComparison, 'Saved 64-character registry ID'];
   actions['prospective-evaluate'] = [T.en.rsConsumeFutureComparisonOnce, T.fa.rsConsumeFutureComparisonOnce, 'Saved 64-character registry ID; failures are consumed'];
   actions['market-products'] = [T.en.rsInspectObservedMarketProductsAndCredit, T.fa.rsInspectObservedMarketProductsAndCredit, 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
-  actions['universe-manifest'] = [T.en.rsUniverseManifest, T.fa.rsUniverseManifest, 'as_of, lookback_seconds, optional symbols or watchlist_id'];
+  actions['universe-manifest'] = [T.en.rsUniverseManifest, T.fa.rsUniverseManifest, 'as_of, lookback_seconds, optional venue and symbols or watchlist_id'];
   actions['watchlist-save'] = [T.en.rsWatchlistSave, T.fa.rsWatchlistSave, 'name, effective_from (ISO timestamp), symbols: [market]'];
   actions['watchlist-read'] = [T.en.rsWatchlistRead, T.fa.rsWatchlistRead, 'watchlist_id (16 lowercase hex characters)'];
   actions['campaign-status'] = [T.en.rsInspectCampaignProgressAndVerifiedSamples, T.fa.rsInspectCampaignProgressAndVerifiedSamples, 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
