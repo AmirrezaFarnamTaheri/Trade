@@ -4,15 +4,34 @@ from ..domain.account_observations import project_account
 from ..domain.conversion import ConversionWorkload
 from ..domain.market_models import decimal, fields
 from ..domain.model import now_utc
+from ..domain.otc import quote_preview, replay_route
 from .external_journal import ExternalJournal
 from .probe_budget import ProbeBudgetBook
 from .reports import economic_report
 from .venue_facts import VenueFactsJournal, validate_venue_fact
 
-OPERATOR_ACTIONS = ("conversion-report", "probe-stage", "external-import", "venue-fact-import", "evidence-report", "evidence-decision", "order-page-import")
+OPERATOR_ACTIONS = ("otc-quote-preview", "otc-route-replay", "conversion-report", "probe-stage", "external-import", "venue-fact-import", "evidence-report", "evidence-decision", "order-page-import")
 
 
 def operator_action(root, action, value, *, store="live"):
+    if action == "otc-quote-preview":
+        return quote_preview(value)
+    if action == "otc-route-replay":
+        legs = value.get("legs") if isinstance(value, dict) else None
+        if isinstance(legs, list) and any(isinstance(leg, dict) and "spot" in leg for leg in legs):
+            from ..adapters.store import MarketDB
+            from .conversion_replay import replay_mixed_route
+
+            path = root / "market.db"
+            if not path.is_file():
+                raise ValueError("spot execution requires a historical market store")
+            db = MarketDB(path, readonly=True)
+            try:
+                db.c.execute("BEGIN")
+                return replay_mixed_route(db, value)
+            finally:
+                db.c.close()
+        return replay_route(value)
     if action == "order-page-import":
         from ..adapters.wallex_order_evidence import parse_order_page
         fields(value, "account_id observed_at kind page per_page payload")

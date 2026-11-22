@@ -8,10 +8,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import closing
 from pathlib import Path
 
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..domain.market_models import fields
+from ..domain.model import iso, now_utc, parse_ts
+from .research_ledger import MULTICURRENCY_WORKER_SECONDS
 
 DEADLINE_SECONDS = 120
 MAX_DEADLINE_SECONDS = 600
@@ -69,6 +72,20 @@ def deadline_for(observations: int | None) -> float:
                      max(DEADLINE_SECONDS, observations * SECONDS_PER_OBSERVATION * DEADLINE_HEADROOM)))
 
 
+def _tick_deadline(root, at):
+    path = Path(root) / "research.sqlite3"
+    if not path.is_file():
+        return MAX_DEADLINE_SECONDS
+    cutoff = iso(parse_ts(at) if at is not None else now_utc())
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+            mixed = db.execute("SELECT 1 FROM jobs WHERE enabled=1 AND next_at<=? "
+                               "AND json_type(body,'$.cash_by_currency')='object' LIMIT 1", (cutoff,)).fetchone()
+    except sqlite3.Error:
+        return MAX_DEADLINE_SECONDS
+    return MULTICURRENCY_WORKER_SECONDS if mixed else MAX_DEADLINE_SECONDS
+
+
 def _checked_result(raw):
     """Return the worker result or raise the failure its reply describes."""
     try:
@@ -92,12 +109,14 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
     """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
         raise ValueError("unsupported supervised paper calculation")
+    maximum = await asyncio.to_thread(_tick_deadline, root, at) if action == "tick" else MAX_DEADLINE_SECONDS
     if timeout_seconds is None:
         # A tick replays one scheduled job; its window is in the ledger, so allow the longest deadline.
-        timeout_seconds = MAX_DEADLINE_SECONDS if action == "tick" else deadline_for(await asyncio.to_thread(work_estimate, root, value))
+        timeout_seconds = (maximum if action == "tick"
+                           else deadline_for(await asyncio.to_thread(work_estimate, root, value)))
     if at is not None and action != "tick":
         raise ValueError("only scheduled ticks accept an explicit clock")
-    if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= 600:
+    if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= maximum:
         raise ValueError("invalid calculation deadline")
     payload = json.dumps({"root": str(Path(root).resolve()), "action": action, "value": value,
                           "store": store, "at": at}, allow_nan=False).encode()

@@ -56,14 +56,15 @@ def test_cached_quotes_and_frozen_rules_equal_the_database(tmp_path):
         assert rules(at) == svc.load(at)[1]
 
 
-def test_sweep_rows_match_full_paper_runs(tmp_path):
+@pytest.mark.parametrize("participation", [None, Decimal(1), Decimal("0.25")])
+def test_sweep_rows_match_full_paper_runs(tmp_path, participation):
     path = _db(tmp_path)
     rows = sweep_market(str(path), "ETHUSDT", START, END, ("1min", "15min"), ("ema-trend", "macd-cross", "rsi-rebound"),
-                        Decimal(1000), Decimal(300_000_000), Decimal("0.001"))
+                        Decimal(1000), Decimal(300_000_000), Decimal("0.001"), participation)
     db = MarketDB(path, readonly=True)
     for row in rows:
         out = paper(db, "ETHUSDT", START, END, resolution=row["resolution"], strategy_id=row["strategy"],
-                    cost=CostModel(Decimal("0.001")))
+                    cost=CostModel(Decimal("0.001"), max_participation=participation))
         perf = performance(out, sampled_drawdown(out))
         assert row["status"] == "OK"
         assert (row["net"], row["fills"], row["data_digest"]) == (out["result"]["end"]["net"], out["result"]["fills"],
@@ -86,6 +87,9 @@ def test_sweep_resumes_records_trials_and_refuses_changed_settings(tmp_path):
     sweep(tmp_path, out, START, END, resolutions=("15min",), strategies=("ema-trend", "lead-lag"), workers=2,
           progress=again.append)
     assert "0 to run" in again[0]
+    with pytest.raises(ValueError, match="different settings"):
+        sweep(tmp_path, out, START, END, resolutions=("15min",), strategies=("ema-trend", "lead-lag"),
+              workers=1, participation=None)
     ledger = sqlite3.connect(tmp_path / "trial_ledger.sqlite3")
     assert ledger.execute("SELECT count(*) FROM trial_attempts WHERE source='experiment'").fetchone()[0] >= 2
     try:

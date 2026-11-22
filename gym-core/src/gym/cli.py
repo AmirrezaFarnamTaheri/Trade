@@ -394,6 +394,7 @@ def main(argv=None):
     sw.add_argument("--strategies", help="comma-separated strategies (default: all registered)")
     sw.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 4) - 4))
     sw.add_argument("--fee", default="0.001", help="fee rate per side")
+    sw.add_argument("--participation", default="1", help="maximum fraction of displayed top size per fill (default 1); 'legacy' reproduces uncapped sweeps")
     sw.add_argument("--out", help="results SQLite file (default: <data>/live/sweeps/<from>_<to>.sqlite3)")
     sw.add_argument("--report", action="store_true", help="print the best and worst rows of an existing sweep")
     tl = sub.add_parser("timeline", help="read-only operator activity timeline across the workspace journals")

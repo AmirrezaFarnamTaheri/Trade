@@ -34,6 +34,10 @@ class DataPortal:
         self.excluded = tuple(excluded)
 
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
+        return list(self.iter_tops(symbol, t0, t1))
+
+    def iter_tops(self, symbol: str, t0: datetime, t1: datetime):
+        """Yield book events from the current read snapshot in stable receipt order."""
         if not t0 < t1:
             raise ValueError(f"inverted or empty range {iso(t0)} .. {iso(t1)}")
         rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
@@ -42,14 +46,13 @@ class DataPortal:
         def optional_decimal(value):
             return None if value is None else dec(value)
 
-        excluded, out = self.excluded, []
+        excluded = self.excluded
         for r in rows:
             t = parse_ts(r[0])
             if excluded and any(start <= t < end for start, end in excluded):
                 continue
-            out.append(BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
-                               optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), parse_depth(r[6])))
-        return out
+            yield BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
+                          optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), parse_depth(r[6]))
 
     def publication(self):
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()

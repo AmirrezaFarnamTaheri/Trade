@@ -34,8 +34,9 @@ class PendingOrder:
 
 
 class PaperSession:
-    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None, auxiliary_symbols=()):
-        if not cash.is_finite() or cash <= 0:
+    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None,
+                 auxiliary_symbols=(), *, shared_book=None):
+        if shared_book is None and (not cash.is_finite() or cash <= 0):
             raise ValueError("cash must be positive and finite")
         self.portal = portal
         self.rules_for = rules_for
@@ -75,7 +76,7 @@ class PaperSession:
         periods = {"session": self.session_of} if "session" in resolutions else {}
         self.closes = CloseSubscriptions(symbol, resolutions, periods)
         self.consolidator = self.closes.by_resolution[resolution]
-        self.book = CashBook({self.instrument.quote: cash})
+        self.book = shared_book if shared_book is not None else CashBook({self.instrument.quote: cash})
         self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
         self.decision_filter = None
         self.warmup_until = None  # No simulated orders can enter before this boundary.

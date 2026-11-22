@@ -8,9 +8,9 @@ same `PaperSession`, costs and point-in-time rules) but shares what does not cha
 - quotes are parsed once per market and sliced by time (`CachedPortal`);
 - rule versions are resolved in memory from one snapshot of the regime events (`FrozenRules`), the same
   prefix rule as `MarketDB.rules_version_as_of`, instead of one SQL query per quote;
-- hold baselines run once per (market, resolution) and hold-BTC once per (quote, resolution), not per strategy;
+- the hold-the-base baseline is shared across strategies with the same resolution and subscriptions;
 - each run leaves one compact row in a SQLite results file; any row can be reproduced in full with
-  `gymctl paper` using the same window, strategy and resolution;
+  `gymctl paper` using the same window, capital, costs, participation, strategy and resolution;
 - markets run in parallel worker processes, largest first, and finished markets are skipped on restart.
 
 Every configuration is recorded as one trial in the trial ledger (source "experiment"), so the sweep's breadth
@@ -134,7 +134,7 @@ def _metrics(main: dict, t0: datetime, t1: datetime, symbol: str, baselines: dic
 
 
 def sweep_market(db_path: str, symbol: str, t0: datetime, t1: datetime, resolutions, strategies,
-                 cash_usdt: Decimal, cash_tmn: Decimal, fee: Decimal) -> list[dict]:
+                 cash_usdt: Decimal, cash_tmn: Decimal, fee: Decimal, participation=Decimal(1)) -> list[dict]:
     from .paper import run
 
     db = MarketDB(Path(db_path), readonly=True)
@@ -143,7 +143,7 @@ def sweep_market(db_path: str, symbol: str, t0: datetime, t1: datetime, resoluti
         rules_for = FrozenRules(db)
         inst = portal.instrument(symbol)
         cash = cash_tmn if inst.quote == "TMN" else cash_usdt
-        cost = CostModel(fee)
+        cost = CostModel(fee, max_participation=participation)
         fx_tops = portal.tops("USDTTMN", t0 - timedelta(days=1), t1) if inst.quote == "TMN" else None
         baseline_cache: dict = {}
         digests: dict = {}
@@ -220,7 +220,8 @@ COLUMNS = ("symbol", "resolution", "strategy", "status", "error", "quote", "obse
 
 def sweep(root: Path, out: Path, t0: datetime, t1: datetime, *, symbols=None, resolutions=RESOLUTIONS,
           strategies=None, workers: int = 8, fee: Decimal = Decimal("0.001"), cash_usdt: Decimal = Decimal(1000),
-          cash_tmn: Decimal = Decimal(300_000_000), progress=print) -> dict:
+          cash_tmn: Decimal = Decimal(300_000_000), participation=Decimal(1), progress=print) -> dict:
+    cost = CostModel(fee, max_participation=participation)
     db_path = Path(root) / "market.db"
     strategies = tuple(strategies or STRATEGIES)
     reader = MarketDB(db_path, readonly=True)
@@ -241,6 +242,8 @@ def sweep(root: Path, out: Path, t0: datetime, t1: datetime, *, symbols=None, re
     meta = {"from": iso(t0), "to": iso(t1), "fee": str(fee), "cash_usdt": str(cash_usdt), "cash_tmn": str(cash_tmn),
             "engine": ENGINE_VERSION, "resolutions": list(resolutions), "strategies": list(strategies)}
     stored = dict(conn.execute("SELECT key, value FROM sweep").fetchall())
+    if cost.max_participation is not None:
+        meta["max_participation"] = str(cost.max_participation.normalize())
     if stored and json.loads(stored["meta"]) != meta:
         conn.close()
         raise ValueError(f"{out} holds a sweep with different settings; choose another output file")
@@ -257,7 +260,7 @@ def sweep(root: Path, out: Path, t0: datetime, t1: datetime, *, symbols=None, re
     total_quotes = sum(counts[s] for s in todo)
     with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(_worker, (str(db_path), s, t0, t1, tuple(resolutions), strategies, cash_usdt,
-                                         cash_tmn, fee)) for s in todo]
+                                         cash_tmn, fee, participation)) for s in todo]
         for n, future in enumerate(as_completed(futures), 1):
             symbol, seconds, rows = future.result()
             conn.executemany(f"INSERT OR REPLACE INTO runs({','.join(COLUMNS)}) VALUES({','.join('?' * len(COLUMNS))})",
@@ -318,6 +321,8 @@ def _record_trials(root: Path, conn, t0, t1) -> None:
                 identity = ["sweep", iso(t0), iso(t1), symbol, resolution, strategy, config_hash]
                 cash = Decimal(settings["cash_tmn" if quote == "TMN" else "cash_usdt"])
                 fee = Decimal(settings["fee"])
+                if "max_participation" in settings:
+                    identity.append(["max_participation", settings["max_participation"]])
                 # Preserve historical default-cost identities when resuming archived sweeps.
                 if cash != (300_000_000 if quote == "TMN" else 1000) or fee != Decimal("0.001"):
                     identity.extend((str(cash.normalize()), str(fee.normalize())))

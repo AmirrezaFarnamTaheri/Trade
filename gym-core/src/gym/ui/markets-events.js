@@ -4,7 +4,12 @@ for (const id of ["market-quality", "market-sort"]) {
   select.value = saved(id, select.value, [...select.options].map(option => option.value));
   select.addEventListener("change", () => { remember(id, select.value); renderMarkets(); });
 }
-const venueProducts = venue => venue ? [venue.spot && 'SPOT', venue.margin && `MARGIN ≤${venue.max_leverage}×`, venue.otc && 'OTC', venue.zero_fee && 'ZERO_FEE'].filter(Boolean).map(code).join(' · ') : code('UNKNOWN');
+const venueProducts = venue => {
+  if (!venue) return code('UNKNOWN');
+  const margin = venue.max_leverage == null ? 'MARGIN' : `MARGIN ≤${venue.max_leverage}×`;
+  return [venue.spot === true && 'SPOT', venue.margin === true && margin,
+    venue.otc === true && 'OTC', venue.zero_fee === true && 'ZERO_FEE'].filter(Boolean).map(code).join(' · ') || code('UNKNOWN');
+};
 $("products-refresh").onclick = async event => {
   const button = event.target; button.disabled = true;
   setHTML("product-capabilities", empty(t("loading")));

@@ -2,6 +2,8 @@
 from datetime import timedelta
 from decimal import Decimal
 
+import pytest
+
 from gym.domain.model import TradeTick, iso
 from gym.services.historical_universe import select_universe
 from gym.services.research_actions import research_action
@@ -11,6 +13,31 @@ from tests.support import START, market_db, quote_history
 
 def _receipt(db, symbol, amount, at):
     db.add_trade(TradeTick(symbol, at, at, Decimal(100), Decimal(amount), "BUY"), "fixture")
+
+
+def test_universe_manifest_preserves_catalogue_only_markets_and_rejects_unknown_symbols(tmp_path):
+    db = market_db(tmp_path, quote_history(n=10))
+    try:
+        db.c.execute("INSERT INTO instrument_specs(instrument_id,valid_from,spec,source) VALUES(?,?,?,?)",
+                     ("wallex:OTCUSDT", iso(START), '{"is_otc":true,"is_spot":false}', "fixture"))
+        db.c.commit()
+    finally:
+        db.c.close()
+    request = {"as_of": iso(START + timedelta(minutes=1)), "lookback_seconds": 60}
+    whole = research_action(tmp_path, "universe-manifest", request)
+    assert whole["mode"] == "WHOLE"
+    assert whole["coverage"] == {"resolved": 2, "with_effective_spec": 1, "observed": 1,
+                                 "catalogue_completeness": "UNKNOWN"}
+    otc = next(row for row in whole["markets"] if row["symbol"] == "OTCUSDT")
+    assert otc["products"] == {"spot": False, "margin": None, "otc": True}
+    assert otc["status"] == "NO_RECENT_QUOTE"
+    curated = research_action(tmp_path, "universe-manifest", {**request, "symbols": ["BTCUSDT"]})
+    assert curated["mode"] == "CURATED" and len(curated["markets"]) == 1
+    assert curated["manifest_id"] != whole["manifest_id"]
+    earlier = research_action(tmp_path, "universe-manifest", {**request, "as_of": iso(START - timedelta(seconds=1))})
+    assert earlier["markets"] == []
+    with pytest.raises(ValueError, match="unknown markets"):
+        research_action(tmp_path, "universe-manifest", {**request, "symbols": ["UNKNOWN"]})
 
 
 def test_trade_volume_selection_uses_only_pre_start_receipts(tmp_path):

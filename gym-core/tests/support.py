@@ -22,6 +22,15 @@ def quote_history(n=2000, step=10, sym="BTCUSDT", turn=0.5):
     return out
 
 
+def supplied_otc_quote(*, price="98", expiry_seconds=180):
+    return {"quote": {"symbol": "USDTTMN", "side": "BUY",
+                      "received_at": (START + timedelta(seconds=5)).isoformat(),
+                      "price": price, "price_expires_at": (START + timedelta(seconds=expiry_seconds)).isoformat()},
+            "market": {"symbol": "USDTTMN", "received_at": START.isoformat(), "buyStatus": "ENABLE",
+                       "sellStatus": "ENABLE", "minQty": "1", "minNotional": "1", "maxNotional": "100000"},
+            "max_base_quantity": "10", "fee_rate": "0.001", "settlement_seconds": 5}
+
+
 def market_db(tmp_path, rows, preset_at=START - timedelta(days=30)):
     db = MarketDB(tmp_path / "market.db")
     for x in rows:

@@ -440,6 +440,10 @@ def performance(record: dict, drawdown: dict | None = None, *, enhanced: bool = 
     start, end = parse_ts(inputs["from"]), parse_ts(inputs["to"])
     cash = Decimal(result["start_cash"])
     final = result.get("end") if (result.get("end") or {}).get("equity") is not None else None
+    if "cash_by_currency" in inputs:
+        return {"status": "MARKED_RETURN_ONLY" if final else "UNAVAILABLE", "currency": result["quote"],
+                "valuation_status": final.get("valuation_status") if final else None,
+                "total_return_pct": str((Decimal(final["equity"]) / cash - 1) * 100) if final else None}
     status = "PROVISIONAL" if final and final.get("valuation_status") == "STALE_VALUATION" else "AVAILABLE"
     out: dict = {"status": status, "currency": result["quote"], "starting_cash": str(cash), "window_days": (end - start).total_seconds() / 86400}
 

@@ -56,6 +56,22 @@ are outside ordinary strategy authority. The wiring order is in
 
 ## Official reference cross-check
 
+### Trading-model coverage reviewed on November 22, 2026
+
+| Venue capability | What a TradingGYM result can establish | Material limitation |
+| --- | --- | --- |
+| Catalogue, market data and candles | Captured spot books, prints, historical candles and rule vintages support paper replay. The collector's eligible universe and the scheduler's configured symbols are distinct. | A listed pair can have no qualified data. Never infer missing depth, tradability, or historical membership from a current listing. |
+| Spot market orders | New bulk sweeps cap each simulated fill at the observed best-level quantity by default. A smaller `--participation` models access to a fraction. The `legacy` value reproduces historical uncapped sweeps. | Displayed liquidity can disappear. Resizing a proposed order does not reproduce venue rejection of an oversized order. A price guard using the best level approximates the venue's last-trade reference. |
+| Spot limits, stops and cancellations | Resting limits have a modeled queue. Stop previews distinguish activation from execution. Protected limit submission and local lifecycle evidence exist separately. | Queue priority, partial executions, simultaneous cancellations, gaps through stops and authenticated restart reconciliation still need venue evidence. A trailing paper strategy is a synthetic order policy. |
+| OTC instant trade | `otc-quote-preview` accepts a supplied timestamped side-specific quote and market terms. It returns gross consideration only while the quote is available and unexpired, the requested side is enabled, and the quantity and notional limits admit the request. | Requires matching OTC observations. Historical spot prices cannot supply a missing RFQ. Gross consideration excludes fees, settlement, account eligibility and confirmation. Catalogue freshness between observations remains unknown. |
+| Margin | Public collateral/loan previews and a paper position lifecycle use market-specific terms. | Venue liquidation fills, the effect of closures and actual interest postings need matched account receipts. |
+| Trading credit | Public package reads and a paper replay model supplied package terms, fees and threshold events. | Activation, renewal, transfers, disposal of collateral and the account's final liability require private lifecycle evidence. |
+| Balances, fee tiers, transfers and settlement | Account read paths and local ledgers distinguish available balances, locked assets, modeled fees and valuation marks. | The five audited jobs specified a flat fee. No common multi-currency settled account backed all 373 sweep rows. Deposits, withdrawals and credit transfers are external cash flows. |
+| Streaming, reconnect and account events | The collector handles public depth/trades, reseeding and connection failures. | A gap can hide intervening prices. A successful reconnect or private REST read alone cannot establish every intermediate execution. |
+| Exchange-hosted retail bots and other non-trading services | A locally reproduced trading rule can be evaluated explicitly as a synthetic strategy. | Product-specific internal behavior, discretionary venue controls and non-trading services have no venue-parity qualification here. |
+
+Official documentation distinguishes the market catalogue and protected order lifecycle from OTC side-specific quotes and their expiry. [Wallex developer catalogue](https://developers.wallex.ir/docs/) · [Spot](https://developers.wallex.ir/docs/spot-intro) · [OTC markets](https://developers.wallex.ir/docs/otc-markets) · [OTC quotes](https://developers.wallex.ir/docs/otc-price)
+
 Checked on 2026-11-08 against [developers.wallex.ir](https://developers.wallex.ir/docs/) (all 120 pages,
 plus its basic-services, spot, margin, trade-credit and OTC Swagger files) and the older
 [api-docs.wallex.ir](https://api-docs.wallex.ir/). Where they differ, developers.wallex.ir is newer and wins.
@@ -77,4 +93,4 @@ plus its basic-services, spot, margin, trade-credit and OTC Swagger files) and t
 | Order types | `LIMIT`, `MARKET`, `STOP_LIMIT`, `STOP_MARKET` | Paper replays model market and resting limit orders; `stop-preview` replays one stop order |
 | Margin | `/margin-trade/v1/...` public markets, loan, dry-run, positions; a position lives at most 21 days and pays an extension fee every 4 hours | Public markets, loan and dry-run only; `max_age` and extension fees come from each market's returned terms |
 | API keys | `x-api-key`; up to 90 days, not renewable; at most three keys; each trade-credit sub-account needs its own key; withdrawal permission requires the IP allowlist | `gymctl key set <role> --expires YYYY-MM-DD` records the expiry; `gymctl key show` warns 14 days ahead |
-| Rate limits | None published beyond HTTP 429 | Collector paces REST at 4 requests per second and halves the rate on 429 |
+| Rate limits | Placement 20 requests per 10 seconds and crypto withdrawals six per minute per the dated reference. Other limits may surface as HTTP 429. | Public collection pacing and backoff are separate from account-operation limits. |

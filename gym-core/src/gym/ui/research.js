@@ -5,7 +5,7 @@ window.gymResearch = (() => {
     register: [T.en.rsRegisterHypothesis, T.fa.rsRegisterHypothesis, 'symbol, strategy, params'],
     'shadow-open': [T.en.rsOpenPaperShadow, T.fa.rsOpenPaperShadow, 'position_id, hypothesis_id, quote, gross_quantity, fee_rate'],
     'shadow-close': [T.en.rsClosePaperShadow, T.fa.rsClosePaperShadow, 'position_id, quote'],
-    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: max_fraction, max_participation)'],
+    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: max_fraction, max_participation, portfolio_symbols, cash_by_currency, dynamic_routes, fx_rebalance)'],
     list: [T.en.rsResearchLedger, T.fa.rsResearchLedger, ''],
     review: [T.en.rsReviewSavedRuns, T.fa.rsReviewSavedRuns, 'run_ids'],
     'claim-check': [T.en.rsCheckNumericClaims, T.fa.rsCheckNumericClaims, 'claims'],
@@ -46,6 +46,7 @@ window.gymResearch = (() => {
   actions['prospective-status'] = [T.en.rsInspectFrozenComparison, T.fa.rsInspectFrozenComparison, 'Saved 64-character registry ID'];
   actions['prospective-evaluate'] = [T.en.rsConsumeFutureComparisonOnce, T.fa.rsConsumeFutureComparisonOnce, 'Saved 64-character registry ID; failures are consumed'];
   actions['market-products'] = [T.en.rsInspectObservedMarketProductsAndCredit, T.fa.rsInspectObservedMarketProductsAndCredit, 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
+  actions['universe-manifest'] = [T.en.rsUniverseManifest, T.fa.rsUniverseManifest, 'as_of, lookback_seconds, symbols (optional explicit list)'];
   actions['campaign-status'] = [T.en.rsInspectCampaignProgressAndVerifiedSamples, T.fa.rsInspectCampaignProgressAndVerifiedSamples, 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
   actions['walk-forward'] = [T.en.rsExpandingWalkForwardSearch, T.fa.rsExpandingWalkForwardSearch, 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
   actions['execution-calibration'] = [T.en.rsInspectExecutionAssumptionEvidence, T.fa.rsInspectExecutionAssumptionEvidence, 'symbol (null for all markets), from, to, max_age_seconds; public feed timing only, no automatic cost defaults'];
@@ -64,6 +65,8 @@ window.gymResearch = (() => {
   actions['replay-resume'] = [T.en.rsResumeAndVerifySavedReplay, T.fa.rsResumeAndVerifySavedReplay, 'checkpoint_id'];
   actions['entry-lock-add'] = [T.en.rsRecordPaperEntryLock, T.fa.rsRecordPaperEntryLock, 'run_id, scope (PAIR/GLOBAL), reason (COOLDOWN/DRAWDOWN), duration_seconds, threshold_percent (null for cooldown)'];
   actions['entry-locks'] = [T.en.rsInspectPaperEntryLocks, T.fa.rsInspectPaperEntryLocks, ''];
+  actions['otc-quote-preview'] = [T.en.rsPreviewOtcQuote, T.fa.rsPreviewOtcQuote, 'symbol, side, base_quantity, decision_at, quote {symbol, side, received_at, price, price_expires_at}, market {symbol, received_at, buyStatus, sellStatus, minQty, minNotional, maxNotional}'];
+  actions['otc-route-replay'] = [T.en.rsReplayOtcRoute, T.fa.rsReplayOtcRoute, 'opening_balances, legs. OTC: {base, quote_asset, submit_at, modeled_settle_at, fee_rate, request}. Spot: {spot: {symbol, side, base_quantity, submit_at, settle_by, fee_rate}}'];
   actions['conversion-report'] = [T.en.rsEvaluateModeledConversion, T.fa.rsEvaluateModeledConversion, 'instruction, fills, mark_price, observed_at (offline modeled fills only)'];
   actions['probe-stage'] = [T.en.rsStageOfflineProbeBudget, T.fa.rsStageOfflineProbeBudget, 'total_loss_limit, quote_asset, probe: {probe_id, kind, symbol, worst_case_total_loss, venue_minimum_quote} (no permission to trade)'];
   actions['external-import'] = [T.en.rsImportManualAccountObservations, T.fa.rsImportManualAccountObservations, 'account_id, observed_at, balances, orders, exposure (sanitized observations only; no credentials)'];

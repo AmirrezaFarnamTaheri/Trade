@@ -4,12 +4,14 @@ Each market keeps its own session (bars, decisions, rules, quotas), but all of t
 so an entry in one market leaves less cash for the others. The selected allocation policy sizes entries
 against current portfolio equity. Quotes from all markets are fed in availability order.
 """
+import hashlib
 import heapq
+import json
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
@@ -19,20 +21,36 @@ from ..domain.performance import performance, trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
 from ..domain.rules import is_closed
-from ..domain.sim import CashBook, CostModel
+from ..domain.sim import CashBook, CostModel, sellable_quantity
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
 from .rules import RuleService
 from .session import ENGINE_VERSION, LIMIT_ENGINE_VERSION, PaperSession
 
 MAX_OBSERVATIONS = 200_000
+MAX_MULTICURRENCY_BOOK_OBSERVATIONS = 12_000_000
 MAX_MARKETS = 500
+
+
+def fx_rebalance_limits(value):
+    from ..domain.market_models import decimal, fields
+
+    fields(value, "target_usdt_cash_share band max_order_usdt"
+           + (" otc_quotes" if isinstance(value, dict) and "otc_quotes" in value else ""))
+    target = decimal(value["target_usdt_cash_share"])
+    band = decimal(value["band"], positive=True)
+    cap = decimal(value["max_order_usdt"], positive=True)
+    if target > 1 or band > 1:
+        raise ValueError("FX target and band must be fractions")
+    return target, band, cap
 
 
 def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, resolution: str = "15min",
               cash: Decimal = Decimal(1000), cost: CostModel = CostModel(), strategy_id: str = "ema-trend",
               params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
-              checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True) -> dict:
+              checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True,
+              cash_by_currency: dict | None = None, dynamic_routes: bool = False,
+              funding_legs: list | None = None, fx_rebalance: dict | None = None) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
@@ -40,18 +58,25 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
     try:
         return _portfolio(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost,
                           strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
-                          policy=policy, checkpoint=checkpoint, universe_selection=universe_selection, booked_accounting=booked_accounting)
+                          policy=policy, checkpoint=checkpoint, universe_selection=universe_selection,
+                          booked_accounting=booked_accounting, cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes,
+                          funding_legs=funding_legs, fx_rebalance=fx_rebalance)
     finally:
         db.c.rollback()
 
 
 def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
-               universe_selection, booked_accounting):
+               universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance):
     """Replay strictly prior market observations against a shared simulated cash book."""
-    _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection)
+    _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection,
+                   multicurrency=cash_by_currency is not None)
+    if cash_by_currency is not None:
+        symbols = sorted(symbols)
     return _Replay(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost, strategy_id=strategy_id,
                    params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint,
-                   universe_selection=universe_selection, booked_accounting=booked_accounting).run()
+                   universe_selection=universe_selection, booked_accounting=booked_accounting,
+                   cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes, funding_legs=funding_legs,
+                   fx_rebalance=fx_rebalance).run()
 
 
 class _Replay:
@@ -61,7 +86,8 @@ class _Replay:
     """
 
     def __init__(self, db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
-                 checkpoint, universe_selection, booked_accounting):
+                 checkpoint, universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs,
+                 fx_rebalance):
         self.db, self.symbols, self.t0, self.t1 = db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
@@ -70,17 +96,48 @@ class _Replay:
         self.portal = DataPortal(db)
         self.rules_for, self.rule_evidence = _rule_timeline(db, rules_mode)
         self.instruments = {s: self.portal.instrument(s) for s in symbols}
+        self.reference_routes = {}
         quotes = {inst.quote for inst in self.instruments.values()}
-        if len(quotes) != 1:
+        self.multicurrency = cash_by_currency is not None
+        if funding_legs is not None and (not self.multicurrency or not booked_accounting or rules_mode != "point-in-time"):
+            raise ValueError("opening funding legs require point-in-time mixed-currency booked accounting")
+        self.funding_legs, self.funding_result = funding_legs, None
+        self.fx_rebalance = fx_rebalance
+        self.otc_fx = None
+        self.fx_pending, self.fx_orders, self.fx_quotas = None, [], {}
+        if fx_rebalance is not None:
+            self.fx_target, self.fx_band, self.fx_cap = fx_rebalance_limits(fx_rebalance)
+            if (not self.multicurrency or not booked_accounting or rules_mode != "point-in-time"
+                    or cost.order_type != "market"
+                    or cost.walk_depth or cost.max_participation is None or cost.impact_models
+                    or cost.hourly_costs or cost.postfill_costs):
+                raise ValueError("invalid in-window FX rebalance settings")
+            if "otc_quotes" in fx_rebalance:
+                from .portfolio_otc import PortfolioOTC
+
+                self.otc_fx = PortfolioOTC(fx_rebalance["otc_quotes"])
+        if type(dynamic_routes) is not bool or (dynamic_routes and (
+                not self.multicurrency or strategy_id != "ema-trend" or cost.order_type != "market"
+                or cost.walk_depth or cost.max_participation is None or cost.market_fees
+                or cost.impact_models or cost.hourly_costs or cost.postfill_costs
+                or (params or {}).get("exit_venue_stop"))):
+            raise ValueError("dynamic routes require mixed-currency EMA and capped best-level spot execution")
+        self.dynamic_routes = dynamic_routes
+        self.route_changes = []
+        if self.multicurrency:
+            self._configure_currencies(quotes, cash_by_currency)
+        elif len(quotes) != 1:
             raise ValueError("portfolio markets must share one quote currency")
-        if len({inst.base for inst in self.instruments.values()}) != len(symbols):
+        if not self.multicurrency and len({inst.base for inst in self.instruments.values()}) != len(symbols):
             raise ValueError("portfolio markets must have distinct base assets")
-        self.quote = quotes.pop()
-        self.book = CashBook({self.quote: cash})
+        if not self.multicurrency:
+            self.quote = quotes.pop()
+            self.book = CashBook({self.quote: cash})
         self.marks: dict[str, Decimal] = {}
         self.mark_times, self.mark_order = {}, {}
         self.held, self.held_order = set(), []
-        self.controller = PortfolioPolicy({} if policy is None else policy, symbols)
+        traded_symbols = [s for s in symbols if s not in self.reference_routes]
+        self.controller = PortfolioPolicy({} if policy is None else policy, traded_symbols)
         if self.controller.usdt_fx_risk and self.quote != "TMN":
             raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
         self.fx_risk_tops = _fx_tops(db, self.portal, t0, t1, "portfolio FX risk") if self.controller.usdt_fx_risk else []
@@ -89,22 +146,190 @@ class _Replay:
         self.reserved, self.histories, self.policy_events = {}, {s: [] for s in symbols}, []
         self.rebalance_pending = set()
         self.next_rebalance, self.risk_state, self.next_close = t0, None, None
-        self.sessions, self.tops = {}, {}
-        for s in symbols:
+        self.sessions = {}
+        self.quote_counts = {s: [0, 0] for s in symbols}
+        for s in traded_symbols:
             strategy = create_strategy(strategy_id, params)
-            session = PaperSession(self.portal, self.rules_for, strategy, s, t0, resolution, cash, cost)
-            session.book = self.book
+            starting_cash = self.book.get(self.instruments[s].quote) if self.multicurrency else cash
+            session = PaperSession(self.portal, self.rules_for, strategy, s, t0, resolution, starting_cash, cost,
+                                   shared_book=self.book)
             session.allocation = lambda fraction, symbol=s: self.allocate(symbol, fraction)
             session.decision_filter = (lambda action, fraction, reasons, symbol=s:
                                        self.filter_decision(symbol, action, fraction, reasons))
-            self.sessions[s], self.tops[s] = session, self.portal.tops(s, t0, t1)
+            self.sessions[s] = session
             if strategy.params.get("entry_risk_bps"):
+                if self.multicurrency:
+                    raise ValueError("entry risk sizing requires a single quote currency")
                 session.risk_budget = lambda symbol=s: self.risk_budget(symbol)
         if checkpoint is not None and (type(checkpoint.get("quote_count")) is not int or
-                not 1 <= checkpoint["quote_count"] <= sum(len(rows) for rows in self.tops.values())):
+                checkpoint["quote_count"] < 1):
             raise ValueError("portfolio checkpoint cursor exceeds observed quotes")
         self.curve = []
-        self.prefix = [] if checkpoint is not None else None
+        self.prefix = hashlib.sha256(b"[") if checkpoint is not None else None
+
+    def _configure_currencies(self, quotes, opening):
+        from ..domain.market_models import decimal
+
+        if quotes != {"TMN", "USDT"} or type(opening) is not dict or opening.keys() != quotes:
+            raise ValueError("multi-currency replay requires explicit TMN and USDT opening cash")
+        if self.policy is not None:
+            raise ValueError("multi-currency replay currently uses default allocation")
+        self.opening_cash = {currency: decimal(amount, currency) for currency, amount in opening.items()}
+        if not any(self.opening_cash.values()):
+            raise ValueError("multi-currency replay requires positive opening capital")
+        self.book = CashBook(dict(self.opening_cash))
+        if self.funding_legs is not None:
+            self._fund_opening_account()
+        self._configure_routes(quotes)
+        self.quote = "USDT"
+        self.fx_stream = iter(self.portal.iter_tops("USDTTMN", self.t0 - timedelta(days=1), self.t1))
+        self.fx_next = next(self.fx_stream, None)
+        self.fx_mark = None
+        self.fx_evidence = hashlib.sha256()
+        self._advance_fx(self.t0)
+        if self.fx_mark is None:
+            raise ValueError("multi-currency replay requires an opening USDTTMN valuation observation")
+        self.opening_fx = self.fx_mark
+        self.cash = self._combined_equity(self.opening_cash)
+        if self.fx_rebalance is not None:
+            self.fx_instrument = self.portal.instrument("USDTTMN")
+            metadata = self.portal.metadata_at("USDTTMN", self.t0)
+            terms = metadata["raw"] if metadata else {}
+            self.fx_cost = self.cost.for_market("USDTTMN", zero_fee=terms.get("isZeroFee", terms.get("is_zero_fee")) is True)
+
+    def _fund_opening_account(self):
+        from .conversion_replay import replay_mixed_route
+
+        self.funding_result = replay_mixed_route(
+            self.db, {"opening_balances": self.opening_cash, "legs": self.funding_legs},
+            funding_cutoff=self.t0)
+        balances = self.funding_result["closing_balances"]
+        if any(Decimal(amount) for currency, amount in balances.items() if currency not in self.opening_cash):
+            raise ValueError("opening funding route left inventory outside the portfolio cash currencies")
+        self.book = CashBook(
+            {currency: Decimal(amount) for currency, amount in balances.items()},
+            [{"t": posting["at"], "ccy": posting["asset"], "amount": posting["amount"],
+              "kind": posting["kind"], "ref": f"opening-funding/{posting['leg']}"}
+             for posting in self.funding_result["postings"]],
+        )
+
+    def _configure_routes(self, quotes):
+        owners = {}
+        self.route_candidates = defaultdict(list)
+        # Allocate one venue route per asset using opening balances and a stable currency/symbol preference.
+        for symbol in sorted(self.symbols, key=lambda s: (
+                not self.book.get(self.instruments[s].quote), self.instruments[s].quote != "USDT", s)):
+            inst = self.instruments[symbol]
+            if inst.base in quotes:
+                self.reference_routes[symbol] = {"reason": "QUOTE_CURRENCY_REFERENCE", "trade_route": None}
+            elif inst.base in owners and not self.dynamic_routes:
+                self.reference_routes[symbol] = {"reason": "ALTERNATE_ROUTE", "trade_route": owners[inst.base]}
+            else:
+                owners[inst.base] = symbol
+                self.route_candidates[inst.base].append(symbol)
+        self.trade_routes = {} if self.dynamic_routes else owners
+        if not self.route_candidates:
+            raise ValueError("multi-currency replay requires at least one traded underlying")
+        self.quote_market_counts = {quote: sum(self.instruments[s].quote == quote
+                                              for choices in self.route_candidates.values() for s in choices)
+                                    for quote in quotes}
+
+    def _choose_routes(self, at):
+        """Choose a freshly observed, funded route before scanning any symbol at this close."""
+        for base, symbols in self.route_candidates.items():
+            if self.book.get(base) > 0 or any(self.sessions[s].pending for s in symbols):
+                continue
+            candidates = []
+            for symbol in symbols:
+                session, instrument = self.sessions[symbol], self.instruments[symbol]
+                top = session.last_quote
+                if (top is None or not qualified(top) or top.ts_avail >= at or "CLOSED" in top.flags
+                        or at - top.ts_avail > timedelta(seconds=120)
+                        or is_closed(self.rules_for(at), instrument, at)
+                        or top.ask_qty is None or top.ask_qty <= 0):
+                    continue
+                free = self.book.get(instrument.quote) - self.reserved_in(instrument.quote)
+                target = self.equity_in(instrument.quote) / self.quote_market_counts[instrument.quote]
+                clip = min(top.ask_qty * session.cost.max_participation, min(free, target) / top.ask)
+                if not sellable_quantity(clip, top.ask, self.portal.spec_at(symbol, at)):
+                    continue
+                fx = self.fx_mark.bid if instrument.quote == "TMN" else Decimal(1)
+                unit_cost = top.ask / fx / (1 - session.cost.fee_rate)
+                candidates.append((unit_cost, symbol))
+            choice = min(candidates)[1] if candidates else None
+            previous = self.trade_routes.pop(base, None)
+            if choice is not None:
+                self.trade_routes[base] = choice
+            if choice != previous:
+                self.route_changes.append({"at": iso(at), "asset": base, "previous": previous, "selected": choice})
+
+    def _advance_fx(self, at):
+        while self.fx_next is not None and self.fx_next.ts_avail < at:
+            top = self.fx_next
+            if self.fx_pending is not None:
+                self._fill_fx_rebalance(top)
+            if qualified(top):
+                self.fx_mark = top
+                book_size = (top.bid_qty, top.ask_qty) if self.fx_rebalance is not None else ()
+                self.fx_evidence.update(digest((iso(top.ts_avail), top.bid, top.ask, sorted(top.flags), *book_size)).encode())
+            self.fx_next = next(self.fx_stream, None)
+
+    def _request_fx_rebalance(self, close):
+        if self.fx_pending is not None or (self.otc_fx and self.otc_fx.pending) or self.risk_state:
+            return
+        free_usdt = max(Decimal(0), self.book.get("USDT") - self.reserved_in("USDT"))
+        free_tmn = max(Decimal(0), self.book.get("TMN") - self.reserved_in("TMN"))
+        cash = self._combined_equity({"USDT": free_usdt, "TMN": free_tmn})
+        gap = cash * self.fx_target - free_usdt
+        if abs(gap) <= cash * self.fx_band:
+            return
+        side = "BUY" if gap > 0 else "SELL"
+        price = self.fx_mark.ask if side == "BUY" else self.fx_mark.bid
+        quantity = min(abs(gap), self.fx_cap)
+        if self.otc_fx and self.otc_fx.select(close, side, quantity, cash=free_tmn if side == "BUY" else free_usdt,
+                                             spot_price=price, spot_fee=self.fx_cost.fee_rate,
+                                             latency=self.fx_cost.latency, end=self.t1):
+            return
+        self.fx_pending = (close, side, quantity, price)
+
+    def _fill_fx_rebalance(self, top):
+        from ..domain.sim import market_order
+
+        submitted, side, amount, price = self.fx_pending
+        at = top.ts_avail
+        if at > submitted + self.cost.max_wait:
+            self._expire_fx_rebalance()
+            return
+        inst = self.fx_instrument
+        rules = self.rules_for(at)
+        if (at <= submitted or at < submitted + self.cost.latency or not qualified(top)
+                or "CLOSED" in top.flags or is_closed(rules, inst, at)):
+            return
+        currency = "TMN" if side == "BUY" else "USDT"
+        free = max(Decimal(0), self.book.get(currency) - self.reserved_in(currency))
+        debit = min(free, amount * top.ask if side == "BUY" else amount)
+        with localcontext() as ctx:
+            ctx.rounding = ROUND_DOWN
+            fraction = debit / self.book.get(currency) if debit else Decimal(0)
+            spec = self.portal.spec_at(inst.symbol, at)
+            result = market_order(self.book, inst, side, fraction, submitted, price, [top], 0, self.fx_cost,
+                                  spec, rules, self.fx_quotas,
+                                  f"fx-rebalance/{len(self.fx_orders) + 1}", max_qty=amount)
+        result["terms_digest"] = digest({"spec": asdict(spec), "rules": rules, "cost": self.fx_cost.describe()})
+        if "costs" in result:
+            result["costs"] = {key: str(value) for key, value in result["costs"].items()}
+        self.fx_orders.append(result)
+        self.fx_pending = None
+
+    def _expire_fx_rebalance(self):
+        submitted, side, _, _ = self.fx_pending
+        self.fx_orders.append({"decision_time": iso(submitted), "side": side,
+                               "status": "NONFILL", "reason": "NO_QUALIFIED_QUOTE"})
+        self.fx_pending = None
+
+    def _combined_equity(self, amounts):
+        fx = self.fx_mark
+        return amounts["USDT"] + amounts["TMN"] / ((fx.bid + fx.ask) / 2)
 
     def fx_at_close(self, close):
         """Select only the most recent fresh, open, strictly earlier FX quote."""
@@ -120,23 +345,40 @@ class _Replay:
 
     def equity(self):
         """Value all paper holdings at currently known, currency-consistent marks."""
+        if self.multicurrency:
+            return self._combined_equity({quote: self.equity_in(quote) for quote in self.opening_cash})
+        return self.equity_in(self.quote)
+
+    def equity_in(self, quote):
         book, instruments, marks = self.book, self.instruments, self.marks
-        return book.get(self.quote) + sum((book.get(instruments[s].base) * marks[s] for s in self.held_order), Decimal(0))
+        return book.get(quote) + sum((book.get(instruments[s].base) * marks[s] for s in self.held_order
+                                      if instruments[s].quote == quote), Decimal(0))
+
+    def reserved_in(self, quote, *, exclude=None):
+        otc = self.otc_fx.reserved(quote) if self.otc_fx else Decimal(0)
+        return sum((value for s, value in self.reserved.items()
+                    if s != exclude and self.instruments[s].quote == quote), otc)
 
     def valuation_state(self, at):
         """Fail portfolio valuation when a held market lacks a fresh mark."""
-        return ("STALE_VALUATION" if any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
+        stale_fx = self.multicurrency and ("CLOSED" in self.fx_mark.flags
+                                           or at - self.fx_mark.ts_avail > timedelta(seconds=120)
+                                           or is_closed(self.rules_for(at), InstrumentId.wallex("USDTTMN"), at))
+        return ("STALE_VALUATION" if stale_fx or any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
                 else "CURRENT")
 
     def allocate(self, symbol, fraction):
         """Reserve only funded shared paper cash below the target risk budget."""
-        book, quote, reserved = self.book, self.quote, self.reserved
-        available = max(Decimal(0), book.get(quote) - sum(reserved.values(), Decimal(0))
-                        - self.equity() * self.controller.rates["cash_buffer"])
+        book, quote, reserved = self.book, self.instruments[symbol].quote, self.reserved
+        equity = self.equity_in(quote)
+        available = max(Decimal(0), book.get(quote) - self.reserved_in(quote)
+                        - equity * self.controller.rates["cash_buffer"])
         if available <= 0 or self.risk_state or self.weights["status"] != "READY":
             return Decimal(0)
         held = book.get(self.instruments[symbol].base) * self.marks.get(symbol, Decimal(0))
-        target = max(Decimal(0), self.equity() * Decimal(self.weights["weights"][symbol]) - held)
+        target = (equity / self.quote_market_counts[quote] if self.multicurrency
+                  else equity * Decimal(self.weights["weights"][symbol]))
+        target = max(Decimal(0), target - held)
         budget = (min(available, target, book.get(quote) * fraction)
                   if self.sessions[symbol].strategy.params.get("entry_risk_bps") else min(available, target * fraction))
         fraction = min(Decimal(1), budget / book.get(quote)).quantize(Decimal("0.000001"), ROUND_DOWN)
@@ -160,6 +402,10 @@ class _Replay:
 
     def risk(self, at):
         """Update portfolio loss latches and cancel unfilled entries when tripped."""
+        if self.otc_fx:
+            self.otc_fx.advance(at, self.book, self.fx_orders)
+        if self.multicurrency:
+            self._advance_fx(at)
         controller = self.controller
         if self.valuation_state(at) != "CURRENT":
             state = ("DRAWDOWN" if controller.drawdown_latched else "DAILY_LOSS" if controller.daily_latched
@@ -169,7 +415,8 @@ class _Replay:
         if state != self.risk_state:
             self.risk_state = state
             self.policy_events.append({"at": iso(at), "kind": "RISK", "state": state, "equity": str(self.equity()),
-                                       "reserved_quote": str(sum(self.reserved.values(), Decimal(0)))})
+                                       **({"reserved_by_currency": {q: str(self.reserved_in(q)) for q in sorted(self.opening_cash)}}
+                                          if self.multicurrency else {"reserved_quote": str(self.reserved_in(self.quote))})})
         if state:
             for s in tuple(self.reserved):
                 session = self.sessions[s]
@@ -180,6 +427,8 @@ class _Replay:
 
     def filter_decision(self, symbol, action, fraction, reasons):
         """Apply portfolio risk, allowed rebalance and modeled transaction costs."""
+        if self.dynamic_routes and self.trade_routes.get(self.instruments[symbol].base) != symbol:
+            return "HOLD", Decimal(0), ("INACTIVE_ROUTE",)
         risk_state = self.risk_state
         if risk_state in ("DRAWDOWN", "DAILY_LOSS"):
             if self.book.get(self.instruments[symbol].base) > 0:
@@ -264,8 +513,12 @@ class _Replay:
             self.weights = controller.weights({})
             self.next_rebalance = close
             self.rebalance_pending.clear()
+        if self.dynamic_routes:
+            self._choose_routes(close)
         for session in self.sessions.values():
             session.scan(close)
+        if self.fx_rebalance is not None:
+            self._request_fx_rebalance(close)
         stamp = iso(close)
         for s, session in self.sessions.items():
             if session.decisions and session.decisions[-1]["t"] == stamp:
@@ -294,7 +547,7 @@ class _Replay:
 
     def _feed(self, symbol, top):
         """One quote: marks, risk, the pending entry's funded share, the session itself and holdings bookkeeping."""
-        book, quote, reserved = self.book, self.quote, self.reserved
+        book, quote, reserved = self.book, self.instruments[symbol].quote, self.reserved
         self.close_through(top.ts_avail)
         if qualified(top):
             self.mark_order.setdefault(symbol, len(self.mark_order))
@@ -303,8 +556,8 @@ class _Replay:
         self.risk(top.ts_avail)
         session = self.sessions[symbol]
         if session.pending and session.pending.record["side"] == "BUY" and symbol in reserved:
-            other_reserved = sum((value for s, value in reserved.items() if s != symbol), Decimal(0))
-            capacity = max(Decimal(0), book.get(quote) - other_reserved - self.equity() * self.controller.rates["cash_buffer"])
+            other_reserved = self.reserved_in(quote, exclude=symbol)
+            capacity = max(Decimal(0), book.get(quote) - other_reserved - self.equity_in(quote) * self.controller.rates["cash_buffer"])
             session.pending.fraction = (min(Decimal(1), min(reserved[symbol], capacity) / book.get(quote))
                                         if book.get(quote) > 0 else Decimal(0))
         previous_cash = book.get(quote)
@@ -322,6 +575,8 @@ class _Replay:
             self.curve.append((iso(top.ts_avail), str(self.equity())))
 
     def _track_holding(self, symbol):
+        if self.dynamic_routes and self.trade_routes.get(self.instruments[symbol].base) != symbol:
+            return
         if self.book.get(self.instruments[symbol].base) > 0:
             if symbol not in self.held:
                 self.held.add(symbol)
@@ -332,17 +587,26 @@ class _Replay:
 
     def _checkpoint(self, index, symbol, top):
         checkpoint = self.checkpoint
-        self.prefix.append((symbol, iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags),
-                            top.depth))
+        record = (symbol, iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), top.depth)
+        if index > 1:
+            self.prefix.update(b", ")
+        self.prefix.update(json.dumps(record, sort_keys=True, default=str).encode())
         if index != checkpoint["quote_count"]:
             return
         sessions = self.sessions
-        checkpoint.update(cursor=iso(top.ts_avail), prefix_digest=digest(self.prefix),
+        self.prefix.update(b"]")
+        checkpoint.update(cursor=iso(top.ts_avail), prefix_digest=self.prefix.hexdigest(),
             pending_orders={s: session.pending.record["ref"] for s, session in sessions.items() if session.pending},
             state_digest=digest({"book": self.book, "reserved": self.reserved, "histories": self.histories,
                 "weights": self.weights, "risk": self.risk_state, "policy": vars(self.controller),
                 "rebalance_pending": sorted(self.rebalance_pending), "next_rebalance": self.next_rebalance,
                 "marks": self.marks, "mark_times": self.mark_times, "curve": self.curve,
+                **({"fx_data": self.fx_evidence.hexdigest()} if self.multicurrency else {}),
+                **({"trade_routes": self.trade_routes} if self.dynamic_routes else {}),
+                **({"fx_pending": self.fx_pending, "fx_orders": self.fx_orders,
+                    "fx_quotas": {str(day): value for day, value in self.fx_quotas.items()}}
+                   if self.fx_rebalance is not None else {}),
+                **({"otc_pending": self.otc_fx.pending, "otc_used": sorted(self.otc_fx.used)} if self.otc_fx else {}),
                 "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
                     "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
                     "bar_events": session.bar_events, "rules": session.rule_snapshots,
@@ -350,24 +614,55 @@ class _Replay:
                     **({"venue_stop": session.venue_stop, "stop_trades": session.venue_stop_trades}
                        if session.strategy.params.get("exit_venue_stop") else {})} for s, session in sessions.items()}}))
 
+    def _quote_stream(self, symbol):
+        for index, top in enumerate(self.portal.iter_tops(symbol, self.t0, self.t1)):
+            yield top.ts_avail, index, symbol, top
+
     def run(self):
-        checkpoint, tops = self.checkpoint, self.tops
-        merged = heapq.merge(*([(x.ts_avail, i, s, x) for i, x in enumerate(tops[s])] for s in self.symbols))
+        checkpoint = self.checkpoint
+        merged = heapq.merge(*(self._quote_stream(symbol) for symbol in self.symbols))
+        index = 0
         for index, (_, _, symbol, top) in enumerate(merged, 1):
-            self._feed(symbol, top)
+            counts = self.quote_counts[symbol]
+            counts[0] += 1
+            counts[1] += qualified(top)
+            if symbol not in self.reference_routes:
+                self._feed(symbol, top)
             if checkpoint is not None and index <= checkpoint["quote_count"]:
                 self._checkpoint(index, symbol, top)
+        if checkpoint is not None and index < checkpoint["quote_count"]:
+            raise ValueError("portfolio checkpoint cursor exceeds observed quotes")
         self.close_through(self.t1)
         self.risk(self.t1)
+        if self.fx_pending is not None:
+            self._expire_fx_rebalance()
         for session in self.sessions.values():
             session.finish(self.t1)
         if not self.marks:
             raise ValueError("no qualified quotes for any portfolio market")
         return self._output()
 
+    def _data_digest(self):
+        """Hash the legacy canonical JSON shape without retaining its quote arrays."""
+        hasher = hashlib.sha256(b"{")
+        encode = json.JSONEncoder(default=str, sort_keys=True).encode
+        for position, symbol in enumerate(sorted(self.symbols)):
+            trades = self.sessions[symbol].limit_trades if self.cost.order_type == "limit" and symbol in self.sessions else []
+            header = (", " if position else "") + encode(symbol) + ': {"limit_trades": ' + encode(trades) + ', "quotes": ['
+            hasher.update(header.encode())
+            for index, top in enumerate(self.portal.iter_tops(symbol, self.t0, self.t1)):
+                record = (iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags),
+                          *((top.depth,) if self.cost.walk_depth else ()))
+                if index:
+                    hasher.update(b", ")
+                hasher.update(encode(record).encode())
+            hasher.update(b"]}")
+        hasher.update(b"}")
+        return hasher.hexdigest()
+
     def _inputs(self, metadata, valuation):
         cost, sessions, symbols, controller = self.cost, self.sessions, self.symbols, self.controller
-        first = sessions[symbols[0]].strategy
+        first = next(iter(sessions.values())).strategy
         inputs = {"engine": LIMIT_ENGINE_VERSION if cost.order_type == "limit" else ENGINE_VERSION,
                   "kind": "portfolio", "portfolio_version": 5,
                   "symbols": symbols, "from": iso(self.t0), "to": iso(self.t1),
@@ -379,10 +674,7 @@ class _Replay:
                   "snapshots": digest({s: [(d["t"], d["snapshot"]) for d in session.decisions]
                                        for s, session in sessions.items()}),
                   "rules": digest(self.rule_evidence), "metadata": digest(metadata), "valuation": digest(valuation),
-                  "data": digest({s: {"quotes": [(iso(x.ts_avail), x.bid, x.ask, x.bid_qty, x.ask_qty, sorted(x.flags),
-                                                   *((x.depth,) if cost.walk_depth else ())) for x in self.tops[s]],
-                                      "limit_trades": sessions[s].limit_trades if cost.order_type == "limit" else []}
-                                  for s in symbols})}
+                  "data": self._data_digest()}
         if self.policy is not None:
             inputs["policy"] = controller.description
         if self.universe_selection is not None:
@@ -395,6 +687,21 @@ class _Replay:
             inputs["stop_trades"] = digest({s: session.venue_stop_trades for s, session in sessions.items()})
         if self.booked_accounting:
             inputs["trade_accounting"] = "booked-notional/1"
+        if self.multicurrency:
+            inputs["portfolio_version"] = 14
+            inputs["cash_by_currency"] = {q: str(v) for q, v in sorted(self.opening_cash.items())}
+            inputs["fx_data"] = self.fx_evidence.hexdigest()
+        if self.reference_routes:
+            inputs["portfolio_version"] = 15
+            inputs["reference_routes"] = self.reference_routes
+        if self.dynamic_routes:
+            inputs.update(portfolio_version=16, dynamic_routes=True)
+        if self.funding_result is not None:
+            inputs.update(portfolio_version=17, funding_legs=self.funding_legs,
+                          funding_evidence=digest(self.funding_result))
+        if self.fx_rebalance is not None:
+            inputs.update(portfolio_version=19 if self.otc_fx else 18, fx_rebalance=self.fx_rebalance,
+                          fx_execution_evidence=digest(self.fx_orders))
         return inputs
 
     def _output(self):
@@ -406,9 +713,20 @@ class _Replay:
                     for s in self.symbols}
         fx_tops = _fx_tops(db, self.portal, t0, t1, "portfolio FX") if quote == "TMN" else []
         valuation = curve_valuation(quote, self.curve, t0, t1, fx_tops, self.rules_for)
+        if self.multicurrency:
+            valuation["conversion"] = {
+                "pair": "USDTTMN", "basis": "observed mid", "start_at": iso(self.opening_fx.ts_avail),
+                "end_at": iso(self.fx_mark.ts_avail), "end_status": self.valuation_state(t1),
+            }
         first_fx, last_fx = valuation["start"], valuation["end"]
         inputs = self._inputs(metadata, valuation)
-        markets = _market_summaries(self.sessions, self.instruments, self.tops, self.book, self.marks, self.mark_times, t1, booked_accounting=self.booked_accounting)
+        markets = _market_summaries(self.sessions, self.instruments, None, self.book, self.marks, self.mark_times, t1,
+                                    booked_accounting=self.booked_accounting, quote_counts=self.quote_counts,
+                                    trade_routes=self.trade_routes if self.dynamic_routes else None)
+        for symbol, route in self.reference_routes.items():
+            count, usable = self.quote_counts[symbol]
+            markets[symbol] = {"observations": count, "qualified": usable, "orders": [], "fills": 0,
+                               "holding": "0", "mark_status": "REFERENCE_ONLY", **route}
         result = {"quote": quote, "start_cash": str(cash), "curve": self.curve, "orders": [], "markets": markets,
                   "valuation": valuation,
                   "balances": {k: str(v) for k, v in self.book.balances.items()},
@@ -416,6 +734,12 @@ class _Replay:
                           "valuation_status": self.valuation_state(t1)}}
         if self.booked_accounting:
             result["postings"] = self.book.postings
+        if self.dynamic_routes:
+            result["route_changes"] = self.route_changes
+        if self.funding_result is not None:
+            result["opening_funding"] = self.funding_result
+        if self.fx_rebalance is not None:
+            result["fx_orders"] = self.fx_orders
         if self.policy is not None:
             result["policy_events"] = self.policy_events
             result["policy_state"] = {"risk": self.risk_state, "weights": self.weights, "clock": "Asia/Tehran",
@@ -435,7 +759,7 @@ class _Replay:
         return out
 
 
-def _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection):
+def _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection, *, multicurrency=False):
     """Refuse malformed or over-budget portfolio requests before any replay state exists."""
     if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
@@ -443,22 +767,28 @@ def _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection):
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
     if universe_selection is not None:
-        from .historical_universe import select_universe
+        from .historical_universe import select_universe, whole_spot_selection
 
-        actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
-                                 top_n=universe_selection["requested_top_n"],
-                                 lookback_hours=universe_selection["lookback_hours"])
-        if actual != universe_selection or actual["status"] != "AVAILABLE" or actual["symbols"] != symbols:
+        if universe_selection.get("schema") == "whole-spot-universe/1":
+            actual = whole_spot_selection(db, t0, store=universe_selection["store"])
+        else:
+            actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
+                                     top_n=universe_selection["requested_top_n"],
+                                     lookback_hours=universe_selection["lookback_hours"])
+        if actual != universe_selection or actual.get("status", "AVAILABLE") != "AVAILABLE" or actual["symbols"] != symbols:
             raise ValueError("historical universe selection evidence changed")
     placeholders = ",".join("?" for _ in symbols)
     tables = [("book_top", "ts_avail")]
     if cost.order_type == "limit":
         tables.append(("trades", "ts_event"))
     for table, clock in tables:
+        budget = (MAX_MULTICURRENCY_BOOK_OBSERVATIONS
+                  if multicurrency and table == "book_top" and cost.order_type == "market" and not cost.walk_depth
+                  else MAX_OBSERVATIONS)
         count = db.c.execute(f"SELECT count(*) FROM (SELECT 1 FROM {table} WHERE instrument_id IN ({placeholders}) "
                              f"AND {clock}>=? AND {clock}<? LIMIT ?)",
-                             (*("wallex:" + s for s in symbols), iso(t0), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
-        if count > MAX_OBSERVATIONS:
+                             (*("wallex:" + s for s in symbols), iso(t0), iso(t1), budget + 1)).fetchone()[0]
+        if count > budget:
             raise ValueError("portfolio observation budget exceeded; narrow the window")
 
 
@@ -547,7 +877,8 @@ def _portfolio_version(controller, cost, policy, universe_selection):
     return version
 
 
-def _market_summaries(sessions, instruments, tops, book, marks, mark_times, t1, *, booked_accounting):
+def _market_summaries(sessions, instruments, tops, book, marks, mark_times, t1, *, booked_accounting, quote_counts=None,
+                      trade_routes=None):
     """Per-market fills, trades, holdings and mark freshness at the end of the window."""
     markets = {}
     postings = defaultdict(list)
@@ -559,10 +890,13 @@ def _market_summaries(sessions, instruments, tops, book, marks, mark_times, t1, 
         ledger = trade_ledger(orders, instruments[s].base, quote=instruments[s].quote,
                               postings=postings[s] if booked_accounting else None)
         quantity = book.get(instruments[s].base)
+        if trade_routes is not None and trade_routes.get(instruments[s].base) != s:
+            quantity = Decimal(0)
         age = t1 - mark_times[s] if s in mark_times else None
         freshness = "UNAVAILABLE" if age is None else "STALE" if age > timedelta(seconds=120) else "CURRENT"
+        count, usable = quote_counts[s] if quote_counts is not None else (len(tops[s]), sum(map(qualified, tops[s])))
         markets[s] = {"fills": sum(o["status"] == "FILLED" for o in orders), "orders": orders,
-                      "observations": len(tops[s]), "qualified": sum(qualified(top) for top in tops[s]),
+                      "observations": count, "qualified": usable,
                       "running_at": iso(session.running_at), "session_state": session.state,
                       "closed_trades": len(ledger["trades"]), "realized_pnl": str(sum((Decimal(t["pnl"]) for t in ledger["trades"]), Decimal(0))),
                       "holding": str(quantity), "last_bid": str(marks.get(s)) if s in marks else None,

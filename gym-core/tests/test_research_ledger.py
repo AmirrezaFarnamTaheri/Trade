@@ -9,7 +9,7 @@ import pytest
 from gym.cli import main
 from gym.domain.model import iso
 from gym.services.research_ledger import ResearchLedger
-from tests.support import START, market_db, quote_history
+from tests.support import START, market_db, quote_history, supplied_otc_quote
 
 
 def hypothesis(ledger):
@@ -100,6 +100,78 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path, limit
             assert len(ledger.overview()["alerts"]) == 2
             ledger.pause(job["job_id"])
             assert ledger.run_due(db, iso(due + timedelta(days=1)))["completed"] == []
+    finally:
+        db.c.close()
+
+
+@pytest.mark.parametrize("mode", ["single_currency", "curated", "whole", "fx_rebalance", "otc_rebalance"])
+def test_portfolio_job_recovers_after_artifact_publication(tmp_path, monkeypatch, mode):
+    from dataclasses import replace
+
+    from gym.services import research_ledger
+    from gym.services.research_actions import research_action
+
+    multicurrency = mode != "single_currency"
+    second = "ETHTMN" if multicurrency else "ETHUSDT"
+    rows = quote_history(n=360) + quote_history(n=360, sym=second)
+    opening = {}
+    if multicurrency:
+        rows += [replace(top, ts_avail=top.ts_avail - timedelta(seconds=10), bid=Decimal(99), ask=Decimal(101))
+                 for top in quote_history(n=361, sym="USDTTMN")]
+        opening = {"cash_by_currency": {"TMN": "100000", "USDT": "1000"}}
+    db = market_db(tmp_path, rows)
+    options = {**opening, "portfolio_symbols": ["BTCUSDT", second]} if mode != "whole" else opening
+    if mode in ("fx_rebalance", "otc_rebalance"):
+        options["fx_rebalance"] = {"target_usdt_cash_share": "0.8", "band": "0.1", "max_order_usdt": "10"}
+    if mode == "otc_rebalance":
+        options["fx_rebalance"]["otc_quotes"] = [supplied_otc_quote()]
+    if mode == "whole":
+        for symbol, spec in [("BTCUSDT", '{"is_spot":true}'), ("ETHTMN", '{"is_spot":true}'),
+                             ("OTCTMN", '{"is_spot":false,"is_otc":true}')]:
+            db.c.execute("INSERT INTO instrument_specs(instrument_id,valid_from,spec,source) VALUES(?,?,?,?)",
+                         (f"wallex:{symbol}", iso(START), spec, "fixture"))
+        db.c.commit()
+    path = tmp_path / "research.sqlite3"
+    due_at = START + timedelta(hours=1)
+    due = iso(due_at)
+    save = research_ledger.save_run
+
+    def interrupted(result, root):
+        save(result, root)
+        raise OSError("interrupted before ledger publication")
+
+    try:
+        with ResearchLedger(path) as ledger:
+            job = schedule(ledger, max_participation="1", **options)
+            assert job == schedule(ledger, max_participation="1", **options)
+        with monkeypatch.context() as fault, ResearchLedger(path) as ledger:
+            fault.setattr(research_ledger, "save_run", interrupted)
+            with pytest.raises(OSError, match="interrupted"):
+                ledger.run_due(db, due)
+            assert ledger.overview()["jobs"][0]["last_report"]["status"] == "RUNNING"
+        with ResearchLedger(path) as ledger:
+            if multicurrency:
+                assert ledger.run_due(db, iso(due_at + research_ledger.ABANDONED_AFTER))["completed"] == []
+            expiry = research_ledger.MULTICURRENCY_ABANDONED_AFTER if multicurrency else research_ledger.ABANDONED_AFTER
+            completed = ledger.run_due(db, iso(due_at + expiry))["completed"]
+            assert len(completed) == 1
+            run_id = completed[0]["run_id"]
+        with ResearchLedger(path) as ledger:
+            assert ledger.run_due(db, due)["completed"] == []
+        saved = research_action(tmp_path, "portfolio-read", {"run_id": run_id})
+        assert saved["inputs"]["symbols"] == ["BTCUSDT", second]
+        assert Decimal(saved["result"]["start_cash"]) == (2000 if multicurrency else 1000)
+        assert saved["mode"] == "PORTFOLIO"
+        if mode == "fx_rebalance":
+            assert any(order["status"] == "FILLED" for order in saved["result"]["fx_orders"])
+        if mode == "otc_rebalance":
+            assert sum(order.get("venue_model") == "SUPPLIED_OTC_QUOTE"
+                       for order in saved["result"]["fx_orders"]) == 1
+        if mode == "whole":
+            selection = saved["inputs"]["universe_selection"]
+            assert selection["coverage"]["resolved"] == 4
+            assert selection["excluded"]["OTCTMN"] == "SPOT_NOT_CONFIRMED"
+        assert len(list((tmp_path / "runs" / "portfolios").glob("*.json"))) == 1
     finally:
         db.c.close()
 

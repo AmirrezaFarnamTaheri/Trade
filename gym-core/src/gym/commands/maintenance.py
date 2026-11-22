@@ -402,6 +402,7 @@ def paper_sweep_cmd(args) -> int:
     """Bulk paper sweep with compact rows; any row reproduces in full with `gymctl paper`."""
     from decimal import Decimal
 
+    from ..domain.market_models import decimal
     from ..services.paper_sweep import RESOLUTIONS, sweep
 
     start, end = parse_ts(args.start), parse_ts(args.end)
@@ -412,6 +413,7 @@ def paper_sweep_cmd(args) -> int:
     split = lambda text: tuple(x.strip() for x in text.split(",") if x.strip()) if text else None
     summary = sweep(root, out, start, end, symbols=split(args.symbols), resolutions=split(args.res) or RESOLUTIONS,
                     strategies=split(args.strategies), workers=args.workers, fee=Decimal(args.fee),
+                    participation=None if args.participation == "legacy" else decimal(args.participation, "participation", positive=True),
                     progress=lambda line: print(line, flush=True))
     print(f"{summary['runs']} runs ({summary['ok']} completed) over {summary['markets']} markets in "
           f"{summary['seconds'] / 60:.1f} min -> {summary['output']}")
@@ -438,6 +440,10 @@ def _sweep_report(out: Path) -> int:
     try:
         total, ok = conn.execute("SELECT count(*), sum(status='OK') FROM runs").fetchone()
         print(f"\n{out}: {total} runs, {ok} completed")
+        settings = conn.execute("SELECT value FROM sweep WHERE key='meta'").fetchone()
+        if settings:
+            participation = json.loads(settings[0]).get("max_participation")
+            print(f"  displayed-size participation: {participation or 'uncapped (legacy)'}")
         for status, n in conn.execute("SELECT status, count(*) FROM runs GROUP BY status"):
             print(f"  {status:<9} {n}")
         query = ("SELECT symbol, resolution, strategy, CAST(net_usdt_eq AS REAL) AS eq, CAST(hold_net_usdt_eq AS REAL), "
