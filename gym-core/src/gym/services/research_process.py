@@ -109,10 +109,12 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
     """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
         raise ValueError("unsupported supervised paper calculation")
-    maximum = await asyncio.to_thread(_tick_deadline, root, at) if action == "tick" else MAX_DEADLINE_SECONDS
+    mixed_portfolio = action == "portfolio-replay" and type(value) is dict and type(value.get("cash_by_currency")) is dict
+    maximum = (await asyncio.to_thread(_tick_deadline, root, at) if action == "tick"
+               else MULTICURRENCY_WORKER_SECONDS if mixed_portfolio else MAX_DEADLINE_SECONDS)
     if timeout_seconds is None:
-        # A tick replays one scheduled job; its window is in the ledger, so allow the longest deadline.
-        timeout_seconds = (maximum if action == "tick"
+        # Whole-universe portfolios may omit symbols, so the symbol-based estimate can't size their deadline.
+        timeout_seconds = (maximum if action == "tick" or mixed_portfolio
                            else deadline_for(await asyncio.to_thread(work_estimate, root, value)))
     if at is not None and action != "tick":
         raise ValueError("only scheduled ticks accept an explicit clock")

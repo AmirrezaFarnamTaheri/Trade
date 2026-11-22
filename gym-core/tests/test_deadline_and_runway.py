@@ -1,4 +1,5 @@
 """The research deadline scales with the work; a window the archive volume cannot last through is refused."""
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -21,6 +22,19 @@ def test_work_estimate_counts_the_requested_window(tmp_path):
     assert rp.work_estimate(tmp_path, value) == 360  # one quote every 10 s for an hour
     assert rp.work_estimate(tmp_path, {"symbol": "BTCUSDT"}) is None
     assert rp.work_estimate(tmp_path / "missing", value) is None
+
+
+def test_supervised_mixed_portfolio_uses_scheduler_deadline(tmp_path, monkeypatch):
+    from tests.test_portfolio_mixed_route import setup
+
+    value = setup(tmp_path, "OTC", "complete")
+    timings = []
+    monkeypatch.setattr(rp, "_timing", lambda action, started, deadline, outcome: timings.append((deadline, outcome)))
+    run = asyncio.run(rp.calculate(tmp_path, "portfolio-replay", value))
+    assert run["run_id"]
+    assert timings == [(rp.MULTICURRENCY_WORKER_SECONDS, "completed")]
+    with pytest.raises(ValueError, match="invalid calculation deadline"):
+        asyncio.run(rp.calculate(tmp_path, "portfolio-replay", {}, timeout_seconds=rp.MAX_DEADLINE_SECONDS + 1))
 
 
 def test_a_window_longer_than_the_disk_runway_is_refused(tmp_path, monkeypatch):
