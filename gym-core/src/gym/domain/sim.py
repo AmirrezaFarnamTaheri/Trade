@@ -347,6 +347,60 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
                    mid=mid, best=best, decision_quote=decision_quote, rules=rules, quota_used=quota_used, day=day)
 
 
+@dataclass(frozen=True)
+class SharedMarketReceipt:
+    """Allocate one observed best bid and ask, in caller-defined order priority, to one account."""
+
+    book: CashBook
+    instrument: InstrumentId
+    top: BookTop
+    cost: CostModel
+    spec: Spec
+    rules: list[Rule]
+    quota_used: dict
+    used: dict[str, Decimal] = field(default_factory=dict, init=False)
+    filled_refs: set[str] = field(default_factory=set, init=False)
+
+    def __post_init__(self):
+        cost = self.cost
+        if self.top.symbol != self.instrument.symbol:
+            raise ValueError("shared receipt must belong to the order instrument")
+        if (cost.max_participation is None or cost.order_type != "market" or cost.walk_depth
+                or cost.impact_models or cost.hourly_costs or cost.postfill_costs):
+            raise ValueError("shared receipt requires capped best-level market execution")
+
+    def execute(self, side, base_quantity, decision_time, decision_quote, ref, *, day_open=None):
+        """Cancel the remainder of this immediate order, without reusing a previous fill reference."""
+        if side not in ("BUY", "SELL") or not ref:
+            raise ValueError("shared receipt order requires a valid side and reference")
+        requested = decimal(base_quantity, "base_quantity", positive=True)
+        out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL",
+               "requested_qty": str(requested), "cancelled_qty": str(requested)}
+        if ref in self.filled_refs:
+            return {**out, "reason": "DUPLICATE_RECEIPT_FILL"}
+        if "CLOSED" in self.top.flags:
+            return {**out, "reason": "CLOSED_RECEIPT"}
+        shown = self.top.ask_qty if side == "BUY" else self.top.bid_qty
+        if shown is None or not shown.is_finite() or shown <= 0:
+            return {**out, "reason": "DISPLAYED_CAPACITY_UNAVAILABLE"}
+        used = self.used.get(side, Decimal(0))
+        with localcontext() as ctx:
+            ctx.prec = 160
+            remaining = _floor(shown * self.cost.max_participation - used, self.spec.qty_decimals)
+        if remaining <= 0:
+            return {**out, "reason": "SHARED_DISPLAYED_CAPACITY_EXHAUSTED"}
+        result = market_order(self.book, self.instrument, side, Decimal(1), decision_time, decision_quote,
+                              [self.top], 0, self.cost, self.spec, self.rules, self.quota_used, ref, day_open,
+                              max_qty=min(requested, remaining))
+        filled = Decimal(result.get("qty", "0"))
+        if result["status"] == "FILLED":
+            with localcontext() as ctx:
+                ctx.prec = 160
+                self.used[side] = used + filled
+            self.filled_refs.add(ref)
+        return {**result, "requested_qty": str(requested), "cancelled_qty": str(requested - filled)}
+
+
 def _trips_price_guard(levels, qty: Decimal) -> bool:
     """Wallex cancels a market order that would move the price 2% (developers.wallex.ir spot-types, 2026-11-08);
     the best observed level stands in for the venue's last-trade reference."""
