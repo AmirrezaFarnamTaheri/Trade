@@ -46,8 +46,9 @@ def work_estimate(root, value) -> int | None:
         return None
     symbols = value.get("symbols") or ([value["symbol"]] if isinstance(value.get("symbol"), str) else None)
     start, end = value.get("from"), value.get("to")
+    venue = value.get("venue", "wallex")
     if not (isinstance(symbols, list) and 0 < len(symbols) <= 2000 and all(isinstance(s, str) for s in symbols)
-            and isinstance(start, str) and isinstance(end, str)):
+            and isinstance(start, str) and isinstance(end, str) and isinstance(venue, str) and len(venue) <= 32):
         return None
     path = Path(root) / "market.db"
     if not path.is_file():
@@ -58,7 +59,7 @@ def work_estimate(root, value) -> int | None:
             marks = ",".join("?" for _ in symbols)
             return conn.execute(f"SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id IN ({marks}) "
                                 "AND ts_avail>=? AND ts_avail<? LIMIT 5000000)",
-                                (*(f"wallex:{s}" for s in symbols), start, end)).fetchone()[0]
+                                (*(f"{venue}:{s}" for s in symbols), start, end)).fetchone()[0]
         finally:
             conn.close()
     except sqlite3.Error:

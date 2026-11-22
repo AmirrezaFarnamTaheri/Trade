@@ -1,6 +1,7 @@
 """Point-in-time market-data access and valuation rates over the local market database."""
 import hashlib
 import json
+import re
 from bisect import bisect_right
 from datetime import datetime
 from decimal import Decimal
@@ -29,9 +30,15 @@ def parse_depth(text):
 class DataPortal:
     """Point-in-time reads: quotes in availability order; specs and rules as they were known at a time."""
 
-    def __init__(self, db: MarketDB, *, excluded=()):
+    def __init__(self, db: MarketDB, *, excluded=(), venue="wallex"):
+        if not isinstance(venue, str) or re.fullmatch("[a-z][a-z0-9_-]{0,31}", venue) is None:
+            raise ValueError("invalid market venue")
         self.db = db
         self.excluded = tuple(excluded)
+        self.venue = venue
+
+    def instrument_key(self, symbol):
+        return f"{self.venue}:{symbol}"
 
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
         return list(self.iter_tops(symbol, t0, t1))
@@ -42,7 +49,7 @@ class DataPortal:
             raise ValueError(f"inverted or empty range {iso(t0)} .. {iso(t1)}")
         rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
                                  "from book_top where instrument_id=? and ts_avail>=? and ts_avail<? order by ts_avail, rowid",
-                                 (f"wallex:{symbol}", iso(t0), iso(t1)))
+                                 (self.instrument_key(symbol), iso(t0), iso(t1)))
         def optional_decimal(value):
             return None if value is None else dec(value)
 
@@ -60,7 +67,7 @@ class DataPortal:
 
     def trades_by_event(self, symbol: str, t0: datetime, t1: datetime, *, as_of: datetime | None = None) -> list[TradeTick]:
         available = " AND ts_avail<=?" if as_of is not None else ""
-        params = (f"wallex:{symbol}", iso(t0), iso(t1)) + ((iso(as_of),) if as_of is not None else ())
+        params = (self.instrument_key(symbol), iso(t0), iso(t1)) + ((iso(as_of),) if as_of is not None else ())
         rows = self.db.c.execute("select ts_event, ts_avail, price, qty, aggressor from trades where instrument_id=? "
                                  f"and ts_event>=? and ts_event<?{available} order by ts_event, rowid", params)
         ticks = [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
@@ -71,7 +78,7 @@ class DataPortal:
     def trades_by_availability(self, symbol, after, through):
         rows = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "
             "AND ts_avail>? AND ts_avail<=? ORDER BY ts_avail,ts_event,rowid LIMIT 100001",
-            (f"wallex:{symbol}", iso(after), iso(through))).fetchall()
+            (self.instrument_key(symbol), iso(after), iso(through))).fetchall()
         if len(rows) > 100000:
             raise ValueError("venue stop trade window exceeds budget")
         ticks = [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
@@ -84,24 +91,29 @@ class DataPortal:
         rows = self.db.c.execute("""SELECT t,o,h,l,c,v,fetched_at FROM (
             SELECT t,o,h,l,c,v,fetched_at,ROW_NUMBER() OVER(PARTITION BY t ORDER BY fetched_at DESC) AS position
             FROM candle_vintages WHERE instrument_id=? AND resolution=? AND t>=? AND t<? AND (? IS NULL OR fetched_at<?))
-            WHERE position=1 ORDER BY t""", (f"wallex:{symbol}", resolution, iso(t0), iso(t1), iso(as_of), iso(as_of)))
+            WHERE position=1 ORDER BY t""", (self.instrument_key(symbol), resolution, iso(t0), iso(t1), iso(as_of), iso(as_of)))
         return [{"t": parse_ts(r[0]), **{k: dec(x) for k, x in zip("ohlcv", r[1:6])}, "fetched_at": parse_ts(r[6])}
                 for r in rows]
 
     def observed(self, symbol: str, t0: datetime, t1: datetime) -> bool:
         """Whether the collector was writing this pair's book (change-only rows plus heartbeats) in [t0, t1)."""
         return self.db.c.execute("select 1 from book_top where instrument_id=? and ts_avail>=? and ts_avail<? limit 1",
-                                 (f"wallex:{symbol}", iso(t0), iso(t1))).fetchone() is not None
+                                 (self.instrument_key(symbol), iso(t0), iso(t1))).fetchone() is not None
 
     def instrument(self, symbol: str) -> InstrumentId:
-        r = self.db.c.execute("select base, quote from instruments where symbol=?", (symbol,)).fetchone()
-        return InstrumentId.wallex(symbol, *r) if r else InstrumentId.wallex(symbol)
+        r = self.db.c.execute("select base, quote, kind from instruments where instrument_id=?",
+                              (self.instrument_key(symbol),)).fetchone()
+        if self.venue == "wallex":
+            return InstrumentId.wallex(symbol, *r[:2]) if r else InstrumentId.wallex(symbol)
+        if r is None or not all(r):
+            raise ValueError(f"missing {self.venue} instrument terms for {symbol}")
+        return InstrumentId(self.venue, symbol, *r)
 
     def metadata_at(self, symbol: str, t: datetime) -> dict | None:
         r = self.db.c.execute("select rowid, valid_from, valid_to, spec, source from instrument_specs where "
                               "instrument_id=? and valid_from<=? and (valid_to is null or valid_to>?) "
                               "order by valid_from desc limit 1",
-                              (f"wallex:{symbol}", iso(t), iso(t))).fetchone()
+                              (self.instrument_key(symbol), iso(t), iso(t))).fetchone()
         if not r:
             return None
         return {"valid_from": parse_ts(r[1]), "valid_to": parse_ts(r[2]) if r[2] else None,
@@ -111,7 +123,7 @@ class DataPortal:
     def spec_at(self, symbol: str, t: datetime) -> Spec:
         r = self.db.c.execute("select spec from instrument_specs where instrument_id=? and valid_from<=? and "
                               "(valid_to is null or valid_to>?) order by valid_from desc limit 1",
-                              (f"wallex:{symbol}", iso(t), iso(t))).fetchone()
+                              (self.instrument_key(symbol), iso(t), iso(t))).fetchone()
         if not r:
             return Spec()  # unknown at that time: not enforced, and the report says so
         s = json.loads(r[0])
@@ -196,8 +208,9 @@ def curve_valuation(quote, curve, start, end, tops, rules_for):
         fx = factor(parse_ts(at))
         valued.append({"at": at, "equity_usdt_eq": (value if quote == "USDT" else
             str(Decimal(value) / Decimal(fx["rate"])) if fx["rate"] else None), "fx": fx})
+    basis = {"TMN": "MID of last qualified quote; derived valuation rate, not executable", "USDT": "USDT identity"}
     return {"pair": "USDTTMN" if quote == "TMN" else None,
-            "basis": "MID of last qualified quote; derived valuation rate, not executable" if quote == "TMN" else "USDT identity",
+            "basis": basis.get(quote, "USDT conversion unavailable"),
             "start": factor(start), "end": factor(end), "curve": valued}
 
 

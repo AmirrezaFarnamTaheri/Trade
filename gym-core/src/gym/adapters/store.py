@@ -123,12 +123,12 @@ class MarketDB:
             self.c.execute("RELEASE instrument_spec")
             raise
 
-    def add_trade(self, t: TradeTick, seg_ref: str):
-        self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"wallex:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),
+    def add_trade(self, t: TradeTick, seg_ref: str, *, venue="wallex"):
+        self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"{venue}:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),
                        str(t.price), str(t.qty), t.aggressor, seg_ref))
 
-    def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None, *, side_refs=(None, None)):
-        self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
+    def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None, *, side_refs=(None, None), venue="wallex"):
+        self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?,?,?)", (f"{venue}:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
                        _decimal_text(b.bid), _decimal_text(b.ask), _decimal_text(b.bid_qty), _decimal_text(b.ask_qty),
                        depth_ref, ",".join(sorted(b.flags)), depth, *side_refs))
 

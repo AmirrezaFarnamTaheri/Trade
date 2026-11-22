@@ -66,13 +66,14 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
               params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
               checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True,
               cash_by_currency: dict | None = None, dynamic_routes: bool = False,
-              funding_legs: list | None = None, fx_rebalance: dict | None = None, margin_plans=None) -> dict:
+              funding_legs: list | None = None, fx_rebalance: dict | None = None, margin_plans=None,
+              venue: str = "wallex") -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
     db.c.execute("BEGIN")
     try:
-        return _portfolio(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost,
+        return _portfolio(DataPortal(db, venue=venue), symbols, t0, t1, resolution=resolution, cash=cash, cost=cost,
                           strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
                           policy=policy, checkpoint=checkpoint, universe_selection=universe_selection,
                           booked_accounting=booked_accounting, cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes,
@@ -81,15 +82,17 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
         db.c.rollback()
 
 
-def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
+def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance,
                margin_plans):
     """Replay strictly prior market observations against a shared simulated cash book."""
-    _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection,
+    if portal.venue != "wallex" and (cash_by_currency is not None or universe_selection is not None):
+        raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
+    _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection,
                    multicurrency=cash_by_currency is not None)
     if cash_by_currency is not None:
         symbols = sorted(symbols)
-    return _Replay(db, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost, strategy_id=strategy_id,
+    return _Replay(portal, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost, strategy_id=strategy_id,
                    params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint,
                    universe_selection=universe_selection, booked_accounting=booked_accounting,
                    cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes, funding_legs=funding_legs,
@@ -102,17 +105,19 @@ class _Replay:
     The former closure state lives on the instance; each stage is a method small enough to review on its own.
     """
 
-    def __init__(self, db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
+    def __init__(self, portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
                  checkpoint, universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs,
                  fx_rebalance, margin_plans):
-        self.db, self.symbols, self.t0, self.t1 = db, symbols, t0, t1
+        self.db, self.symbols, self.t0, self.t1 = portal.db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
         self.universe_selection = universe_selection
         self.booked_accounting = booked_accounting
-        self.portal = DataPortal(db)
-        self.rules_for, self.rule_evidence = _rule_timeline(db, rules_mode)
+        self.portal = portal
+        self.rules_for, self.rule_evidence = _rule_timeline(self.db, rules_mode)
         self.instruments = {s: self.portal.instrument(s) for s in symbols}
+        if any(inst.kind != "SPOT" for inst in self.instruments.values()):
+            raise ValueError("portfolio spot sessions require spot instruments")
         self.reference_routes = {}
         quotes = {inst.quote for inst in self.instruments.values()}
         self.multicurrency = cash_by_currency is not None
@@ -158,9 +163,9 @@ class _Replay:
         self.held, self.held_order = set(), []
         traded_symbols = [s for s in symbols if s not in self.reference_routes]
         self.controller = PortfolioPolicy({} if policy is None else policy, traded_symbols)
-        if self.controller.usdt_fx_risk and self.quote != "TMN":
+        if self.controller.usdt_fx_risk and (self.quote != "TMN" or portal.venue != "wallex"):
             raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
-        self.fx_risk_tops = _fx_tops(db, self.portal, t0, t1, "portfolio FX risk") if self.controller.usdt_fx_risk else []
+        self.fx_risk_tops = _fx_tops(self.db, self.portal, t0, t1, "portfolio FX risk") if self.controller.usdt_fx_risk else []
         self.fx_risk_times = [top.ts_avail for top in self.fx_risk_tops]
         self.weights = self.controller.weights({})
         self.reserved, self.histories, self.policy_events = {}, {s: [] for s in symbols}, []
@@ -727,6 +732,8 @@ class _Replay:
                   "data": self._data_digest()}
         if self.policy is not None:
             inputs["policy"] = controller.description
+        if self.portal.venue != "wallex":
+            inputs["venue"] = self.portal.venue
         if self.universe_selection is not None:
             inputs["universe_selection"] = self.universe_selection
         if controller.usdt_fx_risk:
@@ -767,9 +774,9 @@ class _Replay:
         end_equity = self.equity()
         metadata = {s: db.c.execute("SELECT valid_from, valid_to, spec, source FROM instrument_specs "
                                    "WHERE instrument_id=? AND valid_from<? AND (valid_to IS NULL OR valid_to>?) "
-                                   "ORDER BY valid_from, rowid", ("wallex:" + s, iso(t1), iso(t0))).fetchall()
+                                   "ORDER BY valid_from, rowid", (self.portal.instrument_key(s), iso(t1), iso(t0))).fetchall()
                     for s in self.symbols}
-        fx_tops = _fx_tops(db, self.portal, t0, t1, "portfolio FX") if quote == "TMN" else []
+        fx_tops = _fx_tops(db, self.portal, t0, t1, "portfolio FX") if quote == "TMN" and self.portal.venue == "wallex" else []
         valuation = curve_valuation(quote, self.curve, t0, t1, fx_tops, self.rules_for)
         if self.multicurrency:
             valuation["conversion"] = {
@@ -822,8 +829,9 @@ class _Replay:
         return out
 
 
-def _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection, *, multicurrency=False):
+def _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection, *, multicurrency=False):
     """Refuse malformed or over-budget portfolio requests before any replay state exists."""
+    db = portal.db
     if not isinstance(symbols, list) or not 2 <= len(set(symbols)) == len(symbols) <= MAX_MARKETS:
         raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct markets")
     cost.assert_causal(t0)
@@ -850,7 +858,7 @@ def _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection, *,
                   else MAX_OBSERVATIONS)
         count = db.c.execute(f"SELECT count(*) FROM (SELECT 1 FROM {table} WHERE instrument_id IN ({placeholders}) "
                              f"AND {clock}>=? AND {clock}<? LIMIT ?)",
-                             (*("wallex:" + s for s in symbols), iso(t0), iso(t1), budget + 1)).fetchone()[0]
+                             (*(portal.instrument_key(s) for s in symbols), iso(t0), iso(t1), budget + 1)).fetchone()[0]
         if count > budget:
             raise ValueError("portfolio observation budget exceeded; narrow the window")
 

@@ -11,13 +11,14 @@ from ..domain.model import now_utc
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .attribution import toman_attribution
+from .data_portal import DataPortal
 from .data_quality_gate import recorded_bar_coverage
 from .portfolio import MAX_MARKETS, portfolio
 from .portfolio_margin import load_margin_plans
 from .trial_ledger import TrialLedger
 
 
-def _resolve_selection(db, value, symbols, start, *, whole_request, as_of_request, store):
+def _resolve_selection(db, value, symbols, start, *, whole_request, as_of_request, store, venue):
     if whole_request:
         from .historical_universe import whole_spot_selection
 
@@ -34,8 +35,9 @@ def _resolve_selection(db, value, symbols, start, *, whole_request, as_of_reques
     resolved = selection["symbols"] if selection is not None else symbols
     if len(resolved) < 2:
         raise ValueError("portfolio requires at least two supported markets")
+    portal = DataPortal(db, venue=venue)
     if not whole_request and any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1",
-                                                  ("wallex:" + s,)).fetchone() for s in resolved):
+                                                  (portal.instrument_key(s),)).fetchone() for s in resolved):
         raise ValueError("portfolio requires observed markets")
     return resolved, selection
 
@@ -59,11 +61,14 @@ def portfolio_action(root, action, value, *, store):
     if (type(value) is not dict or not required <= value.keys()
             or value.keys() - required - {"symbols", "policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis",
                                           "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance",
-                                          "margin_positions"}):
+                                          "margin_positions", "venue"}):
         raise ValueError("invalid portfolio replay fields")
     symbols = value.get("symbols", [])
     whole_request = "symbols" not in value and "cash_by_currency" in value and "top_n" not in value
     as_of_request = "top_n" in value or whole_request
+    venue = value.get("venue", "wallex")
+    if venue != "wallex" and (as_of_request or "cash_by_currency" in value):
+        raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
     if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
             or (as_of_request and symbols != [])
             or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
@@ -117,7 +122,7 @@ def portfolio_action(root, action, value, *, store):
     db = MarketDB(path, readonly=True)
     try:
         symbols, selection = _resolve_selection(db, value, symbols, start, whole_request=whole_request,
-                                                as_of_request=as_of_request, store=store)
+                                                as_of_request=as_of_request, store=store, venue=venue)
         if "quality_max_bad_share" in value:
             if len(symbols) > 20:
                 raise ValueError("quality-gated portfolios require at most 20 markets")
@@ -141,7 +146,8 @@ def portfolio_action(root, action, value, *, store):
                         strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store,
                         policy=value.get("policy"), universe_selection=selection, cash_by_currency=value.get("cash_by_currency"),
                         dynamic_routes=value.get("dynamic_routes", False), funding_legs=value.get("funding_legs"),
-                        fx_rebalance=value.get("fx_rebalance"), margin_plans=load_margin_plans(root, value.get("margin_positions")))
+                        fx_rebalance=value.get("fx_rebalance"), margin_plans=load_margin_plans(root, value.get("margin_positions")),
+                        venue=venue)
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))

@@ -135,7 +135,8 @@ def portfolio_checkpoint(registry, db, request, *, saved):
         "funding_legs": inputs.get("funding_legs"),
         "fx_rebalance": inputs.get("fx_rebalance"),
         "margin_plans": load_margin_plans(registry.root, inputs.get("margin_positions")),
-        "booked_accounting": inputs.get("trade_accounting") == "booked-notional/1"}
+        "booked_accounting": inputs.get("trade_accounting") == "booked-notional/1",
+        "venue": inputs.get("venue", "wallex")}
     checkpoint = {"quote_count": count}
     rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
     if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):
