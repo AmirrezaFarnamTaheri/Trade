@@ -79,6 +79,92 @@ def test_margin_rejects_collateral_overcommit(tmp_path):
         research_action(tmp_path, "portfolio-replay", value)
 
 
+@pytest.mark.parametrize("side,levels", [("long", [96, 98, 99]), ("short", [104, 102, 101])])
+def test_signal_submits_preview_backed_order_after_latency(tmp_path, side, levels):
+    db, value = setup(tmp_path, side=side)
+    top = path(side)[0][0]
+    for second, bid in zip((2, 4, 6, 8), [levels[0], levels[0], levels[1], levels[2]]):
+        db.add_book_top(replace(top, ts_avail=START + timedelta(seconds=second),
+                                bid=Decimal(bid), ask=Decimal(bid+1)), None)
+    db.c.close()
+    value["margin_positions"][0]["entry_breakout_ticks"] = 2
+    run = research_action(tmp_path, "portfolio-replay", value)
+    saved = research_action(tmp_path, "portfolio-read", {"run_id": run["run_id"]})
+    assert saved["inputs"]["portfolio_version"] == 24
+    outcome = saved["result"]["margin_positions"][0]["outcome"]
+    assert outcome["entry_signal"]["at"] == iso(START + timedelta(seconds=6))
+    assert outcome["entry"]["at"] == iso(START + timedelta(seconds=8))
+    assert outcome["events"][0]["action"] == "PAPER_OPEN"
+
+
+def test_absent_margin_signal_returns_unspent_collateral(tmp_path):
+    db, value = setup(tmp_path)
+    db.c.close()
+    value["margin_positions"][0]["entry_breakout_ticks"] = 3
+    run = research_action(tmp_path, "portfolio-replay", value)
+    saved = research_action(tmp_path, "portfolio-read", {"run_id": run["run_id"]})
+    position, = saved["result"]["margin_positions"]
+    assert position["outcome"]["entry_signal"]["at"] is None
+    assert position["outcome"]["entry"] is None
+    assert position["release_at"] == value["to"]
+
+
+def test_margin_order_cannot_trade_outside_curated_universe(tmp_path):
+    db, value = setup(tmp_path)
+    db.c.close()
+    value["symbols"].remove("BTCUSDT")
+    with pytest.raises(ValueError, match="selected portfolio symbol"):
+        research_action(tmp_path, "portfolio-replay", value)
+
+
+def test_expired_margin_signal_cannot_open_on_a_late_limit_touch(tmp_path):
+    db, value = setup(tmp_path)
+    top = path("long")[0][0]
+    for sec, bid in ((2, 96), (4, 96), (6, 101), (70, 99)):
+        db.add_book_top(replace(top, ts_avail=START + timedelta(seconds=sec),
+                                bid=Decimal(bid), ask=Decimal(bid+1)), None)
+    db.c.close()
+    value["margin_positions"][0]["entry_breakout_ticks"] = 2
+    run = research_action(tmp_path, "portfolio-replay", value)
+    saved = research_action(tmp_path, "portfolio-read", {"run_id": run["run_id"]})
+    outcome = saved["result"]["margin_positions"][0]["outcome"]
+    assert outcome["entry_signal"]["at"] == iso(START + timedelta(seconds=6))
+    assert outcome["entry"] is None
+    assert outcome["nonfills"]["SIGNAL_ORDER_EXPIRED"] == 1
+
+
+@pytest.mark.parametrize("side,levels,edit,action", [
+    ("long", [110, 103], {"stop_loss": "105"}, "PAPER_STOP"),
+    ("short", [89, 96], {"stop_loss": "95"}, "PAPER_STOP"),
+    ("long", [105, 112], {"take_profit": "110"}, "PAPER_TARGET"),
+    ("short", [97, 89], {"take_profit": "92"}, "PAPER_TARGET"),
+])
+def test_scheduler_applies_margin_protection_edit_after_open(tmp_path, side, levels, edit, action):
+    db, value = setup(tmp_path, side=side)
+    top = path(side)[0][0]
+    for sec, bid in zip((12, 15), levels):
+        db.add_book_top(replace(top, ts_avail=START + timedelta(seconds=sec),
+                                bid=Decimal(bid), ask=Decimal(bid+1)), None)
+    db.c.close()
+    plan, = value["margin_positions"]
+    plan["protection_edits"] = [{"after_open_seconds": 10, **edit}]
+    due = iso(START + timedelta(hours=1))
+    with research_ledger.ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+        schedule(ledger, cash_by_currency=value["cash_by_currency"], portfolio_symbols=value["symbols"],
+                 margin_positions=[plan])
+    tick = asyncio.run(calculate(tmp_path, "tick", at=due))
+    item, = tick["completed"]
+    record = research_action(tmp_path, "portfolio-read", {"run_id": item["run_id"]})
+    assert record["inputs"]["portfolio_version"] == 25
+    events = record["result"]["margin_positions"][0]["outcome"]["events"]
+    assert [e["action"] for e in events] == ["PAPER_OPEN", "PAPER_EDIT", action]
+    assert events[1]["at"] == iso(START + timedelta(seconds=12))
+    assert events[-1]["at"] == iso(START + timedelta(seconds=15))
+    checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": item["run_id"], "quote_count": 9})
+    resumed = research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["record"]["id"]})
+    assert resumed["status"] == "EXACT_MATCH"
+
+
 def test_unsettled_margin_keeps_collateral_and_marks_portfolio_stale(tmp_path):
     db, value = setup(tmp_path)
     db.c.close()

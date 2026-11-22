@@ -48,8 +48,11 @@ class _ReconcilingCashBook(CashBook):
 def fx_rebalance_limits(value):
     from ..domain.market_models import decimal, fields
 
-    optional = [key for key in ("otc_quotes", "otc_routes", "mixed_routes") if isinstance(value, dict) and key in value]
+    optional = [key for key in ("otc_quotes", "otc_routes", "mixed_routes", "residual_attempts") if isinstance(value, dict) and key in value]
     fields(value, " ".join(("target_usdt_cash_share band max_order_usdt", *optional)))
+    if "residual_attempts" in value and ("mixed_routes" not in value or type(value["residual_attempts"]) is not int
+                                         or not 1 <= value["residual_attempts"] <= 8):
+        raise ValueError("residual_attempts requires mixed_routes and an integer from 1 to 8")
     target = decimal(value["target_usdt_cash_share"])
     band = decimal(value["band"], positive=True)
     cap = decimal(value["max_order_usdt"], positive=True)
@@ -202,7 +205,7 @@ class _Replay:
         if self.margin_plans:
             from .portfolio_margin import PortfolioMargin
 
-            self.margin = PortfolioMargin(self.portal, self.rules_for, self.t0, self.t1, self.margin_plans, self.book)
+            self.margin = PortfolioMargin(self.portal, self.rules_for, self.t0, self.t1, self.margin_plans, self.book, self.cost)
         self._configure_routes(quotes)
         self.quote = "USDT"
         self.fx_stream = iter(self.portal.iter_tops("USDTTMN", self.t0 - timedelta(days=1), self.t1))
@@ -242,7 +245,10 @@ class _Replay:
         margin_symbols = self.margin.symbols if self.margin else set()
         mixed = self.otc_fx.mixed if self.otc_fx else ()
         mixed_bases = {route.base for route in mixed}
-        if margin_symbols & {route.symbol for route in mixed}:
+        mixed_symbols = {route.symbol for route in mixed}
+        if (margin_symbols | mixed_symbols) - self.instruments.keys():
+            raise ValueError("margin and mixed spot execution require a selected portfolio symbol")
+        if margin_symbols & mixed_symbols:
             raise ValueError("a mixed spot route cannot share its symbol with margin")
         # Allocate one venue route per asset using opening balances and a stable currency/symbol preference.
         for symbol in sorted(self.symbols, key=lambda s: (
@@ -439,7 +445,8 @@ class _Replay:
     def risk(self, at):
         """Update portfolio loss latches and cancel unfilled entries when tripped."""
         if self.otc_fx:
-            self.otc_fx.advance(at, self.book, self.fx_orders, db=self.db, participation=self.fx_cost.max_participation)
+            self.otc_fx.advance(at, self.book, self.fx_orders, db=self.db, participation=self.fx_cost.max_participation,
+                                latency=self.fx_cost.latency, end=self.t1)
         if self.multicurrency:
             self._advance_fx(at)
         if self.margin:
@@ -648,6 +655,7 @@ class _Replay:
                    if self.fx_rebalance is not None else {}),
                 **({"otc_pending": self.otc_fx.pending, "otc_used": sorted(self.otc_fx.used)} if self.otc_fx else {}),
                 **({"mixed_residuals": self.otc_fx.residuals} if self.otc_fx and self.otc_fx.mixed else {}),
+                **({"residual_recovery": self.otc_fx.unwind} if self.otc_fx and self.otc_fx.residual_attempts else {}),
                 **({"margin": self.margin.checkpoint()} if self.margin else {}),
                 "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
                     "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
@@ -747,7 +755,11 @@ class _Replay:
         if self.margin:
             inputs.update(portfolio_version=21, margin_positions=self.margin.requests, margin_data=self.margin.evidence)
         if self.otc_fx and self.otc_fx.mixed:
-            inputs["portfolio_version"] = 22
+            inputs["portfolio_version"] = 23 if self.otc_fx.residual_attempts else 22
+        if self.margin and any("entry_breakout_ticks" in request for request in self.margin.requests):
+            inputs["portfolio_version"] = 24
+        if self.margin and any("protection_edits" in request for request in self.margin.requests):
+            inputs["portfolio_version"] = 25
         return inputs
 
     def _output(self):

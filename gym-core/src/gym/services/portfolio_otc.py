@@ -15,10 +15,11 @@ class PortfolioOTC:
     def from_policy(cls, value):
         if {"otc_quotes", "otc_routes", "mixed_routes"} & value.keys():
             return cls(value.get("otc_quotes", []), routes=value.get("otc_routes", []),
-                       mixed=mixed_routes(value["mixed_routes"]) if "mixed_routes" in value else ())
+                       mixed=mixed_routes(value["mixed_routes"]) if "mixed_routes" in value else (),
+                       residual_attempts=value.get("residual_attempts", 0))
         return None
 
-    def __init__(self, quotes, *, routes=(), mixed=()):
+    def __init__(self, quotes, *, routes=(), mixed=(), residual_attempts=0):
         if type(quotes) is not list or len(quotes) > 256 or not (quotes or routes or mixed):
             raise ValueError("otc_quotes must contain 1..256 supplied quotes")
         if type(routes) not in (list, tuple) or len(routes) > 32:
@@ -31,6 +32,8 @@ class PortfolioOTC:
         self.pending = None
         self.mixed = mixed
         self.residuals = {}
+        self.residual_attempts = residual_attempts
+        self.unwind = None
         for row in quotes:
             fields(row, "quote market fee_rate max_base_quantity settlement_seconds")
             quote = row["quote"]
@@ -118,7 +121,9 @@ class PortfolioOTC:
             return order["debit"]
         return Decimal(0)
 
-    def advance(self, at, book, events, *, db=None, participation=None):
+    def advance(self, at, book, events, *, db=None, participation=None, latency=None, end=None):
+        if self.unwind:
+            self._advance_unwind(at, book, events, db, participation, latency, end)
         order = self.pending
         if order is None or order["settle"] >= at:
             return
@@ -162,6 +167,13 @@ class PortfolioOTC:
         residual = Decimal(closing.get(order["intermediate"], "0"))
         if residual:
             self.residuals[order["intermediate"]] = residual
+            if self.residual_attempts:
+                route = next(route for route in self.mixed if route.key == order["route_id"])
+                cap = order["spot_receive_limit"] if route.otc_first else None
+                with localcontext() as ctx:
+                    ctx.prec = 400
+                    self.unwind = {"route_id": route.key, "ref": ref, "attempt": 0, "pending": None,
+                                   "cap": cap - received if cap is not None else None}
         status = "FILLED" if report["status"] == "COMPLETED" else "PARTIAL" if report["postings"] else "NONFILL"
         events.append({"ref": ref, "venue_model": "SPOT_OTC_ROUTE", "route_id": order["route_id"],
                        "status": status, "side": order["side"], "decision_time": iso(order["decision"]),
@@ -173,6 +185,46 @@ class PortfolioOTC:
                        "indicative_spot_quote": order["indicative_quote"],
                        "intermediate_residual": str(residual), "legs": order["legs"],
                        "leg_outcomes": report["legs"], "leg_postings": report["postings"]})
+
+    def _advance_unwind(self, at, book, events, db, participation, latency, end):
+        state = self.unwind
+        route = next(route for route in self.mixed if route.key == state["route_id"])
+        amount = self.residuals[route.base]
+        if state["pending"] is None:
+            submit = at + max(latency, timedelta(microseconds=1))
+            deadline = submit + route.wait
+            if deadline >= end:
+                self.unwind = None
+                return
+            state.update(pending=(at, submit, deadline), attempt=state["attempt"] + 1)
+            return
+        decision, submit, deadline = state["pending"]
+        if deadline >= at:
+            return
+        leg = {"spot": {"symbol": route.symbol, "side": "SELL", "base_quantity": str(amount),
+                        "fee_rate": str(route.fee), "submit_at": iso(submit), "settle_by": iso(deadline)}}
+        result = replay_mixed_route(db, {"opening_balances": {route.base: str(amount)}, "legs": [leg]},
+                                    max_participation=participation, spot_receive_limit=state["cap"])
+        ref = f"{state['ref']}/recovery/{state['attempt']}"
+        with localcontext() as ctx:
+            ctx.prec = 400
+            for posting in result["postings"]:
+                change = Decimal(posting["amount"])
+                book.post(deadline, posting["asset"], change, posting["kind"], ref)
+                if state["cap"] is not None and posting["asset"] == route.destination and change > 0:
+                    state["cap"] -= change
+        remaining = Decimal(result["closing_balances"][route.base])
+        events.append({"ref": ref, "venue_model": "SPOT_RESIDUAL_RECOVERY", "side": "SELL",
+                       "decision_time": iso(decision), "released_at": iso(deadline), "source_route": state["ref"],
+                       "status": result["legs"][0]["status"], "outcome": result["legs"][0],
+                       "intermediate_residual": str(remaining)})
+        if remaining:
+            self.residuals[route.base] = remaining
+        else:
+            del self.residuals[route.base]
+        state["pending"] = None
+        if not remaining or state["attempt"] >= self.residual_attempts:
+            self.unwind = None
 
     @staticmethod
     def _release_route(book, events, order):

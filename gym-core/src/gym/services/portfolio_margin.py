@@ -3,7 +3,8 @@ from collections import deque
 from datetime import timedelta
 from decimal import Decimal, localcontext
 
-from ..domain.margin import replay_margin, seconds
+from ..domain.bars import qualified
+from ..domain.margin import protection_edits, replay_margin, seconds
 from ..domain.market_models import decimal, fields, instant, rate
 from ..domain.model import iso
 from ..domain.rules import is_closed
@@ -18,7 +19,12 @@ def load_margin_plans(root, requests):
         raise ValueError("margin_positions requires 1..8 preview-backed positions")
     plans = []
     for request in requests:
-        fields(request, "preview_id exit_fee_rate holding_seconds")
+        optional = [key for key in ("entry_breakout_ticks", "protection_edits") if isinstance(request, dict) and key in request]
+        fields(request, " ".join(["preview_id exit_fee_rate holding_seconds", *optional]))
+        if "protection_edits" in optional:
+            protection_edits(request["protection_edits"])
+        if "entry_breakout_ticks" in optional and (type(request["entry_breakout_ticks"]) is not int or not 2 <= request["entry_breakout_ticks"] <= 64):
+            raise ValueError("entry_breakout_ticks must be an integer from 2 to 64")
         rate(request["exit_fee_rate"])
         if request["holding_seconds"] is not None:
             seconds(request["holding_seconds"], "holding_seconds")
@@ -29,7 +35,27 @@ def load_margin_plans(root, requests):
     return sorted(plans, key=lambda pair: pair[0]["preview_id"])
 
 
-def _position(portal, rules_for, start, end, request, receipt):
+def _breakout(points, length, side):
+    history = deque(maxlen=length)
+    for index, (top, closed) in enumerate(points):
+        if closed or not qualified(top):
+            history.clear()
+            continue
+        while history and top.ts_avail - history[0].ts_avail > timedelta(seconds=30):
+            history.popleft()
+        if history and history[-1].ts_avail == top.ts_avail:
+            history[-1] = top
+            continue
+        if len(history) == length:
+            crossed = (top.bid > max(q.ask for q in history) if side == "long" else
+                       top.ask < min(q.bid for q in history))
+            if crossed:
+                return index, top.ts_avail
+        history.append(top)
+    return None
+
+
+def _position(portal, rules_for, start, end, request, receipt, cost):
     rule, terms = receipt["rule"], receipt["terms"]
     symbol, currency = rule["symbol"], rule["quote"]
     if instant(receipt["received_at"]) > start:
@@ -49,7 +75,22 @@ def _position(portal, rules_for, start, end, request, receipt):
     def observe(at, state, cash, units, quote_debt, base_debt, mark):
         states.append((at, state, cash, units, quote_debt, base_debt, mark))
 
-    outcome = replay_margin(terms, rule, points, end, request["exit_fee_rate"], request["holding_seconds"], observe=observe)
+    active = points
+    signal = entry_until = None
+    if "entry_breakout_ticks" in request:
+        active = []
+        match = _breakout(points, request["entry_breakout_ticks"], terms["side"])
+        if match:
+            index, signal = match
+            submit = signal + max(cost.latency, timedelta(microseconds=1))
+            active = [(q, closed) for q, closed in points[index+1:] if q.ts_avail >= submit]
+            entry_until = submit + cost.max_wait
+    outcome = replay_margin(terms, rule, active, end, request["exit_fee_rate"], request["holding_seconds"],
+                            observe=observe, entry_until=entry_until, edits=request.get("protection_edits"))
+    if "entry_breakout_ticks" in request:
+        outcome["entry_signal"] = {"model": "quote-breakout/1", "side": terms["side"],
+                                   "at": iso(signal) if signal else None,
+                                   "valid_until": iso(entry_until) if signal else None}
     collateral = decimal(terms["collateral"]["value"], positive=True)
     initial = (start, "ENTRY_PENDING", collateral, Decimal(0), Decimal(0), Decimal(0), collateral)
     # Bind all receipt content actually used by the margin model and the availability clock.
@@ -61,8 +102,8 @@ def _position(portal, rules_for, start, end, request, receipt):
 
 
 class PortfolioMargin:
-    def __init__(self, portal, rules_for, start, end, plans, book):
-        self.positions = [_position(portal, rules_for, start, end, request, receipt) for request, receipt in plans]
+    def __init__(self, portal, rules_for, start, end, plans, book, cost):
+        self.positions = [_position(portal, rules_for, start, end, request, receipt, cost) for request, receipt in plans]
         self.requests = [request for request, _ in plans]
         self.symbols = {position["symbol"] for position in self.positions}
         self.evidence = digest([position["data_digest"] for position in self.positions])
