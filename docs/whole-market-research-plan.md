@@ -30,6 +30,8 @@ The core identifies instruments by venue, product, base, quote and contract iden
 
 Source baseline: [local Wallex API inventory](../gym-core/docs/wallex-reference.md), [adapter coverage](../gym-core/docs/wallex-api.md), [Wallex developer reference](https://developers.wallex.ir/docs/). Compare future documentation revisions with this inventory and surface newly discovered capabilities.
 
+On November 22 the public margin endpoint returned 36 eligible market rules. The BTCUSDT loan and dry-run calculators agreed for a long and a short, each with a stop-loss and take-profit. The saved local receipts are `0391b329cef2f441` (catalogue), `b3ecdc439ca792c7` (long preview) and `4652baa7a8823ae0` (short preview). These receipts cover published terms and initial protection parameters. Authenticated protection edits, triggers, and settlement require account lifecycle receipts.
+
 ## Delivery and acceptance
 
 ### Common decision and accounting model
@@ -89,7 +91,7 @@ Profile the dominant stage before changing code. Compare one change at a time us
 
 Portfolio runs and jobs accept `cash_by_currency` with decimal-string TMN and USDT amounts. Omit `symbols` on an ad hoc run or `portfolio_symbols` on a job to discover supported spot markets at the window start. The saved input binds the historical manifest and records product and currency exclusions. The legacy `cash` field remains required by the request contract. The shared ledger allocates against available cash in each currency and marks consolidated equity in USDT using prior USDTTMN quotes. The runner uses default allocation and requires an opening FX mark.
 
-Supervised ad hoc mixed-currency portfolio replays and scheduled mixed-currency jobs share the 30-minute worker bound. Whole-universe requests omit symbols, so their deadline does not depend on the symbol-list work estimate.
+Supervised ad hoc mixed-currency portfolio replays and scheduled mixed-currency jobs share the 30-minute worker bound. Whole-universe requests omit symbols, so their deadline does not depend on the symbol-list work estimate. Checkpoint and resume also use this bound when they refer to a verified mixed-currency run. A mixed-currency checkpoint accepts a cursor anywhere within the engine's observation limit and verifies the reconstructed prefix before replaying the rest.
 
 By default each underlying has one route selected for the window, preferring a funded currency, then USDT, then symbol order. Alternate listings and quote-currency pairs remain in coverage as references with zero inventory. With `dynamic_routes: true`, a mixed-currency EMA paper run with capped best-level execution compares funded, fresh routes at each bar close. It checks displayed capacity and market minimums and ranks routes by the fee-adjusted acquisition price on a common currency basis. A route remains pinned whenever the asset has inventory or a working order. The report records route changes and attributes inventory to its owner. This path values TMN using observed USDTTMN bids. It does not model submitting an FX leg or sharing inventory across funded accounts. Checkpoint verification rebuilds the run from the original input prefix.
 

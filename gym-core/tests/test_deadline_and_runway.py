@@ -31,8 +31,11 @@ def test_supervised_mixed_portfolio_uses_scheduler_deadline(tmp_path, monkeypatc
     timings = []
     monkeypatch.setattr(rp, "_timing", lambda action, started, deadline, outcome: timings.append((deadline, outcome)))
     run = asyncio.run(rp.calculate(tmp_path, "portfolio-replay", value))
-    assert run["run_id"]
-    assert timings == [(rp.MULTICURRENCY_WORKER_SECONDS, "completed")]
+    checkpoint = asyncio.run(rp.calculate(tmp_path, "replay-checkpoint", {"run_id": run["run_id"], "quote_count": 40}))
+    restored = asyncio.run(rp.calculate(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["record"]["id"]}))
+    assert restored["status"] == "EXACT_MATCH"
+    assert restored["result_digest"] == run["outputs_digest"]
+    assert timings == [(rp.MULTICURRENCY_WORKER_SECONDS, "completed")] * 3
     with pytest.raises(ValueError, match="invalid calculation deadline"):
         asyncio.run(rp.calculate(tmp_path, "portfolio-replay", {}, timeout_seconds=rp.MAX_DEADLINE_SECONDS + 1))
 

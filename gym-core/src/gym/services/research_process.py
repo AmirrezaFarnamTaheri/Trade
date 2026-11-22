@@ -11,6 +11,7 @@ import time
 from contextlib import closing
 from pathlib import Path
 
+from ..adapters.run_store import load_verified_run, run_path
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..domain.market_models import fields
 from ..domain.model import iso, now_utc, parse_ts
@@ -86,6 +87,35 @@ def _tick_deadline(root, at):
     return MULTICURRENCY_WORKER_SECONDS if mixed else MAX_DEADLINE_SECONDS
 
 
+def _long_portfolio_request(root, action, value, store):
+    if type(value) is not dict:
+        return False
+    if action == "portfolio-replay":
+        return type(value.get("cash_by_currency")) is dict
+    root = Path(root)
+    try:
+        if action == "replay-checkpoint":
+            run_id = value.get("run_id")
+            if run_path(root / "runs", run_id).exists():
+                return False
+        elif action == "replay-resume" and type(value.get("checkpoint_id")) is str and len(value["checkpoint_id"]) == 64:
+            uri = (root / "experiments.sqlite3").resolve().as_uri()
+            with closing(sqlite3.connect(uri + "?mode=ro", uri=True, timeout=5)) as db:
+                row = db.execute("SELECT json_extract(body,'$.run_id') FROM events WHERE id=? "
+                                 "AND kind='PORTFOLIO_CHECKPOINT' AND json_extract(body,'$.store')=?",
+                                 (value["checkpoint_id"], store)).fetchone()
+            if not row:
+                return False
+            run_id = row[0]
+        else:
+            return False
+        run = load_verified_run(root / "runs" / "portfolios", run_id, store=store)
+        return type(run["inputs"].get("cash_by_currency")) is dict
+    except (ValueError, OSError, sqlite3.Error, TypeError):
+        # Let the worker report the actual validation failure under the ordinary bound.
+        return False
+
+
 def _checked_result(raw):
     """Return the worker result or raise the failure its reply describes."""
     try:
@@ -109,7 +139,8 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
     """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
         raise ValueError("unsupported supervised paper calculation")
-    mixed_portfolio = action == "portfolio-replay" and type(value) is dict and type(value.get("cash_by_currency")) is dict
+    mixed_portfolio = (action in ("portfolio-replay", "replay-checkpoint", "replay-resume")
+                       and await asyncio.to_thread(_long_portfolio_request, root, action, value, store))
     maximum = (await asyncio.to_thread(_tick_deadline, root, at) if action == "tick"
                else MULTICURRENCY_WORKER_SECONDS if mixed_portfolio else MAX_DEADLINE_SECONDS)
     if timeout_seconds is None:
