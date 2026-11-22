@@ -5,7 +5,7 @@ window.gymResearch = (() => {
     register: [T.en.rsRegisterHypothesis, T.fa.rsRegisterHypothesis, 'symbol, strategy, params'],
     'shadow-open': [T.en.rsOpenPaperShadow, T.fa.rsOpenPaperShadow, 'position_id, hypothesis_id, quote, gross_quantity, fee_rate'],
     'shadow-close': [T.en.rsClosePaperShadow, T.fa.rsClosePaperShadow, 'position_id, quote'],
-    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: max_fraction, max_participation, portfolio_symbols, cash_by_currency, dynamic_routes, fx_rebalance)'],
+    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: max_fraction, max_participation, portfolio_symbols, cash_by_currency, dynamic_routes, fx_rebalance, margin_positions)'],
     list: [T.en.rsResearchLedger, T.fa.rsResearchLedger, ''],
     review: [T.en.rsReviewSavedRuns, T.fa.rsReviewSavedRuns, 'run_ids'],
     'claim-check': [T.en.rsCheckNumericClaims, T.fa.rsCheckNumericClaims, 'claims'],

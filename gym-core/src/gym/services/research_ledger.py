@@ -57,7 +57,7 @@ def _scheduled_cost(job):
     return CostModel(fee_rate=rate(job["fee_rate"], "fee_rate"), **limits)
 
 
-def _scheduled_replay(db, job, hypothesis, end, store):
+def _scheduled_replay(db, job, hypothesis, end, store, root):
     start = end - timedelta(seconds=job["lookback_seconds"])
     options = {"strategy_id": hypothesis["strategy"], "params": hypothesis["params"],
                "resolution": job["resolution"], "cash": decimal(job["cash"], "cash", positive=True),
@@ -65,12 +65,14 @@ def _scheduled_replay(db, job, hypothesis, end, store):
     if "portfolio_symbols" in job or "cash_by_currency" in job:
         from .historical_universe import whole_spot_selection
         from .portfolio import portfolio
+        from .portfolio_margin import load_margin_plans
 
         selection = None if "portfolio_symbols" in job else whole_spot_selection(db, start, store=store)
         symbols = job["portfolio_symbols"] if selection is None else selection["symbols"]
         return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
                          universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),
-                         fx_rebalance=job.get("fx_rebalance")), "portfolios"
+                         fx_rebalance=job.get("fx_rebalance"),
+                         margin_plans=load_margin_plans(root, job.get("margin_positions"))), "portfolios"
     strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
     db.c.execute("BEGIN")
     try:
@@ -228,7 +230,7 @@ class ResearchLedger:
 
     def schedule(self, request):
         required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
-        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes", "fx_rebalance")
+        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes", "fx_rebalance", "margin_positions")
                     if isinstance(request, dict) and key in request]
         fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
@@ -267,6 +269,12 @@ class ResearchLedger:
 
             fx_rebalance_limits(body["fx_rebalance"])
             PortfolioOTC.from_policy(body["fx_rebalance"])
+        if "margin_positions" in body:
+            from .portfolio_margin import load_margin_plans
+
+            if "cash_by_currency" not in body or body["margin_positions"] is None:
+                raise ValueError("margin_positions requires mixed-currency funding and preview-backed positions")
+            load_margin_plans(self.path.parent, body["margin_positions"])
         key, encoded = digest(body), _json(body)
         with self._write():
             self.conn.execute("INSERT OR IGNORE INTO jobs VALUES(?,?,?,1)", (key, encoded, body["first_at"]))
@@ -371,7 +379,7 @@ class ResearchLedger:
                 self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(started), _json(started)))
             try:
                 hypothesis = self._hypothesis(job["hypothesis_id"])
-                result, run_group = _scheduled_replay(db, job, hypothesis, end, store)
+                result, run_group = _scheduled_replay(db, job, hypothesis, end, store, self.path.parent)
             except ValueError as error:
                 unavailable = isinstance(error, HypothesisUnavailable)
                 with self._write():

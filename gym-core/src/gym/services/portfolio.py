@@ -63,7 +63,7 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
               params: dict | None = None, rules_mode: str = "point-in-time", store: str = "live", policy: dict | None = None,
               checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True,
               cash_by_currency: dict | None = None, dynamic_routes: bool = False,
-              funding_legs: list | None = None, fx_rebalance: dict | None = None) -> dict:
+              funding_legs: list | None = None, fx_rebalance: dict | None = None, margin_plans=None) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
@@ -73,13 +73,14 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
                           strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
                           policy=policy, checkpoint=checkpoint, universe_selection=universe_selection,
                           booked_accounting=booked_accounting, cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes,
-                          funding_legs=funding_legs, fx_rebalance=fx_rebalance)
+                          funding_legs=funding_legs, fx_rebalance=fx_rebalance, margin_plans=margin_plans)
     finally:
         db.c.rollback()
 
 
 def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
-               universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance):
+               universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance,
+               margin_plans):
     """Replay strictly prior market observations against a shared simulated cash book."""
     _check_request(db, symbols, t0, t1, cost, rules_mode, universe_selection,
                    multicurrency=cash_by_currency is not None)
@@ -89,7 +90,7 @@ def _portfolio(db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, para
                    params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint,
                    universe_selection=universe_selection, booked_accounting=booked_accounting,
                    cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes, funding_legs=funding_legs,
-                   fx_rebalance=fx_rebalance).run()
+                   fx_rebalance=fx_rebalance, margin_plans=margin_plans).run()
 
 
 class _Replay:
@@ -100,7 +101,7 @@ class _Replay:
 
     def __init__(self, db, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
                  checkpoint, universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs,
-                 fx_rebalance):
+                 fx_rebalance, margin_plans):
         self.db, self.symbols, self.t0, self.t1 = db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
@@ -112,6 +113,10 @@ class _Replay:
         self.reference_routes = {}
         quotes = {inst.quote for inst in self.instruments.values()}
         self.multicurrency = cash_by_currency is not None
+        self.margin = None
+        self.margin_plans = margin_plans
+        if margin_plans is not None and (not self.multicurrency or not booked_accounting or rules_mode != "point-in-time"):
+            raise ValueError("margin positions require point-in-time mixed-currency booked accounting")
         if funding_legs is not None and (not self.multicurrency or not booked_accounting or rules_mode != "point-in-time"):
             raise ValueError("opening funding legs require point-in-time mixed-currency booked accounting")
         self.funding_legs, self.funding_result = funding_legs, None
@@ -189,10 +194,14 @@ class _Replay:
         self.opening_cash = {currency: decimal(amount, currency) for currency, amount in opening.items()}
         if not any(self.opening_cash.values()):
             raise ValueError("multi-currency replay requires positive opening capital")
-        book_type = _ReconcilingCashBook if "otc_routes" in (self.fx_rebalance or {}) else CashBook
+        book_type = _ReconcilingCashBook if self.margin_plans or "otc_routes" in (self.fx_rebalance or {}) else CashBook
         self.book = book_type(dict(self.opening_cash))
         if self.funding_legs is not None:
             self._fund_opening_account()
+        if self.margin_plans:
+            from .portfolio_margin import PortfolioMargin
+
+            self.margin = PortfolioMargin(self.portal, self.rules_for, self.t0, self.t1, self.margin_plans, self.book)
         self._configure_routes(quotes)
         self.quote = "USDT"
         self.fx_stream = iter(self.portal.iter_tops("USDTTMN", self.t0 - timedelta(days=1), self.t1))
@@ -229,11 +238,14 @@ class _Replay:
     def _configure_routes(self, quotes):
         owners = {}
         self.route_candidates = defaultdict(list)
+        margin_symbols = self.margin.symbols if self.margin else set()
         # Allocate one venue route per asset using opening balances and a stable currency/symbol preference.
         for symbol in sorted(self.symbols, key=lambda s: (
                 not self.book.get(self.instruments[s].quote), self.instruments[s].quote != "USDT", s)):
             inst = self.instruments[symbol]
-            if inst.base in quotes:
+            if symbol in margin_symbols:
+                self.reference_routes[symbol] = {"reason": "MARGIN_POSITION", "trade_route": None}
+            elif inst.base in quotes:
                 self.reference_routes[symbol] = {"reason": "QUOTE_CURRENCY_REFERENCE", "trade_route": None}
             elif inst.base in owners and not self.dynamic_routes:
                 self.reference_routes[symbol] = {"reason": "ALTERNATE_ROUTE", "trade_route": owners[inst.base]}
@@ -364,8 +376,9 @@ class _Replay:
 
     def equity_in(self, quote):
         book, instruments, marks = self.book, self.instruments, self.marks
-        return book.get(quote) + sum((book.get(instruments[s].base) * marks[s] for s in self.held_order
-                                      if instruments[s].quote == quote), Decimal(0))
+        equity = book.get(quote) + sum((book.get(instruments[s].base) * marks[s] for s in self.held_order
+                                        if instruments[s].quote == quote), Decimal(0))
+        return equity + self.margin.equity(quote) if self.margin else equity
 
     def reserved_in(self, quote, *, exclude=None):
         otc = self.otc_fx.reserved(quote) if self.otc_fx else Decimal(0)
@@ -377,7 +390,8 @@ class _Replay:
         stale_fx = self.multicurrency and ("CLOSED" in self.fx_mark.flags
                                            or at - self.fx_mark.ts_avail > timedelta(seconds=120)
                                            or is_closed(self.rules_for(at), InstrumentId.wallex("USDTTMN"), at))
-        return ("STALE_VALUATION" if stale_fx or any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
+        return ("STALE_VALUATION" if stale_fx or (self.margin and self.margin.stale(at))
+                or any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
                 else "CURRENT")
 
     def allocate(self, symbol, fraction):
@@ -419,8 +433,12 @@ class _Replay:
             self.otc_fx.advance(at, self.book, self.fx_orders)
         if self.multicurrency:
             self._advance_fx(at)
+        if self.margin:
+            self.margin.advance(at, self.book, terminal=at == self.t1)
         controller = self.controller
-        if self.valuation_state(at) != "CURRENT":
+        if self.margin and self.margin.deficit():
+            state = "MARGIN_DEFICIT"
+        elif self.valuation_state(at) != "CURRENT":
             state = ("DRAWDOWN" if controller.drawdown_latched else "DAILY_LOSS" if controller.daily_latched
                      else "STALE_VALUATION")
         else:
@@ -620,6 +638,7 @@ class _Replay:
                     "fx_quotas": {str(day): value for day, value in self.fx_quotas.items()}}
                    if self.fx_rebalance is not None else {}),
                 **({"otc_pending": self.otc_fx.pending, "otc_used": sorted(self.otc_fx.used)} if self.otc_fx else {}),
+                **({"margin": self.margin.checkpoint()} if self.margin else {}),
                 "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
                     "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
                     "bar_events": session.bar_events, "rules": session.rule_snapshots,
@@ -715,6 +734,8 @@ class _Replay:
         if self.fx_rebalance is not None:
             version = 20 if "otc_routes" in self.fx_rebalance else 19 if self.otc_fx else 18
             inputs.update(portfolio_version=version, fx_rebalance=self.fx_rebalance, fx_execution_evidence=digest(self.fx_orders))
+        if self.margin:
+            inputs.update(portfolio_version=21, margin_positions=self.margin.requests, margin_data=self.margin.evidence)
         return inputs
 
     def _output(self):
@@ -753,6 +774,9 @@ class _Replay:
             result["opening_funding"] = self.funding_result
         if self.fx_rebalance is not None:
             result["fx_orders"] = self.fx_orders
+        if self.margin:
+            result["margin_positions"] = self.margin.report()
+            result["margin_risk_state"] = self.risk_state
         if self.policy is not None:
             result["policy_events"] = self.policy_events
             result["policy_state"] = {"risk": self.risk_state, "weights": self.weights, "clock": "Asia/Tehran",

@@ -13,6 +13,7 @@ from ..domain.strategy import digest
 from .attribution import toman_attribution
 from .data_quality_gate import recorded_bar_coverage
 from .portfolio import MAX_MARKETS, portfolio
+from .portfolio_margin import load_margin_plans
 from .trial_ledger import TrialLedger
 
 
@@ -57,7 +58,8 @@ def portfolio_action(root, action, value, *, store):
     required = {"from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
     if (type(value) is not dict or not required <= value.keys()
             or value.keys() - required - {"symbols", "policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis",
-                                          "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance"}):
+                                          "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance",
+                                          "margin_positions"}):
         raise ValueError("invalid portfolio replay fields")
     symbols = value.get("symbols", [])
     whole_request = "symbols" not in value and "cash_by_currency" in value and "top_n" not in value
@@ -139,7 +141,7 @@ def portfolio_action(root, action, value, *, store):
                         strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store,
                         policy=value.get("policy"), universe_selection=selection, cash_by_currency=value.get("cash_by_currency"),
                         dynamic_routes=value.get("dynamic_routes", False), funding_legs=value.get("funding_legs"),
-                        fx_rebalance=value.get("fx_rebalance"))
+                        fx_rebalance=value.get("fx_rebalance"), margin_plans=load_margin_plans(root, value.get("margin_positions")))
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))
