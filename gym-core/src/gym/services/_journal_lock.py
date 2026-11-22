@@ -18,6 +18,7 @@ def _acquire(fd: int, timeout: float) -> None:
         try:
             if os.name == "nt":
                 os.lseek(fd, 0, os.SEEK_SET)
+                # The CRT can lock byte zero of an empty file.
                 msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             else:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -43,8 +44,6 @@ def journal_lock(journal_path: Path, *, timeout: float = 15.0):
     lock_path = journal_path.with_suffix(journal_path.suffix + ".lock")
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
     try:
-        if os.name == "nt" and os.fstat(fd).st_size == 0:
-            os.write(fd, b"0")
         _acquire(fd, timeout)
         try:
             yield

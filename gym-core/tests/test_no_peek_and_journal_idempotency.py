@@ -156,9 +156,11 @@ def test_concurrent_forward_journal_runs_append_exactly_one_entry_per_day(tmp_pa
 
     # Verify every JSONL file parses cleanly with no interleaved/torn lines.
     for rel in ("allocation/journal.jsonl", "allocation/mix-journal.jsonl", "allocation/breadth-journal.jsonl"):
-        lines = [line for line in (root / rel).read_text(encoding="utf-8").splitlines() if line.strip()]
+        path = root / rel
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         assert len(lines) == 1
         assert isinstance(json.loads(lines[0]), dict)
+        assert path.with_suffix(".jsonl.lock").stat().st_size == 0
 
 
 def test_market_db_busy_timeout_survives_transient_concurrent_writer_lock(tmp_path):
