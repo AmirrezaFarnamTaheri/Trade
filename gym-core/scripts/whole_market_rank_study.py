@@ -177,13 +177,17 @@ def main():
     parser.add_argument("--seed", type=int, default=20261122)
     parser.add_argument("--usdt-clip", default="10")
     parser.add_argument("--tmn-clip", default="2700000")
+    parser.add_argument("--participation", default="0.25")
+    parser.add_argument("--fee-rate", default="0.001")
+    parser.add_argument("--latency-ms", type=int, default=500)
     args = parser.parse_args()
     header, slices = read_panel(args.panel)
     clips = {"TMN": decimal(args.tmn_clip, positive=True), "USDT": decimal(args.usdt_clip, positive=True)}
+    cost = CostModel(fee_rate=decimal(args.fee_rate), latency=timedelta(milliseconds=args.latency_ms),
+                     max_participation=decimal(args.participation, positive=True))
     db = MarketDB(args.market_db, readonly=True)
     try:
-        result = rank_study(db, header, slices, top_n=args.top, clips=clips, seed=args.seed,
-                            cost=CostModel(max_participation=Decimal("0.25")))
+        result = rank_study(db, header, slices, top_n=args.top, clips=clips, seed=args.seed, cost=cost)
         print(json.dumps(result, sort_keys=True, default=str, indent=2))
     finally:
         db.c.close()
