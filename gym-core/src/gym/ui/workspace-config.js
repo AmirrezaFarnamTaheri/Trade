@@ -835,6 +835,8 @@ Object.assign(vocabulary, {
   pfCatalogueCoverage: ["Historical catalogue coverage", "پوشش فهرست تاریخی بازارها"],
   pfResolvedCount: ["Catalogue entries", "تعداد بازارهای فهرست‌شده"],
   pfSelectedCount: ["Included spot markets", "بازارهای نقدی در بازپخش"],
+  pfSpotAtOpening: ["Confirmed spot markets at the start", "بازارهای نقدی تأییدشده در آغاز"],
+  pfSpotMembershipWindows: ["Changed markets · first 50 spot entry intervals (UTC)", "بازارهای تغییرکرده · ۵۰ بازهٔ نخست ورود نقدی (UTC)"],
   pfExcludedCount: ["Excluded catalogue entries", "بازارهای کنارگذاشته‌شده"],
   pfUseTheWholeObservedQuoteUniverse: ["Quick selection for a single quote currency.", "انتخاب سریع بازارهای یک ارز مظنه."],
   pfAllUsdtMarkets: ["All USDT markets", "همهٔ بازارهای تتر"],

@@ -103,6 +103,28 @@ test('duplicate requests are fenced and failures leave an actionable saved-state
   assert.match(p.node('portfolio-status').textContent,/saved portfolios/);
   assert.doesNotMatch(p.node('portfolio-status').textContent,/<script>|private/);
 });
+test('saved whole-market results show recorded spot membership intervals in English and Persian', async () => {
+  const changed = {...record, inputs:{...record.inputs, universe_selection:{schema:'whole-spot-universe/2',
+    coverage:{resolved:2}, start_symbols:['BTCUSDT'], symbols:['BTCUSDT','ETHUSDT'], excluded:{},
+    entry_windows:{ETHUSDT:[['2026-10-29T09:15:00Z','2026-10-29T09:30:00Z']]}}}};
+  const p = page(async (url, options) => {
+    if (!options) return {...setup, portfolio_multicurrency:true};
+    const action = JSON.parse(options.body).action;
+    if (action === 'portfolio-list') return {runs:[]};
+    if (action === 'portfolio-replay') return {run_id:changed.run_id};
+    return changed;
+  });
+  await p.node('portfolio-load').onclick();
+  p.node('portfolio-from').value='2026-10-29T09:00:00';
+  p.node('portfolio-to').value='2026-10-29T09:30:00';
+  p.node('portfolio-params').value='{}';
+  await p.node('portfolio-form').onsubmit({preventDefault(){}});
+  assert.match(p.node('portfolio-result').innerHTML,/Confirmed spot markets at the start\|1/);
+  assert.match(p.node('portfolio-result').innerHTML,/ETHUSDT\|2026-10-29T09:15:00Z\|2026-10-29T09:30:00Z/);
+  p.context.document.documentElement.lang='fa';
+  p.context.window.gymPortfolio.mount(p.options);
+  assert.match(p.node('portfolio-result').innerHTML,/بازارهای تغییرکرده/);
+});
 test('portfolio belongs to the workbench panel and follows existing asset hashing',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../../src/gym/ui/index.html'),'utf8');
   const panel=html.match(/<div id="panel-workbench"[\s\S]*?<\/div>/)[0];

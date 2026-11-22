@@ -70,6 +70,41 @@ def whole_spot_selection(db, cutoff, *, store):
             "coverage": manifest["coverage"], "excluded": excluded, "symbols": symbols, "store": store}
 
 
+def whole_window_spot_selection(db, start, end, *, store):
+    """Freeze all confirmed spot availability intervals within the replay window."""
+    opening = whole_spot_selection(db, start, store=store)
+    start_at, end_at = iso(start), iso(end)
+    windows, previous_end = {}, {}
+    rows = db.c.execute("""SELECT substr(s.instrument_id,8), s.valid_from, s.valid_to, json_type(s.spec, '$.is_spot')
+        FROM instrument_specs s LEFT JOIN instruments i USING (instrument_id)
+        WHERE s.instrument_id GLOB 'wallex:*'
+          AND (i.quote IN ('TMN','USDT') OR (i.quote IS NULL AND
+               (s.instrument_id GLOB '*TMN' OR s.instrument_id GLOB '*USDT')))
+          AND s.valid_from<? AND (s.valid_to IS NULL OR s.valid_to>?)
+        ORDER BY s.instrument_id,s.valid_from,s.rowid""", (end_at, start_at))
+    for symbol, begin, through, spot in rows:
+        begin, through = max(start_at, begin), min(end_at, through or end_at)
+        if through <= begin:
+            continue
+        if previous_end.get(symbol, start_at) > begin:
+            raise ValueError(f"overlapping catalogue revisions for {symbol}")
+        previous_end[symbol] = through
+        if spot != "true":
+            continue
+        intervals = windows.setdefault(symbol, [])
+        if intervals and intervals[-1][1] == begin:
+            intervals[-1][1] = through
+        else:
+            intervals.append([begin, through])
+    symbols = sorted(windows)
+    if symbols == opening["symbols"] and all(value == [[start_at, end_at]] for value in windows.values()):
+        return opening
+    return {**opening, "schema": "whole-spot-universe/2", "symbols": symbols,
+            "start_symbols": opening["symbols"], "coverage": {**opening["coverage"], "spot_during_window": len(symbols)},
+            "excluded": {s: reason for s, reason in opening["excluded"].items() if s not in windows},
+            "entry_windows": {s: value for s, value in windows.items() if value != [[start_at, end_at]]}}
+
+
 def select_universe(db, start, *, quote_currency, top_n, lookback_hours=24):
     """Select by historical observed trade quote-notional, never today's market list."""
     if quote_currency not in ("USDT", "TMN") or type(top_n) is not int or not 1 <= top_n <= 20:

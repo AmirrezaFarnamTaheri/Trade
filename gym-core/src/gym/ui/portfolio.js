@@ -143,9 +143,15 @@ window.gymPortfolio = (() => {
       if (!record) return;
       const result = record.result, end = result.end, valuation = result.valuation;
       const universe = record.inputs.universe_selection;
-      const coverage = universe?.schema === 'whole-spot-universe/1' ? `<h4>${label('pfCatalogueCoverage')}</h4>` + keyValues([
+      const changingUniverse = universe?.schema === 'whole-spot-universe/2';
+      const coverage = changingUniverse || universe?.schema === 'whole-spot-universe/1' ? `<h4>${label('pfCatalogueCoverage')}</h4>` + keyValues([
         [label('pfResolvedCount'), esc(universe.coverage.resolved)], [label('pfSelectedCount'), esc(universe.symbols.length)],
+        ...(changingUniverse ? [[label('pfSpotAtOpening'), esc(universe.start_symbols.length)]] : []),
         [label('pfExcludedCount'), esc(Object.keys(universe.excluded).length)]]) : '';
+      const membership = changingUniverse ? `<details class="disclosure" data-key="portfolio-membership-${esc(record.run_id)}"><summary>${label('pfSpotMembershipWindows')}</summary>` +
+        table([label('pair'), label('windowFrom'), label('pfToUtcExclusive')],
+          Object.entries(universe.entry_windows).flatMap(([symbol, windows]) => windows.map(([begin, end]) =>
+            [esc(symbol), esc(begin), esc(end)])).slice(0, 50)) + '</details>' : '';
       const ranks = result.rank_gate?.length ? `<details class="disclosure" data-key="portfolio-rank-${esc(record.run_id)}"><summary>${label('pfRankLatest')}</summary>` +
         table([label('pfDecisionClose'), label('pfRankBreadth'), label('pfRankSelected'), label('pfRankBlocked')],
           result.rank_gate.slice(-25).map(row => [stamp(row.at), amount(row.breadth),
@@ -175,7 +181,7 @@ window.gymPortfolio = (() => {
         [text(T.en.pair, T.fa.pair), text(T.en.pfFills, T.fa.pfFills), text(T.en.pfClosedTrades, T.fa.pfClosedTrades), text(T.en.pfRealizedPL, T.fa.pfRealizedPL), text(T.en.pfHeldBaseUnits, T.fa.pfHeldBaseUnits), text(T.en.pfLastRecordedBid, T.fa.pfLastRecordedBid), text(T.en.pfPriceFreshness, T.fa.pfPriceFreshness), text(T.en.pfLastMarkTehran, T.fa.pfLastMarkTehran)],
         Object.entries(result.markets).map(([s, row]) => [esc(s), esc(row.fills), esc(row.closed_trades), amount(row.realized_pnl), amount(row.holding) + (row.position_known ? `<br><small>${esc(T[language]['paperPosition' + row.position_known.state] ?? row.position_known.state)}</small>` +
           (row.position_known.exit_check ? `<br><small>${esc(T[language]['paperExit' + row.position_known.exit_check] ?? row.position_known.exit_check)}</small>` : '') : ''), amount(row.last_bid), esc(row.mark_status || 'UNKNOWN'), stamp(row.mark_time)])) +
-        coverage + ranks + conversion + `<details id="portfolio-receipt" data-key="portfolio-receipt-${esc(record.run_id)}"><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre id="portfolio-receipt-json" class="output" dir="ltr"></pre></details>`);
+        coverage + membership + ranks + conversion + `<details id="portfolio-receipt" data-key="portfolio-receipt-${esc(record.run_id)}"><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre id="portfolio-receipt-json" class="output" dir="ltr"></pre></details>`);
       const receipt = $('portfolio-receipt');
       if (receipt) {
         receipt.ontoggle = () => {

@@ -63,11 +63,11 @@ def _scheduled_replay(db, job, hypothesis, end, store, root):
                "resolution": job["resolution"], "cash": decimal(job["cash"], "cash", positive=True),
                "cost": _scheduled_cost(job), "store": store}
     if "portfolio_symbols" in job or "cash_by_currency" in job:
-        from .historical_universe import whole_spot_selection
+        from .historical_universe import whole_window_spot_selection
         from .portfolio import portfolio
         from .portfolio_margin import load_margin_plans
 
-        selection = None if "portfolio_symbols" in job else whole_spot_selection(db, start, store=store)
+        selection = None if "portfolio_symbols" in job else whole_window_spot_selection(db, start, end, store=store)
         symbols = job["portfolio_symbols"] if selection is None else selection["symbols"]
         return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
                          universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),

@@ -155,6 +155,14 @@ class _Replay:
                 or (params or {}).get("exit_venue_stop", 0) not in (0, 3))):
             raise ValueError("dynamic routes require mixed-currency EMA and capped best-level spot execution")
         self.dynamic_routes = dynamic_routes
+        self.entry_windows = (universe_selection or {}).get("entry_windows", {})
+        self.variable_routes = dynamic_routes or bool(self.entry_windows)
+        self.listed = {s: t0 for s in symbols if s not in self.entry_windows}
+        self.listing_events = iter(sorted(
+            (parse_ts(stamp), symbol, entering)
+            for symbol, intervals in self.entry_windows.items() for begin, end in intervals
+            for stamp, entering in ((begin, True), (end, False)) if parse_ts(stamp) < t1))
+        self.next_listing = next(self.listing_events, None)
         self.route_changes = []
         if self.multicurrency:
             self._configure_currencies(quotes, cash_by_currency)
@@ -193,6 +201,9 @@ class _Replay:
                 if self.multicurrency:
                     raise ValueError("entry risk sizing requires a single quote currency")
                 session.risk_budget = lambda symbol=s: self.risk_budget(symbol)
+        if self.entry_windows:
+            self._advance_listings(t0)
+            self._count_listed_routes()
         if checkpoint is not None and (type(checkpoint.get("quote_count")) is not int or
                 checkpoint["quote_count"] < 1):
             raise ValueError("portfolio checkpoint cursor exceeds observed quotes")
@@ -272,12 +283,12 @@ class _Replay:
                 self.reference_routes[symbol] = {"reason": "MIXED_ROUTE_INTERMEDIATE", "trade_route": None}
             elif inst.base in quotes:
                 self.reference_routes[symbol] = {"reason": "QUOTE_CURRENCY_REFERENCE", "trade_route": None}
-            elif inst.base in owners and not self.dynamic_routes:
+            elif inst.base in owners and not self.variable_routes:
                 self.reference_routes[symbol] = {"reason": "ALTERNATE_ROUTE", "trade_route": owners[inst.base]}
             else:
                 owners[inst.base] = symbol
                 self.route_candidates[inst.base].append(symbol)
-        self.trade_routes = {} if self.dynamic_routes else owners
+        self.trade_routes = {} if self.variable_routes else owners
         if not self.route_candidates:
             raise ValueError("multi-currency replay requires at least one traded underlying")
         self.quote_market_counts = {quote: sum(self.instruments[s].quote == quote
@@ -289,11 +300,21 @@ class _Replay:
         for base, symbols in self.route_candidates.items():
             if self.book.get(base) > 0 or any(self.sessions[s].pending for s in symbols):
                 continue
+            if self.entry_windows:
+                symbols = [s for s in symbols if s in self.listed]
+            if not self.dynamic_routes:
+                previous = self.trade_routes.get(base)
+                if previous not in symbols:
+                    choice = min(symbols, key=lambda s: (not self.book.get(self.instruments[s].quote),
+                                 self.instruments[s].quote != "USDT", s), default=None)
+                    self._set_route(base, choice, at)
+                continue
             candidates = []
             for symbol in symbols:
                 session, instrument = self.sessions[symbol], self.instruments[symbol]
                 top = session.last_quote
                 if (top is None or not qualified(top) or top.ts_avail >= at or "CLOSED" in top.flags
+                        or self.entry_windows and top.ts_avail < self.listed[symbol]
                         or at - top.ts_avail > timedelta(seconds=120)
                         or is_closed(self.rules_for(at), instrument, at)
                         or top.ask_qty is None or top.ask_qty <= 0):
@@ -307,11 +328,43 @@ class _Replay:
                 unit_cost = top.ask / fx / (1 - session.cost.fee_rate)
                 candidates.append((unit_cost, symbol))
             choice = min(candidates)[1] if candidates else None
-            previous = self.trade_routes.pop(base, None)
-            if choice is not None:
-                self.trade_routes[base] = choice
-            if choice != previous:
-                self.route_changes.append({"at": iso(at), "asset": base, "previous": previous, "selected": choice})
+            self._set_route(base, choice, at)
+
+    def _set_route(self, base, choice, at):
+        previous = self.trade_routes.pop(base, None)
+        if choice is not None:
+            self.trade_routes[base] = choice
+        if choice != previous:
+            self.route_changes.append({"at": iso(at), "asset": base, "previous": previous, "selected": choice})
+
+    def _count_listed_routes(self):
+        counts = defaultdict(int)
+        symbols = (s for routes in self.route_candidates.values() for s in routes) if self.dynamic_routes else self.trade_routes.values()
+        for symbol in symbols:
+            if symbol in self.listed:
+                counts[self.instruments[symbol].quote] += 1
+        self.quote_market_counts = counts
+
+    def _advance_listings(self, at):
+        if self.next_listing is None or self.next_listing[0] > at:
+            return
+        while self.next_listing is not None and self.next_listing[0] <= at:
+            stamp, symbol, entering = self.next_listing
+            if entering:
+                self.listed[symbol] = stamp
+            else:
+                self.listed.pop(symbol, None)
+                self.histories[symbol].clear()
+                if self.rank_gate:
+                    self.rank_gate.tops.pop(symbol, None)
+                    self.rank_gate.previous.pop(symbol, None)
+                session = self.sessions.get(symbol)
+                if session and session.pending and session.pending.record["side"] == "BUY":
+                    session.pending.record.update(status="CANCELLED", reason="SPOT_MEMBERSHIP_ENDED", cancelled_at=iso(stamp))
+                    session.pending = None
+                    self.reserved.pop(symbol, None)
+            self.next_listing = next(self.listing_events, None)
+        self._count_listed_routes()
 
     def _advance_fx(self, at):
         while self.fx_next is not None and self.fx_next.ts_avail < at:
@@ -456,6 +509,8 @@ class _Replay:
 
     def risk(self, at):
         """Update portfolio loss latches and cancel unfilled entries when tripped."""
+        if self.entry_windows:
+            self._advance_listings(at)
         if self.otc_fx:
             self.otc_fx.advance(at, self.book, self.fx_orders, db=self.db, participation=self.fx_cost.max_participation,
                                 latency=self.fx_cost.latency, end=self.t1)
@@ -486,7 +541,7 @@ class _Replay:
 
     def filter_decision(self, symbol, action, fraction, reasons):
         """Apply portfolio risk, allowed rebalance and modeled transaction costs."""
-        if self.dynamic_routes and self.trade_routes.get(self.instruments[symbol].base) != symbol:
+        if self.variable_routes and self.trade_routes.get(self.instruments[symbol].base) != symbol:
             return "HOLD", Decimal(0), ("INACTIVE_ROUTE",)
         risk_state = self.risk_state
         if risk_state in ("DRAWDOWN", "DAILY_LOSS"):
@@ -501,6 +556,10 @@ class _Replay:
                 and symbol in self.rebalance_pending and not risk_state
                 and action in ("HOLD", "BUY_REQUEST", "SELL_REQUEST")):
             action, fraction, reasons = self._rebalance(symbol, action, fraction, reasons)
+        if self.entry_windows and action == "BUY_REQUEST":
+            listed_at, top = self.listed.get(symbol), self.sessions[symbol].last_quote
+            if listed_at is None or top is None or top.ts_avail < listed_at:
+                return "ABSTAIN_SPOT_MEMBERSHIP", Decimal(0), ("SPOT_ENTRY_UNAVAILABLE",)
         if self.rank_gate:
             return self.rank_gate.filter_entry(symbol, action, fraction, reasons)
         return action, fraction, reasons
@@ -574,10 +633,14 @@ class _Replay:
             self.weights = controller.weights({})
             self.next_rebalance = close
             self.rebalance_pending.clear()
-        if self.dynamic_routes:
+        if self.variable_routes:
             self._choose_routes(close)
+            if self.entry_windows and not self.dynamic_routes:
+                self._count_listed_routes()
         if self.rank_gate:
-            active = set(self.trade_routes.values()) if self.dynamic_routes else self.sessions
+            active = set(self.trade_routes.values()) if self.variable_routes else self.sessions
+            if self.entry_windows:
+                active = self.listed.keys() & active
             self.rank_gate.advance(close, self.instruments, self.rules_for(close), active)
         for session in self.sessions.values():
             session.scan(close)
@@ -585,7 +648,7 @@ class _Replay:
             self._request_fx_rebalance(close)
         stamp = iso(close)
         for s, session in self.sessions.items():
-            if session.decisions and session.decisions[-1]["t"] == stamp:
+            if session.decisions and session.decisions[-1]["t"] == stamp and (not self.entry_windows or s in self.listed):
                 self._record_close(s, session, close, risk_fx)
             if session.pending is None or session.pending.record["side"] != "BUY":
                 self.reserved.pop(s, None)
@@ -613,7 +676,11 @@ class _Replay:
         """One quote: marks, risk, the pending entry's funded share, the session itself and holdings bookkeeping."""
         book, quote, reserved = self.book, self.instruments[symbol].quote, self.reserved
         self.close_through(top.ts_avail)
-        if self.rank_gate:
+        if self.entry_windows:
+            self._advance_listings(top.ts_avail)
+            if symbol not in self.listed and symbol not in self.held:
+                return
+        if self.rank_gate and (not self.entry_windows or symbol in self.listed):
             self.rank_gate.tops[symbol] = top
         if qualified(top):
             self.mark_order.setdefault(symbol, len(self.mark_order))
@@ -641,7 +708,7 @@ class _Replay:
             self.curve.append((iso(top.ts_avail), str(self.equity())))
 
     def _track_holding(self, symbol):
-        if self.dynamic_routes and self.trade_routes.get(self.instruments[symbol].base) != symbol:
+        if self.variable_routes and self.trade_routes.get(self.instruments[symbol].base) != symbol:
             return
         if self.book.get(self.instruments[symbol].base) > 0:
             if symbol not in self.held:
@@ -668,7 +735,8 @@ class _Replay:
                 "rebalance_pending": sorted(self.rebalance_pending), "next_rebalance": self.next_rebalance,
                 "marks": self.marks, "mark_times": self.mark_times, "curve": self.curve,
                 **({"fx_data": self.fx_evidence.hexdigest()} if self.multicurrency else {}),
-                **({"trade_routes": self.trade_routes} if self.dynamic_routes else {}),
+                **({"trade_routes": self.trade_routes} if self.variable_routes else {}),
+                **({"listed": self.listed, "next_listing": self.next_listing} if self.entry_windows else {}),
                 **({"fx_pending": self.fx_pending, "fx_orders": self.fx_orders,
                     "fx_quotas": {str(day): value for day, value in self.fx_quotas.items()}}
                    if self.fx_rebalance is not None else {}),
@@ -804,7 +872,7 @@ class _Replay:
         inputs = self._inputs(metadata, valuation)
         markets = _market_summaries(self.sessions, self.instruments, None, self.book, self.marks, self.mark_times, t1,
                                     booked_accounting=self.booked_accounting, quote_counts=self.quote_counts,
-                                    trade_routes=self.trade_routes if self.dynamic_routes else None)
+                                    trade_routes=self.trade_routes if self.variable_routes else None)
         if inputs["params"].get("exit_venue_stop") == 3:
             for symbol, session in self.sessions.items():
                 markets[symbol]["venue_stop"] = session.venue_stop_state()
@@ -819,7 +887,7 @@ class _Replay:
                           "valuation_status": self.valuation_state(t1)}}
         if self.booked_accounting:
             result["postings"] = self.book.postings
-        if self.dynamic_routes:
+        if self.variable_routes:
             result["route_changes"] = self.route_changes
         if self.funding_result is not None:
             result["opening_funding"] = self.funding_result
@@ -860,10 +928,16 @@ def _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection
     if rules_mode not in ("point-in-time", "today"):
         raise ValueError("rules_mode must be 'point-in-time' or 'today'")
     if universe_selection is not None:
-        from .historical_universe import select_universe, whole_spot_selection
+        from .historical_universe import (
+            select_universe,
+            whole_spot_selection,
+            whole_window_spot_selection,
+        )
 
         if universe_selection.get("schema") == "whole-spot-universe/1":
             actual = whole_spot_selection(db, t0, store=universe_selection["store"])
+        elif universe_selection.get("schema") == "whole-spot-universe/2":
+            actual = whole_window_spot_selection(db, t0, t1, store=universe_selection["store"])
         else:
             actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
                                      top_n=universe_selection["requested_top_n"],

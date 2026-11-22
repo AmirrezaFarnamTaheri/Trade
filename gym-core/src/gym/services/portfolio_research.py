@@ -18,11 +18,11 @@ from .portfolio_margin import load_margin_plans
 from .trial_ledger import TrialLedger
 
 
-def _resolve_selection(db, value, symbols, start, *, whole_request, as_of_request, store, venue):
+def _resolve_selection(db, value, symbols, start, end, *, whole_request, as_of_request, store, venue):
     if whole_request:
-        from .historical_universe import whole_spot_selection
+        from .historical_universe import whole_window_spot_selection
 
-        selection = whole_spot_selection(db, start, store=store)
+        selection = whole_window_spot_selection(db, start, end, store=store)
     elif as_of_request:
         from .historical_universe import select_universe
 
@@ -124,7 +124,7 @@ def portfolio_action(root, action, value, *, store):
         raise ValueError("portfolio requires an existing market store")
     db = MarketDB(path, readonly=True)
     try:
-        symbols, selection = _resolve_selection(db, value, symbols, start, whole_request=whole_request,
+        symbols, selection = _resolve_selection(db, value, symbols, start, end, whole_request=whole_request,
                                                 as_of_request=as_of_request, store=store, venue=venue)
         if "quality_max_bad_share" in value:
             if len(symbols) > 20:
