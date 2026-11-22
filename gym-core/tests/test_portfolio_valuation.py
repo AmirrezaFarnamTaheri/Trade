@@ -3,9 +3,11 @@ from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 
+from gym.adapters.store import MarketDB
 from gym.domain.model import parse_ts
 from gym.domain.portfolio_diagnostics import economic_portfolio_attribution
-from gym.services.portfolio import portfolio
+from gym.services.portfolio import _Replay, _rule_timeline, portfolio
+from gym.services.rules import RuleService
 from tests.support import START, market_db, quote, quote_history
 
 
@@ -74,5 +76,31 @@ def test_closed_fx_boundary_keeps_old_rate_with_explicit_status(tmp_path):
         out = portfolio(db, ["BTCTMN", "ETHTMN"], START, START + timedelta(hours=12), resolution="1min")
         assert out["result"]["valuation"]["end"]["status"] == "STALE_CLOSED"
         assert out["result"]["valuation"]["end"]["rate"] == "100"
+    finally:
+        db.c.close()
+
+
+def test_mixed_portfolio_fx_calendar_refreshes_on_tehran_day_and_rule_revision(tmp_path):
+    db = MarketDB(tmp_path / "market.db")
+    try:
+        svc = RuleService(db)
+        start = parse_ts("2026-11-14T20:00:00Z")  # 23:30 Tehran on Saturday
+        midnight = start + timedelta(minutes=30)
+        disable_at = midnight + timedelta(minutes=10)
+        svc.put({"id": "night", "family": "TradingWindow", "class": "VENUE", "action": "BLOCK_ALL",
+                 "scope": {"symbols": ["USDTTMN"]},
+                 "params": {"closed": [{"from": "23:30", "to": "01:00", "days": [5]}]},
+                 "status": "VERIFIED", "source": "operator", "effective_from": "2026-11-01T00:00:00Z"},
+                start - timedelta(days=1))
+        svc.disable("night", disable_at)
+        account = _Replay.__new__(_Replay)
+        account.rules_for, _ = _rule_timeline(db, "point-in-time")
+        account._fx_valuation_calendar = (None, None, ())
+        assert not account._fx_valuation_closed(start - timedelta(microseconds=1))
+        assert account._fx_valuation_closed(start)
+        assert account._fx_valuation_closed(midnight)
+        assert account._fx_valuation_closed(disable_at - timedelta(microseconds=1))
+        assert not account._fx_valuation_closed(disable_at)
+        assert not account._fx_valuation_closed(start + timedelta(days=1))
     finally:
         db.c.close()

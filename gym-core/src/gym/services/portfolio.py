@@ -20,7 +20,7 @@ from ..domain.model import InstrumentId, QualityLimits, iso, parse_ts
 from ..domain.performance import performance, trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
-from ..domain.rules import is_closed
+from ..domain.rules import closures, is_closed, tehran_day
 from ..domain.sim import CashBook, CostModel, sellable_quantity
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
@@ -235,6 +235,7 @@ class _Replay:
         self.fx_next = next(self.fx_stream, None)
         self.fx_mark = None
         self.fx_evidence = hashlib.sha256()
+        self._fx_valuation_calendar = (None, None, ())
         self._advance_fx(self.t0)
         if self.fx_mark is None:
             raise ValueError("multi-currency replay requires an opening USDTTMN valuation observation")
@@ -464,11 +465,20 @@ class _Replay:
         return sum((value for s, value in self.reserved.items()
                     if s != exclude and self.instruments[s].quote == quote), otc)
 
+    def _fx_valuation_closed(self, at):
+        # Timeline lookups reuse the same rules list for each recorded revision.
+        rules, day = self.rules_for(at), tehran_day(at)
+        cached_rules, cached_day, spans = self._fx_valuation_calendar
+        if rules is not cached_rules or day != cached_day:
+            spans = closures(rules, InstrumentId.wallex("USDTTMN"), at)
+            self._fx_valuation_calendar = (rules, day, spans)
+        return any(start <= at < end for start, end in spans)
+
     def valuation_state(self, at):
         """Fail portfolio valuation when a held market lacks a fresh mark."""
         stale_fx = self.multicurrency and ("CLOSED" in self.fx_mark.flags
                                            or at - self.fx_mark.ts_avail > timedelta(seconds=120)
-                                           or is_closed(self.rules_for(at), InstrumentId.wallex("USDTTMN"), at))
+                                           or self._fx_valuation_closed(at))
         return ("STALE_VALUATION" if stale_fx or (self.margin and self.margin.stale(at))
                 or (self.otc_fx and self.otc_fx.residuals)
                 or any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
