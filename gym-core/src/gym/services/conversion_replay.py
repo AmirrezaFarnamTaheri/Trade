@@ -11,12 +11,13 @@ from .data_portal import DataPortal
 from .rules import RuleService
 
 
-def replay_mixed_route(db, value, *, funding_cutoff=None):
+def replay_mixed_route(db, value, *, funding_cutoff=None, max_participation=Decimal(1), spot_receive_limit=None):
     portal, rules = DataPortal(db), RuleService(db)
-    return replay_route(value, spot=lambda leg: _plan(portal, rules, leg), funding_cutoff=funding_cutoff)
+    return replay_route(value, spot=lambda leg: _plan(portal, rules, leg, max_participation, spot_receive_limit),
+                        funding_cutoff=funding_cutoff)
 
 
-def _plan(portal, rules, leg):
+def _plan(portal, rules, leg, max_participation, receive_limit):
     fields(leg, "symbol side base_quantity submit_at settle_by fee_rate")
     from ..domain.otc import _asset
 
@@ -29,7 +30,7 @@ def _plan(portal, rules, leg):
         raise ValueError("spot settlement window must be within 60 seconds of submission")
     quantity = decimal(leg["base_quantity"], "base_quantity", positive=True)
     cost = CostModel(rate(leg["fee_rate"]), latency=timedelta(0), max_wait=deadline - submit,
-                     max_participation=Decimal(1))
+                     max_participation=max_participation)
 
     def execute(balances, postings, quotas, index):
         for top in portal.iter_tops(symbol, submit, deadline + timedelta(microseconds=1)):
@@ -42,6 +43,9 @@ def _plan(portal, rules, leg):
         book = CashBook(balances)
         with localcontext() as ctx:
             ctx.prec = 400
+            if receive_limit is not None and side == "SELL" and quantity * top.bid > receive_limit:
+                return {"leg": index, "symbol": symbol, "status": "REFUSED",
+                        "receipt_at": top.ts_avail.isoformat(), "bid": str(top.bid), "reasons": ["QUOTE_OUTPUT_CAP"]}
             fill = market_order(book, inst, side, Decimal(1), submit, top.ask if side == "BUY" else top.bid,
                                 [top], 0, cost, portal.spec_at(symbol, top.ts_avail), known_rules,
                                 quotas.setdefault(inst.base, {}), f"conversion#{index}", max_qty=quantity)

@@ -5,18 +5,21 @@ from decimal import Decimal, localcontext
 from ..domain.market_models import decimal, fields, instant, rate
 from ..domain.model import iso
 from ..domain.otc import quote_preview
+from .conversion_replay import replay_mixed_route
+from .portfolio_mixed_route import mixed_routes
 from .portfolio_otc_route import OTCRoute, quote_key
 
 
 class PortfolioOTC:
     @classmethod
     def from_policy(cls, value):
-        if {"otc_quotes", "otc_routes"} & value.keys():
-            return cls(value.get("otc_quotes", []), routes=value.get("otc_routes", []))
+        if {"otc_quotes", "otc_routes", "mixed_routes"} & value.keys():
+            return cls(value.get("otc_quotes", []), routes=value.get("otc_routes", []),
+                       mixed=mixed_routes(value["mixed_routes"]) if "mixed_routes" in value else ())
         return None
 
-    def __init__(self, quotes, *, routes=()):
-        if type(quotes) is not list or len(quotes) > 256 or not (quotes or routes):
+    def __init__(self, quotes, *, routes=(), mixed=()):
+        if type(quotes) is not list or len(quotes) > 256 or not (quotes or routes or mixed):
             raise ValueError("otc_quotes must contain 1..256 supplied quotes")
         if type(routes) not in (list, tuple) or len(routes) > 32:
             raise ValueError("otc_routes accepts at most 32 two-leg routes")
@@ -26,6 +29,8 @@ class PortfolioOTC:
         self.quotes = []
         self.used = set()
         self.pending = None
+        self.mixed = mixed
+        self.residuals = {}
         for row in quotes:
             fields(row, "quote market fee_rate max_base_quantity settlement_seconds")
             quote = row["quote"]
@@ -48,8 +53,8 @@ class PortfolioOTC:
                 raise ValueError("duplicate OTC quote")
             self.quotes.append((key, available, row, request, price, rate(row["fee_rate"])))
 
-    def select(self, at, side, quantity, *, cash, spot_price, spot_fee, latency, end):
-        if self.pending is not None:
+    def select(self, at, side, quantity, *, cash, spot_price, spot_fee, latency, end, mixed_context=None):
+        if self.pending is not None or self.residuals:
             return False
         with localcontext() as ctx:
             ctx.prec = 400
@@ -58,10 +63,20 @@ class PortfolioOTC:
         routed = [(candidate, route) for route in self.routes
                   if (candidate := route.candidate(at, side, quantity, cash, self.used, latency, end)) is not None
                   and candidate[0] < (direct[0] if direct is not None else reference)]
+        if self.mixed:
+            portal, rules_for, participation = mixed_context
+            bound = direct[0] if direct is not None else reference
+            routed.extend((candidate, route) for route in self.mixed
+                          if (candidate := route.candidate(portal, rules_for, at, side, quantity, cash, self.used,
+                                                          latency, end, participation)) is not None and candidate[0] < bound)
         if routed:
             (_, _, times), route = min(routed, key=lambda item: item[0])
-            self.pending = route.order(at, times)
-            self.used.update((route.first["key"], route.last["key"]))
+            if route in self.mixed:
+                self.pending = route.order(at, times)
+                self.used.add(route.otc["key"])
+            else:
+                self.pending = route.order(at, times)
+                self.used.update((route.first["key"], route.last["key"]))
             return True
         if direct is None:
             return False
@@ -103,9 +118,13 @@ class PortfolioOTC:
             return order["debit"]
         return Decimal(0)
 
-    def advance(self, at, book, events):
+    def advance(self, at, book, events, *, db=None, participation=None):
         order = self.pending
         if order is None or order["settle"] >= at:
+            return
+        if order.get("mixed"):
+            self._release_mixed(book, events, order, db, participation)
+            self.pending = None
             return
         if "route_id" in order:
             self._release_route(book, events, order)
@@ -125,6 +144,35 @@ class PortfolioOTC:
                        "submit_time": iso(order["submit"]), "fill_time": iso(settle), "qty": str(order["qty"]),
                        "price": str(order["price"]), "fee": str(fee), "fee_ccy": credit})
         self.pending = None
+
+    def _release_mixed(self, book, events, order, db, participation):
+        report = replay_mixed_route(db, {"opening_balances": {order["source"]: order["debit"]},
+                                        "legs": order["legs"]}, max_participation=participation,
+                                    spot_receive_limit=order["spot_receive_limit"])
+        ref = f"mixed-fx-route/{len(events) + 1}"
+        settle = order["settle"]
+        with localcontext() as ctx:
+            ctx.prec = 400
+            for posting in report["postings"]:
+                book.post(settle, posting["asset"], Decimal(posting["amount"]), posting["kind"], ref)
+            closing = report["closing_balances"]
+            source_spent = order["debit"] - Decimal(closing[order["source"]])
+            received = sum((Decimal(p["amount"]) for p in report["postings"]
+                            if p["asset"] == order["destination"] and p["kind"] != "fee"), Decimal(0))
+        residual = Decimal(closing.get(order["intermediate"], "0"))
+        if residual:
+            self.residuals[order["intermediate"]] = residual
+        status = "FILLED" if report["status"] == "COMPLETED" else "PARTIAL" if report["postings"] else "NONFILL"
+        events.append({"ref": ref, "venue_model": "SPOT_OTC_ROUTE", "route_id": order["route_id"],
+                       "status": status, "side": order["side"], "decision_time": iso(order["decision"]),
+                       "fill_time": iso(settle) if report["postings"] else None, "released_at": iso(settle),
+                       "qty": str(received if order["side"] == "BUY" else source_spent),
+                       "indicative_qty": str(order["qty"]), "source_debit": str(source_spent),
+                       "destination_credit": closing.get(order["destination"], "0"),
+                       "indicative_destination_credit": str(order["credit"]),
+                       "indicative_spot_quote": order["indicative_quote"],
+                       "intermediate_residual": str(residual), "legs": order["legs"],
+                       "leg_outcomes": report["legs"], "leg_postings": report["postings"]})
 
     @staticmethod
     def _release_route(book, events, order):

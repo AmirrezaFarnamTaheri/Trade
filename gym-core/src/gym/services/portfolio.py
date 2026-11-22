@@ -48,7 +48,7 @@ class _ReconcilingCashBook(CashBook):
 def fx_rebalance_limits(value):
     from ..domain.market_models import decimal, fields
 
-    optional = [key for key in ("otc_quotes", "otc_routes") if isinstance(value, dict) and key in value]
+    optional = [key for key in ("otc_quotes", "otc_routes", "mixed_routes") if isinstance(value, dict) and key in value]
     fields(value, " ".join(("target_usdt_cash_share band max_order_usdt", *optional)))
     target = decimal(value["target_usdt_cash_share"])
     band = decimal(value["band"], positive=True)
@@ -194,7 +194,8 @@ class _Replay:
         self.opening_cash = {currency: decimal(amount, currency) for currency, amount in opening.items()}
         if not any(self.opening_cash.values()):
             raise ValueError("multi-currency replay requires positive opening capital")
-        book_type = _ReconcilingCashBook if self.margin_plans or "otc_routes" in (self.fx_rebalance or {}) else CashBook
+        reconciles = self.margin_plans or {"otc_routes", "mixed_routes"} & (self.fx_rebalance or {}).keys()
+        book_type = _ReconcilingCashBook if reconciles else CashBook
         self.book = book_type(dict(self.opening_cash))
         if self.funding_legs is not None:
             self._fund_opening_account()
@@ -239,12 +240,18 @@ class _Replay:
         owners = {}
         self.route_candidates = defaultdict(list)
         margin_symbols = self.margin.symbols if self.margin else set()
+        mixed = self.otc_fx.mixed if self.otc_fx else ()
+        mixed_bases = {route.base for route in mixed}
+        if margin_symbols & {route.symbol for route in mixed}:
+            raise ValueError("a mixed spot route cannot share its symbol with margin")
         # Allocate one venue route per asset using opening balances and a stable currency/symbol preference.
         for symbol in sorted(self.symbols, key=lambda s: (
                 not self.book.get(self.instruments[s].quote), self.instruments[s].quote != "USDT", s)):
             inst = self.instruments[symbol]
             if symbol in margin_symbols:
                 self.reference_routes[symbol] = {"reason": "MARGIN_POSITION", "trade_route": None}
+            elif inst.base in mixed_bases:
+                self.reference_routes[symbol] = {"reason": "MIXED_ROUTE_INTERMEDIATE", "trade_route": None}
             elif inst.base in quotes:
                 self.reference_routes[symbol] = {"reason": "QUOTE_CURRENCY_REFERENCE", "trade_route": None}
             elif inst.base in owners and not self.dynamic_routes:
@@ -313,7 +320,8 @@ class _Replay:
         quantity = min(abs(gap), self.fx_cap)
         if self.otc_fx and self.otc_fx.select(close, side, quantity, cash=free_tmn if side == "BUY" else free_usdt,
                                              spot_price=price, spot_fee=self.fx_cost.fee_rate,
-                                             latency=self.fx_cost.latency, end=self.t1):
+                                             latency=self.fx_cost.latency, end=self.t1,
+                                             mixed_context=(self.portal, self.rules_for, self.fx_cost.max_participation)):
             return
         self.fx_pending = (close, side, quantity, price)
 
@@ -391,6 +399,7 @@ class _Replay:
                                            or at - self.fx_mark.ts_avail > timedelta(seconds=120)
                                            or is_closed(self.rules_for(at), InstrumentId.wallex("USDTTMN"), at))
         return ("STALE_VALUATION" if stale_fx or (self.margin and self.margin.stale(at))
+                or (self.otc_fx and self.otc_fx.residuals)
                 or any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
                 else "CURRENT")
 
@@ -430,7 +439,7 @@ class _Replay:
     def risk(self, at):
         """Update portfolio loss latches and cancel unfilled entries when tripped."""
         if self.otc_fx:
-            self.otc_fx.advance(at, self.book, self.fx_orders)
+            self.otc_fx.advance(at, self.book, self.fx_orders, db=self.db, participation=self.fx_cost.max_participation)
         if self.multicurrency:
             self._advance_fx(at)
         if self.margin:
@@ -638,6 +647,7 @@ class _Replay:
                     "fx_quotas": {str(day): value for day, value in self.fx_quotas.items()}}
                    if self.fx_rebalance is not None else {}),
                 **({"otc_pending": self.otc_fx.pending, "otc_used": sorted(self.otc_fx.used)} if self.otc_fx else {}),
+                **({"mixed_residuals": self.otc_fx.residuals} if self.otc_fx and self.otc_fx.mixed else {}),
                 **({"margin": self.margin.checkpoint()} if self.margin else {}),
                 "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
                     "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
@@ -736,6 +746,8 @@ class _Replay:
             inputs.update(portfolio_version=version, fx_rebalance=self.fx_rebalance, fx_execution_evidence=digest(self.fx_orders))
         if self.margin:
             inputs.update(portfolio_version=21, margin_positions=self.margin.requests, margin_data=self.margin.evidence)
+        if self.otc_fx and self.otc_fx.mixed:
+            inputs["portfolio_version"] = 22
         return inputs
 
     def _output(self):
@@ -774,6 +786,8 @@ class _Replay:
             result["opening_funding"] = self.funding_result
         if self.fx_rebalance is not None:
             result["fx_orders"] = self.fx_orders
+        if self.otc_fx and self.otc_fx.mixed:
+            result["mixed_route_residuals"] = {asset: str(amount) for asset, amount in self.otc_fx.residuals.items()}
         if self.margin:
             result["margin_positions"] = self.margin.report()
             result["margin_risk_state"] = self.risk_state
