@@ -111,6 +111,29 @@ def test_mixed_route_spot_fill_uses_settled_otc_proceeds(tmp_path, request_body,
     request.write_text(json.dumps(route), encoding="utf-8")
     assert main(["--data", str(tmp_path), "research", "otc-route-replay", str(request)]) == 0
     assert json.loads(capsys.readouterr().out) == result
+
+
+def test_spot_conversion_waits_for_the_point_in_time_session_open(tmp_path):
+    from dataclasses import replace
+
+    opened = START.replace(hour=8, minute=0)
+    closed = opened - timedelta(seconds=1)
+    market_db(tmp_path, [
+        replace(quote(closed, 90, 91), symbol="USDTTMN"),
+        replace(quote(opened, 99, 100), symbol="USDTTMN"),
+    ]).c.close()
+    route = {"opening_balances": {"TMN": "500"}, "legs": [
+        {"spot": {"symbol": "USDTTMN", "side": "BUY", "base_quantity": "1",
+                  "submit_at": closed.isoformat(), "settle_by": opened.isoformat(), "fee_rate": "0"}},
+    ]}
+    result = operator_action(tmp_path, "otc-route-replay", route)
+    assert result["status"] == "COMPLETED"
+    assert result["legs"][0]["receipt_at"] == opened.isoformat()
+    assert {asset: Decimal(amount) for asset, amount in result["closing_balances"].items()} == {
+        "TMN": Decimal(400), "USDT": Decimal(1),
+    }
+
+
 def test_portfolio_otc_sell_reserves_cash_until_settlement():
     from gym.domain.sim import CashBook
     from gym.services.portfolio_otc import PortfolioOTC

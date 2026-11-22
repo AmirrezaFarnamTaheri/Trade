@@ -5,6 +5,7 @@ from decimal import Decimal, localcontext
 from ..domain.bars import qualified
 from ..domain.market_models import decimal, fields, instant, rate
 from ..domain.otc import replay_route
+from ..domain.rules import is_closed
 from ..domain.sim import CashBook, CostModel, market_order
 from .data_portal import DataPortal
 from .rules import RuleService
@@ -31,12 +32,14 @@ def _plan(portal, rules, leg):
                      max_participation=Decimal(1))
 
     def execute(balances, postings, quotas, index):
-        top = next((q for q in portal.iter_tops(symbol, submit, deadline + timedelta(microseconds=1))
-                    if qualified(q) and "CLOSED" not in q.flags), None)
-        if top is None:
+        for top in portal.iter_tops(symbol, submit, deadline + timedelta(microseconds=1)):
+            if qualified(top) and "CLOSED" not in top.flags:
+                known_rules = rules.load(top.ts_avail)[1]
+                if not is_closed(known_rules, inst, top.ts_avail):
+                    break
+        else:
             return {"leg": index, "symbol": symbol, "status": "REFUSED", "reasons": ["NO_QUALIFIED_QUOTE"]}
         book = CashBook(balances)
-        known_rules = rules.load(top.ts_avail)[1]
         with localcontext() as ctx:
             ctx.prec = 400
             fill = market_order(book, inst, side, Decimal(1), submit, top.ask if side == "BUY" else top.bid,
