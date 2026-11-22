@@ -46,9 +46,12 @@ def portfolio_action(root, action, value, *, store):
     """Validate and persist a reproducible paper-only portfolio research request."""
     runs = root / "runs" / "portfolios"
     if action == "portfolio-list":
+        if value is not None and (type(value) is not dict or value.keys() != {"summary"} or value["summary"] is not True):
+            raise ValueError("portfolio-list accepts only the summary option")
+        rows = list_runs(runs, limit=100)
         if value is not None:
-            raise ValueError("portfolio-list takes no input")
-        return {"authority": "PAPER_ONLY", "runs": list_runs(runs, limit=100)}
+            rows = [_portfolio_list_summary(row) for row in rows]
+        return {"authority": "PAPER_ONLY", "runs": rows}
     if action == "portfolio-read":
         fields(value, "run_id")
         out = load_verified_run(runs, value["run_id"], store=store)
@@ -161,3 +164,12 @@ def portfolio_action(root, action, value, *, store):
                 **({"quality_gate": quality_gate} if quality_gate is not None else {})}
     finally:
         db.c.close()
+
+
+def _portfolio_list_summary(row):
+    inputs = row["inputs"]
+    currencies = inputs.get("cash_by_currency") or {
+        item["quote"]: None for item in inputs.get("instruments", {}).values()
+    }
+    keys = ("strategy", "resolution", "from", "to", "symbols")
+    return {"run_id": row["run_id"], "inputs": {key: inputs[key] for key in keys}, "currencies": sorted(currencies)}

@@ -289,14 +289,15 @@ def test_invalid_portfolio_requests_leave_no_records(tmp_path, change):
     assert not list((tmp_path / "runs").rglob("*.json"))
 
 
-def test_portfolio_private_api_uses_real_supervised_worker(tmp_path):
+def test_portfolio_private_api_uses_real_supervised_worker(tmp_path, monkeypatch):
     db = prepare(tmp_path)
     col = Collector(db, SegmentWriter(tmp_path / "raw", db), ["BTCUSDT", "ETHUSDT"])
     app = make_app(col, RuleService(db), "tok", tmp_path / "runs")
 
     async def check():
         async with TestClient(TestServer(app)) as client:
-            assert (await (await client.get("/api/research")).json())["portfolio_replay"] is True
+            setup = await (await client.get("/api/research")).json()
+            assert setup["portfolio_replay"] is True and setup["portfolio_multicurrency"] is True
             value = {**request(), "policy": {"method": "inverse-volatility", "lookback": 3, "daily_loss_limit": "0.05"}}
             body = {"action": "portfolio-replay", "value": value}
             assert (await client.post("/api/research/action", json=body)).status == 403
@@ -306,10 +307,19 @@ def test_portfolio_private_api_uses_real_supervised_worker(tmp_path):
             assert saved["authority"] == "PAPER_ONLY"
             loaded = await calculate(tmp_path, "portfolio-replay", value)
             assert loaded["run_id"] == saved["run_id"]
+            # Browsing a verified portfolio can exceed the budget for other action responses.
+            monkeypatch.setattr("gym.api.research.MAX_RESULT_BYTES", 100)
             response = await client.post("/api/research/action", json={"action": "portfolio-read", "value": {"run_id": saved["run_id"]}},
                                          headers={"X-Gym-Token": "tok"})
             assert response.status == 200
             assert (await response.json())["result"]["balances"]
+            monkeypatch.setattr("gym.api.research.MAX_RESULT_BYTES", 2000)
+            listing = await client.post("/api/research/action", json={"action": "portfolio-list", "value": {"summary": True}},
+                                        headers={"X-Gym-Token": "tok"})
+            item, = (await listing.json())["runs"]
+            assert item["currencies"] == ["USDT"]
+            assert item["inputs"]["symbols"] == value["symbols"]
+            assert "instruments" not in item["inputs"]
     try:
         asyncio.run(check())
     finally:

@@ -49,6 +49,51 @@ test('portfolio inputs preserve decimal cash, complete market choices and langua
   const html=p.node('portfolio-workbench').innerHTML;
   for(const [,id] of html.matchAll(/<(?:input|select|textarea) id="([^"]+)"/g))assert.ok(html.includes(`for="${id}"`));
 });
+test('whole Wallex request uses long worker window, exact balances and optional rank gate', async () => {
+  const sent = [];
+  const whole = { ...record, inputs: { ...record.inputs, cash_by_currency: {TMN:'0',USDT:'500'},
+    universe_selection:{schema:'whole-spot-universe/1', coverage:{resolved:469}, symbols: Array(373).fill('x'), excluded:{OTCUSDT:'SPOT_NOT_CONFIRMED'}}},
+    result:{...record.result,balances:{USDT:'470',TMN:'50'}, rank_gate:[{at:'2026-10-29T09:15:00Z',breadth:'0.6',
+      selected:{USDT:['BTCUSDT']},blocked_buys:['ETHUSDT']}] }};
+  const p = page(async (url, options, timeout) => {
+    if (!options) return {...setup, portfolio_multicurrency:true, resolutions:['15min','1h']};
+    const body = JSON.parse(options.body);
+    sent.push({body, timeout});
+    if (body.action === 'portfolio-list') return {runs:[]};
+    if (body.action === 'portfolio-replay') return {run_id:whole.run_id};
+    return whole;
+  });
+  await p.node('portfolio-load').onclick();
+  assert.equal(p.node('portfolio-resolution').value,'1h');
+  assert.equal(p.node('portfolio-symbol-options').hidden,true);
+  assert.equal(p.node('portfolio-single-policy').hidden,true);
+  assert.equal(p.node('portfolio-mixed-cash').hidden,false);
+  for (const [id,value] of Object.entries({'portfolio-from':'2026-10-29T09:00:00','portfolio-to':'2026-10-29T10:30:00',
+    'portfolio-symbols':'IGNORE', 'portfolio-params':'{}','portfolio-start-tmn':'135000000.000000000000001','portfolio-start-usdt':'500',
+    'portfolio-participation':'0.25','portfolio-rank-method':'momentum','portfolio-rank-top':'3','portfolio-rank-breadth':'0.5','portfolio-rank-seed':'11'}))
+    p.node(id).value=value;
+  await p.node('portfolio-form').onsubmit({preventDefault(){}});
+  const request = sent.find(row => row.body.action === 'portfolio-replay');
+  assert.equal(request.timeout,1830000);
+  assert.equal('symbols' in request.body.value,false);
+  assert.equal('policy' in request.body.value,false);
+  assert.deepEqual(request.body.value.cash_by_currency,{TMN:'135000000.000000000000001',USDT:'500'});
+  assert.deepEqual(request.body.value.rank_gate,{method:'momentum',top_n_per_quote:3,min_breadth:'0.5',seed:11});
+  assert.match(p.node('portfolio-result').innerHTML,/Included spot markets\|373/);
+  assert.match(p.node('portfolio-result').innerHTML,/Cash|cash/);
+  assert.equal(p.node('portfolio-checkpoint-count').max,12000000);
+  p.node('portfolio-universe').value='curated';
+  p.node('portfolio-universe').onchange();
+  p.node('portfolio-symbols').value=' btcusdt, ethtmn ';
+  await p.node('portfolio-form').onsubmit({preventDefault(){}});
+  const curated = sent.filter(row => row.body.action === 'portfolio-replay').at(-1);
+  assert.equal(p.node('portfolio-symbols').required,true);
+  assert.deepEqual(curated.body.value.symbols,['BTCUSDT','ETHTMN']);
+  p.context.document.documentElement.lang='fa';
+  p.context.window.gymPortfolio.mount(p.options);
+  assert.equal(p.node('portfolio-universe').value,'curated');
+  assert.equal(p.node('portfolio-start-tmn').value,'135000000.000000000000001');
+});
 test('duplicate requests are fenced and failures leave an actionable saved-state warning',async()=>{
   let fail,calls=0;
   const p=page(()=>{calls++;return new Promise((_,reject)=>{fail=reject;});});

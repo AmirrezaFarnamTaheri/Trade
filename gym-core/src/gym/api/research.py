@@ -13,6 +13,11 @@ from ..services.research_process import HEAVY_ACTIONS, ResearchProcessFailure, c
 from . import finish
 
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+MAX_PORTFOLIO_RESULT_BYTES = 20 * 1024 * 1024
+
+
+def _encode_portfolio(result):
+    return json.dumps(result, default=str, ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def install(app, root, *, store):
@@ -44,6 +49,13 @@ def install(app, root, *, store):
             return web.json_response(error.report, status=error.status)
         except (OSError, sqlite3.Error):
             return web.json_response({"error": "research store unavailable"}, status=503)
+        if body["action"] == "portfolio-read":
+            # A verified native artifact can be 16 MiB before its derived report fields are added.
+            payload = await asyncio.to_thread(_encode_portfolio, result)
+            if len(payload) <= MAX_PORTFOLIO_RESULT_BYTES:
+                return web.Response(body=payload, content_type="application/json", charset="utf-8")
+            return web.json_response({"error": "portfolio result exceeds the delivery limit",
+                                      "result_delivered": False}, status=413)
         chunks, size = [], 0
         for chunk in json.JSONEncoder(default=str, allow_nan=False).iterencode(result):
             size += len(chunk.encode("utf-8"))

@@ -2,7 +2,7 @@
 window.gymPortfolio = (() => {
   let language, setup, record, checkpoint, runs, refresh, busy = false;
   const $ = id => document.getElementById(id);
-  const inputs = ['portfolio-symbols', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold', 'portfolio-checkpoint-count'];
+  const inputs = ['portfolio-universe', 'portfolio-symbols', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-start-tmn', 'portfolio-start-usdt', 'portfolio-participation', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-rank-method', 'portfolio-rank-top', 'portfolio-rank-breadth', 'portfolio-rank-seed', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold', 'portfolio-checkpoint-count'];
   function mount({api, esc, table, keyValues, amount, when, stamp = (v, d) => esc(when(v, d)), curveFigure, strategyFields, setHTML = (id, html) => { if ($(id).innerHTML !== html) $(id).innerHTML = html; }}) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (next === language || busy) { refresh?.(); return; }
@@ -10,21 +10,37 @@ window.gymPortfolio = (() => {
     const recovery = language ? $('portfolio-recovery-status').textContent : '';
     language = next;
     const fa = next === 'fa', text = (en, persian) => fa ? persian : en;
+    const label = key => T[next][key];
     const field = (id, title, attrs = '') => `<label for="${id}">${title}<input id="${id}" class="input" dir="ltr" ${attrs}></label>`;
     $('portfolio-workbench').innerHTML = `<h2>${text(T.en.pfSharedCashPortfolioReplay, T.fa.pfSharedCashPortfolioReplay)}</h2>
       <p class="field-help">${text(T.en.pfOneStrategy2500DistinctBase, T.fa.pfOneStrategy2500DistinctBase)}</p>
       <button id="portfolio-load" type="button" class="button">${text(T.en.pfLoadObservedMarketsAndSavedPortfolios, T.fa.pfLoadObservedMarketsAndSavedPortfolios)}</button>
       <form id="portfolio-form"><fieldset id="portfolio-fields" disabled><legend>${text(T.en.pfHistoricalReplayUtcAtMost31, T.fa.pfHistoricalReplayUtcAtMost31)}</legend><div class="ticket-fields">
-      ${field('portfolio-symbols', text(T.en.pfMarketsCommaSeparatedSameQuoteCurrency, T.fa.pfMarketsCommaSeparatedSameQuoteCurrency), 'required list="portfolio-markets" autocomplete="off"')}<datalist id="portfolio-markets"></datalist>
+      <div id="portfolio-universe-options"><label for="portfolio-universe">${label('pfUniverse')}<select id="portfolio-universe">
+        <option value="whole">${label('pfWholeWallex')}</option><option value="curated">${label('pfCuratedMixed')}</option><option value="single">${label('pfCuratedSingle')}</option>
+      </select></label></div>
+      <div id="portfolio-symbol-options">${field('portfolio-symbols', label('pfMarketsCommaSeparatedSameQuoteCurrency'), 'list="portfolio-markets" autocomplete="off"')}<datalist id="portfolio-markets"></datalist></div>
       <div><p class="field-help">${text(T.en.pfUseTheWholeObservedQuoteUniverse, T.fa.pfUseTheWholeObservedQuoteUniverse)}</p><button id="portfolio-all-usdt" class="button" type="button">${text(T.en.pfAllUsdtMarkets, T.fa.pfAllUsdtMarkets)}</button> <button id="portfolio-all-tmn" class="button" type="button">${text(T.en.pfAllTmnMarkets, T.fa.pfAllTmnMarkets)}</button></div>
       ${field('portfolio-from', text(T.en.windowFrom, T.fa.windowFrom), 'required type="datetime-local" step="1"')}
       ${field('portfolio-to', text(T.en.pfToUtcExclusive, T.fa.pfToUtcExclusive), 'required type="datetime-local" step="1"')}
       <label for="portfolio-resolution">${text(T.en.pfDecisionClose, T.fa.pfDecisionClose)}<select id="portfolio-resolution" dir="ltr"></select></label>
-      ${field('portfolio-cash', text(T.en.pfStartingSharedCashQuoteUnits, T.fa.pfStartingSharedCashQuoteUnits), 'required inputmode="decimal" value="1000"')}
+      <div id="portfolio-single-cash">${field('portfolio-cash', label('pfStartingSharedCashQuoteUnits'), 'inputmode="decimal" value="1000"')}</div>
+      <div id="portfolio-mixed-cash"><div class="ticket-fields">
+        ${field('portfolio-start-tmn', label('pfStartTmn'), 'inputmode="decimal" value="135000000"')}
+        ${field('portfolio-start-usdt', label('pfStartUsdt'), 'inputmode="decimal" value="500"')}
+        ${field('portfolio-participation', label('pfBookShare'), 'inputmode="decimal" value="0.25"')}
+      </div></div>
       ${field('portfolio-fee', text(T.en.pfFeePerFillFraction, T.fa.pfFeePerFillFraction), 'required inputmode="decimal" value="0.001"')}
       <label for="portfolio-strategy">${text(T.en.strategy, T.fa.strategy)}<select id="portfolio-strategy" dir="ltr"></select></label>
       <div id="portfolio-strategy-fields" class="ticket-fields"></div><details class="disclosure"><summary>${text(T.en.pfAdvancedStrategyParameters, T.fa.pfAdvancedStrategyParameters)}</summary><label for="portfolio-params">${text(T.en.pfExactParametersJsonObject, T.fa.pfExactParametersJsonObject)}<textarea id="portfolio-params" class="input code" dir="ltr" rows="3" spellcheck="false" required>{}</textarea></label></details>
-      </div><details class="disclosure"><summary>${text(T.en.pfAllocationAndPortfolioRisk, T.fa.pfAllocationAndPortfolioRisk)}</summary><div class="ticket-fields">
+      </div><details class="disclosure" id="portfolio-rank-options"><summary>${label('pfRankEntryGate')}</summary><div class="ticket-fields">
+        <label for="portfolio-rank-method">${label('pfRankEntryGate')}<select id="portfolio-rank-method">
+          <option value="off">${label('pfRankNone')}</option><option value="momentum">${label('pfRankMomentum')}</option><option value="placebo">${label('pfRankPlacebo')}</option>
+        </select></label>
+        ${field('portfolio-rank-top', label('pfRankTop'), 'type="number" min="1" max="100" value="3"')}
+        ${field('portfolio-rank-breadth', label('pfRankBreadth'), 'inputmode="decimal" value="0"')}
+        ${field('portfolio-rank-seed', label('pfRankSeed'), 'type="number" min="0" max="4294967295" value="20261122"')}
+      </div></details><details id="portfolio-single-policy" class="disclosure"><summary>${text(T.en.pfAllocationAndPortfolioRisk, T.fa.pfAllocationAndPortfolioRisk)}</summary><div class="ticket-fields">
       <label for="portfolio-weighting">${text(T.en.pfEntryWeighting, T.fa.pfEntryWeighting)}<select id="portfolio-weighting"><option value="equal">${text(T.en.pfEqual, T.fa.pfEqual)}</option><option value="inverse-volatility">${text(T.en.pfInverseVolatility, T.fa.pfInverseVolatility)}</option><option value="risk-parity">${text(T.en.pfEqualRiskContribution, T.fa.pfEqualRiskContribution)}</option></select></label>
       ${field('portfolio-lookback', text(T.en.pfClosedReturnIntervals, T.fa.pfClosedReturnIntervals), 'type="number" min="3" max="500" value="20"')}
       ${field('portfolio-cap', text(T.en.pfMaximumWeightFraction, T.fa.pfMaximumWeightFraction), 'inputmode="decimal" value="1"')}
@@ -38,10 +54,31 @@ window.gymPortfolio = (() => {
       ${field('portfolio-threshold', text(T.en.pfMinimumRebalanceDriftEquityFraction, T.fa.pfMinimumRebalanceDriftEquityFraction), 'inputmode="decimal" value="0.01"')}
       </div><p class="field-help">${text(T.en.pfWeightsUseAlignedPastClosedReturns, T.fa.pfWeightsUseAlignedPastClosedReturns)}</p></details><p class="field-help">${text(T.en.pfMarketFills500MsLatencyPoint, T.fa.pfMarketFills500MsLatencyPoint)}</p><button id="portfolio-submit" class="button" type="submit">${text(T.en.pfRunSharedCashReplay, T.fa.pfRunSharedCashReplay)}</button></fieldset></form>
       <p id="portfolio-blocked" class="field-help"></p>      <p id="portfolio-status" role="status" aria-live="polite"></p><div id="portfolio-saved"></div><div id="portfolio-result"></div><details class="disclosure"><summary>${text(T.en.pfVerifyReplayRecovery, T.fa.pfVerifyReplayRecovery)}</summary><p class="field-help">${text(T.en.pfRebuildAnExactSavedPortfolioPrefix, T.fa.pfRebuildAnExactSavedPortfolioPrefix)}</p>${field('portfolio-checkpoint-count', text(T.en.pfObservedQuotesInPrefix, T.fa.pfObservedQuotesInPrefix), 'type="number" min="1" max="100000" value="1"')}<div class="actions"><button id="portfolio-checkpoint" type="button" class="button">${text(T.en.pfSaveRecoveryCheckpoint, T.fa.pfSaveRecoveryCheckpoint)}</button><button id="portfolio-resume" type="button" class="button">${text(T.en.pfRebuildAndVerifyCheckpoint, T.fa.pfRebuildAndVerifyCheckpoint)}</button></div><p id="portfolio-recovery-status" role="status"></p></details>`;
-    const call = (action, value = null) => api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, ['portfolio-replay','replay-checkpoint','replay-resume'].includes(action) ? 135000 : 10000);
+    const mode = () => setup?.portfolio_multicurrency ? ($('portfolio-universe').value || 'whole') : 'single';
+    function call(action, value = null) {
+      const replay = action === 'portfolio-replay';
+      const recovery = action === 'replay-checkpoint' || action === 'replay-resume';
+      const mixed = replay ? value.cash_by_currency : record?.inputs.cash_by_currency;
+      const timeout = replay || recovery ? (mixed ? 1830000 : setup?.portfolio_multicurrency ? 630000 : 135000) : (action === 'portfolio-read' ? 60000 : 10000);
+      return api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, timeout);
+    }
+    function syncUniverse() {
+      const whole = mode() === 'whole', mixed = mode() !== 'single';
+      $('portfolio-universe-options').hidden = !setup?.portfolio_multicurrency;
+      $('portfolio-rank-options').hidden = !setup?.portfolio_multicurrency;
+      $('portfolio-symbol-options').hidden = whole;
+      $('portfolio-symbols').required = !whole;
+      $('portfolio-single-cash').hidden = mixed;
+      $('portfolio-cash').required = !mixed;
+      $('portfolio-mixed-cash').hidden = !mixed;
+      for (const id of ['portfolio-start-tmn', 'portfolio-start-usdt', 'portfolio-participation']) $(id).required = mixed;
+      $('portfolio-single-policy').hidden = mixed;
+    }
+    $('portfolio-universe').onchange = syncUniverse;
     const controls = () => {
       $('portfolio-load').disabled = busy; $('portfolio-fields').disabled = busy || !setup;
       $('portfolio-checkpoint').disabled = busy || !record; $('portfolio-resume').disabled = busy || !checkpoint;
+      $('portfolio-checkpoint-count').max = record?.inputs.cash_by_currency ? 12000000 : 100000;
       $('portfolio-blocked').textContent = !busy && !setup ? text(T.en.pfBlockedSetup, T.fa.pfBlockedSetup) : '';
     };
     async function act(work) {
@@ -56,8 +93,9 @@ window.gymPortfolio = (() => {
       $('portfolio-markets').innerHTML = setup.symbols.map(s => `<option value="${esc(s)}"></option>`).join('');
       $('portfolio-resolution').innerHTML = setup.resolutions.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
       $('portfolio-strategy').innerHTML = setup.strategies.map(s => `<option value="${esc(s.id)}">${esc(s.id)}</option>`).join('');
-      $('portfolio-resolution').value = setup.defaults.resolution;
+      $('portfolio-resolution').value = setup.portfolio_multicurrency && setup.resolutions.includes('1h') ? '1h' : setup.defaults.resolution;
       $('portfolio-fee').value = setup.defaults.fee_rate;
+      syncUniverse();
       renderParameters();
     }
     function renderParameters() {
@@ -79,13 +117,19 @@ window.gymPortfolio = (() => {
       } catch { renderParameters(); }
     };
     async function savedRuns() {
-      runs = await call('portfolio-list'); renderSaved();
+      runs = await call('portfolio-list', setup?.portfolio_multicurrency ? {summary: true} : null);
+      renderSaved();
     }
     function renderSaved() {
       if (!runs) return;
-      setHTML('portfolio-saved', `<p class="field-help">${text(T.en.pfSavedReferencesOpenARecordTo, T.fa.pfSavedReferencesOpenARecordTo)}</p>` + table([text(T.en.pfSavedPortfoliosLatest100, T.fa.pfSavedPortfoliosLatest100), text(T.en.strategy, T.fa.strategy), text(T.en.navMarkets, T.fa.navMarkets), text(T.en.pfWindowTehran, T.fa.pfWindowTehran)], runs.runs.map(row => [
+      setHTML('portfolio-saved', `<p class="field-help">${text(T.en.pfSavedReferencesOpenARecordTo, T.fa.pfSavedReferencesOpenARecordTo)}</p>` + table([text(T.en.pfSavedPortfoliosLatest100, T.fa.pfSavedPortfoliosLatest100), text(T.en.strategy, T.fa.strategy), text(T.en.navMarkets, T.fa.navMarkets), text(T.en.pfWindowTehran, T.fa.pfWindowTehran)], runs.runs.map(row => {
+        const currencies = row.currencies?.join(' / ') ||
+          (row.inputs.cash_by_currency ? Object.keys(row.inputs.cash_by_currency).sort().join(' / ') :
+            Object.values(row.inputs.instruments || {})[0]?.quote);
+        return [
         `<button type="button" class="button button-small" data-portfolio="${esc(row.run_id)}" data-focus="portfolio-${esc(row.run_id)}">${esc(row.run_id)}</button>`, `${esc(row.inputs.strategy)} · ${esc(row.inputs.resolution)}`,
-        `<details data-key="portfolio-symbols-${esc(row.run_id)}"><summary>${esc(row.inputs.symbols.length)} · ${esc(row.inputs.symbols[0]?.endsWith('USDT') ? 'USDT' : 'TMN')}</summary><p dir="ltr">${esc(row.inputs.symbols.join(', '))}</p></details>`, `${stamp(row.inputs.from)} → ${stamp(row.inputs.to)}`])));
+        `<details data-key="portfolio-symbols-${esc(row.run_id)}"><summary>${esc(row.inputs.symbols.length)}${currencies ? ' · ' + esc(currencies) : ''}</summary><p dir="ltr">${esc(row.inputs.symbols.join(', '))}</p></details>`, `${stamp(row.inputs.from)} → ${stamp(row.inputs.to)}`];
+      })));
       $('portfolio-saved').querySelectorAll('[data-portfolio]').forEach(button => { button.onclick = () => act(async () => { record = await call('portfolio-read', {run_id: button.dataset.portfolio}); checkpoint = null; $('portfolio-recovery-status').textContent = ''; render(); }); });
     }
     // Count the reasons due rebalances did not trade, e.g. 'within band 12 · strategy not holding 3'.
@@ -98,6 +142,17 @@ window.gymPortfolio = (() => {
     function render() {
       if (!record) return;
       const result = record.result, end = result.end, valuation = result.valuation;
+      const universe = record.inputs.universe_selection;
+      const coverage = universe?.schema === 'whole-spot-universe/1' ? `<h4>${label('pfCatalogueCoverage')}</h4>` + keyValues([
+        [label('pfResolvedCount'), esc(universe.coverage.resolved)], [label('pfSelectedCount'), esc(universe.symbols.length)],
+        [label('pfExcludedCount'), esc(Object.keys(universe.excluded).length)]]) : '';
+      const ranks = result.rank_gate?.length ? `<details class="disclosure" data-key="portfolio-rank-${esc(record.run_id)}"><summary>${label('pfRankLatest')}</summary>` +
+        table([label('pfDecisionClose'), label('pfRankBreadth'), label('pfRankSelected'), label('pfRankBlocked')],
+          result.rank_gate.slice(-25).map(row => [stamp(row.at), amount(row.breadth),
+            esc(Object.values(row.selected).flat().join(', ')), esc(row.blocked_buys.length)])) + '</details>' : '';
+      const cash = record.inputs.cash_by_currency
+        ? Object.keys(record.inputs.cash_by_currency).sort().map(asset => [`${label('pfRemainingCash')} · ${esc(asset)}`, amount(result.balances?.[asset])])
+        : [[label('pfRemainingCash'), amount(result.balances?.[result.quote])]];
       const fxCurve = valuation?.curve || [];
       const conversion = valuation ? `<h4>${text(T.en.usdtValuation, T.fa.usdtValuation)}</h4>` + keyValues([
         [text(T.en.pfNetUsdtEquivalent, T.fa.pfNetUsdtEquivalent), end.net_usdt_eq == null ? text(T.en.pfUnavailable, T.fa.pfUnavailable) : amount(end.net_usdt_eq)],
@@ -114,13 +169,21 @@ window.gymPortfolio = (() => {
         [text(T.en.pfWhyNoRebalance, T.fa.pfWhyNoRebalance), whyNoRebalance(result.policy_events)]]) : '') + keyValues([
         [text(T.en.pfEquityRecordedBidMarks, T.fa.pfEquityRecordedBidMarks), amount(end.equity)], [text(T.en.pfNet, T.fa.pfNet), amount(end.net)],
         [text(T.en.pfHeldPriceFreshness, T.fa.pfHeldPriceFreshness), esc(end.valuation_status || 'UNKNOWN')],
-        [text(T.en.pfRemainingCash, T.fa.pfRemainingCash), amount(result.balances?.[result.quote])],
+        ...cash,
         [text(T.en.pfReturn, T.fa.pfReturn), amount(record.performance?.total_return_pct)],
         [text(T.en.pfDrawdownSampled, T.fa.pfDrawdownSampled), amount(record.performance?.max_drawdown_pct)]]) + curveFigure(result) + table(
         [text(T.en.pair, T.fa.pair), text(T.en.pfFills, T.fa.pfFills), text(T.en.pfClosedTrades, T.fa.pfClosedTrades), text(T.en.pfRealizedPL, T.fa.pfRealizedPL), text(T.en.pfHeldBaseUnits, T.fa.pfHeldBaseUnits), text(T.en.pfLastRecordedBid, T.fa.pfLastRecordedBid), text(T.en.pfPriceFreshness, T.fa.pfPriceFreshness), text(T.en.pfLastMarkTehran, T.fa.pfLastMarkTehran)],
         Object.entries(result.markets).map(([s, row]) => [esc(s), esc(row.fills), esc(row.closed_trades), amount(row.realized_pnl), amount(row.holding) + (row.position_known ? `<br><small>${esc(T[language]['paperPosition' + row.position_known.state] ?? row.position_known.state)}</small>` +
           (row.position_known.exit_check ? `<br><small>${esc(T[language]['paperExit' + row.position_known.exit_check] ?? row.position_known.exit_check)}</small>` : '') : ''), amount(row.last_bid), esc(row.mark_status || 'UNKNOWN'), stamp(row.mark_time)])) +
-        conversion + `<details data-key="portfolio-receipt-${esc(record.run_id)}"><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre class="output" dir="ltr">${esc(JSON.stringify(record, null, 2))}</pre></details>`);
+        coverage + ranks + conversion + `<details id="portfolio-receipt" data-key="portfolio-receipt-${esc(record.run_id)}"><summary>${text(T.en.pfVerifiedInputsOrdersAndExactBalances, T.fa.pfVerifiedInputsOrdersAndExactBalances)}</summary><pre id="portfolio-receipt-json" class="output" dir="ltr"></pre></details>`);
+      const receipt = $('portfolio-receipt');
+      if (receipt) {
+        receipt.ontoggle = () => {
+          const content = $('portfolio-receipt-json');
+          if (receipt.open && !content.textContent) content.textContent = JSON.stringify(record, null, 2);
+        };
+        receipt.ontoggle();
+      }
     }
     $('portfolio-load').onclick = () => act(async () => {
       const data = await api('/api/research');
@@ -134,6 +197,8 @@ window.gymPortfolio = (() => {
     });
     for (const quote of ['USDT', 'TMN']) $('portfolio-all-' + quote.toLowerCase()).onclick = () => {
       if (busy || !setup) return;
+      $('portfolio-universe').value = 'single';
+      syncUniverse();
       $('portfolio-symbols').value = setup.symbols.filter(symbol => symbol.endsWith(quote)).join(', ');
       $('portfolio-status').textContent = text(T.en.pfAllObservedSelected, T.fa.pfAllObservedSelected).replaceAll('{quote}', quote);
     };
@@ -143,13 +208,28 @@ window.gymPortfolio = (() => {
         rebalance: $('portfolio-rebalance').value === 'true', rebalance_threshold: $('portfolio-threshold').value || '0.01'};
       for (const [id, key] of [['portfolio-drawdown', 'max_drawdown'], ['portfolio-daily-loss', 'daily_loss_limit']]) if ($(id).value) policy[key] = $(id).value;
       if ($('portfolio-correlation').value) policy.correlation_limit = $('portfolio-correlation').value;
-      const result = await call('portfolio-replay', {symbols: $('portfolio-symbols').value.split(',').map(s => s.trim().toUpperCase()), policy,
+      const value = {
         from: $('portfolio-from').value + 'Z', to: $('portfolio-to').value + 'Z', resolution: $('portfolio-resolution').value,
         cash: $('portfolio-cash').value, strategy: $('portfolio-strategy').value, params: JSON.parse($('portfolio-params').value),
-        rules_mode: 'point-in-time', cost: {fee_rate: $('portfolio-fee').value, latency_ms: 500, max_wait_s: 60, fee_assumption: 'fee-in-received-asset'}});
+        rules_mode: 'point-in-time', cost: {fee_rate: $('portfolio-fee').value, latency_ms: 500, max_wait_s: 60, fee_assumption: 'fee-in-received-asset'}};
+      if (mode() !== 'whole') value.symbols = $('portfolio-symbols').value.split(',').map(s => s.trim().toUpperCase());
+      if (mode() === 'single') {
+        value.policy = policy;
+      } else {
+        value.cash = '1000';
+        value.cash_by_currency = {TMN: $('portfolio-start-tmn').value, USDT: $('portfolio-start-usdt').value};
+        value.cost.max_participation = $('portfolio-participation').value;
+      }
+      const method = $('portfolio-rank-method').value;
+      if (setup.portfolio_multicurrency && method && method !== 'off') {
+        value.rank_gate = {method, top_n_per_quote: Number($('portfolio-rank-top').value),
+          min_breadth: $('portfolio-rank-breadth').value, seed: Number($('portfolio-rank-seed').value)};
+      }
+      const result = await call('portfolio-replay', value);
       record = await call('portfolio-read', {run_id: result.run_id}); checkpoint = null; $('portfolio-recovery-status').textContent = ''; render(); await savedRuns();
     }); };
     fillSetup(); for (const [id, value] of Object.entries(saved)) $(id).value = value;
+    syncUniverse();
     $('portfolio-checkpoint').onclick = () => act(async () => {
       if (!record) throw new Error('Select a saved portfolio');
       checkpoint = (await call('replay-checkpoint', {run_id: record.run_id, quote_count: Number($('portfolio-checkpoint-count').value)})).record;

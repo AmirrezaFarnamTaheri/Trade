@@ -50,7 +50,15 @@ function stop(child) {
   assert(browserPath, 'Edge, Chrome or Chromium is required (or set GYM_BROWSER)');
   assert(fs.existsSync(python), 'gym-core .venv is required');
   fs.mkdirSync(artifacts, { recursive: true });
-  const seeded = spawnSync(python, ['-m', 'gym.cli', '--data', temporary, 'demo-seed', '--hours', '4'], { cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true });
+  // Give the fixture an open USDTTMN session regardless of the runner's wall clock.
+  const fixtureEnd = new Date();
+  fixtureEnd.setUTCDate(fixtureEnd.getUTCDate() - 1);
+  fixtureEnd.setUTCHours(14, 0, 0, 0);
+  const fixtureStart = new Date(fixtureEnd.getTime() - (4 * 60 - 1) * 60000);
+  const seed = 'import sys; from datetime import datetime; from gym.commands import daemon; from gym.cli import main; '
+    + 'clock = datetime.fromisoformat(sys.argv.pop(1)); daemon.now_utc = lambda: clock; raise SystemExit(main())';
+  const seeded = spawnSync(python, ['-c', seed, fixtureEnd.toISOString(), '--data', temporary, 'demo-seed', '--hours', '4'],
+    { cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true });
   assert.equal(seeded.status, 0, seeded.stderr || 'synthetic seeding failed');
   const listener = net.createServer();
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve));
@@ -95,6 +103,10 @@ function stop(child) {
     formValid:document.querySelector('#compare-form')?.checkValidity(),
     button:document.querySelector('#compare-submit')?.outerHTML,
     fieldsDisabled:document.querySelector('#comparison-fields')?.disabled,
+    portfolioStatus:document.querySelector('#portfolio-status')?.textContent,
+    portfolioError:window.__portfolioError,
+    portfolioFormValid:document.querySelector('#portfolio-form')?.checkValidity(),
+    invalidPortfolioControls:[...document.querySelectorAll('#portfolio-form :invalid')].map(node => node.id),
     values:[...document.querySelectorAll('#compare-form input,#compare-form select')].map(n=>({id:n.id,value:n.value})),
     result:document.querySelector('#compare-result')?.textContent.slice(0,3000),
     requests:performance.getEntriesByType('resource').filter(n=>n.name.includes('/api/compare')).map(n=>({url:n.name,duration:n.duration})),
@@ -273,6 +285,53 @@ function stop(child) {
   assert.equal(comparison.runs[0].inputs.snapshots, comparison.runs[1].inputs.snapshots);
   await until(() => evaluate('document.querySelector("#compare-result").textContent.includes("ema-trend")'), 'rendered paper result');
   await screenshot('research-desktop.png');
+  await evaluate('document.querySelector("#tab-workbench").click(); document.querySelector("#portfolio-load").click()');
+  await until(() => evaluate('!document.querySelector("#portfolio-fields").disabled'), 'whole-market workbench setup');
+  assert(await evaluate(`document.querySelector('#portfolio-universe').value === 'whole' &&
+    document.querySelector('#portfolio-symbol-options').hidden && !document.querySelector('#portfolio-mixed-cash').hidden`));
+  await evaluate(`(() => {
+    document.querySelector('#portfolio-from').value = '${fixtureStart.toISOString().slice(0, 19)}';
+    document.querySelector('#portfolio-to').value = '${fixtureEnd.toISOString().slice(0, 19)}';
+    document.querySelector('#portfolio-resolution').value = '1min';
+    document.querySelector('#portfolio-rank-method').value = 'momentum';
+    const fetchComparison = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await fetchComparison(...args);
+      if (String(args[0]).includes('/api/research/action') && !response.ok)
+        window.__portfolioError = (await response.clone().json()).error;
+      return response;
+    };
+    document.querySelector('#portfolio-submit').click();
+  })()`);
+  const portfolioDisplay = await until(() => evaluate(`window.__portfolioError ||
+    document.querySelector('#portfolio-result').textContent.includes('Historical catalogue coverage')`),
+  'rendered whole-market portfolio', 60000);
+  assert.equal(portfolioDisplay, true, String(portfolioDisplay));
+  assert.equal(await evaluate('document.querySelector("#portfolio-receipt-json").textContent'), '');
+  await evaluate('document.querySelector("#portfolio-receipt").open = true');
+  const portfolioInputs = await until(() => evaluate(`(() => {
+    const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
+    return raw ? JSON.parse(raw).inputs : null;
+  })()`), 'verified whole-market receipt');
+  assert.equal(portfolioInputs.universe_selection.schema, 'whole-spot-universe/1');
+  assert.equal(portfolioInputs.rank_gate.method, 'momentum');
+  assert.equal(portfolioInputs.symbols.length, 5);
+  await evaluate(`document.querySelector("#portfolio-receipt").open = false;
+    document.querySelector('#portfolio-universe').value = 'curated';
+    document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
+    document.querySelector('#language-toggle').click();`);
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert(await evaluate(`document.documentElement.dir === 'rtl' &&
+    document.querySelector('#portfolio-universe').value === 'curated' &&
+    document.querySelector('#portfolio-symbols').required &&
+    document.querySelector('.nav a[aria-current="page"]').getBoundingClientRect().height <= 64 &&
+    document.documentElement.scrollWidth <= innerWidth + 1`));
+  if (process.env.GYM_SCREENSHOTS === '1') {
+    await evaluate('document.querySelector("#portfolio-workbench").scrollIntoView()');
+    await screenshot('portfolio-whole-mobile-fa.png');
+  }
+  await send('Emulation.clearDeviceMetricsOverride');
+  await evaluate('document.querySelector("#language-toggle").click()');
   await evaluate(`location.hash = '#research/runs/${comparison.runs[0].run_id}'`);
   const benchmark = await until(() => evaluate(`(() => {
     const chart = document.querySelector('#run-detail .run-benchmark');
