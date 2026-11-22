@@ -59,11 +59,13 @@ def _scheduled_cost(job):
 
 
 def _normalize_schedule_selection(root, body):
-    if "venue" in body:
-        from .data_portal import validate_venue
+    from .data_portal import validate_venue
+    from .portfolio import portfolio_currency_inputs
 
-        if validate_venue(body["venue"]) != "wallex" and "cash_by_currency" in body:
-            raise ValueError("alternate venue replay requires a single quote currency")
+    venue = validate_venue(body.get("venue", "wallex"))
+    opening = portfolio_currency_inputs(venue, body.get("cash_by_currency"), body.get("valuation_symbol"))
+    if opening is None and "cash_by_currency" in body:
+        raise ValueError("cash_by_currency requires two opening cash balances")
     if "watchlist_id" in body:
         from .market_watchlists import load_watchlist
 
@@ -104,7 +106,8 @@ def _scheduled_replay(db, job, hypothesis, end, store, root):
                          universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),
                          fx_rebalance=job.get("fx_rebalance"),
                          margin_plans=load_margin_plans(root, job.get("margin_positions")),
-                         rank_gate=job.get("rank_gate"), venue=venue), "portfolios"
+                         rank_gate=job.get("rank_gate"), venue=venue,
+                         valuation_symbol=job.get("valuation_symbol")), "portfolios"
     strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
     db.c.execute("BEGIN")
     try:
@@ -263,7 +266,7 @@ class ResearchLedger:
     def schedule(self, request):
         required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
         optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes",
-                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id", "venue")
+                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id", "venue", "valuation_symbol")
                     if isinstance(request, dict) and key in request]
         fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
@@ -277,11 +280,6 @@ class ResearchLedger:
         _scheduled_cost(request)
         body = {**request, "first_at": iso(parse_ts(request["first_at"]))}
         _normalize_schedule_selection(self.path.parent, body)
-        if "cash_by_currency" in body:
-            opening = body["cash_by_currency"]
-            if (type(opening) is not dict or opening.keys() != {"TMN", "USDT"}
-                    or not any([decimal(amount, currency) for currency, amount in opening.items()])):
-                raise ValueError("cash_by_currency requires explicit TMN and USDT balances and positive capital")
         if "dynamic_routes" in body and (type(body["dynamic_routes"]) is not bool
                                          or (body["dynamic_routes"] and "cash_by_currency" not in body)):
             raise ValueError("dynamic_routes requires a boolean and multi-currency funding")
@@ -292,12 +290,12 @@ class ResearchLedger:
             from .portfolio import fx_rebalance_limits
             from .portfolio_otc import PortfolioOTC
 
-            fx_rebalance_limits(body["fx_rebalance"])
+            fx_rebalance_limits(body["fx_rebalance"], explicit_pair=body.get("valuation_symbol") is not None)
             PortfolioOTC.from_policy(body["fx_rebalance"])
         if "margin_positions" in body:
             from .portfolio_margin import load_margin_plans
 
-            if "cash_by_currency" not in body or body["margin_positions"] is None:
+            if "cash_by_currency" not in body or body["margin_positions"] is None or body.get("valuation_symbol") is not None:
                 raise ValueError("margin_positions requires mixed-currency funding and preview-backed positions")
             load_margin_plans(self.path.parent, body["margin_positions"])
         if "rank_gate" in body:

@@ -51,8 +51,8 @@ def _universe_request(value):
                      and {"watchlist_id", "symbols", "top_n"}.isdisjoint(value))
     as_of_request = "top_n" in value or whole_request or watchlist_request
     venue = validate_venue(value.get("venue", "wallex"))
-    if venue != "wallex" and ("top_n" in value or "cash_by_currency" in value):
-        raise ValueError("alternate venue replay needs a single quote currency and a catalogue or explicit selection")
+    if venue != "wallex" and "top_n" in value:
+        raise ValueError("alternate venue replay needs a catalogue, watchlist or explicit selection")
     if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
             or (as_of_request and symbols != [])
             or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
@@ -83,7 +83,7 @@ def portfolio_action(root, action, value, *, store):
     if (type(value) is not dict or not required <= value.keys()
             or value.keys() - required - {"symbols", "policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis",
                                           "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance",
-                                          "margin_positions", "venue", "rank_gate", "watchlist_id"}):
+                                          "margin_positions", "venue", "rank_gate", "watchlist_id", "valuation_symbol"}):
         raise ValueError("invalid portfolio replay fields")
     symbols, whole_request, watchlist_request, as_of_request, venue = _universe_request(value)
     start, end = instant(value["from"]), instant(value["to"])
@@ -164,7 +164,7 @@ def portfolio_action(root, action, value, *, store):
                         policy=value.get("policy"), universe_selection=selection, cash_by_currency=value.get("cash_by_currency"),
                         dynamic_routes=value.get("dynamic_routes", False), funding_legs=value.get("funding_legs"),
                         fx_rebalance=value.get("fx_rebalance"), margin_plans=load_margin_plans(root, value.get("margin_positions")),
-                        venue=venue, rank_gate=value.get("rank_gate"))
+                        venue=venue, rank_gate=value.get("rank_gate"), valuation_symbol=value.get("valuation_symbol"))
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))

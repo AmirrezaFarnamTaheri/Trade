@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from gym.adapters.store import MarketDB
-from gym.domain.model import parse_ts
+from gym.domain.model import InstrumentId, parse_ts
 from gym.domain.portfolio_diagnostics import economic_portfolio_attribution
 from gym.services.portfolio import _Replay, _rule_timeline, portfolio
 from gym.services.rules import RuleService
@@ -95,6 +95,7 @@ def test_mixed_portfolio_fx_calendar_refreshes_on_tehran_day_and_rule_revision(t
         svc.disable("night", disable_at)
         account = _Replay.__new__(_Replay)
         account.rules_for, _ = _rule_timeline(db, "point-in-time")
+        account.fx_valuation_instrument = InstrumentId.wallex("USDTTMN")
         account._fx_valuation_calendar = (None, None, ())
         assert not account._fx_valuation_closed(start - timedelta(microseconds=1))
         assert account._fx_valuation_closed(start)

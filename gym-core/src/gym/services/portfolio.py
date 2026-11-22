@@ -7,6 +7,7 @@ against current portfolio equity. Quotes from all markets are fed in availabilit
 import hashlib
 import heapq
 import json
+import re
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from dataclasses import asdict
@@ -46,20 +47,47 @@ class _ReconcilingCashBook(CashBook):
             self.postings.append({**self.postings[-1], "amount": str(adjustment), "kind": "rounding"})
 
 
-def fx_rebalance_limits(value):
+def fx_rebalance_limits(value, *, explicit_pair=False):
     from ..domain.market_models import decimal, fields
 
-    optional = [key for key in ("otc_quotes", "otc_routes", "mixed_routes", "residual_attempts") if isinstance(value, dict) and key in value]
-    fields(value, " ".join(("target_usdt_cash_share band max_order_usdt", *optional)))
+    target_key, cap_key = ("target_base_cash_share", "max_order_base") if explicit_pair else (
+        "target_usdt_cash_share", "max_order_usdt")
+    optional = [key for key in ("otc_quotes", "otc_routes", "mixed_routes", "residual_attempts")
+                if not explicit_pair and isinstance(value, dict) and key in value]
+    fields(value, " ".join((target_key, "band", cap_key, *optional)))
     if "residual_attempts" in value and ("mixed_routes" not in value or type(value["residual_attempts"]) is not int
                                          or not 1 <= value["residual_attempts"] <= 8):
         raise ValueError("residual_attempts requires mixed_routes and an integer from 1 to 8")
-    target = decimal(value["target_usdt_cash_share"])
+    target = decimal(value[target_key])
     band = decimal(value["band"], positive=True)
-    cap = decimal(value["max_order_usdt"], positive=True)
+    cap = decimal(value[cap_key], positive=True)
     if target > 1 or band > 1:
         raise ValueError("FX target and band must be fractions")
     return target, band, cap
+
+
+def portfolio_currency_inputs(venue, opening, valuation_symbol):
+    """Validate the shared account cash units before resolving recorded instrument terms."""
+    from ..domain.market_models import decimal
+
+    if valuation_symbol is not None:
+        if (venue == "wallex" or type(valuation_symbol) is not str
+                or not re.fullmatch(r"[A-Z0-9]{2,24}", valuation_symbol)):
+            raise ValueError("valuation_symbol must identify a market in an alternate archive")
+    if opening is None:
+        if valuation_symbol is not None:
+            raise ValueError("valuation_symbol requires cash_by_currency")
+        return None
+    if venue == "wallex":
+        if type(opening) is not dict or opening.keys() != {"TMN", "USDT"}:
+            raise ValueError("multi-currency replay requires explicit TMN and USDT opening cash")
+    elif (valuation_symbol is None or type(opening) is not dict or len(opening) != 2
+          or any(type(ccy) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", ccy) for ccy in opening)):
+        raise ValueError("alternate-venue FX needs valuation_symbol and two named cash currencies")
+    parsed = {currency: decimal(amount, currency) for currency, amount in opening.items()}
+    if not any(parsed.values()):
+        raise ValueError("multi-currency replay requires positive opening capital")
+    return parsed
 
 
 def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, resolution: str = "15min",
@@ -68,7 +96,7 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
               checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True,
               cash_by_currency: dict | None = None, dynamic_routes: bool = False,
               funding_legs: list | None = None, fx_rebalance: dict | None = None, margin_plans=None,
-              venue: str = "wallex", rank_gate: dict | None = None) -> dict:
+              venue: str = "wallex", rank_gate: dict | None = None, valuation_symbol: str | None = None) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
@@ -78,17 +106,19 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
                           strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
                           policy=policy, checkpoint=checkpoint, universe_selection=universe_selection,
                           booked_accounting=booked_accounting, cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes,
-                          funding_legs=funding_legs, fx_rebalance=fx_rebalance, margin_plans=margin_plans, rank_gate=rank_gate)
+                          funding_legs=funding_legs, fx_rebalance=fx_rebalance, margin_plans=margin_plans,
+                          rank_gate=rank_gate, valuation_symbol=valuation_symbol)
     finally:
         db.c.rollback()
 
 
 def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance,
-               margin_plans, rank_gate):
+               margin_plans, rank_gate, valuation_symbol):
     """Replay strictly prior market observations against a shared simulated cash book."""
-    if portal.venue != "wallex" and cash_by_currency is not None:
-        raise ValueError("alternate venue replay requires a single quote currency")
+    cash_by_currency = portfolio_currency_inputs(portal.venue, cash_by_currency, valuation_symbol)
+    if valuation_symbol is not None and (funding_legs is not None or margin_plans is not None):
+        raise ValueError("opening funding routes and margin receipts require Wallex terms")
     _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection,
                    multicurrency=cash_by_currency is not None)
     if rank_gate is not None:
@@ -102,7 +132,8 @@ def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, 
                    params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint,
                    universe_selection=universe_selection, booked_accounting=booked_accounting,
                    cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes, funding_legs=funding_legs,
-                   fx_rebalance=fx_rebalance, margin_plans=margin_plans, rank_gate=rank_gate).run()
+                   fx_rebalance=fx_rebalance, margin_plans=margin_plans,
+                   rank_gate=rank_gate, valuation_symbol=valuation_symbol).run()
 
 
 class _Replay:
@@ -113,7 +144,7 @@ class _Replay:
 
     def __init__(self, portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
                  checkpoint, universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs,
-                 fx_rebalance, margin_plans, rank_gate):
+                 fx_rebalance, margin_plans, rank_gate, valuation_symbol):
         self.db, self.symbols, self.t0, self.t1 = portal.db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
@@ -128,6 +159,7 @@ class _Replay:
         self.reference_routes = {}
         quotes = {inst.quote for inst in self.instruments.values()}
         self.multicurrency = cash_by_currency is not None
+        self.valuation_symbol = valuation_symbol
         self.margin = None
         self.margin_plans = margin_plans
         if margin_plans is not None and (not self.multicurrency or not booked_accounting or rules_mode != "point-in-time"):
@@ -139,7 +171,8 @@ class _Replay:
         self.otc_fx = None
         self.fx_pending, self.fx_orders, self.fx_quotas = None, [], {}
         if fx_rebalance is not None:
-            self.fx_target, self.fx_band, self.fx_cap = fx_rebalance_limits(fx_rebalance)
+            self.fx_target, self.fx_band, self.fx_cap = fx_rebalance_limits(
+                fx_rebalance, explicit_pair=self.valuation_symbol is not None)
             if (not self.multicurrency or not booked_accounting or rules_mode != "point-in-time"
                     or cost.order_type != "market"
                     or cost.walk_depth or cost.max_participation is None or cost.impact_models
@@ -180,7 +213,7 @@ class _Replay:
         self.controller = PortfolioPolicy({} if policy is None else policy, traded_symbols)
         if self.controller.usdt_fx_risk and (self.quote != "TMN" or portal.venue != "wallex"):
             raise ValueError("usdt_fx_risk is only applicable to TMN-quoted portfolios")
-        self.fx_risk_tops = _fx_tops(self.db, self.portal, t0, t1, "portfolio FX risk") if self.controller.usdt_fx_risk else []
+        self.fx_risk_tops = _fx_tops(self.portal, t0, t1, "portfolio FX risk") if self.controller.usdt_fx_risk else []
         self.fx_risk_times = [top.ts_avail for top in self.fx_risk_tops]
         self.weights = self.controller.weights({})
         self.reserved, self.histories, self.policy_events = {}, {s: [] for s in symbols}, []
@@ -212,16 +245,18 @@ class _Replay:
         self.prefix = hashlib.sha256(b"[") if checkpoint is not None else None
 
     def _configure_currencies(self, quotes, opening):
-        from ..domain.market_models import decimal
-
-        if quotes != {"TMN", "USDT"} or type(opening) is not dict or opening.keys() != quotes:
-            raise ValueError("multi-currency replay requires explicit TMN and USDT opening cash")
+        pair = self.valuation_symbol
+        inst = self.portal.instrument(pair) if pair else InstrumentId.wallex("USDTTMN")
+        if quotes != {inst.base, inst.quote} or opening.keys() != quotes:
+            raise ValueError("multi-currency replay requires opening cash and traded quote currencies matching the valuation pair")
+        if pair and (inst.kind != "SPOT" or self._fx_spot_terms(self.t0) is None):
+            raise ValueError("valuation_symbol requires recorded spot terms at the opening cutoff")
         if self.policy is not None:
             raise ValueError("multi-currency replay currently uses default allocation")
-        self.opening_cash = {currency: decimal(amount, currency) for currency, amount in opening.items()}
-        if not any(self.opening_cash.values()):
-            raise ValueError("multi-currency replay requires positive opening capital")
-        reconciles = self.margin_plans or {"otc_routes", "mixed_routes"} & (self.fx_rebalance or {}).keys()
+        self.opening_cash = opening
+        self.quote, self.secondary_currency = inst.base, inst.quote
+        self.fx_valuation_instrument = inst
+        reconciles = pair or self.margin_plans or {"otc_routes", "mixed_routes"} & (self.fx_rebalance or {}).keys()
         book_type = _ReconcilingCashBook if reconciles else CashBook
         self.book = book_type(dict(self.opening_cash))
         if self.funding_legs is not None:
@@ -231,22 +266,29 @@ class _Replay:
 
             self.margin = PortfolioMargin(self.portal, self.rules_for, self.t0, self.t1, self.margin_plans, self.book, self.cost)
         self._configure_routes(quotes)
-        self.quote = "USDT"
-        self.fx_stream = iter(self.portal.iter_tops("USDTTMN", self.t0 - timedelta(days=1), self.t1))
+        fx_start = self.t0 - timedelta(days=1)
+        if pair:
+            _check_fx_budget(self.portal, inst.symbol, fx_start, self.t1, "explicit valuation pair")
+        self.fx_stream = iter(self.portal.iter_tops(inst.symbol, fx_start, self.t1))
         self.fx_next = next(self.fx_stream, None)
         self.fx_mark = None
         self.fx_evidence = hashlib.sha256()
         self._fx_valuation_calendar = (None, None, ())
         self._advance_fx(self.t0)
-        if self.fx_mark is None:
-            raise ValueError("multi-currency replay requires an opening USDTTMN valuation observation")
+        if self.fx_mark is None or (pair and (self.t0 - self.fx_mark.ts_avail > timedelta(seconds=120)
+                                            or self._fx_valuation_closed(self.t0))):
+            raise ValueError(f"multi-currency replay requires an opening {inst.symbol} valuation observation")
         self.opening_fx = self.fx_mark
         self.cash = self._combined_equity(self.opening_cash)
         if self.fx_rebalance is not None:
-            self.fx_instrument = self.portal.instrument("USDTTMN")
-            metadata = self.portal.metadata_at("USDTTMN", self.t0)
+            self.fx_instrument = self.portal.instrument(inst.symbol)
+            metadata = self.portal.metadata_at(inst.symbol, self.t0)
             terms = metadata["raw"] if metadata else {}
-            self.fx_cost = self.cost.for_market("USDTTMN", zero_fee=terms.get("isZeroFee", terms.get("is_zero_fee")) is True)
+            self.fx_cost = self.cost.for_market(inst.symbol, zero_fee=terms.get("isZeroFee", terms.get("is_zero_fee")) is True)
+
+    def _fx_spot_terms(self, at):
+        metadata = self.portal.metadata_at(self.valuation_symbol, at)
+        return metadata["raw"] if metadata and metadata["raw"].get("is_spot") is True else None
 
     def _fund_opening_account(self):
         from .conversion_replay import replay_mixed_route
@@ -277,7 +319,7 @@ class _Replay:
             raise ValueError("a mixed spot route cannot share its symbol with margin")
         # Allocate one venue route per asset using opening balances and a stable currency/symbol preference.
         for symbol in sorted(self.symbols, key=lambda s: (
-                not self.book.get(self.instruments[s].quote), self.instruments[s].quote != "USDT", s)):
+                not self.book.get(self.instruments[s].quote), self.instruments[s].quote != self.quote, s)):
             inst = self.instruments[symbol]
             if symbol in margin_symbols:
                 self.reference_routes[symbol] = {"reason": "MARGIN_POSITION", "trade_route": None}
@@ -308,7 +350,7 @@ class _Replay:
                 previous = self.trade_routes.get(base)
                 if previous not in symbols:
                     choice = min(symbols, key=lambda s: (not self.book.get(self.instruments[s].quote),
-                                 self.instruments[s].quote != "USDT", s), default=None)
+                                 self.instruments[s].quote != self.quote, s), default=None)
                     self._set_route(base, choice, at)
                 continue
             candidates = []
@@ -326,7 +368,7 @@ class _Replay:
                 clip = min(top.ask_qty * session.cost.max_participation, min(free, target) / top.ask)
                 if not sellable_quantity(clip, top.ask, self.portal.spec_at(symbol, at)):
                     continue
-                fx = self.fx_mark.bid if instrument.quote == "TMN" else Decimal(1)
+                fx = self.fx_mark.bid if instrument.quote == self.secondary_currency else Decimal(1)
                 unit_cost = top.ask / fx / (1 - session.cost.fee_rate)
                 candidates.append((unit_cost, symbol))
             choice = min(candidates)[1] if candidates else None
@@ -374,7 +416,8 @@ class _Replay:
             top = self.fx_next
             if self.fx_pending is not None:
                 self._fill_fx_rebalance(top)
-            if qualified(top):
+            if qualified(top) and (not self.valuation_symbol or
+                                   ("CLOSED" not in top.flags and self._fx_spot_terms(top.ts_avail) is not None)):
                 self.fx_mark = top
                 book_size = (top.bid_qty, top.ask_qty) if self.fx_rebalance is not None else ()
                 self.fx_evidence.update(digest((iso(top.ts_avail), top.bid, top.ask, sorted(top.flags), *book_size)).encode())
@@ -383,16 +426,16 @@ class _Replay:
     def _request_fx_rebalance(self, close):
         if self.fx_pending is not None or (self.otc_fx and self.otc_fx.pending) or self.risk_state:
             return
-        free_usdt = max(Decimal(0), self.book.get("USDT") - self.reserved_in("USDT"))
-        free_tmn = max(Decimal(0), self.book.get("TMN") - self.reserved_in("TMN"))
-        cash = self._combined_equity({"USDT": free_usdt, "TMN": free_tmn})
-        gap = cash * self.fx_target - free_usdt
+        free_base = max(Decimal(0), self.book.get(self.quote) - self.reserved_in(self.quote))
+        free_quote = max(Decimal(0), self.book.get(self.secondary_currency) - self.reserved_in(self.secondary_currency))
+        cash = self._combined_equity({self.quote: free_base, self.secondary_currency: free_quote})
+        gap = cash * self.fx_target - free_base
         if abs(gap) <= cash * self.fx_band:
             return
         side = "BUY" if gap > 0 else "SELL"
         price = self.fx_mark.ask if side == "BUY" else self.fx_mark.bid
         quantity = min(abs(gap), self.fx_cap)
-        if self.otc_fx and self.otc_fx.select(close, side, quantity, cash=free_tmn if side == "BUY" else free_usdt,
+        if self.otc_fx and self.otc_fx.select(close, side, quantity, cash=free_quote if side == "BUY" else free_base,
                                              spot_price=price, spot_fee=self.fx_cost.fee_rate,
                                              latency=self.fx_cost.latency, end=self.t1,
                                              mixed_context=(self.portal, self.rules_for, self.fx_cost.max_participation)):
@@ -412,17 +455,23 @@ class _Replay:
         if (at <= submitted or at < submitted + self.cost.latency or not qualified(top)
                 or "CLOSED" in top.flags or is_closed(rules, inst, at)):
             return
-        currency = "TMN" if side == "BUY" else "USDT"
+        fill_cost = self.fx_cost
+        if self.valuation_symbol:
+            terms = self._fx_spot_terms(at)
+            if terms is None:
+                return
+            fill_cost = self.cost.for_market(inst.symbol, zero_fee=terms.get("isZeroFee", terms.get("is_zero_fee")) is True)
+        currency = inst.quote if side == "BUY" else inst.base
         free = max(Decimal(0), self.book.get(currency) - self.reserved_in(currency))
         debit = min(free, amount * top.ask if side == "BUY" else amount)
         with localcontext() as ctx:
             ctx.rounding = ROUND_DOWN
             fraction = debit / self.book.get(currency) if debit else Decimal(0)
             spec = self.portal.spec_at(inst.symbol, at)
-            result = market_order(self.book, inst, side, fraction, submitted, price, [top], 0, self.fx_cost,
+            result = market_order(self.book, inst, side, fraction, submitted, price, [top], 0, fill_cost,
                                   spec, rules, self.fx_quotas,
                                   f"fx-rebalance/{len(self.fx_orders) + 1}", max_qty=amount)
-        result["terms_digest"] = digest({"spec": asdict(spec), "rules": rules, "cost": self.fx_cost.describe()})
+        result["terms_digest"] = digest({"spec": asdict(spec), "rules": rules, "cost": fill_cost.describe()})
         if "costs" in result:
             result["costs"] = {key: str(value) for key, value in result["costs"].items()}
         self.fx_orders.append(result)
@@ -436,7 +485,7 @@ class _Replay:
 
     def _combined_equity(self, amounts):
         fx = self.fx_mark
-        return amounts["USDT"] + amounts["TMN"] / ((fx.bid + fx.ask) / 2)
+        return amounts[self.quote] + amounts[self.secondary_currency] / ((fx.bid + fx.ask) / 2)
 
     def fx_at_close(self, close):
         """Select only the most recent fresh, open, strictly earlier FX quote."""
@@ -472,7 +521,7 @@ class _Replay:
         rules, day = self.rules_for(at), tehran_day(at)
         cached_rules, cached_day, spans = self._fx_valuation_calendar
         if rules is not cached_rules or day != cached_day:
-            spans = closures(rules, InstrumentId.wallex("USDTTMN"), at)
+            spans = closures(rules, self.fx_valuation_instrument, at)
             self._fx_valuation_calendar = (rules, day, spans)
         return any(start <= at < end for start, end in spans)
 
@@ -873,15 +922,27 @@ class _Replay:
                                    "WHERE instrument_id=? AND valid_from<? AND (valid_to IS NULL OR valid_to>?) "
                                    "ORDER BY valid_from, rowid", (self.portal.instrument_key(s), iso(t1), iso(t0))).fetchall()
                     for s in self.symbols}
-        fx_tops = _fx_tops(db, self.portal, t0, t1, "portfolio FX") if quote == "TMN" and self.portal.venue == "wallex" else []
+        fx_tops = _fx_tops(self.portal, t0, t1, "portfolio FX") if quote == "TMN" and self.portal.venue == "wallex" else []
         valuation = curve_valuation(quote, self.curve, t0, t1, fx_tops, self.rules_for)
         if self.multicurrency:
             valuation["conversion"] = {
-                "pair": "USDTTMN", "basis": "observed mid", "start_at": iso(self.opening_fx.ts_avail),
+                "pair": self.fx_valuation_instrument.symbol, "basis": "observed mid", "start_at": iso(self.opening_fx.ts_avail),
                 "end_at": iso(self.fx_mark.ts_avail), "end_status": self.valuation_state(t1),
             }
+        if self.valuation_symbol is not None:
+            valuation["conversion"].update(
+                reporting_currency=self.quote, secondary_currency=self.secondary_currency,
+                opening_rate=str((self.opening_fx.bid + self.opening_fx.ask) / 2),
+                closing_rate=str((self.fx_mark.bid + self.fx_mark.ask) / 2),
+            )
+            metadata[self.valuation_symbol] = db.c.execute(
+                "SELECT valid_from,valid_to,spec,source FROM instrument_specs "
+                "WHERE instrument_id=? AND valid_from<? AND (valid_to IS NULL OR valid_to>?) ORDER BY valid_from,rowid",
+                (self.portal.instrument_key(self.valuation_symbol), iso(t1), iso(t0 - timedelta(days=1)))).fetchall()
         first_fx, last_fx = valuation["start"], valuation["end"]
         inputs = self._inputs(metadata, valuation)
+        if self.valuation_symbol is not None:
+            inputs.update(portfolio_version=27, valuation_symbol=self.valuation_symbol)
         markets = _market_summaries(self.sessions, self.instruments, None, self.book, self.marks, self.mark_times, t1,
                                     booked_accounting=self.booked_accounting, quote_counts=self.quote_counts,
                                     trade_routes=self.trade_routes if self.variable_routes else None)
@@ -998,14 +1059,19 @@ def _rule_timeline(db, rules_mode):
     return rules_for, rule_evidence
 
 
-def _fx_tops(db, portal, t0, t1, label):
+def _fx_tops(portal, t0, t1, label):
     """USDTTMN quotes from a day before the window, within the observation budget."""
-    count = db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id='wallex:USDTTMN' "
+    start = t0 - timedelta(days=1)
+    _check_fx_budget(portal, "USDTTMN", start, t1, label)
+    return portal.tops("USDTTMN", start, t1)
+
+
+def _check_fx_budget(portal, symbol, start, end, label):
+    count = portal.db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? "
                          "AND ts_avail>=? AND ts_avail<? LIMIT ?)",
-                         (iso(t0 - timedelta(days=1)), iso(t1), MAX_OBSERVATIONS + 1)).fetchone()[0]
+                         (portal.instrument_key(symbol), iso(start), iso(end), MAX_OBSERVATIONS + 1)).fetchone()[0]
     if count > MAX_OBSERVATIONS:
         raise ValueError(f"{label} observation budget exceeded; narrow the window")
-    return portal.tops("USDTTMN", t0 - timedelta(days=1), t1)
 
 
 def _cost_band(controller, cost, symbol, latest, delta, equity_now, band, policy_events):

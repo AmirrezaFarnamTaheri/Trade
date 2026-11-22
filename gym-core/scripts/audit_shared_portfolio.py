@@ -18,11 +18,11 @@ from gym.services.data_portal import DataPortal
 from gym.services.rules import RuleService
 
 
-def _fx_mid(portal, stamp):
+def _fx_mid(portal, stamp, pair, *, explicit):
     at = parse_ts(stamp)
     top = None
-    for receipt in portal.iter_tops("USDTTMN", at, at + timedelta(microseconds=1)):
-        if qualified(receipt):
+    for receipt in portal.iter_tops(pair, at, at + timedelta(microseconds=1)):
+        if qualified(receipt) and (not explicit or "CLOSED" not in receipt.flags):
             top = receipt
     if top is None:
         raise ValueError(f"archived FX mark missing at {stamp}")
@@ -34,11 +34,16 @@ def audit(run, portal):
     inputs, result = run["inputs"], run["result"]
     if inputs.get("trade_accounting") != "booked-notional/1" or not inputs.get("cash_by_currency"):
         raise ValueError("audit requires a booked mixed-currency portfolio")
+    if portal.venue != inputs.get("venue", "wallex"):
+        raise ValueError("audit portal venue does not match saved replay")
     conversion = result["valuation"]["conversion"]
+    explicit = "valuation_symbol" in inputs
     with localcontext() as ctx:
         ctx.prec = 400
-        start_fx = _fx_mid(portal, conversion["start_at"])
-        end_fx = _fx_mid(portal, conversion["end_at"])
+        start_fx = _fx_mid(portal, conversion["start_at"], conversion["pair"], explicit=explicit)
+        end_fx = _fx_mid(portal, conversion["end_at"], conversion["pair"], explicit=explicit)
+        if explicit and (start_fx != Decimal(conversion["opening_rate"]) or end_fx != Decimal(conversion["closing_rate"])):
+            raise ValueError("archived marks do not match saved rates")
         report = _reconcile(run, start_fx, end_fx)
     return {**report, "terminal_spot_exit_snapshot": terminal_exit_snapshot(run, portal)}
 
@@ -128,6 +133,10 @@ def _margin_attribution(positions, cash_posts, start):
 
 def _reconcile(run, start_fx, end_fx):
     inputs, result = run["inputs"], run["result"]
+    explicit = "valuation_symbol" in inputs
+    valuation = result["valuation"]["conversion"]
+    reporting, secondary = (valuation["reporting_currency"], valuation["secondary_currency"]) if explicit else ("USDT", "TMN")
+    units_key = "reporting_currency" if explicit else "usdt"
     opening = {asset: Decimal(amount) for asset, amount in inputs["cash_by_currency"].items()}
     closing = {asset: Decimal(amount) for asset, amount in result["balances"].items()}
     realized, unrealized, fees = defaultdict(Decimal), defaultdict(Decimal), defaultdict(Decimal)
@@ -176,20 +185,20 @@ def _reconcile(run, start_fx, end_fx):
     for asset, amount in route_residuals.items():
         net_quantity[asset] += Decimal(amount)
 
-    def usdt(amounts, rate):
-        return amounts.get("USDT", Decimal(0)) + amounts.get("TMN", Decimal(0)) / rate
+    def value_in_reporting(amounts, rate):
+        return amounts.get(reporting, Decimal(0)) + amounts.get(secondary, Decimal(0)) / rate
 
-    cash_end = usdt(opening, end_fx)
+    cash_end = value_in_reporting(opening, end_fx)
     initial = Decimal(result["start_cash"])
     terminal = Decimal(result["end"]["equity"])
-    conversion = {model: usdt(flows, end_fx) for model, flows in fx.items()}
-    legs = {"passive_cash_fx": cash_end - initial, "realized_spot_net": usdt(realized, end_fx),
-            "unrealized_spot_net": usdt(unrealized, end_fx), "conversion_net": sum(conversion.values(), Decimal(0))}
+    conversion = {model: value_in_reporting(flows, end_fx) for model, flows in fx.items()}
+    legs = {"passive_cash_fx": cash_end - initial, "realized_spot_net": value_in_reporting(realized, end_fx),
+            "unrealized_spot_net": value_in_reporting(unrealized, end_fx), "conversion_net": sum(conversion.values(), Decimal(0))}
     strategy_books = {"realized_spot_net": realized, "unrealized_spot_net": unrealized,
                       "conversion_net": {asset: sum((flows.get(asset, 0) for flows in fx.values()), Decimal(0))
                                          for asset in opening}}
     if margin_rows:
-        legs["margin_net"] = usdt(margin_net, end_fx)
+        legs["margin_net"] = value_in_reporting(margin_net, end_fx)
         strategy_books["margin_net"] = margin_net
     residual = terminal - initial - sum(legs.values(), Decimal(0))
     scale = Decimal("0.000000000000000001")
@@ -199,21 +208,24 @@ def _reconcile(run, start_fx, end_fx):
     inventory_mismatch = {asset: str(closing.get(asset, 0) - net_quantity[asset])
                           for asset in closing.keys() | net_quantity.keys()
                           if asset not in opening and abs(closing.get(asset, 0) - net_quantity[asset]) > scale}
-    if cash_mismatch or inventory_mismatch or abs(usdt(opening, start_fx) - initial) > scale or abs(residual) > scale:
+    if cash_mismatch or inventory_mismatch or abs(value_in_reporting(opening, start_fx) - initial) > scale or abs(residual) > scale:
         raise ValueError(f"portfolio attribution failed: postings={cash_mismatch}, inventory={inventory_mismatch}, residual={residual}")
     rounded_legs = {key: amount.quantize(scale) for key, amount in legs.items()}
     fx_basis = {}
     for key, amounts in strategy_books.items():
-        opening_basis = usdt(amounts, start_fx)
+        opening_basis = value_in_reporting(amounts, start_fx)
         fx_basis[key] = {"booked_currencies": {asset: str(amounts.get(asset, 0)) for asset in opening},
-                         "opening_fx_usdt": str(opening_basis.quantize(scale)),
-                         "translation_to_terminal_fx_usdt": str((legs[key] - opening_basis).quantize(scale))}
+                         f"opening_fx_{units_key}": str(opening_basis.quantize(scale)),
+                         f"translation_to_terminal_fx_{units_key}": str((legs[key] - opening_basis).quantize(scale))}
     net = (terminal - initial).quantize(scale)
-    ranked = sorted(((usdt({quote: pnl}, end_fx), symbol, quantity, freshness)
+    ranked = sorted(((value_in_reporting({quote: pnl}, end_fx), symbol, quantity, freshness)
                      for symbol, quote, quantity, pnl, freshness in directional))
-    return {"run_id": run["run_id"], "outputs_digest": run["outputs_digest"], "currency": "USDT",
-            "valuation_status": result["end"]["valuation_status"], "start_tmn_per_usdt": str(start_fx),
-            "end_tmn_per_usdt": str(end_fx), "opening_equity": str(initial), "ending_equity": str(terminal),
+    rates = ({"conversion_pair": valuation["pair"], "secondary_currency": secondary,
+              "opening_rate": str(start_fx), "closing_rate": str(end_fx)} if explicit else
+             {"start_tmn_per_usdt": str(start_fx), "end_tmn_per_usdt": str(end_fx)})
+    return {"run_id": run["run_id"], "outputs_digest": run["outputs_digest"], "currency": reporting,
+            "valuation_status": result["end"]["valuation_status"], **rates,
+            "opening_equity": str(initial), "ending_equity": str(terminal),
             "cash_only_end_equity": str(cash_end.quantize(scale)),
             "excess_vs_cash": str((terminal - cash_end).quantize(scale)),
             "net": str(net), "components": {key: str(amount) for key, amount in rounded_legs.items()},
@@ -222,13 +234,13 @@ def _reconcile(run, start_fx, end_fx):
             **({"unvalued_route_residual_units": route_residuals} if route_residuals else {}),
             "conversion_net_by_model": {key: str(amount.quantize(scale)) for key, amount in conversion.items()},
             "residual_at_display_precision": str(net - sum(rounded_legs.values(), Decimal(0))),
-            "raw_reconciliation_residual_usdt": str(residual.quantize(Decimal("1e-30"))),
+            f"raw_reconciliation_residual_{units_key}": str(residual.quantize(Decimal("1e-30"))),
             "closing_cash_by_currency": {asset: str(closing.get(asset, 0)) for asset in opening},
             "spot_inventory_value_by_quote": {asset: str(amount) for asset, amount in holdings.items()},
             "spot_fees_by_quote_at_fill_embedded_in_spot_pnl": {asset: str(amount) for asset, amount in fees.items()},
             "held_markets": len(ranked), "held_markets_with_stale_marks": sum(row[3] != "CURRENT" for row in ranked),
             "lowest_marked_open_position_pnl": [{"symbol": symbol, "quantity": str(quantity), "mark_status": freshness,
-                                                "net_usdt": str(pnl.quantize(scale))}
+                                                f"net_{units_key}": str(pnl.quantize(scale))}
                                                for pnl, symbol, quantity, freshness in ranked[:10]]}
 
 
@@ -241,7 +253,7 @@ def main():
     run = load_verified_run(args.run.parent, args.run.stem, store=args.store)
     db = MarketDB(args.market_db, readonly=True)
     try:
-        print(json.dumps(audit(run, DataPortal(db)), indent=2, sort_keys=True))
+        print(json.dumps(audit(run, DataPortal(db, venue=run["inputs"].get("venue", "wallex"))), indent=2, sort_keys=True))
     finally:
         db.c.close()
 

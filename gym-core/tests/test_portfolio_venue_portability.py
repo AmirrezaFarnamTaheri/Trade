@@ -7,9 +7,12 @@ from decimal import Decimal
 
 import pytest
 
+from gym.adapters.store import MarketDB
 from gym.domain.model import InstrumentId, iso
+from gym.services.data_portal import DataPortal
 from gym.services.research_actions import research_action
 from gym.services.research_process import calculate, work_estimate
+from scripts.audit_shared_portfolio import audit
 from tests.support import START, market_db, quote_history
 from tests.test_portfolio_workflow import request
 
@@ -118,3 +121,96 @@ def test_alternate_venue_catalogue_replays_and_schedules_point_in_time(tmp_path)
     assert research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})["result_digest"] == run["outputs_digest"]
     with pytest.raises(ValueError, match="invalid market venue"):
         research_action(tmp_path, "universe-manifest", {**report, "venue": "second-*"})
+
+
+@pytest.mark.parametrize(("target", "side", "price", "fee_currency"), [
+    ("0.5", "BUY", "0.81", "EUR"), ("0", "SELL", "0.79", "GBP"),
+])
+def test_alternate_archive_spot_fx_uses_pair_terms_and_reconciles_both_currencies(
+        tmp_path, target, side, price, fee_currency):
+    from collections import defaultdict
+    from decimal import localcontext
+
+    venue, pair = "second-venue", "EURGBP"
+    db = market_db(tmp_path, [replace(quote_history(n=1)[0], symbol=pair)])
+    try:
+        for symbol, base, quote_asset in (("ALPHA", "A", "EUR"), ("BETA", "B", "GBP"), (pair, "EUR", "GBP")):
+            db.upsert_instrument(InstrumentId(venue, symbol, base, quote_asset), {},
+                                 {"is_spot": True, "stepSize": 4, "minNotional": "1"}, "fixture", START - timedelta(minutes=1))
+            for index, top in enumerate(quote_history(n=60, sym=symbol)):
+                if symbol == pair:
+                    top = replace(top, ts_avail=top.ts_avail - timedelta(seconds=1),
+                                  bid=Decimal("0.79") if index < 30 else Decimal("0.99"),
+                                  ask=Decimal("0.81") if index < 30 else Decimal("1.01"),
+                                  bid_qty=Decimal("8"), ask_qty=Decimal("8"))
+                db.add_book_top(top, None, venue=venue)
+        db.upsert_instrument(InstrumentId(venue, pair, "EUR", "GBP"), {},
+                             {"is_spot": True, "stepSize": 4, "minNotional": "1", "is_zero_fee": True},
+                             "fixture", START + timedelta(minutes=5))
+    finally:
+        db.c.close()
+
+    value = {**request(), "to": iso(START + timedelta(minutes=10)), "venue": venue, "valuation_symbol": pair,
+             "cash_by_currency": {"EUR": "100", "GBP": "800"},
+             "fx_rebalance": {"target_base_cash_share": target, "band": "0.02", "max_order_base": "10"}}
+    del value["symbols"]
+    value["cost"] = {**value["cost"], "max_participation": "0.5"}
+    replay = research_action(tmp_path, "portfolio-replay", value)
+    run = research_action(tmp_path, "portfolio-read", {"run_id": replay["run_id"]})
+    assert run["inputs"]["valuation_symbol"] == pair and run["inputs"]["portfolio_version"] == 27
+    result = run["result"]
+    assert result["quote"] == "EUR" and Decimal(result["start_cash"]) == Decimal("1100")
+    assert result["end"]["net_usdt_eq"] is None
+    assert result["valuation"]["conversion"]["secondary_currency"] == "GBP"
+    assert result["valuation"]["conversion"]["start_at"] == iso(START - timedelta(seconds=1))
+    assert Decimal(result["valuation"]["conversion"]["opening_rate"]) == Decimal("0.8")
+    assert Decimal(result["valuation"]["conversion"]["closing_rate"]) == Decimal("1")
+    assert result["markets"][pair]["reason"] == "QUOTE_CURRENCY_REFERENCE"
+    fills = [order for order in result["fx_orders"] if order["status"] == "FILLED"]
+    first = fills[0]
+    assert first["side"] == side and Decimal(first["qty"]) == Decimal(4)
+    assert Decimal(first["price"]) == Decimal(price) and first["fill_time"] > first["decision_time"]
+    assert first["fee_ccy"] == fee_currency
+    assert Decimal(first["fee"]) > 0 and Decimal(fills[-1]["fee"]) == 0
+    with localcontext() as context:
+        context.prec = 80
+        opening = {asset: Decimal(amount) for asset, amount in value["cash_by_currency"].items()}
+        balances = defaultdict(Decimal, opening)
+        for posting in result["postings"]:
+            balances[posting["ccy"]] += Decimal(posting["amount"])
+        assert dict(balances) == {asset: Decimal(amount) for asset, amount in result["balances"].items()}
+    db = MarketDB(tmp_path / "market.db", readonly=True)
+    try:
+        report = audit(run, DataPortal(db, venue=venue))
+        assert report["currency"] == "EUR" and report["secondary_currency"] == "GBP"
+        assert Decimal(report["components"]["passive_cash_fx"]) == Decimal("-200")
+        assert Decimal(report["raw_reconciliation_residual_reporting_currency"]) == 0
+    finally:
+        db.c.close()
+    registered = research_action(tmp_path, "register", {"symbol": "ALPHA", "strategy": value["strategy"], "params": value["params"]})
+    job = {"hypothesis_id": registered["hypothesis_id"], "first_at": value["to"], "every_seconds": 3600,
+           "lookback_seconds": 600, "resolution": value["resolution"], "cash": value["cash"],
+           "fee_rate": value["cost"]["fee_rate"], "max_participation": value["cost"]["max_participation"],
+           **{key: value[key] for key in ("venue", "valuation_symbol", "cash_by_currency", "fx_rebalance")}}
+    research_action(tmp_path, "schedule", job)
+    completed, = asyncio.run(calculate(tmp_path, "tick", at=job["first_at"]))["completed"]
+    assert completed["run_id"] == run["run_id"]
+    checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": run["run_id"], "quote_count": 80})["record"]
+    assert research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})["result_digest"] == run["outputs_digest"]
+    with pytest.raises(ValueError, match="needs valuation_symbol"):
+        research_action(tmp_path, "portfolio-replay", {**value, "valuation_symbol": None})
+    with pytest.raises(ValueError, match="matching the valuation pair"):
+        research_action(tmp_path, "portfolio-replay", {**value, "valuation_symbol": "BETA"})
+    stop_at = START + timedelta(minutes=5, seconds=20)
+    db = MarketDB(tmp_path / "market.db")
+    try:
+        db.upsert_instrument(InstrumentId(venue, pair, "EUR", "GBP"), {},
+                             {"is_spot": False}, "fixture", stop_at)
+    finally:
+        db.c.close()
+    disabled = research_action(tmp_path, "portfolio-replay", value)
+    disabled_run = research_action(tmp_path, "portfolio-read", {"run_id": disabled["run_id"]})
+    disabled_orders = disabled_run["result"]["fx_orders"]
+    assert any(order["status"] == "NONFILL" and order["decision_time"] >= iso(stop_at) for order in disabled_orders)
+    assert all(order["fill_time"] < iso(stop_at) for order in disabled_orders if order["status"] == "FILLED")
+    assert disabled_run["result"]["end"]["valuation_status"] == "STALE_VALUATION"
