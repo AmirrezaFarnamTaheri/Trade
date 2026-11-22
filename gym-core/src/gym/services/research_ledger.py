@@ -72,7 +72,8 @@ def _scheduled_replay(db, job, hypothesis, end, store, root):
         return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
                          universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),
                          fx_rebalance=job.get("fx_rebalance"),
-                         margin_plans=load_margin_plans(root, job.get("margin_positions"))), "portfolios"
+                         margin_plans=load_margin_plans(root, job.get("margin_positions")),
+                         rank_gate=job.get("rank_gate")), "portfolios"
     strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
     db.c.execute("BEGIN")
     try:
@@ -230,7 +231,7 @@ class ResearchLedger:
 
     def schedule(self, request):
         required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
-        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes", "fx_rebalance", "margin_positions")
+        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes", "fx_rebalance", "margin_positions", "rank_gate")
                     if isinstance(request, dict) and key in request]
         fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
@@ -275,6 +276,12 @@ class ResearchLedger:
             if "cash_by_currency" not in body or body["margin_positions"] is None:
                 raise ValueError("margin_positions requires mixed-currency funding and preview-backed positions")
             load_margin_plans(self.path.parent, body["margin_positions"])
+        if "rank_gate" in body:
+            from .portfolio_rank import PortfolioRank
+
+            if {"portfolio_symbols", "cash_by_currency"}.isdisjoint(body) or body["resolution"] == "session":
+                raise ValueError("rank_gate requires a portfolio with fixed-duration bars")
+            PortfolioRank(body["rank_gate"], BarSpec(body["resolution"]).step)
         key, encoded = digest(body), _json(body)
         with self._write():
             self.conn.execute("INSERT OR IGNORE INTO jobs VALUES(?,?,?,1)", (key, encoded, body["first_at"]))

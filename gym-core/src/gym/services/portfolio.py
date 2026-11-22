@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
 
 from ..adapters.store import MarketDB
-from ..domain.bars import qualified
+from ..domain.bars import BarSpec, qualified
 from ..domain.execution_costs import modeled_execution_cost
 from ..domain.model import InstrumentId, QualityLimits, iso, parse_ts
 from ..domain.performance import performance, trade_ledger
@@ -24,6 +24,7 @@ from ..domain.rules import is_closed
 from ..domain.sim import CashBook, CostModel, sellable_quantity
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
+from .portfolio_rank import PortfolioRank
 from .rules import RuleService
 from .session import ENGINE_VERSION, LIMIT_ENGINE_VERSION, PaperSession
 
@@ -67,7 +68,7 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
               checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True,
               cash_by_currency: dict | None = None, dynamic_routes: bool = False,
               funding_legs: list | None = None, fx_rebalance: dict | None = None, margin_plans=None,
-              venue: str = "wallex") -> dict:
+              venue: str = "wallex", rank_gate: dict | None = None) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
@@ -77,26 +78,31 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
                           strategy_id=strategy_id, params=params, rules_mode=rules_mode, store=store,
                           policy=policy, checkpoint=checkpoint, universe_selection=universe_selection,
                           booked_accounting=booked_accounting, cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes,
-                          funding_legs=funding_legs, fx_rebalance=fx_rebalance, margin_plans=margin_plans)
+                          funding_legs=funding_legs, fx_rebalance=fx_rebalance, margin_plans=margin_plans, rank_gate=rank_gate)
     finally:
         db.c.rollback()
 
 
 def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance,
-               margin_plans):
+               margin_plans, rank_gate):
     """Replay strictly prior market observations against a shared simulated cash book."""
     if portal.venue != "wallex" and (cash_by_currency is not None or universe_selection is not None):
         raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
     _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection,
                    multicurrency=cash_by_currency is not None)
-    if cash_by_currency is not None:
+    if rank_gate is not None:
+        step = BarSpec(resolution).step
+        if resolution == "session" or ((t1 - t0) // step + 2) * len(symbols) > 100_000:
+            raise ValueError("rank replay requires fixed bars and at most 100000 instrument cutoffs")
+        rank_gate = PortfolioRank(rank_gate, step)
+    if cash_by_currency is not None or rank_gate is not None:
         symbols = sorted(symbols)
     return _Replay(portal, symbols, t0, t1, resolution=resolution, cash=cash, cost=cost, strategy_id=strategy_id,
                    params=params, rules_mode=rules_mode, store=store, policy=policy, checkpoint=checkpoint,
                    universe_selection=universe_selection, booked_accounting=booked_accounting,
                    cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes, funding_legs=funding_legs,
-                   fx_rebalance=fx_rebalance, margin_plans=margin_plans).run()
+                   fx_rebalance=fx_rebalance, margin_plans=margin_plans, rank_gate=rank_gate).run()
 
 
 class _Replay:
@@ -107,13 +113,14 @@ class _Replay:
 
     def __init__(self, portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
                  checkpoint, universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs,
-                 fx_rebalance, margin_plans):
+                 fx_rebalance, margin_plans, rank_gate):
         self.db, self.symbols, self.t0, self.t1 = portal.db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
         self.universe_selection = universe_selection
         self.booked_accounting = booked_accounting
         self.portal = portal
+        self.rank_gate = rank_gate
         self.rules_for, self.rule_evidence = _rule_timeline(self.db, rules_mode)
         self.instruments = {s: self.portal.instrument(s) for s in symbols}
         if any(inst.kind != "SPOT" for inst in self.instruments.values()):
@@ -493,7 +500,9 @@ class _Replay:
         if (self.controller.description["rebalance"] and self.weights["status"] == "READY"
                 and symbol in self.rebalance_pending and not risk_state
                 and action in ("HOLD", "BUY_REQUEST", "SELL_REQUEST")):
-            return self._rebalance(symbol, action, fraction, reasons)
+            action, fraction, reasons = self._rebalance(symbol, action, fraction, reasons)
+        if self.rank_gate:
+            return self.rank_gate.filter_entry(symbol, action, fraction, reasons)
         return action, fraction, reasons
 
     def _rebalance(self, symbol, action, fraction, reasons):
@@ -567,6 +576,9 @@ class _Replay:
             self.rebalance_pending.clear()
         if self.dynamic_routes:
             self._choose_routes(close)
+        if self.rank_gate:
+            active = set(self.trade_routes.values()) if self.dynamic_routes else self.sessions
+            self.rank_gate.advance(close, self.instruments, self.rules_for(close), active)
         for session in self.sessions.values():
             session.scan(close)
         if self.fx_rebalance is not None:
@@ -601,6 +613,8 @@ class _Replay:
         """One quote: marks, risk, the pending entry's funded share, the session itself and holdings bookkeeping."""
         book, quote, reserved = self.book, self.instruments[symbol].quote, self.reserved
         self.close_through(top.ts_avail)
+        if self.rank_gate:
+            self.rank_gate.tops[symbol] = top
         if qualified(top):
             self.mark_order.setdefault(symbol, len(self.mark_order))
             self.marks[symbol] = top.bid
@@ -662,6 +676,7 @@ class _Replay:
                 **({"mixed_residuals": self.otc_fx.residuals} if self.otc_fx and self.otc_fx.mixed else {}),
                 **({"residual_recovery": self.otc_fx.unwind} if self.otc_fx and self.otc_fx.residual_attempts else {}),
                 **({"margin": self.margin.checkpoint()} if self.margin else {}),
+                **({"rank_gate": self.rank_gate.checkpoint()} if self.rank_gate else {}),
                 "sessions": {s: {"cursor": session.cursor, "state": session.state, "decisions": session.decisions,
                     "orders": session.orders, "pending": asdict(session.pending) if session.pending else None,
                     "bar_events": session.bar_events, "rules": session.rule_snapshots,
@@ -767,6 +782,8 @@ class _Replay:
             inputs["portfolio_version"] = 24
         if self.margin and any("protection_edits" in request for request in self.margin.requests):
             inputs["portfolio_version"] = 25
+        if self.rank_gate:
+            inputs.update(portfolio_version=26, rank_gate=self.rank_gate.config, rank_evidence=digest(self.rank_gate.events))
         return inputs
 
     def _output(self):
@@ -810,6 +827,8 @@ class _Replay:
         if self.margin:
             result["margin_positions"] = self.margin.report()
             result["margin_risk_state"] = self.risk_state
+        if self.rank_gate:
+            result["rank_gate"] = self.rank_gate.events
         if self.policy is not None:
             result["policy_events"] = self.policy_events
             result["policy_state"] = {"risk": self.risk_state, "weights": self.weights, "clock": "Asia/Tehran",

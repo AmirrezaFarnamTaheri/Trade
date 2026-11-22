@@ -119,7 +119,7 @@ def portfolio_checkpoint(registry, db, request, *, saved):
     out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
     # Preserve historical variants that can be replayed by the current engine.
-    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in range(5, 26) or inputs["rules_mode"] != "point-in-time":
+    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in range(5, 27) or inputs["rules_mode"] != "point-in-time":
         raise ValueError("checkpoint requires a current point-in-time portfolio")
     if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
         raise ValueError("checkpoint saved portfolio evidence changed")
@@ -136,7 +136,7 @@ def portfolio_checkpoint(registry, db, request, *, saved):
         "fx_rebalance": inputs.get("fx_rebalance"),
         "margin_plans": load_margin_plans(registry.root, inputs.get("margin_positions")),
         "booked_accounting": inputs.get("trade_accounting") == "booked-notional/1",
-        "venue": inputs.get("venue", "wallex")}
+        "venue": inputs.get("venue", "wallex"), "rank_gate": inputs.get("rank_gate")}
     checkpoint = {"quote_count": count}
     rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
     if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):

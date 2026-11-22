@@ -61,7 +61,7 @@ def portfolio_action(root, action, value, *, store):
     if (type(value) is not dict or not required <= value.keys()
             or value.keys() - required - {"symbols", "policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis",
                                           "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance",
-                                          "margin_positions", "venue"}):
+                                          "margin_positions", "venue", "rank_gate"}):
         raise ValueError("invalid portfolio replay fields")
     symbols = value.get("symbols", [])
     whole_request = "symbols" not in value and "cash_by_currency" in value and "top_n" not in value
@@ -147,7 +147,7 @@ def portfolio_action(root, action, value, *, store):
                         policy=value.get("policy"), universe_selection=selection, cash_by_currency=value.get("cash_by_currency"),
                         dynamic_routes=value.get("dynamic_routes", False), funding_legs=value.get("funding_legs"),
                         fx_rebalance=value.get("fx_rebalance"), margin_plans=load_margin_plans(root, value.get("margin_positions")),
-                        venue=venue)
+                        venue=venue, rank_gate=value.get("rank_gate"))
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))
