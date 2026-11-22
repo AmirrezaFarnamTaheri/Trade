@@ -15,7 +15,13 @@ from gym.services.collector import Collector
 from gym.services.research_actions import research_action
 from gym.services.research_process import calculate
 from gym.services.rules import RuleService
-from tests.support import START, market_db, quote_history, supplied_otc_quote
+from tests.support import (
+    START,
+    market_db,
+    quote_history,
+    supplied_otc_quote,
+    supplied_otc_route,
+)
 
 
 def request():
@@ -111,7 +117,7 @@ def test_opening_conversion_flows_into_portfolio_and_checkpoint(tmp_path, includ
         research_action(tmp_path, "portfolio-replay", value)
 
 
-@pytest.mark.parametrize("otc", ["none", "better", "costlier", "expired"])
+@pytest.mark.parametrize("otc", ["none", "better", "costlier", "expired", "route", "route_expired"])
 def test_in_window_fx_rebalances_on_later_receipts_and_recovers(tmp_path, otc):
     from dataclasses import replace
 
@@ -126,15 +132,25 @@ def test_in_window_fx_rebalances_on_later_receipts_and_recovers(tmp_path, otc):
         value["fx_rebalance"]["otc_quotes"] = [supplied_otc_quote(
             price="102" if otc == "costlier" else "98",
             expiry_seconds=30 if otc == "expired" else 180)]
+    if otc.startswith("route"):
+        value["fx_rebalance"]["otc_routes"] = [supplied_otc_route(expiry_seconds=63 if otc == "route_expired" else 180)]
     response = research_action(tmp_path, "portfolio-replay", value)
     record = research_action(tmp_path, "portfolio-read", {"run_id": response["run_id"]})
-    assert record["inputs"]["portfolio_version"] == (18 if otc == "none" else 19)
+    assert record["inputs"]["portfolio_version"] == (20 if otc.startswith("route") else 18 if otc == "none" else 19)
     result = record["result"]
     fills = [row for row in result["fx_orders"] if row["status"] == "FILLED"]
     otc_fills = [row for row in fills if row.get("venue_model") == "SUPPLIED_OTC_QUOTE"]
-    assert len(otc_fills) == (1 if otc == "better" else 0)
+    route_fills = [row for row in fills if row.get("venue_model") == "SUPPLIED_OTC_ROUTE"]
+    assert len(otc_fills) == int(otc in {"better", "route", "route_expired"})
+    assert len(route_fills) == int(otc == "route")
     assert fills and all(row["fill_time"] > row["decision_time"] for row in fills)
-    assert all(Decimal(row["qty"]) <= 1 for row in fills if row not in otc_fills)
+    assert all(Decimal(row["qty"]) <= 1 for row in fills if "venue_model" not in row)
+    for fill in route_fills:
+        assert Decimal(fill["source_debit"]) == 90 and Decimal(fill["destination_credit"]) == Decimal("8.91")
+        first, last = fill["legs"]
+        assert first["submit_at"] < first["modeled_settle_at"] < last["submit_at"] < fill["fill_time"]
+        actual = [p for p in result["postings"] if p["ref"] == fill["ref"]]
+        assert all(p["t"] == fill["fill_time"] for p in actual)
     for fill in otc_fills:
         assert fill["submit_time"] < fill["fill_time"]
         assert Decimal(fill["qty"]) == 10 and Decimal(fill["price"]) == 98
@@ -148,6 +164,8 @@ def test_in_window_fx_rebalances_on_later_receipts_and_recovers(tmp_path, otc):
         balances[ccy] = balances.get(ccy, Decimal(0)) + Decimal(posting["amount"])
         assert balances[ccy] >= 0
     assert balances == {ccy: Decimal(amount) for ccy, amount in result["balances"].items()}
+    if route_fills:
+        assert balances["X"] == 0
     for count in (13, 55):
         checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": response["run_id"], "quote_count": count})["record"]
         assert research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})["status"] == "EXACT_MATCH"

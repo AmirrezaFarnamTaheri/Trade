@@ -266,8 +266,7 @@ class ResearchLedger:
             from .portfolio_otc import PortfolioOTC
 
             fx_rebalance_limits(body["fx_rebalance"])
-            if "otc_quotes" in body["fx_rebalance"]:
-                PortfolioOTC(body["fx_rebalance"]["otc_quotes"])
+            PortfolioOTC.from_policy(body["fx_rebalance"])
         key, encoded = digest(body), _json(body)
         with self._write():
             self.conn.execute("INSERT OR IGNORE INTO jobs VALUES(?,?,?,1)", (key, encoded, body["first_at"]))

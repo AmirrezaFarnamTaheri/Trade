@@ -35,8 +35,8 @@ MAX_MARKETS = 500
 def fx_rebalance_limits(value):
     from ..domain.market_models import decimal, fields
 
-    fields(value, "target_usdt_cash_share band max_order_usdt"
-           + (" otc_quotes" if isinstance(value, dict) and "otc_quotes" in value else ""))
+    optional = [key for key in ("otc_quotes", "otc_routes") if isinstance(value, dict) and key in value]
+    fields(value, " ".join(("target_usdt_cash_share band max_order_usdt", *optional)))
     target = decimal(value["target_usdt_cash_share"])
     band = decimal(value["band"], positive=True)
     cap = decimal(value["max_order_usdt"], positive=True)
@@ -112,10 +112,9 @@ class _Replay:
                     or cost.walk_depth or cost.max_participation is None or cost.impact_models
                     or cost.hourly_costs or cost.postfill_costs):
                 raise ValueError("invalid in-window FX rebalance settings")
-            if "otc_quotes" in fx_rebalance:
-                from .portfolio_otc import PortfolioOTC
+            from .portfolio_otc import PortfolioOTC
 
-                self.otc_fx = PortfolioOTC(fx_rebalance["otc_quotes"])
+            self.otc_fx = PortfolioOTC.from_policy(fx_rebalance)
         if type(dynamic_routes) is not bool or (dynamic_routes and (
                 not self.multicurrency or strategy_id != "ema-trend" or cost.order_type != "market"
                 or cost.walk_depth or cost.max_participation is None or cost.market_fees
@@ -700,8 +699,8 @@ class _Replay:
             inputs.update(portfolio_version=17, funding_legs=self.funding_legs,
                           funding_evidence=digest(self.funding_result))
         if self.fx_rebalance is not None:
-            inputs.update(portfolio_version=19 if self.otc_fx else 18, fx_rebalance=self.fx_rebalance,
-                          fx_execution_evidence=digest(self.fx_orders))
+            version = 20 if "otc_routes" in self.fx_rebalance else 19 if self.otc_fx else 18
+            inputs.update(portfolio_version=version, fx_rebalance=self.fx_rebalance, fx_execution_evidence=digest(self.fx_orders))
         return inputs
 
     def _output(self):

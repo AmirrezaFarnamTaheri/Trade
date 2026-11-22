@@ -6,7 +6,7 @@ import pytest
 
 from gym.cli import main
 from gym.services.operator_actions import operator_action
-from tests.support import START, market_db, quote
+from tests.support import START, market_db, quote, supplied_otc_route
 
 
 @pytest.fixture
@@ -157,3 +157,44 @@ def test_portfolio_otc_sell_reserves_cash_until_settlement():
     assert book.balances == {"USDT": 10, "TMN": Decimal("1018.98")}
     assert len(events) == 1 and routing.reserved("USDT") == 0
     assert not routing.select(settle + timedelta(seconds=1), "SELL", Decimal(10), **terms)
+
+
+def test_two_leg_portfolio_otc_reserves_source_and_prevents_quote_reuse():
+    from gym.domain.sim import CashBook
+    from gym.services.portfolio_otc import PortfolioOTC
+
+    route = supplied_otc_route()
+    second_candidate = supplied_otc_route()
+    second_candidate[1]["quote"]["price"] = "0.95"
+    at = START + timedelta(seconds=60)
+    routing = PortfolioOTC([], routes=[second_candidate, route])
+    book = CashBook({"TMN": Decimal(100), "USDT": Decimal(0)})
+    terms = {"cash": Decimal(100), "spot_price": Decimal(100), "spot_fee": Decimal(0),
+             "latency": timedelta(seconds=1), "end": START + timedelta(minutes=5)}
+    events = []
+    assert not routing.select(at, "BUY", Decimal(10), **{**terms, "cash": Decimal(89)})
+    assert routing.select(at, "BUY", Decimal(10), **terms)
+    first_settle = at + timedelta(seconds=6)
+    routing.advance(first_settle + timedelta(seconds=1), book, events)
+    assert routing.reserved("TMN") == 90 and routing.reserved("USDT") == 0
+    assert book.balances == {"TMN": 100, "USDT": 0} and not events
+    assert not routing.select(first_settle + timedelta(seconds=1), "BUY", Decimal(10), **terms)
+    finish = at + timedelta(seconds=12)
+    routing.advance(finish + timedelta(microseconds=1), book, events)
+    assert book.balances == {"TMN": 10, "USDT": Decimal("8.91"), "X": 0}
+    assert routing.reserved("TMN") == 0 and len(events) == 1
+    assert not routing.select(finish + timedelta(seconds=1), "BUY", Decimal(10), **terms)
+
+
+def test_two_leg_portfolio_otc_requires_both_quotes_at_cutoff_and_no_residual():
+    from gym.services.portfolio_otc import PortfolioOTC
+
+    route = supplied_otc_route()
+    at = START + timedelta(seconds=60)
+    route[1]["quote"]["received_at"] = at.isoformat()
+    routing = PortfolioOTC([], routes=[route])
+    assert not routing.select(at, "BUY", Decimal(10), cash=Decimal(100), spot_price=Decimal(100),
+                              spot_fee=Decimal(0), latency=timedelta(0), end=at + timedelta(minutes=1))
+    route[1]["base_quantity"] = "8"
+    with pytest.raises(ValueError, match="without intermediate residual"):
+        PortfolioOTC([], routes=[route])

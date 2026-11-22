@@ -9,7 +9,13 @@ import pytest
 from gym.cli import main
 from gym.domain.model import iso
 from gym.services.research_ledger import ResearchLedger
-from tests.support import START, market_db, quote_history, supplied_otc_quote
+from tests.support import (
+    START,
+    market_db,
+    quote_history,
+    supplied_otc_quote,
+    supplied_otc_route,
+)
 
 
 def hypothesis(ledger):
@@ -104,7 +110,7 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path, limit
         db.c.close()
 
 
-@pytest.mark.parametrize("mode", ["single_currency", "curated", "whole", "fx_rebalance", "otc_rebalance"])
+@pytest.mark.parametrize("mode", ["single_currency", "curated", "whole", "fx_rebalance", "otc_rebalance", "otc_route"])
 def test_portfolio_job_recovers_after_artifact_publication(tmp_path, monkeypatch, mode):
     from dataclasses import replace
 
@@ -121,10 +127,12 @@ def test_portfolio_job_recovers_after_artifact_publication(tmp_path, monkeypatch
         opening = {"cash_by_currency": {"TMN": "100000", "USDT": "1000"}}
     db = market_db(tmp_path, rows)
     options = {**opening, "portfolio_symbols": ["BTCUSDT", second]} if mode != "whole" else opening
-    if mode in ("fx_rebalance", "otc_rebalance"):
+    if mode in ("fx_rebalance", "otc_rebalance", "otc_route"):
         options["fx_rebalance"] = {"target_usdt_cash_share": "0.8", "band": "0.1", "max_order_usdt": "10"}
     if mode == "otc_rebalance":
         options["fx_rebalance"]["otc_quotes"] = [supplied_otc_quote()]
+    if mode == "otc_route":
+        options["fx_rebalance"]["otc_routes"] = [supplied_otc_route()]
     if mode == "whole":
         for symbol, spec in [("BTCUSDT", '{"is_spot":true}'), ("ETHTMN", '{"is_spot":true}'),
                              ("OTCTMN", '{"is_spot":false,"is_otc":true}')]:
@@ -166,6 +174,9 @@ def test_portfolio_job_recovers_after_artifact_publication(tmp_path, monkeypatch
             assert any(order["status"] == "FILLED" for order in saved["result"]["fx_orders"])
         if mode == "otc_rebalance":
             assert sum(order.get("venue_model") == "SUPPLIED_OTC_QUOTE"
+                       for order in saved["result"]["fx_orders"]) == 1
+        if mode == "otc_route":
+            assert sum(order.get("venue_model") == "SUPPLIED_OTC_ROUTE"
                        for order in saved["result"]["fx_orders"]) == 1
         if mode == "whole":
             selection = saved["inputs"]["universe_selection"]
