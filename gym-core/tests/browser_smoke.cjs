@@ -92,7 +92,7 @@ function stop(child) {
   });
   const evaluate = async expression => {
     const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
     return result.result.value;
   };
   diagnostic = async () => ({ errors, page: await evaluate(`({
@@ -285,7 +285,10 @@ function stop(child) {
   assert.equal(comparison.runs[0].inputs.snapshots, comparison.runs[1].inputs.snapshots);
   await until(() => evaluate('document.querySelector("#compare-result").textContent.includes("ema-trend")'), 'rendered paper result');
   await screenshot('research-desktop.png');
-  await evaluate('document.querySelector("#tab-workbench").click(); document.querySelector("#portfolio-load").click()');
+  await evaluate('document.querySelector("#tab-workbench").click()');
+  await until(() => evaluate(`!document.querySelector('#panel-workbench').hidden &&
+    document.querySelector('#portfolio-load')?.disabled === false`), 'mounted portfolio workbench');
+  await evaluate('document.querySelector("#portfolio-load").click()');
   await until(() => evaluate('!document.querySelector("#portfolio-fields").disabled'), 'whole-market workbench setup');
   assert(await evaluate(`document.querySelector('#portfolio-universe').value === 'whole' &&
     document.querySelector('#portfolio-symbol-options').hidden && !document.querySelector('#portfolio-mixed-cash').hidden`));
