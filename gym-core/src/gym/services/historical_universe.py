@@ -9,6 +9,23 @@ from ..domain.model import iso
 from ..domain.strategy import digest
 
 
+def _observed_receipts(db, begin, end):
+    # Seek each instrument key and then its latest receipt instead of scanning all of its book rows.
+    return {key[7:]: receipt for key, receipt in db.c.execute("""
+        WITH RECURSIVE keys(symbol_key) AS (
+            SELECT min(instrument_id) FROM book_top WHERE instrument_id >= 'wallex:'
+            UNION ALL
+            SELECT (SELECT min(instrument_id) FROM book_top WHERE instrument_id > keys.symbol_key)
+            FROM keys WHERE symbol_key GLOB 'wallex:*'
+        ), recent AS (
+            SELECT symbol_key, (SELECT max(ts_avail) FROM book_top
+                WHERE instrument_id = keys.symbol_key AND ts_avail >= ? AND ts_avail <= ?) AS receipt
+            FROM keys WHERE symbol_key GLOB 'wallex:*'
+        )
+        SELECT symbol_key, receipt FROM recent WHERE receipt IS NOT NULL
+        """, (begin, end))}
+
+
 def universe_manifest(db, request, *, store):
     """Resolve one decision cutoff from effective specs and observed receipt history."""
     fields(request, "as_of lookback_seconds" + (" symbols" if isinstance(request, dict) and "symbols" in request else ""))
@@ -28,9 +45,7 @@ def universe_manifest(db, request, *, store):
             "AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) ORDER BY instrument_id, valid_from DESC",
             (end, end)):
         specs.setdefault(instrument[7:], (version, raw))
-    observed = {instrument[7:]: received for instrument, received in db.c.execute(
-        "SELECT instrument_id, max(ts_avail) FROM book_top WHERE instrument_id GLOB 'wallex:*' "
-        "AND ts_avail>=? AND ts_avail<=? GROUP BY instrument_id", (begin, end))}
+    observed = _observed_receipts(db, begin, end)
     known = specs.keys() | observed.keys()
     unknown = sorted(set(curated) - known)
     if unknown:

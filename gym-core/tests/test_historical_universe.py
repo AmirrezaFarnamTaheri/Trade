@@ -44,6 +44,25 @@ def test_universe_manifest_preserves_catalogue_only_markets_and_rejects_unknown_
         research_action(tmp_path, "universe-manifest", {**request, "symbols": ["UNKNOWN"]})
 
 
+def test_receipt_search_includes_aligned_bounds_and_excludes_other_venues(tmp_path):
+    from tests.support import quote
+
+    start, end = START, START + timedelta(minutes=1)
+    before, after = start - timedelta(microseconds=1), end + timedelta(microseconds=1)
+    db = market_db(tmp_path, [])
+    try:
+        for symbol, stamp in (("BTCUSDT", before), ("BTCUSDT", start), ("BTCUSDT", end), ("BTCUSDT", after),
+                              ("ETHUSDT", start), ("SOLUSDT", before), ("XRPUSDT", after)):
+            db.add_book_top(replace(quote(stamp, "99", "100"), symbol=symbol), None)
+        db.add_book_top(replace(quote(end, "99", "100"), symbol="OTHERUSDT"), None, venue="lab")
+    finally:
+        db.c.close()
+    manifest = research_action(tmp_path, "universe-manifest", {"as_of": iso(end), "lookback_seconds": 60})
+    assert {row["symbol"]: row["last_quote_receipt"] for row in manifest["markets"]} == {
+        "BTCUSDT": iso(end), "ETHUSDT": iso(start),
+    }
+
+
 def test_trade_volume_selection_uses_only_pre_start_receipts(tmp_path):
     """Later publication cannot turn a historically obscure market into a winner."""
     db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
