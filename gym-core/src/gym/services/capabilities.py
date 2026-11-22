@@ -1,13 +1,13 @@
 """Current application capabilities, independent of any claimed venue/account permissions."""
+import json
 from datetime import timedelta
 
 from ..adapters.wallex import MAX_CHANNELS, UDF_RESOLUTIONS
 from ..domain.bars import FIXED_RESOLUTIONS
 from ..domain.margin import market_rule
 from ..domain.market_models import fields
-from ..domain.model import iso, now_utc, parse_ts
+from ..domain.model import InstrumentId, iso, now_utc, parse_ts
 from .collector import MAX_ASSETS, REST_REQUESTS_PER_SECOND, _value
-from .data_portal import DataPortal
 from .margin import MARKETS, ORIGIN, load_receipt
 
 
@@ -52,6 +52,28 @@ VENUE_FLAGS = (("spot", "is_spot"), ("margin", "is_margin"), ("otc", "is_otc"), 
                ("otc_min_notional", "otc_min_notional"), ("otc_max_notional", "otc_max_notional"))
 
 
+def _observed_product_rows(db, now):
+    # Walk to the next distinct index key instead of visiting each historical quote.
+    return db.c.execute("""
+        WITH RECURSIVE observed(instrument_id, n) AS (
+            SELECT (SELECT min(instrument_id) FROM book_top), 1
+            UNION ALL
+            SELECT (SELECT min(instrument_id) FROM book_top WHERE instrument_id > observed.instrument_id), n + 1
+            FROM observed WHERE instrument_id IS NOT NULL AND n < 1001
+        )
+        SELECT o.instrument_id, i.base, i.quote, s.valid_from, s.spec
+        FROM observed o
+        LEFT JOIN instruments i ON i.instrument_id = o.instrument_id
+        LEFT JOIN instrument_specs s ON s.instrument_id = o.instrument_id AND s.valid_from = (
+            SELECT valid_from FROM instrument_specs
+            WHERE instrument_id = o.instrument_id AND valid_from <= ? AND (valid_to IS NULL OR valid_to > ?)
+            ORDER BY valid_from DESC LIMIT 1
+        )
+        WHERE o.instrument_id IS NOT NULL
+        ORDER BY o.n
+        """, (iso(now), iso(now))).fetchall()
+
+
 def market_products(root, db, value, *, store):
     fields(value, "margin_catalogue_id")
     now, catalogue, rules = now_utc(), None, {}
@@ -69,15 +91,15 @@ def market_products(root, db, value, *, store):
     fresh = catalogue is not None and timedelta(0) <= now - parse_ts(catalogue["received_at"]) <= timedelta(minutes=5)
     db.c.execute("BEGIN")
     try:
-        symbols = [row[0].split(":", 1)[-1] for row in db.c.execute("SELECT DISTINCT instrument_id FROM book_top ORDER BY instrument_id LIMIT 1001")]
-        if len(symbols) > 1000:
+        stored = _observed_product_rows(db, now)
+        if len(stored) > 1000:
             raise ValueError("market capability observation budget exceeded")
-        portal, rows = DataPortal(db), []
-        for symbol in symbols:
-            instrument = portal.instrument(symbol)
+        rows = []
+        for instrument_id, base, quote, valid_from, raw_spec in stored:
+            symbol = instrument_id.split(":", 1)[-1]
+            instrument = InstrumentId.wallex(symbol, base, quote)
             rule = rules.get(symbol)
-            metadata = portal.metadata_at(symbol, now)
-            raw = metadata["raw"] if metadata else {}
+            raw = json.loads(raw_spec) if valid_from else {}
             rows.append({"symbol": symbol, "base": instrument.base, "quote": instrument.quote,
                 "spot": {"status": "OBSERVED" if store == "live" else "SYNTHETIC", "buy": "PAPER_LONG", "sell": "OWNED_ASSET_ONLY", "leverage": "1"},
                 "margin": {"status": "UNKNOWN" if catalogue is None else "STALE_CATALOGUE" if not fresh else "LISTED" if rule else "NOT_LISTED",
@@ -86,7 +108,7 @@ def market_products(root, db, value, *, store):
                     "receipt_id": catalogue and catalogue["run_id"], "received_at": catalogue and catalogue["received_at"],
                     "paper_only": True},
                 # The venue's own catalogue flags in the stored version valid now; None means no catalogue row is stored.
-                "venue": {"valid_from": iso(metadata["valid_from"]), **{name: raw.get(key) for name, key in VENUE_FLAGS}} if metadata else None,
+                "venue": {"valid_from": iso(parse_ts(valid_from)), **{name: raw.get(key) for name, key in VENUE_FLAGS}} if valid_from else None,
                 "trade_credit": "ACCOUNT_ELIGIBILITY_UNVERIFIED", "funded_submission": "UNAVAILABLE"})
     finally:
         db.c.rollback()
