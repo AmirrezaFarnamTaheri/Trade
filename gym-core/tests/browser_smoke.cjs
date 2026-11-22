@@ -321,6 +321,26 @@ function stop(child) {
   assert.equal(portfolioInputs.universe_selection.schema, 'whole-spot-universe/1');
   assert.equal(portfolioInputs.rank_gate.method, 'momentum');
   assert.equal(portfolioInputs.symbols.length, 5);
+  await evaluate(`(() => {
+    const action = document.querySelector('#research-action');
+    action.value = 'watchlist-save';
+    action.dispatchEvent(new Event('change'));
+    document.querySelector('#research-action-input').value = JSON.stringify({
+      name: 'Browser watchlist', effective_from: '${fixtureStart.toISOString()}', symbols: ['BTCUSDT', 'ETHTMN']
+    });
+    document.querySelector('#research-action-form button').click();
+  })()`);
+  const watchlistId = await until(() => evaluate(`
+    JSON.parse(document.querySelector('#research-action-result').textContent || '{}').watchlist?.watchlist_id
+  `), 'saved watchlist revision');
+  await evaluate(`
+    document.querySelector('#portfolio-receipt').open = false;
+    document.querySelector('#portfolio-universe').value = 'watchlist';
+    document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
+    document.querySelector('#portfolio-watchlist').value = '${watchlistId}';
+    document.querySelector('#portfolio-submit').click();
+  `);
+  await until(() => evaluate(`document.querySelector('#portfolio-result').textContent.includes('${watchlistId}')`), 'rendered watchlist replay', 60000);
   await evaluate(`document.querySelector("#portfolio-receipt").open = false;
     document.querySelector('#portfolio-universe').value = 'curated';
     document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));

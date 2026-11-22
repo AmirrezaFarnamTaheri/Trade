@@ -156,7 +156,7 @@ class _Replay:
             raise ValueError("dynamic routes require mixed-currency EMA and capped best-level spot execution")
         self.dynamic_routes = dynamic_routes
         self.entry_windows = (universe_selection or {}).get("entry_windows", {})
-        self.variable_routes = dynamic_routes or bool(self.entry_windows)
+        self.variable_routes = dynamic_routes or (self.multicurrency and bool(self.entry_windows))
         self.listed = {s: t0 for s in symbols if s not in self.entry_windows}
         self.listing_events = iter(sorted(
             (parse_ts(stamp), symbol, entering)
@@ -203,7 +203,8 @@ class _Replay:
                 session.risk_budget = lambda symbol=s: self.risk_budget(symbol)
         if self.entry_windows:
             self._advance_listings(t0)
-            self._count_listed_routes()
+            if self.multicurrency:
+                self._count_listed_routes()
         if checkpoint is not None and (type(checkpoint.get("quote_count")) is not int or
                 checkpoint["quote_count"] < 1):
             raise ValueError("portfolio checkpoint cursor exceeds observed quotes")
@@ -365,7 +366,8 @@ class _Replay:
                     session.pending = None
                     self.reserved.pop(symbol, None)
             self.next_listing = next(self.listing_events, None)
-        self._count_listed_routes()
+        if self.multicurrency:
+            self._count_listed_routes()
 
     def _advance_fx(self, at):
         while self.fx_next is not None and self.fx_next.ts_avail < at:
@@ -948,6 +950,9 @@ def _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection
             actual = whole_spot_selection(db, t0, store=universe_selection["store"])
         elif universe_selection.get("schema") == "whole-spot-universe/2":
             actual = whole_window_spot_selection(db, t0, t1, store=universe_selection["store"])
+        elif universe_selection.get("schema") == "watchlist-spot-universe/1":
+            actual = whole_window_spot_selection(db, t0, t1, store=universe_selection["store"],
+                                                 watchlist=universe_selection["watchlist"])
         else:
             actual = select_universe(db, t0, quote_currency=universe_selection["quote_currency"],
                                      top_n=universe_selection["requested_top_n"],

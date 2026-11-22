@@ -203,3 +203,70 @@ def test_membership_ends_after_partial_entry_keeps_fill_and_cancels_remainder(tm
     assert remainder["status"] == "CANCELLED" and remainder["parent"] == filled["ref"]
     assert remainder["cancelled_at"] == iso(loss)
     assert Decimal(market["holding"]) == Decimal(filled["qty"]) - Decimal(filled["fee"])
+
+
+def test_saved_watchlist_pins_the_direct_and_scheduled_market_selection(tmp_path):
+    from tests.test_portfolio_workflow import request
+
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT")
+                   + quote_history(n=180, sym="SOLUSDT"))
+    removed_at = START + timedelta(seconds=250)
+    try:
+        for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+            db.upsert_instrument(InstrumentId.wallex(symbol), {}, {"is_spot": True}, "fixture", START)
+        db.upsert_instrument(InstrumentId.wallex("OTCUSDT"), {}, {"is_spot": False, "is_otc": True}, "fixture", START)
+        db.upsert_instrument(InstrumentId.wallex("BTCUSDT"), {}, {"is_spot": False}, "fixture", removed_at)
+    finally:
+        db.c.close()
+    definition = {"name": "Paper core", "effective_from": iso(START), "symbols": ["OTCUSDT", "ETHUSDT", "BTCUSDT"]}
+    saved = research_action(tmp_path, "watchlist-save", definition)
+    watchlist = saved["watchlist"]
+    key = watchlist["watchlist_id"]
+    assert saved == research_action(tmp_path, "watchlist-save", {**definition, "symbols": definition["symbols"][::-1]})
+    assert saved == research_action(tmp_path, "watchlist-read", {"watchlist_id": key})
+    manifest = research_action(tmp_path, "universe-manifest", {
+        "as_of": iso(START), "lookback_seconds": 86400, "watchlist_id": key})
+    assert manifest["watchlist"] == watchlist and manifest["coverage"]["resolved"] == 3
+    assert manifest["markets"][-1]["status"] == "NO_RECENT_QUOTE"
+    value = {**request(), "watchlist_id": key}
+    del value["symbols"]
+    replay = research_action(tmp_path, "portfolio-replay", value)
+    selection = replay["universe_selection"]
+    assert selection["manifest_id"] == manifest["manifest_id"]
+    assert selection["symbols"] == ["BTCUSDT", "ETHUSDT"]
+    assert selection["entry_windows"] == {"BTCUSDT": [[iso(START), iso(removed_at)]]}
+    assert selection["excluded"] == {"OTCUSDT": "SPOT_NOT_CONFIRMED"}
+    with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+        hypothesis = ledger.register({"symbol": "BTCUSDT", "strategy": value["strategy"], "params": value["params"]})
+        ledger.schedule({"hypothesis_id": hypothesis["hypothesis_id"], "first_at": value["to"], "every_seconds": 3600,
+                         "lookback_seconds": 1800, "resolution": value["resolution"], "cash": value["cash"],
+                         "fee_rate": value["cost"]["fee_rate"], "watchlist_id": key})
+    replacement = research_action(tmp_path, "watchlist-save", {**definition, "symbols": ["ETHUSDT", "SOLUSDT"]})
+    assert replacement["watchlist"]["watchlist_id"] != key
+    (tmp_path / "watchlists" / f"{key}.json").unlink()
+    completed, = asyncio.run(calculate(tmp_path, "tick", at=value["to"]))["completed"]
+    assert completed["run_id"] == replay["run_id"]
+    checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": replay["run_id"], "quote_count": 100})["record"]
+    assert research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})["result_digest"] == replay["outputs_digest"]
+
+
+def test_watchlist_rejects_mixed_selectors_bad_dates_and_forged_revisions(tmp_path):
+    db = market_db(tmp_path, quote_history(n=3))
+    db.c.close()
+    definition = {"name": "Test", "effective_from": iso(START + timedelta(seconds=1)), "symbols": ["BTCUSDT", "TYPOUSDT"]}
+    record = research_action(tmp_path, "watchlist-save", definition)["watchlist"]
+    key = record["watchlist_id"]
+    request = {"as_of": iso(START), "lookback_seconds": 60, "watchlist_id": key}
+    with pytest.raises(ValueError, match="not effective"):
+        research_action(tmp_path, "universe-manifest", request)
+    request["as_of"] = iso(START + timedelta(seconds=2))
+    with pytest.raises(ValueError, match="unknown markets.*TYPOUSDT"):
+        research_action(tmp_path, "universe-manifest", request)
+    with pytest.raises(ValueError, match="exactly these fields"):
+        research_action(tmp_path, "universe-manifest", {**request, "symbols": ["BTCUSDT"]})
+    with pytest.raises(ValueError, match="distinct market symbols"):
+        research_action(tmp_path, "watchlist-save", {**definition, "symbols": []})
+    path = tmp_path / "watchlists" / f"{key}.json"
+    path.write_text(path.read_text(encoding="utf-8").replace("TYPOUSDT", "XRPUSDT"), encoding="utf-8")
+    with pytest.raises(ValueError, match="revision evidence changed"):
+        research_action(tmp_path, "watchlist-read", {"watchlist_id": key})

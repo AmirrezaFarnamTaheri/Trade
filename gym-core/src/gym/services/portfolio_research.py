@@ -18,12 +18,12 @@ from .portfolio_margin import load_margin_plans
 from .trial_ledger import TrialLedger
 
 
-def _resolve_selection(db, value, symbols, start, end, *, whole_request, as_of_request, store, venue):
-    if whole_request:
+def _resolve_selection(db, value, symbols, start, end, *, whole_request, watchlist, store, venue):
+    if whole_request or watchlist is not None:
         from .historical_universe import whole_window_spot_selection
 
-        selection = whole_window_spot_selection(db, start, end, store=store)
-    elif as_of_request:
+        selection = whole_window_spot_selection(db, start, end, store=store, watchlist=watchlist)
+    elif "top_n" in value:
         from .historical_universe import select_universe
 
         selection = select_universe(db, start, quote_currency=value.get("quote_currency"),
@@ -36,10 +36,28 @@ def _resolve_selection(db, value, symbols, start, end, *, whole_request, as_of_r
     if len(resolved) < 2:
         raise ValueError("portfolio requires at least two supported markets")
     portal = DataPortal(db, venue=venue)
-    if not whole_request and any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1",
+    if not whole_request and watchlist is None and any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1",
                                                   (portal.instrument_key(s),)).fetchone() for s in resolved):
         raise ValueError("portfolio requires observed markets")
     return resolved, selection
+
+
+def _universe_request(value):
+    symbols = value.get("symbols", [])
+    watchlist_request = "watchlist_id" in value
+    if watchlist_request and {"symbols", "top_n"} & value.keys():
+        raise ValueError("watchlist_id, symbols and top_n are mutually exclusive")
+    whole_request = not watchlist_request and "symbols" not in value and "cash_by_currency" in value and "top_n" not in value
+    as_of_request = "top_n" in value or whole_request or watchlist_request
+    venue = value.get("venue", "wallex")
+    if venue != "wallex" and (as_of_request or "cash_by_currency" in value):
+        raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
+    if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
+            or (as_of_request and symbols != [])
+            or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
+            or len(set(symbols)) != len(symbols)):
+        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct market symbols")
+    return symbols, whole_request, watchlist_request, as_of_request, venue
 
 
 def portfolio_action(root, action, value, *, store):
@@ -64,22 +82,17 @@ def portfolio_action(root, action, value, *, store):
     if (type(value) is not dict or not required <= value.keys()
             or value.keys() - required - {"symbols", "policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis",
                                           "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance",
-                                          "margin_positions", "venue", "rank_gate"}):
+                                          "margin_positions", "venue", "rank_gate", "watchlist_id"}):
         raise ValueError("invalid portfolio replay fields")
-    symbols = value.get("symbols", [])
-    whole_request = "symbols" not in value and "cash_by_currency" in value and "top_n" not in value
-    as_of_request = "top_n" in value or whole_request
-    venue = value.get("venue", "wallex")
-    if venue != "wallex" and (as_of_request or "cash_by_currency" in value):
-        raise ValueError("alternate venue replay requires a fixed universe and a single quote currency")
-    if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
-            or (as_of_request and symbols != [])
-            or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
-            or len(set(symbols)) != len(symbols)):
-        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct market symbols")
+    symbols, whole_request, watchlist_request, as_of_request, venue = _universe_request(value)
     start, end = instant(value["from"]), instant(value["to"])
     if not start < end <= now_utc() or end - start > timedelta(days=31):
         raise ValueError("portfolio window must be historical, positive and at most 31 days")
+    watchlist = None
+    if watchlist_request:
+        from .market_watchlists import load_watchlist
+
+        watchlist = load_watchlist(root, value["watchlist_id"], start)
     if type(value["resolution"]) is not str:
         raise ValueError("portfolio resolution must be a string")
     description = value["cost"]
@@ -125,7 +138,7 @@ def portfolio_action(root, action, value, *, store):
     db = MarketDB(path, readonly=True)
     try:
         symbols, selection = _resolve_selection(db, value, symbols, start, end, whole_request=whole_request,
-                                                as_of_request=as_of_request, store=store, venue=venue)
+                                                watchlist=watchlist, store=store, venue=venue)
         if "quality_max_bad_share" in value:
             if len(symbols) > 20:
                 raise ValueError("quality-gated portfolios require at most 20 markets")

@@ -26,10 +26,16 @@ def _observed_receipts(db, begin, end):
         """, (begin, end))}
 
 
-def universe_manifest(db, request, *, store):
+def universe_manifest(db, request, *, store, watchlist=None):
     """Resolve one decision cutoff from effective specs and observed receipt history."""
     fields(request, "as_of lookback_seconds" + (" symbols" if isinstance(request, dict) and "symbols" in request else ""))
     cutoff = instant(request["as_of"])
+    if watchlist is not None:
+        from .market_watchlists import watchlist_at
+
+        if "symbols" in request:
+            raise ValueError("watchlist_id and symbols are mutually exclusive")
+        request = {**request, "symbols": watchlist_at(watchlist, cutoff)["symbols"]}
     seconds = request["lookback_seconds"]
     if type(seconds) is not int or not 1 <= seconds <= 86400:
         raise ValueError("lookback_seconds must be 1..86400")
@@ -62,15 +68,16 @@ def universe_manifest(db, request, *, store):
               "mode": "CURATED" if curated else "WHOLE", "requested_symbols": sorted(curated),
               "coverage": {"resolved": len(rows), "with_effective_spec": sum(r["spec_effective_from"] is not None for r in rows),
                            "observed": sum(r["status"] == "OBSERVED" for r in rows), "catalogue_completeness": "UNKNOWN"},
-              "markets": rows, "funded_authority": False}
+              "markets": rows, "funded_authority": False,
+              **({"watchlist": watchlist} if watchlist is not None else {})}
     return {**result, "manifest_id": digest(result)}
 
 
-def whole_spot_selection(db, cutoff, *, store):
-    """Resolve the whole discovered universe to the spot ledger's supported inputs."""
+def whole_spot_selection(db, cutoff, *, store, watchlist=None):
+    """Resolve the discovered universe to the spot ledger's supported inputs."""
     from .data_portal import DataPortal
 
-    manifest = universe_manifest(db, {"as_of": iso(cutoff), "lookback_seconds": 86400}, store=store)
+    manifest = universe_manifest(db, {"as_of": iso(cutoff), "lookback_seconds": 86400}, store=store, watchlist=watchlist)
     portal = DataPortal(db)
     symbols, excluded = [], {}
     for row in manifest["markets"]:
@@ -85,9 +92,10 @@ def whole_spot_selection(db, cutoff, *, store):
             "coverage": manifest["coverage"], "excluded": excluded, "symbols": symbols, "store": store}
 
 
-def whole_window_spot_selection(db, start, end, *, store):
+def whole_window_spot_selection(db, start, end, *, store, watchlist=None):
     """Freeze all confirmed spot availability intervals within the replay window."""
-    opening = whole_spot_selection(db, start, store=store)
+    opening = whole_spot_selection(db, start, store=store, watchlist=watchlist)
+    requested = set(watchlist["symbols"]) if watchlist is not None else None
     start_at, end_at = iso(start), iso(end)
     windows, previous_end = {}, {}
     rows = db.c.execute("""SELECT substr(s.instrument_id,8), s.valid_from, s.valid_to, json_type(s.spec, '$.is_spot')
@@ -98,6 +106,8 @@ def whole_window_spot_selection(db, start, end, *, store):
           AND s.valid_from<? AND (s.valid_to IS NULL OR s.valid_to>?)
         ORDER BY s.instrument_id,s.valid_from,s.rowid""", (end_at, start_at))
     for symbol, begin, through, spot in rows:
+        if requested is not None and symbol not in requested:
+            continue
         begin, through = max(start_at, begin), min(end_at, through or end_at)
         if through <= begin:
             continue
@@ -112,9 +122,11 @@ def whole_window_spot_selection(db, start, end, *, store):
         else:
             intervals.append([begin, through])
     symbols = sorted(windows)
-    if symbols == opening["symbols"] and all(value == [[start_at, end_at]] for value in windows.values()):
+    if watchlist is None and symbols == opening["symbols"] and all(
+            value == [[start_at, end_at]] for value in windows.values()):
         return opening
-    return {**opening, "schema": "whole-spot-universe/2", "symbols": symbols,
+    return {**opening, "schema": "whole-spot-universe/2" if watchlist is None else "watchlist-spot-universe/1",
+            **({"watchlist": watchlist} if watchlist is not None else {}), "symbols": symbols,
             "start_symbols": opening["symbols"], "coverage": {**opening["coverage"], "spot_during_window": len(symbols)},
             "excluded": {s: reason for s, reason in opening["excluded"].items() if s not in windows},
             "entry_windows": {s: value for s, value in windows.items() if value != [[start_at, end_at]]}}

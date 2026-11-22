@@ -62,12 +62,14 @@ def _scheduled_replay(db, job, hypothesis, end, store, root):
     options = {"strategy_id": hypothesis["strategy"], "params": hypothesis["params"],
                "resolution": job["resolution"], "cash": decimal(job["cash"], "cash", positive=True),
                "cost": _scheduled_cost(job), "store": store}
-    if "portfolio_symbols" in job or "cash_by_currency" in job:
+    if {"portfolio_symbols", "watchlist_id", "cash_by_currency"} & job.keys():
         from .historical_universe import whole_window_spot_selection
         from .portfolio import portfolio
         from .portfolio_margin import load_margin_plans
 
-        selection = None if "portfolio_symbols" in job else whole_window_spot_selection(db, start, end, store=store)
+        watchlist = job["watchlist_revision"] if "watchlist_id" in job else None
+        selection = None if "portfolio_symbols" in job else whole_window_spot_selection(
+            db, start, end, store=store, watchlist=watchlist)
         symbols = job["portfolio_symbols"] if selection is None else selection["symbols"]
         return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
                          universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),
@@ -231,7 +233,8 @@ class ResearchLedger:
 
     def schedule(self, request):
         required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
-        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes", "fx_rebalance", "margin_positions", "rank_gate")
+        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes",
+                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id")
                     if isinstance(request, dict) and key in request]
         fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
@@ -244,6 +247,16 @@ class ResearchLedger:
         decimal(request["cash"], "cash", positive=True)
         _scheduled_cost(request)
         body = {**request, "first_at": iso(parse_ts(request["first_at"]))}
+        if "watchlist_id" in body:
+            from .market_watchlists import load_watchlist
+
+            if "portfolio_symbols" in body:
+                raise ValueError("watchlist_id and portfolio_symbols are mutually exclusive")
+            start = parse_ts(body["first_at"]) - timedelta(seconds=body["lookback_seconds"])
+            watchlist = load_watchlist(self.path.parent, body["watchlist_id"], start)
+            if len(watchlist["symbols"]) < 2:
+                raise ValueError("portfolio requires at least two supported markets")
+            body["watchlist_revision"] = watchlist
         if "portfolio_symbols" in body:
             from .portfolio import MAX_MARKETS
 
@@ -279,7 +292,7 @@ class ResearchLedger:
         if "rank_gate" in body:
             from .portfolio_rank import PortfolioRank
 
-            if {"portfolio_symbols", "cash_by_currency"}.isdisjoint(body) or body["resolution"] == "session":
+            if {"portfolio_symbols", "cash_by_currency", "watchlist_id"}.isdisjoint(body) or body["resolution"] == "session":
                 raise ValueError("rank_gate requires a portfolio with fixed-duration bars")
             PortfolioRank(body["rank_gate"], BarSpec(body["resolution"]).step)
         key, encoded = digest(body), _json(body)

@@ -41,7 +41,8 @@ from .technical_analysis import technical_reports
 PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
                               "final-status", "observe-import", "screen", "derived", "unit-convert"))
 WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "arm-policy-read", "arm-policy-save", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "universe-manifest", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
-                     "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
+                     "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit",
+                     "return-bootstrap", "watchlist-save", "watchlist-read")
 # One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
 # browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
 LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
@@ -341,13 +342,30 @@ def _research_action_market_products(root, action, value, store, at):
 
 def _research_action_universe_manifest(root, action, value, store, at):
     from .historical_universe import universe_manifest
+    from .market_watchlists import load_watchlist
 
+    watchlist = None
+    if isinstance(value, dict) and "watchlist_id" in value:
+        fields(value, "as_of lookback_seconds watchlist_id")
+        watchlist = load_watchlist(root, value["watchlist_id"])
+        value = {"as_of": value["as_of"], "lookback_seconds": value["lookback_seconds"]}
     db = _market_db(root)
     try:
         db.c.execute("BEGIN")
-        return universe_manifest(db, value, store=store)
+        return universe_manifest(db, value, store=store, watchlist=watchlist)
     finally:
         db.c.close()
+
+
+def _research_action_watchlists(root, action, value, store, at):
+    from .market_watchlists import load_watchlist, save_watchlist
+
+    if action == "watchlist-save":
+        record = save_watchlist(root, value)
+    else:
+        fields(value, "watchlist_id")
+        record = load_watchlist(root, value["watchlist_id"])
+    return {"watchlist": record, "funded_authority": False}
 
 
 def _research_action_execution_model_calibrate(root, action, value, store, at):
@@ -764,6 +782,7 @@ _RESEARCH_HANDLERS = (
     (frozenset(('fractional-sizing',)), _research_action_fractional_sizing),
     (frozenset(('experiment-scorecard',)), _research_action_experiment_scorecard),
     (frozenset(('universe-manifest',)), _research_action_universe_manifest),
+    (frozenset(("watchlist-save", "watchlist-read")), _research_action_watchlists),
     (frozenset(('market-products',)), _research_action_market_products),
     (frozenset(('execution-model-calibrate',)), _research_action_execution_model_calibrate),
     (frozenset(('execution-calibration',)), _research_action_execution_calibration),

@@ -2,7 +2,7 @@
 window.gymPortfolio = (() => {
   let language, setup, record, checkpoint, runs, refresh, busy = false;
   const $ = id => document.getElementById(id);
-  const inputs = ['portfolio-universe', 'portfolio-symbols', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-start-tmn', 'portfolio-start-usdt', 'portfolio-participation', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-rank-method', 'portfolio-rank-top', 'portfolio-rank-breadth', 'portfolio-rank-seed', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold', 'portfolio-checkpoint-count'];
+  const inputs = ['portfolio-universe', 'portfolio-symbols', 'portfolio-watchlist', 'portfolio-from', 'portfolio-to', 'portfolio-resolution', 'portfolio-cash', 'portfolio-start-tmn', 'portfolio-start-usdt', 'portfolio-participation', 'portfolio-fee', 'portfolio-strategy', 'portfolio-params', 'portfolio-rank-method', 'portfolio-rank-top', 'portfolio-rank-breadth', 'portfolio-rank-seed', 'portfolio-weighting', 'portfolio-lookback', 'portfolio-cap', 'portfolio-drawdown', 'portfolio-daily-loss', 'portfolio-buffer', 'portfolio-clock', 'portfolio-correlation', 'portfolio-group-cap', 'portfolio-rebalance', 'portfolio-threshold', 'portfolio-checkpoint-count'];
   function mount({api, esc, table, keyValues, amount, when, stamp = (v, d) => esc(when(v, d)), curveFigure, strategyFields, setHTML = (id, html) => { if ($(id).innerHTML !== html) $(id).innerHTML = html; }}) {
     const next = document.documentElement.lang === 'fa' ? 'fa' : 'en';
     if (next === language || busy) { refresh?.(); return; }
@@ -18,8 +18,10 @@ window.gymPortfolio = (() => {
       <form id="portfolio-form"><fieldset id="portfolio-fields" disabled><legend>${text(T.en.pfHistoricalReplayUtcAtMost31, T.fa.pfHistoricalReplayUtcAtMost31)}</legend><div class="ticket-fields">
       <div id="portfolio-universe-options"><label for="portfolio-universe">${label('pfUniverse')}<select id="portfolio-universe">
         <option value="whole">${label('pfWholeWallex')}</option><option value="curated">${label('pfCuratedMixed')}</option><option value="single">${label('pfCuratedSingle')}</option>
+        <option value="watchlist">${label('pfWatchlistMixed')}</option><option value="watchlist-single">${label('pfWatchlistSingle')}</option>
       </select></label></div>
       <div id="portfolio-symbol-options">${field('portfolio-symbols', label('pfMarketsCommaSeparatedSameQuoteCurrency'), 'list="portfolio-markets" autocomplete="off"')}<datalist id="portfolio-markets"></datalist></div>
+      <div id="portfolio-watchlist-options">${field('portfolio-watchlist', label('pfWatchlistRevision'), 'pattern="[0-9a-f]{16}" maxlength="16" autocomplete="off" spellcheck="false"')}</div>
       <div><p class="field-help">${text(T.en.pfUseTheWholeObservedQuoteUniverse, T.fa.pfUseTheWholeObservedQuoteUniverse)}</p><button id="portfolio-all-usdt" class="button" type="button">${text(T.en.pfAllUsdtMarkets, T.fa.pfAllUsdtMarkets)}</button> <button id="portfolio-all-tmn" class="button" type="button">${text(T.en.pfAllTmnMarkets, T.fa.pfAllTmnMarkets)}</button></div>
       ${field('portfolio-from', text(T.en.windowFrom, T.fa.windowFrom), 'required type="datetime-local" step="1"')}
       ${field('portfolio-to', text(T.en.pfToUtcExclusive, T.fa.pfToUtcExclusive), 'required type="datetime-local" step="1"')}
@@ -63,11 +65,15 @@ window.gymPortfolio = (() => {
       return api('/api/research/action', {method: 'POST', body: JSON.stringify({action, value})}, timeout);
     }
     function syncUniverse() {
-      const whole = mode() === 'whole', mixed = mode() !== 'single';
+      const watchlist = mode().startsWith('watchlist'), explicit = mode() === 'single' || mode() === 'curated';
+      const mixed = !mode().endsWith('single');
       $('portfolio-universe-options').hidden = !setup?.portfolio_multicurrency;
       $('portfolio-rank-options').hidden = !setup?.portfolio_multicurrency;
-      $('portfolio-symbol-options').hidden = whole;
-      $('portfolio-symbols').required = !whole;
+      $('portfolio-symbol-options').hidden = !explicit;
+      $('portfolio-symbols').required = explicit;
+      $('portfolio-watchlist-options').hidden = !watchlist;
+      $('portfolio-watchlist').required = watchlist;
+      $('portfolio-watchlist').disabled = !watchlist;
       $('portfolio-single-cash').hidden = mixed;
       $('portfolio-cash').required = !mixed;
       $('portfolio-mixed-cash').hidden = !mixed;
@@ -143,9 +149,10 @@ window.gymPortfolio = (() => {
       if (!record) return;
       const result = record.result, end = result.end, valuation = result.valuation;
       const universe = record.inputs.universe_selection;
-      const changingUniverse = universe?.schema === 'whole-spot-universe/2';
+      const changingUniverse = universe?.schema === 'whole-spot-universe/2' || universe?.schema === 'watchlist-spot-universe/1';
       const coverage = changingUniverse || universe?.schema === 'whole-spot-universe/1' ? `<h4>${label('pfCatalogueCoverage')}</h4>` + keyValues([
         [label('pfResolvedCount'), esc(universe.coverage.resolved)], [label('pfSelectedCount'), esc(universe.symbols.length)],
+        ...(universe.watchlist ? [[label('pfWatchlistRevision'), `${esc(universe.watchlist.name)} · ${esc(universe.watchlist.watchlist_id)}`]] : []),
         ...(changingUniverse ? [[label('pfSpotAtOpening'), esc(universe.start_symbols.length)]] : []),
         [label('pfExcludedCount'), esc(Object.keys(universe.excluded).length)]]) : '';
       const membership = changingUniverse ? `<details class="disclosure" data-key="portfolio-membership-${esc(record.run_id)}"><summary>${label('pfSpotMembershipWindows')}</summary>` +
@@ -218,8 +225,9 @@ window.gymPortfolio = (() => {
         from: $('portfolio-from').value + 'Z', to: $('portfolio-to').value + 'Z', resolution: $('portfolio-resolution').value,
         cash: $('portfolio-cash').value, strategy: $('portfolio-strategy').value, params: JSON.parse($('portfolio-params').value),
         rules_mode: 'point-in-time', cost: {fee_rate: $('portfolio-fee').value, latency_ms: 500, max_wait_s: 60, fee_assumption: 'fee-in-received-asset'}};
-      if (mode() !== 'whole') value.symbols = $('portfolio-symbols').value.split(',').map(s => s.trim().toUpperCase());
-      if (mode() === 'single') {
+      if (mode().startsWith('watchlist')) value.watchlist_id = $('portfolio-watchlist').value;
+      else if (mode() !== 'whole') value.symbols = $('portfolio-symbols').value.split(',').map(s => s.trim().toUpperCase());
+      if (mode().endsWith('single')) {
         value.policy = policy;
       } else {
         value.cash = '1000';
