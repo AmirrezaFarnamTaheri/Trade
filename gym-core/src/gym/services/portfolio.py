@@ -32,6 +32,19 @@ MAX_MULTICURRENCY_BOOK_OBSERVATIONS = 12_000_000
 MAX_MARKETS = 500
 
 
+class _ReconcilingCashBook(CashBook):
+    """Record arithmetic rounding without changing strategy inventory or sizing."""
+
+    def post(self, t, ccy, amount, kind, ref):
+        previous = self.get(ccy)
+        super().post(t, ccy, amount, kind, ref)
+        with localcontext() as ctx:
+            ctx.prec = 400
+            adjustment = self.get(ccy) - previous - amount
+        if adjustment:
+            self.postings.append({**self.postings[-1], "amount": str(adjustment), "kind": "rounding"})
+
+
 def fx_rebalance_limits(value):
     from ..domain.market_models import decimal, fields
 
@@ -176,7 +189,8 @@ class _Replay:
         self.opening_cash = {currency: decimal(amount, currency) for currency, amount in opening.items()}
         if not any(self.opening_cash.values()):
             raise ValueError("multi-currency replay requires positive opening capital")
-        self.book = CashBook(dict(self.opening_cash))
+        book_type = _ReconcilingCashBook if "otc_routes" in (self.fx_rebalance or {}) else CashBook
+        self.book = book_type(dict(self.opening_cash))
         if self.funding_legs is not None:
             self._fund_opening_account()
         self._configure_routes(quotes)
@@ -205,7 +219,7 @@ class _Replay:
         balances = self.funding_result["closing_balances"]
         if any(Decimal(amount) for currency, amount in balances.items() if currency not in self.opening_cash):
             raise ValueError("opening funding route left inventory outside the portfolio cash currencies")
-        self.book = CashBook(
+        self.book = type(self.book)(
             {currency: Decimal(amount) for currency, amount in balances.items()},
             [{"t": posting["at"], "ccy": posting["asset"], "amount": posting["amount"],
               "kind": posting["kind"], "ref": f"opening-funding/{posting['leg']}"}

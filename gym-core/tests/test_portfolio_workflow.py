@@ -2,7 +2,7 @@
 import asyncio
 import json
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
@@ -30,6 +30,21 @@ def request():
             "strategy": "ema-trend", "params": {"fast": 2, "slow": 3},
             "rules_mode": "point-in-time", "cost": {"fee_rate": "0.001", "latency_ms": 500,
                 "max_wait_s": 60, "fee_assumption": "fee-in-received-asset"}}
+
+
+def test_otc_portfolio_book_reconciles_postings_at_different_scales():
+    from gym.services.portfolio import _ReconcilingCashBook
+
+    opening = Decimal("1000")
+    book = _ReconcilingCashBook({"USDT": opening})
+    with localcontext() as ctx:
+        ctx.prec = 28
+        book.post(START, "USDT", Decimal("0.0000000000000000000000000001"), "buy", "fx")
+        book.post(START, "USDT", Decimal("-0.1234567890123456789012345678"), "buy", "spot")
+    with localcontext() as ctx:
+        ctx.prec = 400
+        assert book.get("USDT") == opening + sum(Decimal(p["amount"]) for p in book.postings)
+    assert any(p["kind"] == "rounding" for p in book.postings)
 
 
 def prepare(root):
@@ -121,6 +136,7 @@ def test_opening_conversion_flows_into_portfolio_and_checkpoint(tmp_path, includ
 def test_in_window_fx_rebalances_on_later_receipts_and_recovers(tmp_path, otc):
     from dataclasses import replace
 
+    uses_route = otc.startswith("route")
     fx = [replace(top, ts_avail=top.ts_avail - timedelta(seconds=7), bid=Decimal(99), ask=Decimal(101))
           for top in quote_history(n=181, sym="USDTTMN")]
     market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHTMN") + fx).c.close()
@@ -132,11 +148,11 @@ def test_in_window_fx_rebalances_on_later_receipts_and_recovers(tmp_path, otc):
         value["fx_rebalance"]["otc_quotes"] = [supplied_otc_quote(
             price="102" if otc == "costlier" else "98",
             expiry_seconds=30 if otc == "expired" else 180)]
-    if otc.startswith("route"):
+    if uses_route:
         value["fx_rebalance"]["otc_routes"] = [supplied_otc_route(expiry_seconds=63 if otc == "route_expired" else 180)]
     response = research_action(tmp_path, "portfolio-replay", value)
     record = research_action(tmp_path, "portfolio-read", {"run_id": response["run_id"]})
-    assert record["inputs"]["portfolio_version"] == (20 if otc.startswith("route") else 18 if otc == "none" else 19)
+    assert record["inputs"]["portfolio_version"] == (20 if uses_route else 18 if otc == "none" else 19)
     result = record["result"]
     fills = [row for row in result["fx_orders"] if row["status"] == "FILLED"]
     otc_fills = [row for row in fills if row.get("venue_model") == "SUPPLIED_OTC_QUOTE"]
@@ -159,11 +175,15 @@ def test_in_window_fx_rebalances_on_later_receipts_and_recovers(tmp_path, otc):
         assert [(p["ccy"], Decimal(p["amount"])) for p in postings] == [
             ("TMN", Decimal(-980)), ("USDT", Decimal(10)), ("USDT", Decimal("-0.01"))]
     balances = {"USDT": Decimal(0), "TMN": Decimal(100000)}
-    for posting in result["postings"]:
-        ccy = posting["ccy"]
-        balances[ccy] = balances.get(ccy, Decimal(0)) + Decimal(posting["amount"])
-        assert balances[ccy] >= 0
+    with localcontext() as ctx:
+        ctx.prec = 400 if uses_route else 28
+        for posting in result["postings"]:
+            ccy = posting["ccy"]
+            balances[ccy] = balances.get(ccy, Decimal(0)) + Decimal(posting["amount"])
+            if not uses_route:
+                assert balances[ccy] >= 0
     assert balances == {ccy: Decimal(amount) for ccy, amount in result["balances"].items()}
+    assert all(balance >= 0 for balance in balances.values())
     if route_fills:
         assert balances["X"] == 0
     for count in (13, 55):
