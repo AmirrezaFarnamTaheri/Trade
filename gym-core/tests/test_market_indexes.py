@@ -84,6 +84,10 @@ def test_legacy_reference_only_proves_labelled_book_sides(tmp_path, source, raw_
         result = audit_replay_inputs(db, [root], "BTCUSDT", START, START + timedelta(seconds=1))
         assert result["book_sides_matched"] == matched
         assert result["legacy_book_sides_matched"] == legacy
+        if source == "WS_BID_ONLY":
+            assert result["book_side_matches"]["bid"]["legacy"] == 1
+            detail, = result["book_side_mismatches"]
+            assert detail["side"] == "ask" and not detail["side_present_in_frame"]
         assert result["verified"] is (matched == 2)
         if source == "REST_UNBOUND":
             assert result["broken"] == [{"reason": "UNBOUND_REST_SYMBOL", "ref": ref}]

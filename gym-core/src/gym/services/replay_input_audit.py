@@ -74,6 +74,8 @@ def audit_replay_inputs(db, roots, symbol, start, end, *, max_rows=10000):
         if row:
             manifest[seg_id] = dict(sha256=row[0], closed_at=row[1])
     matched_trades = matched_sides = matched_legacy_sides = 0
+    side_matches = {side: {"explicit": 0, "legacy": 0} for side in ("bid", "ask")}
+    side_mismatches = []
     for seg_id, seq, frame in _verified_frames(roots, manifest, sequences, broken, unclosed):
         ref = f"{seg_id}#{seq}"
         try:
@@ -85,11 +87,16 @@ def audit_replay_inputs(db, roots, symbol, start, end, *, max_rows=10000):
             if sides := expected_sides.get(ref):
                 raw = _depth_messages(frame, symbol)
                 receipt = parse_ts(frame["t"])
-                matched = [legacy for side, row, legacy in sides if _matches_side(raw, side, receipt, row)]
-                matches = len(matched)
-                matched_sides += matches
-                matched_legacy_sides += sum(matched)
-                if matches != len(sides):
+                prior_mismatches = len(side_mismatches)
+                for side, row, legacy in sides:
+                    if _matches_side(raw, side, receipt, row):
+                        matched_sides += 1
+                        matched_legacy_sides += legacy
+                        side_matches[side]["legacy" if legacy else "explicit"] += 1
+                    else:
+                        side_mismatches.append({"ref": ref, "side": side, "book_receipt_at": row[0],
+                                                "side_present_in_frame": side in raw})
+                if len(side_mismatches) != prior_mismatches:
                     reason = "UNBOUND_REST_SYMBOL" if frame["src"] == "rest:/v1/depth" else "BOOK_SIDE_MISMATCH"
                     broken.append({"reason": reason, "ref": ref})
         except (ValueError, KeyError, IndexError, TypeError, ArithmeticError, AttributeError):
@@ -98,5 +105,6 @@ def audit_replay_inputs(db, roots, symbol, start, end, *, max_rows=10000):
     return dict(schema="replay-input-audit/1", symbol=symbol, start=iso(start), end_exclusive=iso(end),
                 scope="STORED_TRADES_AND_BOOK_SIDES_BY_RECEIPT", trade_rows=len(trades), book_rows=len(tops),
                 trade_rows_matched=matched_trades, book_sides_matched=matched_sides,
-                legacy_book_sides_matched=matched_legacy_sides, broken=broken,
+                legacy_book_sides_matched=matched_legacy_sides, book_side_matches=side_matches,
+                book_side_mismatches=side_mismatches, broken=broken,
                 unclosed_segments=unclosed, verified=verified, qualified_for_replay=False)
