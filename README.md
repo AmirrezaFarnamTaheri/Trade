@@ -30,7 +30,7 @@ states the constraints.
 ```powershell
 cd gym-core
 uv sync
-uv run --no-sync gymctl --data ../data run --assets all
+uv run --no-sync gymctl --data ../data run --assets 19 --add-symbols SLVONUSDT,COPXONUSDT
 ```
 
 On Windows, `scripts/windows/Start-Workspace.ps1` starts the collector and the paper scheduler as limited-user

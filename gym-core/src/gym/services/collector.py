@@ -38,6 +38,7 @@ CATALOG_PATH = "/hector/web/v1/markets"
 # The catalogue above carries listing facts but no order limits; those live here (minNotional refused a live
 # order with error 1003 on 2026-11-14). Merged into each stored spec so the simulator enforces them.
 RULES_PATH = "/v1/markets"
+STRUCTURED_FEE_PATH = "/v2/structured-fee"
 RULE_KEYS = ("stepSize", "tickSize", "minQty", "minNotional")
 CANDLE_REFRESH_S = 60
 CATALOG_REFRESH_S = 6 * 3600  # each refresh stores a new version of every market: its row carries price and volume
@@ -493,6 +494,27 @@ class Collector:
             if received:
                 self.db.upsert_instrument(inst, names, m, "rest:" + CATALOG_PATH, now)
 
+    async def structured_fees(self, session) -> dict | None:
+        """Fetch and persist Wallex /v2/structured-fee maker/taker tiers; non-fatal when unreachable."""
+        from .market_quality import parse_structured_fee
+
+        try:
+            raw = await self.rest_text(session, STRUCTURED_FEE_PATH)
+            received_at = now_utc()
+            self.seg.write("rest:" + STRUCTURED_FEE_PATH, raw, received_at)
+            vintage = parse_structured_fee(loads(raw), fetched_at=received_at)
+        except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, AttributeError) as e:
+            self.quality(now_utc(), None, "SOURCE_ERROR", f"structured fees: {type(e).__name__}: {e}")
+            return None
+        try:
+            target = self.db_path.parent / "structured_fees.json"
+            tmp = target.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(vintage, sort_keys=True), encoding="utf-8")
+            tmp.replace(target)
+        except OSError as e:
+            self.quality(now_utc(), None, "SOURCE_ERROR", f"structured fees write: {type(e).__name__}: {e}")
+        return vintage
+
     async def refresh_catalog(self, session):
         """Store the venue's current listing facts. The observed markets stay as chosen at start."""
         try:
@@ -506,6 +528,7 @@ class Collector:
             return
         rules = await self.trade_rules(session)
         self._store_catalog(catalog, max(now, now_utc()), True, rules)
+        await self.structured_fees(session)
         self.catalog, self.catalog_received_at, self.catalog_source = catalog, now, "PUBLIC_REST"
 
     async def seed(self, session, symbols=None, trades=True):
@@ -721,6 +744,7 @@ class Collector:
                 self.quality(now_utc(), None, "SOURCE_ERROR", "catalog produced no observable markets; retrying")
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
+            await self.structured_fees(session)
             symbols = list(self.insts)
             batch_size = wallex.MAX_CHANNELS // 3
             shards = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]

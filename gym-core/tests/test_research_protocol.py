@@ -90,15 +90,16 @@ def test_protocol_and_comparison_share_forward_budget(tmp_path):
         with pytest.raises(ValueError, match="trial budget full"):
             protocol.register({**request(), "symbol": "ETHUSDT"})
 
-    # The separate live programme already holds both seats by November 19.
+    # Long-horizon background forward monitors are tracked separately so they do not lock out the two active live seats,
+    # while a third active live hypothesis still fails closed against the 2-trial active cap.
     later = now + timedelta(days=30)
     future = {name: (later + timedelta(minutes=n)).isoformat() for name, n in
               (("selection_end", -5), ("test_from", 5), ("test_to", 30))}
     with ExperimentRegistry(tmp_path, store="live") as registry, ResearchProtocol(tmp_path, clock=lambda: later) as protocol:
-        with pytest.raises(ValueError, match="funding-confirmed-trend-forward"):
-            register_comparison(registry, {**comparison, **future}, now=later)
-        with pytest.raises(ValueError, match="breadth-trend-forward"):
-            protocol.register({**request(), **future})
+        register_comparison(registry, {**comparison, **future}, now=later)
+        protocol.register({**request(), **future})
+        with pytest.raises(ValueError, match="trial budget full"):
+            protocol.register({**request(), **future, "symbol": "ETHUSDT"})
 
 
 def test_failed_and_interrupted_evaluations_remain_consumed(tmp_path, monkeypatch):

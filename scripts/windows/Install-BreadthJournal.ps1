@@ -25,7 +25,7 @@ $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $data = [IO.Path]::GetFullPath($DataDirectory)
 $uv = (Get-Command uv -ErrorAction Stop).Source
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$command = "`$ErrorActionPreference = 'Stop'; & '$uv' run --no-sync gymctl --data '$data' breadth-journal --refresh | Out-Null; exit `$LASTEXITCODE"
+$command = "`$ErrorActionPreference = 'Stop'; `$null = & '$uv' run --no-sync gymctl --data '$data' breadth-journal --refresh; exit `$LASTEXITCODE"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -Command `"$command`"" -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries

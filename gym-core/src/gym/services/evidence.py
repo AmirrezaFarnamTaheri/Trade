@@ -50,6 +50,28 @@ def programme(rows: list[dict]) -> dict | None:
     return {"completed": len(p), "best": best, "best_probability": round(1 - p[0][0], 3), "best_q": round(q[best], 3)}
 
 
+def _journal_e_process(entries: list[dict]) -> dict:
+    """Compute anytime-valid sequential e-value over consecutive READY equity returns without inventing gap zeros."""
+    from ..domain.statistical_inference import sequential_e_process
+
+    equities: list[tuple[date, float]] = []
+    for row in entries:
+        if row.get("status") != "READY" or not row.get("day") or row.get("equity") is None:
+            continue
+        try:
+            d = date.fromisoformat(str(row["day"])[:10])
+            eq = float(Decimal(str(row["equity"])))
+        except (ValueError, ArithmeticError):
+            continue
+        if eq > 0:
+            equities.append((d, eq))
+    returns: list[float] = []
+    for (d0, e0), (d1, e1) in zip(equities, equities[1:]):
+        if (d1 - d0).days == 1 and e0 > 0:
+            returns.append((e1 - e0) / e0)
+    return sequential_e_process(returns)
+
+
 def forward(root: Path) -> dict | None:
     """The forward paper journal, one row per decided day; None before the first decision."""
     entries = journal(root)
@@ -74,7 +96,8 @@ def forward(root: Path) -> dict | None:
             "days": len(entries), "missing_days": span - len(days),
             "start_equity": entries[0]["equity"], "equity": last["equity"], "net": net, "hold_net": hold_net, "fees": fees,
             "in_market": base > 0, "trades": sum(1 for row in entries if row.get("fill")),
-            "withheld": sum(1 for row in entries if row["status"] != "READY")}
+            "withheld": sum(1 for row in entries if row["status"] != "READY"),
+            "e_process": _journal_e_process(entries)}
 
 
 def forward_mix(root: Path) -> dict | None:
@@ -87,7 +110,8 @@ def forward_mix(root: Path) -> dict | None:
     equity = Decimal(last["equity"])
     return {"started": entries[0]["day"][:10], "latest": last["at"], "days": len(entries), "equity": str(equity.quantize(Decimal("0.01"))),
             "net_pct": str(((equity / start - 1) * 100).quantize(Decimal("0.01"))),
-            "invested_pct": str(((1 - Decimal(last["usdt"]) / equity) * 100).quantize(Decimal("0.1"))) if equity else None}
+            "invested_pct": str(((1 - Decimal(last["usdt"]) / equity) * 100).quantize(Decimal("0.1"))) if equity else None,
+            "e_process": _journal_e_process(entries)}
 
 
 def forward_breadth(root: Path) -> dict | None:
@@ -108,6 +132,7 @@ def forward_breadth(root: Path) -> dict | None:
         "breadth": last.get("breadth"),
         "gate_open": bool(last.get("gate_open")),
         "universe_size": len(last.get("universe") or []),
+        "e_process": _journal_e_process(entries),
     }
 
 
@@ -115,6 +140,7 @@ def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:
     from .trial_governance import (
         MAX_CONCURRENT_TRIALS,
         PACKAGED_OPEN_FORWARD,
+        PASSIVE_FORWARD_MONITORS,
         active_sqlite_trials,
         journal_continuity_report,
     )
@@ -124,15 +150,27 @@ def evidence(root: Path | None, path: Path = TRIAL_LOG) -> dict:
     for terminal in ("ABORTED", "SUPERSEDED"):
         if value := sum(row["verdict"] == terminal for row in rows):
             count[terminal] = value
-    forward_open = count["OPEN"] if path.is_file() or path != TRIAL_LOG else len(PACKAGED_OPEN_FORWARD)
+    open_ids = (
+        [row["id"] for row in rows if row["verdict"] == "OPEN"]
+        if (path.is_file() or path != TRIAL_LOG)
+        else [tid for tid, _ in PACKAGED_OPEN_FORWARD]
+    )
+    background_monitors = sum(1 for tid in open_ids if tid in PASSIVE_FORWARD_MONITORS)
+    forward_active = len(open_ids) - background_monitors
     sqlite_open = len(active_sqlite_trials(root, "live")) if root is not None else 0
-    active = forward_open + sqlite_open
+    active = forward_active + sqlite_open
     return {
         "state": "READY" if rows else "NO_TRIAL_LOG",
         "trials": rows,
         "tally": {"registered": len(rows), **count},
-        "trial_budget": {"active": active, "forward_open": forward_open, "local_live_open": sqlite_open,
-                         "limit": MAX_CONCURRENT_TRIALS, "remaining": max(0, MAX_CONCURRENT_TRIALS - active)},
+        "trial_budget": {
+            "active": active,
+            "forward_open": len(open_ids),
+            "background_monitors_open": background_monitors,
+            "local_live_open": sqlite_open,
+            "limit": MAX_CONCURRENT_TRIALS,
+            "remaining": max(0, MAX_CONCURRENT_TRIALS - active),
+        },
         "checkpoint": {
             "date": "2027-02-08",
             "breadth_score_after": "2027-05-19",

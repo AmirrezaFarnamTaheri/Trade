@@ -242,6 +242,158 @@ def maker_queue_fill(
     }
 
 
+def simulate_passive_cancel_replace(
+    *,
+    side: str,
+    total_qty: Decimal,
+    quotes_plan: list[dict],
+    trades: list[TradeTick],
+    maker_fee_rate: Decimal,
+    send_latency: timedelta = timedelta(milliseconds=250),
+    cancel_latency: timedelta = timedelta(milliseconds=250),
+    post_only: bool = True,
+) -> dict:
+    """Causal passive cancel/replace simulator with explicit cancel-race fills and maker fees.
+
+    Each entry in `quotes_plan` must supply `sent_at` (datetime), `limit_price` (Decimal),
+    `queue_ahead` (Decimal), and optional `best_opposite_price` (Decimal | None) and
+    `cancel_sent_at` (datetime | None). A subsequent quote implicitly cancels the prior
+    resting quote at `next.sent_at`; the prior quote stays exposed until `next.sent_at + cancel_latency`,
+    and the replacement becomes active only after `max(prior_cancel_effective, next.sent_at + send_latency)`.
+    """
+    if side not in ("BUY", "SELL") or not isinstance(total_qty, Decimal) or not total_qty.is_finite() or total_qty <= 0:
+        raise ValueError("invalid passive cancel/replace side or total_qty")
+    if not isinstance(maker_fee_rate, Decimal) or not maker_fee_rate.is_finite() or not 0 <= maker_fee_rate < 1:
+        raise ValueError("maker_fee_rate must be finite and in [0, 1)")
+    if send_latency < timedelta(0) or cancel_latency < timedelta(0):
+        raise ValueError("send_latency and cancel_latency must be nonnegative")
+    if not quotes_plan:
+        return {
+            "model": "passive-cancel-replace/1",
+            "status": "NO_QUOTES",
+            "side": side,
+            "requested_qty": str(total_qty),
+            "filled_qty": "0",
+            "remaining_qty": str(total_qty),
+            "adverse_race_filled_qty": "0",
+            "vwap": None,
+            "gross_quote": "0",
+            "maker_fee_quote": "0",
+            "legs": [],
+            "authenticated_settlement": False,
+        }
+
+    ordered_plan = sorted(quotes_plan, key=lambda q: q["sent_at"])
+    remaining = total_qty
+    filled_total = Decimal(0)
+    gross_quote = Decimal(0)
+    race_filled_total = Decimal(0)
+    legs: list[dict] = []
+    prev_cancel_effective: datetime | None = None
+
+    for idx, step in enumerate(ordered_plan):
+        if remaining <= 0:
+            break
+        sent_at: datetime = step["sent_at"]
+        limit_price: Decimal = step["limit_price"]
+        queue_ahead: Decimal = step["queue_ahead"]
+        best_opp: Decimal | None = step.get("best_opposite_price")
+        active_at = sent_at + send_latency
+        if prev_cancel_effective is not None and prev_cancel_effective > active_at:
+            active_at = prev_cancel_effective
+
+        next_sent = ordered_plan[idx + 1]["sent_at"] if idx + 1 < len(ordered_plan) else None
+        explicit_cancel = step.get("cancel_sent_at")
+        cancel_sent = min(t for t in (next_sent, explicit_cancel) if t is not None) if (next_sent or explicit_cancel) else None
+        cancel_effective = (cancel_sent + cancel_latency) if cancel_sent is not None else None
+        if cancel_effective is not None and cancel_effective <= active_at:
+            legs.append({
+                "index": idx,
+                "sent_at": iso(sent_at),
+                "active_at": iso(active_at),
+                "cancel_effective_at": iso(cancel_effective),
+                "limit_price": str(limit_price),
+                "status": "SUPERSEDED_BEFORE_ACTIVE",
+                "filled_qty": "0",
+                "adverse_race_filled_qty": "0",
+            })
+            prev_cancel_effective = cancel_effective
+            continue
+
+        res = maker_queue_fill(
+            side=side,
+            limit_price=limit_price,
+            order_qty=remaining,
+            queue_ahead=queue_ahead,
+            trades=trades,
+            active_at=active_at,
+            cancel_effective_at=cancel_effective,
+            post_only=post_only,
+            best_opposite_price=best_opp,
+        )
+        leg_filled = Decimal(res["filled_qty"])
+
+        # Measure how much of this leg filled during the cancel-in-flight race window [cancel_sent, cancel_effective).
+        race_filled = Decimal(0)
+        if leg_filled > 0 and cancel_sent is not None and cancel_effective is not None and cancel_sent > active_at:
+            pre_cancel = maker_queue_fill(
+                side=side,
+                limit_price=limit_price,
+                order_qty=remaining,
+                queue_ahead=queue_ahead,
+                trades=trades,
+                active_at=active_at,
+                cancel_effective_at=cancel_sent,
+                post_only=post_only,
+                best_opposite_price=best_opp,
+            )
+            race_filled = max(Decimal(0), leg_filled - Decimal(pre_cancel["filled_qty"]))
+
+        with localcontext() as ctx:
+            ctx.prec = 28
+            filled_total += leg_filled
+            remaining -= leg_filled
+            gross_quote += leg_filled * limit_price
+            race_filled_total += race_filled
+
+        legs.append({
+            "index": idx,
+            "sent_at": iso(sent_at),
+            "active_at": iso(active_at),
+            "cancel_sent_at": iso(cancel_sent) if cancel_sent else None,
+            "cancel_effective_at": iso(cancel_effective) if cancel_effective else None,
+            "limit_price": str(limit_price),
+            "status": res["status"],
+            "filled_qty": str(leg_filled),
+            "unambiguous_filled_qty": res["unambiguous_filled_qty"],
+            "ambiguous_print_qty": res["ambiguous_print_qty"],
+            "adverse_race_filled_qty": str(race_filled),
+        })
+        prev_cancel_effective = cancel_effective
+
+    with localcontext() as ctx:
+        ctx.prec = 28
+        vwap = (gross_quote / filled_total) if filled_total > 0 else None
+        fee_quote = gross_quote * maker_fee_rate
+
+    final_status = "FILLED" if remaining == 0 else "PARTIAL" if filled_total > 0 else "UNFILLED"
+    return {
+        "model": "passive-cancel-replace/1",
+        "status": final_status,
+        "side": side,
+        "requested_qty": str(total_qty),
+        "filled_qty": str(filled_total),
+        "remaining_qty": str(remaining),
+        "adverse_race_filled_qty": str(race_filled_total),
+        "vwap": str(vwap) if vwap is not None else None,
+        "gross_quote": str(gross_quote),
+        "maker_fee_rate": str(maker_fee_rate),
+        "maker_fee_quote": str(fee_quote),
+        "legs": legs,
+        "authenticated_settlement": False,
+    }
+
+
 def simulate_trailing_stop(
     *,
     side: str,

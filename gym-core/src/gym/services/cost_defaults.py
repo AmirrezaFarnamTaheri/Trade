@@ -19,6 +19,45 @@ from ..domain.strategy import digest
 _MAX_AGE = timedelta(hours=24)
 _FALLBACK_FEE = Decimal(os.environ.get("GYM_FEE_RATE", "0.001"))
 _FALLBACK_LATENCY_MS = 500
+# Wallex published Level-1 structured-fee schedule (/v2/structured-fee):
+# TMN spot markets: 0.25% maker / 0.30% taker; USDT spot markets: 0.10% maker / 0.13% taker.
+PUBLISHED_LEVEL1_FEES: dict[str, tuple[Decimal, Decimal]] = {
+    "TMN": (Decimal("0.0025"), Decimal("0.0030")),
+    "USDT": (Decimal("0.0010"), Decimal("0.0013")),
+}
+
+
+def _quote_group(symbol: str) -> str | None:
+    upper = symbol.upper()
+    if upper.endswith("TMN"):
+        return "TMN"
+    if upper.endswith("USDT"):
+        return "USDT"
+    return None
+
+
+def published_structured_fees(root: Path | None, symbol: str, now: datetime) -> tuple[Decimal, Decimal, str, str] | None:
+    """Resolve Wallex quote-currency maker/taker rates from a recent /v2/structured-fee snapshot or Level-1 table."""
+    group = _quote_group(symbol)
+    if group is None:
+        return None
+    if root is not None:
+        path = Path(root) / "structured_fees.json"
+        if not path.is_symlink() and path.is_file():
+            try:
+                data = json.loads(path.read_text("utf-8"))
+                fetched_at = data.get("fetched_at", "")
+                if data.get("schema") == "structured-fee-vintage/1" and _recent(fetched_at, now):
+                    rows = (data.get("groups") or {}).get(group) or []
+                    if rows:
+                        maker = Decimal(str(rows[0]["maker"]))
+                        taker = Decimal(str(rows[0]["taker"]))
+                        if 0 <= maker < 1 and 0 <= taker < 1:
+                            return maker, taker, fetched_at, "PUBLIC_STRUCTURED_FEE_VINTAGE"
+            except (ValueError, KeyError, TypeError, ArithmeticError, OSError):
+                pass
+    maker, taker = PUBLISHED_LEVEL1_FEES[group]
+    return maker, taker, iso(now), "PUBLISHED_STRUCTURED_FEE_L1"
 
 
 def save_calibration(root: Path, report: dict, *, at: datetime | None = None) -> Path:
@@ -133,19 +172,25 @@ def _recent_fees(root: Path, symbol: str, now: datetime) -> tuple[Decimal, Decim
 
 def calibrated_cost(root: Path, symbol: str, *, fee: str | None = None,
                     maker_fee: str | None = None, latency_ms: int | None = None,
-                    order_type: str = "market", now: datetime | None = None, **options) -> CostModel:
+                    order_type: str = "market", now: datetime | None = None,
+                    use_published_fees: bool = False, **options) -> CostModel:
     """Resolve explicit overrides first, otherwise use recent receipts with dated provenance."""
     now = now or now_utc()
     need_fees = fee is None or (order_type == "limit" and maker_fee is None)
     fees = _recent_fees(root, symbol, now) if need_fees else None
+    pub = published_structured_fees(root, symbol, now) if (need_fees and fees is None and use_published_fees) else None
     timing = _recent_calibration(root, symbol, now) if latency_ms is None else None
-    fee_value = Decimal(fee) if fee is not None else fees[1] if fees else _FALLBACK_FEE
-    maker_value = Decimal(maker_fee) if maker_fee is not None else fees[0] if fees else None
+    fee_value = Decimal(fee) if fee is not None else fees[1] if fees else pub[1] if pub else _FALLBACK_FEE
+    maker_value = Decimal(maker_fee) if maker_fee is not None else fees[0] if fees else pub[0] if pub else None
     latency = latency_ms if latency_ms is not None else timing[0] if timing else _FALLBACK_LATENCY_MS
     provenance = {}
     if fees and need_fees:
         provenance["fee_observed_at"] = fees[2]
         provenance["fee_source"] = "READ_ONLY_ACCOUNT_GET"
+        provenance["maker_taker_separate"] = True
+    elif pub and need_fees:
+        provenance["fee_observed_at"] = pub[2]
+        provenance["fee_source"] = pub[3]
         provenance["maker_taker_separate"] = True
     if timing:
         provenance["feed_observed_at"] = timing[1]

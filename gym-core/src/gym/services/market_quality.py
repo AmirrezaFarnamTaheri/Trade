@@ -309,17 +309,22 @@ def parse_structured_fee(payload: dict, *, fetched_at: datetime) -> dict:
     if not isinstance(result, dict):
         raise ValueError("invalid structured-fee payload")
     tiers = {}
-    for market_group, rows in result.items():
+    for market_group, entry in result.items():
+        rows = entry.get("levels") if isinstance(entry, dict) else entry
         if not isinstance(rows, list):
             continue
         parsed_rows = []
-        for row in rows:
+        for idx, row in enumerate(rows, 1):
             if not isinstance(row, dict) or "maker_fee" not in row or "taker_fee" not in row:
                 continue
             maker, taker = Decimal(str(row["maker_fee"])), Decimal(str(row["taker_fee"]))
             if not (0 <= maker < 1 and 0 <= taker < 1):
                 raise ValueError("structured fee rate out of [0, 1)")
-            parsed_rows.append({"level": row.get("level"), "maker": str(maker), "taker": str(taker)})
+            parsed_rows.append({
+                "level": row.get("level") if "level" in row else row.get("name", idx),
+                "maker": str(maker),
+                "taker": str(taker),
+            })
         if parsed_rows:
             tiers[str(market_group)] = parsed_rows
     if not tiers:

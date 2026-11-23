@@ -9,7 +9,11 @@ param(
     [string]$CoreDirectory,
     [string]$DataDirectory,
     [string]$TaskName = 'TradingGYM Collector',
-    [string[]]$CollectorArguments = @('--no-browser', '--assets', 'all'),
+    [string[]]$CollectorArguments = @(
+        '--no-browser',
+        '--watch',
+        'USDTTMN,BTCTMN,ETHTMN,SOLTMN,XRPTMN,XAUTTMN,PEPETMN,BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,XAUTUSDT,PEPEUSDT,BNBUSDT,DOGEUSDT,SUIUSDT,UNIUSDT,LINKUSDT,ASTERUSDT,HYPEUSDT,USOONUSDT,BCHUSDT,TRXUSDT,ADAUSDT,ZECUSDT,LTCUSDT,ARBUSDT,AAVEUSDT,APEUSDT,CAKEUSDT,DASHUSDT,ENAUSDT,FILUSDT,GRAMUSDT,ONDOUSDT,PUMPUSDT,SKYUSDT,SLVONUSDT,SUSDT,COPXONUSDT'
+    ),
     [string]$LinkFile = (Join-Path $env:LOCALAPPDATA 'TradingGYM\workspace-link.txt'),
     # Keep collecting while signed out (S4U logon: no stored password, no network shares; public data needs neither).
     # Needs the "Log on as a batch job" right, which standard accounts may lack; registration fails clearly if so.

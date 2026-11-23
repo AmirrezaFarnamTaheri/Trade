@@ -11,6 +11,7 @@ Start with [capabilities](capabilities.md), the [trial log](trial-log.md) and th
 | [trial-log.md](trial-log.md) | Frozen preregistered hypotheses, pass marks, and empirical outcomes |
 | [roadmap.md](roadmap.md) | Open research/engine/operations work, deadlines, and owner policy exceptions |
 | [2027-02-08-checkpoint-protocol.md](../../docs/2027-02-08-checkpoint-protocol.md) | Frozen funded-path stop/go gate and decision ownership matrix |
+| [profitable-system-plan.md](../../docs/profitable-system-plan.md) | Master engineering & quant roadmap (Wallex-core financial engine, multi-signal framework, quantitative modeling, and Phase B multi-venue expansion) |
 | [independent-custody-protocol.md](independent-custody-protocol.md) | Final-data custodian boundary, preregistration identity, and no-peek threat model |
 | [evidence-and-sampling-contract.md](evidence-and-sampling-contract.md) | Observation sampling contract, MDE/power gate, and executable-net evidence ladder |
 | [evidence/](../../evidence/README.md) | Dated machine-verified execution, replay, and audit receipts |

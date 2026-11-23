@@ -21,9 +21,15 @@ PACKAGED_OPEN_FORWARD = (
     ("funding-confirmed-trend-forward", "2026-11-18"),
     ("breadth-trend-forward", "2026-11-19"),
 )
+# Long-horizon passive forward monitors run in the background without locking active hypothesis
+# experimentation. Every trial still counts in the multiplicity (BH/DSR) denominator.
+PASSIVE_FORWARD_MONITORS = frozenset({
+    "funding-confirmed-trend-forward",
+    "breadth-trend-forward",
+})
 
 
-def check_registration_budget(root, store, now, new_id, *, supersedes=None):
+def check_registration_budget(root, store, now, new_id, *, supersedes=None, include_background_monitors: bool = False):
     """Read both registries while the caller owns the shared registration lock."""
     from .evidence import TRIAL_LOG, trials
 
@@ -35,7 +41,12 @@ def check_registration_budget(root, store, now, new_id, *, supersedes=None):
             if not parsed:
                 raise ValueError("cannot establish trial budget from an empty trial log")
             forward = [(row["id"], row["registered"]) for row in parsed if row["verdict"] == "OPEN"]
-        active.extend(trial_id for trial_id, day in forward if day <= now.date().isoformat())
+        active.extend(
+            trial_id
+            for trial_id, day in forward
+            if day <= now.date().isoformat()
+            and (include_background_monitors or trial_id not in PASSIVE_FORWARD_MONITORS)
+        )
     active.extend(active_sqlite_trials(root, store))
     return enforce_two_trial_budget([{"id": key, "verdict": "OPEN"} for key in active], new_id, supersedes=supersedes)
 
