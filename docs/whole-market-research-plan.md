@@ -178,6 +178,8 @@ Supervised ad hoc mixed-currency portfolio replays and scheduled mixed-currency 
 
 The workbench defaults to whole-catalogue paper replay with separate TMN and USDT balances. It also supports a curated mixed-currency list and the existing single-currency allocation controls. The optional rank controls submit the same settings as the CLI and scheduler. The saved view displays catalogue counts, cash by currency and recent rank decisions. The list loads compact summaries. Full verified receipts use a separate response budget and expand on demand.
 
+The browser smoke fixture runs momentum ranking on both the complete demo catalogue and a saved watchlist. For each, the CLI reproduces the workbench's manifest ID, run ID and output digest. The supervised scheduler independently calculates the run and records the same run ID and output digest.
+
 The archived-week ad hoc worker ran without a symbol list and selected the same 373 instruments as the scheduled job. It published run `eb61e7f0dd58d54e` with the historical universe manifest attached. Its entire economic result matched the scheduled run, including digest `ffe9cc726db6ce28`. This took 1,201.1 seconds on the Windows host while other replays were running.
 
 The supervised archived-week resume rebuilt the prefix at observation 243,336, at 09:00:05.611207 UTC on November 15, between the modeled OTC settlement and spot submission. It reproduced signed cash postings, fees, fills and the full output digest `ffe9cc726db6ce28` for run `c929995885bec418`. This verifies replay recovery from the original archive by rebuilding the prefix.

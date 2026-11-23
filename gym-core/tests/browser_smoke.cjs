@@ -46,6 +46,50 @@ function stop(child) {
   else try { process.kill(-child.pid, 'SIGKILL'); } catch {}
 }
 
+function assertPortfolioEntryPoints(receipt) {
+  const {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate,
+    universe_selection: selection} = receipt.inputs;
+  const request = {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate};
+  if (selection.watchlist) request.watchlist_id = selection.watchlist.watchlist_id;
+  const requestPath = path.join(temporary, 'portfolio-cli-request.json');
+  fs.writeFileSync(requestPath, JSON.stringify(request));
+  const cli = spawnSync(python, ['-m', 'gym.cli', '--data', temporary, 'research', 'portfolio-replay', requestPath, '--demo'],
+    {cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true});
+  assert.equal(cli.status, 0, cli.stderr || cli.stdout || String(cli.error));
+  const result = JSON.parse(cli.stdout);
+  assert.deepEqual([result.run_id, result.outputs_digest, result.universe_selection.manifest_id],
+    [receipt.run_id, receipt.outputs_digest, selection.manifest_id]);
+  const source = [
+    'import asyncio, json, sys',
+    'from datetime import datetime',
+    'from pathlib import Path',
+    'from gym.services.research_ledger import ResearchLedger',
+    'from gym.services.research_process import calculate',
+    'root = Path(sys.argv[1]) / "demo"',
+    'receipt = json.loads(sys.argv[2])',
+    'inputs = receipt["inputs"]',
+    'length = datetime.fromisoformat(inputs["to"]) - datetime.fromisoformat(inputs["from"])',
+    'selector = {"watchlist_id": inputs["universe_selection"]["watchlist"]["watchlist_id"]} if inputs["universe_selection"].get("watchlist") else {}',
+    'with ResearchLedger(root / "research.sqlite3") as ledger:',
+    '    hyp = ledger.register({"symbol": inputs["symbols"][0], "strategy": inputs["strategy"], "params": inputs["params"]})',
+    '    ledger.schedule({"hypothesis_id": hyp["hypothesis_id"], "first_at": inputs["to"], "every_seconds": 86400,',
+    '        "lookback_seconds": int(length.total_seconds()), "resolution": inputs["resolution"], "cash": inputs["cash"],',
+    '        "fee_rate": inputs["cost"]["fee_rate"], "max_participation": inputs["cost"]["max_participation"],',
+    '        "cash_by_currency": inputs["cash_by_currency"], "rank_gate": inputs["rank_gate"], **selector})',
+    'tick = asyncio.run(calculate(root, "tick", store="demo", at=inputs["to"]))',
+    'with ResearchLedger(root / "research.sqlite3") as ledger:',
+    '    reports = [json.loads(ledger.conn.execute("SELECT body FROM reports WHERE job_id=? AND due_at=?",',
+    '        (item["job_id"], item["due_at"])).fetchone()[0]) for item in tick["completed"]]',
+    'print(json.dumps({"tick": tick, "reports": reports}))',
+  ].join('\n');
+  const envelope = {run_id: receipt.run_id, inputs: receipt.inputs};
+  const run = spawnSync(python, ['-c', source, temporary, JSON.stringify(envelope)],
+    {cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true});
+  assert.equal(run.status, 0, run.stderr || String(run.error));
+  assert.deepEqual(JSON.parse(run.stdout).reports.map(item => [item.run_id, item.outputs_digest]),
+    [[receipt.run_id, receipt.outputs_digest]], run.stdout);
+}
+
 (async () => {
   assert(browserPath, 'Edge, Chrome or Chromium is required (or set GYM_BROWSER)');
   assert(fs.existsSync(python), 'gym-core .venv is required');
@@ -314,13 +358,15 @@ function stop(child) {
   assert.equal(portfolioDisplay, true, String(portfolioDisplay));
   assert.equal(await evaluate('document.querySelector("#portfolio-receipt-json").textContent'), '');
   await evaluate('document.querySelector("#portfolio-receipt").open = true');
-  const portfolioInputs = await until(() => evaluate(`(() => {
+  const portfolioReceipt = await until(() => evaluate(`(() => {
     const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
-    return raw ? JSON.parse(raw).inputs : null;
+    return raw ? JSON.parse(raw) : null;
   })()`), 'verified whole-market receipt');
+  const portfolioInputs = portfolioReceipt.inputs;
   assert.equal(portfolioInputs.universe_selection.schema, 'whole-spot-universe/1');
   assert.equal(portfolioInputs.rank_gate.method, 'momentum');
   assert.equal(portfolioInputs.symbols.length, 5);
+  assertPortfolioEntryPoints(portfolioReceipt);
   await evaluate(`(() => {
     const action = document.querySelector('#research-action');
     action.value = 'watchlist-save';
@@ -341,6 +387,14 @@ function stop(child) {
     document.querySelector('#portfolio-submit').click();
   `);
   await until(() => evaluate(`document.querySelector('#portfolio-result').textContent.includes('${watchlistId}')`), 'rendered watchlist replay', 60000);
+  await evaluate('document.querySelector("#portfolio-receipt").open = true');
+  const watchedReceipt = await until(() => evaluate(`(() => {
+    const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
+    if (!raw) return null;
+    const receipt = JSON.parse(raw);
+    return receipt.inputs.universe_selection.watchlist?.watchlist_id === '${watchlistId}' ? receipt : null;
+  })()`), 'verified watchlist receipt');
+  assertPortfolioEntryPoints(watchedReceipt);
   await evaluate(`document.querySelector("#portfolio-receipt").open = false;
     document.querySelector('#portfolio-universe').value = 'curated';
     document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
