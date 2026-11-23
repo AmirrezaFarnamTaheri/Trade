@@ -849,9 +849,12 @@ class _Replay:
             trades = self.sessions[symbol].limit_trades if self.cost.order_type == "limit" and symbol in self.sessions else []
             header = (", " if position else "") + encode(symbol) + ': {"limit_trades": ' + encode(trades) + ', "quotes": ['
             hasher.update(header.encode())
-            for index, top in enumerate(self.portal.iter_tops(symbol, self.t0, self.t1)):
-                record = (iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags),
-                          *((top.depth,) if self.cost.walk_depth else ()))
+            if self.cost.walk_depth:
+                rows = ((iso(top.ts_avail), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags), top.depth)
+                        for top in self.portal.iter_tops(symbol, self.t0, self.t1))
+            else:
+                rows = self.portal.iter_best_level_evidence(symbol, self.t0, self.t1)
+            for index, record in enumerate(rows):
                 if index:
                     hasher.update(b", ")
                 hasher.update(encode(record).encode())

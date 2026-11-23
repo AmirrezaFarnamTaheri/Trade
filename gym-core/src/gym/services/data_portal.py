@@ -47,13 +47,18 @@ class DataPortal:
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
         return list(self.iter_tops(symbol, t0, t1))
 
-    def iter_tops(self, symbol: str, t0: datetime, t1: datetime):
-        """Yield book events from the current read snapshot in stable receipt order."""
+    def _book_rows(self, symbol, t0, t1, *, include_depth):
         if not t0 < t1:
             raise ValueError(f"inverted or empty range {iso(t0)} .. {iso(t1)}")
-        rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
-                                 "from book_top where instrument_id=? and ts_avail>=? and ts_avail<? order by ts_avail, rowid",
-                                 (self.instrument_key(symbol), iso(t0), iso(t1)))
+        columns = "ts_avail, bid, ask, bid_qty, ask_qty, flags" + (", depth" if include_depth else "")
+        return self.db.c.execute(
+            f"SELECT {columns} FROM book_top WHERE instrument_id=? AND ts_avail>=? AND ts_avail<? ORDER BY ts_avail,rowid",
+            (self.instrument_key(symbol), iso(t0), iso(t1)))
+
+    def iter_tops(self, symbol: str, t0: datetime, t1: datetime):
+        """Yield book events from the current read snapshot in stable receipt order."""
+        rows = self._book_rows(symbol, t0, t1, include_depth=True)
+
         def optional_decimal(value):
             return None if value is None else dec(value)
 
@@ -64,6 +69,22 @@ class DataPortal:
                 continue
             yield BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
                           optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), parse_depth(r[6]))
+
+    def iter_best_level_evidence(self, symbol, t0, t1):
+        """Project legacy digest fields after replay validates all rows in the same snapshot."""
+        def decimal_text(value):
+            return None if value is None else str(dec(value))
+
+        for stamp, bid, ask, bid_qty, ask_qty, flags in self._book_rows(symbol, t0, t1, include_depth=False):
+            if self.excluded:
+                at = parse_ts(stamp)
+                if any(start <= at < end for start, end in self.excluded):
+                    continue
+            # Stored UTC receipts already have the same fixed-width representation as iso().
+            if len(stamp) != 27 or stamp[10] != "T" or not stamp.endswith("Z"):
+                stamp = iso(parse_ts(stamp))
+            yield (stamp, decimal_text(bid), decimal_text(ask), decimal_text(bid_qty), decimal_text(ask_qty),
+                   sorted(set(filter(None, flags.split(",")))))
 
     def publication(self):
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()

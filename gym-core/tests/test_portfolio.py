@@ -8,6 +8,8 @@ import pytest
 
 from gym.domain.model import TradeTick, iso
 from gym.domain.sim import CostModel
+from gym.domain.strategy import digest
+from gym.services.data_portal import DataPortal
 from gym.services.portfolio import portfolio
 from tests.support import START, market_db, quote_history
 
@@ -80,6 +82,28 @@ def test_depth_changes_change_portfolio_identity(tmp_path):
                                      resolution="1min", params={"fast": 2, "slow": 3}, cost=CostModel(walk_depth=True)))
         assert outputs[0]["outputs_digest"] != outputs[1]["outputs_digest"]
         assert outputs[0]["run_id"] != outputs[1]["run_id"]
+    finally:
+        db.c.close()
+
+
+def test_best_level_digest_keeps_legacy_decimal_flags_and_receipt_order(tmp_path):
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    rows = [top for symbol in symbols for top in quote_history(n=30, sym=symbol)]
+    db = market_db(tmp_path, rows)
+    end = START + timedelta(minutes=5)
+    try:
+        repeated = replace(rows[1], bid=Decimal("6.25E+4"))
+        db.add_book_top(repeated, None, '[[["2.0", "3"]], []]')
+        db.c.execute("UPDATE book_top SET flags='CROSSED,,STALE,CROSSED', bid='+00062500.00', bid_qty=NULL,"
+                     " ask_qty='-0.000', ts_avail=? WHERE rowid=(SELECT max(rowid) FROM book_top)",
+                     (repeated.ts_avail.strftime("%Y-%m-%dT%H:%M:%SZ"),))
+        portal = DataPortal(db)
+        decoded = {symbol: {"limit_trades": [],
+                            "quotes": [(iso(q.ts_avail), q.bid, q.ask, q.bid_qty, q.ask_qty, sorted(q.flags))
+                                       for q in portal.iter_tops(symbol, START, end)]}
+                   for symbol in symbols}
+        archived = portfolio(db, symbols, START, end, resolution="1min")
+        assert archived["inputs"]["data"] == digest(decoded)
     finally:
         db.c.close()
 
