@@ -29,6 +29,8 @@ The review receipt written to `evidence/2027-02-08-checkpoint-decision.md` must 
 1. Exact Git commit SHA and CI run URL covering that SHA.
 2. 30-day UTC daily feed coverage table (`2027-01-09`..`2027-02-07`), count of failed doctor/feed days, longest raw segment gap in hours, and unclosed segment list.
 3. Prospective `btc-daily-trend` (`data/live/allocation/journal.jsonl`) and `passive-multi-asset-mix` (`mix-journal.jsonl`) continuity audit: expected days, recorded days, missing/stale days, and exact economic accounting version.
+
+   The Windows allocation wrapper records refresh failures by symbol and continues with the other symbols. The subsequent journal commands require the preceding completed UTC day. A partial refresh can finish successfully when both journals cover that day from stored candles. A missing day fails and leaves earlier decisions in place. On November 23 the previous wrapper stopped its mix refresh at XAUTUSDT after TLS handshake failures. Both November 22 journal entries were recovered exactly against their original cutoffs using the stricter local commands and the retained read-only database. The next scheduled run will provide a receipt for the updated wrapper.
 4. Independent holdout/final-evaluation release bundle (preregistered identity, total selection attempts, DSR probability, exact cost model, refusal/unknown checks).
 5. Installed-host vs source capability status (`C:\Program Files\TradingGYM\Executor` hashes, service state `Stopped` / `DISARMED`).
 6. Backup status disclosure (including whether the 2026-11-16 off-machine backup cancellation exception remains in force; reconsideration is strongly recommended before any funded-host work).

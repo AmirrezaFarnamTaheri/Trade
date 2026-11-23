@@ -319,21 +319,28 @@ def history_cmd(args) -> int:
     if failed_symbols:
         payload["failed_symbols"] = failed_symbols
     print(json.dumps(payload))
-    return 0
+    return 3 if failed_symbols else 0
+
+
+def _scheduled_day(args, now):
+    return now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1) if args.require_completed_day else None
 
 
 def allocate_cmd(args) -> int:
     """Append today's daily-trend allocation decisions and paper fills to the allocation journal."""
     from ..services.allocation import run_day
 
+    now = now_utc()
+    day = _scheduled_day(args, now)
     db = open_db(args)
     try:
-        entries = run_day(db, store_root(args), [s.upper() for s in args.symbols], now_utc(),
-                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band)
+        entries = run_day(db, store_root(args), [s.upper() for s in args.symbols], now,
+                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band,
+                          required_day=day)
     finally:
         db.c.close()
     print(json.dumps(entries, indent=2))
-    return 0
+    return int(day is not None and any(entry.get("day") != iso(day) for entry in entries))
 
 
 def convert_route_cmd(args) -> int:
@@ -353,12 +360,15 @@ def mix_journal_cmd(args) -> int:
     """Append today's passive-mix decision and paper fills to its forward journal."""
     from ..services.mix_journal import run_mix_day
 
+    now = now_utc()
+    day = _scheduled_day(args, now)
     db = open_db(args)
     try:
-        print(json.dumps(run_mix_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
+        entry = run_mix_day(db, store_root(args), now, cash=Decimal(args.cash), required_day=day)
     finally:
         db.c.close()
-    return 0
+    print(json.dumps(entry, indent=2))
+    return int(day is not None and entry["status"] not in {"READY", "ALREADY_DECIDED"})
 
 
 def breadth_journal_cmd(args) -> int:

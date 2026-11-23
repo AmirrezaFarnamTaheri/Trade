@@ -94,6 +94,24 @@ def test_repeated_symbols_are_decided_once_in_input_order(tmp_path):
     assert len(journal(tmp_path)) == 1
 
 
+def test_scheduled_allocation_refuses_a_missing_day_and_preserves_current_record(tmp_path, monkeypatch):
+    import gym.commands.research as research
+    from gym.cli import main
+
+    root = tmp_path / "live"
+    db = seed(root, closes())
+    db.c.close()
+    args = ["--data", str(tmp_path), "allocate", "BTCUSDT", "--require-completed-day"]
+    monkeypatch.setattr(research, "now_utc", lambda: NOW + timedelta(days=1))
+    assert main(args) == 1
+    assert journal(root) == []
+    monkeypatch.setattr(research, "now_utc", lambda: NOW)
+    assert main(args) == 0
+    recorded = journal(root)
+    assert len(recorded) == 1
+    assert main(args) == 0 and journal(root) == recorded
+
+
 def set_spec(db, spec, at=NOW - timedelta(days=1)):
     db.upsert_instrument(InstrumentId.wallex("BTCUSDT", "BTC", "USDT"), {}, spec, "test", at)
 

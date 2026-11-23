@@ -16,10 +16,10 @@ $from = (Get-Date).ToUniversalTime().AddDays(-5).ToString('yyyy-MM-ddT00:00:00Z'
 $baseArguments = @('run', '--no-sync', 'gymctl', '--data', $DataDirectory)
 $mix = @('XAUTUSDT', 'SLVONUSDT', 'USOONUSDT', 'COPXONUSDT', 'AAPLXUSDT')
 $steps = @(
-    @{ Name = 'trend history'; Arguments = @('history') + $Symbols + @('--resolution', '1d', '--from', $from) }
-    @{ Name = 'trend journal'; Arguments = @('allocate') + $Symbols + @('--vol-target', '5', '--band', '0') }
-    @{ Name = 'mix history'; Arguments = @('history') + $mix + @('--resolution', '1d', '--from', $from) }
-    @{ Name = 'mix journal'; Arguments = @('mix-journal') }
+    @{ Name = 'trend history'; Refresh = $true; Arguments = @('history') + $Symbols + @('--resolution', '1d', '--from', $from, '--best-effort') }
+    @{ Name = 'trend journal'; Refresh = $false; Arguments = @('allocate') + $Symbols + @('--vol-target', '5', '--band', '0', '--require-completed-day') }
+    @{ Name = 'mix history'; Refresh = $true; Arguments = @('history') + $mix + @('--resolution', '1d', '--from', $from, '--best-effort') }
+    @{ Name = 'mix journal'; Refresh = $false; Arguments = @('mix-journal', '--require-completed-day') }
 )
 
 Set-Content -LiteralPath $logPath -Encoding UTF8 -Value "Started $([DateTime]::UtcNow.ToString('o'))"
@@ -38,7 +38,8 @@ foreach ($step in $steps) {
         $ErrorActionPreference = 'Stop'
     }
     Add-Content -LiteralPath $logPath -Encoding UTF8 -Value ("Finished " + $step.Name + " with exit " + $code)
-    if ($code -ne 0) { $result = $code }
+    # Code 3 means the refresh tried all symbols. The corresponding journal enforces the required day.
+    if ($code -ne 0 -and -not ($step.Refresh -and $code -eq 3)) { $result = $code }
 }
 Add-Content -LiteralPath $logPath -Encoding UTF8 -Value "Completed $([DateTime]::UtcNow.ToString('o')) with exit $result"
 exit $result

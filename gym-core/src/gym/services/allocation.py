@@ -29,17 +29,21 @@ def journal(root):
 
 
 def run_day(db, root, symbols, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"),
-            max_quote_age=timedelta(minutes=5), **rule):
+            max_quote_age=timedelta(minutes=5), required_day=None, **rule):
     """Decide and paper-fill each market once for its latest completed daily candle; return new entries."""
     daily_target([], 0, **rule)  # validate even when no market has candles
     portal, rules = DataPortal(db), RuleService(db)
     path = root / JOURNAL
     out = []
+    required_key = iso(required_day)
     history_start = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - 400 * DAY
     with journal_lock(path):
         past = journal(root)
         for symbol in dict.fromkeys(symbols):
             mine = [e for e in past if e["symbol"] == symbol]
+            if required_key is not None and any(e.get("day") == required_key for e in mine):
+                out.append({"symbol": symbol, "status": "ALREADY_DECIDED", "day": required_key})
+                continue
             holdings = mine[-1]["holdings"] if mine else {"base": "0", "quote": str(cash)}
             base, quote_cash = Decimal(holdings["base"]), Decimal(holdings["quote"])
             candles = [k for k in portal.venue_candles(symbol, "1d", history_start, now, as_of=now) if k["t"] + DAY <= now]
@@ -48,6 +52,10 @@ def run_day(db, root, symbols, now, *, cash=Decimal(1000), fee_rate=Decimal("0.0
                             "hint": f"run: gymctl history {symbol} --resolution 1d --from 2025-01-01T00:00:00Z"})
                 continue
             day = iso(candles[-1]["t"])
+            if required_key is not None and day != required_key:
+                out.append({"symbol": symbol, "status": "MISSING_COMPLETED_DAY",
+                            "required_day": required_key, "last_completed_day": day})
+                continue
             if any(e.get("day") == day for e in mine):
                 out.append({"symbol": symbol, "status": "ALREADY_DECIDED", "day": day})
                 continue

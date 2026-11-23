@@ -22,3 +22,29 @@ def test_weights_never_exceed_one_and_rebalance_only_past_the_band():
     assert sum(wanted.values()) <= 1 and wanted["a"] > wanted["b"]
     assert needs_rebalance(wanted, {"a": wanted["a"] + 0.06, "b": wanted["b"]})
     assert not needs_rebalance(wanted, {"a": wanted["a"] + 0.04, "b": wanted["b"]})
+
+
+def test_scheduled_mix_falls_back_to_stored_day_and_never_writes_an_old_day(tmp_path, monkeypatch):
+    import gym.commands.research as research
+    from gym.cli import main
+    from gym.services.mix_journal import TOKENS, journal
+    from tests.support import market_db
+
+    root = tmp_path / "live"
+    db = market_db(root, [])
+    now = DAY0 + timedelta(days=70, minutes=15)
+    try:
+        for symbol in TOKENS.values():
+            candles = [{"t": DAY0 + timedelta(days=index), "o": price, "h": price, "l": price, "c": price, "v": 1}
+                       for index, price in enumerate(range(100, 170))]
+            db.upsert_candles(symbol, "1d", candles, now - timedelta(seconds=1))
+    finally:
+        db.c.close()
+    args = ["--data", str(tmp_path), "mix-journal", "--require-completed-day"]
+    monkeypatch.setattr(research, "now_utc", lambda: now + timedelta(days=1))
+    assert main(args) == 1 and journal(root) == []
+    monkeypatch.setattr(research, "now_utc", lambda: now)
+    assert main(args) == 0
+    recorded = journal(root)
+    assert len(recorded) == 1 and recorded[0]["status"] == "READY"
+    assert main(args) == 0 and journal(root) == recorded

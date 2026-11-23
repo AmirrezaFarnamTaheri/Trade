@@ -46,15 +46,19 @@ def daily_returns(closes_by_token, last_day):
     return days, out, {name: series[-1] for name, series in prices.items()}
 
 
-def run_mix_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"), max_quote_age=timedelta(minutes=5)):
+def run_mix_day(db, root, now, *, cash=Decimal(1000), fee_rate=Decimal("0.001"), max_quote_age=timedelta(minutes=5),
+                required_day=None):
     """Decide, paper-fill and append today's entry; returns it (or why nothing was recorded)."""
     path = root / JOURNAL
     with journal_lock(path):
-        return _run_mix_day_locked(db, root, path, now, cash=cash, fee_rate=fee_rate, max_quote_age=max_quote_age)
+        return _run_mix_day_locked(db, root, path, now, cash=cash, fee_rate=fee_rate, max_quote_age=max_quote_age,
+                                   required_day=required_day)
 
 
-def _run_mix_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age):
+def _run_mix_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age, required_day):
     portal, past = DataPortal(db), journal(root)
+    if required_day is not None and any(entry["day"] == iso(required_day) for entry in past):
+        return {"status": "ALREADY_DECIDED", "day": iso(required_day)}
     start = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - 400 * DAY
     closes = {}
     for name, symbol in TOKENS.items():
@@ -63,6 +67,8 @@ def _run_mix_day_locked(db, root, path, now, *, cash, fee_rate, max_quote_age):
             return {"status": "NO_CANDLES", "symbol": symbol, "at": iso(now)}
         closes[name] = {k["t"]: k["c"] for k in candles}
     last_day = max(max(c) for c in closes.values())
+    if required_day is not None and last_day != required_day:
+        return {"status": "MISSING_COMPLETED_DAY", "required_day": iso(required_day), "last_completed_day": iso(last_day)}
     if any(entry["day"] == iso(last_day) for entry in past):
         return {"status": "ALREADY_DECIDED", "day": iso(last_day)}
     days, returns, last_close = daily_returns(closes, last_day)

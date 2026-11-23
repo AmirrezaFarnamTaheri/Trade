@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -104,7 +105,7 @@ def test_a_failed_refresh_still_records_the_day_from_stored_candles(tmp_path, mo
     assert len(journal(tmp_path / "live")) == 1
 
 
-def test_best_effort_refresh_skips_one_failing_symbol_without_stalling_universe(tmp_path, monkeypatch):
+def test_best_effort_refresh_skips_one_failing_symbol_without_stalling_universe(tmp_path, monkeypatch, capsys):
     """E013: a single unreadable USDT symbol must not abort the remaining 200+ markets in breadth-journal --refresh."""
     from contextlib import asynccontextmanager
 
@@ -138,3 +139,9 @@ def test_best_effort_refresh_skips_one_failing_symbol_without_stalling_universe(
     assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 0
     rows = journal(tmp_path / "live")
     assert len(rows) == 1 and rows[0]["day"] == "2026-10-20T00:00:00.000000Z"
+    capsys.readouterr()
+    assert main(["--data", str(tmp_path), "history", "BADUSDT", "CCCUSDT", "--resolution", "1d",
+                 "--from", "2026-10-19T00:00:00Z", "--best-effort"]) == 3
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["candles"] == {"BADUSDT": 0, "CCCUSDT": 1}
+    assert set(receipt["failed_symbols"]) == {"BADUSDT"}
