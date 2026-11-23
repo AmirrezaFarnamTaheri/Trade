@@ -835,6 +835,9 @@ class _Replay:
                     "limit_trades": session.limit_trades,
                     **({"venue_stop": session.venue_stop, "stop_trades": session.venue_stop_trades}
                        if session.strategy.params.get("exit_venue_stop") else {})} for s, session in sessions.items()}}))
+        expected = checkpoint.pop("expected_prefix", None)
+        if expected is not None and any(checkpoint[key] != value for key, value in expected.items()):
+            raise ValueError("portfolio checkpoint prefix, rules, risk or reservations changed")
 
     def _quote_stream(self, symbol):
         for index, top in enumerate(self.portal.iter_tops(symbol, self.t0, self.t1)):

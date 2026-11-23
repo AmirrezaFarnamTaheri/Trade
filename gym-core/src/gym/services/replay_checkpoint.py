@@ -139,9 +139,11 @@ def portfolio_checkpoint(registry, db, request, *, saved):
         "venue": inputs.get("venue", "wallex"), "rank_gate": inputs.get("rank_gate"),
         "valuation_symbol": inputs.get("valuation_symbol")}
     checkpoint = {"quote_count": count}
+    if saved:
+        checkpoint["expected_prefix"] = {
+            key: saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")
+        }
     rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
-    if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):
-        raise ValueError("portfolio checkpoint prefix, rules, risk or reservations changed")
     if rebuilt["run_id"] != out["run_id"] or rebuilt["outputs_digest"] != out["outputs_digest"]:
         raise ValueError("portfolio replay differs from saved evidence")
     if saved:

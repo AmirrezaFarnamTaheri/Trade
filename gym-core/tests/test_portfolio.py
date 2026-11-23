@@ -14,6 +14,27 @@ from gym.services.portfolio import portfolio
 from tests.support import START, market_db, quote_history
 
 
+def test_changed_checkpoint_prefix_stops_before_following_receipts(tmp_path, monkeypatch):
+    from gym.services.portfolio import _Replay
+
+    db = market_db(tmp_path, quote_history(n=20) + quote_history(n=20, sym="ETHUSDT"))
+    fed = []
+    feed = _Replay._feed
+
+    def record_feed(self, symbol, top):
+        fed.append(symbol)
+        return feed(self, symbol, top)
+
+    monkeypatch.setattr(_Replay, "_feed", record_feed)
+    try:
+        with pytest.raises(ValueError, match="checkpoint prefix"):
+            portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=5),
+                      checkpoint={"quote_count": 2, "expected_prefix": {"prefix_digest": "changed"}})
+        assert len(fed) == 2
+    finally:
+        db.c.close()
+
+
 def test_markets_share_one_cash_balance_and_equal_target_weights(tmp_path):
     db = market_db(tmp_path, quote_history(n=500) + quote_history(n=500, sym="ETHUSDT"))
     out = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1), resolution="1min", cash=Decimal(1000),
