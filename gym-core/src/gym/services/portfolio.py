@@ -97,7 +97,8 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
               checkpoint: dict | None = None, universe_selection: dict | None = None, booked_accounting: bool = True,
               cash_by_currency: dict | None = None, dynamic_routes: bool = False,
               funding_legs: list | None = None, fx_rebalance: dict | None = None, margin_plans=None,
-              venue: str = "wallex", rank_gate: dict | None = None, valuation_symbol: str | None = None) -> dict:
+              venue: str = "wallex", rank_gate: dict | None = None, valuation_symbol: str | None = None,
+              intent_sink=None) -> dict:
     """Replay one shared-cash portfolio using a read-isolated chronological snapshot."""
     if db.c.in_transaction:
         raise ValueError("portfolio requires its own read snapshot")
@@ -108,16 +109,19 @@ def portfolio(db: MarketDB, symbols: list[str], t0: datetime, t1: datetime, *, r
                           policy=policy, checkpoint=checkpoint, universe_selection=universe_selection,
                           booked_accounting=booked_accounting, cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes,
                           funding_legs=funding_legs, fx_rebalance=fx_rebalance, margin_plans=margin_plans,
-                          rank_gate=rank_gate, valuation_symbol=valuation_symbol)
+                          rank_gate=rank_gate, valuation_symbol=valuation_symbol, intent_sink=intent_sink)
     finally:
         db.c.rollback()
 
 
 def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy, checkpoint,
                universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs, fx_rebalance,
-               margin_plans, rank_gate, valuation_symbol):
+               margin_plans, rank_gate, valuation_symbol, intent_sink=None):
     """Replay strictly prior market observations against a shared simulated cash book."""
     cash_by_currency = portfolio_currency_inputs(portal.venue, cash_by_currency, valuation_symbol)
+    if intent_sink is not None and (cost.order_type != "market" or cost.carry_remainder or margin_plans
+                                    or (params or {}).get("exit_venue_stop")):
+        raise ValueError("intent capture requires spot market orders without carried remainders or venue stops")
     if valuation_symbol is not None and (funding_legs is not None or margin_plans is not None):
         raise ValueError("opening funding routes and margin receipts require Wallex terms")
     _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection,
@@ -134,7 +138,7 @@ def _portfolio(portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, 
                    universe_selection=universe_selection, booked_accounting=booked_accounting,
                    cash_by_currency=cash_by_currency, dynamic_routes=dynamic_routes, funding_legs=funding_legs,
                    fx_rebalance=fx_rebalance, margin_plans=margin_plans,
-                   rank_gate=rank_gate, valuation_symbol=valuation_symbol).run()
+                   rank_gate=rank_gate, valuation_symbol=valuation_symbol, intent_sink=intent_sink).run()
 
 
 class _Replay:
@@ -145,7 +149,7 @@ class _Replay:
 
     def __init__(self, portal, symbols, t0, t1, *, resolution, cash, cost, strategy_id, params, rules_mode, store, policy,
                  checkpoint, universe_selection, booked_accounting, cash_by_currency, dynamic_routes, funding_legs,
-                 fx_rebalance, margin_plans, rank_gate, valuation_symbol):
+                 fx_rebalance, margin_plans, rank_gate, valuation_symbol, intent_sink=None):
         self.db, self.symbols, self.t0, self.t1 = portal.db, symbols, t0, t1
         self.resolution, self.cash, self.cost, self.strategy_id = resolution, cash, cost, strategy_id
         self.rules_mode, self.store, self.policy, self.checkpoint = rules_mode, store, policy, checkpoint
@@ -227,6 +231,7 @@ class _Replay:
             starting_cash = self.book.get(self.instruments[s].quote) if self.multicurrency else cash
             session = PaperSession(self.portal, self.rules_for, strategy, s, t0, resolution, starting_cash, cost,
                                    shared_book=self.book)
+            session.intent_sink = intent_sink
             session.allocation = lambda fraction, symbol=s: self.allocate(symbol, fraction)
             session.decision_filter = (lambda action, fraction, reasons, symbol=s:
                                        self.filter_decision(symbol, action, fraction, reasons))

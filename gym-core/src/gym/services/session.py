@@ -80,6 +80,7 @@ class PaperSession:
         self.consolidator = self.closes.by_resolution[resolution]
         self.book = shared_book if shared_book is not None else CashBook({self.instrument.quote: cash})
         self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
+        self.intent_sink = None
         self.decision_filter = None
         self.warmup_until = None  # No simulated orders can enter before this boundary.
         self.risk_budget = None
@@ -295,6 +296,7 @@ class PaperSession:
                         if not stop_distance.is_finite() or not 0<stop_distance<10000:
                             raise ValueError("invalid proposed paper stop distance")
                     self.pending = PendingOrder(order, fraction, bar.avail, quote.ask if side == "BUY" else quote.bid,stop_distance)
+                    self._capture_intent(decision, quote)
                     decision["order"] = ref
             self.decisions.append(decision)
             if quote:
@@ -306,6 +308,18 @@ class PaperSession:
                                      "reason": "VENUE_CLOSED" if venue_closed else "NO_OBSERVATIONS"})
 
         self.latest_bars.update({b.spec.resolution: b for b in closed_bars})
+
+    def _capture_intent(self, decision, quote):
+        if self.intent_sink is None:
+            return
+        pending = self.pending
+        at, side = pending.decision_time, pending.record["side"]
+        asset = self.instrument.quote if side == "BUY" else self.instrument.base
+        self.intent_sink({"symbol": self.symbol, "ref": pending.record["ref"], "side": side,
+                          "decision_at": iso(at), "snapshot": decision["snapshot"], "quote_at": iso(quote.ts_avail),
+                          "decision_price": str(pending.decision_price), "arrival_at": iso(at + self.cost.latency),
+                          "deadline": iso(at + self.cost.max_wait), "amount_asset": asset,
+                          "amount": str(self.book.get(asset) * pending.fraction), "remainder_policy": "cancel"})
 
     def settle(self, top, at, closing=False):
         if not self.pending:

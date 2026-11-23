@@ -155,3 +155,7 @@ The November 22 Tehran follow-up maps all 271 menu IDs exactly once. The Windows
 ## November 22 publication verification
 
 The Windows research suite passed 2,071 tests and 35 subtests, with five skips and three aiohttp WebSocket deprecation warnings. Windows Edge and Linux Chrome exercised the maker-status filter. Ruff, the complexity ratchet, the staged Gitleaks scan, the locked Python dependency audit, and the axe-core 4.10.2 npm audit passed. The wheel and source distribution built successfully. The executor service was stopped and disabled, and the Windows session lacked administrator privileges.
+
+## November 23 forward journal receipt
+
+The installed Breadth Journal task started at 15:00 Tehran time and returned zero. Its journal recorded the completed November 22 UTC day as `READY` at 15:09 Tehran time. BTC, mix, and breadth now each end on November 22 with `READY` rows. BTC and mix still lack November 19. Breadth still lacks November 18–20. The scheduled append establishes publication for November 22. The missing days and the forward scoring windows remain open.

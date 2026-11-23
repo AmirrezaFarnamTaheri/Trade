@@ -87,7 +87,7 @@ def _normalize_schedule_selection(root, body):
         body["portfolio_symbols"] = sorted(symbols)
 
 
-def _scheduled_replay(db, job, hypothesis, end, store, root):
+def _scheduled_replay(db, job, hypothesis, end, store, root, *, intent_sink=None):
     start = end - timedelta(seconds=job["lookback_seconds"])
     options = {"strategy_id": hypothesis["strategy"], "params": hypothesis["params"],
                "resolution": job["resolution"], "cash": decimal(job["cash"], "cash", positive=True),
@@ -107,7 +107,9 @@ def _scheduled_replay(db, job, hypothesis, end, store, root):
                          fx_rebalance=job.get("fx_rebalance"),
                          margin_plans=load_margin_plans(root, job.get("margin_positions")),
                          rank_gate=job.get("rank_gate"), venue=venue,
-                         valuation_symbol=job.get("valuation_symbol")), "portfolios"
+                         valuation_symbol=job.get("valuation_symbol"), intent_sink=intent_sink), "portfolios"
+    if intent_sink is not None:
+        raise ValueError("intent capture requires a scheduled shared portfolio")
     strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
     db.c.execute("BEGIN")
     try:

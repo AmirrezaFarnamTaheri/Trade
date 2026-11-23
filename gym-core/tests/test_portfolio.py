@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from gym.domain.model import TradeTick, iso
+from gym.domain.model import TradeTick, iso, parse_ts
 from gym.domain.sim import CostModel
 from gym.domain.strategy import digest
 from gym.services.data_portal import DataPortal
@@ -37,6 +37,33 @@ def test_markets_share_one_cash_balance_and_equal_target_weights(tmp_path):
     assert out["performance"]["trade_statistics_status"] == "NOT_APPLICABLE"
     assert out["run_id"] == portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1), resolution="1min",
                                       cash=Decimal(1000), params={"fast": 2, "slow": 3})["run_id"]
+
+
+def test_frozen_spot_intents_keep_decision_bounds_and_replay_identity(tmp_path):
+    db = market_db(tmp_path, quote_history(n=360) + quote_history(n=360, sym="ETHUSDT"))
+    intents = []
+    options = {"resolution": "1min", "params": {"fast": 2, "slow": 3},
+               "cost": CostModel(latency=timedelta(seconds=2), max_wait=timedelta(seconds=12))}
+    args = (db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1))
+    try:
+        out = portfolio(*args, **options, intent_sink=intents.append)
+        assert out == portfolio(*args, **options)
+        orders = {row["ref"]: row for market in out["result"]["markets"].values() for row in market["orders"]}
+        assert len(intents) == len(orders)
+        assert {row["side"] for row in intents} == {"BUY", "SELL"}
+        for row in intents:
+            at = parse_ts(row["decision_at"])
+            assert parse_ts(row["quote_at"]) <= at
+            assert parse_ts(row["arrival_at"]) == at + options["cost"].latency
+            assert parse_ts(row["deadline"]) == at + options["cost"].max_wait
+            assert row["amount_asset"] == ("USDT" if row["side"] == "BUY" else row["symbol"][:-4])
+            assert Decimal(row["amount"]) > 0 and row["snapshot"]
+            assert orders[row["ref"]]["decision_time"] == row["decision_at"]
+        assert Decimal(intents[0]["amount"]) == 500
+        with pytest.raises(ValueError, match="intent capture requires"):
+            portfolio(*args, intent_sink=intents.append, cost=CostModel(carry_remainder=True))
+    finally:
+        db.c.close()
 
 
 def test_portfolio_rejects_mixed_quote_currencies_and_single_markets(tmp_path):
