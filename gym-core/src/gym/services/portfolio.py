@@ -13,6 +13,7 @@ from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, localcontext
+from itertools import islice
 
 from ..adapters.store import MarketDB
 from ..domain.bars import BarSpec, qualified
@@ -854,10 +855,13 @@ class _Replay:
                         for top in self.portal.iter_tops(symbol, self.t0, self.t1))
             else:
                 rows = self.portal.iter_best_level_evidence(symbol, self.t0, self.t1)
-            for index, record in enumerate(rows):
-                if index:
-                    hasher.update(b", ")
-                hasher.update(encode(record).encode())
+            rows = iter(rows)
+            separator = b""
+            while block := list(islice(rows, 256)):
+                hasher.update(separator)
+                # Strip the batch's outer brackets to retain the legacy quote array bytes.
+                hasher.update(encode(block)[1:-1].encode())
+                separator = b", "
             hasher.update(b"]}")
         hasher.update(b"}")
         return hasher.hexdigest()

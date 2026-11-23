@@ -5,6 +5,7 @@ import re
 from bisect import bisect_right
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
@@ -25,6 +26,17 @@ def parse_depth(text):
     if text is None:
         return None
     return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
+
+
+@lru_cache(maxsize=4096)
+def _book_receipt_time(stamp):
+    # Collector snapshots share receipt timestamps across instruments.
+    return parse_ts(stamp)
+
+
+@lru_cache(maxsize=64)
+def _book_flags(text):
+    return frozenset(filter(None, text.split(",")))
 
 
 def validate_venue(venue):
@@ -64,27 +76,28 @@ class DataPortal:
 
         excluded = self.excluded
         for r in rows:
-            t = parse_ts(r[0])
+            t = _book_receipt_time(r[0])
             if excluded and any(start <= t < end for start, end in excluded):
                 continue
             yield BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
-                          optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), parse_depth(r[6]))
+                          optional_decimal(r[4]), _book_flags(r[5]), parse_depth(r[6]))
 
     def iter_best_level_evidence(self, symbol, t0, t1):
         """Project legacy digest fields after replay validates all rows in the same snapshot."""
+        @lru_cache(maxsize=4096)
         def decimal_text(value):
             return None if value is None else str(dec(value))
 
         for stamp, bid, ask, bid_qty, ask_qty, flags in self._book_rows(symbol, t0, t1, include_depth=False):
             if self.excluded:
-                at = parse_ts(stamp)
+                at = _book_receipt_time(stamp)
                 if any(start <= at < end for start, end in self.excluded):
                     continue
             # Stored UTC receipts already have the same fixed-width representation as iso().
             if len(stamp) != 27 or stamp[10] != "T" or not stamp.endswith("Z"):
-                stamp = iso(parse_ts(stamp))
+                stamp = iso(_book_receipt_time(stamp))
             yield (stamp, decimal_text(bid), decimal_text(ask), decimal_text(bid_qty), decimal_text(ask_qty),
-                   sorted(set(filter(None, flags.split(",")))))
+                   sorted(_book_flags(flags)))
 
     def publication(self):
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()

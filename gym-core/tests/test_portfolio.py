@@ -86,9 +86,10 @@ def test_depth_changes_change_portfolio_identity(tmp_path):
         db.c.close()
 
 
-def test_best_level_digest_keeps_legacy_decimal_flags_and_receipt_order(tmp_path):
+@pytest.mark.parametrize("walk_depth", [False, True])
+def test_batched_digest_keeps_legacy_decimal_flags_and_receipt_order(tmp_path, walk_depth):
     symbols = ["BTCUSDT", "ETHUSDT"]
-    rows = [top for symbol in symbols for top in quote_history(n=30, sym=symbol)]
+    rows = [top for symbol in symbols for top in quote_history(n=257, step=1, sym=symbol)]
     db = market_db(tmp_path, rows)
     end = START + timedelta(minutes=5)
     try:
@@ -99,10 +100,11 @@ def test_best_level_digest_keeps_legacy_decimal_flags_and_receipt_order(tmp_path
                      (repeated.ts_avail.strftime("%Y-%m-%dT%H:%M:%SZ"),))
         portal = DataPortal(db)
         decoded = {symbol: {"limit_trades": [],
-                            "quotes": [(iso(q.ts_avail), q.bid, q.ask, q.bid_qty, q.ask_qty, sorted(q.flags))
+                            "quotes": [(iso(q.ts_avail), q.bid, q.ask, q.bid_qty, q.ask_qty, sorted(q.flags),
+                                        *((q.depth,) if walk_depth else ()))
                                        for q in portal.iter_tops(symbol, START, end)]}
                    for symbol in symbols}
-        archived = portfolio(db, symbols, START, end, resolution="1min")
+        archived = portfolio(db, symbols, START, end, resolution="1min", cost=CostModel(walk_depth=walk_depth))
         assert archived["inputs"]["data"] == digest(decoded)
     finally:
         db.c.close()
