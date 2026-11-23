@@ -281,13 +281,25 @@ def sellable_quantity(quantity: Decimal, bid: Decimal, spec: Spec) -> Decimal:
     return quantity if quantity>0 and (spec.min_qty is None or quantity>=spec.min_qty) and (spec.min_notional is None or quantity*bid>=spec.min_notional) else Decimal(0)
 
 
+def _fixed_size_funded(amount, book, inst, side, cost):
+    if amount is None:
+        return True
+    if (not amount.is_finite() or amount <= 0 or cost.impact_models is not None
+            or cost.hourly_costs is not None or cost.postfill_costs is not None):
+        raise ValueError("fixed size requires a positive finite amount and unmodeled execution costs")
+    return amount <= book.get(inst.quote if side == "BUY" else inst.base)
+
+
 def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decimal, decision_time: datetime,
                  decision_quote: Decimal, tops: list[BookTop], start: int, cost: CostModel, spec: Spec,
                  rules: list[Rule], quota_used: dict, ref: str, day_open: Decimal | None = None,
-                 *, execution_limits=None, max_qty: Decimal | None = None, limit_price: Decimal | None = None) -> dict:
+                 *, execution_limits=None, max_qty: Decimal | None = None, limit_price: Decimal | None = None,
+                 fixed_amount: Decimal | None = None) -> dict:
     """Fill at the first qualified quote at or after decision + latency, or record a nonfill with its reason."""
     out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL"}
     _check_execution_limits(execution_limits)
+    if not _fixed_size_funded(fixed_amount, book, inst, side, cost):
+        return {**out, "reason": "INSUFFICIENT_SETTLED_BALANCE"}
     earliest, deadline = decision_time + cost.latency, decision_time + cost.max_wait
     top = next((x for x in tops[start:] if x.ts_avail >= earliest and qualified(x)), None)
     if top is None or top.ts_avail > deadline:
@@ -313,7 +325,8 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         levels = top.depth[1] if side == "BUY" else top.depth[0]
     if execution_limits is not None and side == "BUY" and top.spread_bps > execution_limits["max_spread_bps"]:
         return {**out,"fill_time":iso(t),"reason":"ENTRY_SPREAD_LIMIT"}
-    qty = _order_size(book, inst, side, fraction, price, levels, top, cost, spec, v.quota_remaining, max_qty, out)
+    qty = _order_size(book, inst, side, fraction, price, levels, top, cost, spec, v.quota_remaining, max_qty, out,
+                      fixed_amount=fixed_amount)
     if qty is None:
         return {**out, "fill_time": iso(t), "reason": "DISPLAYED_CAPACITY_UNAVAILABLE"}
     if levels and qty > 0 and _trips_price_guard(levels, qty):
@@ -416,7 +429,8 @@ def _trips_price_guard(levels, qty: Decimal) -> bool:
     return abs(worst / levels[0][0] - 1) > MARKET_PRICE_GUARD
 
 
-def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quota_remaining, max_qty, out):
+def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quota_remaining, max_qty, out,
+                *, fixed_amount=None):
     """Quantity after cash or holdings, venue quota, observed depth, displayed capacity and any remainder cap.
 
     Records the binding resize in `out`; returns None when displayed capacity is required but unknown.
@@ -424,13 +438,13 @@ def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quot
     if side == "BUY":
         with localcontext() as ctx:
             ctx.rounding = ROUND_DOWN  # 28-digit division must never round the quantity up past the cash
-            budget = book.get(inst.quote) * fraction
+            budget = book.get(inst.quote) * fraction if fixed_amount is None else fixed_amount
             qty = _floor(_budget_qty(levels, budget) if levels else budget / price, spec.qty_decimals)
         if quota_remaining is not None and qty > quota_remaining:
             qty = _floor(quota_remaining, spec.qty_decimals)  # resize the excess, never exceed the cap
             out["resized"] = "VenueQuota"
     else:
-        qty = _floor(book.get(inst.base) * fraction, spec.qty_decimals)
+        qty = _floor(book.get(inst.base) * fraction if fixed_amount is None else fixed_amount, spec.qty_decimals)
     requested = qty
     if levels is not None:
         depth_total = sum((size for _, size in levels), Decimal(0))
