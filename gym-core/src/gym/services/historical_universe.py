@@ -75,10 +75,12 @@ def universe_manifest(db, request, *, store, watchlist=None, venue="wallex"):
     return {**result, "manifest_id": digest(result)}
 
 
-def whole_spot_selection(db, cutoff, *, store, watchlist=None, venue="wallex"):
+def whole_spot_selection(db, cutoff, *, store, watchlist=None, venue="wallex", symbols=None):
     """Resolve the discovered universe to the spot ledger's supported inputs."""
-    manifest = universe_manifest(db, {"as_of": iso(cutoff), "lookback_seconds": 86400}, store=store,
-                                 watchlist=watchlist, venue=venue)
+    request = {"as_of": iso(cutoff), "lookback_seconds": 86400}
+    if symbols is not None:
+        request["symbols"] = symbols
+    manifest = universe_manifest(db, request, store=store, watchlist=watchlist, venue=venue)
     portal = DataPortal(db, venue=venue)
     symbols, excluded = [], {}
     for row in manifest["markets"]:
@@ -97,10 +99,10 @@ def whole_spot_selection(db, cutoff, *, store, watchlist=None, venue="wallex"):
             **({"venue": venue} if venue != "wallex" else {})}
 
 
-def whole_window_spot_selection(db, start, end, *, store, watchlist=None, venue="wallex"):
+def whole_window_spot_selection(db, start, end, *, store, watchlist=None, venue="wallex", symbols=None):
     """Freeze all confirmed spot availability intervals within the replay window."""
-    opening = whole_spot_selection(db, start, store=store, watchlist=watchlist, venue=venue)
-    requested = set(watchlist["symbols"]) if watchlist is not None else None
+    opening = whole_spot_selection(db, start, store=store, watchlist=watchlist, venue=venue, symbols=symbols)
+    requested = set(watchlist["symbols"]) if watchlist is not None else set(symbols) if symbols is not None else None
     start_at, end_at = iso(start), iso(end)
     windows, previous_end = {}, {}
     rows = db.c.execute("""SELECT s.instrument_id, s.valid_from, s.valid_to, json_type(s.spec, '$.is_spot')
@@ -129,14 +131,34 @@ def whole_window_spot_selection(db, start, end, *, store, watchlist=None, venue=
         else:
             intervals.append([begin, through])
     symbols = sorted(windows)
-    if venue == "wallex" and watchlist is None and symbols == opening["symbols"] and all(
+    if venue == "wallex" and requested is None and symbols == opening["symbols"] and all(
             value == [[start_at, end_at]] for value in windows.values()):
         return opening
-    return {**opening, "schema": "whole-spot-universe/2" if watchlist is None else "watchlist-spot-universe/1",
+    schema = ("watchlist-spot-universe/1" if watchlist is not None else
+              "curated-spot-universe/1" if requested is not None else "whole-spot-universe/2")
+    return {**opening, "schema": schema,
             **({"watchlist": watchlist} if watchlist is not None else {}), "symbols": symbols,
             "start_symbols": opening["symbols"], "coverage": {**opening["coverage"], "spot_during_window": len(symbols)},
             "excluded": {s: reason for s, reason in opening["excluded"].items() if s not in windows},
             "entry_windows": {s: value for s, value in windows.items() if value != [[start_at, end_at]]}}
+
+
+def catalogue_symbols_during(db, start, end, *, venue):
+    """Find possible listed or observed markets for bounded as-of slices."""
+    prefix = validate_venue(venue) + ":"
+    limit = iso(end - timedelta(microseconds=1))
+    keys = _observed_receipts(db, prefix, iso(start - timedelta(days=1)), limit)
+    return sorted(keys.keys() | {key[len(prefix):] for (key,) in db.c.execute(
+        "SELECT DISTINCT instrument_id FROM instrument_specs WHERE instrument_id GLOB ? "
+        "AND valid_from<? AND (valid_to IS NULL OR valid_to>?)",
+        (prefix + "*", iso(end), iso(start)))})
+
+
+def spot_entry_intervals(selection, start, end):
+    """Read the saved entry bounds, expanding continuous members to the replay window."""
+    changes = selection.get("entry_windows", {})
+    return {s: [tuple(map(instant, span)) for span in changes[s]] if s in changes else [(start, end)]
+            for s in selection["symbols"]}
 
 
 def select_universe(db, start, *, quote_currency, top_n, lookback_hours=24):

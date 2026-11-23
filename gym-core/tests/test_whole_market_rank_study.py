@@ -14,22 +14,30 @@ from tests.support import START, market_db, quote
 
 
 @pytest.mark.parametrize("exit_receipt", [True, False])
-def test_rank_study_books_one_fee_per_side_and_preserves_open_inventory(tmp_path, exit_receipt):
+@pytest.mark.parametrize("removed_after_seconds", [None, 1, 30])
+def test_rank_study_books_fees_and_preserves_close_only_inventory(tmp_path, exit_receipt, removed_after_seconds):
     ticks = [quote(START + timedelta(seconds=offset), bid, ask)
              for offset, bid, ask in [(-62, "99", "101"), (-2, "109", "111"), (2, "109", "111"), (58, "119", "121")]]
     if exit_receipt:
         ticks.append(quote(START + timedelta(seconds=62), "119", "121"))
     db = market_db(tmp_path, ticks)
     db.upsert_instrument(InstrumentId.wallex("BTCUSDT"), {}, {"is_spot": True}, "fixture", ticks[0].ts_avail)
+    if removed_after_seconds is not None:
+        db.upsert_instrument(InstrumentId.wallex("BTCUSDT"), {}, {"is_spot": False}, "fixture",
+                             START + timedelta(seconds=removed_after_seconds))
     try:
-        header, *panel = market_panel(db, START, START + timedelta(minutes=2), step_seconds=60, age_seconds=5)
+        header, *panel = market_panel(db, START - timedelta(minutes=2), START + timedelta(minutes=2),
+                                      step_seconds=60, age_seconds=5)
         file = tmp_path / "panel.jsonl"
         file.write_text("\n".join(json.dumps(row) for row in [header, *panel]) + "\n", encoding="utf-8")
         header, panel = read_panel(file)
         cost = CostModel(fee_rate=Decimal("0.01"), max_wait=timedelta(seconds=10), max_participation=Decimal(1))
         report = rank_study(db, header, panel, top_n=1, clips={"USDT": Decimal(111)}, seed=1, cost=cost)
-        block, = report["blocks"]
+        block, = [row for row in report["blocks"] if row["outcomes_by_symbol"]]
         fill = block["outcomes_by_symbol"]["BTCUSDT"]
+        if removed_after_seconds == 1:
+            assert fill["state"] == "ENTRY_NONFILL" and fill["reason"] == "SPOT_WINDOW_ENDED"
+            return
         assert fill["entry"]["fill_time"] == iso(START + timedelta(seconds=2))
         if exit_receipt:
             assert fill["state"] == "SETTLED"

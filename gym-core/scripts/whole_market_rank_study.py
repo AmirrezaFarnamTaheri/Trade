@@ -17,6 +17,10 @@ from gym.domain.rules import is_closed
 from gym.domain.sim import CashBook, CostModel, market_order, sellable_quantity
 from gym.domain.strategy import digest
 from gym.services.data_portal import DataPortal
+from gym.services.historical_universe import (
+    spot_entry_intervals,
+    whole_window_spot_selection,
+)
 from gym.services.rules import RuleService
 
 
@@ -30,8 +34,8 @@ def _verified_row(line, key):
 
 def read_panel(source):
     with source.open(encoding="utf-8-sig") as stream:
-        header = _verified_row(stream.readline(65_536), "config_digest")
-        if header["schema"] != "market-panel/1":
+        header = _verified_row(stream.readline(2 * 1024 * 1024), "config_digest")
+        if header["schema"] not in ("market-panel/1", "market-panel/2"):
             raise ValueError("unsupported market panel")
         start, end = instant(header["from"]), instant(header["to_exclusive"])
         step = timedelta(seconds=header["step_seconds"])
@@ -51,25 +55,30 @@ def read_panel(source):
     return header, slices
 
 
-def _order(portal, rules_for, inst, book, side, cutoff, indicative, cost, quotas):
+def _order(portal, rules_for, inst, book, side, cutoff, indicative, cost, quotas, *, entry_through=None):
     after, until = cutoff + cost.latency, cutoff + cost.max_wait
-    for top in portal.iter_tops(inst.symbol, after, until + timedelta(microseconds=1)):
+    end = until + timedelta(microseconds=1)
+    if entry_through is not None:
+        end = min(end, entry_through)
+    if after >= end:
+        return {"status": "NONFILL", "reason": "SPOT_WINDOW_ENDED"}
+    for top in portal.iter_tops(inst.symbol, after, end):
         if qualified(top) and "CLOSED" not in top.flags:
             rules = rules_for(top.ts_avail)
             if not is_closed(rules, inst, top.ts_avail):
                 return market_order(book, inst, side, Decimal(1), cutoff, Decimal(indicative), [top], 0, cost,
                                     portal.spec_at(inst.symbol, top.ts_avail), rules, quotas, f"{inst.symbol}/{side}")
-    return {"status": "NONFILL", "reason": "NO_QUALIFIED_QUOTE"}
+    return {"status": "NONFILL", "reason": "SPOT_WINDOW_ENDED" if end <= until else "NO_QUALIFIED_QUOTE"}
 
 
-def _round_trip(portal, rules_for, inst, row, later, at, exit_at, clip, cost):
+def _round_trip(portal, rules_for, inst, row, later, at, exit_at, clip, cost, *, entry_through=None):
     if (row["base"], row["quote"]) != (inst.base, inst.quote):
         raise ValueError(f"archive instrument differs from panel for {inst.symbol}")
     book, quotas = CashBook({inst.quote: clip}), {}
-    entry = _order(portal, rules_for, inst, book, "BUY", at, row["features"]["ask"], cost, quotas)
+    entry = _order(portal, rules_for, inst, book, "BUY", at, row["features"]["ask"], cost, quotas, entry_through=entry_through)
     if entry["status"] != "FILLED":
         return {"pnl": Decimal(0), "state": "ENTRY_NONFILL", "reason": entry["reason"], "entry": entry}
-    bid = later["features"]["bid"] if later and later["eligibility"] == "READY" else None
+    bid = later["features"]["bid"] if later and later.get("exit_quote_available", later["eligibility"] == "READY") else None
     if bid and instant(later["receipt"]) >= exit_at:
         raise ValueError("exit quote was not available before the cutoff")
     exit_order = (_order(portal, rules_for, inst, book, "SELL", exit_at, bid, cost, quotas)
@@ -116,11 +125,25 @@ def _outcome(selections, clips, fills):
     return {"net": net, "states": dict(states), "unsettled": len(cohort) - len(returns)}
 
 
+def _verified_windows(portal, header):
+    if header["schema"] == "market-panel/1":
+        return None
+    begin, end = instant(header["from"]), instant(header["to_exclusive"])
+    recorded = header["universe_selection"]
+    watchlist = recorded.get("watchlist")
+    symbols = header["requested_symbols"] if watchlist is None and header["mode"] == "CURATED" else None
+    found = whole_window_spot_selection(portal.db, begin, end, venue=portal.venue, store=header["store"],
+                                       symbols=symbols, watchlist=watchlist)
+    if recorded != found:
+        raise ValueError("archive catalogue differs from the saved panel")
+    return spot_entry_intervals(found, begin, end)
+
+
 def rank_study(db, header, slices, *, top_n, clips, seed, cost):
     """Compare matched fixed-clip decisions with one paired observation per cutoff."""
     if not 1 <= top_n <= 10 or not clips or len(clips) > 4 or len(slices) > 500:
         raise ValueError("study supports 1..10 selections, 1..4 quote currencies and at most 500 cutoffs")
-    portal, rules = DataPortal(db), RuleService(db)
+    portal, rules = DataPortal(db, venue=header.get("venue", "wallex")), RuleService(db)
     cached_rules = {}
 
     def known(at):
@@ -136,6 +159,7 @@ def rank_study(db, header, slices, *, top_n, clips, seed, cost):
     blocks = []
     db.c.execute("BEGIN")
     try:
+        windows = _verified_windows(portal, header)
         for current, following in pairwise(slices):
             at, exit_at = instant(current["cutoff"]), instant(following["cutoff"])
             entries, groups = _candidate_groups(current, clips, step)
@@ -145,8 +169,12 @@ def rank_study(db, header, slices, *, top_n, clips, seed, cost):
             fills = {}
             for symbol in sorted(selected):
                 row = entries[symbol]
+                through = None if windows is None else next(
+                    (end for begin, end in windows.get(symbol, ()) if begin <= at < end), None)
+                if windows is not None and through is None:
+                    raise ValueError("rank contains a market outside its spot window")
                 fills[symbol] = _round_trip(portal, known, portal.instrument(symbol), row, later.get(symbol),
-                                           at, exit_at, clips[row["quote"]], cost)
+                                           at, exit_at, clips[row["quote"]], cost, entry_through=through)
             outcomes = {model: _outcome(selection, clips, fills) for model, selection in chosen.items()}
             a, b = (outcomes[key]["net"] for key in ("rank", "placebo"))
             blocks.append({"at": iso(at), "exit_decision": iso(exit_at),
