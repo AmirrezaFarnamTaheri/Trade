@@ -18,7 +18,7 @@ from itertools import islice
 from ..adapters.store import MarketDB
 from ..domain.bars import BarSpec, qualified
 from ..domain.execution_costs import modeled_execution_cost
-from ..domain.model import InstrumentId, QualityLimits, iso, parse_ts
+from ..domain.model import TEHRAN, UTC, InstrumentId, QualityLimits, iso, parse_ts
 from ..domain.performance import performance, trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
@@ -153,7 +153,7 @@ class _Replay:
         self.booked_accounting = booked_accounting
         self.portal = portal
         self.rank_gate = rank_gate
-        self.rules_for, self.rule_evidence = _rule_timeline(self.db, rules_mode)
+        self.rules_for, self.rule_evidence, self._next_rule_revision = _rule_timeline(self.db, rules_mode)
         self.instruments = {s: self.portal.instrument(s) for s in symbols}
         if any(inst.kind != "SPOT" for inst in self.instruments.values()):
             raise ValueError("portfolio spot sessions require spot instruments")
@@ -275,6 +275,7 @@ class _Replay:
         self.fx_mark = None
         self.fx_evidence = hashlib.sha256()
         self._fx_valuation_calendar = (None, None, ())
+        self._fx_valuation_interval = None
         self._advance_fx(self.t0)
         if self.fx_mark is None or (pair and (self.t0 - self.fx_mark.ts_avail > timedelta(seconds=120)
                                             or self._fx_valuation_closed(self.t0))):
@@ -518,13 +519,29 @@ class _Replay:
                     if s != exclude and self.instruments[s].quote == quote), otc)
 
     def _fx_valuation_closed(self, at):
+        cached = self._fx_valuation_interval
+        if cached is not None and cached[0] <= at < cached[1]:
+            return cached[2]
+
         # Timeline lookups reuse the same rules list for each recorded revision.
         rules, day = self.rules_for(at), tehran_day(at)
         cached_rules, cached_day, spans = self._fx_valuation_calendar
         if rules is not cached_rules or day != cached_day:
             spans = closures(rules, self.fx_valuation_instrument, at)
             self._fx_valuation_calendar = (rules, day, spans)
-        return any(start <= at < end for start, end in spans)
+        # The answer is constant until a closure boundary, rule receipt, or new Tehran day.
+        expires = datetime.combine(day + timedelta(days=1), datetime.min.time(), TEHRAN).astimezone(UTC)
+        revision = self._next_rule_revision(at)
+        if revision is not None:
+            expires = min(expires, revision)
+        closed = False
+        for start, end in spans:
+            if at < end:
+                closed = start <= at
+                expires = min(expires, end if closed else start)
+                break
+        self._fx_valuation_interval = (at, expires, closed)
+        return closed
 
     def valuation_state(self, at):
         """Fail portfolio valuation when a held market lacks a fresh mark."""
@@ -1063,7 +1080,11 @@ def _rule_timeline(db, rules_mode):
                                            "fingerprint": digest([asdict(rule) for rule in rules])}
         return rule_cache[version]
 
-    return rules_for, rule_evidence
+    def next_revision(at):
+        version = bisect_right(rule_times, at)
+        return rule_times[version] if version < len(rule_times) else None
+
+    return rules_for, rule_evidence, (lambda at: None) if rules_mode == "today" else next_revision
 
 
 def _fx_tops(portal, t0, t1, label):

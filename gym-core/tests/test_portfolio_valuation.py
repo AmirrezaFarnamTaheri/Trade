@@ -94,14 +94,26 @@ def test_mixed_portfolio_fx_calendar_refreshes_on_tehran_day_and_rule_revision(t
                 start - timedelta(days=1))
         svc.disable("night", disable_at)
         account = _Replay.__new__(_Replay)
-        account.rules_for, _ = _rule_timeline(db, "point-in-time")
+        account.rules_for, _, account._next_rule_revision = _rule_timeline(db, "point-in-time")
         account.fx_valuation_instrument = InstrumentId.wallex("USDTTMN")
         account._fx_valuation_calendar = (None, None, ())
+        account._fx_valuation_interval = None
         assert not account._fx_valuation_closed(start - timedelta(microseconds=1))
         assert account._fx_valuation_closed(start)
         assert account._fx_valuation_closed(midnight)
         assert account._fx_valuation_closed(disable_at - timedelta(microseconds=1))
         assert not account._fx_valuation_closed(disable_at)
         assert not account._fx_valuation_closed(start + timedelta(days=1))
+        assert account._fx_valuation_closed(disable_at - timedelta(microseconds=1))
+
+        # Today's frozen rules have no historical receipt boundary. Exercise the natural close end.
+        frozen = svc.load(start)[1]
+        account.rules_for = lambda at: frozen
+        account._next_rule_revision = lambda at: None
+        account._fx_valuation_calendar = (None, None, ())
+        account._fx_valuation_interval = None
+        end = midnight + timedelta(hours=1)
+        assert account._fx_valuation_closed(end - timedelta(microseconds=1))
+        assert not account._fx_valuation_closed(end)
     finally:
         db.c.close()
