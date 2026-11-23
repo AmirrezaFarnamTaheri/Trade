@@ -31,6 +31,8 @@ window.gymPortfolio = (() => {
         ${field('portfolio-start-tmn', label('pfStartTmn'), 'inputmode="decimal" value="135000000"')}
         ${field('portfolio-start-usdt', label('pfStartUsdt'), 'inputmode="decimal" value="500"')}
         ${field('portfolio-participation', label('pfBookShare'), 'inputmode="decimal" value="0.25"')}
+        ${field('portfolio-mixed-cap', text('Maximum weight within each quote currency', 'حداکثر وزن در هر ارز مظنه'), 'inputmode="decimal"')}
+        ${field('portfolio-mixed-buffer', text('Cash buffer within each quote currency', 'ذخیره نقدی در هر ارز مظنه'), 'inputmode="decimal"')}
       </div></div>
       ${field('portfolio-fee', text(T.en.pfFeePerFillFraction, T.fa.pfFeePerFillFraction), 'required inputmode="decimal" value="0.001"')}
       <label for="portfolio-strategy">${text(T.en.strategy, T.fa.strategy)}<select id="portfolio-strategy" dir="ltr"></select></label>
@@ -233,6 +235,12 @@ window.gymPortfolio = (() => {
         value.cash = '1000';
         value.cash_by_currency = {TMN: $('portfolio-start-tmn').value, USDT: $('portfolio-start-usdt').value};
         value.cost.max_participation = $('portfolio-participation').value;
+        const maxWeight = $('portfolio-mixed-cap').value.trim();
+        const cashBuffer = $('portfolio-mixed-buffer').value.trim();
+        if (maxWeight || cashBuffer) value.policy = {
+          ...(maxWeight ? {max_weight: maxWeight} : {}),
+          ...(cashBuffer ? {cash_buffer: cashBuffer} : {}),
+        };
       }
       const method = $('portfolio-rank-method').value;
       if (setup.portfolio_multicurrency && method && method !== 'off') {

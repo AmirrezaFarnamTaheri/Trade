@@ -110,6 +110,32 @@ def test_real_scheduled_replay_is_durable_bounded_and_idempotent(tmp_path, limit
         db.c.close()
 
 
+def test_scheduled_exposure_policy_matches_direct_portfolio(tmp_path):
+    from gym.adapters.store import MarketDB
+    from gym.services.research_actions import research_action
+    from tests.test_portfolio_workflow import request
+
+    db = market_db(tmp_path, quote_history(n=180) + quote_history(n=180, sym="ETHUSDT"))
+    db.c.close()
+    value = {**request(), "policy": {"max_weight": "0.125", "cash_buffer": "0.2"}}
+    direct = research_action(tmp_path, "portfolio-replay", value)
+    with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+        options = {"first_at": value["to"], "lookback_seconds": 1800,
+                   "portfolio_symbols": value["symbols"], "policy": value["policy"]}
+        with pytest.raises(ValueError, match="max_weight and cash_buffer"):
+            schedule(ledger, **{**options, "policy": {"rebalance": True}},
+                     cash_by_currency={"USDT": "1000", "TMN": "100000"})
+        job = schedule(ledger, **options)
+        opened = MarketDB(tmp_path / "market.db")
+        try:
+            completed, = ledger.run_due(opened, value["to"])["completed"]
+        finally:
+            opened.c.close()
+        assert completed["run_id"] == direct["run_id"]
+        report, = ledger.conn.execute("SELECT body FROM reports WHERE job_id=?", (job["job_id"],)).fetchone()
+        assert json.loads(report)["outputs_digest"] == direct["outputs_digest"]
+
+
 @pytest.mark.parametrize("mode", ["single_currency", "curated", "whole", "fx_rebalance", "otc_rebalance", "otc_route"])
 def test_portfolio_job_recovers_after_artifact_publication(tmp_path, monkeypatch, mode):
     from dataclasses import replace

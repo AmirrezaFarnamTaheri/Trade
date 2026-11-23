@@ -47,9 +47,9 @@ function stop(child) {
 }
 
 function assertPortfolioEntryPoints(receipt) {
-  const {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate,
+  const {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate, policy,
     universe_selection: selection} = receipt.inputs;
-  const request = {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate};
+  const request = {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate, policy};
   if (selection.watchlist) request.watchlist_id = selection.watchlist.watchlist_id;
   const requestPath = path.join(temporary, 'portfolio-cli-request.json');
   fs.writeFileSync(requestPath, JSON.stringify(request));
@@ -70,12 +70,13 @@ function assertPortfolioEntryPoints(receipt) {
     'inputs = receipt["inputs"]',
     'length = datetime.fromisoformat(inputs["to"]) - datetime.fromisoformat(inputs["from"])',
     'selector = {"watchlist_id": inputs["universe_selection"]["watchlist"]["watchlist_id"]} if inputs["universe_selection"].get("watchlist") else {}',
+    'options = {key: inputs[key] for key in ("cash_by_currency", "rank_gate", "policy") if key in inputs}',
+    'options.update({key: inputs["cost"][key] for key in ("max_participation",) if key in inputs["cost"]})',
     'with ResearchLedger(root / "research.sqlite3") as ledger:',
     '    hyp = ledger.register({"symbol": inputs["symbols"][0], "strategy": inputs["strategy"], "params": inputs["params"]})',
     '    ledger.schedule({"hypothesis_id": hyp["hypothesis_id"], "first_at": inputs["to"], "every_seconds": 86400,',
     '        "lookback_seconds": int(length.total_seconds()), "resolution": inputs["resolution"], "cash": inputs["cash"],',
-    '        "fee_rate": inputs["cost"]["fee_rate"], "max_participation": inputs["cost"]["max_participation"],',
-    '        "cash_by_currency": inputs["cash_by_currency"], "rank_gate": inputs["rank_gate"], **selector})',
+    '        "fee_rate": inputs["cost"]["fee_rate"], **options, **selector})',
     'tick = asyncio.run(calculate(root, "tick", store="demo", at=inputs["to"]))',
     'with ResearchLedger(root / "research.sqlite3") as ledger:',
     '    reports = [json.loads(ledger.conn.execute("SELECT body FROM reports WHERE job_id=? AND due_at=?",',
@@ -343,6 +344,8 @@ function assertPortfolioEntryPoints(receipt) {
     document.querySelector('#portfolio-to').value = '${fixtureEnd.toISOString().slice(0, 19)}';
     document.querySelector('#portfolio-resolution').value = '1min';
     document.querySelector('#portfolio-rank-method').value = 'momentum';
+    document.querySelector('#portfolio-mixed-cap').value = '0.125';
+    document.querySelector('#portfolio-mixed-buffer').value = '0.2';
     const fetchComparison = window.fetch;
     window.fetch = async (...args) => {
       const response = await fetchComparison(...args);
@@ -365,6 +368,7 @@ function assertPortfolioEntryPoints(receipt) {
   const portfolioInputs = portfolioReceipt.inputs;
   assert.equal(portfolioInputs.universe_selection.schema, 'whole-spot-universe/1');
   assert.equal(portfolioInputs.rank_gate.method, 'momentum');
+  assert.deepEqual(portfolioInputs.policy, {max_weight: '0.125', cash_buffer: '0.2'});
   assert.equal(portfolioInputs.symbols.length, 5);
   assertPortfolioEntryPoints(portfolioReceipt);
   await evaluate(`(() => {
@@ -395,6 +399,41 @@ function assertPortfolioEntryPoints(receipt) {
     return receipt.inputs.universe_selection.watchlist?.watchlist_id === '${watchlistId}' ? receipt : null;
   })()`), 'verified watchlist receipt');
   assertPortfolioEntryPoints(watchedReceipt);
+  await evaluate(`(() => {
+    const action = document.querySelector('#research-action');
+    action.value = 'watchlist-save';
+    action.dispatchEvent(new Event('change'));
+    document.querySelector('#research-action-input').value = JSON.stringify({
+      name: 'Exposure fixture', effective_from: '${fixtureStart.toISOString()}', symbols: ['BTCUSDT', 'ETHUSDT']
+    });
+    document.querySelector('#research-action-form button').click();
+  })()`);
+  const exposureWatchlist = await until(() => evaluate(`(() => {
+    const watchlist = JSON.parse(document.querySelector('#research-action-result').textContent || '{}').watchlist;
+    return watchlist?.name === 'Exposure fixture' ? watchlist.watchlist_id : null;
+  })()`), 'saved exposure watchlist');
+  await evaluate(`
+    document.querySelector('#portfolio-receipt').open = false;
+    document.querySelector('#portfolio-universe').value = 'watchlist-single';
+    document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
+    document.querySelector('#portfolio-watchlist').value = '${exposureWatchlist}';
+    document.querySelector('#portfolio-rank-method').value = 'off';
+    document.querySelector('#portfolio-cap').value = '0.125';
+    document.querySelector('#portfolio-buffer').value = '0.2';
+    document.querySelector('#portfolio-submit').click();
+  `);
+  await until(() => evaluate(`document.querySelector('#portfolio-result').textContent.includes('${exposureWatchlist}')`),
+    'rendered exposure watchlist replay', 60000);
+  await evaluate('document.querySelector("#portfolio-receipt").open = true');
+  const exposureReceipt = await until(() => evaluate(`(() => {
+    const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
+    if (!raw) return null;
+    const receipt = JSON.parse(raw);
+    return receipt.inputs.universe_selection.watchlist?.watchlist_id === '${exposureWatchlist}' ? receipt : null;
+  })()`), 'verified exposure receipt');
+  assert.equal(exposureReceipt.inputs.policy.max_weight, '0.125');
+  assert.equal(exposureReceipt.inputs.policy.cash_buffer, '0.2');
+  assertPortfolioEntryPoints(exposureReceipt);
   await evaluate(`document.querySelector("#portfolio-receipt").open = false;
     document.querySelector('#portfolio-universe').value = 'curated';
     document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));

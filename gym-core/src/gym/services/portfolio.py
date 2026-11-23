@@ -35,6 +35,13 @@ MAX_MULTICURRENCY_BOOK_OBSERVATIONS = 12_000_000
 MAX_MARKETS = 500
 
 
+def validate_mixed_exposure_policy(policy):
+    """Allow the two controls with a defined meaning within each quote sleeve."""
+    if type(policy) is not dict or policy.keys() - {"max_weight", "cash_buffer"}:
+        raise ValueError("mixed-currency policy supports max_weight and cash_buffer only")
+    PortfolioPolicy(policy, ())
+
+
 class _ReconcilingCashBook(CashBook):
     """Record arithmetic rounding without changing strategy inventory or sizing."""
 
@@ -258,7 +265,7 @@ class _Replay:
         if pair and (inst.kind != "SPOT" or self._fx_spot_terms(self.t0) is None):
             raise ValueError("valuation_symbol requires recorded spot terms at the opening cutoff")
         if self.policy is not None:
-            raise ValueError("multi-currency replay currently uses default allocation")
+            validate_mixed_exposure_policy(self.policy)
         self.opening_cash = opening
         self.quote, self.secondary_currency = inst.base, inst.quote
         self.fx_valuation_instrument = inst
@@ -569,6 +576,8 @@ class _Replay:
         held = book.get(self.instruments[symbol].base) * self.marks.get(symbol, Decimal(0))
         target = (equity / self.quote_market_counts[quote] if self.multicurrency
                   else equity * Decimal(self.weights["weights"][symbol]))
+        if self.multicurrency and self.policy is not None:
+            target = min(target, equity * self.controller.rates["max_weight"])
         target = max(Decimal(0), target - held)
         budget = (min(available, target, book.get(quote) * fraction)
                   if self.sessions[symbol].strategy.params.get("entry_risk_bps") else min(available, target * fraction))
@@ -577,7 +586,8 @@ class _Replay:
         if self.policy is not None:
             self.policy_events.append({"at": iso(self.controller.previous_at), "kind": "RESERVE", "symbol": symbol,
                                        "budget_quote": str(reserved[symbol]), "cash_quote": str(book.get(quote)),
-                                       "reserved_quote": str(sum(reserved.values(), Decimal(0)))})
+                                       "reserved_quote": str(self.reserved_in(quote)),
+                                       **({"quote_currency": quote} if self.multicurrency else {})})
         return fraction
 
     def risk_budget(self, symbol):
@@ -743,9 +753,14 @@ class _Replay:
             else:
                 self.rebalance_pending.clear()
             self.next_rebalance = close + timedelta(seconds=controller.description["rebalance_seconds"])
-            if self.policy is not None:
+            if self.policy is not None and self.multicurrency:
+                self.policy_events.append({"at": iso(close), "kind": "EXPOSURE_LIMITS",
+                                           "active_markets_by_currency": dict(self.quote_market_counts),
+                                           "reserved_by_currency": {q: str(self.reserved_in(q))
+                                                                    for q in sorted(self.opening_cash)}})
+            elif self.policy is not None:
                 self.policy_events.append({"at": iso(close), "kind": "TARGETS", **self.weights,
-                                           "reserved_quote": str(sum(self.reserved.values(), Decimal(0)))})
+                                           "reserved_quote": str(self.reserved_in(self.quote))})
         self.curve.append((iso(close), str(self.equity())))
         self.next_close = min((s.consolidator.cur["end"] for s in self.sessions.values() if s.consolidator.cur),
                               default=None)
@@ -907,7 +922,7 @@ class _Replay:
                   "rules": digest(self.rule_evidence), "metadata": digest(metadata), "valuation": digest(valuation),
                   "data": self._data_digest()}
         if self.policy is not None:
-            inputs["policy"] = controller.description
+            inputs["policy"] = self.policy if self.multicurrency else controller.description
         if self.portal.venue != "wallex":
             inputs["venue"] = self.portal.venue
         if self.universe_selection is not None:
@@ -1009,6 +1024,9 @@ class _Replay:
             result["policy_events"] = self.policy_events
             result["policy_state"] = {"risk": self.risk_state, "weights": self.weights, "clock": "Asia/Tehran",
                                       "scope": "Targets use prior closed returns. Optional rebalancing adjusts at subsequent decisions through normal fill/rule/cost checks; it does not assume unsettled sale proceeds. Risk exits use the next decision and executable quote. Limits can overshoot across gaps, fees or closures."}
+            if self.multicurrency:
+                result["policy_state"].update(weights={"status": self.weights["status"]},
+                                              scope="Spot entries apply the weight cap and cash buffer within each quote currency.")
         if quote == "USDT":
             result["end"]["net_usdt_eq"] = str(end_equity - cash)
         elif first_fx["rate"] and last_fx["rate"]:

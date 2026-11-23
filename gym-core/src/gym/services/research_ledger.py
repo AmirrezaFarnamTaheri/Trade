@@ -103,7 +103,7 @@ def _scheduled_replay(db, job, hypothesis, end, store, root, *, intent_sink=None
             db, start, end, store=store, watchlist=watchlist, venue=venue)
         symbols = job["portfolio_symbols"] if selection is None else selection["symbols"]
         return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
-                         universe_selection=selection, dynamic_routes=job.get("dynamic_routes", False),
+                         universe_selection=selection, policy=job.get("policy"), dynamic_routes=job.get("dynamic_routes", False),
                          fx_rebalance=job.get("fx_rebalance"),
                          margin_plans=load_margin_plans(root, job.get("margin_positions")),
                          rank_gate=job.get("rank_gate"), venue=venue,
@@ -268,7 +268,8 @@ class ResearchLedger:
     def schedule(self, request):
         required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
         optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes",
-                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id", "venue", "valuation_symbol")
+                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id", "venue", "valuation_symbol",
+                                    "policy")
                     if isinstance(request, dict) and key in request]
         fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
@@ -282,6 +283,18 @@ class ResearchLedger:
         _scheduled_cost(request)
         body = {**request, "first_at": iso(parse_ts(request["first_at"]))}
         _normalize_schedule_selection(self.path.parent, body)
+        if "policy" in body:
+            from ..domain.portfolio_policy import PortfolioPolicy
+
+            symbols = body.get("portfolio_symbols", body.get("watchlist_revision", {}).get("symbols"))
+            if "cash_by_currency" in body:
+                from .portfolio import validate_mixed_exposure_policy
+
+                validate_mixed_exposure_policy(body["policy"])
+            elif symbols is None:
+                raise ValueError("policy requires a portfolio symbol list, watchlist or mixed-currency balances")
+            else:
+                PortfolioPolicy(body["policy"], symbols)
         if "dynamic_routes" in body and (type(body["dynamic_routes"]) is not bool
                                          or (body["dynamic_routes"] and "cash_by_currency" not in body)):
             raise ValueError("dynamic_routes requires a boolean and multi-currency funding")
