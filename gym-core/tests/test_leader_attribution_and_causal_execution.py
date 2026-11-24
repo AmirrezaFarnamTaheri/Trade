@@ -91,3 +91,64 @@ def test_causal_spread_quantile_ignores_future_quotes_and_enforces_displayed_siz
     # Immediate arm only has 0.5 displayed ask_qty -> 1.5 remains unfilled!
     assert comp.immediate.filled_qty == Decimal("0.5")
     assert comp.immediate.unfilled_qty == Decimal("1.5")
+
+
+def test_mix_journal_v2_skips_same_day_duplicate(tmp_path: Path) -> None:
+    from gym.adapters.mix_journal_store import append_mix_journal_v2
+    from gym.domain.signal_gatekeeper import build_mix_journal_v2_entry
+
+    journal = tmp_path / "mix-journal-v2.jsonl"
+    entry = build_mix_journal_v2_entry(
+        as_of=T0,
+        cohort_start=T0,
+        symbol="BTCUSDT",
+        intended_size_usdt=Decimal("250"),
+        displayed_depth_usdt=Decimal("5000"),
+        fee_vintage="wallex-l1-2026-11",
+        missed_qty_usdt=Decimal("0"),
+        tracking_error_bps=Decimal("1.5"),
+    )
+    assert append_mix_journal_v2(journal, entry) is True
+    assert append_mix_journal_v2(journal, entry) is False
+    lines = [ln for ln in journal.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1
+
+
+def test_load_book_and_trades_respects_until_iso_and_reports_bad_depth() -> None:
+    import sqlite3
+
+    import pytest
+
+    from gym.adapters.candle_reader import load_book_and_trades
+
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE instruments (instrument_id INTEGER PRIMARY KEY, symbol TEXT)")
+    con.execute(
+        "CREATE TABLE book_top (instrument_id INTEGER, ts_avail TEXT, bid TEXT, ask TEXT, "
+        "bid_qty TEXT, ask_qty TEXT, flags TEXT, depth TEXT)"
+    )
+    con.execute(
+        "CREATE TABLE trades (instrument_id INTEGER, ts_event TEXT, ts_avail TEXT, "
+        "price TEXT, qty TEXT, aggressor TEXT)"
+    )
+    con.execute("INSERT INTO instruments VALUES (1, 'BTCUSDT')")
+    con.execute("INSERT INTO book_top VALUES (1, '2026-06-01T00:00:00Z', '100', '101', '1', '1', '', '[[],[]]')")
+    con.execute("INSERT INTO book_top VALUES (1, '2026-06-01T01:00:00Z', '100', '101', '1', '1', '', '{bad-json')")
+
+    books, _ = load_book_and_trades(con, "BTCUSDT", "2026-06-01T00:00:00Z", until_iso="2026-06-01T00:30:00Z")
+    assert len(books) == 1
+
+    with pytest.raises(ValueError, match="malformed depth JSON for BTCUSDT at 2026-06-01T01:00:00Z"):
+        load_book_and_trades(con, "BTCUSDT", "2026-06-01T00:00:00Z")
+
+
+def test_paper_ledger_scales_buys_proportionally_without_starving_late_alphabet_symbols() -> None:
+    from gym.domain.paper_ledger import SelfFinancingLedger
+
+    ledger = SelfFinancingLedger(Decimal("1000"), fee_rate=Decimal("0.0013"), fee_in_received_asset=True)
+    # Target weights sum to 1.20 (> 1.0 cash): BTCUSDT and XAUTUSDT must both receive equal 50/50 cash!
+    prices = {"BTCUSDT": Decimal("100"), "XAUTUSDT": Decimal("100")}
+    ledger.rebalance_to_targets(T0, {"BTCUSDT": 0.60, "XAUTUSDT": 0.60}, prices)
+    assert abs(ledger.units["BTCUSDT"] - ledger.units["XAUTUSDT"]) < Decimal("1e-9")
+    assert ledger.units["XAUTUSDT"] > Decimal("4.9")
+    assert ledger.cash >= Decimal(0)

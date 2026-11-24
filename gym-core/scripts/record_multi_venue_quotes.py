@@ -9,6 +9,7 @@ import argparse
 import json
 import sqlite3
 import ssl
+import sys
 import time
 import urllib.request
 from datetime import UTC, datetime
@@ -103,7 +104,8 @@ def fetch_nobitex_snapshots(symbols: tuple[str, ...] = DEFAULT_NOBITEX_SYMBOLS) 
                 qs = parse_nobitex_orderbook(sym, payload, datetime.now(UTC))
                 if qs is not None:
                     snaps.append(qs)
-        except Exception:
+        except Exception as exc:
+            print(f"[nobitex] fetch failed for {sym} ({url}): {type(exc).__name__}: {exc}", file=sys.stderr)
             continue
     return snaps
 
@@ -113,7 +115,8 @@ def fetch_abantether_rwa_snapshots(url: str = ABANTETHER_PUBLIC_COINS_URL) -> li
     snaps: list[QuoteSnapshot] = []
     try:
         payload = _http_get_json(url, timeout=8.0)
-    except Exception:
+    except Exception as exc:
+        print(f"[abantether] fetch failed ({url}): {type(exc).__name__}: {exc}", file=sys.stderr)
         return snaps
     rows = payload if isinstance(payload, list) else (payload.get("data") if isinstance(payload, dict) else [])
     if not isinstance(rows, list):
@@ -132,7 +135,8 @@ def fetch_abantether_rwa_snapshots(url: str = ABANTETHER_PUBLIC_COINS_URL) -> li
         try:
             ask = dec(str(buy_raw))   # client buys at ask
             bid = dec(str(sell_raw))  # client sells at bid
-        except Exception:
+        except Exception as exc:
+            print(f"[abantether] invalid quote for {sym}: {type(exc).__name__}: {exc}", file=sys.stderr)
             continue
         if bid <= 0 or ask <= 0 or bid > ask:
             continue

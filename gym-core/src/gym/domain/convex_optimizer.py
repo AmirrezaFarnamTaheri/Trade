@@ -153,7 +153,7 @@ def solve_convex_portfolio(
     residual = float("inf")
     iters = 0
     for iters in range(1, max_iter + 1):
-        # 1. Exact unconstrained w-update via cyclical L1 coordinate descent (no binding simplex stall)
+        # Unconstrained L1 coordinate descent avoids binding-simplex stalls.
         for _ in range(6):
             for i in range(n):
                 denom = problem.risk_aversion * problem.covariance[i][i] + problem.l2_impact_costs[i] + rho
@@ -167,11 +167,9 @@ def solve_convex_portfolio(
                 step = _soft_threshold(-g0, problem.l1_fee_costs[i]) / denom
                 w[i] = w0 + step
 
-        # 2. Exact Euclidean projection onto feasible set C
         z_prev = z
         z = _project_feasible([w[i] + u[i] for i in range(n)], problem)
 
-        # 3. Dual update and primal/dual KKT residual
         for i in range(n):
             u[i] += w[i] - z[i]
         r_primal = max(abs(w[i] - z[i]) for i in range(n))

@@ -49,16 +49,13 @@ class MultiTriggerCoordinator:
         has_working_parent_order: bool,
         settle_open_orders_cb=None,
     ) -> TriggerResolution:
-        # 1. Settle/advance any open child order or cancel-in-flight first
         if settle_open_orders_cb is not None:
             settle_open_orders_cb(as_of)
 
-        # 2. Evaluate KillSwitchEvaluator second
         ks = self._kill_switch.evaluate(kill_state)
         if ks.halted:
             return TriggerResolution(as_of, True, ks, False, (), blocked_reason="KILL_SWITCH:" + ",".join(ks.reasons))
 
-        # 3. Coalesce simultaneous triggers with deterministic precedence
         self._accum_quote_volume += max(Decimal(0), incremental_quote_volume)
         cooldown_ok = (
             self._last_non_bar_at is None

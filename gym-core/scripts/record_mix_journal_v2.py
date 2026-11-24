@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.candle_reader import open_readonly_market_db
 from gym.adapters.mix_journal_store import append_mix_journal_v2
 from gym.domain.async_covariance import coarse_bar_shrunk_covariance
 from gym.domain.convex_optimizer import (
@@ -31,10 +32,6 @@ from gym.domain.signal_gatekeeper import build_mix_journal_v2_entry
 from gym.domain.volatility_models import OhlcBar, yang_zhang_volatility
 
 MIX_V2_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "XAUTUSDT")
-
-
-def _open_ro(db_path: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True, timeout=10.0)
 
 
 def _existing_journal_state(path: Path) -> tuple[datetime | None, set[str], dict[str, float]]:
@@ -122,7 +119,7 @@ def record_daily_mix_v2(
         return {"status": "ALREADY_RECORDED", "date": today_iso, "entries_written": 0}
     cohort_start = cohort_start or now
 
-    con = _open_ro(db_path)
+    con = open_readonly_market_db(db_path)
     try:
         candles = {sym: _load_daily_candles(con, sym) for sym in MIX_V2_SYMBOLS}
         common = sorted(set.intersection(*(set(t for t, *_ in candles[s]) for s in MIX_V2_SYMBOLS)))

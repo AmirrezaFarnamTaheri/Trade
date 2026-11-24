@@ -151,6 +151,7 @@ def _run_causal_execution_study(con, *, lookback_hours: int = 72, samples_per_si
         valid = [b for b in books if b.bid and b.ask and b.bid > 0 and b.ask > 0]
         if len(valid) < 80:
             continue
+        elapsed_hours = round((valid[-1].ts_avail - valid[0].ts_avail).total_seconds() / 3600.0, 2)
         start_i = 50
         end_i = len(valid) - 10
         step = max(1, (end_i - start_i) // samples_per_side)
@@ -196,6 +197,7 @@ def _run_causal_execution_study(con, *, lookback_hours: int = 72, samples_per_si
                     "symbol": sym,
                     "side": side,
                     "samples": n,
+                    "elapsed_hours": elapsed_hours,
                     "mean_causal_p35_bps": round(sum(p35_vals) / n, 2),
                     "immediate_cost_bps": round(mean_imm, 2),
                     "fixed_passive_cost_bps": round(mean_fp, 2),

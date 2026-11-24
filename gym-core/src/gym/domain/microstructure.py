@@ -153,7 +153,6 @@ class MicrostructureConsolidator:
             return
 
         rem = tick.qty
-        # 1. Finish any partially filled bucket first
         filled_in_bucket = self._bucket_buy + self._bucket_sell
         if filled_in_bucket > 0:
             space = self.vpin_bucket_volume - filled_in_bucket
@@ -168,14 +167,13 @@ class MicrostructureConsolidator:
                 self._bucket_buy = Decimal(0)
                 self._bucket_sell = Decimal(0)
 
-        # 2. Batch complete same-side buckets arithmetically (O(1) even on 400M-unit PEPE prints)
+        # Batch complete same-side buckets arithmetically so 400M-unit PEPE prints stay O(1).
         if rem >= self.vpin_bucket_volume:
             full_buckets, rem = divmod(rem, self.vpin_bucket_volume)
             append_count = min(int(full_buckets), self.vpin_window_buckets)
             for _ in range(append_count):
                 self._bucket_imbalances.append(self.vpin_bucket_volume)
 
-        # 3. Carry exact remainder into the new open bucket
         if rem > 0:
             if side == "BUY":
                 self._bucket_buy = rem

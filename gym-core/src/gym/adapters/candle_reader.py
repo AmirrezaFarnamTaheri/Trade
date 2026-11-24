@@ -33,11 +33,21 @@ def load_keyed_candles(
     return build_bar_points_from_rows(symbol, resolution, rows)
 
 
+def _parse_depth_json(depth_raw: str | None, symbol: str, ts_a: str):
+    if not depth_raw:
+        return None
+    try:
+        return json.loads(depth_raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"malformed depth JSON for {symbol} at {ts_a}: {exc}") from exc
+
+
 def load_book_and_trades(
     con: sqlite3.Connection,
     symbol: str,
     since_iso: str,
     *,
+    until_iso: str | None = None,
     max_books: int = 8000,
     max_trades: int = 12000,
 ) -> tuple[list[BookTop], list[TradeTick]]:
@@ -46,11 +56,30 @@ def load_book_and_trades(
     if row is None:
         return [], []
     inst_id = row[0]
-    b_rows = con.execute(
-        "SELECT ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
-        "FROM book_top WHERE instrument_id = ? AND ts_avail >= ? ORDER BY ts_avail DESC LIMIT ?",
-        (inst_id, since_iso, max_books),
-    ).fetchall()
+    if until_iso is not None:
+        b_rows = con.execute(
+            "SELECT ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
+            "FROM book_top WHERE instrument_id = ? AND ts_avail >= ? AND ts_avail <= ? "
+            "ORDER BY ts_avail DESC LIMIT ?",
+            (inst_id, since_iso, until_iso, max_books),
+        ).fetchall()
+        t_rows = con.execute(
+            "SELECT ts_event, ts_avail, price, qty, aggressor "
+            "FROM trades WHERE instrument_id = ? AND ts_avail >= ? AND ts_avail <= ? "
+            "ORDER BY ts_avail DESC LIMIT ?",
+            (inst_id, since_iso, until_iso, max_trades),
+        ).fetchall()
+    else:
+        b_rows = con.execute(
+            "SELECT ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
+            "FROM book_top WHERE instrument_id = ? AND ts_avail >= ? ORDER BY ts_avail DESC LIMIT ?",
+            (inst_id, since_iso, max_books),
+        ).fetchall()
+        t_rows = con.execute(
+            "SELECT ts_event, ts_avail, price, qty, aggressor "
+            "FROM trades WHERE instrument_id = ? AND ts_avail >= ? ORDER BY ts_avail DESC LIMIT ?",
+            (inst_id, since_iso, max_trades),
+        ).fetchall()
     b_rows.reverse()
     books = [
         BookTop(
@@ -61,15 +90,10 @@ def load_book_and_trades(
             bid_qty=dec(bq) if bq is not None else None,
             ask_qty=dec(aq) if aq is not None else None,
             flags=frozenset(f.strip() for f in str(flags_raw).split(",") if f.strip()) if flags_raw else frozenset(),
-            depth=json.loads(depth_raw) if depth_raw else None,
+            depth=_parse_depth_json(depth_raw, symbol, ts_a),
         )
         for ts_a, bid, ask, bq, aq, flags_raw, depth_raw in b_rows
     ]
-    t_rows = con.execute(
-        "SELECT ts_event, ts_avail, price, qty, aggressor "
-        "FROM trades WHERE instrument_id = ? AND ts_avail >= ? ORDER BY ts_avail DESC LIMIT ?",
-        (inst_id, since_iso, max_trades),
-    ).fetchall()
     t_rows.reverse()
     trades = [
         TradeTick(

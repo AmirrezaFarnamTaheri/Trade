@@ -7,20 +7,16 @@ proceeds per capital-day under Nobitex -30% discount vs Wallex Level-1 fees.
 from __future__ import annotations
 
 import argparse
-import sqlite3
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.candle_reader import open_readonly_market_db
 from gym.adapters.nobitex import (
     evaluate_prefunded_arb_capital_day,
     nobitex_fee_schedule,
 )
 from gym.domain.model import dec, parse_ts
-
-
-def _open_ro(path: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=10.0)
 
 
 def run_cross_venue_arb_audit(
@@ -34,8 +30,8 @@ def run_cross_venue_arb_audit(
     if not wallex_db.exists() or not multi_venue_db.exists():
         return {"status": "MISSING_DB", "symbols": []}
 
-    wcon = _open_ro(wallex_db)
-    mcon = _open_ro(multi_venue_db)
+    wcon = open_readonly_market_db(wallex_db)
+    mcon = open_readonly_market_db(multi_venue_db)
     try:
         nbx_rows = mcon.execute(
             "SELECT symbol, ts_avail, bid, ask, bid_qty, ask_qty "

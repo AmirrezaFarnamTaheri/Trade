@@ -27,6 +27,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.candle_reader import open_readonly_market_db
 from gym.domain.async_covariance import (
     align_covariance_to_symbols,
     coarse_bar_shrunk_covariance,
@@ -59,10 +60,6 @@ from gym.domain.volatility_models import OhlcBar, yang_zhang_volatility
 
 HOLDOUT_CUTOFF = datetime(2025, 11, 24, 0, 0, tzinfo=UTC)
 CRYPTO_4YR = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT")
-
-
-def _open_ro(path: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=10.0)
 
 
 def _load_candles(con: sqlite3.Connection, symbol: str, resolution: str, *, limit: int = 25000) -> list[tuple[datetime, float, float, float, float]]:
@@ -128,7 +125,7 @@ def check_g1_instant(wallex_db: Path, multi_venue_db: Path) -> dict:
 
     depth5_rows = 0
     if wallex_db.exists():
-        con = _open_ro(wallex_db)
+        con = open_readonly_market_db(wallex_db)
         try:
             depth5_rows = int(con.execute("SELECT COUNT(*) FROM book_top WHERE depth IS NOT NULL").fetchone()[0])
         finally:
@@ -136,7 +133,7 @@ def check_g1_instant(wallex_db: Path, multi_venue_db: Path) -> dict:
 
     nbx_rows = 0
     if multi_venue_db.exists():
-        mcon = _open_ro(multi_venue_db)
+        mcon = open_readonly_market_db(multi_venue_db)
         try:
             nbx_rows = int(mcon.execute("SELECT COUNT(*) FROM venue_quotes WHERE venue='nobitex'").fetchone()[0])
         finally:
@@ -535,7 +532,7 @@ def main() -> None:
     args = parser.parse_args()
 
     g1 = check_g1_instant(args.wallex_db, args.multi_venue_db)
-    con = _open_ro(args.wallex_db)
+    con = open_readonly_market_db(args.wallex_db)
     try:
         cand_a_h = eval_candidate_a_hourly_causal(con)
         cand_a_ob = eval_candidate_a_orderbook_adversarial(con, lookback_hours=72)

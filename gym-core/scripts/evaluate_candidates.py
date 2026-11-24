@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.candle_reader import open_readonly_market_db
 from gym.adapters.mix_journal_store import append_mix_journal_v2
 from gym.domain.async_covariance import (
     align_covariance_to_symbols,
@@ -56,10 +57,6 @@ from gym.domain.volatility_models import OhlcBar, yang_zhang_volatility
 
 CANDIDATE_B_GOLD_CRYPTO = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "XAUTUSDT")
 CANDIDATE_B_4YR_CRYPTO = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT")
-
-
-def _open_ro(db_path: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True, timeout=10.0)
 
 
 def _load_candles(con: sqlite3.Connection, symbol: str, resolution: str, *, limit: int = 20000) -> list[tuple[datetime, float, float, float, float]]:
@@ -509,7 +506,7 @@ def main() -> None:
     parser.add_argument("--report", type=Path, default=Path("D:/Github/Trade/evidence/2026-11-24-candidate-evaluation-report.md"))
     parser.add_argument("--mix-v2", type=Path, default=Path("D:/Github/Trade/data/live/allocation/mix-journal-v2.jsonl"))
     args = parser.parse_args()
-    con = _open_ro(args.db)
+    con = open_readonly_market_db(args.db)
     try:
         res_a = evaluate_candidate_a(con)
         res_b = evaluate_candidate_b(con, args.mix_v2)

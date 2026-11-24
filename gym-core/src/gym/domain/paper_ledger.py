@@ -115,6 +115,16 @@ class SelfFinancingLedger:
             self.fills.append(fill)
             step_fills.append(fill)
 
+        # Scale buys proportionally when free cash is tight so late-alphabet symbols are not starved.
+        if buys and self.cash > 0:
+            if self.fee_in_received_asset:
+                total_required = sum((qty * px for _, qty, px in buys), Decimal(0))
+            else:
+                total_required = sum((qty * px * (Decimal(1) + self.fee_rate) for _, qty, px in buys), Decimal(0))
+            if total_required > self.cash:
+                scale = self.cash / total_required
+                buys = [(sym, qty * scale, px) for sym, qty, px in buys]
+
         for sym, qty, px in buys:
             gross_quote = qty * px
             if self.fee_in_received_asset:
