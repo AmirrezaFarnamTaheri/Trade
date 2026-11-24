@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.mix_journal_store import append_mix_journal_v2
 from gym.domain.async_covariance import coarse_bar_shrunk_covariance
 from gym.domain.convex_optimizer import (
     OptimizationProblem,
@@ -26,10 +27,7 @@ from gym.domain.forecast_graph import (
     MultiHorizonEwmacNode,
 )
 from gym.domain.model import dec, parse_ts
-from gym.domain.signal_gatekeeper import (
-    append_mix_journal_v2,
-    build_mix_journal_v2_entry,
-)
+from gym.domain.signal_gatekeeper import build_mix_journal_v2_entry
 from gym.domain.volatility_models import OhlcBar, yang_zhang_volatility
 
 MIX_V2_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "XAUTUSDT")

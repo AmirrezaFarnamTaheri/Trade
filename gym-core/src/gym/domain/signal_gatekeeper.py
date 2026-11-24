@@ -1,14 +1,12 @@
 """Power-calibrated validation, path-preserving nulls, causality check & Track B v2 journal (spec §6.5)."""
 from __future__ import annotations
 
-import json
 import math
 import random
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from pathlib import Path
 from statistics import NormalDist
 
 from .statistical_inference import sequential_e_process
@@ -188,14 +186,6 @@ def build_mix_journal_v2_entry(
         tracking_error_bps=str(tracking_error_bps),
         status=status,
     )
-
-
-def append_mix_journal_v2(path: Path, entry: MixJournalV2Entry) -> None:
-    if path.name == "mix-journal.jsonl":
-        raise ValueError("never overwrite v1 control mix-journal.jsonl; write to mix-journal-v2.jsonl")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(asdict(entry), sort_keys=True) + "\n")
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from gym.adapters.mix_journal_store import append_mix_journal_v2
 from gym.domain.async_covariance import (
     align_covariance_to_symbols,
     coarse_bar_shrunk_covariance,
@@ -24,7 +25,6 @@ from gym.domain.quote_hazard import (
     isotonic_pava,
 )
 from gym.domain.signal_gatekeeper import (
-    append_mix_journal_v2,
     build_mix_journal_v2_entry,
     check_causality_perturbation,
     operational_health_check_sealed_window,

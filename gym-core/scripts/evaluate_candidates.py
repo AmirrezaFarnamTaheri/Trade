@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.mix_journal_store import append_mix_journal_v2
 from gym.domain.async_covariance import (
     align_covariance_to_symbols,
     coarse_bar_shrunk_covariance,
@@ -40,7 +41,6 @@ from gym.domain.kalman_models import (
 )
 from gym.domain.model import BookTop, dec, parse_ts
 from gym.domain.signal_gatekeeper import (
-    append_mix_journal_v2,
     build_mix_journal_v2_entry,
     check_causality_perturbation,
     deflated_sharpe_probability,
