@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .strategy_sleeves import SleeveSignal, _CausalEwmacState, _clamp1, _trailing_beta
 from .timeframe_panel import BarPoint
@@ -268,7 +268,12 @@ def compute_4h_crash_exit_dates(
             tr = sorted(down_hist[-180:])
             p92 = tr[int(0.92 * (len(tr) - 1))]
             if breadth < breadth_threshold and avg_r >= p92:
-                crash_dates.add(ts.date().isoformat())
+                daily_avail_date = (
+                    ts.date().isoformat()
+                    if (ts.hour == 0 and ts.minute == 0 and ts.second == 0)
+                    else (ts + timedelta(days=1)).date().isoformat()
+                )
+                crash_dates.add(daily_avail_date)
     return crash_dates
 
 

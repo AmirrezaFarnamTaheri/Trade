@@ -79,9 +79,9 @@ def resample_hourly_to_bucket(
     *,
     offset_hours: int = 0,
 ) -> list[BarPoint]:
-    """Lossless UTC-aligned resampling of hourly bars into 2h/6h/12h/24h buckets with strict completeness."""
-    if hours not in (2, 6, 12, 24):
-        raise ValueError("hours must be one of (2, 6, 12, 24)")
+    """Lossless UTC-aligned resampling of hourly bars into 2h/3h/4h/6h/12h/24h buckets with strict completeness."""
+    if hours not in (2, 3, 4, 6, 12, 24):
+        raise ValueError("hours must be one of (2, 3, 4, 6, 12, 24)")
     if not (0 <= offset_hours < hours):
         raise ValueError("offset_hours must satisfy 0 <= offset_hours < hours")
     if not hourly_bars:

@@ -1,0 +1,594 @@
+{
+  "generated_at": "2026-11-24T19:08:09.924496+00:00",
+  "eval_days": 1639,
+  "crash_days_triggered": {
+    "2h_0h": 86,
+    "3h_0h": 81,
+    "3h_1h": 84,
+    "6h_0h": 77,
+    "6h_1h": 73
+  },
+  "portfolio_arms": [
+    {
+      "name": "BASE_13_S1_S5",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2574.92,
+        "ret_pct": 157.52,
+        "ann_sharpe": 1.011,
+        "max_dd_pct": 22.38
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2574.92,
+        "ret_pct": -1.84,
+        "ann_sharpe": -0.088,
+        "max_dd_pct": 10.95
+      },
+      "fees_usdt": 72.18,
+      "turnover": 55.52,
+      "uplift_vs_base13": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "CORE_13_CRASH_2H_0H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2304.17,
+        "ret_pct": 130.45,
+        "ann_sharpe": 0.913,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2304.17,
+        "ret_pct": -0.42,
+        "ann_sharpe": 0.025,
+        "max_dd_pct": 10.5
+      },
+      "fees_usdt": 107.72,
+      "turnover": 82.86,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -6.95053406577598e-05,
+        "ci_95": [
+          -0.00017064889057865598,
+          7.11419721652206e-07
+        ],
+        "bootstrap_se": 4.527918554099232e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "CORE_13_CRASH_3H_0H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2415.77,
+        "ret_pct": 141.61,
+        "ann_sharpe": 0.961,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2415.77,
+        "ret_pct": 0.39,
+        "ann_sharpe": 0.092,
+        "max_dd_pct": 9.95
+      },
+      "fees_usdt": 112.73,
+      "turnover": 86.72,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -4.113955984990073e-05,
+        "ci_95": [
+          -0.0001334126178868317,
+          3.13400847642211e-05
+        ],
+        "bootstrap_se": 4.287239232603411e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "CORE_13_CRASH_3H_1H_SHIFT",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2370.64,
+        "ret_pct": 137.09,
+        "ann_sharpe": 0.941,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2370.64,
+        "ret_pct": 0.37,
+        "ann_sharpe": 0.091,
+        "max_dd_pct": 10.0
+      },
+      "fees_usdt": 102.32,
+      "turnover": 78.71,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -5.2199605876909535e-05,
+        "ci_95": [
+          -0.00013746553976479707,
+          1.8651775567390378e-05
+        ],
+        "bootstrap_se": 4.2444861610986357e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "CORE_13_CRASH_6H_0H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2304.35,
+        "ret_pct": 130.46,
+        "ann_sharpe": 0.913,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2304.35,
+        "ret_pct": -2.9,
+        "ann_sharpe": -0.185,
+        "max_dd_pct": 12.11
+      },
+      "fees_usdt": 102.92,
+      "turnover": 79.17,
+      "uplift_vs_base13": {
+        "status": "BELOW_THRESHOLD",
+        "mean_uplift": -6.945312198965334e-05,
+        "ci_95": [
+          -0.000168063912481572,
+          -1.587575839317961e-06
+        ],
+        "bootstrap_se": 4.6500310159873864e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "CORE_13_CRASH_6H_1H_SHIFT",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2323.54,
+        "ret_pct": 132.38,
+        "ann_sharpe": 0.922,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2323.54,
+        "ret_pct": 0.59,
+        "ann_sharpe": 0.109,
+        "max_dd_pct": 10.46
+      },
+      "fees_usdt": 103.59,
+      "turnover": 79.69,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -6.464867183172597e-05,
+        "ci_95": [
+          -0.00017470645431157307,
+          1.9637918892874634e-05
+        ],
+        "bootstrap_se": 5.185926587791161e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "MACRO_18_FAMILY_ONLY",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2558.04,
+        "ret_pct": 155.84,
+        "ann_sharpe": 0.897,
+        "max_dd_pct": 23.5
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2558.04,
+        "ret_pct": -8.9,
+        "ann_sharpe": -0.479,
+        "max_dd_pct": 21.86
+      },
+      "fees_usdt": 112.0,
+      "turnover": 86.15,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 2.346784075238991e-05,
+        "ci_95": [
+          -0.00014559984302619597,
+          0.000197612165352946
+        ],
+        "bootstrap_se": 8.846579548334228e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "MACRO_18_FAMILY_CRASH_3H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2388.59,
+        "ret_pct": 138.89,
+        "ann_sharpe": 0.847,
+        "max_dd_pct": 23.5
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2388.59,
+        "ret_pct": -6.75,
+        "ann_sharpe": -0.355,
+        "max_dd_pct": 19.23
+      },
+      "fees_usdt": 151.21,
+      "turnover": 116.31,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -2.03073672485886e-05,
+        "ci_95": [
+          -0.00018799912319973172,
+          0.0001614042181620258
+        ],
+        "bootstrap_se": 8.818077218975315e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "MACRO_18_FAMILY_CRASH_6H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2273.83,
+        "ret_pct": 127.41,
+        "ann_sharpe": 0.805,
+        "max_dd_pct": 23.5
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2273.83,
+        "ret_pct": -9.93,
+        "ann_sharpe": -0.558,
+        "max_dd_pct": 22.08
+      },
+      "fees_usdt": 140.02,
+      "turnover": 107.7,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -4.982539522881742e-05,
+        "ci_95": [
+          -0.00023815893996383475,
+          0.00011995927061454001
+        ],
+        "bootstrap_se": 8.983741996558198e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "MACRO_18_CRASH_3H_NOBITEX_FEE",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2462.24,
+        "ret_pct": 146.25,
+        "ann_sharpe": 0.871,
+        "max_dd_pct": 23.4
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2462.24,
+        "ret_pct": -7.2,
+        "ann_sharpe": -0.379,
+        "max_dd_pct": 19.47
+      },
+      "fees_usdt": 121.6,
+      "turnover": 133.63,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -1.2824494824847552e-06,
+        "ci_95": [
+          -0.0001745265445901326,
+          0.00017747459559740538
+        ],
+        "bootstrap_se": 8.743609645562275e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "FAMILY_GATED_33_ASSETS_PLAIN",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2381.48,
+        "ret_pct": 138.18,
+        "ann_sharpe": 0.853,
+        "max_dd_pct": 23.58
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2381.48,
+        "ret_pct": -6.5,
+        "ann_sharpe": -0.308,
+        "max_dd_pct": 17.4
+      },
+      "fees_usdt": 125.24,
+      "turnover": 96.34,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -2.5022737274565274e-05,
+        "ci_95": [
+          -0.00018006330370833444,
+          0.00016633338236607804
+        ],
+        "bootstrap_se": 9.283063420267679e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "FAMILY_GATED_33_ASSETS_CRASH_3H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2223.69,
+        "ret_pct": 122.4,
+        "ann_sharpe": 0.803,
+        "max_dd_pct": 23.58
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2223.69,
+        "ret_pct": -6.34,
+        "ann_sharpe": -0.322,
+        "max_dd_pct": 16.83
+      },
+      "fees_usdt": 155.53,
+      "turnover": 119.64,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -6.911298213141742e-05,
+        "ci_95": [
+          -0.00025286738608862634,
+          0.00015548894156769636
+        ],
+        "bootstrap_se": 9.572720810096047e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "FAMILY_GATED_33_ASSETS_CRASH_6H",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2090.35,
+        "ret_pct": 109.06,
+        "ann_sharpe": 0.749,
+        "max_dd_pct": 23.58
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2090.35,
+        "ret_pct": -9.77,
+        "ann_sharpe": -0.533,
+        "max_dd_pct": 18.83
+      },
+      "fees_usdt": 146.72,
+      "turnover": 112.86,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -0.00010621871782239598,
+        "ci_95": [
+          -0.00029756156647249343,
+          7.81036168643497e-05
+        ],
+        "bootstrap_se": 9.528965844168444e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  ],
+  "ignition_sleeves": [
+    {
+      "label": "IGNITION_1H_WALLEX",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 13.0,
+      "days": 1043,
+      "ending_nav": 1199.56,
+      "ret_pct": 19.96,
+      "ann_sharpe": 0.712,
+      "max_dd_pct": 9.67,
+      "entries": 138,
+      "win_rate_pct": 40.6,
+      "fees_usdt": 123.83
+    },
+    {
+      "label": "IGNITION_1H_NOBITEX",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 9.1,
+      "days": 1043,
+      "ending_nav": 1239.4,
+      "ret_pct": 23.94,
+      "ann_sharpe": 0.829,
+      "max_dd_pct": 8.88,
+      "entries": 138,
+      "win_rate_pct": 42.8,
+      "fees_usdt": 88.17
+    },
+    {
+      "label": "IGNITION_2H_0H_WALLEX",
+      "bucket_hours": 2,
+      "offset_hours": 0,
+      "fee_bps": 13.0,
+      "days": 1043,
+      "ending_nav": 1220.9,
+      "ret_pct": 22.09,
+      "ann_sharpe": 0.733,
+      "max_dd_pct": 9.24,
+      "entries": 106,
+      "win_rate_pct": 40.6,
+      "fees_usdt": 93.98
+    },
+    {
+      "label": "IGNITION_3H_0H_WALLEX",
+      "bucket_hours": 3,
+      "offset_hours": 0,
+      "fee_bps": 13.0,
+      "days": 1043,
+      "ending_nav": 1064.62,
+      "ret_pct": 6.46,
+      "ann_sharpe": 0.282,
+      "max_dd_pct": 13.96,
+      "entries": 88,
+      "win_rate_pct": 36.4,
+      "fees_usdt": 74.07
+    },
+    {
+      "label": "IGNITION_3H_1H_SHIFT_WALLEX",
+      "bucket_hours": 3,
+      "offset_hours": 1,
+      "fee_bps": 13.0,
+      "days": 1043,
+      "ending_nav": 1273.63,
+      "ret_pct": 27.36,
+      "ann_sharpe": 0.942,
+      "max_dd_pct": 10.61,
+      "entries": 83,
+      "win_rate_pct": 43.4,
+      "fees_usdt": 75.91
+    },
+    {
+      "label": "IGNITION_3H_0H_NOBITEX",
+      "bucket_hours": 3,
+      "offset_hours": 0,
+      "fee_bps": 9.1,
+      "days": 1043,
+      "ending_nav": 1086.72,
+      "ret_pct": 8.67,
+      "ann_sharpe": 0.36,
+      "max_dd_pct": 13.31,
+      "entries": 88,
+      "win_rate_pct": 36.4,
+      "fees_usdt": 52.39
+    }
+  ]
+}
