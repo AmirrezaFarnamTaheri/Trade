@@ -1,23 +1,30 @@
-# Instant Zero-Wait Gate Verification Packet
+# Instant Zero-Wait Gate Verification Packet (Caveats Resolved)
 
-**Evaluated (UTC):** `2026-11-24T08:58:16.538264+00:00` · **Mode:** Instant Historical Holdout + Live Probe (zero calendar waiting) · **Executor:** `DISARMED` (`$0` funded budget).
+**Evaluated (UTC):** `2026-11-24T09:01:54.333484+00:00` · **Mode:** Strictly Causal Next-Bar Open + Real Order-Book Adversarial Replay · **Executor:** `DISARMED` (`$0` funded budget).
 
 ## Gate Summary
 
 | Gate | Instant Counterpart | Status | Key Evidence |
 | --- | --- | --- | --- |
-| **G1-Instant** | Live collector `/api/health` + L2 depth5 + Nobitex live recorder | **PASS** | `connected=True`, `40` markets / `2` shards, `lag=0.0s`, `depth5=105902`, `nobitex=125` |
-| **G2-Instant** | Multi-year Dev vs 365-day Sealed Holdout + CPCV/PBO + 500-Run Placebo + DSR (`N=21`) | **PASS** | Candidate A pass=`True`, Candidate B pass=`False` |
+| **G1-Instant** | Live `/api/health` + L2 depth5 + Nobitex recorder | **PASS** | `connected=True`, `40` mkts / `2` shards, `lag=0.1s`, `depth5=106558`, `nobitex=140` |
+| **G2-Instant** | Causal next-bar holdout + real order-book `adversarial_lower_bound` + CPCV/PBO + Placebo + DSR | **NOT_MET** | Cand. A hourly=`False`, orderbook=`False`; Cand. B=`False` |
 | **G3-Instant** | Safety/authority boundaries & `DISARMED` invariant | **PASS** | Verified by pytest safety suite (`41 passed`, `0` drift) |
 | **G4** | Explicit owner sign-off | **OPEN** | Never auto-armed |
 
-## Candidate A — Instant 22-Month Hourly 6-Triangle FX Basis
+## Candidate A — Dual Check (Causal Next-Bar Hourly + Tick-Level Order-Book Adversarial)
 
-- **Aligned Hours:** `16439` · **Dev Trades:** `2226` · **Holdout Trades:** `2726` · **Holdout Placebo p:** `0.002`
-- **Dev (`<= 2025-11-23`):** Wallex Maker `37055.66 bps`, Ann. Sharpe `10.958`, DSR `1.0`
-- **Sealed Holdout (`>= 2025-11-24`):** Wallex Maker `55464.67 bps`, Nobitex `-30%` Maker `71820.67 bps`, Ann. Sharpe `13.266`, DSR `1.0`
+### A1. 22-Month Causal Next-Bar Open Hourly Replay (Fees & Spread Deducted Inside Sharpe/DSR)
 
-## Candidate B — Instant 4-Year Convex L1 Allocation (365-Day Sealed Holdout + Purged CPCV/PBO)
+- **Aligned Hours:** `16439` · **Dev Trades:** `2226` · **Holdout Trades:** `2726` · **Holdout Placebo p:** `0.9581`
+- **Dev (`<= 2025-11-23`):** Wallex Net `-49027.52 bps`, Ann. Sharpe `-10.064`, DSR `0.0`
+- **Sealed Holdout (`>= 2025-11-24`):** Wallex Net `-54773.38 bps`, Nobitex `-30%` Net `-27513.38 bps`, Ann. Sharpe `-12.178`, DSR `0.0`
+
+### A2. Real Order-Book + Trades Replay (`duplicate_print_mode='adversarial_lower_bound'`, `post_only=True`)
+
+- **Lookback:** `72h` · **Signals:** `1` · **Filled Entries:** `0` · **5m Markout Cov.:** `0.0`
+- **Net Proceeds After Compulsory Unwind (USDT):** **`0.0`** · **Order-Book Pass:** **`False`**
+
+## Candidate B — 4-Year Convex L1 Allocation (365-Day Sealed Holdout + Purged CPCV/PBO)
 
 - **Causality:** `True` · **Purged CPCV PBO:** `0.5333` · **500-Run Placebo p:** `0.3952`
 
