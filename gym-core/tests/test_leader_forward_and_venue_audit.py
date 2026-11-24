@@ -78,3 +78,23 @@ def test_leader_forward_journal_writes_registration_and_handles_missing_candles(
     assert reg_data["strategy_id"] == "S1_S5_DROP_S2_ADMM_LEADER"
     assert reg_data["funded_authority"] is False
     assert reg_data["executor_state"] == "DISARMED"
+
+
+def test_research_dashboard_bins_returns_and_renders_offline_html(tmp_path: Path) -> None:
+    from gym.services.experiments.research_dashboard import (
+        compute_return_histogram,
+        generate_research_dashboard,
+    )
+
+    hist = compute_return_histogram([-0.08, -0.01, 0.0, 0.004, 0.09])
+    assert hist["stats"]["n"] == 5
+    assert hist["counts"][0] == 1  # <-6% overflow tail
+    assert hist["counts"][-1] == 1  # >+6% overflow tail
+
+    out_html = tmp_path / "dashboard.html"
+    res = generate_research_dashboard(tmp_path, out_html, db_path=None)
+    html = out_html.read_text(encoding="utf-8")
+    assert res["bytes"] > 5000
+    assert "DISARMED" in html
+    assert "http://" not in html and "https://" not in html
+    assert "c-hist" in html and "c-strat" in html and "c-venue" in html
