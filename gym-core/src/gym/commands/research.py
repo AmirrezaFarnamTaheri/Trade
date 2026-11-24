@@ -490,7 +490,7 @@ def session_cmd(args):
 
 def paper_research_cmd(args) -> int:
     """Evaluate a bounded offline artifact without opening a store or venue."""
-    from ..domain.market_models import evaluate_artifact
+    from ..domain.artifact_evaluation import evaluate_artifact
 
     report = evaluate_artifact(_strict_offline_json(args.path, max_bytes=2_000_000))
     text = json.dumps(report, ensure_ascii=False, indent=2, default=str)

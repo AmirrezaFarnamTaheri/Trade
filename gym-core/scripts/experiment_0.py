@@ -17,7 +17,10 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from gym.domain.execution_schedule import compare_execution_timing_arms
+from gym.domain.execution_schedule import (
+    causal_spread_quantile_bps,
+    compare_execution_timing_arms,
+)
 from gym.domain.kalman_models import (
     DUAL_QUOTED_COINS,
     KalmanBasisFilter,
@@ -276,12 +279,11 @@ def run_experiment_0(db_path: Path, report_path: Path, *, lookback_hours: int = 
                 passive_rows[sym] = _passive_experiment_0(sym, b, t)
                 valid = [x for x in b if x.bid and x.ask]
                 if len(valid) >= 30:
-                    spreads = sorted(float(x.spread_bps) for x in valid if x.spread_bps is not None)
-                    p35 = Decimal(str(round(spreads[int(0.35 * len(spreads))], 2))) if spreads else Decimal("15")
                     mid_idx = len(valid) // 2
                     t0 = valid[mid_idx].ts_avail
+                    p35 = causal_spread_quantile_bps(valid, t0)
                     qty = (Decimal("250") / ((valid[mid_idx].bid + valid[mid_idx].ask) / Decimal(2))).quantize(Decimal("0.000001"))
-                    comp = compare_execution_timing_arms(sym, "BUY", qty, t0, 300.0, valid, t, sched, p35_spread_bps=p35)
+                    comp = compare_execution_timing_arms(sym, "BUY", qty, t0, 300.0, valid, t, sched, p35_spread_bps=p35, enforce_displayed_size=True)
                     overlay_rows.append(
                         {
                             "symbol": sym,

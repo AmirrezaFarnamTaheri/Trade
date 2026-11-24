@@ -10,10 +10,10 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal as D
 from pathlib import Path
 
+from gym.domain.artifact_evaluation import evaluate_artifact
 from gym.domain.market_models import (
     LocalLiquidity,
     decimal,
-    evaluate_artifact,
     financing,
     implied_fx,
     liquidity,

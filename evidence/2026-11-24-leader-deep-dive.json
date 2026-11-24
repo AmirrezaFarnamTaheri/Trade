@@ -1,0 +1,438 @@
+{
+  "generated_at": "2026-11-24T11:38:50.162725+00:00",
+  "eval_days": 1639,
+  "study_a_s2_hysteresis": {
+    "DROP_S2_LEADER": {
+      "metrics_full": {
+        "days": 1638,
+        "ending_nav": 2574.92,
+        "ret_pct": 157.52,
+        "ann_sharpe": 1.011,
+        "max_dd_pct": 22.38
+      },
+      "metrics_stress": {
+        "days": 366,
+        "ending_nav": 2574.92,
+        "ret_pct": -1.84,
+        "ann_sharpe": -0.088,
+        "max_dd_pct": 10.95
+      },
+      "total_fees_usdt": 72.18,
+      "turnover_multiple": 55.52,
+      "uplift_vs_drop_s2_bps": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "RAW_S1_S2_S5": {
+      "metrics_full": {
+        "days": 1638,
+        "ending_nav": 2783.43,
+        "ret_pct": 178.34,
+        "ann_sharpe": 0.94,
+        "max_dd_pct": 25.79
+      },
+      "metrics_stress": {
+        "days": 366,
+        "ending_nav": 2783.43,
+        "ret_pct": -11.47,
+        "ann_sharpe": -0.66,
+        "max_dd_pct": 16.81
+      },
+      "total_fees_usdt": 223.08,
+      "turnover_multiple": 171.6,
+      "uplift_vs_drop_s2_bps": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 8.281174561704206e-05,
+        "ci_95": [
+          -0.0002716429702182908,
+          0.0004361685947527749
+        ],
+        "bootstrap_se": 0.00019450534553638863,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    "S2_HYSTERESIS_25_55": {
+      "metrics_full": {
+        "days": 1638,
+        "ending_nav": 2827.31,
+        "ret_pct": 182.74,
+        "ann_sharpe": 0.921,
+        "max_dd_pct": 29.95
+      },
+      "metrics_stress": {
+        "days": 366,
+        "ending_nav": 2827.31,
+        "ret_pct": -11.23,
+        "ann_sharpe": -0.624,
+        "max_dd_pct": 18.01
+      },
+      "total_fees_usdt": 198.25,
+      "turnover_multiple": 152.5,
+      "uplift_vs_drop_s2_bps": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 0.00010468986259947396,
+        "ci_95": [
+          -0.00024300044630280195,
+          0.0004668896624722097
+        ],
+        "bootstrap_se": 0.00020286316607859528,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    "S2_HYSTERESIS_25_70": {
+      "metrics_full": {
+        "days": 1638,
+        "ending_nav": 2808.48,
+        "ret_pct": 180.86,
+        "ann_sharpe": 0.912,
+        "max_dd_pct": 29.91
+      },
+      "metrics_stress": {
+        "days": 366,
+        "ending_nav": 2808.48,
+        "ret_pct": -11.73,
+        "ann_sharpe": -0.657,
+        "max_dd_pct": 18.43
+      },
+      "total_fees_usdt": 197.41,
+      "turnover_multiple": 151.85,
+      "uplift_vs_drop_s2_bps": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 0.00010194268789582144,
+        "ci_95": [
+          -0.00025393187553580737,
+          0.00047264288498380836
+        ],
+        "bootstrap_se": 0.00020179004012691406,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  },
+  "study_b_factor_attribution": {
+    "DROP_S2_LEADER": {
+      "observations": 839,
+      "ann_alpha_pct": 27.65,
+      "beta_btc": 0.2206,
+      "beta_gold": 0.0992,
+      "r_squared": 0.2132,
+      "residual_ann_sharpe": 1.346,
+      "portfolio_ann_sharpe": 1.416
+    },
+    "RAW_S1_S2_S5": {
+      "observations": 839,
+      "ann_alpha_pct": 25.34,
+      "beta_btc": 0.2757,
+      "beta_gold": 0.0946,
+      "r_squared": 0.2466,
+      "residual_ann_sharpe": 1.114,
+      "portfolio_ann_sharpe": 1.189
+    },
+    "S2_HYSTERESIS_25_55": {
+      "observations": 839,
+      "ann_alpha_pct": 26.95,
+      "beta_btc": 0.2937,
+      "beta_gold": 0.0885,
+      "r_squared": 0.2604,
+      "residual_ann_sharpe": 1.166,
+      "portfolio_ann_sharpe": 1.223
+    },
+    "STATIC_GOLD_AND_CRYPTO": {
+      "observations": 839,
+      "ann_alpha_pct": 5.78,
+      "beta_btc": 0.9743,
+      "beta_gold": 0.0451,
+      "r_squared": 0.7144,
+      "residual_ann_sharpe": 0.211,
+      "portfolio_ann_sharpe": 0.391
+    }
+  },
+  "study_b_entry_exit_2x2": {
+    "REAL_ENTRY_SLEEVE_EXIT": {
+      "metrics_full": {
+        "days": 1638,
+        "ending_nav": 2209.25,
+        "ret_pct": 121.0,
+        "ann_sharpe": 0.64,
+        "max_dd_pct": 42.39
+      },
+      "metrics_stress": {
+        "days": 366,
+        "ending_nav": 2209.25,
+        "ret_pct": -3.78,
+        "ann_sharpe": -0.067,
+        "max_dd_pct": 20.03
+      },
+      "avg_gross_exposure": 0.659,
+      "total_fees_usdt": 130.55,
+      "turnover_multiple": 100.42
+    },
+    "REAL_ENTRY_FIXED_20D_EXIT": {
+      "metrics_full": {
+        "days": 1638,
+        "ending_nav": 2227.51,
+        "ret_pct": 122.82,
+        "ann_sharpe": 0.647,
+        "max_dd_pct": 41.49
+      },
+      "metrics_stress": {
+        "days": 366,
+        "ending_nav": 2227.51,
+        "ret_pct": -12.39,
+        "ann_sharpe": -0.438,
+        "max_dd_pct": 24.05
+      },
+      "avg_gross_exposure": 0.679,
+      "total_fees_usdt": 160.1,
+      "turnover_multiple": 123.15
+    },
+    "RANDOM_ENTRY_SLEEVE_EXIT_5SEED_AVG": {
+      "seeds": 5,
+      "ending_nav": 2055.6,
+      "ret_pct": 105.63,
+      "ann_sharpe": 0.594,
+      "max_dd_pct": 46.69,
+      "stress_ret_pct": -2.97,
+      "avg_gross_exposure": 0.653,
+      "total_fees_usdt": 242.31
+    },
+    "RANDOM_ENTRY_FIXED_20D_EXIT_5SEED_AVG": {
+      "seeds": 5,
+      "ending_nav": 1156.65,
+      "ret_pct": 15.7,
+      "ann_sharpe": 0.306,
+      "max_dd_pct": 59.71,
+      "stress_ret_pct": -30.31,
+      "avg_gross_exposure": 0.815,
+      "total_fees_usdt": 275.83
+    }
+  },
+  "study_c_causal_execution": [
+    {
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "samples": 12,
+      "mean_causal_p35_bps": 30.34,
+      "immediate_cost_bps": 26.13,
+      "fixed_passive_cost_bps": 15.99,
+      "opportunistic_cost_bps": 15.99,
+      "fixed_passive_savings_bps": 10.14,
+      "opportunistic_savings_bps": 10.14,
+      "unfilled_counts": {
+        "imm": 8,
+        "fp": 9,
+        "opp": 9
+      }
+    },
+    {
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "samples": 12,
+      "mean_causal_p35_bps": 30.34,
+      "immediate_cost_bps": 26.09,
+      "fixed_passive_cost_bps": 32.09,
+      "opportunistic_cost_bps": 32.09,
+      "fixed_passive_savings_bps": -6.0,
+      "opportunistic_savings_bps": -6.0,
+      "unfilled_counts": {
+        "imm": 5,
+        "fp": 6,
+        "opp": 6
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "side": "BUY",
+      "samples": 12,
+      "mean_causal_p35_bps": 28.18,
+      "immediate_cost_bps": 26.55,
+      "fixed_passive_cost_bps": 27.05,
+      "opportunistic_cost_bps": 28.06,
+      "fixed_passive_savings_bps": -0.5,
+      "opportunistic_savings_bps": -1.5,
+      "unfilled_counts": {
+        "imm": 7,
+        "fp": 6,
+        "opp": 6
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "side": "SELL",
+      "samples": 12,
+      "mean_causal_p35_bps": 28.18,
+      "immediate_cost_bps": 26.52,
+      "fixed_passive_cost_bps": 30.26,
+      "opportunistic_cost_bps": 30.2,
+      "fixed_passive_savings_bps": -3.74,
+      "opportunistic_savings_bps": -3.68,
+      "unfilled_counts": {
+        "imm": 4,
+        "fp": 4,
+        "opp": 4
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "side": "BUY",
+      "samples": 12,
+      "mean_causal_p35_bps": 33.24,
+      "immediate_cost_bps": 28.97,
+      "fixed_passive_cost_bps": 10.35,
+      "opportunistic_cost_bps": 8.8,
+      "fixed_passive_savings_bps": 18.62,
+      "opportunistic_savings_bps": 20.17,
+      "unfilled_counts": {
+        "imm": 6,
+        "fp": 7,
+        "opp": 6
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "side": "SELL",
+      "samples": 12,
+      "mean_causal_p35_bps": 33.24,
+      "immediate_cost_bps": 28.93,
+      "fixed_passive_cost_bps": 47.45,
+      "opportunistic_cost_bps": 47.45,
+      "fixed_passive_savings_bps": -18.52,
+      "opportunistic_savings_bps": -18.52,
+      "unfilled_counts": {
+        "imm": 5,
+        "fp": 8,
+        "opp": 8
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "side": "BUY",
+      "samples": 12,
+      "mean_causal_p35_bps": 32.53,
+      "immediate_cost_bps": 26.78,
+      "fixed_passive_cost_bps": 26.81,
+      "opportunistic_cost_bps": 26.81,
+      "fixed_passive_savings_bps": -0.03,
+      "opportunistic_savings_bps": -0.03,
+      "unfilled_counts": {
+        "imm": 5,
+        "fp": 6,
+        "opp": 6
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "side": "SELL",
+      "samples": 12,
+      "mean_causal_p35_bps": 32.53,
+      "immediate_cost_bps": 26.75,
+      "fixed_passive_cost_bps": 29.94,
+      "opportunistic_cost_bps": 29.86,
+      "fixed_passive_savings_bps": -3.19,
+      "opportunistic_savings_bps": -3.11,
+      "unfilled_counts": {
+        "imm": 8,
+        "fp": 8,
+        "opp": 8
+      }
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "side": "BUY",
+      "samples": 12,
+      "mean_causal_p35_bps": 39.78,
+      "immediate_cost_bps": 53.32,
+      "fixed_passive_cost_bps": 48.74,
+      "opportunistic_cost_bps": 48.74,
+      "fixed_passive_savings_bps": 4.58,
+      "opportunistic_savings_bps": 4.58,
+      "unfilled_counts": {
+        "imm": 10,
+        "fp": 11,
+        "opp": 11
+      }
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "side": "SELL",
+      "samples": 12,
+      "mean_causal_p35_bps": 39.78,
+      "immediate_cost_bps": 53.22,
+      "fixed_passive_cost_bps": 57.32,
+      "opportunistic_cost_bps": 57.32,
+      "fixed_passive_savings_bps": -4.1,
+      "opportunistic_savings_bps": -4.1,
+      "unfilled_counts": {
+        "imm": 9,
+        "fp": 8,
+        "opp": 8
+      }
+    },
+    {
+      "symbol": "PEPEUSDT",
+      "side": "BUY",
+      "samples": 12,
+      "mean_causal_p35_bps": 46.36,
+      "immediate_cost_bps": 36.96,
+      "fixed_passive_cost_bps": 25.89,
+      "opportunistic_cost_bps": 27.19,
+      "fixed_passive_savings_bps": 11.07,
+      "opportunistic_savings_bps": 9.78,
+      "unfilled_counts": {
+        "imm": 7,
+        "fp": 6,
+        "opp": 5
+      }
+    },
+    {
+      "symbol": "PEPEUSDT",
+      "side": "SELL",
+      "samples": 12,
+      "mean_causal_p35_bps": 46.36,
+      "immediate_cost_bps": 36.9,
+      "fixed_passive_cost_bps": 48.53,
+      "opportunistic_cost_bps": 44.53,
+      "fixed_passive_savings_bps": -11.63,
+      "opportunistic_savings_bps": -7.63,
+      "unfilled_counts": {
+        "imm": 4,
+        "fp": 7,
+        "opp": 7
+      }
+    }
+  ]
+}
