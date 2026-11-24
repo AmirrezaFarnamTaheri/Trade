@@ -5,7 +5,8 @@ from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from pathlib import Path
 
 from ..adapters.store import MarketDB
-from ..domain.market_models import decimal, evaluate_artifact, fields
+from ..domain.artifact_evaluation import evaluate_artifact
+from ..domain.market_models import decimal, fields
 from ..domain.model import iso, now_utc, parse_ts
 from ..domain.periods import instant
 from ..domain.portfolio import rebalance_preview

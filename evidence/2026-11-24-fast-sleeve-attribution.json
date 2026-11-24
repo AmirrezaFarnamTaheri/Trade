@@ -1,0 +1,73 @@
+{
+  "cohort": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "BNBUSDT",
+    "DOGEUSDT",
+    "LINKUSDT"
+  ],
+  "generated_at_utc": "2026-11-24T11:21:23.423905+00:00",
+  "s3_nobitex_cf_offset_0h": {
+    "ann_sharpe": 0.678,
+    "days": 835,
+    "ending_nav": 1102.3,
+    "entries": 24,
+    "fees_usdt": 11.04,
+    "fills": 44,
+    "max_dd_pct": 2.18,
+    "ret_pct": 10.23
+  },
+  "s3_wallex_offset_0h": {
+    "ann_sharpe": 0.651,
+    "days": 835,
+    "ending_nav": 1097.55,
+    "entries": 24,
+    "fees_usdt": 15.74,
+    "fills": 44,
+    "max_dd_pct": 2.3,
+    "ret_pct": 9.76
+  },
+  "s3_wallex_offset_1h": {
+    "ann_sharpe": -0.288,
+    "days": 835,
+    "ending_nav": 971.77,
+    "entries": 23,
+    "fees_usdt": 14.65,
+    "fills": 46,
+    "max_dd_pct": 7.26,
+    "ret_pct": -2.82
+  },
+  "s4_nobitex_cf_offset_0h": {
+    "ann_sharpe": -0.474,
+    "days": 835,
+    "ending_nav": 927.87,
+    "entries": 43,
+    "fees_usdt": 17.58,
+    "fills": 80,
+    "max_dd_pct": 9.26,
+    "ret_pct": -7.21
+  },
+  "s4_wallex_offset_0h": {
+    "ann_sharpe": -0.526,
+    "days": 835,
+    "ending_nav": 920.69,
+    "entries": 43,
+    "fees_usdt": 25.02,
+    "fills": 80,
+    "max_dd_pct": 9.78,
+    "ret_pct": -7.93
+  },
+  "s4_wallex_offset_1h": {
+    "ann_sharpe": -0.895,
+    "days": 835,
+    "ending_nav": 889.37,
+    "entries": 43,
+    "fees_usdt": 23.78,
+    "fills": 80,
+    "max_dd_pct": 15.79,
+    "ret_pct": -11.06
+  },
+  "schema": "fast-sleeve-attribution/1"
+}
