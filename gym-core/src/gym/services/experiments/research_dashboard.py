@@ -101,6 +101,11 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
     fast = _load_json(evidence_dir / "2026-11-24-fast-sleeve-attribution.json")
     venue = _load_json(evidence_dir / "2026-11-24-venue-execution-cost.json")
     exp_abc = _load_json(evidence_dir / "2026-11-24-expansion-and-margin.json")
+    gru = _load_json(evidence_dir / "2026-11-24-gru-prototypes.json")
+    orth = _load_json(evidence_dir / "2026-11-25-orthogonal-alpha.json")
+    smart_exec = _load_json(evidence_dir / "2026-11-25-smart-execution.json")
+    fwd_score = _load_json(evidence_dir / "2026-11-25-champion-forward-score.json")
+    health = _load_json(evidence_dir / "2026-11-25-operational-health.json")
 
     histograms = _compute_live_histograms(db_path) if (db_path is not None and db_path.is_file()) else {
         "leader": compute_return_histogram([]),
@@ -217,6 +222,11 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
         "causal_execution": deep.get("study_c_causal_execution", []),
         "exp_abc_spot": exp_abc.get("spot_and_overlay_arms", []),
         "exp_abc_margin": exp_abc.get("margin_standalone_arms", []),
+        "gru_ignition": gru.get("prototype_2_gru_ignition", {}),
+        "orthogonal_alpha": orth,
+        "smart_execution": smart_exec.get("rows", []),
+        "forward_score": fwd_score,
+        "operational_health": health,
     }
 
 
@@ -469,12 +479,47 @@ def render_dashboard_html(payload: dict) -> str:
   <section class="panel">
     <div class="panel-head">
       <div>
-        <h2>6. Experiments A, B, and C — 33-Market Expansion, ML Tilt, Asymmetric 6h Crash Exit &amp; Paper Margin</h2>
-        <p class="desc">Asymmetric 6h Crash Exit on the tight 13-asset core hit a new high (Sharpe 1.089, +175.5%, bear stress +5.76%). Expanding to 33 assets diluted Sharpe to 0.75; Wallex 32.85%/yr borrow crushed leverage and L1 pairs (-88.1%).</p>
+        <h2>6. Experiments A, B, and C — 33-Market Expansion, ML Tilt &amp; Paper Margin</h2>
+        <p class="desc">Expanding to 33 assets diluted Sharpe (1.011 → 0.748); Wallex 32.85%/yr borrow crushed slow leverage &amp; L1 pairs (-88.1%). Note: once the same-day ts_avail causality leak was fixed, all intraday 2h/3h/6h crash breakers whipsawed below BASE_13_S1_S5.</p>
       </div>
     </div>
     <div class="canvas-wrap"><canvas id="c-abc"></canvas></div>
     <table id="t-margin"></table>
+  </section>
+
+  <!-- Panel 7: 2h GRU-Ignition & Orthogonal Alpha Audit (3A/3B/3C) -->
+  <div class="grid-2">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>7A. 2h Rare Momentum Ignition + GRU-Ignition Sequence Sizer</h2>
+          <p class="desc">Purged walk-forward 3-seed GRU (AUC 0.558, +12.5pp win-rate spread) dynamically gating 0.5×/1.0×/1.5× leverage with 0 liquidations and ~$11 3-year borrow.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-gru"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>7B. Orthogonal Alpha Audit (3A Flush/Dead-Cat, 3B Cov-Only GRU-Vol, 3C PAXG/Macro)</h2>
+          <p class="desc">All 3A/3B challengers decisively retired; XAUTUSDT beat PAXGUSDT (1.011 vs 0.865); standalone Macro Commodities (+24.4%, corr +0.082) parked for future multi-year history.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-orth"></canvas></div>
+    </section>
+  </div>
+
+  <!-- Panel 8: Side-Asymmetric Smart Execution & Live Forward Champion Tracker -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>8. Side-Asymmetric Smart Execution Audit ($250 Walked L2 Depth) &amp; Live Forward Champion Status</h2>
+        <p class="desc">Nobitex (-30%) passive BUY + immediate smart-taker SELL cuts execution drag by +8.1 to +21.9 bps/leg across 4/4 live pairs. Below: live untouched forward tracker for frozen v1 Champion (70% BASE_13_S1_S5 + 30% GRU-Ignition).</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-smart"></canvas></div>
+    <table id="t-fwd"></table>
   </section>
 </main>
 
@@ -802,6 +847,66 @@ function drawExpAbc() {{
   }}
 }}
 
+// Panel 7A: GRU-Ignition
+function drawGruIgnition() {{
+  const g = DATA.gru_ignition || {{}};
+  const arms = [
+    ['Plain 1.0x (NBX16)', g.plain_1x_nbx16, '#38bdf8'],
+    ['Plain 1.5x (NBX16)', g.plain_15x_nbx16, '#f59e0b'],
+    ['GRU Dynamic (NBX16)', g.gru_dynamic_nbx16, '#22c55e'],
+    ['GRU Dynamic (WLX25)', g.gru_dynamic_wlx25, '#a78bfa'],
+  ].filter(x => x[1]).map(([label, a, color]) => ({{
+    label,
+    val: a.ann_sharpe,
+    color,
+    tip: `${{label}}\nNAV: $${{a.ending_nav}} (${{a.ret_pct >= 0 ? '+' : ''}}${{a.ret_pct}}%)\nBear Stress: ${{a.stress_ret_pct >= 0 ? '+' : ''}}${{a.stress_ret_pct}}%\nSharpe: ${{a.ann_sharpe}} · MaxDD: ${{a.max_dd_pct}}%\nLiqs: ${{a.liquidations}} · Borrow: $${{a.total_borrow_usdt}}`,
+  }}));
+  if (arms.length) drawBarChart('c-gru', arms, {{ fmt: v => v.toFixed(2), bottomPad: 72 }});
+}}
+
+// Panel 7B: Orthogonal Alpha Audit (3A/3B/3C)
+function drawOrthogonal() {{
+  const o = DATA.orthogonal_alpha || {{}};
+  const b3 = o.study_3b_gru_vol_cov_only || {{}};
+  const c3 = o.study_3c_gold_and_macro || {{}};
+  const fl = (o.study_3a_flush_rebound || [])[0];
+  const dc = (o.study_3a_deadcat_short || [])[0];
+  const items = [];
+  if (b3.baseline_13) items.push({{ label: 'BASE_13 XAUT', val: b3.baseline_13.full.ann_sharpe, color: '#22c55e', tip: `BASE_13 XAUT (Champion)\nSharpe: ${{b3.baseline_13.full.ann_sharpe}} · Return: +${{b3.baseline_13.full.ret_pct}}%` }});
+  if (c3.paxg_base_13) items.push({{ label: 'BASE_13 PAXG', val: c3.paxg_base_13.full.ann_sharpe, color: '#38bdf8', tip: `BASE_13 PAXG\nSharpe: ${{c3.paxg_base_13.full.ann_sharpe}} · Return: +${{c3.paxg_base_13.full.ret_pct}}%` }});
+  if (b3.gru_vol_cov_only) items.push({{ label: 'GRU-Vol Cov', val: b3.gru_vol_cov_only.full.ann_sharpe, color: '#f59e0b', tip: `GRU-Vol Cov Only\nSharpe: ${{b3.gru_vol_cov_only.full.ann_sharpe}} · Return: +${{b3.gru_vol_cov_only.full.ret_pct}}%` }});
+  if (c3.macro_standalone) items.push({{ label: 'Macro RP', val: c3.macro_standalone.ann_sharpe, color: '#a78bfa', tip: `Macro Commodities RP\nSharpe: ${{c3.macro_standalone.ann_sharpe}} · Return: +${{c3.macro_standalone.ret_pct}}% · Corr: ${{c3.macro_standalone.corr_vs_base_13}}` }});
+  if (fl) items.push({{ label: 'Flush Long 0h', val: fl.ann_sharpe, color: '#ef4444', tip: `Flush Rebound 2h 0h\nSharpe: ${{fl.ann_sharpe}} · Return: ${{fl.ret_pct}}%` }});
+  if (dc) items.push({{ label: 'DeadCat Short', val: dc.ann_sharpe, color: '#ef4444', tip: `DeadCat Short 2h 0h\nSharpe: ${{dc.ann_sharpe}} · Return: ${{dc.ret_pct}}%` }});
+  if (items.length) drawBarChart('c-orth', items, {{ fmt: v => v.toFixed(2), bottomPad: 72 }});
+}}
+
+// Panel 8: Side-Asymmetric Smart Execution & Live Forward Champion Tracker
+function drawSmartAndForward() {{
+  const groups = [];
+  (DATA.smart_execution || []).forEach(r => {{
+    groups.push({{ label: r.symbol.replace('USDT', '') + ' BUY', v1: r.buy.wallex_taker_bps, v2: r.buy.asym_router_bps, extra: `Saving: +${{r.buy.saving_asym_vs_wallex_bps}} bps · Passive Fill: ${{r.buy.passive_buy_fill_pct}}%` }});
+    groups.push({{ label: r.symbol.replace('USDT', '') + ' SELL', v1: r.sell.wallex_taker_bps, v2: r.sell.asym_router_bps, extra: `Saving: +${{r.sell.saving_asym_vs_wallex_bps}} bps · Nobitex Cheaper: ${{r.sell.nobitex_cheaper_pct}}%` }});
+  }});
+  if (groups.length) drawGroupedBars('c-smart', groups, 'Wallex Taker', 'Asym Router', '#ef4444', '#22c55e', v => v.toFixed(1) + 'bp');
+
+  const f = DATA.forward_score || {{}};
+  const h = DATA.operational_health || {{}};
+  document.getElementById('t-fwd').innerHTML = `
+    <thead><tr><th>Live Champion Forward Tracker</th><th>Status</th><th>Forward Days</th><th>Paper NAV</th><th>e-Process</th><th>Cash Weight</th><th>Live NBX / WLX Spread</th><th>Watchdog Health</th></tr></thead>
+    <tbody><tr class="leader-row">
+      <td>70% BASE_13_S1_S5 (XAUT) + 30% Frozen GRU-Ignition</td>
+      <td class="pos">${{f.status || 'PENDING'}}</td>
+      <td>${{f.forward_days || 0}} (${{f.observations || 0}} snaps)</td>
+      <td>$${{(f.paper_nav || 1000).toFixed(2)}} (${{(f.cum_ret_pct || 0) >= 0 ? '+' : ''}}${{(f.cum_ret_pct || 0).toFixed(2)}}%)</td>
+      <td>${{(f.e_process || 1).toFixed(4)}}</td>
+      <td>${{((f.latest_cash_weight ?? 1) * 100).toFixed(1)}}%</td>
+      <td>${{f.median_live_nobitex_spread_bps ?? '—'}} / ${{f.median_live_wallex_spread_bps ?? '—'}} bps</td>
+      <td class="${{h.overall_status === 'OK' ? 'pos' : 'acc'}}">${{h.overall_status || '—'}} (DISARMED)</td>
+    </tr></tbody>
+  `;
+}}
+
 function drawAll() {{
   drawHistogram();
   drawStrategies();
@@ -810,6 +915,9 @@ function drawAll() {{
   drawVenue();
   drawCausal();
   drawExpAbc();
+  drawGruIgnition();
+  drawOrthogonal();
+  drawSmartAndForward();
 }}
 window.addEventListener('resize', drawAll);
 drawAll();

@@ -26,7 +26,29 @@ from gym.adapters.nobitex import (
 from gym.domain.model import dec, iso
 from gym.domain.venue_contracts import QuoteSnapshot
 
-DEFAULT_NOBITEX_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "USDTIRT")
+DEFAULT_NOBITEX_SYMBOLS = (
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "BNBUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "BCHUSDT",
+    "TRXUSDT",
+    "AAVEUSDT",
+    "AVAXUSDT",
+    "NEARUSDT",
+    "UNIUSDT",
+    "ATOMUSDT",
+    "DOTUSDT",
+    "FILUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "USDTIRT",
+)
 ABANTETHER_PUBLIC_COINS_URL = "https://abantether.com/api/v1/otc/coin-price/"
 
 
@@ -94,9 +116,15 @@ def persist_quote_snapshot(con: sqlite3.Connection, qs: QuoteSnapshot) -> None:
     con.commit()
 
 
-def fetch_nobitex_snapshots(symbols: tuple[str, ...] = DEFAULT_NOBITEX_SYMBOLS) -> list[QuoteSnapshot]:
+def fetch_nobitex_snapshots(
+    symbols: tuple[str, ...] = DEFAULT_NOBITEX_SYMBOLS,
+    *,
+    request_delay_s: float = 0.15,
+) -> list[QuoteSnapshot]:
     snaps: list[QuoteSnapshot] = []
-    for sym in symbols:
+    for idx, sym in enumerate(symbols):
+        if idx > 0 and request_delay_s > 0:
+            time.sleep(request_delay_s)
         url = NOBITEX_ORDERBOOK_URL.format(symbol=sym)
         try:
             payload = _http_get_json(url, timeout=8.0)

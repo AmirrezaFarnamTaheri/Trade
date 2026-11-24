@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-11-24T21:05:00.674519+00:00",
+  "notional_usdt": 250.0,
+  "max_skew_s": 15.0,
+  "rows": [
+    {
+      "symbol": "BTCUSDT",
+      "notional_quote": 250.0,
+      "samples": 709,
+      "buy": {
+        "wallex_taker_bps": 20.25,
+        "nobitex_taker_bps": 17.4,
+        "smart_taker_bps": 14.71,
+        "asym_router_bps": 10.32,
+        "saving_smart_vs_wallex_bps": 5.54,
+        "saving_asym_vs_wallex_bps": 9.93,
+        "nobitex_cheaper_pct": 59.8,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 98.8,
+        "passive_buy_fill_pct": 45.7
+      },
+      "sell": {
+        "wallex_taker_bps": 22.84,
+        "nobitex_taker_bps": 15.72,
+        "smart_taker_bps": 14.72,
+        "asym_router_bps": 14.72,
+        "saving_smart_vs_wallex_bps": 8.12,
+        "saving_asym_vs_wallex_bps": 8.12,
+        "nobitex_cheaper_pct": 77.3,
+        "wallex_depth_fill_pct": 99.5,
+        "nobitex_depth_fill_pct": 99.1,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "notional_quote": 250.0,
+      "samples": 709,
+      "buy": {
+        "wallex_taker_bps": 24.59,
+        "nobitex_taker_bps": 18.1,
+        "smart_taker_bps": 16.77,
+        "asym_router_bps": 14.09,
+        "saving_smart_vs_wallex_bps": 7.82,
+        "saving_asym_vs_wallex_bps": 10.5,
+        "nobitex_cheaper_pct": 73.1,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 97.9,
+        "passive_buy_fill_pct": 37.1
+      },
+      "sell": {
+        "wallex_taker_bps": 25.64,
+        "nobitex_taker_bps": 17.48,
+        "smart_taker_bps": 16.61,
+        "asym_router_bps": 16.61,
+        "saving_smart_vs_wallex_bps": 9.03,
+        "saving_asym_vs_wallex_bps": 9.03,
+        "nobitex_cheaper_pct": 83.1,
+        "wallex_depth_fill_pct": 99.5,
+        "nobitex_depth_fill_pct": 98.3,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "notional_quote": 250.0,
+      "samples": 666,
+      "buy": {
+        "wallex_taker_bps": 38.27,
+        "nobitex_taker_bps": 29.79,
+        "smart_taker_bps": 23.29,
+        "asym_router_bps": 16.57,
+        "saving_smart_vs_wallex_bps": 14.97,
+        "saving_asym_vs_wallex_bps": 21.7,
+        "nobitex_cheaper_pct": 60.2,
+        "wallex_depth_fill_pct": 95.9,
+        "nobitex_depth_fill_pct": 89.8,
+        "passive_buy_fill_pct": 36.6
+      },
+      "sell": {
+        "wallex_taker_bps": 43.76,
+        "nobitex_taker_bps": 22.04,
+        "smart_taker_bps": 21.84,
+        "asym_router_bps": 21.84,
+        "saving_smart_vs_wallex_bps": 21.92,
+        "saving_asym_vs_wallex_bps": 21.92,
+        "nobitex_cheaper_pct": 95.6,
+        "wallex_depth_fill_pct": 99.3,
+        "nobitex_depth_fill_pct": 98.8,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "notional_quote": 250.0,
+      "samples": 714,
+      "buy": {
+        "wallex_taker_bps": 27.02,
+        "nobitex_taker_bps": 20.48,
+        "smart_taker_bps": 19.03,
+        "asym_router_bps": 16.78,
+        "saving_smart_vs_wallex_bps": 8.0,
+        "saving_asym_vs_wallex_bps": 10.25,
+        "nobitex_cheaper_pct": 74.9,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 97.5,
+        "passive_buy_fill_pct": 31.1
+      },
+      "sell": {
+        "wallex_taker_bps": 29.46,
+        "nobitex_taker_bps": 19.35,
+        "smart_taker_bps": 19.08,
+        "asym_router_bps": 19.08,
+        "saving_smart_vs_wallex_bps": 10.39,
+        "saving_asym_vs_wallex_bps": 10.39,
+        "nobitex_cheaper_pct": 87.1,
+        "wallex_depth_fill_pct": 99.9,
+        "nobitex_depth_fill_pct": 97.3,
+        "passive_buy_fill_pct": 0.0
+      }
+    }
+  ]
+}

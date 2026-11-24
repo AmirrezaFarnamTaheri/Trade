@@ -247,3 +247,27 @@ class EnsembleGRU:
     def predict(self, x: np.ndarray) -> np.ndarray:
         preds = [m.predict(x) for m in self.models]
         return np.mean(preds, axis=0)
+
+    def to_dict(self, *, metadata: dict | None = None) -> dict:
+        return {
+            "schema": "ensemble-gru-weights/1",
+            "n_models": len(self.models),
+            "metadata": metadata or {},
+            "models": [m.to_dict() for m in self.models],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict) -> EnsembleGRU:
+        models = [CompactGRU.from_dict(m) for m in payload["models"]]
+        obj = cls.__new__(cls)
+        obj.models = models
+        return obj
+
+    def save_json(self, path: Path, *, metadata: dict | None = None) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.to_dict(metadata=metadata), indent=2) + "\n", encoding="utf-8")
+
+    @classmethod
+    def load_json(cls, path: Path) -> tuple[EnsembleGRU, dict]:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return cls.from_dict(payload), dict(payload.get("metadata") or {})
