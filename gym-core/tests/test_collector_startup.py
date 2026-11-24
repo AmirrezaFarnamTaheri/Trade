@@ -16,6 +16,7 @@ def test_collector_task_uses_explicit_data_root_and_curated_market_default(tmp_p
                              "-DataDirectory", str(data), "-WhatIf"], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     assert str(data) in result.stdout
+    assert "--depth-levels 5" in result.stdout
     assert "--watch " in result.stdout and "USDTTMN,BTCTMN," in result.stdout and "COPXONUSDT" in result.stdout
     assert "-I -B -m gym.cli" in result.stdout
     assert ".venv\\Scripts\\pythonw.exe" in result.stdout

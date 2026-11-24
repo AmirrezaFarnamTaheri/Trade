@@ -10,7 +10,7 @@ From the repository's gym-core directory:
 
 ```powershell
 uv sync
-uv run --no-sync gymctl --data ../data run --assets 19 --add-symbols SLVONUSDT,COPXONUSDT
+uv run --no-sync gymctl --data ../data run --depth-levels 5 --assets 19 --add-symbols SLVONUSDT,COPXONUSDT
 ```
 
 Use the same data root for every command. Here, `../data/live` is the
