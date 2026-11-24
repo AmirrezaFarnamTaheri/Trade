@@ -341,11 +341,12 @@ Evaluate `yang_zhang_volatility` and `asymmetric_ewma_volatility` at matched tar
 1. **Slot #1 (Track A — Only If Sprint 0 & Sprint 1 Clear Adversarial Bounds & Power):** Register the strongest surviving Wallex USDT passive/execution-overlay or leave-one-out FX-basis policy with pinned SHA, fee schedule, custodian, and primary metric.
 2. **Slot #2 (Track B — Separately Versioned Slow Allocation / Carry Study):** Launch `mix-journal-v2.jsonl` (`earliest_release >= start + 90d`, preserving v1 `mix-journal.jsonl` as control) and/or pre-register the `simulate_tmn_borrow_carry` vs. `1x` unlevered `USDTTMN`/`XAUTTMN` comparison.
 
-### 7.4 Sprint 3 (Jan 9 – Feb 8, 2027) — 30-Day Gate G1 Window & Checkpoint Packet
+### 7.4 Instant On-Demand Gate Verification (Zero Calendar Waits — Owner-Directed 2026-11-24)
 
-1. Record 30 unbroken UTC days (`2027-01-09..2027-02-08`) on the 40-market `--depth-levels 5` collector (`<= 3` failed doctor days, max gap `<= 24.0h`).
-2. Assemble `evidence/2027-02-08-checkpoint-decision.md` reporting G1, G2 (against **both v1 and v2**; marking `< 90d` Track B cohorts `IMMATURE_AT_CHECKPOINT`), G3, backup exception status, and custodian receipts.
-3. **Post-Checkpoint Path:** Passing G1–G4 opens **Stage 6 installed-host qualification (`H001–H029`)** only; any tiny funded calibration probe happens **strictly after** Stage 6 qualification and explicit owner authorization. Concurrently or next, plug in **Phase B** adapters (§8).
+All multi-week / 30-day / 90-day calendar-wait gates are replaced by immediate, reproducible counterparts executed on demand via `gym-core/scripts/instant_gate_check.py`:
+1. **G1-Instant:** Immediate live `/api/health` verification (`connected=true`, `40` markets, `2` shards, `0s` lag, `--depth-levels 5` active in `book_top.depth`) plus live Nobitex rows in `multi_venue_quotes.sqlite3`.
+2. **G2-Instant:** Strict chronological **Development (`<= 2025-11-23`) vs. 365-Day Sealed Historical Holdout (`2025-11-24..2026-11-23`)** + **Purged CPCV/PBO (`< 0.50`)** + **500-run path-preserving placebo (`p < 0.05`)** + **Causality perturbation (`True`)** + **`DSR >= 0.95`** (`N=21`) under exact Wallex L1 / Nobitex `-30%` executable fees.
+3. **Post-Gate Path:** Passing G1–G4 immediately opens **Stage 6 installed-host qualification (`H001–H029`)** without waiting for `2027-02-08`; `TradingGYMExecutor` remains `DISARMED` until explicit owner sign-off.
 
 ---
 
