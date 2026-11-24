@@ -520,15 +520,15 @@ class _Replay:
         return self.equity_in(self.quote)
 
     def equity_in(self, quote):
-        book, instruments, marks = self.book, self.instruments, self.marks
-        equity = book.get(quote) + sum((book.get(instruments[s].base) * marks[s] for s in self.held_order
-                                        if instruments[s].quote == quote), Decimal(0))
-        return equity + self.margin.equity(quote) if self.margin else equity
+        from .portfolio_replay.valuation import equity_in_quote
+
+        return equity_in_quote(quote, self.book, self.instruments, self.marks, self.held_order, self.margin)
 
     def reserved_in(self, quote, *, exclude=None):
+        from .portfolio_replay.valuation import reserved_in_quote
+
         otc = self.otc_fx.reserved(quote) if self.otc_fx else Decimal(0)
-        return sum((value for s, value in self.reserved.items()
-                    if s != exclude and self.instruments[s].quote == quote), otc)
+        return reserved_in_quote(quote, self.reserved, self.instruments, exclude=exclude, otc_reserved=otc)
 
     def _fx_valuation_closed(self, at):
         cached = self._fx_valuation_interval
@@ -557,13 +557,18 @@ class _Replay:
 
     def valuation_state(self, at):
         """Fail portfolio valuation when a held market lacks a fresh mark."""
-        stale_fx = self.multicurrency and ("CLOSED" in self.fx_mark.flags
-                                           or at - self.fx_mark.ts_avail > timedelta(seconds=120)
-                                           or self._fx_valuation_closed(at))
-        return ("STALE_VALUATION" if stale_fx or (self.margin and self.margin.stale(at))
-                or (self.otc_fx and self.otc_fx.residuals)
-                or any(at - self.mark_times[s] > timedelta(seconds=120) for s in self.held_order)
-                else "CURRENT")
+        from .portfolio_replay.valuation import valuation_status_at
+
+        return valuation_status_at(
+            at,
+            multicurrency=self.multicurrency,
+            fx_mark=self.fx_mark if self.multicurrency else None,
+            fx_valuation_closed_fn=self._fx_valuation_closed,
+            margin_stale=bool(self.margin and self.margin.stale(at)),
+            has_otc_residuals=bool(self.otc_fx and self.otc_fx.residuals),
+            held_order=self.held_order,
+            mark_times=self.mark_times,
+        )
 
     def allocate(self, symbol, fraction):
         """Reserve only funded shared paper cash below the target risk budget."""
