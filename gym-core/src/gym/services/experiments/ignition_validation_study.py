@@ -2,20 +2,12 @@
 from __future__ import annotations
 
 import json
-import math
-from bisect import bisect_right
 from dataclasses import asdict
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 from ...adapters.candle_reader import load_keyed_candles, open_readonly_market_db
-from ...domain.async_covariance import coarse_bar_shrunk_covariance_aligned
-from ...domain.convex_optimizer import (
-    OptimizationProblem,
-    forecast_to_expected_return_bps,
-    solve_convex_portfolio,
-)
 from ...domain.ignition_and_intraday_exit import (
     compute_intraday_crash_timestamps,
     pearson_correlation,
@@ -28,6 +20,11 @@ from ...domain.paper_ledger import SelfFinancingLedger
 from ...domain.statistical_inference import paired_baseline_uplift
 from ...domain.strategy_sleeves import compute_slow_sleeves
 from ...domain.timeframe_panel import BarPoint, resample_hourly_to_bucket
+from .admm_helpers import (
+    build_dated_returns_index,
+    build_shrunk_horizon_cov,
+    solve_s1_s5_admm_weights,
+)
 from .ensemble_study import STRESS_REPLAY_START, _daily_returns_map, _portfolio_metrics
 
 CORE_8_IGNITION = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT")
@@ -45,19 +42,10 @@ def _extract_daily_s1_s5_targets(
     """Compute exact daily DROP_S2 (S1+S5) ADMM target weight schedule keyed by causal ts_avail (00:00Z)."""
     by_start = {s: {b.ts_start: b for b in panel_1d.get(s, [])} for s in symbols}
     by_avail = {s: {b.ts_avail: b for b in panel_1d.get(s, [])} for s in symbols}
-    dated_rets = {}
-    for s in symbols:
-        bars = panel_1d.get(s, [])
-        dts, rts = [], []
-        for i in range(1, len(bars)):
-            if bars[i - 1].close > 0:
-                dts.append(bars[i].ts_avail)
-                rts.append((bars[i].close - bars[i - 1].close) / bars[i - 1].close)
-        dated_rets[s] = (dts, rts)
+    dated_rets = build_dated_returns_index(panel_1d, symbols)
 
     ledger = SelfFinancingLedger(Decimal("1000"), fee_rate=fee_rate, fee_in_received_asset=True)
     last_mark: dict[str, Decimal] = {}
-    sqrt_h = math.sqrt(holding_horizon_days)
     schedule: dict[datetime, dict[str, float]] = {}
 
     for t_avail in eval_dates[:-1]:
@@ -83,32 +71,11 @@ def _extract_daily_s1_s5_targets(
             targets = {s: 0.0 for s in symbols}
         else:
             cur_w = ledger.current_weights(active, exec_prices)
-            win = {}
-            for s in active:
-                dts, rts = dated_rets[s]
-                hi = bisect_right(dts, t_avail)
-                win[s] = dict(zip(dts[max(0, hi - 60):hi], rts[max(0, hi - 60):hi], strict=True))
-            cov_d = coarse_bar_shrunk_covariance_aligned(win, active, shrinkage=0.25)
-            cov_h = tuple(tuple(v * holding_horizon_days for v in row) for row in cov_d)
-            mu_gross = []
-            for sym in active:
-                sig = day_sigs[sym]
-                parts = [v for v in (sig.s1_trend, sig.s5_defensive_gold) if v is not None]
-                raw = sum(parts) / len(parts) if parts else 0.0
-                vol_h_bps = sig.yang_zhang_vol * sqrt_h * 10000.0
-                mu_gross.append(forecast_to_expected_return_bps(raw * 20.0, ic_prior=0.08, horizon_vol_bps=vol_h_bps) / 10000.0)
-            prob = OptimizationProblem(
-                symbols=active,
-                expected_returns=tuple(mu_gross),
-                current_weights=cur_w,
-                covariance=cov_h,
-                l1_fee_costs=(float(fee_rate),) * len(active),
-                l2_impact_costs=(0.0020,) * len(active),
-                risk_aversion=2.0,
-                max_weight=0.30,
-                cash_buffer=0.05,
+            cov_h = build_shrunk_horizon_cov(dated_rets, active, t_avail, holding_horizon_days=holding_horizon_days)
+            solved = solve_s1_s5_admm_weights(
+                active, day_sigs, cur_w, cov_h,
+                fee_rate=float(fee_rate), holding_horizon_days=holding_horizon_days,
             )
-            solved = solve_convex_portfolio(prob).weights
             targets = {s: 0.0 for s in symbols}
             for s, w in zip(active, solved, strict=True):
                 targets[s] = w

@@ -1,6 +1,9 @@
 # Profitable System Master Specification — Wallex Core Engine First, Multi-Venue Plug-In Later
 
-**Date:** 2026-11-24 · **Scope:** Canonical architecture, financial-engine, trading-framework, and quantitative-modeling specification for reaching an independently verified net-profitable trading system.
+**Date:** 2026-11-24 (Status updated 2026-11-25) · **Scope:** Canonical architecture, financial-engine, trading-framework, and quantitative-modeling specification for reaching an independently verified net-profitable trading system.
+
+> [!NOTE]
+> **Implementation & Empirical Status (2026-11-25):** Phase A0/A1 financial engine, ADMM convex optimizer, Yang–Zhang/asymmetric volatility, causal multi-sleeve framework, pure-NumPy `EnsembleGRU`, and Nobitex 20-symbol live observation (`record_multi_venue_quotes.py` + `SIDE_ASYMMETRIC_ROUTER`) are **implemented and CI-verified**. The frozen v1 Champion (`70% BASE_13_S1_S5 (XAUT) + 30% 2h GRU-Ignition`) is actively journaling untouched forward observations on Windows Task Scheduler (`DISARMED`). See [evidence/README.md](../evidence/README.md) and [roadmap.md](../gym-core/docs/roadmap.md) for current empirical verdicts and v2 candidates.
 
 **Hard Authority Boundary:** `TradingGYMExecutor` remains **`DISARMED / NOT CERTIFIED`** with a **`$0` funded-loss budget**. Phase A stays **100% paper** through the `2027-02-08` checkpoint. Passing the checkpoint authorizes entering Stage 6 installed-host qualification only — never automatic live arming or pre-checkpoint real-money probes ([2027-02-08-checkpoint-protocol.md](2027-02-08-checkpoint-protocol.md)).
 

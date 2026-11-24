@@ -1,4 +1,4 @@
-"""Phase B Nobitex spot book adapter & pre-funded multi-venue arb accounting (spec §8.1)."""
+"""Nobitex spot order-book adapter, fee schedule (-30% tier), and pre-funded multi-venue arb accounting."""
 from __future__ import annotations
 
 from dataclasses import dataclass

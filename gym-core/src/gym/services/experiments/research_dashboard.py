@@ -106,6 +106,7 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
     smart_exec = _load_json(evidence_dir / "2026-11-25-smart-execution.json")
     fwd_score = _load_json(evidence_dir / "2026-11-25-champion-forward-score.json")
     health = _load_json(evidence_dir / "2026-11-25-operational-health.json")
+    higher_order = _load_json(evidence_dir / "2026-11-25-higher-order-and-sparse.json")
 
     histograms = _compute_live_histograms(db_path) if (db_path is not None and db_path.is_file()) else {
         "leader": compute_return_histogram([]),
@@ -227,6 +228,7 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
         "smart_execution": smart_exec.get("rows", []),
         "forward_score": fwd_score,
         "operational_health": health,
+        "higher_order": higher_order,
     }
 
 
@@ -520,6 +522,17 @@ def render_dashboard_html(payload: dict) -> str:
     </div>
     <div class="canvas-wrap"><canvas id="c-smart"></canvas></div>
     <table id="t-fwd"></table>
+  </section>
+
+  <!-- Panel 9: Higher-Order Momentum, Tiered Sparse Expansion, Sleeve Weighting & Structural Bear Shorts -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>9. Higher-Order Momentum (v2 Candidate), Tiered Sparse 38-Market Check &amp; Structural Bear Shorts</h2>
+        <p class="desc">2nd-order trend acceleration lifted BASE_13 (Sharpe 1.011 → 1.116, Bear -1.84% → +0.99%) and 8-feature GRU-Ignition (NBX16 +33.4% → +45.5%, SR 0.811). Static 50/50 &amp; 60/40 beat dynamic vol risk-parity; meme-coin satellites failed +1h shift; 1d structural laggard shorts made +22.4% in bear year (zero-borrow) but lost full-period under Wallex 32.85%/yr borrow.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-ho"></canvas></div>
   </section>
 </main>
 
@@ -907,6 +920,27 @@ function drawSmartAndForward() {{
   `;
 }}
 
+// Panel 9: Higher-Order Momentum & 4-Part Quantitative Study
+function drawHigherOrder() {{
+  const h = DATA.higher_order || {{}};
+  const p1a = h.part_1a_second_order_1d || {{}};
+  const p1b = h.part_1b_gru_ignition_second_order || {{}};
+  const p3 = (h.part_3_sleeve_weighting || []).filter(x => x.name.endsWith('NBX16'));
+  const p4 = h.part_4_structural_breakdown_short || [];
+  const items = [];
+  if (p1a.baseline_13) items.push({{ label: '1d BASE_13', val: p1a.baseline_13.full.ann_sharpe, color: '#38bdf8', tip: `BASE_13_S1_S5\nSharpe: ${{p1a.baseline_13.full.ann_sharpe}} · Bear: ${{p1a.baseline_13.stress.ret_pct}}%` }});
+  if (p1a.ACCEL_BLEND_20) items.push({{ label: '1d + 2nd-Order', val: p1a.ACCEL_BLEND_20.full.ann_sharpe, color: '#22c55e', tip: `ACCEL_BLEND_20 (v2 Candidate)\nSharpe: ${{p1a.ACCEL_BLEND_20.full.ann_sharpe}} · Return: +${{p1a.ACCEL_BLEND_20.full.ret_pct}}% · Bear: +${{p1a.ACCEL_BLEND_20.stress.ret_pct}}%` }});
+  if (p1b.gru_6feat_baseline) items.push({{ label: 'GRU6 NBX16', val: p1b.gru_6feat_baseline.nbx16.ann_sharpe, color: '#38bdf8', tip: `GRU-Ignition 6-feat\nSharpe: ${{p1b.gru_6feat_baseline.nbx16.ann_sharpe}} · Return: +${{p1b.gru_6feat_baseline.nbx16.ret_pct}}%` }});
+  if (p1b.gru_8feat_second_order) items.push({{ label: 'GRU8 + Accel', val: p1b.gru_8feat_second_order.nbx16.ann_sharpe, color: '#22c55e', tip: `GRU-Ignition 8-feat (v2 Candidate)\nSharpe: ${{p1b.gru_8feat_second_order.nbx16.ann_sharpe}} · Return: +${{p1b.gru_8feat_second_order.nbx16.ret_pct}}% · Bear: +${{p1b.gru_8feat_second_order.nbx16.stress_ret_pct}}%` }});
+  const st50 = p3.find(x => x.name === 'STATIC_50_50_NBX16');
+  const wfrp = p3.find(x => x.name === 'WF_INV_VOL_RP_NBX16');
+  if (st50) items.push({{ label: 'Static 50/50', val: st50.full.ann_sharpe, color: '#a78bfa', tip: `Static 50/50 Shared Ledger (NBX16)\nSharpe: ${{st50.full.ann_sharpe}} · MaxDD: ${{st50.full.max_dd_pct}}% · Bear: +${{st50.stress.ret_pct}}%` }});
+  if (wfrp) items.push({{ label: 'WF Risk-Parity', val: wfrp.full.ann_sharpe, color: '#f59e0b', tip: `Walk-Forward Inv-Vol RP (NBX16)\nSharpe: ${{wfrp.full.ann_sharpe}} · Avg Slow Wt: ${{(wfrp.avg_slow_weight*100).toFixed(1)}}%` }});
+  if (p4[0]) items.push({{ label: '1d Short WLX', val: p4[0].ann_sharpe, color: '#ef4444', tip: `Structural Short 1d (Wallex Margin)\nFull: ${{p4[0].ret_pct}}% · Bear Stress: +${{p4[0].stress_ret_pct}}% · Borrow: $${{p4[0].total_borrow_usdt}}` }});
+  if (p4[2]) items.push({{ label: '1d Short Perp', val: p4[2].ann_sharpe, color: '#f59e0b', tip: `Structural Short 1d (Zero-Borrow Perp CF)\nFull: ${{p4[2].ret_pct}}% · Bear Stress: +${{p4[2].stress_ret_pct}}%` }});
+  if (items.length) drawBarChart('c-ho', items, {{ fmt: v => v.toFixed(2), bottomPad: 74 }});
+}}
+
 function drawAll() {{
   drawHistogram();
   drawStrategies();
@@ -918,6 +952,7 @@ function drawAll() {{
   drawGruIgnition();
   drawOrthogonal();
   drawSmartAndForward();
+  drawHigherOrder();
 }}
 window.addEventListener('resize', drawAll);
 drawAll();

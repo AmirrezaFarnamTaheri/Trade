@@ -2,16 +2,23 @@
 
 A research and paper-trading observatory for the Wallex exchange (TMN and USDT spot markets).
 
-## Current state
+## Current state (2026-11-25)
 
 - **Observation and paper research only.** Funded execution is **DISARMED** and the funded-loss budget is zero.
   A one-shot LIMIT order path exists in source behind an owner arm step; it is not installed, not qualified and
   not armed. There is no cancellation or protective-exit transport. Stages are defined in
   [capabilities](gym-core/docs/capabilities.md#stages).
-- **No established edge.** Acceptance gates are open and no paper strategy has a positive result that survived
-  the validation protocol. Paper results cannot authorize capital.
-  See the [trial log](gym-core/docs/trial-log.md).
-- **One venue.** Wallex is the only venue in scope; collection depends on reaching it from the host.
+- **Frozen prospective paper tracking active; no live funded edge claimed.** Historical seen-replay leaders are
+  registered and tracking live untouched forward observations on Windows Task Scheduler (zero order authority):
+  - `70% BASE_13_S1_S5 (1d ADMM) + 30% 2h Frozen GRU-Ignition` ([champion registration](evidence/2026-11-25-champion-ensemble-registration.json))
+  - Standalone `BASE_13_S1_S5` ([leader registration](evidence/2026-11-24-s1-s5-prospective-registration.json)), `btc-daily-trend`, `breadth-trend-forward`, and `mix-journal-v2`.
+  Paper results cannot authorize capital; see the [trial log](gym-core/docs/trial-log.md) and [evidence index](evidence/README.md).
+- **Live multi-venue observation.** Primary collector streams 40 curated Wallex markets with 5-level depth (`core-40-wallex`);
+  a read-only multi-venue recorder tracks 20 live Nobitex USDT pairs (`record_multi_venue_quotes.py`) for matched execution-cost
+  and side-asymmetric routing audits ([smart execution report](evidence/2026-11-25-smart-execution-report.md)).
+- **Offline research cockpit & health watchdog.** Interactive zero-CDN HTML5 dashboard at
+  [2026-11-25-research-dashboard.html](evidence/2026-11-25-research-dashboard.html) and read-only operational watchdog at
+  `gym-core/scripts/check_operational_health.py`.
 
 The product goal is an autonomous trading agent. That is a goal, not a capability; [PRODUCT.md](PRODUCT.md)
 states the constraints.
@@ -20,10 +27,11 @@ states the constraints.
 
 | Path | Runtime | Owns |
 |------|---------|------|
-| [`gym-core/`](gym-core/README.md) | Python, aiohttp, SQLite | Public observation, exact storage, simulator, paper research, EN/FA workspace |
+| [`gym-core/`](gym-core/README.md) | Python, aiohttp, SQLite | Public observation, exact storage, simulator, paper research, forward journals, EN/FA workspace |
 | [`executor/`](executor/README.md) | Rust (Windows service) | Admission policy, credential vault, hash-chained ledger; DISARMED / NOT CERTIFIED |
 | [`contracts/`](contracts/) | | Wire contracts and golden fixtures shared by Python and Rust |
-| [`scripts/windows/`](scripts/windows/) | PowerShell | Install, service registration, workspace start, backups |
+| [`evidence/`](evidence/README.md) | Markdown, JSON, HTML | Dated study reports, frozen prospective registrations, interactive offline dashboard, SHA-256 index |
+| [`scripts/windows/`](scripts/windows/) | PowerShell | Collector, multi-venue recorder, forward journals, service registration, workspace start, backups |
 
 ## Run
 

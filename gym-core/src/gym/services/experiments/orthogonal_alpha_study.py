@@ -36,6 +36,12 @@ from ...domain.paper_ledger import SelfFinancingLedger
 from ...domain.statistical_inference import paired_baseline_uplift
 from ...domain.strategy_sleeves import compute_slow_sleeves
 from ...domain.timeframe_panel import BarPoint, resample_hourly_to_bucket
+from .admm_helpers import (
+    build_dated_returns_index,
+    build_shrunk_horizon_cov,
+    extract_daily_breadth,
+    solve_s1_s5_admm_weights,
+)
 from .ensemble_study import (
     STRESS_REPLAY_START,
     _daily_returns_map,
@@ -195,17 +201,9 @@ def _run_custom_s1_s5_arm(
     """Run canonical S1+S5 (DROP_S2) + ADMM on an arbitrary symbol tuple (e.g., PAXG instead of XAUT)."""
     by_start = {s: {b.ts_start: b for b in panel.get(s, [])} for s in symbols}
     by_avail = {s: {b.ts_avail: b for b in panel.get(s, [])} for s in symbols}
-    dated_rets = {
-        s: (
-            [panel[s][i].ts_avail for i in range(1, len(panel[s])) if panel[s][i - 1].close > 0],
-            [(panel[s][i].close - panel[s][i - 1].close) / panel[s][i - 1].close
-             for i in range(1, len(panel[s])) if panel[s][i - 1].close > 0],
-        )
-        for s in symbols
-    }
+    dated_rets = build_dated_returns_index(panel, symbols)
     ledger = SelfFinancingLedger(Decimal("1000"), fee_rate=fee_rate, fee_in_received_asset=True)
     nav_by_date: dict[str, float] = {}
-    sqrt_h = math.sqrt(20.0)
     for t_avail in eval_dates[:-1]:
         day_sigs = sigs.get(t_avail, {})
         exec_prices: dict[str, Decimal] = {}
@@ -223,33 +221,8 @@ def _run_custom_s1_s5_arm(
             targets = {s: 0.0 for s in symbols}
         else:
             cur_w = ledger.current_weights(active, exec_prices)
-            win = {}
-            for s in active:
-                dt_l, rt_l = dated_rets[s]
-                hi = bisect_right(dt_l, t_avail)
-                win[s] = dict(zip(dt_l[max(0, hi - 60) : hi], rt_l[max(0, hi - 60) : hi], strict=True))
-            cov_d = coarse_bar_shrunk_covariance_aligned(win, active, shrinkage=0.25)
-            cov_h = tuple(tuple(v * 20.0 for v in row) for row in cov_d)
-            mu_gross = []
-            for sym in active:
-                sig = day_sigs[sym]
-                parts = [v for v in (sig.s1_trend, sig.s5_defensive_gold) if v is not None]
-                raw = sum(parts) / len(parts) if parts else 0.0
-                mu_gross.append(
-                    forecast_to_expected_return_bps(raw * 20.0, ic_prior=0.08, horizon_vol_bps=sig.yang_zhang_vol * sqrt_h * 10000.0) / 10000.0
-                )
-            prob = OptimizationProblem(
-                symbols=active,
-                expected_returns=tuple(mu_gross),
-                current_weights=cur_w,
-                covariance=cov_h,
-                l1_fee_costs=(float(fee_rate),) * len(active),
-                l2_impact_costs=(0.0020,) * len(active),
-                risk_aversion=2.0,
-                max_weight=0.30,
-                cash_buffer=0.05,
-            )
-            solved = solve_convex_portfolio(prob).weights
+            cov_h = build_shrunk_horizon_cov(dated_rets, active, t_avail)
+            solved = solve_s1_s5_admm_weights(active, day_sigs, cur_w, cov_h, fee_rate=float(fee_rate))
             targets = {s: w for s, w in zip(active, solved, strict=True)}
         ledger.rebalance_to_targets(t_avail, targets, exec_prices, tradable_symbols=tradable)
         nav_by_date[t_avail.date().isoformat()] = float(ledger.mark_nav(exec_prices))
@@ -339,11 +312,7 @@ def run_orthogonal_alpha_study(db_path: Path, report_path: Path, receipt_path: P
     base_13 = _run_self_financing_arm("DROP_S2", panel_13, sigs_13, eval_dates)
     base_rets = _daily_returns_map(base_13["nav_by_date"])
 
-    daily_breadth: dict[str, float] = {}
-    for ts, d in sigs_13.items():
-        br = next((s.crypto_breadth for s in d.values() if s.crypto_breadth is not None), None)
-        if br is not None:
-            daily_breadth[ts.date().isoformat()] = br
+    daily_breadth = extract_daily_breadth(sigs_13)
 
     panel_2h_0 = {s: resample_hourly_to_bucket(panel_1h[s], 2, offset_hours=0) for s in IGNITION_18_CRYPTO}
     panel_2h_1 = {s: resample_hourly_to_bucket(panel_1h[s], 2, offset_hours=1) for s in IGNITION_18_CRYPTO}

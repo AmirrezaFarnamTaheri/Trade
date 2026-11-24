@@ -3,14 +3,21 @@
 One question governs the work: is there a net edge on Wallex after costs, against holding USDT?
 The [trial log](trial-log.md) holds the answer so far. This page lists open work only; finished work is in Git.
 
-## Scope freeze (2026-11-24)
+## Current baseline & scope freeze (2026-11-25)
 
-To focus engineering time on establishing a genuine net edge rather than infrastructure:
+To keep engineering focused on untouched forward evidence and execution efficiency rather than backtest overfitting:
 
-- **Universe narrowed to 40 curated markets (`core-40-wallex`, 2 WebSocket shards)** covering top TMN pairs plus 100% of active forward-journal USDT pairs (`Install-Collector.ps1`, watchlist `5078e0c5a62155c6`).
-- **Frozen until a strategy clears Gate G2 (Track A or Track B):** 373-market whole-catalogue replay expansions, new EN/FA UI views, Rust executor changes (`DISARMED`), and generic single-venue spot TA sweeps.
-- **Paused:** the five hourly `ema-trend 8/21` scheduled jobs in `data/live/research.sqlite3` (lost in 320/337 markets).
-- **Venue cost & expansion map:** Wallex published Level-1 fees are **0.25% maker / 0.30% taker on TMN** and **0.10% maker / 0.13% taker on USDT** (ingested via `/v2/structured-fee`). Active development focuses on the **Wallex 40-market core engine first** (financial engine, multi-signal vector framework, and quantitative modeling), with **Nobitex** (`-30%` fee tier) and **AbanTether** (tokenized US equities/bonds/commodities) scheduled as clean Phase B plug-ins. Full specification: [profitable-system-plan.md](../../docs/profitable-system-plan.md).
+- **Live observation infrastructure running:** 40-market Wallex collector (`core-40-wallex`, 2 WS shards, `--depth-levels 5`), 20-symbol Nobitex live order-book recorder (`TradingGYM Multi-Venue Recorder` → `data/live/multi_venue_quotes.sqlite3`), and read-only operational health watchdog (`scripts/check_operational_health.py`).
+- **Frozen v1 Champion prospective forward tracking active (zero order authority):**
+  - `TradingGYM Champion Forward Journal` (every 2h): frozen `70% BASE_13_S1_S5 (XAUT) + 30% 2h GRU-Ignition` (`data/live/models/gru-ignition-v1.json`) with live Wallex/Nobitex spread telemetry and sequential `e_process` scoring.
+  - `TradingGYM S1-S5 Leader Journal` (daily `03:55`): standalone 13-asset `S1+S5 + ADMM` baseline.
+  - Background monitors retained unchanged: `mix-journal-v2`, `breadth-trend-forward`, `btc-daily-trend` (`allocation/journal.jsonl`).
+- **Decisively retired dead ends (do not re-run):** hourly `ema-trend 8/21`, `S2` residual momentum (raw & hysteresis), `S3` panic reversion, `S4` vol breakout, binary/continuous ML veto on `S1+S5`, flat 33-asset crypto ADMM dilution, intraday `2h`/`3h`/`6h` crash circuit breakers, sub-hourly `15m`/`30m` ignition, `2h` flush-rebound & dead-cat shorts, slow Wallex margin leverage/pairs (`32.85%/yr` borrow), and `GRU-Vol` ADMM covariance scaling.
+- **v2 research candidates (parked until v1 accumulates untouched forward days):**
+  1. **2nd-order momentum (trend acceleration):** lifted `BASE_13_S1_S5` (`Sharpe 1.011 → 1.116`, Bear `-1.84% → +0.99%`) and 8-feature `GRU-Ignition` (`AUC 0.5676 → 0.5712`, NBX16 `+33.4% → +45.5%`, WLX25 `+20.2% → +31.3%`).
+  2. **Non-price modalities:** global perpetual funding/OI feeds and local-vs-global venue basis.
+  3. **Standalone macro commodities sleeve (`PAXG/SLVON/USOON/COPXON/UNGON`):** positive & orthogonal (`+24.4%`, corr `+0.082`), waiting for `2+` years of tokenized ETF history.
+- **Frozen until Gate G2 passes:** 373-market whole-catalogue sweeps, new EN/FA UI views, and Rust executor changes (`DISARMED`). Full architecture spec: [profitable-system-plan.md](../../docs/profitable-system-plan.md).
 
 ## Evidence
 

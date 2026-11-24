@@ -1,7 +1,7 @@
-"""Phase B read-only live market-data recorder for Nobitex & AbanTether + Wallex arb monitor (spec §8).
+"""Read-only live multi-venue market-data recorder for Nobitex (20 USDT pairs + USDTIRT) & AbanTether + Wallex spread monitor.
 
 Observation-only public GET requests (no credentials, no order authority).
-Persists normalized snapshots to data/live/phase_b_quotes.sqlite3.
+Persists normalized snapshots to data/live/multi_venue_quotes.sqlite3.
 """
 from __future__ import annotations
 

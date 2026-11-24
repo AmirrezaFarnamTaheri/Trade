@@ -1,4 +1,4 @@
-"""Phase B AbanTether OTC RWA adapter, InstrumentMaster catalog & 5 hardcoded guards (spec §8.2)."""
+"""AbanTether OTC RWA adapter, InstrumentMaster catalog, and custody/NAV session guards."""
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -15,7 +15,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("../evidence/2026-11-24-research-dashboard.html"),
+        default=Path("../evidence/2026-11-25-research-dashboard.html"),
     )
     args = parser.parse_args()
     summary = generate_research_dashboard(args.evidence_dir, args.output, db_path=args.db)

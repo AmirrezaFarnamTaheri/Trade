@@ -3,23 +3,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 from ...adapters.candle_reader import load_keyed_candles, open_readonly_market_db
 from ...adapters.mix_journal_store import append_mix_journal_v2
-from ...domain.async_covariance import coarse_bar_shrunk_covariance_aligned
-from ...domain.convex_optimizer import (
-    OptimizationProblem,
-    forecast_to_expected_return_bps,
-    solve_convex_portfolio,
-)
 from ...domain.model import dec, parse_ts
 from ...domain.signal_gatekeeper import build_mix_journal_v2_entry
 from ...domain.strategy_sleeves import compute_slow_sleeves
-from .ensemble_study import COHORT_SYMBOLS, _dated_returns
+from .admm_helpers import (
+    build_dated_returns_index,
+    build_shrunk_horizon_cov,
+    solve_s1_s5_admm_weights,
+)
+from .ensemble_study import COHORT_SYMBOLS
 
 
 def _package_engine_digest() -> str:
@@ -132,7 +130,7 @@ def record_s1_s5_leader_journal(
     try:
         panel_1d = {sym: load_keyed_candles(con, sym, "1d", limit=400) for sym in COHORT_SYMBOLS}
         signals = compute_slow_sleeves(panel_1d, COHORT_SYMBOLS)
-        dated_rets = _dated_returns(panel_1d)
+        dated_rets = build_dated_returns_index(panel_1d, COHORT_SYMBOLS)
         eligible_dates = sorted(ts for ts, d in signals.items() if any(s.eligible_for_entry for s in d.values()))
         if not eligible_dates:
             return {"status": "INSUFFICIENT_CANDLES", "date": today_iso, "entries_written": 0}
@@ -143,35 +141,15 @@ def record_s1_s5_leader_journal(
         if len(active_syms) < 2:
             return {"status": "INSUFFICIENT_SYMBOLS", "date": today_iso, "entries_written": 0}
 
-        win_trimmed = {
-            s: dict(sorted((dt, r) for dt, r in dated_rets[s].items() if dt <= latest_ts)[-60:])
-            for s in active_syms
-        }
-        cov_d = coarse_bar_shrunk_covariance_aligned(win_trimmed, active_syms, shrinkage=0.25)
-        cov_h = tuple(tuple(v * holding_horizon_days for v in row) for row in cov_d)
-        sqrt_h = math.sqrt(holding_horizon_days)
-
-        mu_gross = []
-        for sym in active_syms:
-            sig = day_sigs[sym]
-            parts = [v for v in (sig.s1_trend, sig.s5_defensive_gold) if v is not None]
-            raw_score = sum(parts) / len(parts) if parts else 0.0
-            vol_h_bps = sig.yang_zhang_vol * sqrt_h * 10000.0
-            mu_bps = forecast_to_expected_return_bps(raw_score * 20.0, ic_prior=0.08, horizon_vol_bps=vol_h_bps)
-            mu_gross.append(mu_bps / 10000.0)
-
-        prob = OptimizationProblem(
-            symbols=active_syms,
-            expected_returns=tuple(mu_gross),
-            current_weights=tuple(prev_weights.get(s, 0.0) for s in active_syms),
-            covariance=cov_h,
-            l1_fee_costs=(float(fee_rate),) * len(active_syms),
-            l2_impact_costs=(0.0020,) * len(active_syms),
-            risk_aversion=2.0,
-            max_weight=0.30,
-            cash_buffer=0.05,
+        cov_h = build_shrunk_horizon_cov(dated_rets, active_syms, latest_ts, holding_horizon_days=holding_horizon_days)
+        solved = solve_s1_s5_admm_weights(
+            active_syms,
+            day_sigs,
+            tuple(prev_weights.get(s, 0.0) for s in active_syms),
+            cov_h,
+            fee_rate=float(fee_rate),
+            holding_horizon_days=holding_horizon_days,
         )
-        solved = solve_convex_portfolio(prob).weights
 
         written = 0
         weights_out: dict[str, float] = {}

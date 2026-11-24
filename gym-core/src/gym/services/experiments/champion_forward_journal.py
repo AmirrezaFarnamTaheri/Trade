@@ -16,17 +16,16 @@ from statistics import median
 import numpy as np
 
 from ...adapters.candle_reader import load_keyed_candles, open_readonly_market_db
-from ...domain.async_covariance import coarse_bar_shrunk_covariance_aligned
-from ...domain.convex_optimizer import (
-    OptimizationProblem,
-    forecast_to_expected_return_bps,
-    solve_convex_portfolio,
-)
 from ...domain.model import dec, parse_ts
 from ...domain.multi_asset_research import BASE_13_SYMBOLS
 from ...domain.strategy_sleeves import compute_slow_sleeves
 from ...domain.timeframe_panel import BarPoint, resample_hourly_to_bucket
-from .ensemble_study import _dated_returns
+from .admm_helpers import (
+    build_dated_returns_index,
+    build_shrunk_horizon_cov,
+    extract_daily_breadth,
+    solve_s1_s5_admm_weights,
+)
 from .gru_engine import EnsembleGRU
 from .gru_prototypes_study import _extract_2h_breakout_sequences
 from .ignition_expansion_study import IGNITION_18_CRYPTO
@@ -322,7 +321,7 @@ def record_champion_ensemble_journal(
     try:
         panel_1d = {s: load_keyed_candles(con, s, "1d", limit=400) for s in slow_syms}
         sigs_1d = compute_slow_sleeves(panel_1d, slow_syms, gold_symbol=gold_symbol)
-        dated_rets = _dated_returns(panel_1d)
+        dated_rets = build_dated_returns_index(panel_1d, slow_syms)
         elig_dates = sorted(ts for ts, d in sigs_1d.items() if any(s.eligible_for_entry for s in d.values()))
         if not elig_dates:
             return {"status": "INSUFFICIENT_CANDLES", "as_of": now.isoformat()}
@@ -330,40 +329,12 @@ def record_champion_ensemble_journal(
         day_sigs = sigs_1d[latest_1d]
         active_slow = tuple(s for s in slow_syms if s in day_sigs)
 
-        win = {
-            s: dict(sorted((dt, r) for dt, r in dated_rets[s].items() if dt <= latest_1d)[-60:])
-            for s in active_slow
-        }
-        cov_d = coarse_bar_shrunk_covariance_aligned(win, active_slow, shrinkage=0.25)
-        cov_h = tuple(tuple(v * 20.0 for v in row) for row in cov_d)
-        sqrt_h = math.sqrt(20.0)
-        mu_gross = []
-        for sym in active_slow:
-            sig = day_sigs[sym]
-            parts = [v for v in (sig.s1_trend, sig.s5_defensive_gold) if v is not None]
-            raw = sum(parts) / len(parts) if parts else 0.0
-            mu_gross.append(
-                forecast_to_expected_return_bps(raw * 20.0, ic_prior=0.08, horizon_vol_bps=sig.yang_zhang_vol * sqrt_h * 10000.0) / 10000.0
-            )
-        prob = OptimizationProblem(
-            symbols=active_slow,
-            expected_returns=tuple(mu_gross),
-            current_weights=tuple(prev_slow.get(s, 0.0) for s in active_slow),
-            covariance=cov_h,
-            l1_fee_costs=(0.0013,) * len(active_slow),
-            l2_impact_costs=(0.0020,) * len(active_slow),
-            risk_aversion=2.0,
-            max_weight=0.30,
-            cash_buffer=0.05,
+        cov_h = build_shrunk_horizon_cov(dated_rets, active_slow, latest_1d)
+        solved_slow = solve_s1_s5_admm_weights(
+            active_slow, day_sigs, tuple(prev_slow.get(s, 0.0) for s in active_slow), cov_h,
         )
-        solved_slow = solve_convex_portfolio(prob).weights
         slow_weights = {s: round(w, 4) for s, w in zip(active_slow, solved_slow, strict=True)}
-
-        daily_breadth = {}
-        for ts, d in sigs_1d.items():
-            br = next((s.crypto_breadth for s in d.values() if s.crypto_breadth is not None), None)
-            if br is not None:
-                daily_breadth[ts.date().isoformat()] = br
+        daily_breadth = extract_daily_breadth(sigs_1d)
 
         panel_2h = load_stitched_2h_panel(con, IGNITION_18_CRYPTO)
         latest_2h, ign_triggers, ign_weights = _score_live_2h_ignition(panel_2h, daily_breadth, model, base_prob)
