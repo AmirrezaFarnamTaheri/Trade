@@ -6,6 +6,7 @@ from ..domain.model import iso, parse_ts
 from ..domain.registry import create_strategy
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
+from .paper import paper
 from .snapshot_comparison import compare_in_snapshot as _compare_in_snapshot
 
 
@@ -105,6 +106,6 @@ def compare(db, symbol, t0, t1, candidates, *, resolution="15min", cash=Decimal(
     try:
         return _compare_in_snapshot(db, symbol, t0, t1, candidates, resolution=resolution, cash=cash, cost=cost,
                                     rules_mode=rules_mode, store=store, subscriptions=subscriptions, prior_configs=prior_configs,
-                                    ledger_trials=ledger_trials)
+                                    ledger_trials=ledger_trials, paper_fn=paper)
     finally:
         db.c.rollback()

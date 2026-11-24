@@ -28,6 +28,7 @@ def compare_in_snapshot(
     subscriptions=(),
     prior_configs=frozenset(),
     ledger_trials=0,
+    paper_fn=None,
 ):
     if not isinstance(symbol, str) or not re.fullmatch("[A-Z0-9]{2,24}", symbol):
         raise ValueError("invalid market symbol")
@@ -57,8 +58,9 @@ def compare_in_snapshot(
             }
         )
     )
+    run_paper = paper_fn or paper
     runs = [
-        paper(
+        run_paper(
             db,
             symbol,
             t0,

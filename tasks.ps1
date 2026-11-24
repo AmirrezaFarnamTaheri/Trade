@@ -31,7 +31,7 @@ $tasks = @{
     }
     python = {
         Step 'ruff' { uv run --locked --group research ruff check src tests } $gym
-        Step 'complexity ratchet' { python scripts/complexity_ratchet.py } $gym
+        Step 'complexity ratchet' { uv run --no-sync python scripts/complexity_ratchet.py } $gym
         Step 'pytest' { uv run --no-sync pytest -q } $gym
     }
     browser = { Step 'browser smoke' { node tests/browser_smoke.cjs } $gym }
