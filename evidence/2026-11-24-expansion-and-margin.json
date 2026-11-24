@@ -1,0 +1,388 @@
+{
+  "generated_at": "2026-11-24T17:05:04.795206+00:00",
+  "eval_days": 1639,
+  "crash_exit_4h_days_triggered": 76,
+  "spot_and_overlay_arms": [
+    {
+      "name": "BASE_13_S1_S5_LEADER",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2574.92,
+        "ret_pct": 157.52,
+        "ann_sharpe": 1.011,
+        "max_dd_pct": 22.38
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2574.92,
+        "ret_pct": -1.84,
+        "ann_sharpe": -0.088,
+        "max_dd_pct": 10.95
+      },
+      "fees_usdt": 72.18,
+      "turnover": 55.52,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "EXP_A1_33_ASSETS_PLAIN",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2145.44,
+        "ret_pct": 114.57,
+        "ann_sharpe": 0.748,
+        "max_dd_pct": 25.49
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2145.44,
+        "ret_pct": -13.3,
+        "ann_sharpe": -0.588,
+        "max_dd_pct": 24.58
+      },
+      "fees_usdt": 129.12,
+      "turnover": 99.32,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -8.067662326287275e-05,
+        "ci_95": [
+          -0.00031578868212029195,
+          0.000152795353085601
+        ],
+        "bootstrap_se": 0.00012175404554454501,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_A2_33_ASSETS_DEPTH_L2",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2146.32,
+        "ret_pct": 114.66,
+        "ann_sharpe": 0.75,
+        "max_dd_pct": 25.44
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2146.32,
+        "ret_pct": -12.73,
+        "ann_sharpe": -0.561,
+        "max_dd_pct": 23.72
+      },
+      "fees_usdt": 122.0,
+      "turnover": 93.85,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -8.116224840700974e-05,
+        "ci_95": [
+          -0.0003111328544306685,
+          0.00014711872615986605
+        ],
+        "bootstrap_se": 0.00012031903452825252,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_A3_33_ASSETS_DEPTH_L2_SPREAD_L1",
+      "full": {
+        "days": 1638,
+        "ending_nav": 1957.74,
+        "ret_pct": 95.79,
+        "ann_sharpe": 0.695,
+        "max_dd_pct": 23.86
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 1957.74,
+        "ret_pct": -10.44,
+        "ann_sharpe": -0.517,
+        "max_dd_pct": 22.55
+      },
+      "fees_usdt": 66.24,
+      "turnover": 50.95,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -0.00014653247608641684,
+        "ci_95": [
+          -0.0003863404231237782,
+          0.00011904319672914082
+        ],
+        "bootstrap_se": 0.0001222422518611102,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_A4_33_ASSETS_NOBITEX_FEE",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2253.42,
+        "ret_pct": 125.36,
+        "ann_sharpe": 0.787,
+        "max_dd_pct": 25.22
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2253.42,
+        "ret_pct": -10.95,
+        "ann_sharpe": -0.455,
+        "max_dd_pct": 23.2
+      },
+      "fees_usdt": 99.1,
+      "turnover": 108.9,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -5.082574934480142e-05,
+        "ci_95": [
+          -0.0002906513487148579,
+          0.00018873423212599792
+        ],
+        "bootstrap_se": 0.00012344256906888555,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_B1_13_ASSETS_ML_CONTINUOUS_TILT",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2523.79,
+        "ret_pct": 152.41,
+        "ann_sharpe": 1.008,
+        "max_dd_pct": 22.85
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2523.79,
+        "ret_pct": -1.65,
+        "ann_sharpe": -0.077,
+        "max_dd_pct": 10.5
+      },
+      "fees_usdt": 70.22,
+      "turnover": 54.02,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -1.5388389651346056e-05,
+        "ci_95": [
+          -4.925517451497194e-05,
+          1.2790030473649821e-05
+        ],
+        "bootstrap_se": 1.6110232792646728e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_B2_13_ASSETS_4H_CRASH_EXIT",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2754.52,
+        "ret_pct": 175.49,
+        "ann_sharpe": 1.089,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2754.52,
+        "ret_pct": 5.76,
+        "ann_sharpe": 0.55,
+        "max_dd_pct": 8.33
+      },
+      "fees_usdt": 113.54,
+      "turnover": 87.34,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 3.872577371771773e-05,
+        "ci_95": [
+          -3.997229430139756e-05,
+          0.00012319165264310995
+        ],
+        "bootstrap_se": 4.152824237994747e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_B3_33_ASSETS_DEPTH_ML_4H_COMBO",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2080.29,
+        "ret_pct": 108.05,
+        "ann_sharpe": 0.758,
+        "max_dd_pct": 26.94
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2080.29,
+        "ret_pct": -0.98,
+        "ann_sharpe": 0.03,
+        "max_dd_pct": 15.53
+      },
+      "fees_usdt": 146.57,
+      "turnover": 112.75,
+      "extra_borrow_usdt": 0.0,
+      "levered_days": 0,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -0.00011406402990943757,
+        "ci_95": [
+          -0.0003401358884608606,
+          0.00013270853801107774
+        ],
+        "bootstrap_se": 0.00012027337532739536,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "EXP_C3_13_ASSETS_TACTICAL_1.35X_BULL",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2587.54,
+        "ret_pct": 158.79,
+        "ann_sharpe": 0.971,
+        "max_dd_pct": 22.07
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2587.54,
+        "ret_pct": -1.79,
+        "ann_sharpe": -0.053,
+        "max_dd_pct": 11.06
+      },
+      "fees_usdt": 72.89,
+      "turnover": 56.07,
+      "extra_borrow_usdt": 145.14,
+      "levered_days": 279,
+      "uplift_vs_base13": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 1.2621360837500931e-05,
+        "ci_95": [
+          -2.049297158176695e-05,
+          4.164705590984621e-05
+        ],
+        "bootstrap_se": 1.5994070491572858e-05,
+        "mean_block_length": 12,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1637,
+          "block_length": 12,
+          "digest": "00780ae60ca8fad4"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  ],
+  "margin_standalone_arms": [
+    {
+      "name": "CRASH_CASCADE_SHORTS_1.5X",
+      "ending_nav": 1034.0,
+      "ret_pct": 3.4,
+      "ann_sharpe": 0.135,
+      "max_dd_pct": 25.29,
+      "trades": 99,
+      "liquidations": 0,
+      "total_borrow_usdt": 116.55,
+      "total_fees_usdt": 144.79
+    },
+    {
+      "name": "MARKET_NEUTRAL_L1_PAIRS",
+      "ending_nav": 119.14,
+      "ret_pct": -88.09,
+      "ann_sharpe": -1.209,
+      "max_dd_pct": 89.0,
+      "trades": 936,
+      "liquidations": 4,
+      "total_borrow_usdt": 292.01,
+      "total_fees_usdt": 519.2
+    }
+  ]
+}

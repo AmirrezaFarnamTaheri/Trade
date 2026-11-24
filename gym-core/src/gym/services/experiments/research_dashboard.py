@@ -100,6 +100,7 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
     deep = _load_json(evidence_dir / "2026-11-24-leader-deep-dive.json")
     fast = _load_json(evidence_dir / "2026-11-24-fast-sleeve-attribution.json")
     venue = _load_json(evidence_dir / "2026-11-24-venue-execution-cost.json")
+    exp_abc = _load_json(evidence_dir / "2026-11-24-expansion-and-margin.json")
 
     histograms = _compute_live_histograms(db_path) if (db_path is not None and db_path.is_file()) else {
         "leader": compute_return_histogram([]),
@@ -214,6 +215,8 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
         "fast_sleeves": fast_rows,
         "venue_execution": venue.get("symbols", []),
         "causal_execution": deep.get("study_c_causal_execution", []),
+        "exp_abc_spot": exp_abc.get("spot_and_overlay_arms", []),
+        "exp_abc_margin": exp_abc.get("margin_standalone_arms", []),
     }
 
 
@@ -461,6 +464,18 @@ def render_dashboard_html(payload: dict) -> str:
       <div class="canvas-wrap"><canvas id="c-causal"></canvas></div>
     </section>
   </div>
+
+  <!-- Panel 6: Experiments A, B, and C -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>6. Experiments A, B, and C — 33-Market Expansion, ML Tilt, Asymmetric 6h Crash Exit &amp; Paper Margin</h2>
+        <p class="desc">Asymmetric 6h Crash Exit on the tight 13-asset core hit a new high (Sharpe 1.089, +175.5%, bear stress +5.76%). Expanding to 33 assets diluted Sharpe to 0.75; Wallex 32.85%/yr borrow crushed leverage and L1 pairs (-88.1%).</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-abc"></canvas></div>
+    <table id="t-margin"></table>
+  </section>
 </main>
 
 <div class="tooltip" id="tip"></div>
@@ -757,6 +772,36 @@ function drawCausal() {{
   drawGroupedBars('c-causal', Object.values(bySym), 'BUY Savings', 'SELL Savings', '#22c55e', '#ef4444', v => (v >= 0 ? '+' : '') + v.toFixed(1));
 }}
 
+// Panel 6: Experiments A, B, C
+function drawExpAbc() {{
+  const items = (DATA.exp_abc_spot || []).map(a => ({{
+    label: a.name.replace('EXP_', '').replace('_ASSETS', '').replace('_LEADER', ''),
+    val: a.full.ann_sharpe,
+    color: a.name.includes('4H_CRASH_EXIT') ? '#22c55e' : a.name.includes('BASE_13') ? '#38bdf8' : a.name.includes('33_') ? '#f59e0b' : '#a78bfa',
+    tip: `${{a.name}}\nNAV: $${{a.full.ending_nav}} (${{a.full.ret_pct >= 0 ? '+' : ''}}${{a.full.ret_pct}}%)\nSharpe: ${{a.full.ann_sharpe}} · MaxDD: ${{a.full.max_dd_pct}}%\nBear Stress: ${{a.stress.ret_pct}}% · Fees: $${{a.fees_usdt}} · Borrow: $${{a.extra_borrow_usdt}}`,
+  }}));
+  if (items.length) drawBarChart('c-abc', items, {{ fmt: v => v.toFixed(2), bottomPad: 84 }});
+
+  const mRows = (DATA.exp_abc_margin || []).map(m => `
+    <tr>
+      <td>${{m.name}}</td>
+      <td class="${{m.ret_pct >= 0 ? 'pos' : 'neg'}}">$${{m.ending_nav.toFixed(2)}} (${{m.ret_pct >= 0 ? '+' : ''}}${{m.ret_pct}}%)</td>
+      <td>${{m.ann_sharpe.toFixed(3)}}</td>
+      <td>${{m.max_dd_pct.toFixed(2)}}%</td>
+      <td>${{m.trades}}</td>
+      <td class="${{m.liquidations > 0 ? 'neg' : 'pos'}}">${{m.liquidations}}</td>
+      <td>$${{m.total_borrow_usdt.toFixed(2)}}</td>
+      <td>$${{m.total_fees_usdt.toFixed(2)}}</td>
+    </tr>
+  `).join('');
+  if (mRows) {{
+    document.getElementById('t-margin').innerHTML = `
+      <thead><tr><th>Standalone Paper Margin (Wallex 32.85%/yr Borrow)</th><th>Ending NAV</th><th>Sharpe</th><th>MaxDD</th><th>Trades</th><th>Liquidations</th><th>Borrow ($)</th><th>Fees+Slip ($)</th></tr></thead>
+      <tbody>${{mRows}}</tbody>
+    `;
+  }}
+}}
+
 function drawAll() {{
   drawHistogram();
   drawStrategies();
@@ -764,6 +809,7 @@ function drawAll() {{
   drawFastSleeves();
   drawVenue();
   drawCausal();
+  drawExpAbc();
 }}
 window.addEventListener('resize', drawAll);
 drawAll();
