@@ -19,7 +19,7 @@ from ..adapters.store import MarketDB
 from ..domain.bars import BarSpec, qualified
 from ..domain.execution_costs import modeled_execution_cost
 from ..domain.model import TEHRAN, UTC, InstrumentId, QualityLimits, iso, parse_ts
-from ..domain.performance import performance, trade_ledger
+from ..domain.performance import trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
 from ..domain.rules import closures, is_closed, tehran_day
@@ -986,7 +986,6 @@ class _Replay:
                 "SELECT valid_from,valid_to,spec,source FROM instrument_specs "
                 "WHERE instrument_id=? AND valid_from<? AND (valid_to IS NULL OR valid_to>?) ORDER BY valid_from,rowid",
                 (self.portal.instrument_key(self.valuation_symbol), iso(t1), iso(t0 - timedelta(days=1)))).fetchall()
-        first_fx, last_fx = valuation["start"], valuation["end"]
         inputs = self._inputs(metadata, valuation)
         if self.valuation_symbol is not None:
             inputs.update(portfolio_version=27, valuation_symbol=self.valuation_symbol)
@@ -1000,46 +999,35 @@ class _Replay:
             count, usable = self.quote_counts[symbol]
             markets[symbol] = {"observations": count, "qualified": usable, "orders": [], "fills": 0,
                                "holding": "0", "mark_status": "REFERENCE_ONLY", **route}
-        result = {"quote": quote, "start_cash": str(cash), "curve": self.curve, "orders": [], "markets": markets,
-                  "valuation": valuation,
-                  "balances": {k: str(v) for k, v in self.book.balances.items()},
-                  "end": {"mark_time": iso(t1), "equity": str(end_equity), "net": str(end_equity - cash),
-                          "valuation_status": self.valuation_state(t1)}}
-        if self.booked_accounting:
-            result["postings"] = self.book.postings
-        if self.variable_routes:
-            result["route_changes"] = self.route_changes
-        if self.funding_result is not None:
-            result["opening_funding"] = self.funding_result
-        if self.fx_rebalance is not None:
-            result["fx_orders"] = self.fx_orders
-        if self.otc_fx and self.otc_fx.mixed:
-            result["mixed_route_residuals"] = {asset: str(amount) for asset, amount in self.otc_fx.residuals.items()}
-        if self.margin:
-            result["margin_positions"] = self.margin.report()
-            result["margin_risk_state"] = self.risk_state
-        if self.rank_gate:
-            result["rank_gate"] = self.rank_gate.events
-        if self.policy is not None:
-            result["policy_events"] = self.policy_events
-            result["policy_state"] = {"risk": self.risk_state, "weights": self.weights, "clock": "Asia/Tehran",
-                                      "scope": "Targets use prior closed returns. Optional rebalancing adjusts at subsequent decisions through normal fill/rule/cost checks; it does not assume unsettled sale proceeds. Risk exits use the next decision and executable quote. Limits can overshoot across gaps, fees or closures."}
-            if self.multicurrency:
-                result["policy_state"].update(weights={"status": self.weights["status"]},
-                                              scope="Spot entries apply the weight cap and cash buffer within each quote currency.")
-        if quote == "USDT":
-            result["end"]["net_usdt_eq"] = str(end_equity - cash)
-        elif first_fx["rate"] and last_fx["rate"]:
-            result["end"]["net_usdt_eq"] = str((end_equity / Decimal(last_fx["rate"])
-                                                - cash / Decimal(first_fx["rate"])).quantize(Decimal("0.0001")))
-        else:
-            result["end"]["net_usdt_eq"] = None
-        out = {"run_id": digest(inputs)[:16], "mode": "PORTFOLIO", "inputs": inputs, "result": result}
-        from .reports import sampled_drawdown
-        out["performance"] = {k: v for k, v in performance(out, sampled_drawdown(out)).items()
-                              if k not in ("ledger", "trades")}
-        out["outputs_digest"] = digest(result)[:16]
-        return out
+        from .portfolio_replay.receipts import build_portfolio_output
+
+        return build_portfolio_output(
+            quote=quote,
+            cash=cash,
+            t1=t1,
+            end_equity=end_equity,
+            valuation_status=self.valuation_state(t1),
+            curve=self.curve,
+            valuation=valuation,
+            inputs=inputs,
+            markets=markets,
+            balances=self.book.balances,
+            booked_accounting=self.booked_accounting,
+            postings=self.book.postings if self.booked_accounting else None,
+            variable_routes=self.variable_routes,
+            route_changes=self.route_changes if self.variable_routes else None,
+            funding_result=self.funding_result,
+            fx_rebalance=self.fx_rebalance,
+            fx_orders=self.fx_orders if self.fx_rebalance is not None else None,
+            mixed_residuals=self.otc_fx.residuals if (self.otc_fx and self.otc_fx.mixed) else None,
+            margin_report=self.margin.report() if self.margin else None,
+            risk_state=self.risk_state,
+            rank_gate_events=self.rank_gate.events if self.rank_gate else None,
+            policy_active=self.policy is not None,
+            policy_events=self.policy_events if self.policy is not None else None,
+            policy_weights=self.weights if self.policy is not None else None,
+            multicurrency=self.multicurrency,
+        )
 
 
 def _check_request(portal, symbols, t0, t1, cost, rules_mode, universe_selection, *, multicurrency=False):

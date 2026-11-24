@@ -10,12 +10,35 @@ from ..domain.model import iso, now_utc, parse_ts
 from ..domain.periods import instant
 from ..domain.portfolio import rebalance_preview
 from ..domain.strategy import digest
+from .actions.catalog import (
+    CLI_ACTIONS as CLI_ACTIONS,
+)
+from .actions.catalog import (
+    CLI_ONLY_ACTIONS as CLI_ONLY_ACTIONS,
+)
+from .actions.catalog import (
+    LEDGER_ACTIONS as LEDGER_ACTIONS,
+)
+from .actions.catalog import (
+    MARKET_REPORT_ACTIONS as MARKET_REPORT_ACTIONS,
+)
+from .actions.catalog import (
+    OBJECT_ACTIONS as OBJECT_ACTIONS,
+)
+from .actions.catalog import (
+    PROTOCOL_ACTIONS as PROTOCOL_ACTIONS,
+)
+from .actions.catalog import (
+    WORKSPACE_ACTIONS as WORKSPACE_ACTIONS,
+)
+from .actions.catalog import (
+    action_catalog as action_catalog,
+)
+from .actions.market_reports import handle_market_report as _research_action_technicals
 from .data_portal import DataPortal
 from .entry_locks import add_entry_lock
 from .experiment_registry import ExperimentRegistry
-from .feed_crosscheck import candle_crosscheck
 from .liquidity import audit_depth
-from .market_statistics import spread_report, trade_flow_report
 from .operator_actions import OPERATOR_ACTIONS, operator_action
 from .replay_annotations import annotations
 from .replay_checkpoint import checkpoint_replay
@@ -36,42 +59,6 @@ from .research_market import (
 from .research_protocol import ResearchProtocol
 from .return_bootstrap import return_bootstrap
 from .strategy_audit import audit_strategy
-from .technical_analysis import technical_reports
-
-PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
-                              "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "arm-policy-read", "arm-policy-save", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "universe-manifest", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
-                     "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit",
-                     "return-bootstrap", "watchlist-save", "watchlist-read")
-# One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
-# browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
-LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
-                  "claim-check", "review")
-MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic", "factor-ic-lab", "trend-replay", "verify-release-attestation", "raw-replay-audit", "spot-receipt-replay")
-CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
-                                   *WORKSPACE_ACTIONS)))
-CLI_ONLY_ACTIONS = {
-    "raw-replay-audit": "read-only archived frame comparison for a bounded receipt interval",
-    "spot-receipt-replay": "offline spot orders sharing one recorded best level",
-    "trend-replay": "bounded offline daily bid/ask and spot lot rules",
-    "factor-ic-lab": "bounded offline factor and forward-label JSON",
-    "verify-release-attestation": "trusted key and expected release digest are supplied offline",
-    "tick": "scheduler step; the browser uses the dedicated research runner",
-    "start": "long-running scheduler process",
-    "pause": "browser pauses jobs through /api/research/jobs/{id}/pause",
-    "resume": "browser resumes jobs through /api/research/jobs/{id}/resume",
-    "adaptive-twap-preview": "no browser form yet",
-    "fairprice-observe": "no browser form yet",
-    "fairprice-read": "no browser form yet",
-    "feed-divergence-lock": "no browser form yet",
-    "feed-divergence-screen": "no browser form yet",
-    "postfill-check": "no browser form yet",
-    "shadow-drift-screen": "no browser form yet",
-}
-OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
-                           "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles", "factor-ic-lab",
-                           "verify-release-attestation", "trend-replay", "raw-replay-audit", "spot-receipt-replay",
-                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "credit-packages", "prospective-status", "prospective-evaluate", "arm-policy-read")]))
 
 
 def _market_db(root):
@@ -524,39 +511,6 @@ def _research_action_job_recover(root, action, value, store, at):
             db.c.close()
 
 
-def _research_action_technicals(root, action, value, store, at):
-    fields(value, {"technicals": "symbol from to resolutions", "candles": "symbol from to as_of tolerance_bps"}.get(action, "symbol from to"))
-    if not isinstance(value["from"], str) or not isinstance(value["to"], str):
-        raise ValueError("report bounds must be zoned timestamps")
-    start, end = parse_ts(value["from"]), parse_ts(value["to"])
-    if not start < end or end - start > timedelta(days=31):
-        raise ValueError("report window must be positive and at most 31 days")
-    if not isinstance(value["symbol"], str) or not re.fullmatch(r"[A-Z0-9]{2,24}", value["symbol"]):
-        raise ValueError("report requires one market symbol")
-    db = _market_db(root)
-    try:
-        if action == "technicals":
-            return technical_reports(db, value["symbol"], start, end, resolutions=value["resolutions"], store=store)
-        db.c.execute("BEGIN")
-        table, timestamp = ("trades", "ts_event") if action in ("trade-flow", "candles") else ("book_top", "ts_avail")
-        count = db.c.execute(f"SELECT count(*) FROM {table} WHERE instrument_id=? AND substr({timestamp},1,10)>=? AND substr({timestamp},1,10)<=?",
-                            ("wallex:" + value["symbol"], start.date().isoformat(), end.date().isoformat())).fetchone()[0]
-        if count > 100000:
-            raise ValueError("too many observations; narrow the report window")
-        if action == "candles":
-            if not isinstance(value["as_of"], str) or not isinstance(value["tolerance_bps"], str):
-                raise ValueError("candle cutoff and tolerance must be strings")
-            cutoff = parse_ts(value["as_of"])
-            if cutoff > now_utc():
-                raise ValueError("candle cutoff cannot be in the future")
-            report = candle_crosscheck(DataPortal(db), value["symbol"], start, end,
-                                       tolerance_bps=decimal(value["tolerance_bps"], "tolerance_bps"), as_of=cutoff)
-            return {**report, "store": store, "funded_authority": False, "order_submitted": False}
-        return (trade_flow_report if action == "trade-flow" else spread_report)(db, start, end, symbol=value["symbol"], store=store)
-    finally:
-        db.c.close()
-
-
 def _research_action_claim_check(root, action, value, store, at):
     return check_claims(root / "runs", value, store=store)
 
@@ -967,10 +921,3 @@ def convert_series(protocol, request):
     result.pop("report_id")
     result["report_id"] = digest(result)[:16]
     return result
-
-
-def action_catalog() -> list[dict]:
-    """Every research action with where it can be used (CLI, browser) and how it takes input."""
-    return [{"action": action, "cli": True, "browser": action not in CLI_ONLY_ACTIONS,
-             "browser_note": CLI_ONLY_ACTIONS.get(action), "object_input": action in OBJECT_ACTIONS}
-            for action in sorted(CLI_ACTIONS)]
