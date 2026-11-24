@@ -1,0 +1,328 @@
+{
+  "generated_at": "2026-11-24T22:38:35.295314+00:00",
+  "idea_5_lead_lag_diffusion": [
+    {
+      "label": "IDEA_5_DIFFUSION_NBX16_OFF0H",
+      "side": "LONG_DIFFUSION",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1085,
+      "ending_nav": 837.36,
+      "ret_pct": -16.26,
+      "stress_ret_pct": -0.34,
+      "ann_sharpe": -1.005,
+      "max_dd_pct": 16.75,
+      "entries": 89,
+      "win_rate_pct": 46.1,
+      "liquidations": 0,
+      "avg_hold_hours": 9.7,
+      "total_borrow_usdt": 0.0,
+      "total_fees_usdt": 74.77,
+      "corr_vs_base": 0.0157
+    },
+    {
+      "label": "IDEA_5_DIFFUSION_WLX25_OFF0H",
+      "side": "LONG_DIFFUSION",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 25.0,
+      "days": 1085,
+      "ending_nav": 797.95,
+      "ret_pct": -20.21,
+      "stress_ret_pct": -1.52,
+      "ann_sharpe": -1.264,
+      "max_dd_pct": 20.21,
+      "entries": 89,
+      "win_rate_pct": 44.9,
+      "liquidations": 0,
+      "avg_hold_hours": 9.7,
+      "total_borrow_usdt": 0.0,
+      "total_fees_usdt": 114.16,
+      "corr_vs_base": 0.0151
+    },
+    {
+      "label": "IDEA_5_DIFFUSION_NBX16_OFF1H",
+      "side": "LONG_DIFFUSION",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 1,
+      "cost_bps": 16.0,
+      "days": 1085,
+      "ending_nav": 1006.93,
+      "ret_pct": 0.69,
+      "stress_ret_pct": -1.91,
+      "ann_sharpe": 0.069,
+      "max_dd_pct": 6.86,
+      "entries": 84,
+      "win_rate_pct": 52.4,
+      "liquidations": 0,
+      "avg_hold_hours": 9.5,
+      "total_borrow_usdt": 0.0,
+      "total_fees_usdt": 81.63,
+      "corr_vs_base": 0.0217
+    },
+    {
+      "label": "IDEA_5_DIFFUSION_WLX25_OFF1H",
+      "side": "LONG_DIFFUSION",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 1,
+      "cost_bps": 25.0,
+      "days": 1085,
+      "ending_nav": 962.17,
+      "ret_pct": -3.78,
+      "stress_ret_pct": -3.38,
+      "ann_sharpe": -0.197,
+      "max_dd_pct": 7.93,
+      "entries": 84,
+      "win_rate_pct": 48.8,
+      "liquidations": 0,
+      "avg_hold_hours": 9.5,
+      "total_borrow_usdt": 0.0,
+      "total_fees_usdt": 124.72,
+      "corr_vs_base": 0.0214
+    }
+  ],
+  "idea_9_joint_admm_netting": [
+    {
+      "name": "BENCH_POSTHOC_70_30_NBX16",
+      "full": {
+        "days": 1085,
+        "ending_nav": 1240.45,
+        "ret_pct": 24.04,
+        "ann_sharpe": 0.65,
+        "max_dd_pct": 8.54
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1240.45,
+        "ret_pct": 2.06,
+        "ann_sharpe": 0.233,
+        "max_dd_pct": 8.54
+      },
+      "fills": 964,
+      "fees_usdt": 74.65,
+      "turnover": 46.66,
+      "uplift_vs_posthoc_bps": 0.0,
+      "ci_vs_posthoc_bps": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "IDEA_9_JOINT_ADMM_NETTED_NBX16",
+      "full": {
+        "days": 1085,
+        "ending_nav": 1258.06,
+        "ret_pct": 25.81,
+        "ann_sharpe": 0.685,
+        "max_dd_pct": 8.63
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1258.06,
+        "ret_pct": 2.22,
+        "ann_sharpe": 0.248,
+        "max_dd_pct": 8.63
+      },
+      "fills": 882,
+      "fees_usdt": 72.66,
+      "turnover": 45.41,
+      "uplift_vs_posthoc_bps": 0.13,
+      "ci_vs_posthoc_bps": [
+        -0.18,
+        0.44
+      ]
+    },
+    {
+      "name": "BENCH_POSTHOC_70_30_WLX25",
+      "full": {
+        "days": 1085,
+        "ending_nav": 1197.02,
+        "ret_pct": 19.7,
+        "ann_sharpe": 0.554,
+        "max_dd_pct": 8.6
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1197.02,
+        "ret_pct": 0.74,
+        "ann_sharpe": 0.122,
+        "max_dd_pct": 8.6
+      },
+      "fills": 957,
+      "fees_usdt": 114.34,
+      "turnover": 45.73,
+      "uplift_vs_posthoc_bps": 0.0,
+      "ci_vs_posthoc_bps": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "IDEA_9_JOINT_ADMM_NETTED_WLX25",
+      "full": {
+        "days": 1085,
+        "ending_nav": 1205.96,
+        "ret_pct": 20.6,
+        "ann_sharpe": 0.582,
+        "max_dd_pct": 8.59
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1205.96,
+        "ret_pct": 1.14,
+        "ann_sharpe": 0.158,
+        "max_dd_pct": 8.59
+      },
+      "fills": 755,
+      "fees_usdt": 105.25,
+      "turnover": 42.1,
+      "uplift_vs_posthoc_bps": 0.06,
+      "ci_vs_posthoc_bps": [
+        -0.48,
+        0.61
+      ]
+    }
+  ],
+  "idea_6_live_dislocation_rebate": [
+    {
+      "symbol": "AAVEUSDT",
+      "matched_pairs": 57,
+      "buy_guard_trigger_pct": 38.6,
+      "median_buy_dislocation_bps": 8.57,
+      "exit_rebate_trigger_pct": 45.6,
+      "median_exit_rebate_bps": 9.63,
+      "mean_exit_rebate_bps": 21.53
+    },
+    {
+      "symbol": "ADAUSDT",
+      "matched_pairs": 61,
+      "buy_guard_trigger_pct": 1.6,
+      "median_buy_dislocation_bps": 6.92,
+      "exit_rebate_trigger_pct": 95.1,
+      "median_exit_rebate_bps": 34.63,
+      "mean_exit_rebate_bps": 31.38
+    },
+    {
+      "symbol": "BCHUSDT",
+      "matched_pairs": 60,
+      "buy_guard_trigger_pct": 53.3,
+      "median_buy_dislocation_bps": 17.05,
+      "exit_rebate_trigger_pct": 45.0,
+      "median_exit_rebate_bps": 13.25,
+      "mean_exit_rebate_bps": 13.46
+    },
+    {
+      "symbol": "BNBUSDT",
+      "matched_pairs": 60,
+      "buy_guard_trigger_pct": 13.3,
+      "median_buy_dislocation_bps": 3.38,
+      "exit_rebate_trigger_pct": 11.7,
+      "median_exit_rebate_bps": 4.81,
+      "mean_exit_rebate_bps": 7.39
+    },
+    {
+      "symbol": "BTCUSDT",
+      "matched_pairs": 769,
+      "buy_guard_trigger_pct": 11.2,
+      "median_buy_dislocation_bps": 6.59,
+      "exit_rebate_trigger_pct": 13.4,
+      "median_exit_rebate_bps": 6.51,
+      "mean_exit_rebate_bps": 8.12
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "matched_pairs": 59,
+      "buy_guard_trigger_pct": 25.4,
+      "median_buy_dislocation_bps": 5.43,
+      "exit_rebate_trigger_pct": 15.3,
+      "median_exit_rebate_bps": 9.31,
+      "mean_exit_rebate_bps": 10.0
+    },
+    {
+      "symbol": "ETHUSDT",
+      "matched_pairs": 770,
+      "buy_guard_trigger_pct": 11.3,
+      "median_buy_dislocation_bps": 6.98,
+      "exit_rebate_trigger_pct": 14.5,
+      "median_exit_rebate_bps": 6.97,
+      "mean_exit_rebate_bps": 8.71
+    },
+    {
+      "symbol": "FILUSDT",
+      "matched_pairs": 30,
+      "buy_guard_trigger_pct": 100.0,
+      "median_buy_dislocation_bps": 582.52,
+      "exit_rebate_trigger_pct": 100.0,
+      "median_exit_rebate_bps": 52.72,
+      "mean_exit_rebate_bps": 95.25
+    },
+    {
+      "symbol": "LINKUSDT",
+      "matched_pairs": 59,
+      "buy_guard_trigger_pct": 6.8,
+      "median_buy_dislocation_bps": 6.11,
+      "exit_rebate_trigger_pct": 74.6,
+      "median_exit_rebate_bps": 18.71,
+      "mean_exit_rebate_bps": 21.39
+    },
+    {
+      "symbol": "LTCUSDT",
+      "matched_pairs": 62,
+      "buy_guard_trigger_pct": 66.1,
+      "median_buy_dislocation_bps": 29.43,
+      "exit_rebate_trigger_pct": 38.7,
+      "median_exit_rebate_bps": 12.25,
+      "mean_exit_rebate_bps": 22.74
+    },
+    {
+      "symbol": "SOLUSDT",
+      "matched_pairs": 729,
+      "buy_guard_trigger_pct": 53.5,
+      "median_buy_dislocation_bps": 16.24,
+      "exit_rebate_trigger_pct": 50.1,
+      "median_exit_rebate_bps": 15.05,
+      "mean_exit_rebate_bps": 18.5
+    },
+    {
+      "symbol": "TRXUSDT",
+      "matched_pairs": 50,
+      "buy_guard_trigger_pct": 30.0,
+      "median_buy_dislocation_bps": 11.99,
+      "exit_rebate_trigger_pct": 16.0,
+      "median_exit_rebate_bps": 2.92,
+      "mean_exit_rebate_bps": 6.66
+    },
+    {
+      "symbol": "UNIUSDT",
+      "matched_pairs": 62,
+      "buy_guard_trigger_pct": 9.7,
+      "median_buy_dislocation_bps": 3.84,
+      "exit_rebate_trigger_pct": 38.7,
+      "median_exit_rebate_bps": 12.2,
+      "mean_exit_rebate_bps": 58.09
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "matched_pairs": 47,
+      "buy_guard_trigger_pct": 63.8,
+      "median_buy_dislocation_bps": 21.01,
+      "exit_rebate_trigger_pct": 34.0,
+      "median_exit_rebate_bps": 11.28,
+      "mean_exit_rebate_bps": 14.28
+    },
+    {
+      "symbol": "XRPUSDT",
+      "matched_pairs": 775,
+      "buy_guard_trigger_pct": 22.3,
+      "median_buy_dislocation_bps": 7.26,
+      "exit_rebate_trigger_pct": 24.3,
+      "median_exit_rebate_bps": 8.1,
+      "mean_exit_rebate_bps": 11.13
+    }
+  ]
+}
