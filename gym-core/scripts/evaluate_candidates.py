@@ -18,7 +18,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from gym.domain.async_covariance import coarse_bar_shrunk_covariance
+from gym.domain.async_covariance import (
+    align_covariance_to_symbols,
+    coarse_bar_shrunk_covariance,
+)
 from gym.domain.convex_optimizer import (
     OptimizationProblem,
     forecast_to_expected_return_bps,
@@ -60,11 +63,13 @@ def _open_ro(db_path: Path) -> sqlite3.Connection:
 
 
 def _load_candles(con: sqlite3.Connection, symbol: str, resolution: str, *, limit: int = 20000) -> list[tuple[datetime, float, float, float, float]]:
+    inst = con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (symbol,)).fetchone()
+    if inst is None:
+        return []
     rows = con.execute(
-        "SELECT vc.t, vc.o, vc.h, vc.l, vc.c FROM venue_candles vc "
-        "JOIN instruments i ON i.instrument_id = vc.instrument_id "
-        "WHERE i.symbol = ? AND vc.resolution = ? ORDER BY vc.t DESC LIMIT ?",
-        (symbol, resolution, limit),
+        "SELECT t, o, h, l, c FROM venue_candles "
+        "WHERE instrument_id = ? AND resolution = ? ORDER BY t DESC LIMIT ?",
+        (inst[0], resolution, limit),
     ).fetchall()
     rows.reverse()
     out: list[tuple[datetime, float, float, float, float]] = []
@@ -276,7 +281,8 @@ def _evaluate_allocation_panel(
 
         if idx >= 65:
             window_rets = {s: ret_hist[s][-60:] for s in symbols}
-            _, cov_daily = coarse_bar_shrunk_covariance(window_rets, shrinkage=0.25)
+            cov_syms, cov_daily_raw = coarse_bar_shrunk_covariance(window_rets, shrinkage=0.25)
+            cov_daily = align_covariance_to_symbols(symbols, cov_syms, cov_daily_raw)
             # Horizon-matched covariance (H * Sigma_daily) & expected return (sqrt(H) * sigma_daily)
             cov_h = tuple(tuple(v * holding_horizon_days for v in row) for row in cov_daily)
             vols_h_bps = [yang_zhang_volatility(ohlc_hist[s][-20:]) * sqrt_h * 10000.0 for s in symbols]
@@ -328,11 +334,12 @@ def _evaluate_allocation_panel(
     power = simulate_joint_gate_power(rets_convex, edge_bps_per_step=12.0, horizon_steps=365, n_trials=21, replications=200)
 
     btc_closes = [candles_by_sym[symbols[0]][d][3] for d in common_dates[:150]]
-    causal_ok = check_causality_perturbation(
-        lambda ps: [MultiHorizonEwmacNode(pairs=((8, 32), (16, 64))).update(p) for p in ps],
-        btc_closes,
-        cutoff_index=100,
-    )
+
+    def _stateful_ewmac(ps: list[float]) -> list[float]:
+        node = MultiHorizonEwmacNode(pairs=((8, 32), (16, 64)))
+        return [node.update(p) for p in ps]
+
+    causal_ok = check_causality_perturbation(_stateful_ewmac, btc_closes, cutoff_index=100)
     return {
         "status": "OK",
         "start_date": common_dates[65].date().isoformat(),

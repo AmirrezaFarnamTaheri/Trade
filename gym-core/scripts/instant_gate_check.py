@@ -27,7 +27,10 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from gym.domain.async_covariance import coarse_bar_shrunk_covariance
+from gym.domain.async_covariance import (
+    align_covariance_to_symbols,
+    coarse_bar_shrunk_covariance,
+)
 from gym.domain.convex_optimizer import (
     OptimizationProblem,
     forecast_to_expected_return_bps,
@@ -63,11 +66,13 @@ def _open_ro(path: Path) -> sqlite3.Connection:
 
 
 def _load_candles(con: sqlite3.Connection, symbol: str, resolution: str, *, limit: int = 25000) -> list[tuple[datetime, float, float, float, float]]:
+    inst = con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (symbol,)).fetchone()
+    if inst is None:
+        return []
     rows = con.execute(
-        "SELECT vc.t, vc.o, vc.h, vc.l, vc.c FROM venue_candles vc "
-        "JOIN instruments i ON i.instrument_id = vc.instrument_id "
-        "WHERE i.symbol = ? AND vc.resolution = ? ORDER BY vc.t DESC LIMIT ?",
-        (symbol, resolution, limit),
+        "SELECT t, o, h, l, c FROM venue_candles "
+        "WHERE instrument_id = ? AND resolution = ? ORDER BY t DESC LIMIT ?",
+        (inst[0], resolution, limit),
     ).fetchall()
     rows.reverse()
     out = []
@@ -432,7 +437,8 @@ def eval_candidate_b_sealed_holdout(con: sqlite3.Connection) -> dict:
             reg_m = reg_node.evaluate(sum(1 for f in raw_f if f > 0) / len(CRYPTO_4YR), floor=0.25)
 
             if idx >= 65:
-                _, cov_d = coarse_bar_shrunk_covariance({s: ret_hist[s][-60:] for s in CRYPTO_4YR}, shrinkage=0.25)
+                cov_syms, cov_d_raw = coarse_bar_shrunk_covariance({s: ret_hist[s][-60:] for s in CRYPTO_4YR}, shrinkage=0.25)
+                cov_d = align_covariance_to_symbols(CRYPTO_4YR, cov_syms, cov_d_raw)
                 cov_h = tuple(tuple(v * h_days for v in row) for row in cov_d)
                 vols = [yang_zhang_volatility(ohlc_hist[s][-20:]) * sqrt_h * 10000.0 for s in CRYPTO_4YR]
                 mu_h = tuple(forecast_to_expected_return_bps(f * reg_m, 0.08, vb) / 10000.0 for f, vb in zip(raw_f, vols, strict=True))
@@ -453,7 +459,12 @@ def eval_candidate_b_sealed_holdout(con: sqlite3.Connection) -> dict:
     pbo_val = pbo_rank_logit(returns_by_cfg, n_groups=6, n_test_groups=2, embargo=5).get("pbo")
     placebo = run_path_preserving_placebo(mkt_primary, pos_primary, replications=500)
     btc_closes = [candles_by_sym["BTCUSDT"][d][3] for d in common[:150]]
-    causal_ok = check_causality_perturbation(lambda ps: [MultiHorizonEwmacNode(pairs=((8, 32), (16, 64))).update(p) for p in ps], btc_closes, cutoff_index=100)
+
+    def _stateful_ewmac(ps: list[float]) -> list[float]:
+        node = MultiHorizonEwmacNode(pairs=((8, 32), (16, 64)))
+        return [node.update(p) for p in ps]
+
+    causal_ok = check_causality_perturbation(_stateful_ewmac, btc_closes, cutoff_index=100)
 
     return {
         "status": "OK",

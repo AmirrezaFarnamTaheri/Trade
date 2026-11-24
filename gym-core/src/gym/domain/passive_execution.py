@@ -1,6 +1,7 @@
 """Arrival-state passive matching, pegged child orders & O(1) adversarial print bound (spec §4.2)."""
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -62,7 +63,12 @@ class PassiveOrderResult:
     completed_at: datetime
 
 
-def _latest_top_at_or_before(books: list[BookTop], ts: datetime) -> BookTop | None:
+def _latest_top_at_or_before(books: list[BookTop], ts: datetime, book_ts: list[datetime] | None = None) -> BookTop | None:
+    if not books:
+        return None
+    if book_ts is not None:
+        idx = bisect_right(book_ts, ts) - 1
+        return books[idx] if idx >= 0 else None
     best: BookTop | None = None
     for b in books:
         if b.ts_avail <= ts:
@@ -72,11 +78,20 @@ def _latest_top_at_or_before(books: list[BookTop], ts: datetime) -> BookTop | No
     return best
 
 
-def _post_fill_markout_bps(side: str, fill_price: Decimal, ts_fill: datetime, books: list[BookTop], horizon_s: int = 300) -> Decimal | None:
+def _post_fill_markout_bps(
+    side: str,
+    fill_price: Decimal,
+    ts_fill: datetime,
+    books: list[BookTop],
+    horizon_s: int = 300,
+    book_ts: list[datetime] | None = None,
+) -> Decimal | None:
     """Strict post-fill markout: requires ts_avail >= ts_fill + horizon_s within min(horizon_s, 60)s."""
     target = ts_fill + timedelta(seconds=horizon_s)
     upper = target + timedelta(seconds=min(horizon_s, 60))
-    for b in books:
+    start_idx = bisect_left(book_ts, target) if book_ts is not None else 0
+    for idx in range(start_idx, len(books)):
+        b = books[idx]
         if b.ts_avail < target:
             continue
         if b.ts_avail > upper:
@@ -198,6 +213,8 @@ def simulate_passive_orders(
         raise ValueError(f"duplicate_print_mode must be one of {DUPLICATE_MODES}")
     sorted_books = sorted(books, key=lambda b: b.ts_avail)
     sorted_trades = sorted(trades, key=lambda t: t.ts_avail)
+    book_ts = [b.ts_avail for b in sorted_books]
+    trade_ts = [t.ts_avail for t in sorted_trades]
     remaining_print_qty = [t.qty for t in sorted_trades]
     seen_keys: set[tuple] = set()
     is_dup = [_is_ambiguous_duplicate(t, seen_keys) for t in sorted_trades]
@@ -208,6 +225,8 @@ def simulate_passive_orders(
             spec,
             sorted_books,
             sorted_trades,
+            book_ts,
+            trade_ts,
             remaining_print_qty,
             is_dup,
             fee_schedule,
@@ -227,6 +246,8 @@ def _simulate_single_order(
     spec: PassiveOrderSpec,
     books: list[BookTop],
     trades: list[TradeTick],
+    book_ts: list[datetime],
+    trade_ts: list[datetime],
     remaining_print_qty: list[Decimal],
     is_dup: list[bool],
     fee_schedule: FeeSchedule,
@@ -237,7 +258,7 @@ def _simulate_single_order(
     t_arr = spec.sent_at + timedelta(milliseconds=spec.send_latency_ms)
     deadline = t_arr + timedelta(seconds=spec.max_wait_s)
     maker_rate, taker_rate = fee_schedule.effective_rates(t_arr, rolling_30d_volume)
-    top_arr = _latest_top_at_or_before(books, t_arr)
+    top_arr = _latest_top_at_or_before(books, t_arr, book_ts)
 
     if top_arr is None:
         return _summarize_result(spec, mode, "UNFILLED", [], 0, deadline)
@@ -265,10 +286,11 @@ def _simulate_single_order(
     cancel_effective_at: datetime | None = None
     pending_new_limit: Decimal | None = None
 
-    for idx, tick in enumerate(trades):
-        if tick.ts_avail < t_arr:
-            continue
-        if tick.ts_avail > deadline or remaining <= 0:
+    t_start = bisect_left(trade_ts, t_arr)
+    t_end = bisect_right(trade_ts, deadline)
+    for idx in range(t_start, t_end):
+        tick = trades[idx]
+        if remaining <= 0:
             break
         if _in_feed_gap(tick.ts_avail, feed_gap_windows):
             if cancel_effective_at is not None and tick.ts_avail <= cancel_effective_at:
@@ -279,7 +301,7 @@ def _simulate_single_order(
         if cancel_effective_at is not None and tick.ts_avail >= cancel_effective_at:
             assert pending_new_limit is not None
             active_limit = pending_new_limit
-            top_now = _latest_top_at_or_before(books, tick.ts_avail)
+            top_now = _latest_top_at_or_before(books, tick.ts_avail, book_ts)
             queue_ahead = (
                 (top_now.bid_qty or Decimal(0))
                 if (top_now and spec.side == "BUY" and top_now.bid == active_limit)
@@ -297,7 +319,7 @@ def _simulate_single_order(
             and repeg_count < spec.max_repegs
             and (tick.ts_avail - last_repeg_at).total_seconds() >= spec.repeg_cooldown_s
         ):
-            top_now = _latest_top_at_or_before(books, tick.ts_avail)
+            top_now = _latest_top_at_or_before(books, tick.ts_avail, book_ts)
             new_px = _pegged_price(spec.side, top_now, spec.repeg_offset_bps) if top_now else None
             if new_px is not None and new_px != active_limit and not _arrival_crosses(spec.side, new_px, top_now):
                 cancel_effective_at = tick.ts_avail + timedelta(milliseconds=spec.cancel_latency_ms)
@@ -316,7 +338,7 @@ def _simulate_single_order(
             if mode == "deduplicated":
                 continue
             if mode == "adversarial_lower_bound":
-                markout = _post_fill_markout_bps(spec.side, active_limit, tick.ts_avail, books)
+                markout = _post_fill_markout_bps(spec.side, active_limit, tick.ts_avail, books, book_ts=book_ts)
                 if markout is None or markout >= Decimal(0):
                     continue
 

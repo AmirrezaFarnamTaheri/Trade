@@ -53,6 +53,13 @@ def test_microstructure_consolidator_microprice_ofi_l2_and_vpin():
     bar = c.flush_bar(T0 + timedelta(seconds=60))
     assert bar is not None and bar.vpin == 1.0 and bar.vwap == Decimal("101") and bar.buy_aggressor_vol == Decimal("4")
 
+    # Huge PEPE-scale 400M-unit print completes in O(1) via arithmetic batching; unknown side ignored for VPIN
+    c_pepe = MicrostructureConsolidator("PEPEUSDT", vpin_bucket_volume=Decimal("1.0"), vpin_window_buckets=20)
+    c_pepe.on_trade(TradeTick("PEPEUSDT", T0, T0, Decimal("0.00001"), Decimal("417602118"), "BUY"))
+    c_pepe.on_trade(TradeTick("PEPEUSDT", T0 + timedelta(seconds=1), T0 + timedelta(seconds=1), Decimal("0.00001"), Decimal("1000"), "UNKNOWN"))
+    assert c_pepe._current_vpin() == 1.0
+    assert c_pepe._sell_vol == Decimal(0) and c_pepe._unknown_side_vol == Decimal("1000")
+
 
 def test_legacy_strategy_adapter_preserves_fractional_free_cash_sizing():
     class StubStrategy:

@@ -119,6 +119,7 @@ class MicrostructureConsolidator:
         self._ofi_sum = Decimal(0)
         self._buy_vol = Decimal(0)
         self._sell_vol = Decimal(0)
+        self._unknown_side_vol = Decimal(0)
         self._notional_sum = Decimal(0)
         self._trade_count = 0
         self._book_updates = 0
@@ -142,18 +143,22 @@ class MicrostructureConsolidator:
             return
         self._trade_count += 1
         self._notional_sum += tick.price * tick.qty
-        is_buy = tick.aggressor == "BUY"
-        if is_buy:
+        side = str(tick.aggressor).upper()
+        if side == "BUY":
             self._buy_vol += tick.qty
-        else:
+        elif side == "SELL":
             self._sell_vol += tick.qty
+        else:
+            self._unknown_side_vol += tick.qty
+            return
 
         rem = tick.qty
-        while rem > 0:
-            filled_in_bucket = self._bucket_buy + self._bucket_sell
+        # 1. Finish any partially filled bucket first
+        filled_in_bucket = self._bucket_buy + self._bucket_sell
+        if filled_in_bucket > 0:
             space = self.vpin_bucket_volume - filled_in_bucket
             take = min(rem, space)
-            if is_buy:
+            if side == "BUY":
                 self._bucket_buy += take
             else:
                 self._bucket_sell += take
@@ -162,6 +167,20 @@ class MicrostructureConsolidator:
                 self._bucket_imbalances.append(abs(self._bucket_buy - self._bucket_sell))
                 self._bucket_buy = Decimal(0)
                 self._bucket_sell = Decimal(0)
+
+        # 2. Batch complete same-side buckets arithmetically (O(1) even on 400M-unit PEPE prints)
+        if rem >= self.vpin_bucket_volume:
+            full_buckets, rem = divmod(rem, self.vpin_bucket_volume)
+            append_count = min(int(full_buckets), self.vpin_window_buckets)
+            for _ in range(append_count):
+                self._bucket_imbalances.append(self.vpin_bucket_volume)
+
+        # 3. Carry exact remainder into the new open bucket
+        if rem > 0:
+            if side == "BUY":
+                self._bucket_buy = rem
+            else:
+                self._bucket_sell = rem
 
     def on_book_top(self, top: BookTop, *, ts_event: datetime | None = None) -> RichSnapshot | None:
         if top.bid is None or top.ask is None or top.bid <= 0 or top.ask <= 0:
@@ -242,6 +261,7 @@ class MicrostructureConsolidator:
         self._ofi_sum = Decimal(0)
         self._buy_vol = Decimal(0)
         self._sell_vol = Decimal(0)
+        self._unknown_side_vol = Decimal(0)
         self._notional_sum = Decimal(0)
         self._trade_count = 0
         self._book_updates = 0

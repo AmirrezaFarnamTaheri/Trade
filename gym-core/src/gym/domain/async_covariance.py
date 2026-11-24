@@ -171,3 +171,42 @@ def coarse_bar_shrunk_covariance(
         for i in range(n)
     ]
     return symbols, tuple(tuple(row) for row in out)
+
+
+def align_covariance_to_symbols(
+    target_symbols: tuple[str, ...],
+    source_symbols: tuple[str, ...],
+    matrix: tuple[tuple[float, ...], ...],
+) -> tuple[tuple[float, ...], ...]:
+    """Reindex both covariance axes explicitly to match target_symbols order."""
+    index_of = {sym: idx for idx, sym in enumerate(source_symbols)}
+    missing = [s for s in target_symbols if s not in index_of]
+    if missing:
+        raise ValueError(f"missing symbols in covariance matrix: {missing}")
+    return tuple(
+        tuple(matrix[index_of[si]][index_of[sj]] for sj in target_symbols)
+        for si in target_symbols
+    )
+
+
+def coarse_bar_shrunk_covariance_aligned(
+    dated_returns_by_symbol: dict[str, dict[datetime, float]],
+    target_symbols: tuple[str, ...],
+    *,
+    shrinkage: float = 0.25,
+    min_var_floor: float = 1e-6,
+) -> tuple[tuple[float, ...], ...]:
+    """Join returns strictly on common timestamps, compute diagonal-shrunk covariance, and align to target_symbols."""
+    n = len(target_symbols)
+    if n == 0:
+        return ()
+    common_ts = sorted(set.intersection(*(set(dated_returns_by_symbol.get(s, {}).keys()) for s in target_symbols)))
+    if len(common_ts) < 2:
+        return tuple(tuple(min_var_floor if i == j else 0.0 for j in range(n)) for i in range(n))
+    aligned_lists = {s: [dated_returns_by_symbol[s][t] for t in common_ts] for s in target_symbols}
+    src_syms, mat = coarse_bar_shrunk_covariance(aligned_lists, shrinkage=shrinkage)
+    reindexed = align_covariance_to_symbols(target_symbols, src_syms, mat)
+    return tuple(
+        tuple(max(min_var_floor, reindexed[i][j]) if i == j else reindexed[i][j] for j in range(n))
+        for i in range(n)
+    )

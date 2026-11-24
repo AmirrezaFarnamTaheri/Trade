@@ -7,6 +7,7 @@ from decimal import Decimal
 from gym.domain.convex_optimizer import (
     OptimizationProblem,
     forecast_to_expected_return_bps,
+    portfolio_utility,
     simple_no_trade_band_allocator,
     solve_convex_portfolio,
     verify_post_solve_orders,
@@ -205,3 +206,71 @@ def test_dual_numeraire_fx_sides_and_tmn_borrow_carry():
     scen = compare_fx_appreciation_scenarios(terms_renew, start_at=T0, horizon_days=90)
     assert scen[Decimal("0.00")].excess_over_1x_tmn < 0  # flat Toman loses to 1x spot due to carry bleed
     assert scen[Decimal("0.50")].excess_over_1x_tmn > scen[Decimal("0.00")].excess_over_1x_tmn
+
+
+def test_convex_optimizer_binding_budget_counterexample_and_scipy_parity():
+    import numpy as np
+    from scipy.optimize import minimize
+
+    # Exact review counterexample: w0=(0.5, 0.5), mu=(0.02, 0.06), cov=diag(0.01, 0.01), ra=1, tau=0.001
+    p_bind = OptimizationProblem(
+        symbols=("A", "B"),
+        expected_returns=(0.02, 0.06),
+        current_weights=(0.5, 0.5),
+        covariance=((0.01, 0.0), (0.0, 0.01)),
+        l1_fee_costs=(0.001, 0.001),
+        l2_impact_costs=(0.0, 0.0),
+        risk_aversion=1.0,
+        max_weight=1.0,
+        cash_buffer=0.0,
+    )
+    res = solve_convex_portfolio(p_bind)
+    assert res.converged
+    assert abs(res.weights[0] - 0.0) < 1e-4
+    assert abs(res.weights[1] - 1.0) < 1e-4
+    assert abs(portfolio_utility(res.weights, p_bind) - 0.0540) < 1e-5
+
+    # Cross-check multi-asset binding budget + underlying group cap + permutation invariance vs scipy
+    p3 = OptimizationProblem(
+        symbols=("XRP", "XAUT", "BTC"),
+        expected_returns=(0.03, 0.05, 0.08),
+        current_weights=(0.4, 0.3, 0.2),
+        covariance=(
+            (0.04, 0.005, 0.02),
+            (0.005, 0.01, 0.002),
+            (0.02, 0.002, 0.03),
+        ),
+        l1_fee_costs=(0.0015, 0.0015, 0.0015),
+        l2_impact_costs=(0.002, 0.002, 0.002),
+        risk_aversion=2.0,
+        max_weight=0.60,
+        cash_buffer=0.10,
+        underlying_groups={"crypto": (0, 2)},
+        max_underlying_weight=0.65,
+    )
+    res3 = solve_convex_portfolio(p3)
+    assert res3.converged
+    assert sum(res3.weights) <= 0.90 + 1e-6
+    assert res3.weights[0] + res3.weights[2] <= 0.65 + 1e-6
+
+    # Smooth split-variable reference in scipy: w = w0 + u - v, u >= 0, v >= 0
+    w0 = np.array(p3.current_weights)
+    mu = np.array(p3.expected_returns)
+    cov = np.array(p3.covariance)
+    tau = np.array(p3.l1_fee_costs)
+    kap = np.array(p3.l2_impact_costs)
+
+    def _obj(uv):
+        u, v = uv[:3], uv[3:]
+        w = w0 + u - v
+        return float(0.5 * p3.risk_aversion * (w @ cov @ w) - mu @ w + tau @ (u + v) + 0.5 * np.sum(kap * (u - v) ** 2))
+
+    cons = [
+        {"type": "ineq", "fun": lambda uv: 0.90 - np.sum(w0 + uv[:3] - uv[3:])},
+        {"type": "ineq", "fun": lambda uv: 0.65 - ((w0[0] + uv[0] - uv[3]) + (w0[2] + uv[2] - uv[5]))},
+        {"type": "ineq", "fun": lambda uv: (w0 + uv[:3] - uv[3:])},
+        {"type": "ineq", "fun": lambda uv: 0.60 - (w0 + uv[:3] - uv[3:])},
+    ]
+    ref = minimize(_obj, np.zeros(6), bounds=[(0, 1)] * 6, constraints=cons, method="SLSQP", options={"ftol": 1e-12})
+    w_ref = w0 + ref.x[:3] - ref.x[3:]
+    assert abs(portfolio_utility(res3.weights, p3) - portfolio_utility(w_ref.tolist(), p3)) < 1e-5

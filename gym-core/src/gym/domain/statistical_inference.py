@@ -150,11 +150,12 @@ def purged_cpcv_splits(
     splits = []
     for test_groups in itertools.combinations(range(n_groups), n_test_groups):
         test_idx = sorted(i for g in test_groups for i in blocks[g])
+        test_idx_set = set(test_idx)
         test_spans = [(label_intervals[blocks[g][0]][0], max(label_intervals[i][1] for i in blocks[g])) for g in test_groups]
         embargo_ends = [max(label_intervals[i][1] for i in blocks[g]) + embargo for g in test_groups]
         train_idx, purged_count = [], 0
         for i in range(n):
-            if i in test_idx:
+            if i in test_idx_set:
                 continue
             s_i, e_i = label_intervals[i]
             overlaps = any(s_i <= t_end and t_start <= e_i for t_start, t_end in test_spans)

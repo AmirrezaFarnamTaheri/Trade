@@ -5,7 +5,9 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from gym.domain.async_covariance import (
+    align_covariance_to_symbols,
     coarse_bar_shrunk_covariance,
+    coarse_bar_shrunk_covariance_aligned,
     hayashi_yoshida_covariance,
 )
 from gym.domain.kalman_models import (
@@ -84,6 +86,18 @@ def test_async_covariance_and_volatility_models():
 
     syms, coarse = coarse_bar_shrunk_covariance({"A": [0.01, -0.02, 0.03, 0.01], "B": [0.02, -0.03, 0.04, 0.02]})
     assert syms == ("A", "B") and coarse[0][1] > 0
+
+    # Axis alignment & timestamp-joined covariance under symbol permutation and mismatched missing dates
+    d1, d2, d3 = T0, T0 + timedelta(days=1), T0 + timedelta(days=2)
+    dated = {
+        "XRPUSDT": {d1: 0.05, d2: -0.04, d3: 0.06},
+        "XAUTUSDT": {d1: 0.002, d2: -0.001, d3: 0.003},
+    }
+    cov_xrp_first = coarse_bar_shrunk_covariance_aligned(dated, ("XRPUSDT", "XAUTUSDT"), shrinkage=0.0)
+    cov_xaut_first = coarse_bar_shrunk_covariance_aligned(dated, ("XAUTUSDT", "XRPUSDT"), shrinkage=0.0)
+    assert cov_xrp_first[0][0] > cov_xrp_first[1][1] * 100  # XRP variance >> XAUT variance
+    assert abs(cov_xrp_first[0][0] - cov_xaut_first[1][1]) < 1e-12
+    assert align_covariance_to_symbols(("B", "A"), syms, coarse)[0][0] == coarse[1][1]
 
     bars = [OhlcBar(100, 105, 98, 103), OhlcBar(106, 110, 104, 108), OhlcBar(107, 112, 102, 105), OhlcBar(104, 109, 101, 107)]
     assert yang_zhang_volatility(bars) > 0.01
