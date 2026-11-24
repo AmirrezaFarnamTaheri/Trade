@@ -182,6 +182,8 @@ The browser smoke fixture runs momentum ranking on both the complete demo catalo
 
 The exposure fixture uses a 12.5% maximum market weight and a 20% cash buffer. The Edge workbench, CLI and scheduler reproduce the run ID and output digest for a saved single-currency watchlist and the complete mixed-currency demo catalogue. In mixed-currency mode the cap and buffer apply to new spot entries within each quote currency. Advanced allocation and rebalancing policies still require a single-currency portfolio.
 
+The archived-week scheduler run `12209d2725a9461c` used a 0.5% per-market cap, a 20% buffer and 25% displayed participation. It processed 10,146,017 observations across the 373-market catalogue in 545 seconds. The independent ledger audit reconciled 2,050.34 USDT of ending marked equity from 2,108.18 USDT opening equity after 151 spot fills. Closing marks were stale.
+
 The archived-week ad hoc worker ran without a symbol list and selected the same 373 instruments as the scheduled job. It published run `eb61e7f0dd58d54e` with the historical universe manifest attached. Its entire economic result matched the scheduled run, including digest `ffe9cc726db6ce28`. This took 1,201.1 seconds on the Windows host while other replays were running.
 
 The supervised archived-week resume rebuilt the prefix at observation 243,336, at 09:00:05.611207 UTC on November 15, between the modeled OTC settlement and spot submission. It reproduced signed cash postings, fees, fills and the full output digest `ffe9cc726db6ce28` for run `c929995885bec418`. This verifies replay recovery from the original archive by rebuilding the prefix.

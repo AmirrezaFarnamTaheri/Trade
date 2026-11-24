@@ -827,6 +827,8 @@ Object.assign(vocabulary, {
   pfStartUsdt: ["Starting USDT", "موجودی اولیهٔ تتر"],
   pfStartTmn: ["Starting TMN", "موجودی اولیهٔ تومان"],
   pfBookShare: ["Maximum displayed size used · fraction", "حداکثر سهم از حجم نمایش‌داده‌شده"],
+  pfMixedMaxWeight: ["Maximum weight within each quote currency", "حداکثر وزن در هر ارز مظنه"],
+  pfMixedCashBuffer: ["Cash buffer within each quote currency", "ذخیره نقدی در هر ارز مظنه"],
   pfRankEntryGate: ["Entry selection", "انتخاب ورود"],
   pfRankNone: ["Strategy signals only", "فقط سیگنال راهبرد"],
   pfRankMomentum: ["Prior momentum minus spread", "شتاب گذشته منهای شکاف قیمت"],

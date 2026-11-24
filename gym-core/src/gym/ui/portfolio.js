@@ -31,8 +31,8 @@ window.gymPortfolio = (() => {
         ${field('portfolio-start-tmn', label('pfStartTmn'), 'inputmode="decimal" value="135000000"')}
         ${field('portfolio-start-usdt', label('pfStartUsdt'), 'inputmode="decimal" value="500"')}
         ${field('portfolio-participation', label('pfBookShare'), 'inputmode="decimal" value="0.25"')}
-        ${field('portfolio-mixed-cap', text('Maximum weight within each quote currency', 'حداکثر وزن در هر ارز مظنه'), 'inputmode="decimal"')}
-        ${field('portfolio-mixed-buffer', text('Cash buffer within each quote currency', 'ذخیره نقدی در هر ارز مظنه'), 'inputmode="decimal"')}
+        ${field('portfolio-mixed-cap', label('pfMixedMaxWeight'), 'inputmode="decimal"')}
+        ${field('portfolio-mixed-buffer', label('pfMixedCashBuffer'), 'inputmode="decimal"')}
       </div></div>
       ${field('portfolio-fee', text(T.en.pfFeePerFillFraction, T.fa.pfFeePerFillFraction), 'required inputmode="decimal" value="0.001"')}
       <label for="portfolio-strategy">${text(T.en.strategy, T.fa.strategy)}<select id="portfolio-strategy" dir="ltr"></select></label>
