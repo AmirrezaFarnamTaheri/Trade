@@ -12,9 +12,12 @@ receipts can check them with `uv run --no-sync python scripts/evidence_index.py 
 
 ### Frozen Prospective Registrations & Operational Status (`DISARMED`)
 - [2026-11-25-champion-ensemble-registration.json](2026-11-25-champion-ensemble-registration.json) — Frozen v1 Champion (`70% BASE_13_S1_S5 (XAUT) + 30% 2h GRU-Ignition`, SHA-256 locked).
-- [2026-11-25-champion-forward-score.json](2026-11-25-champion-forward-score.json) — Live untouched forward paper NAV, live spread telemetry, and sequential `e_process`.
+- [2026-11-25-champion-forward-score.json](2026-11-25-champion-forward-score.json) — Live untouched forward paper NAV, live spread telemetry, and sequential `e_process` (v1).
+- [2026-11-25-champion-v2-registration.json](2026-11-25-champion-v2-registration.json) — Frozen parallel v2 Champion (`1d ACCEL + 11A Metals + Joint ADMM + Twin-Phase 2h GRU11 Path-PnL + Conformal/DD`).
+- [2026-11-25-champion-v2-forward-score.json](2026-11-25-champion-v2-forward-score.json) — Live untouched forward paper NAV, metals reserve, and sequential `e_process` (v2).
+- [2026-11-25-v2-champion-verification-report.md](2026-11-25-v2-champion-verification-report.md) — End-to-end single shared-ledger verification of Unified v2 Champion vs. v1 Champion & `BASE_13`.
 - [2026-11-24-s1-s5-prospective-registration.json](2026-11-24-s1-s5-prospective-registration.json) — Standalone `BASE_13_S1_S5` daily prospective registration.
-- [2026-11-25-operational-health.json](2026-11-25-operational-health.json) — Read-only collector, 20-symbol Nobitex recorder, journal, and model health snapshot.
+- [2026-11-25-operational-health.json](2026-11-25-operational-health.json) — Read-only collector, 20-symbol Nobitex recorder, v1/v2 journal, and model health snapshot.
 
 ### Core Quantitative Studies (Strictly Causal, Zero Lookahead)
 - [2026-11-24-first-ensemble-experiment-report.md](2026-11-24-first-ensemble-experiment-report.md) — First 1,638-day ensemble & ML-veto ablation establishing `S1 + S5 + ADMM`.

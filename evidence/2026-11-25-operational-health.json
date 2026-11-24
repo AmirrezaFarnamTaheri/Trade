@@ -1,22 +1,22 @@
 {
-  "generated_at": "2026-11-24T21:17:45.764023+00:00",
+  "generated_at": "2026-11-24T22:53:18.202678+00:00",
   "overall_status": "WARN",
   "executor_state": "DISARMED",
   "checks": {
     "market_db": {
       "status": "WARN",
-      "latest_book_ts": "2026-11-24T21:17:45.281056Z",
+      "latest_book_ts": "2026-11-24T22:53:17.372848Z",
       "book_age_hours": 0.0,
-      "latest_trade_ts": "2026-11-24T21:17:45.711489Z",
-      "trade_age_hours": 0.0,
+      "latest_trade_ts": "2026-11-24T22:52:38.200335Z",
+      "trade_age_hours": 0.01,
       "stale_1d_symbols": [],
       "stale_1h_symbols_count": 20,
       "fresh_1min_symbols_count": 15
     },
     "multi_venue_db": {
       "status": "OK",
-      "total_quote_rows": 3739,
-      "latest_quote_ts": "2026-11-24T21:17:15.005848Z",
+      "total_quote_rows": 4922,
+      "latest_quote_ts": "2026-11-24T22:51:38.037026Z",
       "nobitex_fresh_symbols": 20,
       "nobitex_stale_symbols": []
     },
@@ -24,25 +24,37 @@
       "status": "OK",
       "rows": 13,
       "latest_ts": "2026-11-24T13:51:52.708886+00:00",
-      "age_hours": 7.43
+      "age_hours": 9.02
     },
     "champion_ensemble_journal": {
       "status": "OK",
       "rows": 1,
       "latest_ts": "2026-11-24T21:17:40.175031+00:00",
+      "age_hours": 1.59
+    },
+    "champion_v2_journal": {
+      "status": "OK",
+      "rows": 1,
+      "latest_ts": "2026-11-24T22:53:02.157553+00:00",
       "age_hours": 0.0
     },
     "mix_journal_v2": {
       "status": "OK",
       "rows": 5,
       "latest_ts": "2026-11-24T08:27:53.066544+00:00",
-      "age_hours": 12.83
+      "age_hours": 14.42
     },
     "gru_ignition_model": {
       "status": "OK",
       "bytes": 82273,
       "n_models": 3,
       "sha256": "fed742c13eecf79de3410c7e8a2b594d784b52c5e48be149aad6e6d35d1ddb61"
+    },
+    "gru_ignition_v2_model": {
+      "status": "OK",
+      "bytes": 103882,
+      "n_models": 3,
+      "sha256": "e6f05aaf64e0479fe768ec3ba1361ae8ce9a5759e4efa64b139f80bc2e5f1b56"
     }
   }
 }

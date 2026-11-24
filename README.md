@@ -10,7 +10,8 @@ A research and paper-trading observatory for the Wallex exchange (TMN and USDT s
   [capabilities](gym-core/docs/capabilities.md#stages).
 - **Frozen prospective paper tracking active; no live funded edge claimed.** Historical seen-replay leaders are
   registered and tracking live untouched forward observations on Windows Task Scheduler (zero order authority):
-  - `70% BASE_13_S1_S5 (1d ADMM) + 30% 2h Frozen GRU-Ignition` ([champion registration](evidence/2026-11-25-champion-ensemble-registration.json))
+  - **v1 Champion:** `70% BASE_13_S1_S5 (1d ADMM) + 30% 2h Frozen GRU-Ignition` ([v1 registration](evidence/2026-11-25-champion-ensemble-registration.json))
+  - **v2 Champion (Parallel):** `70% 1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint ADMM + 30% Twin-Phase 2h GRU11 Path-PnL (Conformal/DD)` ([v2 registration](evidence/2026-11-25-champion-v2-registration.json))
   - Standalone `BASE_13_S1_S5` ([leader registration](evidence/2026-11-24-s1-s5-prospective-registration.json)), `btc-daily-trend`, `breadth-trend-forward`, and `mix-journal-v2`.
   Paper results cannot authorize capital; see the [trial log](gym-core/docs/trial-log.md) and [evidence index](evidence/README.md).
 - **Live multi-venue observation.** Primary collector streams 40 curated Wallex markets with 5-level depth (`core-40-wallex`);

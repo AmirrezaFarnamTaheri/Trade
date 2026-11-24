@@ -107,6 +107,8 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
     fwd_score = _load_json(evidence_dir / "2026-11-25-champion-forward-score.json")
     health = _load_json(evidence_dir / "2026-11-25-operational-health.json")
     higher_order = _load_json(evidence_dir / "2026-11-25-higher-order-and-sparse.json")
+    v2_verify = _load_json(evidence_dir / "2026-11-25-v2-champion-verification.json")
+    v2_fwd_score = _load_json(evidence_dir / "2026-11-25-champion-v2-forward-score.json")
 
     histograms = _compute_live_histograms(db_path) if (db_path is not None and db_path.is_file()) else {
         "leader": compute_return_histogram([]),
@@ -229,6 +231,8 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
         "forward_score": fwd_score,
         "operational_health": health,
         "higher_order": higher_order,
+        "v2_verify": v2_verify,
+        "v2_forward_score": v2_fwd_score,
     }
 
 
@@ -528,11 +532,23 @@ def render_dashboard_html(payload: dict) -> str:
   <section class="panel">
     <div class="panel-head">
       <div>
-        <h2>9. Higher-Order Momentum (v2 Candidate), Tiered Sparse 38-Market Check &amp; Structural Bear Shorts</h2>
-        <p class="desc">2nd-order trend acceleration lifted BASE_13 (Sharpe 1.011 → 1.116, Bear -1.84% → +0.99%) and 8-feature GRU-Ignition (NBX16 +33.4% → +45.5%, SR 0.811). Static 50/50 &amp; 60/40 beat dynamic vol risk-parity; meme-coin satellites failed +1h shift; 1d structural laggard shorts made +22.4% in bear year (zero-borrow) but lost full-period under Wallex 32.85%/yr borrow.</p>
+        <h2>9. Higher-Order Momentum, Tiered Sparse 38-Market Check &amp; Structural Bear Shorts</h2>
+        <p class="desc">2nd-order trend acceleration lifted BASE_13 (Sharpe 1.011 → 1.116, Bear -1.84% → +0.99%) and 8-feature GRU-Ignition (NBX16 +33.4% → +45.5%, SR 0.811). Static 50/50 &amp; 60/40 beat dynamic vol risk-parity; 1d structural laggard shorts made +22.4% in bear year (zero-borrow) but lost full-period under Wallex 32.85%/yr borrow.</p>
       </div>
     </div>
     <div class="canvas-wrap"><canvas id="c-ho"></canvas></div>
+  </section>
+
+  <!-- Panel 10: Unified v2 Champion vs. v1 Champion Single Shared-Ledger Verification -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>10. Unified v2 Champion vs. v1 Champion — Single Shared-Ledger Head-to-Head &amp; Parallel Forward Tracks</h2>
+        <p class="desc">Combines strictly the 6 verified ablation winners: 1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint Single-ADMM Cross-Sleeve Netting + 50/50 Twin-Phase 2h GRU (Exact Path-PnL) + Conformal/5% DD Leverage Governor.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-v2"></canvas></div>
+    <table id="t-v2"></table>
   </section>
 </main>
 
@@ -941,6 +957,45 @@ function drawHigherOrder() {{
   if (items.length) drawBarChart('c-ho', items, {{ fmt: v => v.toFixed(2), bottomPad: 74 }});
 }}
 
+// Panel 10: Unified v2 Champion vs v1 Champion
+function drawV2Champion() {{
+  const v2 = DATA.v2_verify || {{}};
+  const arms = (v2.arms || []).filter(a => a.name.endsWith('NBX16'));
+  const items = arms.map(a => ({{
+    label: a.name.replace('_NBX16', '').replace('V2_', ''),
+    val: a.full.ann_sharpe,
+    color: a.name.startsWith('V2_') ? '#22c55e' : a.name.startsWith('V1_') ? '#38bdf8' : '#64748b',
+    tip: `${{a.name}}\nNAV: $${{a.full.ending_nav}} (${{a.full.ret_pct >= 0 ? '+' : ''}}${{a.full.ret_pct}}%)\nBear Stress: ${{a.stress.ret_pct >= 0 ? '+' : ''}}${{a.stress.ret_pct}}%\nSharpe: ${{a.full.ann_sharpe}} · MaxDD: ${{a.full.max_dd_pct}}%\nFills: ${{a.fills}} · Fees: $${{a.fees_usdt}} · vs v1: ${{a.vs_v1_bps >= 0 ? '+' : ''}}${{a.vs_v1_bps}} bps/d`,
+  }}));
+  if (items.length) drawBarChart('c-v2', items, {{ fmt: v => v.toFixed(2), bottomPad: 82 }});
+
+  const f1 = DATA.forward_score || {{}};
+  const f2 = DATA.v2_forward_score || {{}};
+  document.getElementById('t-v2').innerHTML = `
+    <thead><tr><th>Parallel Live Forward Track (DISARMED)</th><th>Status</th><th>Days (Snaps)</th><th>Paper NAV</th><th>e-Process</th><th>Cash Weight</th><th>Live NBX / WLX Spread</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>v1 Champion: 70% BASE_13 (XAUT) + 30% 2h GRU6</td>
+        <td class="acc">${{f1.status || 'PENDING'}}</td>
+        <td>${{f1.forward_days || 0}} (${{f1.observations || 0}})</td>
+        <td>$${{(f1.paper_nav || 1000).toFixed(2)}}</td>
+        <td>${{(f1.e_process || 1).toFixed(4)}}</td>
+        <td>${{((f1.latest_cash_weight ?? 1) * 100).toFixed(1)}}%</td>
+        <td>${{f1.median_live_nobitex_spread_bps ?? '—'}} / ${{f1.median_live_wallex_spread_bps ?? '—'}} bps</td>
+      </tr>
+      <tr class="leader-row">
+        <td>v2 Champion: 70% ACCEL+Metals + Joint ADMM + 30% Twin GRU11 Path-PnL (Conformal/DD)</td>
+        <td class="pos">${{f2.status || 'PENDING'}}</td>
+        <td>${{f2.forward_days || 0}} (${{f2.observations || 0}})</td>
+        <td>$${{(f2.paper_nav || 1000).toFixed(2)}}</td>
+        <td>${{(f2.e_process || 1).toFixed(4)}}</td>
+        <td>${{((f2.latest_cash_weight ?? 1) * 100).toFixed(1)}}%</td>
+        <td>${{f2.median_live_nobitex_spread_bps ?? '—'}} / ${{f2.median_live_wallex_spread_bps ?? '—'}} bps</td>
+      </tr>
+    </tbody>
+  `;
+}}
+
 function drawAll() {{
   drawHistogram();
   drawStrategies();
@@ -953,6 +1008,7 @@ function drawAll() {{
   drawOrthogonal();
   drawSmartAndForward();
   drawHigherOrder();
+  drawV2Champion();
 }}
 window.addEventListener('resize', drawAll);
 drawAll();

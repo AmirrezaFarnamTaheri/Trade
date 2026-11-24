@@ -16,9 +16,10 @@ $ErrorActionPreference = 'Stop'
 
 $leaderTask = 'TradingGYM S1-S5 Leader Journal'
 $champTask = 'TradingGYM Champion Forward Journal'
+$champV2Task = 'TradingGYM Champion V2 Forward Journal'
 
 if ($Uninstall) {
-    foreach ($t in @($leaderTask, $champTask)) {
+    foreach ($t in @($leaderTask, $champTask, $champV2Task)) {
         if ($PSCmdlet.ShouldProcess($t, 'Unregister scheduled task')) {
             Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
         }
@@ -77,4 +78,27 @@ $champTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -Rep
 if ($PSCmdlet.ShouldProcess($champTask, "Register every 2h -> $champJournal")) {
     Register-ScheduledTask -TaskName $champTask -Action $champAction -Trigger $champTrigger -Settings $settings -Principal $principal -Force | Out-Null
     Write-Output "Registered '$champTask' every 2 hours (gold=$GoldSymbol) -> $champJournal."
+}
+
+# 3. Hourly Parallel v2 Champion Forward Journal (1d ACCEL+Metals + Joint ADMM + Twin-Phase 11-feat Path-PnL GRU)
+$v2Script = Join-Path $core 'scripts\record_champion_v2_journal.py'
+$v2Journal = Join-Path $data 'live\allocation\champion-v2-journal.jsonl'
+$v2Model = Join-Path $data 'live\models\gru-ignition-v2-pathpnl.json'
+$v2Reg = Join-Path $evid '2026-11-25-champion-v2-registration.json'
+$v2Score = Join-Path $evid '2026-11-25-champion-v2-forward-score.json'
+$v2Args = @(
+    '-I', '-B', "`"$v2Script`"",
+    '--db', "`"$dbPath`"",
+    '--multi-venue-db', "`"$mvPath`"",
+    '--journal', "`"$v2Journal`"",
+    '--model', "`"$v2Model`"",
+    '--registration', "`"$v2Reg`"",
+    '--score-out', "`"$v2Score`""
+)
+$v2Action = New-ScheduledTaskAction -Execute $python -Argument ($v2Args -join ' ') -WorkingDirectory $core
+$v2Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(4) -RepetitionInterval (New-TimeSpan -Hours 1)
+
+if ($PSCmdlet.ShouldProcess($champV2Task, "Register hourly -> $v2Journal")) {
+    Register-ScheduledTask -TaskName $champV2Task -Action $v2Action -Trigger $v2Trigger -Settings $settings -Principal $principal -Force | Out-Null
+    Write-Output "Registered '$champV2Task' hourly (twin 0h+1h phase) -> $v2Journal."
 }

@@ -149,8 +149,10 @@ def run_operational_health_check(
         "multi_venue_db": _check_multi_venue_db(live / "multi_venue_quotes.sqlite3", ts_now),
         "s1_s5_leader_journal": _check_jsonl_file(live / "allocation" / "s1-s5-leader-journal.jsonl", ts_now),
         "champion_ensemble_journal": _check_jsonl_file(live / "allocation" / "champion-ensemble-journal.jsonl", ts_now),
+        "champion_v2_journal": _check_jsonl_file(live / "allocation" / "champion-v2-journal.jsonl", ts_now),
         "mix_journal_v2": _check_jsonl_file(live / "allocation" / "mix-journal-v2.jsonl", ts_now),
         "gru_ignition_model": _check_frozen_model(live / "models" / "gru-ignition-v1.json"),
+        "gru_ignition_v2_model": _check_frozen_model(live / "models" / "gru-ignition-v2-pathpnl.json"),
     }
     statuses = [c["status"] for c in checks.values()]
     overall = "FAIL" if "FAIL" in statuses else ("WARN" if any(s in ("WARN", "MISSING", "EMPTY") for s in statuses) else "OK")

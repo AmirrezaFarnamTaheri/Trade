@@ -109,11 +109,12 @@ def test_operational_health_watchdog_reports_ok_on_fresh_fixtures(tmp_path: Path
     mv.close()
 
     # Fresh journals + frozen GRU weights
-    for fn in ("s1-s5-leader-journal.jsonl", "champion-ensemble-journal.jsonl", "mix-journal-v2.jsonl"):
+    for fn in ("s1-s5-leader-journal.jsonl", "champion-ensemble-journal.jsonl", "champion-v2-journal.jsonl", "mix-journal-v2.jsonl"):
         (live / "allocation" / fn).write_text(json.dumps({"as_of": fresh_iso}) + "\n", encoding="utf-8")
-    (live / "models" / "gru-ignition-v1.json").write_text(
-        json.dumps({"schema": "ensemble-gru-weights/1", "n_models": 3, "models": []}), encoding="utf-8",
-    )
+    for mfn in ("gru-ignition-v1.json", "gru-ignition-v2-pathpnl.json"):
+        (live / "models" / mfn).write_text(
+            json.dumps({"schema": "ensemble-gru-weights/1", "n_models": 3, "models": []}), encoding="utf-8",
+        )
 
     rep = run_operational_health_check(tmp_path / "data", tmp_path / "evidence", now=now)
     assert rep["overall_status"] == "OK"

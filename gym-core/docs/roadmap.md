@@ -8,15 +8,15 @@ The [trial log](trial-log.md) holds the answer so far. This page lists open work
 To keep engineering focused on untouched forward evidence and execution efficiency rather than backtest overfitting:
 
 - **Live observation infrastructure running:** 40-market Wallex collector (`core-40-wallex`, 2 WS shards, `--depth-levels 5`), 20-symbol Nobitex live order-book recorder (`TradingGYM Multi-Venue Recorder` → `data/live/multi_venue_quotes.sqlite3`), and read-only operational health watchdog (`scripts/check_operational_health.py`).
-- **Frozen v1 Champion prospective forward tracking active (zero order authority):**
-  - `TradingGYM Champion Forward Journal` (every 2h): frozen `70% BASE_13_S1_S5 (XAUT) + 30% 2h GRU-Ignition` (`data/live/models/gru-ignition-v1.json`) with live Wallex/Nobitex spread telemetry and sequential `e_process` scoring.
+- **Frozen v1 & parallel v2 Champion prospective forward tracking active (zero order authority):**
+  - `TradingGYM Champion Forward Journal` (every 2h): frozen v1 `70% BASE_13_S1_S5 (XAUT) + 30% 2h GRU-Ignition` (`data/live/models/gru-ignition-v1.json`) with live Wallex/Nobitex spread telemetry and sequential `e_process` scoring.
+  - `TradingGYM Champion V2 Forward Journal` (hourly, twin `0h+1h` phase): frozen parallel v2 (`1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint ADMM Netting + 50/50 Twin-Phase 2h GRU11 Path-PnL + Conformal/5% DD Leverage Governor`, `data/live/models/gru-ignition-v2-pathpnl.json`).
   - `TradingGYM S1-S5 Leader Journal` (daily `03:55`): standalone 13-asset `S1+S5 + ADMM` baseline.
   - Background monitors retained unchanged: `mix-journal-v2`, `breadth-trend-forward`, `btc-daily-trend` (`allocation/journal.jsonl`).
-- **Decisively retired dead ends (do not re-run):** hourly `ema-trend 8/21`, `S2` residual momentum (raw & hysteresis), `S3` panic reversion, `S4` vol breakout, binary/continuous ML veto on `S1+S5`, flat 33-asset crypto ADMM dilution, intraday `2h`/`3h`/`6h` crash circuit breakers, sub-hourly `15m`/`30m` ignition, `2h` flush-rebound & dead-cat shorts, slow Wallex margin leverage/pairs (`32.85%/yr` borrow), and `GRU-Vol` ADMM covariance scaling.
-- **v2 research candidates (parked until v1 accumulates untouched forward days):**
-  1. **2nd-order momentum (trend acceleration):** lifted `BASE_13_S1_S5` (`Sharpe 1.011 → 1.116`, Bear `-1.84% → +0.99%`) and 8-feature `GRU-Ignition` (`AUC 0.5676 → 0.5712`, NBX16 `+33.4% → +45.5%`, WLX25 `+20.2% → +31.3%`).
-  2. **Non-price modalities:** global perpetual funding/OI feeds and local-vs-global venue basis.
-  3. **Standalone macro commodities sleeve (`PAXG/SLVON/USOON/COPXON/UNGON`):** positive & orthogonal (`+24.4%`, corr `+0.082`), waiting for `2+` years of tokenized ETF history.
+- **Decisively retired dead ends (do not re-run):** hourly `ema-trend 8/21`, `S2` residual momentum (raw & hysteresis), `S3` panic reversion, `S4` vol breakout, binary/continuous ML veto on `S1+S5`, flat 33-asset crypto ADMM dilution, intraday `2h`/`3h`/`6h` crash circuit breakers, sub-hourly `15m`/`30m` ignition, `2h` flush-rebound & dead-cat shorts, slow Wallex margin leverage/pairs (`32.85%/yr` borrow), `GRU-Vol` ADMM covariance scaling, Path-Efficiency IC modulation, Savitzky–Golay polynomial filters, `HRP` trend anchoring, two-tranche partial profit-locks, absorption-ratio slot throttling, and `2h` lead-lag diffusion.
+- **Future research candidates (strictly parked while v1 & v2 accumulate untouched forward days):**
+  1. **Non-price modalities:** global perpetual funding/OI feeds and local-vs-global venue basis.
+  2. **Standalone macro commodities sleeve (`PAXG/SLVON/USOON/COPXON/UNGON`):** positive & orthogonal (`+24.4%`, corr `+0.082`), waiting for `2+` years of tokenized ETF history.
 - **Frozen until Gate G2 passes:** 373-market whole-catalogue sweeps, new EN/FA UI views, and Rust executor changes (`DISARMED`). Full architecture spec: [profitable-system-plan.md](../../docs/profitable-system-plan.md).
 
 ## Evidence
