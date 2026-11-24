@@ -11,12 +11,15 @@ Runs read-only against data/live/market.db and outputs a reproducible decision p
 from __future__ import annotations
 
 import argparse
-import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+from gym.adapters.candle_reader import (
+    load_book_and_trades,
+    open_readonly_market_db,
+)
 from gym.domain.execution_schedule import (
     causal_spread_quantile_bps,
     compare_execution_timing_arms,
@@ -26,7 +29,7 @@ from gym.domain.kalman_models import (
     KalmanBasisFilter,
     leave_one_out_fx_interval,
 )
-from gym.domain.model import BookTop, TradeTick, dec, parse_ts
+from gym.domain.model import BookTop, TradeTick, parse_ts
 from gym.domain.passive_execution import (
     DUPLICATE_MODES,
     PassiveOrderSpec,
@@ -45,70 +48,6 @@ CORE_TRIANGLE_SYMBOLS = (
     "PEPEUSDT", "PEPETMN",
     "USDTTMN",
 )
-
-
-def _open_ro(db_path: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True, timeout=10.0)
-
-
-def _load_symbol_window(
-    con: sqlite3.Connection,
-    symbol: str,
-    since_iso: str,
-    *,
-    max_books: int = 8000,
-    max_trades: int = 12000,
-) -> tuple[list[BookTop], list[TradeTick]]:
-    row = con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (symbol,)).fetchone()
-    if row is None:
-        return [], []
-    inst_id = row[0]
-    b_rows = con.execute(
-        "SELECT ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
-        "FROM book_top WHERE instrument_id = ? AND ts_avail >= ? "
-        "ORDER BY ts_avail DESC LIMIT ?",
-        (inst_id, since_iso, max_books),
-    ).fetchall()
-    b_rows.reverse()
-    books: list[BookTop] = []
-    for ts_a, bid, ask, bq, aq, flags_raw, depth_raw in b_rows:
-        depth = json.loads(depth_raw) if depth_raw else None
-        flags = frozenset(f.strip() for f in str(flags_raw).split(",") if f.strip()) if flags_raw else frozenset()
-        books.append(
-            BookTop(
-                symbol=symbol,
-                ts_avail=parse_ts(ts_a),
-                bid=dec(bid) if bid is not None else None,
-                ask=dec(ask) if ask is not None else None,
-                bid_qty=dec(bq) if bq is not None else None,
-                ask_qty=dec(aq) if aq is not None else None,
-                flags=flags,
-                depth=depth,
-            )
-        )
-
-    t_rows = con.execute(
-        "SELECT ts_event, ts_avail, price, qty, aggressor "
-        "FROM trades WHERE instrument_id = ? AND ts_avail >= ? "
-        "ORDER BY ts_avail DESC LIMIT ?",
-        (inst_id, since_iso, max_trades),
-    ).fetchall()
-    t_rows.reverse()
-    trades: list[TradeTick] = []
-    for ts_e, ts_a, px, qty, agg in t_rows:
-        if px is None or qty is None:
-            continue
-        trades.append(
-            TradeTick(
-                symbol=symbol,
-                ts_event=parse_ts(ts_e),
-                ts_avail=parse_ts(ts_a),
-                price=dec(px),
-                qty=dec(qty),
-                aggressor=str(agg),
-            )
-        )
-    return books, trades
 
 
 def _coverage_matrix(con: sqlite3.Connection, since_iso: str) -> list[dict]:
@@ -242,7 +181,7 @@ def _passive_experiment_0(
 
 
 def run_experiment_0(db_path: Path, report_path: Path, *, lookback_hours: int = 72) -> dict:
-    con = _open_ro(db_path)
+    con = open_readonly_market_db(db_path)
     try:
         latest_row = con.execute("SELECT MAX(ts_avail) FROM book_top").fetchone()
         latest_ts = parse_ts(latest_row[0]) if latest_row and latest_row[0] else datetime.now(UTC)
@@ -256,7 +195,7 @@ def run_experiment_0(db_path: Path, report_path: Path, *, lookback_hours: int = 
         overlay_rows: list[dict] = []
 
         for sym in CORE_TRIANGLE_SYMBOLS:
-            b, t = _load_symbol_window(con, sym, since_iso)
+            b, t = load_book_and_trades(con, sym, since_iso)
             books_map[sym] = b
             trades_map[sym] = t
             if not b:

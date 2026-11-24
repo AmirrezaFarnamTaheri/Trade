@@ -101,7 +101,7 @@ class SelfFinancingLedger:
             elif delta_qty > 0:
                 buys.append((sym, delta_qty, px))
 
-        # 1. Execute SELLS first to free quote cash
+        # Sells run first so freed quote cash can fund buys in the same rebalance.
         for sym, qty, px in sells:
             gross_quote = qty * px
             fee_quote = gross_quote * self.fee_rate
@@ -115,7 +115,6 @@ class SelfFinancingLedger:
             self.fills.append(fill)
             step_fills.append(fill)
 
-        # 2. Execute BUYS strictly bounded by available free cash
         for sym, qty, px in buys:
             gross_quote = qty * px
             if self.fee_in_received_asset:

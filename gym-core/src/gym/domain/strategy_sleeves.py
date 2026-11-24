@@ -94,7 +94,6 @@ def compute_slow_sleeves(
     output: dict[datetime, dict[str, SleeveSignal]] = {}
 
     for ts in all_ts:
-        # 1. Update per-symbol causal features
         s1_map: dict[str, float | None] = {}
         above50_map: dict[str, bool | None] = {}
         vol_map: dict[str, float] = {}
@@ -121,7 +120,7 @@ def compute_slow_sleeves(
             if sym != gold_symbol and bar.entry_eligible and above50 is not None:
                 active_crypto.append(sym)
 
-        # 2. Cross-market crypto breadth (strictly excluding gold & cash)
+        # Breadth excludes gold and cash so defensive assets do not mask crypto weakness.
         breadth: float | None = None
         if len(active_crypto) >= min_active_crypto:
             breadth = sum(1 for s in active_crypto if above50_map[s] is True) / len(active_crypto)
@@ -131,7 +130,6 @@ def compute_slow_sleeves(
             if active_crypto else 1.0
         )
         down_ratio_hist.append(avg_down_ratio)
-        # Trailing top-decile downside vol spike (causal)
         if len(down_ratio_hist) >= 30:
             trailing = sorted(down_ratio_hist[-180:])
             p90_down = trailing[int(0.90 * (len(trailing) - 1))]
@@ -139,7 +137,6 @@ def compute_slow_sleeves(
         else:
             vol_spike = False
 
-        # 3. S2: BTC-beta-neutral 30-day residual momentum ranked across eligible crypto symbols
         s2_map: dict[str, float | None] = {s: None for s in symbols}
         btc_rets = ret_hist.get(btc_symbol, [])
         if len(active_crypto) >= min_active_crypto and len(btc_rets) >= 30:
@@ -163,7 +160,6 @@ def compute_slow_sleeves(
                     own_pos = sum(ret_hist[sym][-30:]) >= 0.0
                     s2_map[sym] = _clamp1(z / 2.0) if (z > 0 and own_pos) else min(0.0, _clamp1(z / 2.0))
 
-        # 4. S5: Portfolio-wide defensive gold/cash rotation when breadth < 0.35 or downside vol spikes
         defensive_intensity = 0.0
         if breadth is not None and breadth < 0.35:
             defensive_intensity = min(1.0, (0.35 - breadth) / 0.35 + (0.25 if vol_spike else 0.0))

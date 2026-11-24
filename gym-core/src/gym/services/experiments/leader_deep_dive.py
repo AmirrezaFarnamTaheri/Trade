@@ -8,7 +8,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from ...adapters.candle_reader import load_keyed_candles, open_readonly_market_db
+from ...adapters.candle_reader import (
+    load_book_and_trades,
+    load_keyed_candles,
+    open_readonly_market_db,
+)
 from ...domain.execution_schedule import (
     causal_spread_quantile_bps,
     compare_execution_timing_arms,
@@ -17,7 +21,7 @@ from ...domain.leader_attribution import (
     apply_s2_incumbent_hysteresis,
     decompose_factor_attribution,
 )
-from ...domain.model import BookTop, TradeTick, dec, parse_ts
+from ...domain.model import parse_ts
 from ...domain.paper_ledger import SelfFinancingLedger
 from ...domain.statistical_inference import paired_baseline_uplift
 from ...domain.strategy_sleeves import SleeveSignal, compute_slow_sleeves
@@ -73,7 +77,6 @@ def _run_rule_based_entry_exit(
         day_sigs = signals.get(t_avail, {})
         exec_prices, tradable = _exec_prices_and_tradable(by_sym_start, by_sym_avail, t_avail)
 
-        # 1. Advance age & process exits
         for sym in list(held_age):
             held_age[sym] += 1
             sig = day_sigs.get(sym)
@@ -85,7 +88,6 @@ def _run_rule_based_entry_exit(
             if should_exit:
                 del held_age[sym]
 
-        # 2. Identify real S1+S5 entry triggers (score > 0.15 among non-held tradables)
         real_entries = [
             sym
             for sym in COHORT_SYMBOLS
@@ -104,7 +106,6 @@ def _run_rule_based_entry_exit(
         for sym in chosen:
             held_age[sym] = 0
 
-        # 3. Equal-weight held positions capped at 0.25/asset and 0.95 total
         n_held = len(held_age)
         w_each = min(0.25, 0.95 / n_held) if n_held > 0 else 0.0
         targets = {s: (w_each if s in held_age else 0.0) for s in COHORT_SYMBOLS}
@@ -138,58 +139,6 @@ def _average_seeded_cells(cells: list[dict]) -> dict:
     }
 
 
-def _load_book_and_trades(
-    con,
-    symbol: str,
-    since_iso: str,
-    *,
-    max_books: int = 8000,
-    max_trades: int = 12000,
-) -> tuple[list[BookTop], list[TradeTick]]:
-    row = con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (symbol,)).fetchone()
-    if row is None:
-        return [], []
-    inst_id = row[0]
-    b_rows = con.execute(
-        "SELECT ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
-        "FROM book_top WHERE instrument_id = ? AND ts_avail >= ? ORDER BY ts_avail DESC LIMIT ?",
-        (inst_id, since_iso, max_books),
-    ).fetchall()
-    b_rows.reverse()
-    books = [
-        BookTop(
-            symbol=symbol,
-            ts_avail=parse_ts(ts_a),
-            bid=dec(bid) if bid is not None else None,
-            ask=dec(ask) if ask is not None else None,
-            bid_qty=dec(bq) if bq is not None else None,
-            ask_qty=dec(aq) if aq is not None else None,
-            flags=frozenset(f.strip() for f in str(flags_raw).split(",") if f.strip()) if flags_raw else frozenset(),
-            depth=json.loads(depth_raw) if depth_raw else None,
-        )
-        for ts_a, bid, ask, bq, aq, flags_raw, depth_raw in b_rows
-    ]
-    t_rows = con.execute(
-        "SELECT ts_event, ts_avail, price, qty, aggressor "
-        "FROM trades WHERE instrument_id = ? AND ts_avail >= ? ORDER BY ts_avail DESC LIMIT ?",
-        (inst_id, since_iso, max_trades),
-    ).fetchall()
-    t_rows.reverse()
-    trades = [
-        TradeTick(
-            symbol=symbol,
-            ts_event=parse_ts(ts_e),
-            ts_avail=parse_ts(ts_a),
-            price=dec(px),
-            qty=dec(qty),
-            aggressor=str(agg),
-        )
-        for ts_e, ts_a, px, qty, agg in t_rows
-        if px is not None and qty is not None
-    ]
-    return books, trades
-
-
 def _run_causal_execution_study(con, *, lookback_hours: int = 72, samples_per_side: int = 12) -> list[dict]:
     latest_row = con.execute("SELECT MAX(ts_avail) FROM book_top").fetchone()
     latest_ts = parse_ts(latest_row[0]) if latest_row and latest_row[0] else datetime.now(UTC)
@@ -198,7 +147,7 @@ def _run_causal_execution_study(con, *, lookback_hours: int = 72, samples_per_si
     rows: list[dict] = []
 
     for sym in EXECUTION_USDT_SYMBOLS:
-        books, trades = _load_book_and_trades(con, sym, since_iso)
+        books, trades = load_book_and_trades(con, sym, since_iso)
         valid = [b for b in books if b.bid and b.ask and b.bid > 0 and b.ask > 0]
         if len(valid) < 80:
             continue
