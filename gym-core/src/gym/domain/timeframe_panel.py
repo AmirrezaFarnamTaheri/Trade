@@ -123,3 +123,57 @@ def resample_hourly_to_bucket(
             )
         )
     return out
+
+
+def resample_1min_to_minutes(
+    minute_bars: list[BarPoint],
+    minutes: int,
+    *,
+    offset_minutes: int = 0,
+) -> list[BarPoint]:
+    """Lossless UTC-aligned resampling of 1min bars into 5m/15m/30m buckets with completeness tracking."""
+    if minutes not in (5, 15, 30):
+        raise ValueError("minutes must be one of (5, 15, 30)")
+    if not (0 <= offset_minutes < minutes):
+        raise ValueError("offset_minutes must satisfy 0 <= offset_minutes < minutes")
+    if not minute_bars:
+        return []
+
+    step_s = minutes * 60
+    off_s = offset_minutes * 60
+    buckets: dict[datetime, list[BarPoint]] = {}
+    for bar in sorted(minute_bars, key=lambda b: b.ts_start):
+        ep = int(bar.ts_start.timestamp())
+        shifted = ((ep - off_s) // step_s) * step_s + off_s
+        b_start = datetime.fromtimestamp(shifted, tz=bar.ts_start.tzinfo)
+        buckets.setdefault(b_start, []).append(bar)
+
+    out: list[BarPoint] = []
+    stale_age = 0
+    for b_start in sorted(buckets):
+        sub = buckets[b_start]
+        complete = len(sub) >= max(1, int(0.8 * minutes))
+        nz = sum(1 for x in sub if x.volume > 0)
+        nz_frac = nz / len(sub)
+        vol = sum(x.volume for x in sub)
+        has_trade = vol > 0.0
+        stale_age = 0 if has_trade else stale_age + 1
+        out.append(
+            BarPoint(
+                symbol=sub[0].symbol,
+                ts_start=b_start,
+                ts_avail=b_start + timedelta(minutes=minutes),
+                open=sub[0].open,
+                high=max(x.high for x in sub),
+                low=min(x.low for x in sub),
+                close=sub[-1].close,
+                volume=vol,
+                bar_source="RESAMPLED_1M",
+                clock_complete=complete,
+                nonzero_volume_fraction=nz_frac,
+                last_trade_age_bars=stale_age,
+                entry_eligible=(complete and has_trade and nz_frac >= 0.3),
+                mark_status="FRESH" if has_trade else "STALE_MARK",
+            )
+        )
+    return out

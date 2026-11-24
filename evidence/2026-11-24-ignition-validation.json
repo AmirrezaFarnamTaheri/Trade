@@ -1,0 +1,518 @@
+{
+  "generated_at": "2026-11-24T19:21:38.225388+00:00",
+  "correlation_s1s5_vs_ignition1h": {
+    "full_1043d": 0.183,
+    "bear_stress_366d": 0.2251
+  },
+  "part1_ignition_spread_stress": [
+    {
+      "label": "IGNITION_1H_FEE13",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 13.0,
+      "days": 1043,
+      "ending_nav": 1199.56,
+      "ret_pct": 19.96,
+      "ann_sharpe": 0.712,
+      "max_dd_pct": 9.67,
+      "entries": 138,
+      "win_rate_pct": 40.6,
+      "fees_usdt": 123.83
+    },
+    {
+      "label": "IGNITION_1H_NOBITEX_ALLIN_16BPS",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1170.21,
+      "ret_pct": 17.02,
+      "ann_sharpe": 0.623,
+      "max_dd_pct": 10.26,
+      "entries": 138,
+      "win_rate_pct": 39.9,
+      "fees_usdt": 150.47
+    },
+    {
+      "label": "IGNITION_1H_WALLEX_ALLIN_25BPS",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1086.18,
+      "ret_pct": 8.62,
+      "ann_sharpe": 0.351,
+      "max_dd_pct": 12.02,
+      "entries": 138,
+      "win_rate_pct": 38.4,
+      "fees_usdt": 226.28
+    },
+    {
+      "label": "IGNITION_2H_0H_NOBITEX_16BPS",
+      "bucket_hours": 2,
+      "offset_hours": 0,
+      "fee_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1198.19,
+      "ret_pct": 19.82,
+      "ann_sharpe": 0.668,
+      "max_dd_pct": 9.79,
+      "entries": 106,
+      "win_rate_pct": 38.7,
+      "fees_usdt": 114.52
+    },
+    {
+      "label": "IGNITION_2H_1H_SHIFT_NOBITEX_16BPS",
+      "bucket_hours": 2,
+      "offset_hours": 1,
+      "fee_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1293.13,
+      "ret_pct": 29.31,
+      "ann_sharpe": 1.064,
+      "max_dd_pct": 6.83,
+      "entries": 100,
+      "win_rate_pct": 35.0,
+      "fees_usdt": 116.54
+    },
+    {
+      "label": "IGNITION_2H_0H_WALLEX_25BPS",
+      "bucket_hours": 2,
+      "offset_hours": 0,
+      "fee_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1131.27,
+      "ret_pct": 13.13,
+      "ann_sharpe": 0.471,
+      "max_dd_pct": 11.43,
+      "entries": 106,
+      "win_rate_pct": 38.7,
+      "fees_usdt": 173.8
+    },
+    {
+      "label": "IGNITION_2H_1H_SHIFT_WALLEX_25BPS",
+      "bucket_hours": 2,
+      "offset_hours": 1,
+      "fee_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1225.01,
+      "ret_pct": 22.5,
+      "ann_sharpe": 0.855,
+      "max_dd_pct": 7.61,
+      "entries": 100,
+      "win_rate_pct": 33.0,
+      "fees_usdt": 177.01
+    }
+  ],
+  "part2_shared_ledger_blend": [
+    {
+      "name": "SOLO_100_S1_S5_FEE13",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1157.61,
+        "ret_pct": 15.76,
+        "ann_sharpe": 0.413,
+        "max_dd_pct": 11.93
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1157.61,
+        "ret_pct": -2.71,
+        "ann_sharpe": -0.156,
+        "max_dd_pct": 11.93
+      },
+      "fills": 570,
+      "fees_usdt": 18.23,
+      "turnover": 14.02,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_30_S1S5_IGN1H_FEE13",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1176.95,
+        "ret_pct": 17.69,
+        "ann_sharpe": 0.555,
+        "max_dd_pct": 9.29
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1176.95,
+        "ret_pct": -1.3,
+        "ann_sharpe": -0.074,
+        "max_dd_pct": 9.29
+      },
+      "fills": 844,
+      "fees_usdt": 49.6,
+      "turnover": 38.15,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 2.1290334978581445e-06,
+        "ci_95": [
+          -0.00013039021766069898,
+          0.00013303115379345666
+        ],
+        "bootstrap_se": 6.861000996914432e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "BLEND_80_20_S1S5_IGN1H_FEE13",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1171.45,
+        "ret_pct": 17.15,
+        "ann_sharpe": 0.504,
+        "max_dd_pct": 9.96
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1171.45,
+        "ret_pct": -1.98,
+        "ann_sharpe": -0.129,
+        "max_dd_pct": 9.96
+      },
+      "fills": 871,
+      "fees_usdt": 39.15,
+      "turnover": 30.11,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 1.2934975573974938e-06,
+        "ci_95": [
+          -9.475653441851142e-05,
+          9.60713715842579e-05
+        ],
+        "bootstrap_se": 4.881085920517407e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "SOLO_100_S1_S5_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1153.29,
+        "ret_pct": 15.33,
+        "ann_sharpe": 0.404,
+        "max_dd_pct": 11.96
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1153.29,
+        "ret_pct": -2.84,
+        "ann_sharpe": -0.167,
+        "max_dd_pct": 11.96
+      },
+      "fills": 570,
+      "fees_usdt": 22.39,
+      "turnover": 14.0,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_30_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1165.24,
+        "ret_pct": 16.52,
+        "ann_sharpe": 0.525,
+        "max_dd_pct": 9.36
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1165.24,
+        "ret_pct": -1.68,
+        "ann_sharpe": -0.112,
+        "max_dd_pct": 9.36
+      },
+      "fills": 843,
+      "fees_usdt": 60.73,
+      "turnover": 37.95,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -3.905543392666047e-06,
+        "ci_95": [
+          -0.00013657233472113946,
+          0.00013001153358077706
+        ],
+        "bootstrap_se": 6.883866649715175e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "SOLO_100_S1_S5_WALLEX_25BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1138.84,
+        "ret_pct": 13.88,
+        "ann_sharpe": 0.375,
+        "max_dd_pct": 12.15
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1138.84,
+        "ret_pct": -3.36,
+        "ann_sharpe": -0.208,
+        "max_dd_pct": 12.15
+      },
+      "fills": 568,
+      "fees_usdt": 34.75,
+      "turnover": 13.9,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_30_WALLEX_25BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1130.74,
+        "ret_pct": 13.07,
+        "ann_sharpe": 0.434,
+        "max_dd_pct": 9.53
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1130.74,
+        "ret_pct": -2.82,
+        "ann_sharpe": -0.226,
+        "max_dd_pct": 9.53
+      },
+      "fills": 843,
+      "fees_usdt": 93.4,
+      "turnover": 37.36,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -2.0855248977655238e-05,
+        "ci_95": [
+          -0.0001550358693779912,
+          0.00011572028900834668
+        ],
+        "bootstrap_se": 6.977946298330272e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  ],
+  "part3_true_intraday_3h_exit": [
+    {
+      "name": "BASE_3H_CLOCK_NO_EXIT_FEE13",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1156.91,
+        "ret_pct": 15.69,
+        "ann_sharpe": 0.419,
+        "max_dd_pct": 10.39
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1156.91,
+        "ret_pct": -2.1,
+        "ann_sharpe": -0.118,
+        "max_dd_pct": 9.28
+      },
+      "fills": 613,
+      "fees_usdt": 18.13,
+      "turnover": 13.95,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "TRUE_INTRADAY_3H_EXIT_0H_FEE13",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1056.04,
+        "ret_pct": 5.6,
+        "ann_sharpe": 0.207,
+        "max_dd_pct": 11.95
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1056.04,
+        "ret_pct": -2.67,
+        "ann_sharpe": -0.17,
+        "max_dd_pct": 10.45
+      },
+      "fills": 800,
+      "fees_usdt": 59.37,
+      "turnover": 45.67,
+      "intraday_exits": 270,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -9.102438786538196e-05,
+        "ci_95": [
+          -0.00022233181010219115,
+          1.2040340104251014e-05
+        ],
+        "bootstrap_se": 6.169323729056196e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "TRUE_INTRADAY_3H_EXIT_1H_SHIFT_FEE13",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1000.0,
+        "ret_pct": 0.0,
+        "ann_sharpe": 0.0,
+        "max_dd_pct": 0.0
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1000.0,
+        "ret_pct": 0.0,
+        "ann_sharpe": 0.0,
+        "max_dd_pct": 0.0
+      },
+      "fills": 0,
+      "fees_usdt": 0.0,
+      "turnover": 0.0,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -0.00016981077707255764,
+        "ci_95": [
+          -0.0005760749660452753,
+          0.00018986876878158122
+        ],
+        "bootstrap_se": 0.0001965408015964579,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "TRUE_INTRADAY_3H_EXIT_0H_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1042.4,
+        "ret_pct": 4.24,
+        "ann_sharpe": 0.174,
+        "max_dd_pct": 12.54
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1042.4,
+        "ret_pct": -3.22,
+        "ann_sharpe": -0.218,
+        "max_dd_pct": 10.63
+      },
+      "fills": 799,
+      "fees_usdt": 72.58,
+      "turnover": 45.36,
+      "intraday_exits": 270,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -0.00010342079859911118,
+        "ci_95": [
+          -0.000234895334325976,
+          8.811852660466135e-07
+        ],
+        "bootstrap_se": 6.262905156213745e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  ],
+  "crash_3h_bar_triggers": {
+    "offset_0h": 270,
+    "offset_1h": 284
+  }
+}
