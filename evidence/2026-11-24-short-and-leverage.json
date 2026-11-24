@@ -1,0 +1,623 @@
+{
+  "generated_at": "2026-11-24T19:34:30.077045+00:00",
+  "correlations": {
+    "s1s5_vs_short18_1x": -0.0227,
+    "s1s5_vs_short8_1x": -0.0488,
+    "long18_vs_short18": -0.0319
+  },
+  "part1_levered_long_ignition": [
+    {
+      "label": "LONG_IGN18_2H_1.0X_NBX16",
+      "side": "LONG",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1266.68,
+      "ret_pct": 26.67,
+      "stress_ret_pct": 6.8,
+      "ann_sharpe": 0.64,
+      "max_dd_pct": 13.51,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "liquidations": 0,
+      "avg_hold_hours": 20.3,
+      "total_borrow_usdt": 0.0,
+      "total_fees_usdt": 193.08
+    },
+    {
+      "label": "LONG_IGN18_2H_1.5X_NBX16",
+      "side": "LONG",
+      "leverage": 1.5,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1365.8,
+      "ret_pct": 36.58,
+      "stress_ret_pct": 8.53,
+      "ann_sharpe": 0.608,
+      "max_dd_pct": 19.87,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "liquidations": 0,
+      "avg_hold_hours": 20.3,
+      "total_borrow_usdt": 23.67,
+      "total_fees_usdt": 303.1
+    },
+    {
+      "label": "LONG_IGN18_2H_2.0X_NBX16",
+      "side": "LONG",
+      "leverage": 2.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1451.92,
+      "ret_pct": 45.19,
+      "stress_ret_pct": 9.66,
+      "ann_sharpe": 0.591,
+      "max_dd_pct": 25.81,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "liquidations": 0,
+      "avg_hold_hours": 20.3,
+      "total_borrow_usdt": 49.05,
+      "total_fees_usdt": 419.89
+    },
+    {
+      "label": "LONG_IGN18_2H_1.5X_1HSHIFT_NBX16",
+      "side": "LONG",
+      "leverage": 1.5,
+      "markets": 18,
+      "offset_hours": 1,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1198.3,
+      "ret_pct": 19.83,
+      "stress_ret_pct": 2.66,
+      "ann_sharpe": 0.411,
+      "max_dd_pct": 14.04,
+      "entries": 170,
+      "win_rate_pct": 37.1,
+      "liquidations": 0,
+      "avg_hold_hours": 19.7,
+      "total_borrow_usdt": 21.06,
+      "total_fees_usdt": 277.99
+    },
+    {
+      "label": "LONG_IGN18_2H_1.5X_WLX25",
+      "side": "LONG",
+      "leverage": 1.5,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1186.8,
+      "ret_pct": 18.68,
+      "stress_ret_pct": 2.34,
+      "ann_sharpe": 0.381,
+      "max_dd_pct": 22.38,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "liquidations": 0,
+      "avg_hold_hours": 20.3,
+      "total_borrow_usdt": 22.14,
+      "total_fees_usdt": 441.11
+    },
+    {
+      "label": "LONG_IGN18_2H_2.0X_WLX25",
+      "side": "LONG",
+      "leverage": 2.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1204.66,
+      "ret_pct": 20.47,
+      "stress_ret_pct": 1.41,
+      "ann_sharpe": 0.364,
+      "max_dd_pct": 29.52,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "liquidations": 0,
+      "avg_hold_hours": 20.3,
+      "total_borrow_usdt": 44.86,
+      "total_fees_usdt": 596.92
+    },
+    {
+      "label": "LONG_IGN8_2H_1.5X_NBX16",
+      "side": "LONG",
+      "leverage": 1.5,
+      "markets": 8,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1273.73,
+      "ret_pct": 27.37,
+      "stress_ret_pct": 7.22,
+      "ann_sharpe": 0.624,
+      "max_dd_pct": 15.15,
+      "entries": 106,
+      "win_rate_pct": 38.7,
+      "liquidations": 0,
+      "avg_hold_hours": 22.3,
+      "total_borrow_usdt": 15.23,
+      "total_fees_usdt": 178.29
+    }
+  ],
+  "part2_short_ignition": [
+    {
+      "label": "SHORT_IGN8_2H_1.0X_NBX16",
+      "side": "SHORT",
+      "leverage": 1.0,
+      "markets": 8,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 734.89,
+      "ret_pct": -26.51,
+      "stress_ret_pct": -28.56,
+      "ann_sharpe": -1.014,
+      "max_dd_pct": 29.92,
+      "entries": 145,
+      "win_rate_pct": 30.3,
+      "liquidations": 0,
+      "avg_hold_hours": 13.6,
+      "total_borrow_usdt": 20.99,
+      "total_fees_usdt": 130.61
+    },
+    {
+      "label": "SHORT_IGN8_2H_1.0X_1HSHIFT_NBX16",
+      "side": "SHORT",
+      "leverage": 1.0,
+      "markets": 8,
+      "offset_hours": 1,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 837.42,
+      "ret_pct": -16.26,
+      "stress_ret_pct": -18.35,
+      "ann_sharpe": -0.534,
+      "max_dd_pct": 22.92,
+      "entries": 159,
+      "win_rate_pct": 35.8,
+      "liquidations": 0,
+      "avg_hold_hours": 15.1,
+      "total_borrow_usdt": 25.36,
+      "total_fees_usdt": 143.51
+    },
+    {
+      "label": "SHORT_IGN8_2H_1.5X_NBX16",
+      "side": "SHORT",
+      "leverage": 1.5,
+      "markets": 8,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 625.88,
+      "ret_pct": -37.41,
+      "stress_ret_pct": -39.78,
+      "ann_sharpe": -1.008,
+      "max_dd_pct": 41.57,
+      "entries": 145,
+      "win_rate_pct": 30.3,
+      "liquidations": 0,
+      "avg_hold_hours": 13.6,
+      "total_borrow_usdt": 30.58,
+      "total_fees_usdt": 189.52
+    },
+    {
+      "label": "SHORT_IGN18_2H_1.0X_NBX16",
+      "side": "SHORT",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 688.76,
+      "ret_pct": -31.12,
+      "stress_ret_pct": -38.96,
+      "ann_sharpe": -0.742,
+      "max_dd_pct": 48.96,
+      "entries": 190,
+      "win_rate_pct": 31.6,
+      "liquidations": 0,
+      "avg_hold_hours": 15.3,
+      "total_borrow_usdt": 32.73,
+      "total_fees_usdt": 180.91
+    },
+    {
+      "label": "SHORT_IGN18_2H_1.0X_1HSHIFT_NBX16",
+      "side": "SHORT",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 1,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 654.82,
+      "ret_pct": -34.52,
+      "stress_ret_pct": -29.82,
+      "ann_sharpe": -0.984,
+      "max_dd_pct": 41.94,
+      "entries": 211,
+      "win_rate_pct": 34.6,
+      "liquidations": 0,
+      "avg_hold_hours": 16.8,
+      "total_borrow_usdt": 33.43,
+      "total_fees_usdt": 171.28
+    },
+    {
+      "label": "SHORT_IGN18_2H_1.5X_NBX16",
+      "side": "SHORT",
+      "leverage": 1.5,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 556.75,
+      "ret_pct": -44.33,
+      "stress_ret_pct": -52.55,
+      "ann_sharpe": -0.753,
+      "max_dd_pct": 63.85,
+      "entries": 190,
+      "win_rate_pct": 31.6,
+      "liquidations": 0,
+      "avg_hold_hours": 15.3,
+      "total_borrow_usdt": 48.53,
+      "total_fees_usdt": 267.36
+    },
+    {
+      "label": "SHORT_IGN18_2H_1.0X_WLX25",
+      "side": "SHORT",
+      "leverage": 1.0,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 621.38,
+      "ret_pct": -37.86,
+      "stress_ret_pct": -42.62,
+      "ann_sharpe": -0.959,
+      "max_dd_pct": 52.82,
+      "entries": 190,
+      "win_rate_pct": 28.4,
+      "liquidations": 0,
+      "avg_hold_hours": 15.3,
+      "total_borrow_usdt": 31.27,
+      "total_fees_usdt": 269.77
+    },
+    {
+      "label": "SHORT_IGN18_2H_1.5X_WLX25",
+      "side": "SHORT",
+      "leverage": 1.5,
+      "markets": 18,
+      "offset_hours": 0,
+      "cost_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 476.96,
+      "ret_pct": -52.3,
+      "stress_ret_pct": -56.77,
+      "ann_sharpe": -0.972,
+      "max_dd_pct": 67.89,
+      "entries": 190,
+      "win_rate_pct": 28.4,
+      "liquidations": 0,
+      "avg_hold_hours": 15.3,
+      "total_borrow_usdt": 45.46,
+      "total_fees_usdt": 390.63
+    }
+  ],
+  "part3_all_weather_blends": [
+    {
+      "name": "SOLO_100_S1S5_NBX16",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1153.29,
+        "ret_pct": 15.33,
+        "ann_sharpe": 0.404,
+        "max_dd_pct": 11.96
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1153.29,
+        "ret_pct": -2.84,
+        "ann_sharpe": -0.167,
+        "max_dd_pct": 11.96
+      },
+      "uplift_vs_solo": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_S1S5_30_LONG18_1.0X_NBX16",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1198.81,
+        "ret_pct": 19.93,
+        "ann_sharpe": 0.58,
+        "max_dd_pct": 8.57
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1198.81,
+        "ret_pct": 0.26,
+        "ann_sharpe": 0.08,
+        "max_dd_pct": 8.57
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 2.584529994899904e-05,
+        "ci_95": [
+          -0.00012246944870116232,
+          0.00016628618239996706
+        ],
+        "bootstrap_se": 7.202936263389017e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "BLEND_70_S1S5_30_LONG18_1.5X_NBX16",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1233.81,
+        "ret_pct": 23.43,
+        "ann_sharpe": 0.613,
+        "max_dd_pct": 8.6
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1233.81,
+        "ret_pct": 1.0,
+        "ann_sharpe": 0.142,
+        "max_dd_pct": 8.6
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 5.7818433894806106e-05,
+        "ci_95": [
+          -0.00012106576655620732,
+          0.0002422066263975791
+        ],
+        "bootstrap_se": 9.336977277462357e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "BLEND_70_S1S5_30_LONG18_2.0X_NBX16",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1267.84,
+        "ret_pct": 26.84,
+        "ann_sharpe": 0.63,
+        "max_dd_pct": 9.52
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1267.84,
+        "ret_pct": 1.7,
+        "ann_sharpe": 0.187,
+        "max_dd_pct": 8.64
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 8.947690549051804e-05,
+        "ci_95": [
+          -0.00012863104710125514,
+          0.0003345826717580286
+        ],
+        "bootstrap_se": 0.00011861005685551227,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "ALL_WEATHER_60_S1S5_25_LONG1.5X_15_SHORT1.0X_NBX16",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1138.55,
+        "ret_pct": 13.9,
+        "ann_sharpe": 0.449,
+        "max_dd_pct": 11.59
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1138.55,
+        "ret_pct": -6.14,
+        "ann_sharpe": -0.517,
+        "max_dd_pct": 9.66
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -2.5775748609105115e-05,
+        "ci_95": [
+          -0.00021970422049346144,
+          0.0001780039762440777
+        ],
+        "bootstrap_se": 0.000102555327618277,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "ALL_WEATHER_60_S1S5_25_LONG1.5X_15_SHORT1.5X_NBX16",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1108.96,
+        "ret_pct": 10.94,
+        "ann_sharpe": 0.365,
+        "max_dd_pct": 13.73
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1108.96,
+        "ret_pct": -9.45,
+        "ann_sharpe": -0.825,
+        "max_dd_pct": 11.12
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -5.02706348205453e-05,
+        "ci_95": [
+          -0.00025815934818461633,
+          0.00017563215159833358
+        ],
+        "bootstrap_se": 0.00011295923224320524,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "SOLO_100_S1S5_WLX25",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1138.84,
+        "ret_pct": 13.88,
+        "ann_sharpe": 0.375,
+        "max_dd_pct": 12.15
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1138.84,
+        "ret_pct": -3.36,
+        "ann_sharpe": -0.208,
+        "max_dd_pct": 12.15
+      },
+      "uplift_vs_solo": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_S1S5_30_LONG18_1.5X_WLX25",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1172.68,
+        "ret_pct": 17.33,
+        "ann_sharpe": 0.481,
+        "max_dd_pct": 9.19
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1172.68,
+        "ret_pct": -1.13,
+        "ann_sharpe": -0.022,
+        "max_dd_pct": 8.75
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 2.0986144678971733e-05,
+        "ci_95": [
+          -0.0001596356456526588,
+          0.00020119989669304528
+        ],
+        "bootstrap_se": 9.328157795706306e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "ALL_WEATHER_60_S1S5_25_LONG1.5X_15_SHORT1.0X_WLX25",
+      "full": {
+        "days": 1042,
+        "ending_nav": 1074.46,
+        "ret_pct": 7.49,
+        "ann_sharpe": 0.275,
+        "max_dd_pct": 13.06
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1074.46,
+        "ret_pct": -8.66,
+        "ann_sharpe": -0.758,
+        "max_dd_pct": 10.4
+      },
+      "uplift_vs_solo": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -6.94218986212497e-05,
+        "ci_95": [
+          -0.000267463771818056,
+          0.00013242297087390264
+        ],
+        "bootstrap_se": 0.00010323473872634177,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1041,
+          "block_length": 10,
+          "digest": "170e17a43835c777"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  ]
+}
