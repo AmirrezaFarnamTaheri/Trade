@@ -522,33 +522,17 @@ def _research_action_review(root, action, value, store, at):
 
 
 def _research_action_protocol_actions(root, action, value, store, at):
-    if action != "outcomes" and value is None:
-        raise ValueError("this action requires an input file or ID")
-    if action in ("outcomes", "final-run", "final-status", "screen", "derived", "unit-convert") and not (root / "research_protocol.sqlite3").is_file():
-        raise ValueError("research protocol is not initialized")
-    root.mkdir(parents=True, exist_ok=True)
-    with ResearchProtocol(root, store=store) as protocol:
-        if action == "outcomes":
-            return protocol.outcomes(parse_ts(at) if at else now_utc())
-        if action == "outcome-add":
-            return protocol.record_outcome(value)
-        if action == "final-register":
-            return protocol.register(value)
-        if action == "final-status":
-            return protocol.evaluation(value)
-        if action == "observe-import":
-            return protocol.ingest_observations(value)
-        if action == "screen":
-            return protocol.screen(value)
-        if action == "derived":
-            return derived_series(protocol, value)
-        if action == "unit-convert":
-            return convert_series(protocol, value)
-        db = _market_db(root)
-        try:
-            return protocol.consume(value, db)
-        finally:
-            db.c.close()
+    from .actions.protocol_handlers import handle_protocol_action
+    return handle_protocol_action(
+        root,
+        action,
+        value,
+        store,
+        at,
+        market_db_fn=_market_db,
+        derived_fn=derived_series,
+        convert_fn=convert_series,
+    )
 
 
 def _research_action_arm_policy(root, action, value, store, at):

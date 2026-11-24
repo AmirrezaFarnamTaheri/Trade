@@ -23,10 +23,15 @@ from ..domain.performance import trade_ledger
 from ..domain.portfolio_policy import PortfolioPolicy
 from ..domain.registry import create_strategy
 from ..domain.rules import closures, is_closed, tehran_day
-from ..domain.sim import CashBook, CostModel, sellable_quantity
+from ..domain.sim import CashBook, CostModel
 from ..domain.strategy import digest
 from .data_portal import DataPortal, curve_valuation
 from .portfolio_rank import PortfolioRank
+from .portfolio_replay.routing import (
+    configure_routes,
+    count_listed_routes,
+    select_route_for_base,
+)
 from .rules import RuleService
 from .session import ENGINE_VERSION, LIMIT_ENGINE_VERSION, PaperSession
 
@@ -321,72 +326,46 @@ class _Replay:
         )
 
     def _configure_routes(self, quotes):
-        owners = {}
-        self.route_candidates = defaultdict(list)
         margin_symbols = self.margin.symbols if self.margin else set()
         mixed = self.otc_fx.mixed if self.otc_fx else ()
-        mixed_bases = {route.base for route in mixed}
-        mixed_symbols = {route.symbol for route in mixed}
-        if (margin_symbols | mixed_symbols) - self.instruments.keys():
-            raise ValueError("margin and mixed spot execution require a selected portfolio symbol")
-        if margin_symbols & mixed_symbols:
-            raise ValueError("a mixed spot route cannot share its symbol with margin")
-        # Allocate one venue route per asset using opening balances and a stable currency/symbol preference.
-        for symbol in sorted(self.symbols, key=lambda s: (
-                not self.book.get(self.instruments[s].quote), self.instruments[s].quote != self.quote, s)):
-            inst = self.instruments[symbol]
-            if symbol in margin_symbols:
-                self.reference_routes[symbol] = {"reason": "MARGIN_POSITION", "trade_route": None}
-            elif inst.base in mixed_bases:
-                self.reference_routes[symbol] = {"reason": "MIXED_ROUTE_INTERMEDIATE", "trade_route": None}
-            elif inst.base in quotes:
-                self.reference_routes[symbol] = {"reason": "QUOTE_CURRENCY_REFERENCE", "trade_route": None}
-            elif inst.base in owners and not self.variable_routes:
-                self.reference_routes[symbol] = {"reason": "ALTERNATE_ROUTE", "trade_route": owners[inst.base]}
-            else:
-                owners[inst.base] = symbol
-                self.route_candidates[inst.base].append(symbol)
-        self.trade_routes = {} if self.variable_routes else owners
-        if not self.route_candidates:
-            raise ValueError("multi-currency replay requires at least one traded underlying")
-        self.quote_market_counts = {quote: sum(self.instruments[s].quote == quote
-                                              for choices in self.route_candidates.values() for s in choices)
-                                    for quote in quotes}
+        self.route_candidates, ref_routes, self.trade_routes, self.quote_market_counts = configure_routes(
+            symbols=self.symbols,
+            instruments=self.instruments,
+            quotes=quotes,
+            primary_quote=self.quote,
+            book=self.book,
+            margin_symbols=margin_symbols,
+            mixed_bases={route.base for route in mixed},
+            mixed_symbols={route.symbol for route in mixed},
+            variable_routes=self.variable_routes,
+        )
+        self.reference_routes.update(ref_routes)
 
     def _choose_routes(self, at):
         """Choose a freshly observed, funded route before scanning any symbol at this close."""
         for base, symbols in self.route_candidates.items():
-            if self.book.get(base) > 0 or any(self.sessions[s].pending for s in symbols):
-                continue
-            if self.entry_windows:
-                symbols = [s for s in symbols if s in self.listed]
-            if not self.dynamic_routes:
-                previous = self.trade_routes.get(base)
-                if previous not in symbols:
-                    choice = min(symbols, key=lambda s: (not self.book.get(self.instruments[s].quote),
-                                 self.instruments[s].quote != self.quote, s), default=None)
-                    self._set_route(base, choice, at)
-                continue
-            candidates = []
-            for symbol in symbols:
-                session, instrument = self.sessions[symbol], self.instruments[symbol]
-                top = session.last_quote
-                if (top is None or not qualified(top) or top.ts_avail >= at or "CLOSED" in top.flags
-                        or self.entry_windows and top.ts_avail < self.listed[symbol]
-                        or at - top.ts_avail > timedelta(seconds=120)
-                        or is_closed(self.rules_for(at), instrument, at)
-                        or top.ask_qty is None or top.ask_qty <= 0):
-                    continue
-                free = self.book.get(instrument.quote) - self.reserved_in(instrument.quote)
-                target = self.equity_in(instrument.quote) / self.quote_market_counts[instrument.quote]
-                clip = min(top.ask_qty * session.cost.max_participation, min(free, target) / top.ask)
-                if not sellable_quantity(clip, top.ask, self.portal.spec_at(symbol, at)):
-                    continue
-                fx = self.fx_mark.bid if instrument.quote == self.secondary_currency else Decimal(1)
-                unit_cost = top.ask / fx / (1 - session.cost.fee_rate)
-                candidates.append((unit_cost, symbol))
-            choice = min(candidates)[1] if candidates else None
-            self._set_route(base, choice, at)
+            should_update, choice = select_route_for_base(
+                base=base,
+                symbols=symbols,
+                at=at,
+                dynamic_routes=self.dynamic_routes,
+                entry_windows=bool(self.entry_windows),
+                listed=self.listed,
+                trade_routes=self.trade_routes,
+                primary_quote=self.quote,
+                secondary_currency=self.secondary_currency,
+                book=self.book,
+                sessions=self.sessions,
+                instruments=self.instruments,
+                rules_for=self.rules_for,
+                reserved_in=self.reserved_in,
+                equity_in=self.equity_in,
+                quote_market_counts=self.quote_market_counts,
+                portal=self.portal,
+                fx_mark=self.fx_mark,
+            )
+            if should_update:
+                self._set_route(base, choice, at)
 
     def _set_route(self, base, choice, at):
         previous = self.trade_routes.pop(base, None)
@@ -396,12 +375,13 @@ class _Replay:
             self.route_changes.append({"at": iso(at), "asset": base, "previous": previous, "selected": choice})
 
     def _count_listed_routes(self):
-        counts = defaultdict(int)
-        symbols = (s for routes in self.route_candidates.values() for s in routes) if self.dynamic_routes else self.trade_routes.values()
-        for symbol in symbols:
-            if symbol in self.listed:
-                counts[self.instruments[symbol].quote] += 1
-        self.quote_market_counts = counts
+        self.quote_market_counts = count_listed_routes(
+            dynamic_routes=self.dynamic_routes,
+            route_candidates=self.route_candidates,
+            trade_routes=self.trade_routes,
+            listed=self.listed,
+            instruments=self.instruments,
+        )
 
     def _advance_listings(self, at):
         if self.next_listing is None or self.next_listing[0] > at:
