@@ -1,48 +1,48 @@
 {
-  "generated_at": "2026-11-24T22:53:18.202678+00:00",
+  "generated_at": "2026-11-25T11:51:44.146607+00:00",
   "overall_status": "WARN",
   "executor_state": "DISARMED",
   "checks": {
     "market_db": {
       "status": "WARN",
-      "latest_book_ts": "2026-11-24T22:53:17.372848Z",
+      "latest_book_ts": "2026-11-25T11:51:42.850934Z",
       "book_age_hours": 0.0,
-      "latest_trade_ts": "2026-11-24T22:52:38.200335Z",
-      "trade_age_hours": 0.01,
+      "latest_trade_ts": "2026-11-25T11:51:39.579059Z",
+      "trade_age_hours": 0.0,
       "stale_1d_symbols": [],
       "stale_1h_symbols_count": 20,
       "fresh_1min_symbols_count": 15
     },
     "multi_venue_db": {
       "status": "OK",
-      "total_quote_rows": 4922,
-      "latest_quote_ts": "2026-11-24T22:51:38.037026Z",
+      "total_quote_rows": 6605,
+      "latest_quote_ts": "2026-11-25T11:50:50.565067Z",
       "nobitex_fresh_symbols": 20,
       "nobitex_stale_symbols": []
     },
     "s1_s5_leader_journal": {
       "status": "OK",
-      "rows": 13,
-      "latest_ts": "2026-11-24T13:51:52.708886+00:00",
-      "age_hours": 9.02
+      "rows": 26,
+      "latest_ts": "2026-11-25T10:25:09.675831+00:00",
+      "age_hours": 1.44
     },
     "champion_ensemble_journal": {
       "status": "OK",
-      "rows": 1,
-      "latest_ts": "2026-11-24T21:17:40.175031+00:00",
-      "age_hours": 1.59
+      "rows": 4,
+      "latest_ts": "2026-11-25T10:55:18.440693+00:00",
+      "age_hours": 0.94
     },
     "champion_v2_journal": {
       "status": "OK",
-      "rows": 1,
-      "latest_ts": "2026-11-24T22:53:02.157553+00:00",
-      "age_hours": 0.0
+      "rows": 3,
+      "latest_ts": "2026-11-25T10:57:18.308385+00:00",
+      "age_hours": 0.91
     },
     "mix_journal_v2": {
       "status": "OK",
-      "rows": 5,
-      "latest_ts": "2026-11-24T08:27:53.066544+00:00",
-      "age_hours": 14.42
+      "rows": 10,
+      "latest_ts": "2026-11-25T10:25:09.511998+00:00",
+      "age_hours": 1.44
     },
     "gru_ignition_model": {
       "status": "OK",

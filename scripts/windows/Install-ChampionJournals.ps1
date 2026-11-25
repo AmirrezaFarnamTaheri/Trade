@@ -46,7 +46,7 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatt
 # 1. Daily S1+S5 Leader Journal (03:55 local, right after Mix Journal V2)
 $leaderScript = Join-Path $core 'scripts\record_leader_journal.py'
 $leaderJournal = Join-Path $data 'live\allocation\s1-s5-leader-journal.jsonl'
-$leaderReg = Join-Path $evid '2026-11-24-s1-s5-prospective-registration.json'
+$leaderReg = Join-Path $evid 'forward\s1-s5-leader-registration.json'
 $leaderArgs = @('-I', '-B', "`"$leaderScript`"", '--db', "`"$dbPath`"", '--journal', "`"$leaderJournal`"", '--registration', "`"$leaderReg`"")
 $leaderAction = New-ScheduledTaskAction -Execute $python -Argument ($leaderArgs -join ' ') -WorkingDirectory $core
 $leaderTrigger = New-ScheduledTaskTrigger -Daily -At '03:55'
@@ -60,8 +60,8 @@ if ($PSCmdlet.ShouldProcess($leaderTask, "Register daily at 03:55 -> $leaderJour
 $champScript = Join-Path $core 'scripts\record_champion_journal.py'
 $champJournal = Join-Path $data 'live\allocation\champion-ensemble-journal.jsonl'
 $champModel = Join-Path $data 'live\models\gru-ignition-v1.json'
-$champReg = Join-Path $evid '2026-11-25-champion-ensemble-registration.json'
-$champScore = Join-Path $evid '2026-11-25-champion-forward-score.json'
+$champReg = Join-Path $evid 'forward\champion-v1-registration.json'
+$champScore = Join-Path $evid 'forward\champion-v1-forward-score.json'
 $champArgs = @(
     '-I', '-B', "`"$champScript`"",
     '--db', "`"$dbPath`"",
@@ -84,8 +84,8 @@ if ($PSCmdlet.ShouldProcess($champTask, "Register every 2h -> $champJournal")) {
 $v2Script = Join-Path $core 'scripts\record_champion_v2_journal.py'
 $v2Journal = Join-Path $data 'live\allocation\champion-v2-journal.jsonl'
 $v2Model = Join-Path $data 'live\models\gru-ignition-v2-pathpnl.json'
-$v2Reg = Join-Path $evid '2026-11-25-champion-v2-registration.json'
-$v2Score = Join-Path $evid '2026-11-25-champion-v2-forward-score.json'
+$v2Reg = Join-Path $evid 'forward\champion-v2-registration.json'
+$v2Score = Join-Path $evid 'forward\champion-v2-forward-score.json'
 $v2Args = @(
     '-I', '-B', "`"$v2Script`"",
     '--db', "`"$dbPath`"",

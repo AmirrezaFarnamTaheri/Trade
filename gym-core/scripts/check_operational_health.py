@@ -12,7 +12,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Check TradingGYM collector, multi-venue quote, journal, and model health")
     parser.add_argument("--data-dir", type=Path, default=Path("../data"))
     parser.add_argument("--evidence-dir", type=Path, default=Path("../evidence"))
-    parser.add_argument("--out", type=Path, default=Path("../evidence/2026-11-25-operational-health.json"))
+    parser.add_argument("--out", type=Path, default=Path("../evidence/forward/operational-health.json"))
     args = parser.parse_args()
     res = run_operational_health_check(args.data_dir, args.evidence_dir, report_path=args.out)
     print(json.dumps(res, indent=2))

@@ -12,8 +12,8 @@ from gym.services.experiments.sleeve_attribution_study import (
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run S3/S4 fast-sleeve attribution & +1h UTC offset sensitivity")
-    parser.add_argument("--db", type=Path, default=Path("D:/Github/Trade/data/live/market.db"))
-    parser.add_argument("--out", type=Path, default=Path("D:/Github/Trade/evidence/2026-11-24-fast-sleeve-attribution.json"))
+    parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
+    parser.add_argument("--out", type=Path, default=Path("../evidence/studies/core-ensemble/fast-sleeve-attribution.json"))
     args = parser.parse_args()
     res = run_fast_sleeve_attribution(args.db)
     args.out.parent.mkdir(parents=True, exist_ok=True)

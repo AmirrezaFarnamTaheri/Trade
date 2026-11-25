@@ -16,12 +16,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-short-and-leverage-report.md"),
+        default=Path("../evidence/studies/ignition-and-ml/short-and-leverage.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-short-and-leverage.json"),
+        default=Path("../evidence/studies/ignition-and-ml/short-and-leverage.json"),
     )
     args = parser.parse_args()
     summary = run_short_and_leverage_study(args.db, args.report, args.receipt)

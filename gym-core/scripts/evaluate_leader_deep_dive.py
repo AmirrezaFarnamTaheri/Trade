@@ -14,12 +14,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-leader-deep-dive-report.md"),
+        default=Path("../evidence/studies/core-ensemble/leader-deep-dive.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-leader-deep-dive.json"),
+        default=Path("../evidence/studies/core-ensemble/leader-deep-dive.json"),
     )
     args = parser.parse_args()
     summary = run_leader_deep_dive(args.db, args.report, args.receipt)

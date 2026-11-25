@@ -345,8 +345,8 @@ def _write_markdown_report(report_path: Path, summary: dict, coverage: list[dict
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Sprint 0 / Experiment 0 on read-only market.db")
-    parser.add_argument("--db", type=Path, default=Path("D:/Github/Trade/data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("D:/Github/Trade/evidence/2026-11-24-experiment-0-report.md"))
+    parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/studies/execution-and-venues/experiment-0-execution-ceiling.md"))
     parser.add_argument("--hours", type=int, default=72)
     args = parser.parse_args()
     summary = run_experiment_0(args.db, args.report, lookback_hours=args.hours)

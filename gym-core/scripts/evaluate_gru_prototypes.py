@@ -14,12 +14,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-gru-prototypes-report.md"),
+        default=Path("../evidence/studies/ignition-and-ml/gru-prototypes.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-gru-prototypes.json"),
+        default=Path("../evidence/studies/ignition-and-ml/gru-prototypes.json"),
     )
     args = parser.parse_args()
     summary = run_gru_prototypes_study(args.db, args.report, args.receipt)

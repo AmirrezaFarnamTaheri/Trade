@@ -94,21 +94,81 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
 
+def _load_evidence(evidence_dir: Path, *rel_paths: str) -> dict:
+    for rel in rel_paths:
+        p = evidence_dir / rel
+        if p.is_file():
+            return json.loads(p.read_text(encoding="utf-8"))
+    return {}
+
+
 def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> dict:
-    """Assemble all 5 research panels from evidence JSON receipts and optional market.db histograms."""
-    first = _load_json(evidence_dir / "2026-11-24-first-ensemble-decision-receipt.json")
-    deep = _load_json(evidence_dir / "2026-11-24-leader-deep-dive.json")
-    fast = _load_json(evidence_dir / "2026-11-24-fast-sleeve-attribution.json")
-    venue = _load_json(evidence_dir / "2026-11-24-venue-execution-cost.json")
-    exp_abc = _load_json(evidence_dir / "2026-11-24-expansion-and-margin.json")
-    gru = _load_json(evidence_dir / "2026-11-24-gru-prototypes.json")
-    orth = _load_json(evidence_dir / "2026-11-25-orthogonal-alpha.json")
-    smart_exec = _load_json(evidence_dir / "2026-11-25-smart-execution.json")
-    fwd_score = _load_json(evidence_dir / "2026-11-25-champion-forward-score.json")
-    health = _load_json(evidence_dir / "2026-11-25-operational-health.json")
-    higher_order = _load_json(evidence_dir / "2026-11-25-higher-order-and-sparse.json")
-    v2_verify = _load_json(evidence_dir / "2026-11-25-v2-champion-verification.json")
-    v2_fwd_score = _load_json(evidence_dir / "2026-11-25-champion-v2-forward-score.json")
+    """Assemble all research panels from evidence JSON receipts and optional market.db histograms."""
+    first = _load_evidence(
+        evidence_dir,
+        "studies/core-ensemble/first-ensemble-decision-receipt.json",
+        "2026-11-24-first-ensemble-decision-receipt.json",
+    )
+    deep = _load_evidence(
+        evidence_dir,
+        "studies/core-ensemble/leader-deep-dive.json",
+        "2026-11-24-leader-deep-dive.json",
+    )
+    fast = _load_evidence(
+        evidence_dir,
+        "studies/core-ensemble/fast-sleeve-attribution.json",
+        "2026-11-24-fast-sleeve-attribution.json",
+    )
+    venue = _load_evidence(
+        evidence_dir,
+        "studies/execution-and-venues/venue-execution-cost.json",
+        "2026-11-24-venue-execution-cost.json",
+    )
+    exp_abc = _load_evidence(
+        evidence_dir,
+        "studies/core-ensemble/expansion-and-margin.json",
+        "2026-11-24-expansion-and-margin.json",
+    )
+    gru = _load_evidence(
+        evidence_dir,
+        "studies/ignition-and-ml/gru-prototypes.json",
+        "2026-11-24-gru-prototypes.json",
+    )
+    orth = _load_evidence(
+        evidence_dir,
+        "studies/core-ensemble/orthogonal-alpha.json",
+        "2026-11-25-orthogonal-alpha.json",
+    )
+    smart_exec = _load_evidence(
+        evidence_dir,
+        "studies/execution-and-venues/smart-execution.json",
+        "2026-11-25-smart-execution.json",
+    )
+    fwd_score = _load_evidence(
+        evidence_dir,
+        "forward/champion-v1-forward-score.json",
+        "2026-11-25-champion-forward-score.json",
+    )
+    health = _load_evidence(
+        evidence_dir,
+        "forward/operational-health.json",
+        "2026-11-25-operational-health.json",
+    )
+    higher_order = _load_evidence(
+        evidence_dir,
+        "studies/core-ensemble/higher-order-and-sparse.json",
+        "2026-11-25-higher-order-and-sparse.json",
+    )
+    v2_verify = _load_evidence(
+        evidence_dir,
+        "studies/ignition-and-ml/v2-champion-verification.json",
+        "2026-11-25-v2-champion-verification.json",
+    )
+    v2_fwd_score = _load_evidence(
+        evidence_dir,
+        "forward/champion-v2-forward-score.json",
+        "2026-11-25-champion-v2-forward-score.json",
+    )
 
     histograms = _compute_live_histograms(db_path) if (db_path is not None and db_path.is_file()) else {
         "leader": compute_return_histogram([]),

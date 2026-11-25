@@ -12,8 +12,8 @@ from gym.services.experiments.higher_order_and_sparse_study import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run 4-part higher-order momentum, sparse expansion, risk-parity & structural short study")
     parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("../evidence/2026-11-25-higher-order-and-sparse-report.md"))
-    parser.add_argument("--receipt", type=Path, default=Path("../evidence/2026-11-25-higher-order-and-sparse.json"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/studies/core-ensemble/higher-order-and-sparse.md"))
+    parser.add_argument("--receipt", type=Path, default=Path("../evidence/studies/core-ensemble/higher-order-and-sparse.json"))
     args = parser.parse_args()
     res = run_higher_order_and_sparse_study(args.db, args.report, args.receipt)
     print(f"Wrote {args.report} and {args.receipt}")

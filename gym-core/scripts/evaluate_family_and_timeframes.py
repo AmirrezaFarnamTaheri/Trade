@@ -16,12 +16,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-family-and-timeframes-report.md"),
+        default=Path("../evidence/studies/core-ensemble/family-and-timeframes.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-family-and-timeframes.json"),
+        default=Path("../evidence/studies/core-ensemble/family-and-timeframes.json"),
     )
     args = parser.parse_args()
     summary = run_family_and_timeframe_study(args.db, args.report, args.receipt)

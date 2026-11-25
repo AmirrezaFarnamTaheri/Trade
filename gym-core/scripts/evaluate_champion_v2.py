@@ -12,8 +12,8 @@ from gym.services.experiments.champion_v2_verification import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify Unified v2 Champion vs v1 Champion on single shared ledger")
     parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("../evidence/2026-11-25-v2-champion-verification-report.md"))
-    parser.add_argument("--receipt", type=Path, default=Path("../evidence/2026-11-25-v2-champion-verification.json"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/studies/ignition-and-ml/v2-champion-verification.md"))
+    parser.add_argument("--receipt", type=Path, default=Path("../evidence/studies/ignition-and-ml/v2-champion-verification.json"))
     args = parser.parse_args()
     res = run_v2_champion_verification(args.db, args.report, args.receipt)
     print(f"Wrote {args.report} | AUCs:", res["oos_aucs"])

@@ -16,12 +16,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-ignition-validation-report.md"),
+        default=Path("../evidence/studies/ignition-and-ml/ignition-validation.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-ignition-validation.json"),
+        default=Path("../evidence/studies/ignition-and-ml/ignition-validation.json"),
     )
     args = parser.parse_args()
     summary = run_ignition_validation_study(args.db, args.report, args.receipt)

@@ -42,7 +42,7 @@ Before any statistical test (Sharpe, Lo/HAC Sharpe, PSR, DSR, stationary-block b
 
 ## 4. Minimum detectable economic effect & prospective power (`S002`)
 
-Prior power analysis ([evidence/2026-11-18-detectable-edge.md](../../evidence/2026-11-18-detectable-edge.md)) showed that earlier daily tests could not reliably detect edges below **~10 bps/day (~44%/yr)**, whereas realistic net edges are **1–5 bps/day**. Accordingly, every new registered trial must declare before running:
+Prior power analysis ([evidence/archive/early-trials/2026-11-18-detectable-edge.md](../../evidence/archive/early-trials/2026-11-18-detectable-edge.md)) showed that earlier daily tests could not reliably detect edges below **~10 bps/day (~44%/yr)**, whereas realistic net edges are **1–5 bps/day**. Accordingly, every new registered trial must declare before running:
 
 1. **Smallest economically useful net excess return** ($\Delta_{\min}$, after full round-trip fees, spread, and turnover cost) against its investable same-currency benchmark.
 2. **Expected daily volatility and autocorrelation/block dependence** ($\hat{\sigma}$, block length $L$).

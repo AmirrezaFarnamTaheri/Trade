@@ -20,8 +20,8 @@ def main() -> int:
     parser.add_argument("--multi-venue-db", type=Path, default=Path("../data/live/multi_venue_quotes.sqlite3"))
     parser.add_argument("--journal", type=Path, default=Path("../data/live/allocation/champion-v2-journal.jsonl"))
     parser.add_argument("--model", type=Path, default=Path("../data/live/models/gru-ignition-v2-pathpnl.json"))
-    parser.add_argument("--registration", type=Path, default=Path("../evidence/2026-11-25-champion-v2-registration.json"))
-    parser.add_argument("--score-out", type=Path, default=Path("../evidence/2026-11-25-champion-v2-forward-score.json"))
+    parser.add_argument("--registration", type=Path, default=Path("../evidence/forward/champion-v2-registration.json"))
+    parser.add_argument("--score-out", type=Path, default=Path("../evidence/forward/champion-v2-forward-score.json"))
     parser.add_argument("--freeze-model", action="store_true")
     args = parser.parse_args()
 

@@ -12,8 +12,8 @@ from gym.services.experiments.core_engine_ablation_study import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Track I 1d Core Engine ablations")
     parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("../evidence/2026-11-25-core-engine-ablation-report.md"))
-    parser.add_argument("--receipt", type=Path, default=Path("../evidence/2026-11-25-core-engine-ablation.json"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/studies/core-ensemble/core-engine-ablation.md"))
+    parser.add_argument("--receipt", type=Path, default=Path("../evidence/studies/core-ensemble/core-engine-ablation.json"))
     args = parser.parse_args()
     res = run_core_engine_ablation_study(args.db, args.report, args.receipt)
     print(f"Wrote {args.report} ({len(res['arms'])} arms)")

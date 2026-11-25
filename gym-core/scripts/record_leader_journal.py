@@ -19,7 +19,7 @@ def main() -> int:
     parser.add_argument(
         "--registration",
         type=Path,
-        default=Path("../evidence/2026-11-24-s1-s5-prospective-registration.json"),
+        default=Path("../evidence/forward/s1-s5-leader-registration.json"),
     )
     args = parser.parse_args()
     res = record_s1_s5_leader_journal(args.db, args.journal, registration_path=args.registration)

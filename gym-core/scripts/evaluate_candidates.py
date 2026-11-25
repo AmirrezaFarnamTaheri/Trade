@@ -502,9 +502,9 @@ def write_report(report_path: Path, a: dict, b: dict, c: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Optimized walk-forward evaluation of Candidates A, B, and C")
-    parser.add_argument("--db", type=Path, default=Path("D:/Github/Trade/data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("D:/Github/Trade/evidence/2026-11-24-candidate-evaluation-report.md"))
-    parser.add_argument("--mix-v2", type=Path, default=Path("D:/Github/Trade/data/live/allocation/mix-journal-v2.jsonl"))
+    parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/archive/audits/2026-11-24-candidate-evaluation-report.md"))
+    parser.add_argument("--mix-v2", type=Path, default=Path("../data/live/allocation/mix-journal-v2.jsonl"))
     args = parser.parse_args()
     con = open_readonly_market_db(args.db)
     try:

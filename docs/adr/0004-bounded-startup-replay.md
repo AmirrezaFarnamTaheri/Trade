@@ -55,4 +55,4 @@ ledger, so a long enough ledger makes the service fail to start with an error th
   on the local Windows host and do not qualify a protected service installation, cold disk, VM or second host.
 
 Reproduction commands, workload sizes and adversarial checks are recorded in
-[the qualification receipt](../../evidence/2026-11-16-executor-checkpoint-verification.md).
+[the qualification receipt](../../evidence/archive/executor/2026-11-16-executor-checkpoint-verification.md).

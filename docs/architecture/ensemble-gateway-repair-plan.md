@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Execute inline sequentially in the primary agent (no subagents per workspace rule). Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Repair all five verified engine/accounting/bottleneck defects caught in [2026-11-24-ensemble-gateway-design-review.md](../specs/2026-11-24-ensemble-gateway-design-review.md) and execute the First Paper Experiment (Wallex spot slow sleeves `S1/S2/S5`, fixed controls, adaptive vote, and veto-only calibrated `L2 LogisticRegression` challenger on a self-financing shared ledger).
+**Goal:** Repair all five verified engine/accounting/bottleneck defects caught in [ensemble-gateway-design-review.md](ensemble-gateway-design-review.md) and execute the First Paper Experiment (Wallex spot slow sleeves `S1/S2/S5`, fixed controls, adaptive vote, and veto-only calibrated `L2 LogisticRegression` challenger on a self-financing shared ledger).
 
 **Architecture:** First repair and independently verify the measuring instrument (`convex_optimizer.py`, `async_covariance.py`, `microstructure.py`, `statistical_inference.py`, `passive_execution.py`, `instant_gate_check.py`). Second build the isolated domain modules (`timeframe_panel.py`, `strategy_sleeves.py`, `meta_gateway.py`) and end-to-end evaluator (`evaluate_ensemble_gateway.py`) with synthetic null/planted falsification controls, bar-source parity sensitivity, and strict self-financing cash/inventory accounting.
 
@@ -111,7 +111,7 @@
   - `AdaptiveVoteGateway` (decayed-Sharpe capped weights with abstention remainder)
   - `LogisticVetoGateway` (lazy `sklearn` `Pipeline([SimpleImputer, RobustScaler, LogisticRegression(C=0.2)])` + chronological inner-fold sigmoid calibration, expected-value payoff gate, Brier Skill Score / ECE / reliability diagnostics, and shadow scoring of rejected proposals)
   - `run_synthetic_falsification_checks()` (null noise panel + planted feasible edge panel)
-  - `evaluate_ensemble_gateway.py` outputting `evidence/2026-11-24-first-ensemble-experiment-report.md` with all four sign-off artifacts: (1) dated coverage & bar-parity report, (2) solver & ledger reconciliation receipt, (3) arm-by-arm paired comparison (`CASH_USDT`, `STATIC_GOLD_AND_CRYPTO`, `FIXED_S1`, `FIXED_ENSEMBLE_S1_S2_S5`, `ADAPTIVE_VOTE`, `LOGISTIC_VETO`) with date-block bootstrap CI & attribution, and (4) machine-readable JSON decision receipt.
+  - `evaluate_ensemble_gateway.py` outputting `evidence/studies/core-ensemble/first-ensemble-experiment.md` with all four sign-off artifacts: (1) dated coverage & bar-parity report, (2) solver & ledger reconciliation receipt, (3) arm-by-arm paired comparison (`CASH_USDT`, `STATIC_GOLD_AND_CRYPTO`, `FIXED_S1`, `FIXED_ENSEMBLE_S1_S2_S5`, `ADAPTIVE_VOTE`, `LOGISTIC_VETO`) with date-block bootstrap CI & attribution, and (4) machine-readable JSON decision receipt.
 
 - [ ] **Step 1: Write unit tests for synthetic null rejection, synthetic planted-edge recovery, Brier skill score, shadow veto accounting, and importability without sklearn at module load**
 - [ ] **Step 2: Implement `meta_gateway.py` and `evaluate_ensemble_gateway.py`**

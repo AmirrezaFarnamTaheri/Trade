@@ -13,9 +13,9 @@ from gym.services.experiments.ensemble_study import (
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run First Paper Experiment on read-only market.db")
-    parser.add_argument("--db", type=Path, default=Path("D:/Github/Trade/data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("D:/Github/Trade/evidence/2026-11-24-first-ensemble-experiment-report.md"))
-    parser.add_argument("--receipt", type=Path, default=Path("D:/Github/Trade/evidence/2026-11-24-first-ensemble-decision-receipt.json"))
+    parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/studies/core-ensemble/first-ensemble-experiment.md"))
+    parser.add_argument("--receipt", type=Path, default=Path("../evidence/studies/core-ensemble/first-ensemble-decision-receipt.json"))
     args = parser.parse_args()
 
     receipt = run_first_ensemble_experiment(args.db)

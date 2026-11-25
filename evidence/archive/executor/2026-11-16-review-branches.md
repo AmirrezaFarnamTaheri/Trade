@@ -88,7 +88,7 @@ change set. Rust formatting remains enforced.
 
 ## Current native boundary
 
-[ADR 0008](../docs/adr/0008-balance-observation-ordering.md) is implemented in
+[ADR 0008](../../../docs/adr/0008-balance-observation-ordering.md) is implemented in
 the native producer and consumers. Exact service-side fees/books, own-fill loss
 and inventory, committed cash, holds, elevated approval, one-shot LIMIT transport
 and atomic settlement now compose. The final readiness branch adds the direct
@@ -104,5 +104,5 @@ installed host or establish a trading edge.
 Publication/installed-host qualification and the registered 2027-02-08 prospective
 decision remain pending. Off-machine backup and second-host restore were canceled.
 The native backup primitive makes local verified copies only and installs no schedule.
-See [native lifecycle](../executor/docs/native-order-lifecycle.md) for the exact
+See [native lifecycle](../../../executor/docs/native-order-lifecycle.md) for the exact
 manual LIMIT scope, owner evidence and uncertain-order boundaries.

@@ -10,15 +10,15 @@ A research and paper-trading observatory for the Wallex exchange (TMN and USDT s
   [capabilities](gym-core/docs/capabilities.md#stages).
 - **Frozen prospective paper tracking active; no live funded edge claimed.** Historical seen-replay leaders are
   registered and tracking live untouched forward observations on Windows Task Scheduler (zero order authority):
-  - **v1 Champion:** `70% BASE_13_S1_S5 (1d ADMM) + 30% 2h Frozen GRU-Ignition` ([v1 registration](evidence/2026-11-25-champion-ensemble-registration.json))
-  - **v2 Champion (Parallel):** `70% 1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint ADMM + 30% Twin-Phase 2h GRU11 Path-PnL (Conformal/DD)` ([v2 registration](evidence/2026-11-25-champion-v2-registration.json))
-  - Standalone `BASE_13_S1_S5` ([leader registration](evidence/2026-11-24-s1-s5-prospective-registration.json)), `btc-daily-trend`, `breadth-trend-forward`, and `mix-journal-v2`.
-  Paper results cannot authorize capital; see the [trial log](gym-core/docs/trial-log.md) and [evidence index](evidence/README.md).
+  - **v1 Champion:** `70% BASE_13_S1_S5 (1d ADMM) + 30% 2h Frozen GRU-Ignition` ([v1 registration](evidence/forward/champion-v1-registration.json))
+  - **v2 Champion (Parallel):** `70% 1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint ADMM + 30% Twin-Phase 2h GRU11 Path-PnL (Conformal/DD)` ([v2 registration](evidence/forward/champion-v2-registration.json))
+  - Standalone `BASE_13_S1_S5` ([leader registration](evidence/forward/s1-s5-leader-registration.json)), `btc-daily-trend`, `breadth-trend-forward`, and `mix-journal-v2`.
+  Paper results cannot authorize capital; see the [trial log](gym-core/docs/trial-log.md), [studies summary](evidence/studies/SUMMARY.md), and [evidence index](evidence/README.md).
 - **Live multi-venue observation.** Primary collector streams 40 curated Wallex markets with 5-level depth (`core-40-wallex`);
   a read-only multi-venue recorder tracks 20 live Nobitex USDT pairs (`record_multi_venue_quotes.py`) for matched execution-cost
-  and side-asymmetric routing audits ([smart execution report](evidence/2026-11-25-smart-execution-report.md)).
+  and side-asymmetric routing audits ([smart execution report](evidence/studies/execution-and-venues/smart-execution.md)).
 - **Offline research cockpit & health watchdog.** Interactive zero-CDN HTML5 dashboard at
-  [2026-11-25-research-dashboard.html](evidence/2026-11-25-research-dashboard.html) and read-only operational watchdog at
+  [research-dashboard.html](evidence/research-dashboard.html) and read-only operational watchdog at
   `gym-core/scripts/check_operational_health.py`.
 
 The product goal is an autonomous trading agent. That is a goal, not a capability; [PRODUCT.md](PRODUCT.md)
@@ -31,7 +31,8 @@ states the constraints.
 | [`gym-core/`](gym-core/README.md) | Python, aiohttp, SQLite | Public observation, exact storage, simulator, paper research, forward journals, EN/FA workspace |
 | [`executor/`](executor/README.md) | Rust (Windows service) | Admission policy, credential vault, hash-chained ledger; DISARMED / NOT CERTIFIED |
 | [`contracts/`](contracts/) | | Wire contracts and golden fixtures shared by Python and Rust |
-| [`evidence/`](evidence/README.md) | Markdown, JSON, HTML | Dated study reports, frozen prospective registrations, interactive offline dashboard, SHA-256 index |
+| [`docs/`](docs/README.md) | Markdown | Governance policies, checkpoint protocol, ADRs, master plans, and architecture reviews |
+| [`evidence/`](evidence/README.md) | Markdown, JSON, HTML | Organized quantitative studies (`studies/`), live forward scoreboards (`forward/`), historical archive (`archive/`), interactive offline dashboard, SHA-256 index |
 | [`scripts/windows/`](scripts/windows/) | PowerShell | Collector, multi-venue recorder, forward journals, service registration, workspace start, backups |
 
 ## Run

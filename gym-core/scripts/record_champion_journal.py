@@ -21,12 +21,12 @@ def main() -> int:
     parser.add_argument(
         "--registration",
         type=Path,
-        default=Path("../evidence/2026-11-25-champion-ensemble-registration.json"),
+        default=Path("../evidence/forward/champion-v1-registration.json"),
     )
     parser.add_argument(
         "--score-out",
         type=Path,
-        default=Path("../evidence/2026-11-25-champion-forward-score.json"),
+        default=Path("../evidence/forward/champion-v1-forward-score.json"),
     )
     parser.add_argument("--gold-symbol", type=str, default="XAUTUSDT")
     parser.add_argument("--freeze-model", action="store_true", help="Train and freeze GRU-Ignition JSON weights first")

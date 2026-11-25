@@ -16,12 +16,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-expansion-and-margin-report.md"),
+        default=Path("../evidence/studies/core-ensemble/expansion-and-margin.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-expansion-and-margin.json"),
+        default=Path("../evidence/studies/core-ensemble/expansion-and-margin.json"),
     )
     args = parser.parse_args()
     summary = run_expansion_and_margin_study(args.db, args.report, args.receipt)

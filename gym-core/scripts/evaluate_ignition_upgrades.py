@@ -12,8 +12,8 @@ from gym.services.experiments.ignition_upgrade_ablation_study import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Track II 2h Ignition & GRU upgrade ablations")
     parser.add_argument("--db", type=Path, default=Path("../data/live/market.db"))
-    parser.add_argument("--report", type=Path, default=Path("../evidence/2026-11-25-ignition-upgrade-ablation-report.md"))
-    parser.add_argument("--receipt", type=Path, default=Path("../evidence/2026-11-25-ignition-upgrade-ablation.json"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/studies/ignition-and-ml/ignition-upgrade-ablation.md"))
+    parser.add_argument("--receipt", type=Path, default=Path("../evidence/studies/ignition-and-ml/ignition-upgrade-ablation.json"))
     args = parser.parse_args()
     res = run_ignition_upgrade_ablation_study(args.db, args.report, args.receipt)
     print(f"Wrote {args.report} | AUC:", res["gru_model_auc"])

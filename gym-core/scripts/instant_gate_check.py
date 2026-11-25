@@ -526,9 +526,9 @@ def write_instant_report(path: Path, g1: dict, cand_a_h: dict, cand_a_ob: dict, 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run strict instant zero-wait G1/G2/G3 gate verification")
-    parser.add_argument("--wallex-db", type=Path, default=Path("D:/Github/Trade/data/live/market.db"))
-    parser.add_argument("--multi-venue-db", type=Path, default=Path("D:/Github/Trade/data/live/multi_venue_quotes.sqlite3"))
-    parser.add_argument("--report", type=Path, default=Path("D:/Github/Trade/evidence/instant-gate-report.md"))
+    parser.add_argument("--wallex-db", type=Path, default=Path("../data/live/market.db"))
+    parser.add_argument("--multi-venue-db", type=Path, default=Path("../data/live/multi_venue_quotes.sqlite3"))
+    parser.add_argument("--report", type=Path, default=Path("../evidence/archive/audits/instant-gate-report.md"))
     args = parser.parse_args()
 
     g1 = check_g1_instant(args.wallex_db, args.multi_venue_db)

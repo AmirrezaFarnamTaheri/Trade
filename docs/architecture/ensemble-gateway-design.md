@@ -1,8 +1,8 @@
 # Design Specification: Uncorrelated Multi-Timeframe Strategy Ensemble & Calibrated ML Meta-Gateway (v2 — Review Integrated)
 
-**Date:** 2026-11-24 · **Baseline Commit:** `c2eec08` · **Status:** Approved Revision Integrating [2026-11-24-ensemble-gateway-design-review.md](2026-11-24-ensemble-gateway-design-review.md)
+**Date:** 2026-11-24 · **Baseline Commit:** `c2eec08` · **Status:** Approved Revision Integrating [ensemble-gateway-design-review.md](ensemble-gateway-design-review.md)
 
-**Hard Authority Boundary:** `TradingGYMExecutor` remains **`DISARMED / NOT CERTIFIED`** with **`$0` funded-loss budget**. This specification governs paper research, engine repairs, and reproducible evaluation only. Margin, shorts, derivatives, cross-venue real-inventory transfers, funded probes, and automatic arming are explicitly outside scope ([PRODUCT.md](../../../PRODUCT.md)).
+**Hard Authority Boundary:** `TradingGYMExecutor` remains **`DISARMED / NOT CERTIFIED`** with **`$0` funded-loss budget**. This specification governs paper research, engine repairs, and reproducible evaluation only. Margin, shorts, derivatives, cross-venue real-inventory transfers, funded probes, and automatic arming are explicitly outside scope ([PRODUCT.md](../../PRODUCT.md)).
 
 ---
 
@@ -10,21 +10,21 @@
 
 No gateway comparison is valid until the five verified codebase defects and five measured performance bottlenecks are repaired and independently checked:
 
-1. **Constrained Convex Solver Repair ([convex_optimizer.py](../../../gym-core/src/gym/domain/convex_optimizer.py)):**
+1. **Constrained Convex Solver Repair ([convex_optimizer.py](../../gym-core/src/gym/domain/convex_optimizer.py)):**
    - Replace single-coordinate descent under a binding budget hyperplane ($\sum w_i = M$) with a **FISTA / projected proximal-gradient solver with exact Euclidean simplex/box/group projection (Dykstra / dual bisection)** + true primal-dual KKT optimality residual.
    - Verify exact objective and feasibility agreement (`tol <= 1e-6`) against `scipy.optimize.minimize` (SLSQP / trust-constr) across binding-budget, asset-order permutation, fee-zone boundary, frozen-inventory, and infeasible-starting-holding fixtures.
    - Re-verify the exact diagnostic counterexample (`w0=(0.5, 0.5), mu=(0.02, 0.06), cov=diag(0.01, 0.01), ra=1, tau=0.001, max_w=1, cash_buf=0`) reaches `(0.0, 1.0)` with objective `0.0540` (not stuck at `(0.5, 0.5)` / `0.0375`).
-2. **Explicit Covariance Axis Alignment & Timestamp-Joined Returns ([async_covariance.py](../../../gym-core/src/gym/domain/async_covariance.py), [evaluate_candidates.py](../../../gym-core/scripts/evaluate_candidates.py)):**
+2. **Explicit Covariance Axis Alignment & Timestamp-Joined Returns ([async_covariance.py](../../gym-core/src/gym/domain/async_covariance.py), [evaluate_candidates.py](../../gym-core/scripts/evaluate_candidates.py)):**
    - Add `align_covariance_to_symbols(symbols, cov_symbols, cov_matrix)` and timestamp-joined return pairing (`coarse_bar_shrunk_covariance_aligned(dated_returns_by_symbol)`), guaranteeing identical target weights under any input symbol permutation (fixing the `XRPUSDT`/`XAUTUSDT` axis swap).
-3. **End-to-End Causality Perturbation & Self-Financing Portfolio Ledger ([instant_gate_check.py](../../../gym-core/scripts/instant_gate_check.py)):**
+3. **End-to-End Causality Perturbation & Self-Financing Portfolio Ledger ([instant_gate_check.py](../../gym-core/scripts/instant_gate_check.py)):**
    - Fix the broken EWMAC lambda bug (stateful single-instance pass) and enforce **full future-input perturbation** across all symbols, features, and quotes after cutoff `t_c`, asserting byte-equivalent earlier eligibility, forecasts, intents, fills, and NAV alongside a mandatory positive-control future-peeking feature that MUST fail.
    - Track actual drifting portfolio holdings, cash, reservations, and received-asset fees at event times (never carrying target weights forward without price drift or crediting close-to-close returns across an unexecuted open gap).
-4. **VPIN Arithmetic Batching & Strict Side Validation ([microstructure.py](../../../gym-core/src/gym/domain/microstructure.py)):**
+4. **VPIN Arithmetic Batching & Strict Side Validation ([microstructure.py](../../gym-core/src/gym/domain/microstructure.py)):**
    - Replace unit-by-unit `while rem > 0:` bucket loop with exact arithmetic `divmod` batching for complete same-side buckets (eliminating the `417M`-iteration PEPE print hang), validate canonical `"BUY"` / `"SELL"` aggressor strictly (raising or counting `"UNKNOWN"` separately, never defaulting to `"SELL"`), and support quote/asset-scaled bucket sizing.
 5. **Measured Performance Repairs (§11 of Review):**
    - Keyed `instrument_id` candle query (`WHERE instrument_id=? AND resolution=?`) + shared immutable trailing-window risk cache (`~11.5×` speedup).
-   - `set`-backed test-index membership in `purged_cpcv_splits` ([statistical_inference.py](../../../gym-core/src/gym/domain/statistical_inference.py), `~8×` speedup).
-   - `bisect` availability-time indexing in `simulate_passive_orders` ([passive_execution.py](../../../gym-core/src/gym/domain/passive_execution.py), `~6×` speedup) with exact parity verification on fill records and shared print capacity.
+   - `set`-backed test-index membership in `purged_cpcv_splits` ([statistical_inference.py](../../gym-core/src/gym/domain/statistical_inference.py), `~8×` speedup).
+   - `bisect` availability-time indexing in `simulate_passive_orders` ([passive_execution.py](../../gym-core/src/gym/domain/passive_execution.py), `~6×` speedup) with exact parity verification on fill records and shared print capacity.
 
 ---
 

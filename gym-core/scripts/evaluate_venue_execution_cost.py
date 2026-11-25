@@ -17,12 +17,12 @@ def main() -> int:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path("../evidence/2026-11-24-venue-execution-cost-report.md"),
+        default=Path("../evidence/studies/execution-and-venues/venue-execution-cost.md"),
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=Path("../evidence/2026-11-24-venue-execution-cost.json"),
+        default=Path("../evidence/studies/execution-and-venues/venue-execution-cost.json"),
     )
     args = parser.parse_args()
     summary = run_venue_execution_cost_audit(args.wallex_db, args.multi_venue_db, args.report, args.receipt)
