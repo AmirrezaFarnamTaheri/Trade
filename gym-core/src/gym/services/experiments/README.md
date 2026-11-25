@@ -30,4 +30,4 @@ All strictly causal offline research studies, shared simulation utilities, live 
 3. **Track 3 — Execution & Venues (`evidence/studies/execution-and-venues/`):**
    `venue_execution_audit.py`, `smart_execution_sim.py`, `diffusion_and_netting_study.py`, `venue_leverage_study.py`
 4. **Track 4 — v3 Adaptive Engine, Optimal Closing & Bear-Regime (`evidence/studies/v3-adaptive-engine/`):**
-   `dynamic_resolver_study.py` → `multi_horizon_adaptive_study.py` → `optimal_exit_study.py` → `bellman_resurrection_study.py` → `bear_regime_and_timeframe_study.py` → `convex_bear_cross_asset_study.py`
+   `dynamic_resolver_study.py` → `multi_horizon_adaptive_study.py` → `optimal_exit_study.py` → `bellman_resurrection_study.py` → `bear_regime_and_timeframe_study.py` → `convex_bear_cross_asset_study.py` → `twenty_window_macro_quadrant_study.py`

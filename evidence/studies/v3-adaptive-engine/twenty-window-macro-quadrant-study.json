@@ -1,0 +1,4766 @@
+{
+  "generated_at": "2026-11-25T17:38:56.721495+00:00",
+  "executor_state": "DISARMED",
+  "window_selection": {
+    "count": 20,
+    "mean_abs_corr": 0.1325,
+    "max_abs_corr": 0.372
+  },
+  "windows_20": [
+    {
+      "start": "2025-01-22T18:00:00+00:00",
+      "end": "2025-01-29T18:00:00+00:00",
+      "regime": "BTC_DOMINANCE_BLEED",
+      "btc_7d": -1.87,
+      "med_alt_7d": -10.25,
+      "gold_7d": -1.71,
+      "breadth_start": 0.83,
+      "breadth_end": 0.25,
+      "vol_h_bps": 50.9,
+      "path_eff": 0.16,
+      "spread_top_bot": 15.3,
+      "top2": [
+        [
+          "XAUTUSDT",
+          -1.7
+        ],
+        [
+          "BTCUSDT",
+          -1.9
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -17.0
+        ],
+        [
+          "NEARUSDT",
+          -14.7
+        ]
+      ],
+      "wid": "W01"
+    },
+    {
+      "start": "2025-04-09T18:00:00+00:00",
+      "end": "2025-04-16T18:00:00+00:00",
+      "regime": "HIGH_VOL_WHIPSAW_CHOP",
+      "btc_7d": 1.55,
+      "med_alt_7d": -3.44,
+      "gold_7d": 8.93,
+      "breadth_start": 0.0,
+      "breadth_end": 0.08,
+      "vol_h_bps": 55.0,
+      "path_eff": 0.15,
+      "spread_top_bot": 19.7,
+      "top2": [
+        [
+          "XAUTUSDT",
+          8.9
+        ],
+        [
+          "TRXUSDT",
+          7.3
+        ]
+      ],
+      "bot2": [
+        [
+          "ATOMUSDT",
+          -10.8
+        ],
+        [
+          "AAVEUSDT",
+          -5.9
+        ]
+      ],
+      "wid": "W02"
+    },
+    {
+      "start": "2025-06-04T18:00:00+00:00",
+      "end": "2025-06-11T18:00:00+00:00",
+      "regime": "STEADY_BULL_GRIND",
+      "btc_7d": 4.0,
+      "med_alt_7d": 4.94,
+      "gold_7d": -1.44,
+      "breadth_start": 0.5,
+      "breadth_end": 0.92,
+      "vol_h_bps": 33.4,
+      "path_eff": 0.56,
+      "spread_top_bot": 31.5,
+      "top2": [
+        [
+          "UNIUSDT",
+          30.0
+        ],
+        [
+          "AAVEUSDT",
+          16.2
+        ]
+      ],
+      "bot2": [
+        [
+          "XAUTUSDT",
+          -1.4
+        ],
+        [
+          "BNBUSDT",
+          0.2
+        ]
+      ],
+      "wid": "W03"
+    },
+    {
+      "start": "2025-06-25T18:00:00+00:00",
+      "end": "2025-07-02T18:00:00+00:00",
+      "regime": "MIXED_SIDEWAYS_CHOP",
+      "btc_7d": 2.75,
+      "med_alt_7d": 4.33,
+      "gold_7d": -1.0,
+      "breadth_start": 0.42,
+      "breadth_end": 0.33,
+      "vol_h_bps": 51.3,
+      "path_eff": 0.67,
+      "spread_top_bot": 10.4,
+      "top2": [
+        [
+          "BCHUSDT",
+          8.1
+        ],
+        [
+          "AAVEUSDT",
+          7.4
+        ]
+      ],
+      "bot2": [
+        [
+          "NEARUSDT",
+          -2.3
+        ],
+        [
+          "XAUTUSDT",
+          -1.0
+        ]
+      ],
+      "wid": "W04"
+    },
+    {
+      "start": "2025-07-16T18:00:00+00:00",
+      "end": "2025-07-23T18:00:00+00:00",
+      "regime": "ALT_SEASON_ROTATION",
+      "btc_7d": -1.21,
+      "med_alt_7d": 5.91,
+      "gold_7d": 0.27,
+      "breadth_start": 1.0,
+      "breadth_end": 1.0,
+      "vol_h_bps": 38.5,
+      "path_eff": 0.3,
+      "spread_top_bot": 29.9,
+      "top2": [
+        [
+          "DOGEUSDT",
+          16.9
+        ],
+        [
+          "LTCUSDT",
+          12.6
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -13.0
+        ],
+        [
+          "DOTUSDT",
+          -1.6
+        ]
+      ],
+      "wid": "W05"
+    },
+    {
+      "start": "2025-10-01T18:00:00+00:00",
+      "end": "2025-10-08T18:00:00+00:00",
+      "regime": "STEADY_BULL_GRIND",
+      "btc_7d": 5.99,
+      "med_alt_7d": 2.68,
+      "gold_7d": 3.51,
+      "breadth_start": 0.17,
+      "breadth_end": 0.58,
+      "vol_h_bps": 40.0,
+      "path_eff": 0.46,
+      "spread_top_bot": 32.5,
+      "top2": [
+        [
+          "BNBUSDT",
+          27.6
+        ],
+        [
+          "LTCUSDT",
+          8.1
+        ]
+      ],
+      "bot2": [
+        [
+          "AVAXUSDT",
+          -4.9
+        ],
+        [
+          "AAVEUSDT",
+          -0.8
+        ]
+      ],
+      "wid": "W06"
+    },
+    {
+      "start": "2025-11-05T18:00:00+00:00",
+      "end": "2025-11-12T18:00:00+00:00",
+      "regime": "GOLD_FLIGHT_TO_SAFETY",
+      "btc_7d": -1.86,
+      "med_alt_7d": 2.73,
+      "gold_7d": 5.14,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 48.6,
+      "path_eff": 0.17,
+      "spread_top_bot": 60.5,
+      "top2": [
+        [
+          "FILUSDT",
+          55.2
+        ],
+        [
+          "UNIUSDT",
+          45.5
+        ]
+      ],
+      "bot2": [
+        [
+          "SOLUSDT",
+          -5.3
+        ],
+        [
+          "BTCUSDT",
+          -1.9
+        ]
+      ],
+      "wid": "W07"
+    },
+    {
+      "start": "2025-12-17T18:00:00+00:00",
+      "end": "2025-12-24T18:00:00+00:00",
+      "regime": "LOW_VOL_COIL_FLAT",
+      "btc_7d": 0.8,
+      "med_alt_7d": -0.8,
+      "gold_7d": 4.13,
+      "breadth_start": 0.08,
+      "breadth_end": 0.08,
+      "vol_h_bps": 44.8,
+      "path_eff": 0.15,
+      "spread_top_bot": 34.5,
+      "top2": [
+        [
+          "UNIUSDT",
+          17.9
+        ],
+        [
+          "XAUTUSDT",
+          4.1
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -16.6
+        ],
+        [
+          "DOTUSDT",
+          -6.0
+        ]
+      ],
+      "wid": "W08"
+    },
+    {
+      "start": "2026-01-07T18:00:00+00:00",
+      "end": "2026-01-14T18:00:00+00:00",
+      "regime": "BTC_DOMINANCE_BLEED",
+      "btc_7d": 4.27,
+      "med_alt_7d": -2.6,
+      "gold_7d": 2.21,
+      "breadth_start": 0.83,
+      "breadth_end": 0.27,
+      "vol_h_bps": 65.0,
+      "path_eff": 0.44,
+      "spread_top_bot": 14.9,
+      "top2": [
+        [
+          "BTCUSDT",
+          4.3
+        ],
+        [
+          "SOLUSDT",
+          3.9
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -10.6
+        ],
+        [
+          "LINKUSDT",
+          -7.1
+        ]
+      ],
+      "wid": "W09"
+    },
+    {
+      "start": "2026-01-28T18:00:00+00:00",
+      "end": "2026-02-04T18:00:00+00:00",
+      "regime": "SYNC_LIQUIDITY_CRUNCH",
+      "btc_7d": -19.27,
+      "med_alt_7d": -20.67,
+      "gold_7d": -8.3,
+      "breadth_start": 0.17,
+      "breadth_end": 0.0,
+      "vol_h_bps": 74.8,
+      "path_eff": 0.85,
+      "spread_top_bot": 26.0,
+      "top2": [
+        [
+          "TRXUSDT",
+          -3.9
+        ],
+        [
+          "XAUTUSDT",
+          -8.3
+        ]
+      ],
+      "bot2": [
+        [
+          "ETHUSDT",
+          -29.9
+        ],
+        [
+          "SOLUSDT",
+          -28.3
+        ]
+      ],
+      "wid": "W10"
+    },
+    {
+      "start": "2026-02-11T18:00:00+00:00",
+      "end": "2026-02-18T18:00:00+00:00",
+      "regime": "INVERTED_V_BLOWOFF",
+      "btc_7d": 0.84,
+      "med_alt_7d": 5.84,
+      "gold_7d": -1.82,
+      "breadth_start": 0.0,
+      "breadth_end": 0.08,
+      "vol_h_bps": 59.7,
+      "path_eff": 0.09,
+      "spread_top_bot": 32.2,
+      "top2": [
+        [
+          "ATOMUSDT",
+          29.5
+        ],
+        [
+          "AAVEUSDT",
+          20.6
+        ]
+      ],
+      "bot2": [
+        [
+          "UNIUSDT",
+          -2.6
+        ],
+        [
+          "XAUTUSDT",
+          -1.8
+        ]
+      ],
+      "wid": "W11"
+    },
+    {
+      "start": "2026-02-25T18:00:00+00:00",
+      "end": "2026-03-04T18:00:00+00:00",
+      "regime": "V_BOTTOM_REVERSAL",
+      "btc_7d": 6.45,
+      "med_alt_7d": -2.06,
+      "gold_7d": -2.12,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 84.4,
+      "path_eff": 0.38,
+      "spread_top_bot": 20.6,
+      "top2": [
+        [
+          "NEARUSDT",
+          9.1
+        ],
+        [
+          "BTCUSDT",
+          6.5
+        ]
+      ],
+      "bot2": [
+        [
+          "BCHUSDT",
+          -11.6
+        ],
+        [
+          "FILUSDT",
+          -10.5
+        ]
+      ],
+      "wid": "W12"
+    },
+    {
+      "start": "2026-03-11T18:00:00+00:00",
+      "end": "2026-03-18T18:00:00+00:00",
+      "regime": "HIGH_VOL_WHIPSAW_CHOP",
+      "btc_7d": 1.4,
+      "med_alt_7d": -0.08,
+      "gold_7d": -3.35,
+      "breadth_start": 0.08,
+      "breadth_end": 0.5,
+      "vol_h_bps": 54.9,
+      "path_eff": 0.14,
+      "spread_top_bot": 13.1,
+      "top2": [
+        [
+          "ETHUSDT",
+          8.3
+        ],
+        [
+          "LINKUSDT",
+          4.1
+        ]
+      ],
+      "bot2": [
+        [
+          "BCHUSDT",
+          -4.8
+        ],
+        [
+          "AAVEUSDT",
+          -4.4
+        ]
+      ],
+      "wid": "W13"
+    },
+    {
+      "start": "2026-04-08T18:00:00+00:00",
+      "end": "2026-04-15T18:00:00+00:00",
+      "regime": "HIGH_VOL_WHIPSAW_CHOP",
+      "btc_7d": 2.71,
+      "med_alt_7d": 1.23,
+      "gold_7d": 1.6,
+      "breadth_start": 0.33,
+      "breadth_end": 0.25,
+      "vol_h_bps": 48.1,
+      "path_eff": 0.27,
+      "spread_top_bot": 22.9,
+      "top2": [
+        [
+          "AAVEUSDT",
+          13.8
+        ],
+        [
+          "ETHUSDT",
+          5.6
+        ]
+      ],
+      "bot2": [
+        [
+          "DOTUSDT",
+          -9.1
+        ],
+        [
+          "ADAUSDT",
+          -4.0
+        ]
+      ],
+      "wid": "W14"
+    },
+    {
+      "start": "2026-05-27T18:00:00+00:00",
+      "end": "2026-06-03T18:00:00+00:00",
+      "regime": "BEAR_CASCADE",
+      "btc_7d": -11.91,
+      "med_alt_7d": -11.18,
+      "gold_7d": -0.8,
+      "breadth_start": 0.17,
+      "breadth_end": 0.0,
+      "vol_h_bps": 43.0,
+      "path_eff": 0.88,
+      "spread_top_bot": 34.8,
+      "top2": [
+        [
+          "NEARUSDT",
+          7.1
+        ],
+        [
+          "XAUTUSDT",
+          -0.8
+        ]
+      ],
+      "bot2": [
+        [
+          "BCHUSDT",
+          -27.7
+        ],
+        [
+          "SOLUSDT",
+          -13.3
+        ]
+      ],
+      "wid": "W15"
+    },
+    {
+      "start": "2026-07-22T18:00:00+00:00",
+      "end": "2026-07-29T18:00:00+00:00",
+      "regime": "STEADY_BEAR_GRIND",
+      "btc_7d": -3.03,
+      "med_alt_7d": -4.49,
+      "gold_7d": -2.35,
+      "breadth_start": 0.58,
+      "breadth_end": 0.25,
+      "vol_h_bps": 33.1,
+      "path_eff": 0.4,
+      "spread_top_bot": 19.9,
+      "top2": [
+        [
+          "UNIUSDT",
+          3.8
+        ],
+        [
+          "AAVEUSDT",
+          0.3
+        ]
+      ],
+      "bot2": [
+        [
+          "NEARUSDT",
+          -16.1
+        ],
+        [
+          "ATOMUSDT",
+          -13.5
+        ]
+      ],
+      "wid": "W16"
+    },
+    {
+      "start": "2026-08-19T18:00:00+00:00",
+      "end": "2026-08-26T18:00:00+00:00",
+      "regime": "PARABOLIC_BULL",
+      "btc_7d": 15.42,
+      "med_alt_7d": 13.37,
+      "gold_7d": 2.96,
+      "breadth_start": 0.5,
+      "breadth_end": 1.0,
+      "vol_h_bps": 69.7,
+      "path_eff": 0.84,
+      "spread_top_bot": 29.8,
+      "top2": [
+        [
+          "AAVEUSDT",
+          32.7
+        ],
+        [
+          "XRPUSDT",
+          31.0
+        ]
+      ],
+      "bot2": [
+        [
+          "TRXUSDT",
+          2.8
+        ],
+        [
+          "XAUTUSDT",
+          3.0
+        ]
+      ],
+      "wid": "W17"
+    },
+    {
+      "start": "2026-09-02T18:00:00+00:00",
+      "end": "2026-09-09T18:00:00+00:00",
+      "regime": "ALT_SEASON_ROTATION",
+      "btc_7d": 2.45,
+      "med_alt_7d": 9.61,
+      "gold_7d": 0.39,
+      "breadth_start": 0.92,
+      "breadth_end": 1.0,
+      "vol_h_bps": 40.1,
+      "path_eff": 0.25,
+      "spread_top_bot": 40.3,
+      "top2": [
+        [
+          "NEARUSDT",
+          40.7
+        ],
+        [
+          "DOTUSDT",
+          34.6
+        ]
+      ],
+      "bot2": [
+        [
+          "XAUTUSDT",
+          0.4
+        ],
+        [
+          "AAVEUSDT",
+          1.6
+        ]
+      ],
+      "wid": "W18"
+    },
+    {
+      "start": "2026-11-04T18:00:00+00:00",
+      "end": "2026-11-11T18:00:00+00:00",
+      "regime": "BEAR_CASCADE",
+      "btc_7d": -6.51,
+      "med_alt_7d": -8.93,
+      "gold_7d": -1.12,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 50.2,
+      "path_eff": 0.64,
+      "spread_top_bot": 17.0,
+      "top2": [
+        [
+          "TRXUSDT",
+          -1.0
+        ],
+        [
+          "XAUTUSDT",
+          -1.1
+        ]
+      ],
+      "bot2": [
+        [
+          "XRPUSDT",
+          -18.0
+        ],
+        [
+          "BCHUSDT",
+          -17.3
+        ]
+      ],
+      "wid": "W19"
+    },
+    {
+      "start": "2026-11-18T18:00:00+00:00",
+      "end": "2026-11-25T18:00:00+00:00",
+      "regime": "STEADY_BEAR_GRIND",
+      "btc_7d": -5.97,
+      "med_alt_7d": -7.31,
+      "gold_7d": -6.49,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 105.9,
+      "path_eff": 0.39,
+      "spread_top_bot": 16.5,
+      "top2": [
+        [
+          "TRXUSDT",
+          -0.7
+        ],
+        [
+          "LINKUSDT",
+          -3.6
+        ]
+      ],
+      "bot2": [
+        [
+          "NEARUSDT",
+          -17.2
+        ],
+        [
+          "FILUSDT",
+          -14.9
+        ]
+      ],
+      "wid": "W20"
+    }
+  ],
+  "standalone_4quad_benchmarks": [
+    {
+      "label": "M06_4QUAD_DAILY_TAKER",
+      "w20": {
+        "mean_7d": 2.58,
+        "med_7d": 0.65,
+        "pos_wins": 12,
+        "c1_3pct_1d": 11,
+        "c2_2pct_2d": 10,
+        "c3_1pct_3d": 10,
+        "c4_8pct_3d": 8,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -8.38,
+            "max_1d": 2.79,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": -1.19,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -4.49,
+            "max_1d": 2.62,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 0.73,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -5.15,
+            "max_1d": 2.58,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.9,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -0.86,
+            "max_1d": 1.96,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 5.27,
+            "max_1d": 3.85,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 8.3,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 15.07,
+            "max_1d": 6.54,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 14.85,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.38,
+            "max_1d": 2.79,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 3.43,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 7.14,
+            "max_1d": 3.05,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.68,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 19.38,
+            "max_1d": 12.01,
+            "d_ge_2": 5,
+            "d_ge_1": 5,
+            "max_3d": 8.44,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -4.51,
+            "max_1d": 2.18,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.51,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -9.08,
+            "max_1d": 3.97,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 9.51,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -6.43,
+            "max_1d": 0.17,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.3,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 13.73,
+            "max_1d": 6.04,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 14.03,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.24,
+            "max_1d": 3.64,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.75,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 7.49,
+            "max_1d": 4.66,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 5.88,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 6.18,
+            "max_1d": 11.28,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.92,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.43,
+            "max_1d": 6.15,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 8.56,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 12.9,
+            "max_1d": 14.28,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 11.48,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3500.53,
+      "full_ret_pct": 246.17,
+      "stress_ret_pct": 49.25,
+      "ann_sharpe": 1.052,
+      "max_dd_pct": 42.52,
+      "liqs": 0,
+      "fills": 520,
+      "fees_usdt": 839.83,
+      "borrow_usdt": 1044.29,
+      "pool_yield_usdt": 62.79,
+      "year_rets": {
+        "2024": 17.4,
+        "2025": 94.33,
+        "2026": 49.93
+      }
+    },
+    {
+      "label": "M06_4QUAD_DAILY_MAKER",
+      "w20": {
+        "mean_7d": 2.85,
+        "med_7d": 0.75,
+        "pos_wins": 12,
+        "c1_3pct_1d": 12,
+        "c2_2pct_2d": 10,
+        "c3_1pct_3d": 10,
+        "c4_8pct_3d": 8,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -7.9,
+            "max_1d": 2.78,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": -0.99,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -3.0,
+            "max_1d": 3.94,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 0.8,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -4.93,
+            "max_1d": 2.58,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.89,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -0.37,
+            "max_1d": 2.06,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.6,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 5.5,
+            "max_1d": 3.84,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 8.29,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 15.08,
+            "max_1d": 6.53,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 14.83,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.17,
+            "max_1d": 2.83,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 3.48,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 7.12,
+            "max_1d": 3.05,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.67,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 20.1,
+            "max_1d": 12.06,
+            "d_ge_2": 5,
+            "d_ge_1": 5,
+            "max_3d": 8.65,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -4.47,
+            "max_1d": 2.17,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.49,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -8.98,
+            "max_1d": 3.96,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 9.57,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -6.14,
+            "max_1d": 0.2,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.14,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 13.85,
+            "max_1d": 6.03,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 14.03,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.45,
+            "max_1d": 3.63,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.74,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 7.88,
+            "max_1d": 4.76,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 6.14,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 6.33,
+            "max_1d": 11.27,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.92,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.58,
+            "max_1d": 6.21,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 8.71,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 12.88,
+            "max_1d": 13.91,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 11.42,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 4292.58,
+      "full_ret_pct": 324.31,
+      "stress_ret_pct": 62.15,
+      "ann_sharpe": 1.181,
+      "max_dd_pct": 40.84,
+      "liqs": 0,
+      "fills": 519,
+      "fees_usdt": 492.41,
+      "borrow_usdt": 1190.46,
+      "pool_yield_usdt": 68.55,
+      "year_rets": {
+        "2024": 20.83,
+        "2025": 114.22,
+        "2026": 61.71
+      }
+    },
+    {
+      "label": "U1_4QUAD_4H_AGREE_TAKER",
+      "w20": {
+        "mean_7d": 3.86,
+        "med_7d": 0.05,
+        "pos_wins": 11,
+        "c1_3pct_1d": 10,
+        "c2_2pct_2d": 9,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 7,
+        "c5_18pct_7d": 2,
+        "full_5of5_hits": 2,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -9.25,
+            "max_1d": 0.94,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.01,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.05,
+            "max_1d": 3.07,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 0.79,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.92,
+            "max_1d": 2.74,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 6.05,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -2.46,
+            "max_1d": 0.16,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.46,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 8.16,
+            "max_1d": 5.0,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.55,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 19.01,
+            "max_1d": 7.03,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 16.77,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.88,
+            "max_1d": 1.76,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 0.78,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 4.66,
+            "max_1d": 3.21,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.35,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 38.01,
+            "max_1d": 17.5,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 22.14,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -3.25,
+            "max_1d": 1.39,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.48,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -11.16,
+            "max_1d": 1.92,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 3.9,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -3.66,
+            "max_1d": 1.73,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.7,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 13.88,
+            "max_1d": 6.12,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 13.43,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -1.14,
+            "max_1d": 1.53,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.62,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 13.99,
+            "max_1d": 9.88,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 13.85,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 4.06,
+            "max_1d": 8.41,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 7.79,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.67,
+            "max_1d": 6.88,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 9.36,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 9.47,
+            "max_1d": 13.07,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.4,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3282.08,
+      "full_ret_pct": 226.49,
+      "stress_ret_pct": 75.77,
+      "ann_sharpe": 1.058,
+      "max_dd_pct": 40.34,
+      "liqs": 0,
+      "fills": 1046,
+      "fees_usdt": 1087.26,
+      "borrow_usdt": 796.38,
+      "pool_yield_usdt": 74.33,
+      "year_rets": {
+        "2024": 29.94,
+        "2025": 32.51,
+        "2026": 88.7
+      }
+    },
+    {
+      "label": "U1_4QUAD_4H_AGREE_MAKER",
+      "w20": {
+        "mean_7d": 4.17,
+        "med_7d": 0.05,
+        "pos_wins": 11,
+        "c1_3pct_1d": 10,
+        "c2_2pct_2d": 9,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 7,
+        "c5_18pct_7d": 2,
+        "full_5of5_hits": 2,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -8.67,
+            "max_1d": 0.95,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.23,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -1.91,
+            "max_1d": 3.12,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 0.78,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.57,
+            "max_1d": 2.76,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 6.12,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -1.96,
+            "max_1d": 0.16,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.15,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 8.48,
+            "max_1d": 4.99,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.57,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 19.1,
+            "max_1d": 7.02,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 16.8,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.61,
+            "max_1d": 1.76,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 0.89,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 4.95,
+            "max_1d": 3.2,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.4,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 38.97,
+            "max_1d": 17.58,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 22.6,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -3.21,
+            "max_1d": 1.38,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.48,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -10.74,
+            "max_1d": 1.98,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 4.11,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -3.4,
+            "max_1d": 1.8,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.87,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 14.07,
+            "max_1d": 6.11,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 13.48,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.85,
+            "max_1d": 1.6,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.69,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 14.61,
+            "max_1d": 9.98,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 14.25,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 4.35,
+            "max_1d": 8.51,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 7.98,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.93,
+            "max_1d": 6.94,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 9.51,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 9.7,
+            "max_1d": 13.06,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.38,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 4398.83,
+      "full_ret_pct": 337.39,
+      "stress_ret_pct": 97.61,
+      "ann_sharpe": 1.261,
+      "max_dd_pct": 38.8,
+      "liqs": 0,
+      "fills": 1044,
+      "fees_usdt": 691.98,
+      "borrow_usdt": 957.55,
+      "pool_yield_usdt": 84.79,
+      "year_rets": {
+        "2024": 33.55,
+        "2025": 55.71,
+        "2026": 109.02
+      }
+    },
+    {
+      "label": "U3_4QUAD_CONSERVATIVE_MAKER",
+      "w20": {
+        "mean_7d": 3.84,
+        "med_7d": 0.05,
+        "pos_wins": 11,
+        "c1_3pct_1d": 8,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 8,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -4.7,
+            "max_1d": 1.14,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.4,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.95,
+            "max_1d": 2.21,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 0.96,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.82,
+            "max_1d": 1.87,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 4.17,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -1.37,
+            "max_1d": 0.12,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 6.7,
+            "max_1d": 4.13,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 8.94,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 17.97,
+            "max_1d": 7.11,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.57,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.32,
+            "max_1d": 1.6,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.32,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 5.31,
+            "max_1d": 2.97,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.01,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 27.39,
+            "max_1d": 11.15,
+            "d_ge_2": 4,
+            "d_ge_1": 4,
+            "max_3d": 15.35,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.97,
+            "max_1d": 1.36,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.71,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -7.94,
+            "max_1d": 1.45,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 2.98,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.38,
+            "max_1d": 1.27,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.62,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 12.95,
+            "max_1d": 5.54,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 12.3,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.56,
+            "max_1d": 1.22,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.56,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 14.8,
+            "max_1d": 8.92,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 14.5,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 4.38,
+            "max_1d": 7.1,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 6.81,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.77,
+            "max_1d": 4.71,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 6.48,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 7.5,
+            "max_1d": 10.46,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 8.33,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 4058.01,
+      "full_ret_pct": 304.17,
+      "stress_ret_pct": 91.33,
+      "ann_sharpe": 1.432,
+      "max_dd_pct": 28.68,
+      "liqs": 0,
+      "fills": 912,
+      "fees_usdt": 471.34,
+      "borrow_usdt": 694.17,
+      "pool_yield_usdt": 91.88,
+      "year_rets": {
+        "2024": 22.08,
+        "2025": 65.85,
+        "2026": 98.63
+      }
+    }
+  ],
+  "unified_e3v2_enhanced": [
+    {
+      "label": "MAIN_E3_V2_STANDALONE",
+      "w20": {
+        "mean_7d": 0.95,
+        "med_7d": 0.09,
+        "pos_wins": 11,
+        "c1_3pct_1d": 2,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 3,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.6,
+            "max_1d": 1.43,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 2.14,
+            "max_1d": 1.27,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.74,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.78,
+            "max_1d": 0.86,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -0.87,
+            "max_1d": 0.56,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.74,
+            "max_1d": 2.42,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 3.38,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 7.93,
+            "max_1d": 2.36,
+            "d_ge_2": 2,
+            "d_ge_1": 5,
+            "max_3d": 5.22,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 1.77,
+            "max_1d": 0.9,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 3.17,
+            "max_1d": 1.27,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.79,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 1.01,
+            "max_1d": 0.73,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.0,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": -2.92,
+            "max_1d": 2.27,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 0.74,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -0.58,
+            "max_1d": 0.92,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.52,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": 0.05,
+            "max_1d": 0.74,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.8,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.06,
+            "max_1d": 0.34,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.67,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.13,
+            "max_1d": 0.43,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.64,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -2.85,
+            "max_1d": 0.84,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.71,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.19,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.19,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 9.32,
+            "max_1d": 5.15,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 10.62,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 0.53,
+            "max_1d": 3.9,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 4.38,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.55,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 1547.68,
+      "full_ret_pct": 54.76,
+      "stress_ret_pct": 3.76,
+      "ann_sharpe": 0.93,
+      "max_dd_pct": 11.31,
+      "liqs": 0,
+      "fees_usdt": 202.27,
+      "borrow_usdt": 6.09,
+      "pool_yield_usdt": 70.54,
+      "year_rets": {
+        "2024": 9.64,
+        "2025": 35.44,
+        "2026": 2.63
+      },
+      "vs_e3v2_bps": 0.0,
+      "vs_e3v2_ci95_bps": [
+        0.0,
+        0.0
+      ],
+      "vs_v2_bps": 1.91
+    },
+    {
+      "label": "E3_V2_PLUS_BEAR50_PREV",
+      "w20": {
+        "mean_7d": 1.69,
+        "med_7d": 1.05,
+        "pos_wins": 13,
+        "c1_3pct_1d": 5,
+        "c2_2pct_2d": 5,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.6,
+            "max_1d": 1.43,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 1.19,
+            "max_1d": 3.56,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.41,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.78,
+            "max_1d": 0.86,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -0.87,
+            "max_1d": 0.56,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.81,
+            "max_1d": 2.42,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 3.38,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 7.93,
+            "max_1d": 2.36,
+            "d_ge_2": 2,
+            "d_ge_1": 5,
+            "max_3d": 5.22,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 1.68,
+            "max_1d": 1.54,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 2.44,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 3.06,
+            "max_1d": 1.52,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.87,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 1.01,
+            "max_1d": 0.73,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.0,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 10.8,
+            "max_1d": 4.95,
+            "d_ge_2": 4,
+            "d_ge_1": 4,
+            "max_3d": 5.14,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.81,
+            "max_1d": 1.33,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 0.57,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -2.02,
+            "max_1d": 1.9,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 4.73,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.06,
+            "max_1d": 0.34,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.67,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.07,
+            "max_1d": 0.07,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.45,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.09,
+            "max_1d": 0.81,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.21,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.19,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 8.57,
+            "max_1d": 5.49,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 9.85,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.59,
+            "max_1d": 4.0,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 4.92,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 0.49,
+            "max_1d": 0.78,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.34,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 2.45,
+            "max_1d": 3.14,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.25,
+            "criteria_met": 1,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 1840.48,
+      "full_ret_pct": 84.03,
+      "stress_ret_pct": 19.74,
+      "ann_sharpe": 1.095,
+      "max_dd_pct": 15.11,
+      "liqs": 0,
+      "fees_usdt": 235.51,
+      "borrow_usdt": 92.0,
+      "pool_yield_usdt": 65.56,
+      "year_rets": {
+        "2024": 7.87,
+        "2025": 41.1,
+        "2026": 19.45
+      },
+      "vs_e3v2_bps": 1.77,
+      "vs_e3v2_ci95_bps": [
+        -1.24,
+        5.6
+      ],
+      "vs_v2_bps": 3.68
+    },
+    {
+      "label": "E3_V2_PLUS_CTA_BEAR80_PREV",
+      "w20": {
+        "mean_7d": 3.3,
+        "med_7d": 1.0,
+        "pos_wins": 14,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 8,
+        "c4_8pct_3d": 5,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.6,
+            "max_1d": 1.43,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.4,
+            "max_1d": 4.67,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.94,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.99,
+            "max_1d": 1.25,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.07,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -0.87,
+            "max_1d": 0.56,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.81,
+            "max_1d": 2.42,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 3.38,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 8.32,
+            "max_1d": 2.17,
+            "d_ge_2": 1,
+            "d_ge_1": 5,
+            "max_3d": 5.04,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 2.59,
+            "max_1d": 3.25,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 3.94,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 1.01,
+            "max_1d": 3.18,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.81,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 1.01,
+            "max_1d": 0.73,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.0,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 32.9,
+            "max_1d": 10.58,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 18.63,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -3.47,
+            "max_1d": 2.1,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.48,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -7.84,
+            "max_1d": 2.72,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 8.04,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.06,
+            "max_1d": 0.34,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.67,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.42,
+            "max_1d": 0.08,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.23,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 8.69,
+            "max_1d": 4.03,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 8.19,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 0.7,
+            "max_1d": 2.53,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.73,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 8.57,
+            "max_1d": 5.49,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 9.85,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.59,
+            "max_1d": 4.0,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 4.93,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 0.41,
+            "max_1d": 3.13,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 5.33,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 16.3,
+            "max_1d": 14.73,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 11.91,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 2371.44,
+      "full_ret_pct": 137.13,
+      "stress_ret_pct": 50.77,
+      "ann_sharpe": 0.977,
+      "max_dd_pct": 30.79,
+      "liqs": 0,
+      "fees_usdt": 370.98,
+      "borrow_usdt": 289.01,
+      "pool_yield_usdt": 57.03,
+      "year_rets": {
+        "2024": 5.94,
+        "2025": 41.48,
+        "2026": 57.18
+      },
+      "vs_e3v2_bps": 5.33,
+      "vs_e3v2_ci95_bps": [
+        -4.29,
+        16.61
+      ],
+      "vs_v2_bps": 7.24
+    },
+    {
+      "label": "E3_V2_4QUAD_CONSERVATIVE_TK",
+      "w20": {
+        "mean_7d": 2.91,
+        "med_7d": 0.23,
+        "pos_wins": 11,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 7,
+        "c4_8pct_3d": 4,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -4.69,
+            "max_1d": 1.34,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.26,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.91,
+            "max_1d": 3.12,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.22,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.44,
+            "max_1d": 1.66,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -2.74,
+            "max_1d": 0.34,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.85,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 5.87,
+            "max_1d": 3.84,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 7.9,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 16.48,
+            "max_1d": 6.07,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.2,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.58,
+            "max_1d": 1.37,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.71,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 4.91,
+            "max_1d": 2.59,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 5.8,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.42,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 19.17,
+            "max_1d": 8.98,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 10.79,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.9,
+            "max_1d": 1.44,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.4,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -6.15,
+            "max_1d": 2.12,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.8,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.2,
+            "max_1d": 0.57,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.01,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 9.21,
+            "max_1d": 4.05,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 8.77,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.93,
+            "max_1d": 0.76,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.18,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 15.93,
+            "max_1d": 8.24,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 15.05,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.01,
+            "max_1d": 6.8,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 5.21,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.23,
+            "max_1d": 3.49,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.84,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 5.49,
+            "max_1d": 8.46,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 6.76,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 2753.11,
+      "full_ret_pct": 172.78,
+      "stress_ret_pct": 63.14,
+      "ann_sharpe": 1.153,
+      "max_dd_pct": 25.36,
+      "liqs": 1,
+      "fees_usdt": 685.17,
+      "borrow_usdt": 455.62,
+      "pool_yield_usdt": 71.65,
+      "year_rets": {
+        "2024": 19.17,
+        "2025": 40.67,
+        "2026": 69.53
+      },
+      "vs_e3v2_bps": 6.43,
+      "vs_e3v2_ci95_bps": [
+        -2.39,
+        16.18
+      ],
+      "vs_v2_bps": 8.34
+    },
+    {
+      "label": "E3_V2_4QUAD_CONSERVATIVE_MK",
+      "w20": {
+        "mean_7d": 3.06,
+        "med_7d": 0.23,
+        "pos_wins": 11,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 8,
+        "c4_8pct_3d": 4,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -4.43,
+            "max_1d": 1.39,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.37,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.87,
+            "max_1d": 3.12,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.23,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.25,
+            "max_1d": 1.65,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.26,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -2.46,
+            "max_1d": 0.34,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.67,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 6.04,
+            "max_1d": 3.85,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 7.94,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 16.66,
+            "max_1d": 6.1,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.27,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.47,
+            "max_1d": 1.37,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.74,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 5.06,
+            "max_1d": 2.6,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 5.82,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.41,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 19.29,
+            "max_1d": 9.07,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 11.01,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.9,
+            "max_1d": 1.44,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.4,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -5.93,
+            "max_1d": 2.13,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.92,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.05,
+            "max_1d": 0.61,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.11,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 9.36,
+            "max_1d": 4.06,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 8.85,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.76,
+            "max_1d": 0.8,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.23,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 16.39,
+            "max_1d": 8.32,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 15.39,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 1.19,
+            "max_1d": 6.85,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 5.35,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.36,
+            "max_1d": 3.51,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.91,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 5.57,
+            "max_1d": 8.46,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 6.76,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3163.34,
+      "full_ret_pct": 213.31,
+      "stress_ret_pct": 72.44,
+      "ann_sharpe": 1.292,
+      "max_dd_pct": 24.44,
+      "liqs": 1,
+      "fees_usdt": 486.32,
+      "borrow_usdt": 496.33,
+      "pool_yield_usdt": 76.28,
+      "year_rets": {
+        "2024": 20.64,
+        "2025": 51.61,
+        "2026": 77.96
+      },
+      "vs_e3v2_bps": 7.7,
+      "vs_e3v2_ci95_bps": [
+        -0.96,
+        17.5
+      ],
+      "vs_v2_bps": 9.61
+    },
+    {
+      "label": "E3_V2_4QUAD_BALANCED_DAILY_TK",
+      "w20": {
+        "mean_7d": 2.61,
+        "med_7d": 0.63,
+        "pos_wins": 13,
+        "c1_3pct_1d": 11,
+        "c2_2pct_2d": 10,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 5,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -7.05,
+            "max_1d": 2.97,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": -0.91,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.78,
+            "max_1d": 4.11,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.0,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -3.79,
+            "max_1d": 2.39,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.41,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -2.12,
+            "max_1d": 1.56,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.44,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 4.79,
+            "max_1d": 3.64,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 6.89,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 13.36,
+            "max_1d": 5.95,
+            "d_ge_2": 3,
+            "d_ge_1": 5,
+            "max_3d": 13.55,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.34,
+            "max_1d": 2.62,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 3.55,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 6.48,
+            "max_1d": 2.82,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.09,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.41,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 15.21,
+            "max_1d": 11.01,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 7.48,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -4.57,
+            "max_1d": 1.66,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.54,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -7.21,
+            "max_1d": 3.22,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 7.95,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.62,
+            "max_1d": 0.02,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.22,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 10.96,
+            "max_1d": 4.98,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 11.02,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 0.84,
+            "max_1d": 3.01,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.21,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 11.77,
+            "max_1d": 5.0,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.06,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 5.53,
+            "max_1d": 10.57,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.62,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.02,
+            "max_1d": 5.23,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 7.26,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 13.51,
+            "max_1d": 12.35,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.38,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 2739.14,
+      "full_ret_pct": 169.34,
+      "stress_ret_pct": 42.93,
+      "ann_sharpe": 0.924,
+      "max_dd_pct": 37.23,
+      "liqs": 0,
+      "fees_usdt": 694.66,
+      "borrow_usdt": 760.44,
+      "pool_yield_usdt": 53.92,
+      "year_rets": {
+        "2024": 15.91,
+        "2025": 64.11,
+        "2026": 44.02
+      },
+      "vs_e3v2_bps": 7.98,
+      "vs_e3v2_ci95_bps": [
+        -4.13,
+        20.17
+      ],
+      "vs_v2_bps": 9.89
+    },
+    {
+      "label": "E3_V2_4QUAD_BALANCED_DAILY_MK",
+      "w20": {
+        "mean_7d": 2.78,
+        "med_7d": 0.77,
+        "pos_wins": 13,
+        "c1_3pct_1d": 11,
+        "c2_2pct_2d": 10,
+        "c3_1pct_3d": 10,
+        "c4_8pct_3d": 5,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -6.67,
+            "max_1d": 2.97,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": -0.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -2.63,
+            "max_1d": 4.19,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.04,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -3.62,
+            "max_1d": 2.36,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.38,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -1.7,
+            "max_1d": 1.65,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.71,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 5.0,
+            "max_1d": 3.61,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 6.82,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 13.45,
+            "max_1d": 5.96,
+            "d_ge_2": 3,
+            "d_ge_1": 5,
+            "max_3d": 13.61,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.52,
+            "max_1d": 2.65,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 3.59,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 6.45,
+            "max_1d": 2.81,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.05,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.41,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 15.81,
+            "max_1d": 11.04,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 7.66,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -4.52,
+            "max_1d": 1.65,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.54,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -7.15,
+            "max_1d": 3.22,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 7.98,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.37,
+            "max_1d": 0.02,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.1,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 10.95,
+            "max_1d": 4.97,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 11.01,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.02,
+            "max_1d": 3.01,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.2,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 12.16,
+            "max_1d": 5.09,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.34,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 5.65,
+            "max_1d": 10.59,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.63,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.31,
+            "max_1d": 5.27,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 7.37,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 13.5,
+            "max_1d": 12.32,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.37,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3290.62,
+      "full_ret_pct": 223.4,
+      "stress_ret_pct": 53.56,
+      "ann_sharpe": 1.051,
+      "max_dd_pct": 36.15,
+      "liqs": 0,
+      "fees_usdt": 466.96,
+      "borrow_usdt": 852.17,
+      "pool_yield_usdt": 57.84,
+      "year_rets": {
+        "2024": 18.67,
+        "2025": 79.69,
+        "2026": 53.8
+      },
+      "vs_e3v2_bps": 9.65,
+      "vs_e3v2_ci95_bps": [
+        -2.37,
+        21.92
+      ],
+      "vs_v2_bps": 11.56
+    },
+    {
+      "label": "E3_V2_4QUAD_4H_AGREE_TK",
+      "w20": {
+        "mean_7d": 3.4,
+        "med_7d": 0.23,
+        "pos_wins": 11,
+        "c1_3pct_1d": 10,
+        "c2_2pct_2d": 7,
+        "c3_1pct_3d": 8,
+        "c4_8pct_3d": 8,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -7.94,
+            "max_1d": 1.26,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": -0.06,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.71,
+            "max_1d": 3.25,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.4,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.67,
+            "max_1d": 2.61,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 5.07,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -3.59,
+            "max_1d": 0.39,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.01,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 7.56,
+            "max_1d": 4.41,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 9.47,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 13.98,
+            "max_1d": 6.25,
+            "d_ge_2": 3,
+            "d_ge_1": 5,
+            "max_3d": 14.25,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.14,
+            "max_1d": 1.6,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.14,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 5.58,
+            "max_1d": 3.21,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 6.76,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.42,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 29.83,
+            "max_1d": 14.17,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 16.65,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -2.98,
+            "max_1d": 1.51,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.19,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -10.31,
+            "max_1d": 1.83,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 4.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -3.44,
+            "max_1d": 1.15,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.23,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 11.95,
+            "max_1d": 5.38,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 11.18,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -1.22,
+            "max_1d": 1.32,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.46,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 17.41,
+            "max_1d": 9.33,
+            "d_ge_2": 4,
+            "d_ge_1": 4,
+            "max_3d": 16.58,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 3.1,
+            "max_1d": 8.53,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 8.79,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.35,
+            "max_1d": 6.2,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 8.41,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 8.86,
+            "max_1d": 12.94,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.21,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 2759.73,
+      "full_ret_pct": 171.96,
+      "stress_ret_pct": 61.55,
+      "ann_sharpe": 0.951,
+      "max_dd_pct": 37.23,
+      "liqs": 1,
+      "fees_usdt": 964.7,
+      "borrow_usdt": 642.0,
+      "pool_yield_usdt": 61.16,
+      "year_rets": {
+        "2024": 24.26,
+        "2025": 38.44,
+        "2026": 70.4
+      },
+      "vs_e3v2_bps": 7.76,
+      "vs_e3v2_ci95_bps": [
+        -5.51,
+        21.58
+      ],
+      "vs_v2_bps": 9.67
+    },
+    {
+      "label": "E3_V2_4QUAD_4H_AGREE_MK",
+      "w20": {
+        "mean_7d": 3.57,
+        "med_7d": 0.23,
+        "pos_wins": 11,
+        "c1_3pct_1d": 10,
+        "c2_2pct_2d": 7,
+        "c3_1pct_3d": 8,
+        "c4_8pct_3d": 8,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -7.43,
+            "max_1d": 1.38,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.15,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.65,
+            "max_1d": 3.28,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.41,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.4,
+            "max_1d": 2.6,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.89,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "MIXED_SIDEWAYS_CHOP",
+            "ret_7d": -3.13,
+            "max_1d": 0.39,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.73,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 7.89,
+            "max_1d": 4.49,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 9.68,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 13.92,
+            "max_1d": 6.24,
+            "d_ge_2": 3,
+            "d_ge_1": 5,
+            "max_3d": 14.24,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.89,
+            "max_1d": 1.6,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.23,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 5.45,
+            "max_1d": 3.23,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 6.78,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.41,
+            "max_1d": 0.3,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "SYNC_LIQUIDITY_CRUNCH",
+            "ret_7d": 30.27,
+            "max_1d": 14.27,
+            "d_ge_2": 4,
+            "d_ge_1": 5,
+            "max_3d": 17.13,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W11",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -2.94,
+            "max_1d": 1.5,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.18,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -10.16,
+            "max_1d": 1.82,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 4.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.05,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.29,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -3.2,
+            "max_1d": 1.21,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.39,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 12.11,
+            "max_1d": 5.37,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 11.24,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.97,
+            "max_1d": 1.39,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.52,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "PARABOLIC_BULL",
+            "ret_7d": 18.0,
+            "max_1d": 9.41,
+            "d_ge_2": 4,
+            "d_ge_1": 4,
+            "max_3d": 16.98,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 3.4,
+            "max_1d": 8.65,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 8.99,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.56,
+            "max_1d": 6.24,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 8.53,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 9.02,
+            "max_1d": 12.9,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.19,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3527.5,
+      "full_ret_pct": 247.43,
+      "stress_ret_pct": 79.1,
+      "ann_sharpe": 1.129,
+      "max_dd_pct": 35.74,
+      "liqs": 1,
+      "fees_usdt": 656.82,
+      "borrow_usdt": 747.36,
+      "pool_yield_usdt": 67.67,
+      "year_rets": {
+        "2024": 26.94,
+        "2025": 57.6,
+        "2026": 86.4
+      },
+      "vs_e3v2_bps": 10.0,
+      "vs_e3v2_ci95_bps": [
+        -3.02,
+        23.78
+      ],
+      "vs_v2_bps": 11.91
+    }
+  ],
+  "best_sharpe_unified": {
+    "label": "E3_V2_PLUS_BEAR50_PREV",
+    "w20": {
+      "mean_7d": 1.69,
+      "med_7d": 1.05,
+      "pos_wins": 13,
+      "c1_3pct_1d": 5,
+      "c2_2pct_2d": 5,
+      "c3_1pct_3d": 5,
+      "c4_8pct_3d": 1,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0,
+      "per_window": [
+        {
+          "wid": "W01",
+          "regime": "BTC_DOMINANCE_BLEED",
+          "ret_7d": -1.6,
+          "max_1d": 1.43,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 0.09,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W02",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": 1.19,
+          "max_1d": 3.56,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 1.41,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W03",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": 0.78,
+          "max_1d": 0.86,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.68,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W04",
+          "regime": "MIXED_SIDEWAYS_CHOP",
+          "ret_7d": -0.87,
+          "max_1d": 0.56,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.09,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W05",
+          "regime": "ALT_SEASON_ROTATION",
+          "ret_7d": 1.81,
+          "max_1d": 2.42,
+          "d_ge_2": 3,
+          "d_ge_1": 3,
+          "max_3d": 3.38,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W06",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": 7.93,
+          "max_1d": 2.36,
+          "d_ge_2": 2,
+          "d_ge_1": 5,
+          "max_3d": 5.22,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W07",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": 1.68,
+          "max_1d": 1.54,
+          "d_ge_2": 0,
+          "d_ge_1": 2,
+          "max_3d": 2.44,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W08",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": 3.06,
+          "max_1d": 1.52,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 1.87,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W09",
+          "regime": "BTC_DOMINANCE_BLEED",
+          "ret_7d": 1.01,
+          "max_1d": 0.73,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.0,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W10",
+          "regime": "SYNC_LIQUIDITY_CRUNCH",
+          "ret_7d": 10.8,
+          "max_1d": 4.95,
+          "d_ge_2": 4,
+          "d_ge_1": 4,
+          "max_3d": 5.14,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W11",
+          "regime": "INVERTED_V_BLOWOFF",
+          "ret_7d": -1.81,
+          "max_1d": 1.33,
+          "d_ge_2": 0,
+          "d_ge_1": 2,
+          "max_3d": 0.57,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W12",
+          "regime": "V_BOTTOM_REVERSAL",
+          "ret_7d": -2.02,
+          "max_1d": 1.9,
+          "d_ge_2": 0,
+          "d_ge_1": 3,
+          "max_3d": 4.73,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W13",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": -0.06,
+          "max_1d": 0.34,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.67,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W14",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": -2.07,
+          "max_1d": 0.07,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -0.45,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W15",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": 1.09,
+          "max_1d": 0.81,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.29,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W16",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": -0.21,
+          "max_1d": 0.3,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.19,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W17",
+          "regime": "PARABOLIC_BULL",
+          "ret_7d": 8.57,
+          "max_1d": 5.49,
+          "d_ge_2": 2,
+          "d_ge_1": 3,
+          "max_3d": 9.85,
+          "criteria_met": 4,
+          "hit_all": false
+        },
+        {
+          "wid": "W18",
+          "regime": "ALT_SEASON_ROTATION",
+          "ret_7d": 1.59,
+          "max_1d": 4.0,
+          "d_ge_2": 2,
+          "d_ge_1": 2,
+          "max_3d": 4.92,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W19",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": 0.49,
+          "max_1d": 0.78,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.34,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W20",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 2.45,
+          "max_1d": 3.14,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 2.25,
+          "criteria_met": 1,
+          "hit_all": false
+        }
+      ]
+    },
+    "ending_nav": 1840.48,
+    "full_ret_pct": 84.03,
+    "stress_ret_pct": 19.74,
+    "ann_sharpe": 1.095,
+    "max_dd_pct": 15.11,
+    "liqs": 0,
+    "fees_usdt": 235.51,
+    "borrow_usdt": 92.0,
+    "pool_yield_usdt": 65.56,
+    "year_rets": {
+      "2024": 7.87,
+      "2025": 41.1,
+      "2026": 19.45
+    },
+    "vs_e3v2_bps": 1.77,
+    "vs_e3v2_ci95_bps": [
+      -1.24,
+      5.6
+    ],
+    "vs_v2_bps": 3.68
+  },
+  "best_return_unified": {
+    "label": "E3_V2_4QUAD_BALANCED_DAILY_MK",
+    "w20": {
+      "mean_7d": 2.78,
+      "med_7d": 0.77,
+      "pos_wins": 13,
+      "c1_3pct_1d": 11,
+      "c2_2pct_2d": 10,
+      "c3_1pct_3d": 10,
+      "c4_8pct_3d": 5,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0,
+      "per_window": [
+        {
+          "wid": "W01",
+          "regime": "BTC_DOMINANCE_BLEED",
+          "ret_7d": -6.67,
+          "max_1d": 2.97,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": -0.68,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W02",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": -2.63,
+          "max_1d": 4.19,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 1.04,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W03",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": -3.62,
+          "max_1d": 2.36,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 2.38,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W04",
+          "regime": "MIXED_SIDEWAYS_CHOP",
+          "ret_7d": -1.7,
+          "max_1d": 1.65,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 0.71,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W05",
+          "regime": "ALT_SEASON_ROTATION",
+          "ret_7d": 5.0,
+          "max_1d": 3.61,
+          "d_ge_2": 3,
+          "d_ge_1": 4,
+          "max_3d": 6.82,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W06",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": 13.45,
+          "max_1d": 5.96,
+          "d_ge_2": 3,
+          "d_ge_1": 5,
+          "max_3d": 13.61,
+          "criteria_met": 4,
+          "hit_all": false
+        },
+        {
+          "wid": "W07",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": 0.52,
+          "max_1d": 2.65,
+          "d_ge_2": 2,
+          "d_ge_1": 3,
+          "max_3d": 3.59,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W08",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": 6.45,
+          "max_1d": 2.81,
+          "d_ge_2": 2,
+          "d_ge_1": 3,
+          "max_3d": 7.05,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W09",
+          "regime": "BTC_DOMINANCE_BLEED",
+          "ret_7d": 0.41,
+          "max_1d": 0.3,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.39,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W10",
+          "regime": "SYNC_LIQUIDITY_CRUNCH",
+          "ret_7d": 15.81,
+          "max_1d": 11.04,
+          "d_ge_2": 4,
+          "d_ge_1": 5,
+          "max_3d": 7.66,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W11",
+          "regime": "INVERTED_V_BLOWOFF",
+          "ret_7d": -4.52,
+          "max_1d": 1.65,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 1.54,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W12",
+          "regime": "V_BOTTOM_REVERSAL",
+          "ret_7d": -7.15,
+          "max_1d": 3.22,
+          "d_ge_2": 3,
+          "d_ge_1": 3,
+          "max_3d": 7.98,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W13",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": 0.05,
+          "max_1d": 0.13,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.29,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W14",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": -5.37,
+          "max_1d": 0.02,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -1.1,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W15",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": 10.95,
+          "max_1d": 4.97,
+          "d_ge_2": 2,
+          "d_ge_1": 4,
+          "max_3d": 11.01,
+          "criteria_met": 4,
+          "hit_all": false
+        },
+        {
+          "wid": "W16",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 1.02,
+          "max_1d": 3.01,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 2.2,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W17",
+          "regime": "PARABOLIC_BULL",
+          "ret_7d": 12.16,
+          "max_1d": 5.09,
+          "d_ge_2": 3,
+          "d_ge_1": 4,
+          "max_3d": 10.34,
+          "criteria_met": 4,
+          "hit_all": false
+        },
+        {
+          "wid": "W18",
+          "regime": "ALT_SEASON_ROTATION",
+          "ret_7d": 5.65,
+          "max_1d": 10.59,
+          "d_ge_2": 2,
+          "d_ge_1": 2,
+          "max_3d": 10.63,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W19",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": 2.31,
+          "max_1d": 5.27,
+          "d_ge_2": 1,
+          "d_ge_1": 3,
+          "max_3d": 7.37,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W20",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 13.5,
+          "max_1d": 12.32,
+          "d_ge_2": 3,
+          "d_ge_1": 4,
+          "max_3d": 10.37,
+          "criteria_met": 4,
+          "hit_all": false
+        }
+      ]
+    },
+    "ending_nav": 3290.62,
+    "full_ret_pct": 223.4,
+    "stress_ret_pct": 53.56,
+    "ann_sharpe": 1.051,
+    "max_dd_pct": 36.15,
+    "liqs": 0,
+    "fees_usdt": 466.96,
+    "borrow_usdt": 852.17,
+    "pool_yield_usdt": 57.84,
+    "year_rets": {
+      "2024": 18.67,
+      "2025": 79.69,
+      "2026": 53.8
+    },
+    "vs_e3v2_bps": 9.65,
+    "vs_e3v2_ci95_bps": [
+      -2.37,
+      21.92
+    ],
+    "vs_v2_bps": 11.56
+  }
+}
