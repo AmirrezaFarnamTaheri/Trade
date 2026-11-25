@@ -574,6 +574,30 @@ def test_review2_summary_headlines_match_post_repair_receipts() -> None:
     assert "$1,287.89" not in summary
 
 
+def test_duplicate_listing_invariant_adds_zero_independent_risk() -> None:
+    """Duplicating BTCUSDT as BTCUSDT_WRAPPER or WBTCUSDT must collapse to one canonical underlying intent."""
+    from gym.domain.rare_micro_signals import MicroSignalIntent
+    from gym.services.experiments.cross_layer_diagnostic_study import (
+        canonical_underlying,
+        deduplicate_intents_by_underlying,
+    )
+
+    ts = datetime(2026, 1, 1, 2, 0, tzinfo=UTC)
+    assert canonical_underlying("BTCUSDT") == canonical_underlying("BTCUSDT_WRAPPER") == canonical_underlying("WBTCUSDT") == "BTC"
+    assert canonical_underlying("XAUTUSDT") == canonical_underlying("PAXGUSDT") == "GOLD"
+
+    intents = [
+        MicroSignalIntent(ts, "BTCUSDT", "MOMENTUM_IGNITION", 1, 3.5, 95.0, 24, 0.02),
+        MicroSignalIntent(ts, "BTCUSDT_WRAPPER", "MOMENTUM_IGNITION", 1, 3.5, 95.0, 24, 0.02),
+        MicroSignalIntent(ts, "WBTCUSDT", "MOMENTUM_IGNITION", 1, 3.1, 95.0, 24, 0.02),
+        MicroSignalIntent(ts, "ETHUSDT", "MOMENTUM_IGNITION", 1, 3.2, 95.0, 24, 0.02),
+    ]
+    deduped = deduplicate_intents_by_underlying(intents)
+    assert len(deduped) == 2
+    assert {canonical_underlying(it.symbol) for it in deduped} == {"BTC", "ETH"}
+
+
+
 
 
 
