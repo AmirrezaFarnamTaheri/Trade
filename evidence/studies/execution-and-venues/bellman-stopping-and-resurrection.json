@@ -1,0 +1,228 @@
+{
+  "generated_at": "2026-11-25T14:57:23.316836+00:00",
+  "executor_state": "DISARMED",
+  "v2_reference": {
+    "label": "V2_CHAMPION_60_40_NBX16_REF",
+    "full": {
+      "days": 1085,
+      "ending_nav": 1292.84,
+      "ret_pct": 29.28,
+      "ann_sharpe": 0.849,
+      "max_dd_pct": 6.44
+    },
+    "stress": {
+      "days": 367,
+      "ending_nav": 1292.84,
+      "ret_pct": 4.49,
+      "ann_sharpe": 0.456,
+      "max_dd_pct": 6.44
+    }
+  },
+  "part1_and_3_portfolio_arms": [
+    {
+      "label": "E3_V1_RIDGE_REF",
+      "days": 1085,
+      "ending_nav": 1428.39,
+      "ret_pct": 42.84,
+      "stress_ret_pct": 2.08,
+      "ann_sharpe": 1.067,
+      "max_dd_pct": 9.13,
+      "sharpe_0h": 0.678,
+      "sharpe_1h": 1.142,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 185.29,
+      "borrow_usdt_avg": 8.28,
+      "pool_yield_usdt_avg": 80.13,
+      "ml_exits_avg": 27.5,
+      "pyramids_avg": 8.5,
+      "slow_bellman_exits_avg": 0.0,
+      "extra_entries_avg": 0.0,
+      "vs_e3v1_bps": 0.0,
+      "vs_v2_bps": 0.95,
+      "vs_v2_ci": [
+        -1.2,
+        3.15
+      ]
+    },
+    {
+      "label": "E3_V2_NONLINEAR_BELLMAN",
+      "days": 1085,
+      "ending_nav": 1429.83,
+      "ret_pct": 42.98,
+      "stress_ret_pct": 2.18,
+      "ann_sharpe": 1.09,
+      "max_dd_pct": 8.17,
+      "sharpe_0h": 0.676,
+      "sharpe_1h": 1.17,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 188.61,
+      "borrow_usdt_avg": 8.09,
+      "pool_yield_usdt_avg": 80.29,
+      "ml_exits_avg": 30.5,
+      "pyramids_avg": 10.0,
+      "slow_bellman_exits_avg": 0.0,
+      "extra_entries_avg": 0.0,
+      "vs_e3v1_bps": 0.0,
+      "vs_v2_bps": 0.95,
+      "vs_v2_ci": [
+        -1.0,
+        3.05
+      ]
+    },
+    {
+      "label": "E3_V2_PLUS_SLOW_1D_BELLMAN",
+      "days": 1085,
+      "ending_nav": 1405.64,
+      "ret_pct": 40.56,
+      "stress_ret_pct": 0.83,
+      "ann_sharpe": 1.046,
+      "max_dd_pct": 8.1,
+      "sharpe_0h": 0.61,
+      "sharpe_1h": 1.17,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 190.12,
+      "borrow_usdt_avg": 8.29,
+      "pool_yield_usdt_avg": 80.28,
+      "ml_exits_avg": 30.5,
+      "pyramids_avg": 10.0,
+      "slow_bellman_exits_avg": 26.0,
+      "extra_entries_avg": 0.0,
+      "vs_e3v1_bps": -0.16,
+      "vs_v2_bps": 0.79,
+      "vs_v2_ci": [
+        -1.29,
+        2.91
+      ]
+    },
+    {
+      "label": "E3_V2_PLUS_EARLY_IGNITION_Z15",
+      "days": 1085,
+      "ending_nav": 955.81,
+      "ret_pct": -4.42,
+      "stress_ret_pct": -7.95,
+      "ann_sharpe": -0.092,
+      "max_dd_pct": 12.48,
+      "sharpe_0h": 0.126,
+      "sharpe_1h": -0.53,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 303.33,
+      "borrow_usdt_avg": 2.82,
+      "pool_yield_usdt_avg": 66.61,
+      "ml_exits_avg": 413.0,
+      "pyramids_avg": 14.5,
+      "slow_bellman_exits_avg": 0.0,
+      "extra_entries_avg": 500.5,
+      "vs_e3v1_bps": -3.75,
+      "vs_v2_bps": -2.8,
+      "vs_v2_ci": [
+        -5.0,
+        -0.84
+      ]
+    }
+  ],
+  "part2_resurrection_ablation": [
+    {
+      "family": "flush_rebound",
+      "static_exit": {
+        "ending_nav": 569.51,
+        "ret_pct": -43.05,
+        "stress_ret_pct": -13.97,
+        "ann_sharpe": -1.728,
+        "max_dd_pct": 47.67,
+        "liqs": 0,
+        "giveback_bps": 227.6
+      },
+      "bellman_exit": {
+        "ending_nav": 676.21,
+        "ret_pct": -32.38,
+        "stress_ret_pct": -8.11,
+        "ann_sharpe": -2.002,
+        "max_dd_pct": 36.67,
+        "liqs": 0,
+        "bellman_exits_avg": 235.0,
+        "giveback_bps": 109.6,
+        "pre_eod_pct": 81.3
+      },
+      "sharpe_delta": -0.274,
+      "ret_delta_pct": 10.67,
+      "resurrected": false
+    },
+    {
+      "family": "breakdown_short",
+      "static_exit": {
+        "ending_nav": 518.69,
+        "ret_pct": -48.13,
+        "stress_ret_pct": -40.89,
+        "ann_sharpe": -1.544,
+        "max_dd_pct": 54.23,
+        "liqs": 0,
+        "giveback_bps": 266.4
+      },
+      "bellman_exit": {
+        "ending_nav": 507.03,
+        "ret_pct": -49.3,
+        "stress_ret_pct": -37.72,
+        "ann_sharpe": -2.195,
+        "max_dd_pct": 52.42,
+        "liqs": 0,
+        "bellman_exits_avg": 295.0,
+        "giveback_bps": 135.1,
+        "pre_eod_pct": 79.6
+      },
+      "sharpe_delta": -0.651,
+      "ret_delta_pct": -1.17,
+      "resurrected": false
+    },
+    {
+      "family": "early_ignition_z15",
+      "static_exit": {
+        "ending_nav": 563.08,
+        "ret_pct": -43.7,
+        "stress_ret_pct": -34.8,
+        "ann_sharpe": -0.85,
+        "max_dd_pct": 45.99,
+        "liqs": 0,
+        "giveback_bps": 252.2
+      },
+      "bellman_exit": {
+        "ending_nav": 485.03,
+        "ret_pct": -51.5,
+        "stress_ret_pct": -27.75,
+        "ann_sharpe": -3.002,
+        "max_dd_pct": 51.77,
+        "liqs": 0,
+        "bellman_exits_avg": 489.0,
+        "giveback_bps": 109.3,
+        "pre_eod_pct": 80.4
+      },
+      "sharpe_delta": -2.152,
+      "ret_delta_pct": -7.8,
+      "resurrected": false
+    }
+  ],
+  "best_arm": {
+    "label": "E3_V2_NONLINEAR_BELLMAN",
+    "days": 1085,
+    "ending_nav": 1429.83,
+    "ret_pct": 42.98,
+    "stress_ret_pct": 2.18,
+    "ann_sharpe": 1.09,
+    "max_dd_pct": 8.17,
+    "sharpe_0h": 0.676,
+    "sharpe_1h": 1.17,
+    "liquidations_sum": 0,
+    "fees_usdt_avg": 188.61,
+    "borrow_usdt_avg": 8.09,
+    "pool_yield_usdt_avg": 80.29,
+    "ml_exits_avg": 30.5,
+    "pyramids_avg": 10.0,
+    "slow_bellman_exits_avg": 0.0,
+    "extra_entries_avg": 0.0,
+    "vs_e3v1_bps": 0.0,
+    "vs_v2_bps": 0.95,
+    "vs_v2_ci": [
+      -1.0,
+      3.05
+    ]
+  }
+}
