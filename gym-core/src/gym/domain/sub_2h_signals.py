@@ -115,7 +115,7 @@ def detect_n1_pullback_rejection_short(
     if s1_daily is not None and s1_daily > -0.25:
         return None
     b = bars[i]
-    if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+    if not b.entry_eligible or bars[i + 1].open <= 0:
         return None
     if not (ema_fast[i] < ema_slow[i] * 0.997 and ema_slow[i] < ema_slow[i - 6]):
         return None
@@ -152,7 +152,7 @@ def detect_n4_coiled_down_short(
     if s1_daily is not None and s1_daily > -0.20:
         return None
     b = bars[i]
-    if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+    if not b.entry_eligible or bars[i + 1].open <= 0:
         return None
     if not (b.close < ema_slow[i] and ema_slow[i] < ema_slow[i - 8]):
         return None
@@ -185,7 +185,7 @@ def detect_sub2h_ignition_long(
     if i < max(48, lookback_high) or i + 1 >= len(bars):
         return None
     b = bars[i]
-    if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+    if not b.entry_eligible or bars[i + 1].open <= 0:
         return None
     pr = rets[i - 36 : i]
     mr = sum(pr) / 36.0
@@ -360,7 +360,7 @@ def _resolve_prices(symbols, by_start, by_avail, ts, last_px) -> tuple[dict[str,
         nxt, cur = by_start[sym].get(ts), by_avail[sym].get(ts)
         if nxt is not None and nxt.open > 0:
             exec_px[sym], last_px[sym] = nxt.open, nxt.open
-            if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+            if cur is not None and cur.entry_eligible:
                 tradable.add(sym)
         elif cur is not None and cur.close > 0:
             exec_px[sym], last_px[sym] = cur.close, cur.close

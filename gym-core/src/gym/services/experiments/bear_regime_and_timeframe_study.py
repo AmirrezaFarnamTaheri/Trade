@@ -431,7 +431,7 @@ def _extract_1h_11feat_and_bellman(
         hls = [(b.high - b.low) / max(b.close, 1e-9) for b in bars]
         for i in range(96, len(bars) - 50):
             b = bars[i]
-            if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+            if not b.entry_eligible or bars[i + 1].open <= 0:
                 continue
             pr, pv, ph = rets[i - 48 : i], vols[i - 48 : i], highs[i - 96 : i]
             mr = sum(pr) / 48.0

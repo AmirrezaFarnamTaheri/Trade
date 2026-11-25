@@ -99,7 +99,7 @@ def _run_second_order_1d_arms(
                 nxt, cur = by_start[sym].get(t_avail), by_avail[sym].get(t_avail)
                 if nxt and nxt.open > 0:
                     exec_prices[sym] = Decimal(str(nxt.open))
-                    if nxt.entry_eligible and cur and cur.entry_eligible:
+                    if cur and cur.entry_eligible:
                         tradable.add(sym)
                 elif cur and cur.close > 0:
                     exec_prices[sym] = Decimal(str(cur.close))

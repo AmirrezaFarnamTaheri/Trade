@@ -150,7 +150,7 @@ def simulate_tiered_sparse_ignition(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _tiered_breakout_score(
                     cur, r, high_hist[sym][-breakout_bars:], ret_hist[sym][-vol_lookback:],
                     vol_hist[sym][-vol_lookback:], dvol_hist[sym][-12:],
@@ -303,7 +303,7 @@ def run_dynamic_shared_ledger_blend(
             if nxt is not None and nxt.open > 0:
                 exec_prices[sym] = Decimal(str(nxt.open))
                 last_mark[sym] = exec_prices[sym]
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 exec_prices[sym] = Decimal(str(cur.close))
@@ -437,7 +437,7 @@ def simulate_structural_breakdown_short(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            if bear_ok and sym != "BTCUSDT" and cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if bear_ok and sym != "BTCUSDT" and cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 s1_v = day_sigs[sym].s1_trend if sym in day_sigs else None
                 hit = _structural_breakdown_candidate(
                     cur, r, close_hist[sym], ret_hist[sym], vol_hist[sym], btc_14d, s1_v,

@@ -475,10 +475,24 @@ def eval_candidate_b_sealed_holdout(con: sqlite3.Connection) -> dict:
     }
 
 
-def write_instant_report(path: Path, g1: dict, cand_a_h: dict, cand_a_ob: dict, cand_b: dict) -> None:
+def write_instant_report(
+    path: Path,
+    g1: dict,
+    cand_a_h: dict,
+    cand_a_ob: dict,
+    cand_b: dict,
+    *,
+    g3: dict | None = None,
+) -> None:
     a_pass = bool(cand_a_h.get("hourly_passes") and cand_a_ob.get("orderbook_passes"))
     b_pass = bool(cand_b.get("passes_g2_instant"))
     g2_pass = a_pass or b_pass
+    g3_status = str(g3.get("status", "UNKNOWN")) if isinstance(g3, dict) and g3.get("status") in ("PASS", "FAIL") else "UNKNOWN"
+    g3_detail = (
+        str(g3.get("detail", "Typed G3 receipt verified"))
+        if g3_status in ("PASS", "FAIL") and isinstance(g3, dict)
+        else "No fresh typed G3 safety-suite receipt provided (never assumed PASS)"
+    )
     lines = [
         "# Instant Zero-Wait Gate Verification Packet (Caveats Resolved)",
         "",
@@ -490,7 +504,7 @@ def write_instant_report(path: Path, g1: dict, cand_a_h: dict, cand_a_ob: dict, 
         "| --- | --- | --- | --- |",
         f"| **G1-Instant** | Live `/api/health` + L2 depth5 + Nobitex recorder | **{'PASS' if g1['passed'] else 'FAIL'}** | `connected={g1['collector_connected']}`, `{g1['markets']}` mkts / `{g1['shards']}` shards, `lag={g1['lag_s']}s`, `depth5={g1['depth5_rows']}`, `nobitex={g1['nobitex_rows']}` |",
         f"| **G2-Instant** | Causal next-bar holdout + real order-book `adversarial_lower_bound` + CPCV/PBO + Placebo + DSR | **{'PASS' if g2_pass else 'NOT_MET'}** | Cand. A hourly=`{cand_a_h.get('hourly_passes')}`, orderbook=`{cand_a_ob.get('orderbook_passes')}`; Cand. B=`{b_pass}` |",
-        "| **G3-Instant** | Safety/authority boundaries & `DISARMED` invariant | **PASS** | Verified by pytest safety suite (`41 passed`, `0` drift) |",
+        f"| **G3-Instant** | Safety/authority boundaries & `DISARMED` invariant | **{g3_status}** | {g3_detail} |",
         "| **G4** | Explicit owner sign-off | **OPEN** | Never auto-armed |",
         "",
         "## Candidate A — Dual Check (Causal Next-Bar Hourly + Tick-Level Order-Book Adversarial)",

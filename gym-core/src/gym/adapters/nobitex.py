@@ -76,10 +76,21 @@ def parse_nobitex_orderbook(
     bids_sorted = tuple(sorted(bids, key=lambda x: x[0], reverse=True))
     asks_sorted = tuple(sorted(asks, key=lambda x: x[0]))
     norm_sym = symbol.upper().replace("IRT", "TMN") if convert_rls_to_tmn and symbol.upper().endswith("IRT") else symbol.upper()
+    ts_event: datetime | None = None
+    raw_lu = payload.get("lastUpdate")
+    if raw_lu is not None:
+        try:
+            lu_val = float(raw_lu)
+            if lu_val > 1e12:
+                ts_event = datetime.fromtimestamp(lu_val / 1000.0, tz=UTC)
+            elif lu_val > 1e9:
+                ts_event = datetime.fromtimestamp(lu_val, tz=UTC)
+        except (ValueError, TypeError, OverflowError, OSError):
+            ts_event = None
     return QuoteSnapshot(
         venue="nobitex",
         symbol=norm_sym,
-        ts_event=None,
+        ts_event=ts_event,
         ts_avail=ts_avail,
         bid=bids_sorted[0][0],
         ask=asks_sorted[0][0],

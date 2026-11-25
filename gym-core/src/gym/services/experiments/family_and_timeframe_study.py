@@ -151,7 +151,7 @@ def _run_family_admm_arm(
             if nxt is not None and nxt.open > 0:
                 exec_prices[sym] = Decimal(str(nxt.open))
                 last_mark[sym] = exec_prices[sym]
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 exec_prices[sym] = Decimal(str(cur.close))

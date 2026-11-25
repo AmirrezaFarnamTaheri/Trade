@@ -68,7 +68,7 @@ def _extract_11feat_coiled_spring_dataset(
 
         for i in range(max(72, seq_len), len(bars) - 26):
             b = bars[i]
-            if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+            if not b.entry_eligible or bars[i + 1].open <= 0:
                 continue
             pr, pv, ph = rets[i - 36 : i], vols[i - 36 : i], highs[i - 72 : i]
             mr = sum(pr) / 36.0
@@ -126,8 +126,8 @@ def _walkforward_gru_scores(
     y_bin_eval: np.ndarray,
     *,
     task: str,
-) -> tuple[dict[tuple[datetime, str], float], float, float]:
-    """Run purged 3-fold walk-forward 3-seed EnsembleGRU and return (score_map, oos_auc_vs_bin, base_rate)."""
+) -> tuple[dict[tuple[datetime, str], float], float, dict[datetime, float]]:
+    """Run purged 3-fold walk-forward 3-seed EnsembleGRU and return (score_map, oos_auc_vs_bin, causal_fold_base_rates)."""
     folds = [
         (datetime(2024, 9, 1, tzinfo=UTC), datetime(2025, 4, 1, tzinfo=UTC)),
         (datetime(2025, 4, 1, tzinfo=UTC), datetime(2025, 11, 24, tzinfo=UTC)),
@@ -135,23 +135,26 @@ def _walkforward_gru_scores(
     ]
     purge = timedelta(hours=48)
     score_map: dict[tuple[datetime, str], float] = {}
+    fold_base_rates: dict[datetime, float] = {}
     oos_y, oos_s = [], []
     for te_s, te_e in folds:
         tr_i = [k for k, dt in enumerate(dts) if dt < te_s - purge]
         te_i = [k for k, dt in enumerate(dts) if te_s <= dt < te_e]
         if len(tr_i) < 80 or not te_i:
             continue
+        # Strictly causal training-only prior for this fold (never pooled across future test folds).
+        fold_prior = float(np.mean(y_bin_eval[tr_i]))
         m = EnsembleGRU(input_dim=x_mat.shape[2], hidden_dim=12, task=task, seeds=(42, 101, 202))
         m.fit(x_mat[tr_i], y_target[tr_i], epochs=24, batch_size=64, lr=4e-3, l2_reg=5e-3)
         pr = m.predict(x_mat[te_i])
         for kp, rk in enumerate(te_i):
             val = float(pr[kp])
             score_map[(dts[rk], syms[rk])] = val
+            fold_base_rates[dts[rk]] = fold_prior
             oos_y.append(int(y_bin_eval[rk]))
             oos_s.append(val)
     auc = _roc_auc(oos_y, oos_s)
-    base_r = sum(oos_y) / max(1, len(oos_y))
-    return score_map, auc, base_r
+    return score_map, auc, fold_base_rates
 
 
 def run_ignition_upgrade_ablation_study(db_path: Path, report_path: Path, receipt_path: Path) -> dict:

@@ -45,7 +45,7 @@ from .admm_helpers import (
 )
 from .champion_forward_journal import (
     _latest_live_quotes,
-    _resample_1min_to_1h,
+    load_stitched_1h_panel,
     score_champion_forward_journal,
 )
 from .gru_engine import EnsembleGRU
@@ -54,15 +54,18 @@ from .ignition_upgrade_ablation_study import _extract_11feat_coiled_spring_datas
 from .leader_forward_journal import _package_engine_digest
 
 
-def _load_stitched_2h_phase(con, symbols: tuple[str, ...], *, offset_hours: int, limit_1h: int = 800) -> dict[str, list[BarPoint]]:
+def _resample_2h_phase_closed(
+    panel_1h: dict[str, list[BarPoint]],
+    *,
+    offset_hours: int,
+    as_of: datetime | None = None,
+) -> dict[str, list[BarPoint]]:
     out: dict[str, list[BarPoint]] = {}
-    for sym in symbols:
-        bars_1h = load_keyed_candles(con, sym, "1h", limit=limit_1h)
-        last_1h = bars_1h[-1].ts_start if bars_1h else None
-        bars_1m = load_keyed_candles(con, sym, "1min", limit=15000)
-        extra_1h = [b for b in _resample_1min_to_1h(bars_1m) if last_1h is None or b.ts_start > last_1h]
-        merged = bars_1h + extra_1h
-        out[sym] = resample_hourly_to_bucket(merged, 2, offset_hours=offset_hours) if merged else []
+    for sym, merged in panel_1h.items():
+        bars_2h = resample_hourly_to_bucket(merged, 2, offset_hours=offset_hours) if merged else []
+        if as_of is not None:
+            bars_2h = [b for b in bars_2h if b.ts_avail <= as_of and b.clock_complete]
+        out[sym] = bars_2h
     return out
 
 
@@ -238,7 +241,12 @@ def record_champion_v2_journal(
     engine_digest = _package_engine_digest()
     all_syms = tuple(dict.fromkeys(BASE_13_SYMBOLS + IGNITION_18_CRYPTO + tuple(DEFENSIVE_METALS_CAPS)))
 
-    if registration_path is not None and not registration_path.exists():
+    if registration_path is not None and registration_path.exists():
+        existing_reg = json.loads(registration_path.read_text(encoding="utf-8"))
+        reg_sha = existing_reg.get("gru_model_sha256")
+        if reg_sha and reg_sha != model_sha:
+            raise ValueError(f"v2 model sha256 mismatch vs registration: {model_sha} != {reg_sha}")
+    elif registration_path is not None and not registration_path.exists():
         reg = {
             "schema": "prospective-champion-v2-registration/1",
             "strategy_id": "CHAMPION_V2_70_ACCEL_METALS_30_TWIN_GRU11_PATHPNL_CONFORMAL_JOINT_ADMM",
@@ -266,13 +274,28 @@ def record_champion_v2_journal(
     seen_slots, prev_blended, live_scores = _load_v2_state(journal_path)
     seed_scores = [float(x) for x in (meta.get("seed_conformal_scores") or [])]
     conformal_hist = (seed_scores + live_scores)[-100:]
-    prev_score = score_champion_forward_journal(journal_path, db_path) if journal_path.is_file() else {"paper_nav": 1000.0}
-    in_dd = float(prev_score.get("paper_nav", 1000.0)) <= 950.0
+    prev_score = score_champion_forward_journal(journal_path, db_path) if journal_path.is_file() else {"paper_nav": 1000.0, "peak_nav": 1000.0}
+    cur_nav = float(prev_score.get("paper_nav", 1000.0))
+    peak_nav = float(prev_score.get("peak_nav", max(1000.0, cur_nav)))
+    in_dd = peak_nav > 0.0 and ((peak_nav - cur_nav) / peak_nav >= 0.05)
 
     con = open_readonly_market_db(db_path)
     try:
-        panel_13 = {s: load_keyed_candles(con, s, "1d", limit=400) for s in BASE_13_SYMBOLS}
-        panel_metals = {s: load_keyed_candles(con, s, "1d", limit=400) for s in DEFENSIVE_METALS_CAPS}
+        # Load 1h+tail-1min ONCE for both phases and enforce strict closed-bar watermark <= now.
+        panel_1h_ign = load_stitched_1h_panel(con, IGNITION_18_CRYPTO, as_of=now)
+        p2h_0 = _resample_2h_phase_closed(panel_1h_ign, offset_hours=0, as_of=now)
+        p2h_1 = _resample_2h_phase_closed(panel_1h_ign, offset_hours=1, as_of=now)
+        max_2h = max(
+            (bars[-1].ts_avail for p in (p2h_0, p2h_1) for bars in p.values() if bars),
+            default=None,
+        )
+        if max_2h is not None:
+            early_slot = f"{now.date().isoformat()}|{max_2h.isoformat()}"
+            if early_slot in seen_slots:
+                return {"status": "ALREADY_RECORDED", "slot_key": early_slot, "as_of": now.isoformat()}
+
+        panel_13 = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in BASE_13_SYMBOLS}
+        panel_metals = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in DEFENSIVE_METALS_CAPS}
         sigs_13 = compute_slow_sleeves(panel_13, BASE_13_SYMBOLS)
         accel_13 = compute_second_order_trend_map(sigs_13, BASE_13_SYMBOLS)
         sigs_metals = compute_slow_sleeves(panel_metals, tuple(DEFENSIVE_METALS_CAPS), min_active_crypto=1, warmup_bars=64)
@@ -282,8 +305,6 @@ def record_champion_v2_journal(
         latest_1d = elig[-1]
         daily_breadth = extract_daily_breadth(sigs_13)
 
-        p2h_0 = _load_stitched_2h_phase(con, IGNITION_18_CRYPTO, offset_hours=0)
-        p2h_1 = _load_stitched_2h_phase(con, IGNITION_18_CRYPTO, offset_hours=1)
         ts0, trig0, iw0 = _score_phase_v2_triggers(p2h_0, daily_breadth, model, conformal_hist, in_dd, phase_tag="0h")
         ts1, trig1, iw1 = _score_phase_v2_triggers(p2h_1, daily_breadth, model, conformal_hist, in_dd, phase_tag="1h")
         ign_w = {s: 0.5 * iw0.get(s, 0.0) + 0.5 * iw1.get(s, 0.0) for s in set(iw0) | set(iw1)}

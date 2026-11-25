@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from bisect import bisect_left
+from bisect import bisect_right
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -87,32 +87,35 @@ def _evaluate_symbol_orders(
         if nb_c <= wb_c:
             nbx_win_count["BUY"] += 1
 
-        # Passive BUY limit: post at Nobitex best bid; check causal future snapshots within 300s
+        # Passive BUY limit: post at Nobitex best bid; check causal future Nobitex snapshots within horizon.
         post_px = m["n_bids"][0][0]
         filled_passive = False
+        had_later_snapshot = False
         fallback_idx = idx
         j = idx + 1
         while j < len(matched) and epochs[j] - epochs[idx] <= passive_horizon_s:
+            had_later_snapshot = True
             fallback_idx = j
-            if matched[j]["n_asks"][0][0] <= post_px or matched[j]["w_asks"][0][0] <= post_px:
+            if matched[j]["n_asks"][0][0] <= post_px:
                 filled_passive = True
                 break
             j += 1
-        if filled_passive:
-            asym_buy = ((post_px - common_mid) / common_mid * 10000.0) + n_maker_bps
-        else:
-            fm = matched[fallback_idx]
-            fw_c, _ = _taker_cost_bps(fm["w_asks"], common_mid, "BUY", notional, w_taker_bps)
-            fn_c, _ = _taker_cost_bps(fm["n_asks"], common_mid, "BUY", notional, n_taker_bps)
-            asym_buy = min(fw_c, fn_c)
 
         stats["BUY"]["wlx_taker"].append(wb_c)
         stats["BUY"]["nbx_taker"].append(nb_c)
         stats["BUY"]["smart_taker"].append(sb_c)
-        stats["BUY"]["asym_router"].append(asym_buy)
         stats["BUY"]["wlx_fill"].append(wb_f * 100.0)
         stats["BUY"]["nbx_fill"].append(nb_f * 100.0)
-        stats["BUY"]["passive_filled"].append(100.0 if filled_passive else 0.0)
+        if had_later_snapshot:
+            if filled_passive:
+                asym_buy = ((post_px - common_mid) / common_mid * 10000.0) + n_maker_bps
+            else:
+                fm = matched[fallback_idx]
+                fw_c, _ = _taker_cost_bps(fm["w_asks"], common_mid, "BUY", notional, w_taker_bps)
+                fn_c, _ = _taker_cost_bps(fm["n_asks"], common_mid, "BUY", notional, n_taker_bps)
+                asym_buy = min(fw_c, fn_c)
+            stats["BUY"]["asym_router"].append(asym_buy)
+            stats["BUY"]["passive_filled"].append(100.0 if filled_passive else 0.0)
 
         # SELL side: immediate smart taker sweep (avoids passive SELL adverse selection)
         ws_c, ws_f = _taker_cost_bps(m["w_bids"], common_mid, "SELL", notional, w_taker_bps)
@@ -130,20 +133,28 @@ def _evaluate_symbol_orders(
         stats["SELL"]["passive_filled"].append(0.0)
 
     n = len(matched)
-    out = {"symbol": symbol, "notional_quote": notional, "samples": n}
+    passive_covered = len(stats["BUY"]["passive_filled"])
+    out = {
+        "symbol": symbol,
+        "notional_quote": notional,
+        "samples": n,
+        "passive_covered_samples": passive_covered,
+        "passive_uncovered_deadlines": n - passive_covered,
+    }
     for side in ("BUY", "SELL"):
         s = stats[side]
+        asym_med = median(s["asym_router"]) if s["asym_router"] else median(s["smart_taker"])
         out[side.lower()] = {
             "wallex_taker_bps": round(median(s["wlx_taker"]), 2),
             "nobitex_taker_bps": round(median(s["nbx_taker"]), 2),
             "smart_taker_bps": round(median(s["smart_taker"]), 2),
-            "asym_router_bps": round(median(s["asym_router"]), 2),
+            "asym_router_bps": round(asym_med, 2),
             "saving_smart_vs_wallex_bps": round(median(s["wlx_taker"]) - median(s["smart_taker"]), 2),
-            "saving_asym_vs_wallex_bps": round(median(s["wlx_taker"]) - median(s["asym_router"]), 2),
+            "saving_asym_vs_wallex_bps": round(median(s["wlx_taker"]) - asym_med, 2),
             "nobitex_cheaper_pct": round(nbx_win_count[side] / max(1, n) * 100.0, 1),
             "wallex_depth_fill_pct": round(mean(s["wlx_fill"]), 1),
             "nobitex_depth_fill_pct": round(mean(s["nbx_fill"]), 1),
-            "passive_buy_fill_pct": round(mean(s["passive_filled"]), 1),
+            "passive_buy_fill_pct": round(mean(s["passive_filled"]), 1) if s["passive_filled"] else 0.0,
         }
     return out
 
@@ -194,15 +205,11 @@ def run_smart_execution_simulation(
             matched: list[dict] = []
             for _, ts_s, nb, na, nbq, naq, ndepth in n_list:
                 t_ep = parse_ts(ts_s).timestamp()
-                pos = bisect_left(w_epochs, t_ep)
-                best_i, best_dt = None, max_skew_s + 1.0
-                for cand in (pos - 1, pos):
-                    if 0 <= cand < len(w_epochs):
-                        dt = abs(w_epochs[cand] - t_ep)
-                        if dt < best_dt:
-                            best_dt, best_i = dt, cand
-                if best_i is None or best_dt > max_skew_s:
+                # Strictly causal pairing: latest Wallex quote observable at or before t_ep.
+                cand = bisect_right(w_epochs, t_ep) - 1
+                if cand < 0 or (t_ep - w_epochs[cand]) > max_skew_s:
                     continue
+                best_i = cand
                 _, wb_s, wa_s, wbq_s, waq_s, wdepth = w_raw[best_i]
                 wb, wa = float(dec(wb_s)), float(dec(wa_s))
                 nb_f, na_f = float(dec(nb)), float(dec(na))

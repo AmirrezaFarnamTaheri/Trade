@@ -172,7 +172,7 @@ def simulate_bull_levered_1d_core(
             if nxt is not None and nxt.open > 0:
                 exec_px[sym] = nxt.open
                 last_px[sym] = nxt.open
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 exec_px[sym] = cur.close
@@ -323,7 +323,7 @@ def simulate_nobitex_margin_ignition(
     label: str,
     offset_hours: int = 0,
     score_is_return: bool = False,
-    base_prob: float = 0.46,
+    base_prob: float | dict[datetime, float] = 0.46,
     top_tercile_leverage: float = 1.5,
     leg_cost: float = 0.0016,
     borrow_mode: str = "eod_utc",
@@ -359,7 +359,7 @@ def simulate_nobitex_margin_ignition(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_c[sym]) / prev_c[sym]) if (sym in prev_c and prev_c[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _breakdown_or_breakout_z(
                     cur, r, high_h[sym][-72:], low_h[sym][-72:], ret_h[sym][-36:], vol_h[sym][-36:],
                     side="LONG", breakout_bars=72, vol_lookback=36, z_threshold=3.0, vol_mult=2.5,
@@ -412,8 +412,9 @@ def simulate_nobitex_margin_ignition(
                 nxt = by_start[sym].get(ts)
                 if not nxt or nxt.open <= 0:
                     continue
+                bp = base_prob.get(ts, 0.46) if isinstance(base_prob, dict) else base_prob
                 base_lev, col_f = _select_lev_and_col(
-                    sc, score_is_return=score_is_return, base_prob=base_prob,
+                    sc, score_is_return=score_is_return, base_prob=bp,
                     use_conformal=True, recent_scores=recent_sc, in_dd_throttle=in_dd,
                 )
                 lev = top_tercile_leverage if (base_lev > 1.0 and sym in margin_eligible) else 1.0

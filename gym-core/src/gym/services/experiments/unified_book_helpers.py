@@ -30,7 +30,7 @@ def resolve_bar_prices(
         nxt, cur = by_start[sym].get(ts), by_avail[sym].get(ts)
         if nxt is not None and nxt.open > 0:
             exec_px[sym], last_px[sym] = nxt.open, nxt.open
-            if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+            if cur is not None and cur.entry_eligible:
                 tradable.add(sym)
         elif cur is not None and cur.close > 0:
             exec_px[sym], last_px[sym] = cur.close, cur.close

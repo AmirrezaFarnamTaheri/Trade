@@ -1,6 +1,6 @@
 # First Paper Experiment — Slow Sleeves, Fixed Controls & Veto-Only Calibrated Logistic Challenger
 
-**Generated (UTC):** `2026-11-24T10:23:20.333067+00:00` · **Primary Bar Source:** `NATIVE_1D` · **Estimand:** `RETROSPECTIVE_CURATED_LIQUID_WALLEX_USDT_COHORT` · **Disposition:** **`RETIRE_INCREMENT`**
+**Generated (UTC):** `2026-11-25T20:30:47.160772+00:00` · **Primary Bar Source:** `NATIVE_1D` · **Estimand:** `RETROSPECTIVE_CURATED_LIQUID_WALLEX_USDT_COHORT` · **Disposition:** **`INCONCLUSIVE`**
 **Stress Window Classification:** `BEAR_STRESS_REPLAY_SEEN (2025-11-24..2026-11-23)` (previously seen — never counted as untouched final holdout). **Executor:** `DISARMED` (`$0` funded budget).
 
 ## 1. Repaired Solver & Synthetic Falsification Gate
@@ -14,27 +14,27 @@
 | Arm | Full Ending ($) | Full Ret (%) | Full Sharpe | Full MaxDD (%) | Dev Ret (%) | Stress-Seen Ret (%) | Stress MaxDD (%) | Fills | Fees ($) | Turnover |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `CASH_USDT` | 1000.0 | 0.0% | 0.0 | 0.0% | 0.0% | 0.0% | 0.0% | 0 | 0.0 | 0.0x |
-| `STATIC_GOLD_AND_CRYPTO` | 1999.07 | 100.15% | 0.558 | 58.24% | 210.8% | -36.44% | 43.64% | 4535 | 55.38 | 42.6x |
-| `FIXED_S1` | 2533.54 | 153.39% | 0.996 | 22.38% | 160.99% | -2.88% | 10.95% | 2068 | 66.64 | 51.26x |
-| `FIXED_ENSEMBLE_S1_S2_S5` | 2783.43 | 178.34% | 0.94 | 25.79% | 215.35% | -11.47% | 16.81% | 2516 | 223.08 | 171.6x |
-| `ADAPTIVE_VOTE` | 2507.88 | 150.79% | 0.955 | 22.24% | 179.79% | -10.16% | 15.25% | 2224 | 159.43 | 122.64x |
-| `LOGISTIC_VETO` | 2072.1 | 107.21% | 0.834 | 24.74% | 129.27% | -9.35% | 15.58% | 1866 | 130.95 | 100.73x |
+| `STATIC_GOLD_AND_CRYPTO` | 1345.2 | 34.69% | 0.392 | 60.36% | 117.02% | -38.99% | 44.97% | 12 | 1.24 | 0.95x |
+| `FIXED_S1` | 2537.59 | 153.79% | 0.997 | 22.21% | 161.42% | -2.89% | 10.95% | 2070 | 66.76 | 51.35x |
+| `FIXED_ENSEMBLE_S1_S2_S5` | 2678.14 | 167.92% | 0.91 | 25.75% | 204.0% | -11.61% | 16.83% | 2525 | 216.84 | 166.8x |
+| `ADAPTIVE_VOTE` | 2455.52 | 145.65% | 0.935 | 22.21% | 174.3% | -10.24% | 15.25% | 2236 | 157.56 | 121.2x |
+| `LOGISTIC_VETO` | 2682.26 | 168.33% | 0.911 | 25.75% | 204.0% | -11.47% | 16.7% | 2523 | 216.7 | 166.7x |
 
 ### Paired Bootstrap & Logistic Veto Shadow Diagnostics
 
-- **Logistic Train Calibration (Chronological Inner Fold):** `proposals=6340`, `Brier=0.2466`, `BSS=0.0133`, `ECE=0.0035`.
-- **Paired `LOGISTIC_VETO - FIXED_ENSEMBLE_S1_S2_S5` (Full):** status=`NO_EVIDENCE_NOT_ESTABLISHED`, CI95=`[-0.000662267972865439, 0.00016278070948271881]`.
-- **Paired `LOGISTIC_VETO - FIXED_ENSEMBLE_S1_S2_S5` (Bear Stress):** status=`NO_EVIDENCE_NOT_ESTABLISHED`, CI95=`[-1.853027850158994e-05, 0.00017094489209011624]`.
-- **Shadow Veto Audit:** `{'total_proposals': 4401, 'accepted_count': 2007, 'vetoed_count': 2394, 'accepted_mean_net_bps': 38.8, 'vetoed_mean_net_bps': 23.09, 'avoided_losses_count': 1332, 'foregone_winners_count': 1062, 'net_veto_uplift_bps': 8.55}`
-- **Wallex Path Under Hypothetical Nobitex `-30%` Fee Counterfactual (`FIXED_ENSEMBLE_S1_S2_S5`):** `{'days': 1638, 'ending_nav': 2930.19, 'ret_pct': 193.02, 'ann_sharpe': 0.979, 'max_dd_pct': 25.05}`
+- **Logistic Train Calibration (Chronological Inner Fold):** `proposals=6362`, `Brier=0.247`, `BSS=0.0118`, `ECE=0.0051`.
+- **Paired `LOGISTIC_VETO - FIXED_ENSEMBLE_S1_S2_S5` (Full):** status=`NO_EVIDENCE_NOT_ESTABLISHED`, CI95=`[-6.312329576420056e-13, 2.7622876675806403e-06]`.
+- **Paired `LOGISTIC_VETO - FIXED_ENSEMBLE_S1_S2_S5` (Bear Stress):** status=`POSITIVE_EXPLORATORY`, CI95=`[6.573755375956032e-11, 1.635938474436474e-05]`.
+- **Shadow Veto Audit:** `{'total_proposals': 513, 'accepted_count': 468, 'vetoed_count': 45, 'accepted_mean_net_bps': -42.1, 'vetoed_mean_net_bps': -264.75, 'avoided_losses_count': 30, 'foregone_winners_count': 15, 'net_veto_uplift_bps': 19.53}`
+- **Wallex Path Under Hypothetical Nobitex `-30%` Fee Counterfactual (`FIXED_ENSEMBLE_S1_S2_S5`):** `{'days': 1639, 'ending_nav': 2818.6, 'ret_pct': 181.94, 'ann_sharpe': 0.948, 'max_dd_pct': 25.01}`
 
 ## 3. Leave-One-Sleeve-Out Marginal Contribution (`FIXED_ENSEMBLE_S1_S2_S5`)
 
 | Ablation | Ending ($) | Full Ret (%) | Ann. Sharpe | MaxDD (%) |
 | --- | ---: | ---: | ---: | ---: |
-| `DROP_S1` | 2561.54 | 156.15% | 0.794 | 30.91% |
-| `DROP_S2` | 2574.9 | 157.52% | 1.011 | 22.38% |
-| `DROP_S5` | 2736.67 | 173.67% | 0.927 | 25.79% |
+| `DROP_S1` | 2520.34 | 152.13% | 0.782 | 31.26% |
+| `DROP_S2` | 2579.41 | 157.97% | 1.012 | 22.21% |
+| `DROP_S5` | 2632.85 | 163.39% | 0.896 | 25.75% |
 
 ## 4. 2025 Coverage & Native `1d` vs Resampled `1h` Bar-Parity Audit
 
@@ -46,4 +46,4 @@
 | `AAVEUSDT` | 327 | 0 | 7804 | 3745 | 320 | 184 | 917.43 |
 | `XAUTUSDT` | 327 | 0 | 7818 | 1365 | 323 | 115 | 153.29 |
 
-- **Bar-Source Sensitivity (`FIXED_S1` on `RESAMPLED_1H` 2025–2026):** `{'days': 613, 'ending_nav': 1137.51, 'ret_pct': 13.76, 'ann_sharpe': 0.643, 'max_dd_pct': 9.41}`
+- **Bar-Source Sensitivity (`FIXED_S1` on `RESAMPLED_1H` 2025–2026):** `{'days': 621, 'ending_nav': 1137.02, 'ret_pct': 13.72, 'ann_sharpe': 0.637, 'max_dd_pct': 9.41}`

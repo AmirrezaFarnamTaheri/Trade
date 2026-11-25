@@ -254,23 +254,43 @@ def rebalance_bidirectional_margin_lots(
     return fills
 
 
-def score_7d_window_targets(nav_ts: dict[datetime, float], windows: list[dict]) -> dict:
-    """Evaluate exact 5 Northstar criteria across a list of 7-day windows:
+def score_7d_window_targets(
+    nav_ts: dict[datetime, float],
+    windows: list[dict],
+    *,
+    max_staleness_hours: float = 24.0,
+) -> dict:
+    """Evaluate exact 5 Northstar criteria across a list of 7-day windows using O(log N) causal backward lookup.
+
     C1: >=3% in >=1 day | C2: >=2% in >=2 days | C3: >=1% in >=3 days | C4: >=8% in >=1 3d | C5: >=18% in 7d.
     """
+    from bisect import bisect_right
+
     if len(nav_ts) < 2 or not windows:
         return {
-            "mean_7d": 0.0, "med_7d": 0.0, "pos_wins": 0,
+            "mean_7d": 0.0, "med_7d": 0.0, "pos_wins": 0, "scored_windows": 0, "unscored_windows": len(windows),
             "c1_3pct_1d": 0, "c2_2pct_2d": 0, "c3_1pct_3d": 0, "c4_8pct_3d": 0, "c5_18pct_7d": 0,
             "full_5of5_hits": 0, "per_window": [],
         }
     ts_list = sorted(nav_ts)
+    max_stale_s = max_staleness_hours * 3600.0
     per_w = []
-    c1_n = c2_n = c3_n = c4_n = c5_n = full_n = pos_n = 0
+    c1_n = c2_n = c3_n = c4_n = c5_n = full_n = pos_n = unscored = 0
     rets_7d: list[float] = []
     for w in windows:
         t0 = datetime.fromisoformat(w["start"])
-        pts = [nav_ts[min(ts_list, key=lambda t: abs((t - (t0 + timedelta(days=d))).total_seconds()))] for d in range(8)]
+        pts: list[float] = []
+        valid = True
+        for d in range(8):
+            target = t0 + timedelta(days=d)
+            pos = bisect_right(ts_list, target) - 1
+            if pos < 0 or (target - ts_list[pos]).total_seconds() > max_stale_s:
+                valid = False
+                break
+            pts.append(nav_ts[ts_list[pos]])
+        if not valid:
+            unscored += 1
+            continue
         d_rets = [((pts[d + 1] / pts[d]) - 1.0) * 100.0 if pts[d] > 0 else 0.0 for d in range(7)]
         r3_list = [((pts[d + 3] / pts[d]) - 1.0) * 100.0 if pts[d] > 0 else 0.0 for d in range(5)]
         ret_7d = ((pts[7] / pts[0]) - 1.0) * 100.0 if pts[0] > 0 else 0.0
@@ -299,9 +319,11 @@ def score_7d_window_targets(nav_ts: dict[datetime, float], windows: list[dict]) 
             "hit_all": (c1 and c2 and c3 and c4 and c5),
         })
     return {
-        "mean_7d": round(sum(rets_7d) / len(rets_7d), 2),
-        "med_7d": round(median(rets_7d), 2),
+        "mean_7d": round(sum(rets_7d) / len(rets_7d), 2) if rets_7d else 0.0,
+        "med_7d": round(median(rets_7d), 2) if rets_7d else 0.0,
         "pos_wins": pos_n,
+        "scored_windows": len(rets_7d),
+        "unscored_windows": unscored,
         "c1_3pct_1d": c1_n,
         "c2_2pct_2d": c2_n,
         "c3_1pct_3d": c3_n,

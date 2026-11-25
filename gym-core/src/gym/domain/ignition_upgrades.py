@@ -173,7 +173,7 @@ def simulate_upgraded_ignition(
     leg_cost: float = 0.0016,
     score_map: dict[tuple[datetime, str], float] | None = None,
     score_is_return: bool = False,
-    base_prob: float = 0.46,
+    base_prob: float | dict[datetime, float] = 0.46,
     use_two_tranche_exit: bool = False,
     absorption_map: dict[datetime, float] | None = None,
     use_conformal_and_dd_gov: bool = False,
@@ -207,7 +207,7 @@ def simulate_upgraded_ignition(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _breakdown_or_breakout_z(
                     cur, r, high_hist[sym][-72:], low_hist[sym][-72:], ret_hist[sym][-36:], vol_hist[sym][-36:],
                     side="LONG", breakout_bars=72, vol_lookback=36, z_threshold=3.0, vol_mult=2.5,
@@ -272,8 +272,9 @@ def simulate_upgraded_ignition(
                 nxt = by_start[sym].get(ts)
                 if not nxt or nxt.open <= 0:
                     continue
+                bp = base_prob.get(ts, 0.46) if isinstance(base_prob, dict) else base_prob
                 lev, col_f = _select_lev_and_col(
-                    sc, score_is_return=score_is_return, base_prob=base_prob,
+                    sc, score_is_return=score_is_return, base_prob=bp,
                     use_conformal=use_conformal_and_dd_gov, recent_scores=recent_scores,
                     in_dd_throttle=in_dd,
                 )

@@ -191,7 +191,7 @@ def simulate_capitulation_flush_rebound(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _flush_rebound_signal(
                     cur, r, low_hist[sym][-breakout_bars:], ret_hist[sym][-vol_lookback:], vol_hist[sym][-vol_lookback:],
                     breakout_bars=breakout_bars, vol_lookback=vol_lookback, z_threshold=z_threshold, vol_mult=vol_mult,
@@ -290,7 +290,7 @@ def simulate_dead_cat_exhaustion_short(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _dead_cat_exhaustion_signal(
                     cur, r, close_hist[sym], high_hist[sym], ret_hist[sym], vol_hist[sym],
                 )
@@ -449,7 +449,7 @@ def simulate_macro_risk_parity_sleeve(
             if nxt is not None and nxt.open > 0:
                 exec_prices[sym] = Decimal(str(nxt.open))
                 last_mark[sym] = exec_prices[sym]
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 exec_prices[sym] = Decimal(str(cur.close))

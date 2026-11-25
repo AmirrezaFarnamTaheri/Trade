@@ -124,7 +124,7 @@ def _open_diffusion_entries(
         if sym in leaders or sym in active or sym not in bar_rets:
             continue
         cur, nxt = by_avail[sym].get(ts), by_start[sym].get(ts)
-        if not (cur and cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0):
+        if not (cur and cur.entry_eligible and nxt and nxt.open > 0):
             continue
         if day_s1.get(sym, 0.0) < 0.0:
             continue
@@ -283,7 +283,7 @@ def run_joint_admm_cross_sleeve_netting(
             if nxt is not None and nxt.open > 0:
                 exec_prices[sym] = Decimal(str(nxt.open))
                 last_mark[sym] = exec_prices[sym]
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 exec_prices[sym] = Decimal(str(cur.close))

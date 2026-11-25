@@ -44,7 +44,8 @@ def paired_baseline_uplift(
     boot_means.sort()
     lo_95 = boot_means[int(0.025 * (simulations - 1))]
     hi_95 = boot_means[int(0.975 * (simulations - 1))]
-    se = math.sqrt(math.fsum((m - fmean(boot_means)) ** 2 for m in boot_means) / (simulations - 1))
+    boot_mean = fmean(boot_means)
+    se = math.sqrt(math.fsum((m - boot_mean) ** 2 for m in boot_means) / (simulations - 1))
     # Distinguish underpowered vs positive vs no-edge (S009).
     if lo_95 > min_detectable_effect:
         status = "POSITIVE_EXPLORATORY"

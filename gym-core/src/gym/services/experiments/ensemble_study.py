@@ -116,7 +116,7 @@ def _exec_prices_and_tradable(
         cur = by_sym_avail[sym].get(t_avail)
         if nxt is not None and nxt.open > 0:
             prices[sym] = Decimal(str(nxt.open))
-            if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+            if cur is not None and cur.entry_eligible:
                 tradable.add(sym)
         elif cur is not None and cur.close > 0:
             prices[sym] = Decimal(str(cur.close))
@@ -156,9 +156,16 @@ def _solve_arm_targets(
     for sym, cw in zip(active_syms, cur_w, strict=True):
         sig = day_sigs[sym]
         raw_score = _sleeve_score(sig, arm_name, vote_gw)
-        if arm_name == "LOGISTIC_VETO" and logistic_gw is not None and raw_score > 0.05 and cw < 0.01:
+        if (
+            arm_name == "LOGISTIC_VETO"
+            and logistic_gw is not None
+            and t_avail >= STRESS_REPLAY_START
+            and raw_score > 0.05
+            and cw < 0.01
+        ):
             feats = extract_gateway_features(sig, consensus_score=raw_score)
-            accept, _, _ = logistic_gw.should_accept(feats, incremental_cost_bps=float(fee_rate) * 20000.0)
+            # Labels in _train_dev_logistic_veto are already fee-net, so do not subtract round-trip fee twice.
+            accept, _, _ = logistic_gw.should_accept(feats, incremental_cost_bps=0.0)
             if idx + 5 < len(eval_dates):
                 f_bar = by_sym_start[sym].get(eval_dates[idx + 5])
                 n_bar = by_sym_start[sym].get(t_avail)
@@ -231,10 +238,15 @@ def _run_self_financing_arm(
 
         if arm_name == "CASH_USDT":
             targets = {s: 0.0 for s in COHORT_SYMBOLS}
+            ledger.rebalance_to_targets(t_avail, targets, exec_prices, tradable_symbols=tradable)
         elif arm_name == "STATIC_GOLD_AND_CRYPTO":
-            elig = [s for s in COHORT_SYMBOLS if s in tradable]
-            w_eq = (0.95 / len(elig)) if elig else 0.0
-            targets = {s: (w_eq if s in elig else 0.0) for s in COHORT_SYMBOLS}
+            # Passive buy-and-hold: allocate once on the first eligible day, then hold without daily churn.
+            if not any(u > 0 for u in ledger.units.values()):
+                elig = [s for s in COHORT_SYMBOLS if s in tradable]
+                if elig:
+                    w_eq = 0.95 / len(elig)
+                    targets = {s: (w_eq if s in elig else 0.0) for s in COHORT_SYMBOLS}
+                    ledger.rebalance_to_targets(t_avail, targets, exec_prices, tradable_symbols=tradable)
         else:
             targets = _solve_arm_targets(
                 arm_name, day_sigs, ledger, exec_prices, dated_rets, t_avail,
@@ -242,8 +254,8 @@ def _run_self_financing_arm(
                 vote_gw=vote_gw, logistic_gw=logistic_gw,
                 by_sym_start=by_sym_start, eval_dates=eval_dates, idx=idx, shadow_outcomes=shadow_outcomes,
             )
+            ledger.rebalance_to_targets(t_avail, targets, exec_prices, tradable_symbols=tradable)
 
-        ledger.rebalance_to_targets(t_avail, targets, exec_prices, tradable_symbols=tradable)
         nav_by_date[t_avail.date().isoformat()] = float(ledger.mark_nav(exec_prices))
         if vote_gw is not None and idx + 1 < len(eval_dates):
             _update_adaptive_vote(vote_gw, day_sigs, dated_rets, eval_dates[idx + 1])
@@ -271,9 +283,11 @@ def _train_dev_logistic_veto(
     label_horizon_days: int = 5,
 ) -> tuple[LogisticVetoGateway, dict]:
     by_sym_start = {s: {b.ts_start: b for b in panel.get(s, [])} for s in COHORT_SYMBOLS}
+    by_sym_avail = {s: {b.ts_avail: b for b in panel.get(s, [])} for s in COHORT_SYMBOLS}
     feats_list: list[list[float]] = []
     net_rets_bps: list[float] = []
     weights_list: list[float] = []
+    ts_list: list[datetime] = []
     rt_fee = float(fee_rate) * 2.0
 
     for idx in range(len(dev_dates) - label_horizon_days - 1):
@@ -287,8 +301,9 @@ def _train_dev_logistic_veto(
             score = _sleeve_score(sig, "FIXED_ENSEMBLE_S1_S2_S5")
             if score <= 0.05:
                 continue
+            b_cur = by_sym_avail[sym].get(t_avail)
             b_ent, b_ext = by_sym_start[sym].get(t_avail), by_sym_start[sym].get(t_exit)
-            if not b_ent or not b_ext or b_ent.open <= 0 or not b_ent.entry_eligible:
+            if not b_cur or not b_cur.entry_eligible or not b_ent or not b_ext or b_ent.open <= 0:
                 continue
             net_bps = ((b_ext.open - b_ent.open) / b_ent.open - rt_fee) * 10000.0
             day_candidates.append((extract_gateway_features(sig, consensus_score=score), net_bps))
@@ -299,9 +314,16 @@ def _train_dev_logistic_veto(
             feats_list.append(f_row)
             net_rets_bps.append(nbps)
             weights_list.append(w_u)
+            ts_list.append(t_avail)
 
     gw = LogisticVetoGateway(c_reg=0.2, safety_margin_bps=5.0)
-    cal = gw.fit(feats_list, net_rets_bps, sample_weights=weights_list, purge_gap=label_horizon_days)
+    cal = gw.fit(
+        feats_list,
+        net_rets_bps,
+        sample_weights=weights_list,
+        purge_gap=label_horizon_days,
+        timestamps=ts_list,
+    )
     return gw, {
         "train_proposals": len(feats_list),
         "inner_cal_brier": round(cal.brier_score, 4),

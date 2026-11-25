@@ -176,7 +176,7 @@ def _run_prototype_1_gru_vol(
                 nxt, cur = by_start[sym].get(t_avail), by_avail[sym].get(t_avail)
                 if nxt and nxt.open > 0:
                     exec_prices[sym] = Decimal(str(nxt.open))
-                    if nxt.entry_eligible and cur and cur.entry_eligible:
+                    if cur and cur.entry_eligible:
                         tradable.add(sym)
                 elif cur and cur.close > 0:
                     exec_prices[sym] = Decimal(str(cur.close))
@@ -294,7 +294,7 @@ def _extract_2h_breakout_sequences(
 
         for i in range(max(72, seq_len), len(bars) - 13):
             b = bars[i]
-            if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+            if not b.entry_eligible or bars[i + 1].open <= 0:
                 continue
             pr = rets[i - 36 : i]
             pv = vols[i - 36 : i]
@@ -358,7 +358,7 @@ def _simulate_gru_sized_ignition(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _breakdown_or_breakout_z(
                     cur, r, high_hist[sym][-72:], low_hist[sym][-72:], ret_hist[sym][-36:], vol_hist[sym][-36:],
                     side="LONG", breakout_bars=72, vol_lookback=36, z_threshold=3.0, vol_mult=2.5,

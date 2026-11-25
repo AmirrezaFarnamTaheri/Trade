@@ -98,7 +98,7 @@ def resample_hourly_to_bucket(
     stale_age = 0
     for b_start in sorted(buckets):
         sub = buckets[b_start]
-        complete = len(sub) == hours
+        complete = len(sub) == hours and all(x.clock_complete for x in sub)
         nz = sum(1 for x in sub if x.volume > 0)
         nz_frac = nz / len(sub)
         vol = sum(x.volume for x in sub)
@@ -152,7 +152,7 @@ def resample_1min_to_minutes(
     stale_age = 0
     for b_start in sorted(buckets):
         sub = buckets[b_start]
-        complete = len(sub) >= max(1, int(0.8 * minutes))
+        complete = len(sub) >= max(1, int(0.8 * minutes)) and all(x.clock_complete for x in sub)
         nz = sum(1 for x in sub if x.volume > 0)
         nz_frac = nz / len(sub)
         vol = sum(x.volume for x in sub)

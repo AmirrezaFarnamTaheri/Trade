@@ -226,7 +226,7 @@ def simulate_levered_ignition(
             if cur is None or cur.close <= 0:
                 continue
             bar_ret = ((cur.close - prev_close[sym]) / prev_close[sym]) if (sym in prev_close and prev_close[sym] > 0) else 0.0
-            can_trade = cur.entry_eligible and nxt is not None and nxt.entry_eligible and nxt.open > 0
+            can_trade = cur.entry_eligible and nxt is not None and nxt.open > 0
             if can_trade and sym not in active:
                 hit = _breakdown_or_breakout_z(
                     cur,

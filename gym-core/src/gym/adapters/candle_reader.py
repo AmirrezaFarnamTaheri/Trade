@@ -19,18 +19,34 @@ def load_keyed_candles(
     resolution: str,
     *,
     limit: int = 25000,
+    as_of=None,
+    since_iso: str | None = None,
 ) -> list[BarPoint]:
-    """Seek directly on (instrument_id, resolution, t) and return domain BarPoint records."""
+    """Seek directly on (instrument_id, resolution, t) and return domain BarPoint records.
+
+    When `as_of` is supplied, strictly excludes unfinished bars whose `ts_avail > as_of`.
+    When `since_iso` is supplied, loads only candles with `t >= since_iso`.
+    """
     inst = con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (symbol,)).fetchone()
     if inst is None:
         return []
-    rows = con.execute(
-        "SELECT t, o, h, l, c, v FROM venue_candles "
-        "WHERE instrument_id = ? AND resolution = ? ORDER BY t DESC LIMIT ?",
-        (inst[0], resolution, limit),
-    ).fetchall()
+    if since_iso is not None:
+        rows = con.execute(
+            "SELECT t, o, h, l, c, v FROM venue_candles "
+            "WHERE instrument_id = ? AND resolution = ? AND t >= ? ORDER BY t DESC LIMIT ?",
+            (inst[0], resolution, since_iso, limit),
+        ).fetchall()
+    else:
+        rows = con.execute(
+            "SELECT t, o, h, l, c, v FROM venue_candles "
+            "WHERE instrument_id = ? AND resolution = ? ORDER BY t DESC LIMIT ?",
+            (inst[0], resolution, limit),
+        ).fetchall()
     rows.reverse()
-    return build_bar_points_from_rows(symbol, resolution, rows)
+    bars = build_bar_points_from_rows(symbol, resolution, rows)
+    if as_of is not None:
+        bars = [b for b in bars if b.ts_avail <= as_of]
+    return bars
 
 
 def _parse_depth_json(depth_raw: str | None, symbol: str, ts_a: str):

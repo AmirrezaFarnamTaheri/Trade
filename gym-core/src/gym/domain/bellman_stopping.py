@@ -234,7 +234,7 @@ def detect_flush_rebound_trigger(
     if i < 36 or i + 1 >= len(bars):
         return False, 0.0, 0.0
     b = bars[i]
-    if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+    if not b.entry_eligible or bars[i + 1].open <= 0:
         return False, 0.0, 0.0
     pr = rets[i - 36 : i]
     mr = sum(pr) / 36.0
@@ -260,7 +260,7 @@ def detect_breakdown_short_trigger(
     if i < 72 or i + 1 >= len(bars) or breadth > 0.45:
         return False, 0.0, 0.0
     b = bars[i]
-    if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+    if not b.entry_eligible or bars[i + 1].open <= 0:
         return False, 0.0, 0.0
     pr = rets[i - 36 : i]
     mr = sum(pr) / 36.0
@@ -283,7 +283,7 @@ def detect_uncensored_early_ignition(
     if i < 36 or i + 1 >= len(bars):
         return False, 0.0, 0.0
     b = bars[i]
-    if not b.entry_eligible or not bars[i + 1].entry_eligible or bars[i + 1].open <= 0:
+    if not b.entry_eligible or bars[i + 1].open <= 0:
         return False, 0.0, 0.0
     pr = rets[i - 36 : i]
     mr = sum(pr) / 36.0

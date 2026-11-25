@@ -68,7 +68,7 @@ def _exec_prices_for_day(
         if nxt and nxt.open > 0:
             prices[sym] = Decimal(str(nxt.open))
             last_mark[sym] = prices[sym]
-            if nxt.entry_eligible and cur and cur.entry_eligible:
+            if cur and cur.entry_eligible:
                 tradable.add(sym)
         elif cur and cur.close > 0:
             prices[sym] = Decimal(str(cur.close))

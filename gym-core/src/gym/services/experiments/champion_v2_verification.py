@@ -57,7 +57,7 @@ def _extract_ignition_target_schedule(
     score_map: dict[tuple[datetime, str], float] | None,
     *,
     score_is_return: bool,
-    base_prob: float,
+    base_prob: float | dict[datetime, float],
     use_conformal_dd: bool,
     leg_cost: float,
 ) -> dict[datetime, dict[str, float]]:
@@ -84,7 +84,7 @@ def _extract_ignition_target_schedule(
             if cur is None or cur.close <= 0:
                 continue
             r = ((cur.close - prev_c[sym]) / prev_c[sym]) if (sym in prev_c and prev_c[sym] > 0) else 0.0
-            if cur.entry_eligible and nxt and nxt.entry_eligible and nxt.open > 0 and sym not in active:
+            if cur.entry_eligible and nxt and nxt.open > 0 and sym not in active:
                 hit = _breakdown_or_breakout_z(
                     cur, r, high_h[sym][-72:], low_h[sym][-72:], ret_h[sym][-36:], vol_h[sym][-36:],
                     side="LONG", breakout_bars=72, vol_lookback=36, z_threshold=3.0, vol_mult=2.5,
@@ -129,8 +129,9 @@ def _extract_ignition_target_schedule(
                 nxt = by_start[sym].get(ts)
                 if not nxt or nxt.open <= 0:
                     continue
+                bp = base_prob.get(ts, 0.46) if isinstance(base_prob, dict) else base_prob
                 lev, col_f = _select_lev_and_col(
-                    sc, score_is_return=score_is_return, base_prob=base_prob,
+                    sc, score_is_return=score_is_return, base_prob=bp,
                     use_conformal=use_conformal_dd, recent_scores=recent_sc, in_dd_throttle=in_dd,
                 )
                 free_c = max(0.0, equity - sum(p["collateral"] for p in active.values()))
@@ -203,7 +204,7 @@ def _run_v2_joint_shared_ledger(
             if nxt is not None and nxt.open > 0:
                 exec_prices[sym] = Decimal(str(nxt.open))
                 last_mark[sym] = exec_prices[sym]
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 exec_prices[sym] = Decimal(str(cur.close))

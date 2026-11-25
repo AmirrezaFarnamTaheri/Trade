@@ -533,19 +533,37 @@ def run_twenty_window_macro_quadrant_study(
         d0_m, d1_m = nav_ts_to_daily(nt0), nav_ts_to_daily(nt1)
         shared_d = sorted(set(d0_m) & set(d1_m))
         twin_d = {d: 0.5 * (d0_m[d] + d1_m[d]) for d in shared_d}
-        # Exact 2h-resolution twin NAV series for 20-window scoring (average of phase 0 & phase 1 scores)
+        # Combine phase 0 & phase 1 wealth causally on the union hourly grid so full NAV and 20-window criteria match.
+        from bisect import bisect_right
+
+        ts0_s, ts1_s = sorted(nt0), sorted(nt1)
+        nt_twin: dict[datetime, float] = {}
+        for ts in sorted(set(ts0_s) | set(ts1_s)):
+            p0 = bisect_right(ts0_s, ts) - 1
+            p1 = bisect_right(ts1_s, ts) - 1
+            if p0 >= 0 and p1 >= 0:
+                nt_twin[ts] = 0.5 * (nt0[ts0_s[p0]] + nt1[ts1_s[p1]])
+        w20_twin = score_7d_window_targets(nt_twin, windows_20)
         w20_0 = score_7d_window_targets(nt0, windows_20)
+        w20_1 = score_7d_window_targets(nt1, windows_20)
         twin_rets = _daily_returns_map(twin_d)
         if lbl == "MAIN_E3_V2_STANDALONE":
             e3_rets = twin_rets
         up_e3 = paired_baseline_uplift(twin_rets, e3_rets, simulations=499, seed=42)
         up_v2 = paired_baseline_uplift(twin_rets, v2_rets, simulations=499, seed=42)
-        ci_e3 = up_e3.get("ci_95") or (0.0, 0.0)
+        ci_e3_raw = up_e3.get("ci_95")
+        ci_e3_bps = (
+            [round(float(ci_e3_raw[0]) * 10_000.0, 2), round(float(ci_e3_raw[1]) * 10_000.0, 2)]
+            if ci_e3_raw is not None
+            else None
+        )
         fm = _portfolio_metrics(twin_d)
         sm = _portfolio_metrics({k: v for k, v in twin_d.items() if k >= stress_iso})
         unified_rows.append({
             "label": lbl,
-            "w20": w20_0,
+            "w20": w20_twin,
+            "w20_phase0": {k: v for k, v in w20_0.items() if k != "per_window"},
+            "w20_phase1": {k: v for k, v in w20_1.items() if k != "per_window"},
             "ending_nav": fm["ending_nav"],
             "full_ret_pct": fm["ret_pct"],
             "stress_ret_pct": sm["ret_pct"],
@@ -557,7 +575,7 @@ def run_twenty_window_macro_quadrant_study(
             "pool_yield_usdt": round(0.5 * (m0["pool_yield"] + m1["pool_yield"]), 2),
             "year_rets": year_returns_pct(twin_d),
             "vs_e3v2_bps": round(float(up_e3.get("mean_uplift", 0.0)) * 10_000.0, 2),
-            "vs_e3v2_ci95_bps": [round(float(ci_e3[0]) * 10_000.0, 2), round(float(ci_e3[1]) * 10_000.0, 2)],
+            "vs_e3v2_ci95_bps": ci_e3_bps,
             "vs_v2_bps": round(float(up_v2.get("mean_uplift", 0.0)) * 10_000.0, 2),
         })
 
@@ -613,10 +631,11 @@ def _render_20w_md(p: dict) -> str:
     for r in p["unified_e3v2_enhanced"]:
         w, yr, ci = r["w20"], r["year_rets"], r["vs_e3v2_ci95_bps"]
         c_str = f"[{w['c1_3pct_1d']},{w['c2_2pct_2d']},{w['c3_1pct_3d']},{w['c4_8pct_3d']},{w['c5_18pct_7d']}]"
+        ci_str = f"`[{ci[0]:+.2f}, {ci[1]:+.2f}]`" if ci is not None else "`N/A`"
         lines.append(
             f"| `{r['label']}` | `{w['mean_7d']:+.2f}%` / `{w['pos_wins']}/20` | `{c_str}` | `{w['full_5of5_hits']}` "
             f"| `${r['ending_nav']:.2f}` | `{r['full_ret_pct']:+.2f}%` | `{r['stress_ret_pct']:+.2f}%` | `{r['ann_sharpe']:.3f}` | `{r['max_dd_pct']:.2f}%` | `{r['liqs']}` "
-            f"| `{r['vs_e3v2_bps']:+.2f}` (`[{ci[0]:+.2f}, {ci[1]:+.2f}]`) "
+            f"| `{r['vs_e3v2_bps']:+.2f}` ({ci_str}) "
             f"| `{yr.get('2024', 0):+.1f}%` / `{yr.get('2025', 0):+.1f}%` / `{yr.get('2026', 0):+.1f}%` |"
         )
     lines += [

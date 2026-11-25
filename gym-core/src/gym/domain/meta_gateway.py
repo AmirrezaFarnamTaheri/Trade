@@ -174,8 +174,11 @@ class LogisticVetoGateway:
         *,
         sample_weights: list[float] | None = None,
         purge_gap: int = 5,
+        timestamps: list | None = None,
     ) -> CalibrationDiagnostics:
-        """Fit L2 logistic on first 75% chronologically, calibrate sigmoid on last 25% after purge_gap."""
+        """Fit L2 logistic on first 75% chronologically, calibrate sigmoid on last 25% after UTC-day or row purge_gap."""
+        from datetime import timedelta
+
         import numpy as np
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import LogisticRegression
@@ -192,7 +195,12 @@ class LogisticVetoGateway:
             return compute_calibration_diagnostics(y, [sum(y) / n] * n)
 
         split = int(0.75 * n)
-        cal_start = min(n - 10, split + purge_gap)
+        if timestamps is not None and len(timestamps) == n:
+            cutoff_ts = timestamps[split - 1] + timedelta(days=purge_gap)
+            cal_start = next((i for i in range(split, n) if timestamps[i] >= cutoff_ts), n - 10)
+            cal_start = min(n - 10, max(split, cal_start))
+        else:
+            cal_start = min(n - 10, split + purge_gap)
         x_arr = np.asarray(features, dtype=float)
         y_arr = np.asarray(y, dtype=int)
         w_arr = np.asarray(sample_weights if sample_weights is not None else [1.0] * n, dtype=float)

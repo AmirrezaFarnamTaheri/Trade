@@ -32,48 +32,79 @@ from .ignition_expansion_study import IGNITION_18_CRYPTO
 from .leader_forward_journal import _package_engine_digest
 
 
-def _resample_1min_to_1h(bars_1m: list[BarPoint]) -> list[BarPoint]:
-    """Aggregate 1-minute bars into complete 1-hour bars so live 2h bars stay fresh even if 1h backfill lags."""
+def _resample_1min_to_1h(bars_1m: list[BarPoint], *, as_of: datetime | None = None) -> list[BarPoint]:
+    """Aggregate 1-minute bars into complete closed 1-hour bars so live 2h bars stay fresh without unfinished bars."""
     buckets: dict[datetime, list[BarPoint]] = {}
     for b in bars_1m:
         h_start = b.ts_start.replace(minute=0, second=0, microsecond=0)
         buckets.setdefault(h_start, []).append(b)
     out: list[BarPoint] = []
     for h_start in sorted(buckets):
-        grp = sorted(buckets[h_start], key=lambda x: x.ts_start)
-        if len(grp) < 45:
+        h_avail = h_start + timedelta(hours=1)
+        if as_of is not None and h_avail > as_of:
             continue
+        grp = sorted(buckets[h_start], key=lambda x: x.ts_start)
+        if len(grp) < 55:
+            continue
+        vol = sum(x.volume for x in grp)
         out.append(
             BarPoint(
                 symbol=grp[0].symbol,
                 ts_start=h_start,
-                ts_avail=h_start + timedelta(hours=1),
+                ts_avail=h_avail,
                 open=grp[0].open,
                 high=max(x.high for x in grp),
                 low=min(x.low for x in grp),
                 close=grp[-1].close,
-                volume=sum(x.volume for x in grp),
+                volume=vol,
                 bar_source="stitched_1min",
-                clock_complete=len(grp) >= 55,
+                clock_complete=True,
                 nonzero_volume_fraction=sum(1 for x in grp if x.volume > 0) / len(grp),
                 last_trade_age_bars=0,
-                entry_eligible=True,
-                mark_status="LIVE",
+                entry_eligible=(vol > 0.0),
+                mark_status="LIVE" if vol > 0.0 else "STALE_MARK",
             )
         )
     return out
 
 
-def load_stitched_2h_panel(con, symbols: tuple[str, ...], *, limit_1h: int = 800) -> dict[str, list[BarPoint]]:
-    """Load recent 1h candles stitched with fresh 1min bars resampled to 1h, then resample into 2h bars."""
-    panel_2h: dict[str, list[BarPoint]] = {}
+def load_stitched_1h_panel(
+    con,
+    symbols: tuple[str, ...],
+    *,
+    limit_1h: int = 800,
+    as_of: datetime | None = None,
+) -> dict[str, list[BarPoint]]:
+    """Load recent closed 1h candles stitched with only the missing tail of 1min bars resampled to 1h."""
+    panel_1h: dict[str, list[BarPoint]] = {}
     for sym in symbols:
-        bars_1h = load_keyed_candles(con, sym, "1h", limit=limit_1h)
+        bars_1h = load_keyed_candles(con, sym, "1h", limit=limit_1h, as_of=as_of)
         last_1h = bars_1h[-1].ts_start if bars_1h else None
-        bars_1m = load_keyed_candles(con, sym, "1min", limit=15000)
-        extra_1h = [b for b in _resample_1min_to_1h(bars_1m) if last_1h is None or b.ts_start > last_1h]
-        merged_1h = bars_1h + extra_1h
-        panel_2h[sym] = resample_hourly_to_bucket(merged_1h, 2, offset_hours=0) if merged_1h else []
+        since_1m = (last_1h + timedelta(hours=1)).isoformat() if last_1h is not None else None
+        bars_1m = load_keyed_candles(con, sym, "1min", limit=4000, as_of=as_of, since_iso=since_1m)
+        extra_1h = [
+            b for b in _resample_1min_to_1h(bars_1m, as_of=as_of)
+            if last_1h is None or b.ts_start > last_1h
+        ]
+        panel_1h[sym] = bars_1h + extra_1h
+    return panel_1h
+
+
+def load_stitched_2h_panel(
+    con,
+    symbols: tuple[str, ...],
+    *,
+    limit_1h: int = 800,
+    as_of: datetime | None = None,
+) -> dict[str, list[BarPoint]]:
+    """Load recent closed 1h candles stitched with fresh 1min tail, then resample into closed 2h bars."""
+    panel_1h = load_stitched_1h_panel(con, symbols, limit_1h=limit_1h, as_of=as_of)
+    panel_2h: dict[str, list[BarPoint]] = {}
+    for sym, merged_1h in panel_1h.items():
+        bars_2h = resample_hourly_to_bucket(merged_1h, 2, offset_hours=0) if merged_1h else []
+        if as_of is not None:
+            bars_2h = [b for b in bars_2h if b.ts_avail <= as_of and b.clock_complete]
+        panel_2h[sym] = bars_2h
     return panel_2h
 
 
@@ -138,12 +169,14 @@ def _latest_live_quotes(wallex_con, mv_db: Path | None, symbols: tuple[str, ...]
     """Fetch latest live L1 spread & mid from Wallex (market.db) and Nobitex (multi_venue_quotes.sqlite3)."""
     quotes: dict[str, dict] = {s: {} for s in symbols}
     for sym in symbols:
+        inst = wallex_con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (sym,)).fetchone()
+        if inst is None:
+            continue
         row = wallex_con.execute(
-            "SELECT b.bid, b.ask, b.ts_avail FROM book_top b "
-            "JOIN instruments i ON i.instrument_id = b.instrument_id "
-            "WHERE i.symbol = ? AND b.bid IS NOT NULL AND b.ask IS NOT NULL "
-            "ORDER BY b.rowid DESC LIMIT 1",
-            (sym,),
+            "SELECT bid, ask, ts_avail FROM book_top "
+            "WHERE instrument_id = ? AND bid IS NOT NULL AND ask IS NOT NULL "
+            "ORDER BY ts_avail DESC LIMIT 1",
+            (inst[0],),
         ).fetchone()
         if row:
             wb, wa = float(dec(row[0])), float(dec(row[1]))
@@ -295,7 +328,12 @@ def record_champion_ensemble_journal(
     all_syms = tuple(dict.fromkeys(slow_syms + IGNITION_18_CRYPTO))
 
     engine_digest = _package_engine_digest()
-    if registration_path is not None and not registration_path.exists():
+    if registration_path is not None and registration_path.exists():
+        existing_reg = json.loads(registration_path.read_text(encoding="utf-8"))
+        reg_sha = existing_reg.get("gru_model_sha256")
+        if reg_sha and reg_sha != model_sha:
+            raise ValueError(f"model sha256 mismatch vs registration: {model_sha} != {reg_sha}")
+    elif registration_path is not None and not registration_path.exists():
         reg = {
             "schema": "prospective-champion-registration/1",
             "strategy_id": f"CHAMPION_70_S1S5_{gold_symbol}_30_GRU_IGN18_2H",
@@ -319,7 +357,7 @@ def record_champion_ensemble_journal(
     seen_slots, prev_slow = _load_last_journal_state(journal_path)
     con = open_readonly_market_db(db_path)
     try:
-        panel_1d = {s: load_keyed_candles(con, s, "1d", limit=400) for s in slow_syms}
+        panel_1d = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in slow_syms}
         sigs_1d = compute_slow_sleeves(panel_1d, slow_syms, gold_symbol=gold_symbol)
         dated_rets = build_dated_returns_index(panel_1d, slow_syms)
         elig_dates = sorted(ts for ts, d in sigs_1d.items() if any(s.eligible_for_entry for s in d.values()))
@@ -336,7 +374,7 @@ def record_champion_ensemble_journal(
         slow_weights = {s: round(w, 4) for s, w in zip(active_slow, solved_slow, strict=True)}
         daily_breadth = extract_daily_breadth(sigs_1d)
 
-        panel_2h = load_stitched_2h_panel(con, IGNITION_18_CRYPTO)
+        panel_2h = load_stitched_2h_panel(con, IGNITION_18_CRYPTO, as_of=now)
         latest_2h, ign_triggers, ign_weights = _score_live_2h_ignition(panel_2h, daily_breadth, model, base_prob)
         quotes = _latest_live_quotes(con, multi_venue_db, all_syms)
     finally:
@@ -408,6 +446,7 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path) -> dict:
                 wlx_spreads.append(float(q["wallex_spread_bps"]))
 
     nav = 1000.0
+    peak_nav = 1000.0
     e_val = 1.0
     daily_rets: list[float] = []
     if len(days) >= 2:
@@ -415,8 +454,10 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path) -> dict:
         try:
             all_syms = sorted({s for r in by_day.values() for s in (r.get("blended_weights") or {})})
             closes_by_day: dict[str, dict[str, float]] = {}
+            # Load full interval from first_day onward (never a fixed 120-bar tail that rewrites history).
+            since_iso = (parse_ts(f"{days[0]}T00:00:00Z") - timedelta(days=2)).isoformat()
             for sym in all_syms:
-                for b in load_keyed_candles(con, sym, "1d", limit=120):
+                for b in load_keyed_candles(con, sym, "1d", limit=5000, since_iso=since_iso):
                     closes_by_day.setdefault(b.ts_avail.date().isoformat(), {})[sym] = b.close
         finally:
             con.close()
@@ -428,10 +469,11 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path) -> dict:
             for sym, w in w0.items():
                 if sym in p0 and sym in p1 and p0[sym] > 0:
                     day_ret += float(w) * (p1[sym] / p0[sym] - 1.0)
-            nav *= 1.0 + day_ret
+            nav *= max(0.0, 1.0 + day_ret)
+            peak_nav = max(peak_nav, nav)
             daily_rets.append(day_ret)
-            # Conservative Kelly-bounded sequential e-process (null <= 0 daily mean)
-            e_val *= max(0.5, 1.0 + 2.0 * max(-0.2, min(0.2, day_ret)))
+            # Exact unclipped supermartingale for r >= -1 under E[r] <= 0 (lambda=0.5 -> E[1 + 0.5*r] <= 1).
+            e_val *= max(0.0, 1.0 + 0.5 * max(-1.0, day_ret))
 
     return {
         "status": "TRACKING",
@@ -440,6 +482,7 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path) -> dict:
         "first_day": days[0],
         "latest_day": days[-1],
         "paper_nav": round(nav, 2),
+        "peak_nav": round(peak_nav, 2),
         "cum_ret_pct": round((nav / 1000.0 - 1.0) * 100.0, 2),
         "e_process": round(e_val, 4),
         "latest_cash_weight": by_day[days[-1]].get("cash_weight", 1.0),

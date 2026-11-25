@@ -110,6 +110,7 @@ def init_quote_db(db_path: Path) -> sqlite3.Connection:
         "venue TEXT NOT NULL, "
         "symbol TEXT NOT NULL, "
         "ts_avail TEXT NOT NULL, "
+        "ts_event TEXT, "
         "bid TEXT NOT NULL, "
         "ask TEXT NOT NULL, "
         "bid_qty TEXT NOT NULL, "
@@ -118,6 +119,9 @@ def init_quote_db(db_path: Path) -> sqlite3.Connection:
         "depth_json TEXT"
         ")"
     )
+    existing_cols = {r[1] for r in con.execute("PRAGMA table_info(venue_quotes)").fetchall()}
+    if "ts_event" not in existing_cols:
+        con.execute("ALTER TABLE venue_quotes ADD COLUMN ts_event TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS idx_venue_quotes_venue_sym_ts ON venue_quotes (venue, symbol, ts_avail)")
     con.execute(
         "CREATE TABLE IF NOT EXISTS venue_liquidity_pools ("
@@ -211,12 +215,13 @@ def persist_quote_snapshot(con: sqlite3.Connection, qs: QuoteSnapshot) -> None:
         ]
     )
     con.execute(
-        "INSERT INTO venue_quotes (venue, symbol, ts_avail, bid, ask, bid_qty, ask_qty, spread_bps, depth_json) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO venue_quotes (venue, symbol, ts_avail, ts_event, bid, ask, bid_qty, ask_qty, spread_bps, depth_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             qs.venue,
             qs.symbol,
             iso(qs.ts_avail),
+            iso(qs.ts_event) if qs.ts_event is not None else None,
             str(qs.bid),
             str(qs.ask),
             str(qs.bid_qty),

@@ -44,7 +44,7 @@ def _replay_fast_sleeve(
                 px = Decimal(str(nxt.open))
                 prices[sym] = px
                 last_mark[sym] = px
-                if nxt.entry_eligible:
+                if cur is not None and cur.entry_eligible:
                     tradable.add(sym)
             elif cur is not None and cur.close > 0:
                 px = Decimal(str(cur.close))

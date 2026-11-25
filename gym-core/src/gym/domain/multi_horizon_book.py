@@ -267,17 +267,22 @@ class MultiHorizonBook:
                 trim_val = min(spot_val, desired_notional)
                 frac_sell = trim_val / spot_val
                 frac_keep = 1.0 - frac_sell
+                if frac_keep <= 0.02:
+                    # Close the full spot lot explicitly so zero dust equity is ever destroyed.
+                    trim_val = spot_val
+                    frac_sell = 1.0
+                    frac_keep = 0.0
                 fee = trim_val * (offer.entry_cost_bps / 10_000.0)
                 self.free_cash += max(0.0, self.lot_equity(spot_lot, entry_px) * frac_sell - fee)
                 self.total_fees += fee
                 self.internal_short_offsets += 1
-                if frac_keep <= 0.02:
+                if frac_keep <= 0.0:
                     del self.lots[spot_key]
                 else:
                     spot_lot.qty *= frac_keep
                     spot_lot.notional *= frac_keep
                     spot_lot.collateral *= frac_keep
-                rem_notional = desired_notional - trim_val
+                rem_notional = max(0.0, desired_notional - trim_val)
                 if rem_notional < 15.0:
                     return True
                 target_collateral = rem_notional / max(1.0, leverage)
