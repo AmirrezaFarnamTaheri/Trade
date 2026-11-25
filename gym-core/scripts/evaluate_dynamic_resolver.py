@@ -15,12 +15,12 @@ def main() -> int:
     parser.add_argument(
         "--report-md",
         type=Path,
-        default=Path("../evidence/studies/execution-and-venues/dynamic-instrument-resolver.md"),
+        default=Path("../evidence/studies/v3-adaptive-engine/dynamic-instrument-resolver.md"),
     )
     parser.add_argument(
         "--report-json",
         type=Path,
-        default=Path("../evidence/studies/execution-and-venues/dynamic-instrument-resolver.json"),
+        default=Path("../evidence/studies/v3-adaptive-engine/dynamic-instrument-resolver.json"),
     )
     args = parser.parse_args()
     res = run_dynamic_resolver_study(args.db, report_md=args.report_md, report_json=args.report_json)

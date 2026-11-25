@@ -1,6 +1,6 @@
 # TradingGYM
 
-A research and paper-trading observatory for the Wallex exchange (TMN and USDT spot markets).
+A multi-venue quantitative research and paper-trading observatory for **Wallex** and **Nobitex** (TMN and USDT spot & isolated-margin markets).
 
 ## Current state (2026-11-25)
 
@@ -13,11 +13,12 @@ A research and paper-trading observatory for the Wallex exchange (TMN and USDT s
   - **v1 Champion:** `70% BASE_13_S1_S5 (1d ADMM) + 30% 2h Frozen GRU-Ignition` ([v1 registration](evidence/forward/champion-v1-registration.json))
   - **v2 Champion (Parallel):** `70% 1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint ADMM + 30% Twin-Phase 2h GRU11 Path-PnL (Conformal/DD)` ([v2 registration](evidence/forward/champion-v2-registration.json))
   - Standalone `BASE_13_S1_S5` ([leader registration](evidence/forward/s1-s5-leader-registration.json)), `btc-daily-trend`, `breadth-trend-forward`, and `mix-journal-v2`.
+  - **v3 Adaptive Research Lineage (Offline Replay Only):** True lot-scoped `MultiHorizonBook`, Nonlinear Bellman Optimal Stopping (`E3_V2`), and Calm Daily `S1 + Accel` Bear-Majors Shorting (`evidence/studies/v3-adaptive-engine/`).
   Paper results cannot authorize capital; see the [trial log](gym-core/docs/trial-log.md), [studies summary](evidence/studies/SUMMARY.md), and [evidence index](evidence/README.md).
-- **Live multi-venue observation.** Primary collector streams 40 curated Wallex markets with 5-level depth (`core-40-wallex`);
-  a read-only multi-venue recorder tracks 20 live Nobitex USDT pairs (`record_multi_venue_quotes.py`) for matched execution-cost
-  and side-asymmetric routing audits ([smart execution report](evidence/studies/execution-and-venues/smart-execution.md)).
-- **Offline research cockpit & health watchdog.** Interactive zero-CDN HTML5 dashboard at
+- **Live multi-venue observation & hourly candle freshness.** Primary collector streams 40 curated Wallex markets with 5-level depth (`core-40-wallex`);
+  a read-only multi-venue recorder tracks 20 live Nobitex USDT pairs, funding/margin ratios, and liquidity pool APRs (`record_multi_venue_quotes.py`);
+  an hourly candle refresh task (`refresh_hourly_candles.py`) keeps all 21 champion/ignition/metals `1h` series current in `market.db`.
+- **Offline research cockpit & health watchdog.** Interactive zero-CDN 11-panel HTML5 dashboard at
   [research-dashboard.html](evidence/research-dashboard.html) and read-only operational watchdog at
   `gym-core/scripts/check_operational_health.py`.
 

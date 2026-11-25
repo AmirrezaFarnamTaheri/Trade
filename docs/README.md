@@ -20,15 +20,12 @@ Top-level governance, architecture decisions, and system specifications. For `gy
 | [profitable-system-plan.md](profitable-system-plan.md) | Master engineering & quant specification (Wallex-core financial engine, multi-signal framework, multi-venue plug-ins) |
 | [whole-market-research-plan.md](whole-market-research-plan.md) | Whole-market coverage, residual-inventory, and liquidity research framework |
 | [adr/README.md](adr/README.md) | Architecture Decision Records (`ADR 0001`–`ADR 0008`) governing authority split, fail-closed custody, and executor contracts |
-| [architecture/codebase-structure-review.md](architecture/codebase-structure-review.md) | Static dependency, module boundary, and package-layout review of `gym-core` |
-| [architecture/ensemble-gateway-design.md](architecture/ensemble-gateway-design.md) | Uncorrelated multi-timeframe ensemble & calibrated ML meta-gateway specification |
-| [architecture/ensemble-gateway-design-review.md](architecture/ensemble-gateway-design-review.md) | Adversarial design review of the ensemble gateway & financial-engine bottlenecks |
-| [architecture/ensemble-gateway-repair-plan.md](architecture/ensemble-gateway-repair-plan.md) | Engine repair and first paper experiment implementation plan |
-| [architecture/dynamic-instrument-resolver-design.md](architecture/dynamic-instrument-resolver-design.md) | v3 per-moment Spot/Margin/Perp/Leverage/Short/Sell resolver architecture & 4-way evaluation spec |
+| [architecture/README.md](architecture/README.md) | Index of system architecture specs, ensemble gateway designs, and v3 dynamic resolver specifications |
 | [venues/README.md](venues/README.md) | Canonical Nobitex OpenAPI YAML & Wallex Swagger JSON specs, WebSocket v2 channels, and execution guardrails |
 
 ## Runtime & Evidence Docs
 
 - [gym-core/docs/README.md](../gym-core/docs/README.md) — Capabilities, trial log, roadmap, storage, metrics, and operational runbooks
+- [gym-core/src/gym/services/experiments/README.md](../gym-core/src/gym/services/experiments/README.md) — Package map of quantitative studies, shared helpers, and forward journals
 - [executor/README.md](../executor/README.md) — Rust protected executor (`DISARMED / NOT CERTIFIED`)
-- [evidence/README.md](../evidence/README.md) — Organized quantitative studies, forward journals, interactive dashboard, and archive
+- [evidence/README.md](../evidence/README.md) — Organized 4-track quantitative studies, forward journals, 11-panel offline dashboard, and archive

@@ -433,6 +433,7 @@ def _simulate_exit_phase(
 
     sig_dates = sorted(sigs_13)
     sig_ptr = 0
+    last_sig_applied: datetime | None = None
 
     for ts in all_ts:
         book.accrue_pool_and_borrow(ts, 2.0, idle_pool_apr=NOBITEX_IDLE_USDT_APR, eod_borrow_bps=5.0)
@@ -471,7 +472,8 @@ def _simulate_exit_phase(
             nav_by_date[ts.date().isoformat()] = equity
             continue
 
-        if cur_sig_ts is not None and ts == cur_sig_ts and cur_sig_ts in cov_h_by_ts:
+        if cur_sig_ts is not None and cur_sig_ts != last_sig_applied and cur_sig_ts in cov_h_by_ts:
+            last_sig_applied = cur_sig_ts
             active_slow, cov_h = cov_h_by_ts[cur_sig_ts]
             cur_slow_w = tuple(
                 (book.lots[(s, "slow_core")].qty * exec_px.get(s, 0.0) / equity) if (s, "slow_core") in book.lots else 0.0

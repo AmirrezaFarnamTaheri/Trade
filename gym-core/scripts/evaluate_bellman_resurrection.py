@@ -17,12 +17,12 @@ def main() -> int:
     parser.add_argument(
         "--report-md",
         type=Path,
-        default=Path("../evidence/studies/execution-and-venues/bellman-stopping-and-resurrection.md"),
+        default=Path("../evidence/studies/v3-adaptive-engine/bellman-stopping-and-resurrection.md"),
     )
     parser.add_argument(
         "--report-json",
         type=Path,
-        default=Path("../evidence/studies/execution-and-venues/bellman-stopping-and-resurrection.json"),
+        default=Path("../evidence/studies/v3-adaptive-engine/bellman-stopping-and-resurrection.json"),
     )
     args = parser.parse_args()
     res = run_bellman_resurrection_study(args.db, report_md=args.report_md, report_json=args.report_json)

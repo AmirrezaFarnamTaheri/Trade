@@ -80,12 +80,8 @@ from .optimal_exit_study import (
     _simulate_exit_phase,
     _train_walkforward_stopping_models,
 )
-
-FOLDS: tuple[tuple[datetime, datetime], ...] = (
-    (datetime(2024, 9, 1, tzinfo=UTC), datetime(2025, 4, 1, tzinfo=UTC)),
-    (datetime(2025, 4, 1, tzinfo=UTC), datetime(2025, 11, 24, tzinfo=UTC)),
-    (datetime(2025, 11, 24, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)),
-)
+from .unified_book_helpers import WALKFORWARD_FOLDS as FOLDS
+from .unified_book_helpers import resolve_bar_prices
 
 
 def _train_wf_nonlinear_bellman(
@@ -301,18 +297,7 @@ def _simulate_standalone_family(
 
     for ts in all_ts:
         book.accrue_pool_and_borrow(ts, 2.0, idle_pool_apr=NOBITEX_IDLE_USDT_APR, eod_borrow_bps=5.0)
-        exec_px: dict[str, float] = {}
-        tradable: set[str] = set()
-        for sym in IGNITION_18_CRYPTO:
-            nxt, cur = by_start[sym].get(ts), by_avail[sym].get(ts)
-            if nxt is not None and nxt.open > 0:
-                exec_px[sym], last_px[sym] = nxt.open, nxt.open
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
-                    tradable.add(sym)
-            elif cur is not None and cur.close > 0:
-                exec_px[sym], last_px[sym] = cur.close, cur.close
-            elif sym in last_px:
-                exec_px[sym] = last_px[sym]
+        exec_px, tradable = resolve_bar_prices(IGNITION_18_CRYPTO, by_start, by_avail, ts, last_px)
 
         _step_bellman_fast_lots(
             book, by_avail, exec_px, tradable, ts, bret_map, vrat_map,
@@ -540,21 +525,11 @@ def _simulate_upgraded_bellman_phase(
     peak_nav = 1000.0
     nav_by_date: dict[str, float] = {}
     sig_dates, sig_ptr = sorted(sigs_13), 0
+    last_sig_applied: datetime | None = None
 
     for ts in all_ts:
         book.accrue_pool_and_borrow(ts, 2.0, idle_pool_apr=NOBITEX_IDLE_USDT_APR, eod_borrow_bps=5.0)
-        exec_px: dict[str, float] = {}
-        tradable: set[str] = set()
-        for sym in ADAPTIVE_UNIVERSE:
-            nxt, cur = by_start[sym].get(ts), by_avail[sym].get(ts)
-            if nxt is not None and nxt.open > 0:
-                exec_px[sym], last_px[sym] = nxt.open, nxt.open
-                if nxt.entry_eligible and cur is not None and cur.entry_eligible:
-                    tradable.add(sym)
-            elif cur is not None and cur.close > 0:
-                exec_px[sym], last_px[sym] = cur.close, cur.close
-            elif sym in last_px:
-                exec_px[sym] = last_px[sym]
+        exec_px, tradable = resolve_bar_prices(ADAPTIVE_UNIVERSE, by_start, by_avail, ts, last_px)
 
         _step_bellman_fast_lots(
             book, by_avail, exec_px, tradable, ts, bret_map, vrat_map,
@@ -572,7 +547,8 @@ def _simulate_upgraded_bellman_phase(
             nav_by_date[ts.date().isoformat()] = equity
             continue
 
-        if cur_sig_ts is not None and ts == cur_sig_ts and cur_sig_ts in cov_h_by_ts:
+        if cur_sig_ts is not None and cur_sig_ts != last_sig_applied and cur_sig_ts in cov_h_by_ts:
+            last_sig_applied = cur_sig_ts
             active_slow, cov_h = cov_h_by_ts[cur_sig_ts]
             cur_slow_w = tuple(
                 (book.lots[(s, "slow_core")].qty * exec_px.get(s, 0.0) / equity) if (s, "slow_core") in book.lots else 0.0

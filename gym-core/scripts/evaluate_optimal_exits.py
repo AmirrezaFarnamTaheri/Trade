@@ -15,12 +15,12 @@ def main() -> int:
     parser.add_argument(
         "--report-md",
         type=Path,
-        default=Path("../evidence/studies/execution-and-venues/optimal-position-closing.md"),
+        default=Path("../evidence/studies/v3-adaptive-engine/optimal-position-closing.md"),
     )
     parser.add_argument(
         "--report-json",
         type=Path,
-        default=Path("../evidence/studies/execution-and-venues/optimal-position-closing.json"),
+        default=Path("../evidence/studies/v3-adaptive-engine/optimal-position-closing.json"),
     )
     args = parser.parse_args()
     res = run_optimal_exit_study(args.db, report_md=args.report_md, report_json=args.report_json)

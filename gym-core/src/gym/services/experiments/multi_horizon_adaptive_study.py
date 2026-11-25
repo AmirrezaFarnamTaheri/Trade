@@ -443,6 +443,7 @@ def _simulate_adaptive_phase(
     slow_fills, ign_entries = 0, 0
 
     sig_dates = sorted(sigs_13)
+    last_sig_applied: datetime | None = None
     sig_ptr = 0
 
     for ts in all_ts:
@@ -478,7 +479,8 @@ def _simulate_adaptive_phase(
         while sig_ptr + 1 < len(sig_dates) and sig_dates[sig_ptr + 1] <= ts:
             sig_ptr += 1
         cur_sig_ts = sig_dates[sig_ptr] if (sig_dates and sig_dates[sig_ptr] <= ts) else None
-        if cur_sig_ts is not None and ts == cur_sig_ts and cur_sig_ts in cov_h_by_ts:
+        if cur_sig_ts is not None and cur_sig_ts != last_sig_applied and cur_sig_ts in cov_h_by_ts:
+            last_sig_applied = cur_sig_ts
             for sym, (prev_raw, prev_px) in prev_day_forecasts.items():
                 if sym in exec_px and prev_px > 0:
                     ic_slow.update(prev_raw, (exec_px[sym] - prev_px) / prev_px)
