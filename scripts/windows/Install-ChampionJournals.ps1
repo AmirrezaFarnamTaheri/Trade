@@ -17,9 +17,10 @@ $ErrorActionPreference = 'Stop'
 $leaderTask = 'TradingGYM S1-S5 Leader Journal'
 $champTask = 'TradingGYM Champion Forward Journal'
 $champV2Task = 'TradingGYM Champion V2 Forward Journal'
+$hourlyRefreshTask = 'TradingGYM Hourly Candle Refresh'
 
 if ($Uninstall) {
-    foreach ($t in @($leaderTask, $champTask, $champV2Task)) {
+    foreach ($t in @($leaderTask, $champTask, $champV2Task, $hourlyRefreshTask)) {
         if ($PSCmdlet.ShouldProcess($t, 'Unregister scheduled task')) {
             Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
         }
@@ -101,4 +102,15 @@ $v2Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(4) -Repeti
 if ($PSCmdlet.ShouldProcess($champV2Task, "Register hourly -> $v2Journal")) {
     Register-ScheduledTask -TaskName $champV2Task -Action $v2Action -Trigger $v2Trigger -Settings $settings -Principal $principal -Force | Out-Null
     Write-Output "Registered '$champV2Task' hourly (twin 0h+1h phase) -> $v2Journal."
+}
+
+# 4. Hourly 1h Candle Refresh (keeps 21 champion/ignition/metals symbols fresh in market.db ahead of v1/v2 journals)
+$hourlyScript = Join-Path $core 'scripts\refresh_hourly_candles.py'
+$hourlyArgs = @('-I', '-B', "`"$hourlyScript`"", '--data-dir', "`"$data`"", '--lookback-hours', '48', '--max-catchup-days', '14')
+$hourlyAction = New-ScheduledTaskAction -Execute $python -Argument ($hourlyArgs -join ' ') -WorkingDirectory $core
+$hourlyTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Hours 1)
+
+if ($PSCmdlet.ShouldProcess($hourlyRefreshTask, "Register hourly 1h candle refresh -> $dbPath")) {
+    Register-ScheduledTask -TaskName $hourlyRefreshTask -Action $hourlyAction -Trigger $hourlyTrigger -Settings $settings -Principal $principal -Force | Out-Null
+    Write-Output "Registered '$hourlyRefreshTask' hourly -> $dbPath."
 }

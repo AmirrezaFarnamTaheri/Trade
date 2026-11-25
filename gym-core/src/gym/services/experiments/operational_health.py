@@ -70,6 +70,7 @@ def _check_market_db(wallex_db: Path, now: datetime) -> dict:
         "trade_age_hours": trade_age_h,
         "stale_1d_symbols": sorted(stale_1d),
         "stale_1h_symbols_count": len(stale_1h),
+        "stale_1h_symbols": sorted(stale_1h),
         "fresh_1min_symbols_count": fresh_1min_count,
     }
 

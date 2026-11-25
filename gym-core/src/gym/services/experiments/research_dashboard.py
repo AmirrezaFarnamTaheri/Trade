@@ -102,7 +102,130 @@ def _load_evidence(evidence_dir: Path, *rel_paths: str) -> dict:
     return {}
 
 
-def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> dict:
+def _query_latest_venue_spreads(con) -> list[dict]:
+    rows = con.execute(
+        "SELECT q.venue, q.symbol, q.bid, q.ask, q.spread_bps, q.ts_avail "
+        "FROM venue_quotes q "
+        "JOIN (SELECT venue, symbol, MAX(id) AS mid FROM venue_quotes GROUP BY venue, symbol) m "
+        "ON q.id = m.mid WHERE q.symbol LIKE '%USDT'"
+    ).fetchall()
+    by_sym: dict[str, dict[str, dict]] = {}
+    for venue, sym, bid, ask, spread_bps, ts_avail in rows:
+        if not bid or not ask:
+            continue
+        mid_px = (float(bid) + float(ask)) / 2.0
+        by_sym.setdefault(sym, {})[venue] = {
+            "mid": mid_px,
+            "spread_bps": round(float(spread_bps), 2) if spread_bps is not None else None,
+            "ts_avail": ts_avail,
+        }
+    out = []
+    for sym in sorted(by_sym):
+        nbx = by_sym[sym].get("nobitex")
+        wlx = by_sym[sym].get("wallex")
+        if not nbx and not wlx:
+            continue
+        basis_bps = None
+        if nbx and wlx and wlx["mid"] > 0:
+            basis_bps = round((nbx["mid"] - wlx["mid"]) / wlx["mid"] * 10000.0, 2)
+        out.append({
+            "symbol": sym,
+            "nbx_spread_bps": nbx["spread_bps"] if nbx else None,
+            "wlx_spread_bps": wlx["spread_bps"] if wlx else None,
+            "nbx_vs_wlx_basis_bps": basis_bps,
+        })
+    return out
+
+
+def _query_aux_venue_tables(con) -> dict:
+    tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    pools: list[dict] = []
+    if "venue_liquidity_pools" in tables:
+        prows = con.execute(
+            "SELECT p.currency, p.apr_pct, p.capacity, p.filled_capacity, p.ts_avail "
+            "FROM venue_liquidity_pools p "
+            "JOIN (SELECT currency, MAX(id) AS mid FROM venue_liquidity_pools WHERE venue='nobitex' GROUP BY currency) m "
+            "ON p.id = m.mid ORDER BY CAST(p.apr_pct AS REAL) DESC"
+        ).fetchall()
+        for cur, apr, cap, filled, ts_avail in prows:
+            cap_f = float(cap) if cap else 0.0
+            fill_f = float(filled) if filled else 0.0
+            fill_pct = round(fill_f / cap_f * 100.0, 1) if cap_f > 0 else 0.0
+            pools.append({
+                "currency": cur,
+                "apr_pct": round(float(apr or 0.0), 2),
+                "fill_pct": fill_pct,
+                "ts_avail": ts_avail,
+            })
+    ratios: list[dict] = []
+    if "venue_margin_ratios" in tables:
+        rrows = con.execute(
+            "SELECT r.symbol, r.long_pct, r.short_pct, r.ts_avail "
+            "FROM venue_margin_ratios r "
+            "JOIN (SELECT symbol, MAX(id) AS mid FROM venue_margin_ratios GROUP BY symbol) m ON r.id = m.mid "
+            "ORDER BY r.symbol"
+        ).fetchall()
+        for sym, lp, sp, ts_avail in rrows:
+            ratios.append({
+                "symbol": sym,
+                "long_pct": round(float(lp or 0.0), 2),
+                "short_pct": round(float(sp or 0.0), 2),
+                "ts_avail": ts_avail,
+            })
+    fair_prices: list[dict] = []
+    if "venue_fair_prices" in tables:
+        frows = con.execute(
+            "SELECT f.symbol, f.fair_price, f.ts_avail "
+            "FROM venue_fair_prices f "
+            "JOIN (SELECT symbol, MAX(id) AS mid FROM venue_fair_prices GROUP BY symbol) m ON f.id = m.mid "
+            "ORDER BY f.symbol"
+        ).fetchall()
+        for sym, fp, ts_avail in frows:
+            fair_prices.append({"symbol": sym, "fair_price": float(fp or 0.0), "ts_avail": ts_avail})
+    return {"pools": pools, "margin_ratios": ratios, "fair_prices": fair_prices}
+
+
+def _read_latest_v2_shadow(v2_journal_path: Path | None) -> dict:
+    if v2_journal_path is None or not v2_journal_path.is_file():
+        return {}
+    lines = [ln for ln in v2_journal_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not lines:
+        return {}
+    last = json.loads(lines[-1])
+    return {
+        "as_of": last.get("as_of"),
+        "nobitex_margin_2x_eligible_triggers": last.get("nobitex_margin_2x_eligible_triggers", []),
+        "live_idle_usdt_pool_apr_pct": last.get("live_idle_usdt_pool_apr_pct"),
+    }
+
+
+def _load_live_venue_telemetry(mv_db: Path | None, v2_journal_path: Path | None) -> dict:
+    """Read live Nobitex/Wallex spreads, pools, margin ratios, fair prices, and v2 shadow hooks."""
+    out: dict = {
+        "spreads": [],
+        "pools": [],
+        "margin_ratios": [],
+        "fair_prices": [],
+        "v2_shadow": _read_latest_v2_shadow(v2_journal_path),
+    }
+    if mv_db is None or not mv_db.is_file():
+        return out
+    con = open_readonly_market_db(mv_db)
+    try:
+        out["spreads"] = _query_latest_venue_spreads(con)
+        out.update(_query_aux_venue_tables(con))
+    finally:
+        con.close()
+    return out
+
+
+def build_dashboard_payload(
+    evidence_dir: Path,
+    db_path: Path | None = None,
+    *,
+    multi_venue_db: Path | None = None,
+    v2_journal_path: Path | None = None,
+) -> dict:
     """Assemble all research panels from evidence JSON receipts and optional market.db histograms."""
     first = _load_evidence(
         evidence_dir,
@@ -169,6 +292,11 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
         "forward/champion-v2-forward-score.json",
         "2026-11-25-champion-v2-forward-score.json",
     )
+    venue_lev = _load_evidence(
+        evidence_dir,
+        "studies/execution-and-venues/nobitex-margin-vs-wallex-credit.json",
+    )
+    live_venue = _load_live_venue_telemetry(multi_venue_db, v2_journal_path)
 
     histograms = _compute_live_histograms(db_path) if (db_path is not None and db_path.is_file()) else {
         "leader": compute_return_histogram([]),
@@ -293,6 +421,8 @@ def build_dashboard_payload(evidence_dir: Path, db_path: Path | None = None) -> 
         "higher_order": higher_order,
         "v2_verify": v2_verify,
         "v2_forward_score": v2_fwd_score,
+        "venue_leverage_study": venue_lev,
+        "live_venue_telemetry": live_venue,
     }
 
 
@@ -609,6 +739,21 @@ def render_dashboard_html(payload: dict) -> str:
     </div>
     <div class="canvas-wrap"><canvas id="c-v2"></canvas></div>
     <table id="t-v2"></table>
+  </section>
+
+  <!-- Panel 11: Live Multi-Venue Observatory (Spreads, Basis, Nobitex Liquidity Pools, Wallex Margin Ratios & Fair Prices) -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>11. Live Multi-Venue Observatory — Spreads, Basis, Nobitex Liquidity Pools &amp; Wallex Margin Ratios</h2>
+        <p class="desc">Live read-only observatory feeds captured by TradingGYM Multi-Venue Recorder (bulk Nobitex /v3/orderbook/all + /liquidity-pools/list, Wallex /margin-trade/v1/public/ratio + Centrifugo all@fairPrice) and v2 Champion shadow telemetry.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-live-venue"></canvas></div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div><table id="t-live-pools"></table></div>
+      <div><table id="t-live-ratios"></table></div>
+    </div>
   </section>
 </main>
 
@@ -1056,6 +1201,66 @@ function drawV2Champion() {{
   `;
 }}
 
+// Panel 11: Live Multi-Venue Observatory
+function drawLiveVenue() {{
+  const lv = DATA.live_venue_telemetry || {{}};
+  const spreads = (lv.spreads || []).filter(r => r.nbx_spread_bps != null && r.wlx_spread_bps != null).slice(0, 12);
+  const groups = spreads.map(r => ({{
+    label: r.symbol.replace('USDT', ''),
+    v1: r.wlx_spread_bps,
+    v2: r.nbx_spread_bps,
+    extra: `NBX vs WLX Basis: ${{r.nbx_vs_wlx_basis_bps != null ? (r.nbx_vs_wlx_basis_bps >= 0 ? '+' : '') + r.nbx_vs_wlx_basis_bps + ' bps' : '—'}}`,
+  }}));
+  if (groups.length) {{
+    drawGroupedBars('c-live-venue', groups, 'Wallex Spread', 'Nobitex Spread', '#f59e0b', '#22c55e', v => v.toFixed(1) + 'bp');
+  }}
+
+  const priority = ['USDT', 'BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', 'LTC'];
+  const allPools = lv.pools || [];
+  const topPools = [
+    ...priority.map(c => allPools.find(p => p.currency === c)).filter(Boolean),
+    ...allPools.filter(p => !priority.includes(p.currency)).slice(0, 4),
+  ].slice(0, 10);
+  const pRows = topPools.map(p => `
+    <tr class="${{p.currency === 'USDT' ? 'leader-row' : ''}}">
+      <td>${{p.currency}}</td>
+      <td class="pos">+${{p.apr_pct.toFixed(2)}}%</td>
+      <td>${{p.fill_pct.toFixed(1)}}%</td>
+    </tr>
+  `).join('');
+  document.getElementById('t-live-pools').innerHTML = `
+    <thead><tr><th>Nobitex Liquidity Pool</th><th>Live APR</th><th>Filled</th></tr></thead>
+    <tbody>${{pRows || '<tr><td colspan="3" style="color:var(--muted)">No live pool snapshots yet</td></tr>'}}</tbody>
+  `;
+
+  const sh = lv.v2_shadow || {{}};
+  const trigCount = (sh.nobitex_margin_2x_eligible_triggers || []).length;
+  const rRows = (lv.margin_ratios || []).map(r => `
+    <tr>
+      <td>${{r.symbol}}</td>
+      <td class="pos">${{r.long_pct.toFixed(1)}}%</td>
+      <td class="neg">${{r.short_pct.toFixed(1)}}%</td>
+    </tr>
+  `).join('');
+  const fairCount = (lv.fair_prices || []).length;
+  document.getElementById('t-live-ratios').innerHTML = `
+    <thead><tr><th>Wallex Public Margin Ratios &amp; v2 Shadow</th><th>Long / Value</th><th>Short / Meta</th></tr></thead>
+    <tbody>
+      ${{rRows || '<tr><td colspan="3" style="color:var(--muted)">Waiting for next Wallex ratio poll</td></tr>'}}
+      <tr class="leader-row">
+        <td>v2 Shadow: Nobitex 2.0x Eligible Triggers</td>
+        <td class="acc">${{trigCount}}</td>
+        <td>Idle USDT APR: ${{sh.live_idle_usdt_pool_apr_pct != null ? '+' + sh.live_idle_usdt_pool_apr_pct + '%' : '—'}}</td>
+      </tr>
+      <tr>
+        <td>Wallex Centrifugo all@fairPrice Feed</td>
+        <td class="pos">${{fairCount}} pairs</td>
+        <td>DISARMED Observatory</td>
+      </tr>
+    </tbody>
+  `;
+}}
+
 function drawAll() {{
   drawHistogram();
   drawStrategies();
@@ -1069,6 +1274,7 @@ function drawAll() {{
   drawSmartAndForward();
   drawHigherOrder();
   drawV2Champion();
+  drawLiveVenue();
 }}
 window.addEventListener('resize', drawAll);
 drawAll();
@@ -1083,16 +1289,28 @@ def generate_research_dashboard(
     output_html: Path,
     *,
     db_path: Path | None = None,
+    multi_venue_db: Path | None = None,
+    v2_journal_path: Path | None = None,
 ) -> dict:
-    """Build payload from evidence receipts + market.db histograms and write self-contained offline HTML."""
-    payload = build_dashboard_payload(evidence_dir, db_path=db_path)
+    """Build payload from evidence receipts + market.db histograms + live venue feeds and write offline HTML."""
+    payload = build_dashboard_payload(
+        evidence_dir,
+        db_path=db_path,
+        multi_venue_db=multi_venue_db,
+        v2_journal_path=v2_journal_path,
+    )
     html = render_dashboard_html(payload)
     output_html.parent.mkdir(parents=True, exist_ok=True)
     output_html.write_text(html, encoding="utf-8")
+    lv = payload.get("live_venue_telemetry", {})
     return {
         "output_html": str(output_html),
         "bytes": len(html.encode("utf-8")),
         "leader_hist_days": payload["histograms"]["leader"]["stats"].get("n", 0),
         "strategies_count": len(payload["strategies"]),
         "venue_symbols": len(payload["venue_execution"]),
+        "live_venue_spreads": len(lv.get("spreads", [])),
+        "live_pools": len(lv.get("pools", [])),
+        "live_margin_ratios": len(lv.get("margin_ratios", [])),
+        "live_fair_prices": len(lv.get("fair_prices", [])),
     }
