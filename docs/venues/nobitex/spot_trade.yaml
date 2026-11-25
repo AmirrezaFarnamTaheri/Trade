@@ -1,0 +1,1216 @@
+openapi: 3.0.3
+info:
+  title: API معاملات اسپات نوبیتکس
+  version: "1.0.0"
+  description: |
+    APIهای سفارش‌گذاری، مشاهده و لغو سفارشات و لیست معاملات کاربر در بازار اسپات.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: معاملات اسپات
+    description: سفارش‌گذاری و معاملات بازار اسپات
+
+paths:
+  /market/orders/add:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات اسپات
+      summary: ثبت سفارش جدید اسپات
+      description: |
+        ثبت سفارش خرید یا فروش در بازار اسپات. ثبت سفارش الزاماً به معنی انجام معامله
+        نیست؛ سفارش پیش از ورود به دفتر سفارش‌ها دوباره اعتبارسنجی می‌شود و ممکن است
+        بلافاصله رد شود.
+
+        انواع سفارش:
+
+        - `limit`: سفارش با قیمت معین (مقدار پیش‌فرض `execution`)
+        - `market`: سفارش با قیمت بازار
+        - `stop_market` و `stop_limit`: سفارش حد ضرر؛ `stopPrice` برای هر دو الزامی است.
+        - OCO: با `mode=oco`، یک سفارش Limit و یک سفارش StopLimit ساخته می‌شود؛
+          `price`، `stopPrice` و `stopLimitPrice` در این حالت الزامی‌اند. با انجام
+          هر کدام، سفارش جفت لغو می‌شود.
+
+        شرط قیمت OCO برای خرید:
+        `price < آخرین قیمت بازار < stopPrice` و `stopLimitPrice`.
+        شرط فروش برعکس است.
+
+        قیمت بازارهای ریالی به ریال است و `amount` با واحد `srcCurrency` ارسال می‌شود.
+        برای سفارش Market ارسال `price` اختیاری، ولی برای محدود کردن بازه اجرای سفارش
+        اکیداً توصیه می‌شود. `clientOrderId` باید در میان سفارش‌های باز کاربر یکتا باشد.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰۰ درخواست در ۱۰ دقیقه
+
+        **نکته مهم:** این اندپوینت محدودیت فراخوانی مشترک با سفارش‌گذاری در بازار تعهدی دارد.
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpotOrderAddRequest"
+            examples:
+              limit:
+                summary: سفارش خرید با قیمت معین
+                value:
+                  type: buy
+                  execution: limit
+                  srcCurrency: btc
+                  dstCurrency: rls
+                  amount: "0.6"
+                  price: "520000000"
+                  clientOrderId: order1
+              stop_market:
+                summary: سفارش فروش حد ضرر با قیمت بازار
+                value:
+                  type: sell
+                  execution: stop_market
+                  srcCurrency: doge
+                  dstCurrency: rls
+                  amount: "64"
+                  stopPrice: "47500"
+                  clientOrderId: order1
+              oco:
+                summary: سفارش خرید OCO
+                value:
+                  type: buy
+                  srcCurrency: btc
+                  dstCurrency: usdt
+                  amount: "0.01"
+                  mode: oco
+                  price: "42390"
+                  stopPrice: "42700"
+                  stopLimitPrice: "42715"
+                  clientOrderId: order1
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/SpotOrderAddResponseSingle"
+                  - $ref: "#/components/schemas/SpotOrderAddResponseOCO"
+                  - $ref: "#/components/schemas/SpotOrderFailedResponse"
+              examples:
+                limit:
+                  summary: سفارش با قیمت معین
+                  value:
+                    status: ok
+                    order:
+                      id: 25
+                      type: buy
+                      execution: Limit
+                      tradeType: Spot
+                      market: BTC-RLS
+                      srcCurrency: Bitcoin
+                      dstCurrency: "﷼"
+                      price: "520000000"
+                      amount: "0.6"
+                      totalPrice: "0"
+                      totalOrderPrice: "312000000"
+                      matchedAmount: "0"
+                      unmatchedAmount: "0.6"
+                      status: Active
+                      partial: false
+                      fee: "0"
+                      created_at: "2018-11-28T11:36:13.592827+00:00"
+                      averagePrice: "0"
+                      clientOrderId: order1
+                oco:
+                  summary: سفارش OCO
+                  value:
+                    status: ok
+                    orders:
+                      - id: 27
+                        type: buy
+                        execution: Limit
+                        tradeType: Spot
+                        market: BTC-USDT
+                        srcCurrency: Bitcoin
+                        dstCurrency: Tether
+                        price: "42390"
+                        amount: "0.01"
+                        totalPrice: "0"
+                        totalOrderPrice: "423.9"
+                        matchedAmount: "0"
+                        unmatchedAmount: "0.01"
+                        status: Active
+                        partial: false
+                        fee: "0"
+                        created_at: "2022-04-10T10:12:38.402795+00:00"
+                        averagePrice: "0"
+                        pairId: 28
+                        clientOrderId: order1
+                      - id: 28
+                        type: buy
+                        execution: StopLimit
+                        tradeType: Spot
+                        market: BTC-USDT
+                        srcCurrency: Bitcoin
+                        dstCurrency: Tether
+                        price: "42715"
+                        amount: "0.01"
+                        param1: "42700"
+                        totalPrice: "0"
+                        totalOrderPrice: "427.15"
+                        matchedAmount: "0"
+                        unmatchedAmount: "0.01"
+                        status: Inactive
+                        partial: false
+                        fee: "0"
+                        created_at: "2022-04-10T10:12:38.402795+00:00"
+                        averagePrice: "0"
+                        pairId: 27
+                        clientOrderId: null
+                failed:
+                  summary: سفارش نامعتبر
+                  value:
+                    status: failed
+                    code: InvalidOrderPrice
+                    message: Price Validation Failed
+                    clientOrderId: order1
+
+  /market/orders/status:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات اسپات
+      summary: مشاهده وضعیت سفارش
+      description: |
+        وضعیت یک سفارش را بر اساس `id` یا `clientOrderId` برمی‌گرداند.
+
+        حداقل یکی از دو فیلد باید ارسال شود. اگر هر دو ارسال شوند، `id` اولویت دارد.
+        جست‌وجو با `clientOrderId` فقط در میان سفارش‌های باز (`New`، `Active` و
+        `Inactive`) انجام می‌شود.
+
+        وضعیت‌های ممکن سفارش:
+
+        - `Active`: سفارش در بازار فعال است و هنوز مقدار پرنشده دارد.
+        - `Done`: سفارش کاملاً انجام شده است.
+        - `Inactive`: سفارش حد ضرر هنوز به قیمت توقف نرسیده است.
+        - `Canceled`: سفارش پیش از پر شدن کامل لغو شده است؛ ممکن است `matchedAmount`
+          آن بزرگ‌تر از صفر باشد.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰۰ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpotOrderStatusRequest"
+            examples:
+              by_id:
+                summary: جست‌وجو با شناسه سفارش
+                value:
+                  id: 5684
+              by_client_order_id:
+                summary: جست‌وجو با شناسه کاربر
+                value:
+                  clientOrderId: order1
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required:
+                      - status
+                      - order
+                    properties:
+                      status:
+                        type: string
+                        enum: [ok]
+                        example: ok
+                      order:
+                        $ref: "#/components/schemas/SpotOrder"
+                  - $ref: "#/components/schemas/SpotOrderFailedResponse"
+              examples:
+                success:
+                  summary: وضعیت سفارش
+                  value:
+                    status: ok
+                    order:
+                      id: 5684
+                      type: sell
+                      execution: Limit
+                      tradeType: Spot
+                      market: LTC-RLS
+                      srcCurrency: Litecoin
+                      dstCurrency: "﷼"
+                      price: "8500000"
+                      amount: "3"
+                      totalPrice: "0"
+                      totalOrderPrice: "25500000"
+                      matchedAmount: "0"
+                      unmatchedAmount: "3"
+                      status: Active
+                      partial: false
+                      fee: "0"
+                      created_at: "2018-11-28T12:25:22.696029+00:00"
+                      averagePrice: "0"
+                      clientOrderId: order1
+                missing_identifier:
+                  summary: شناسه ارسال نشده است
+                  value:
+                    status: failed
+                    code: NullIdAndClientOrderId
+                    message: Both id and clientOrderId cannot be null
+
+  /market/orders/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات اسپات
+      summary: فهرست سفارش‌های کاربر
+      description: |
+        فهرست سفارش‌های کاربر با فیلترها و صفحه‌بندی.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        - صفحه‌بندی: دارد (پیش‌فرض ۱۰۰)
+        - با `fromId` فقط یک صفحه برگردانده می‌شود و `pageSize` حداکثر ۱۰۰۰ است.
+        - `page` و `fromId` را هم‌زمان ارسال نکنید.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: |
+            فیلتر وضعیت سفارش:
+
+            - `all`: همه وضعیت‌ها
+            - `open`: سفارش‌های باز شامل `New`، `Active` و `Inactive`
+            - `done`: سفارش‌هایی که حداقل بخشی از آن‌ها پر شده است
+            - `close`: سفارش‌های `Done` یا `Canceled`
+          schema:
+            type: string
+            default: open
+            enum: [all, open, done, close]
+        - name: type
+          in: query
+          required: false
+          description: فیلتر نوع سفارش.
+          schema:
+            type: string
+            enum: [buy, sell]
+        - name: execution
+          in: query
+          required: false
+          description: فیلتر نحوه اجرای سفارش.
+          schema:
+            type: string
+            enum: [limit, market, stop_limit, stop_market]
+        - name: tradeType
+          in: query
+          required: false
+          description: فیلتر نوع معامله.
+          schema:
+            type: string
+            enum: [spot, margin]
+        - name: srcCurrency
+          in: query
+          required: false
+          description: نماد رمزارز مبدأ؛ مانند `btc`.
+          schema:
+            type: string
+          example: btc
+        - name: dstCurrency
+          in: query
+          required: false
+          description: نماد ارز مقصد؛ مانند `rls` یا `usdt`.
+          schema:
+            type: string
+          example: usdt
+        - name: details
+          in: query
+          required: false
+          description: |
+            سطح جزئیات هر سفارش. مقدار `2` فیلدهای `id`، `status`، `fee`،
+            `created_at` و `averagePrice` را نیز برمی‌گرداند.
+          schema:
+            type: integer
+            default: 1
+            enum: [1, 2]
+        - name: fromId
+          in: query
+          required: false
+          description: |
+            فقط سفارش‌هایی با شناسه بزرگ‌تر یا مساوی این مقدار برگردانده می‌شوند.
+            هنگام استفاده از این پارامتر، `page` را ارسال نکنید.
+          schema:
+            type: integer
+            minimum: 1
+          example: 100
+        - name: order
+          in: query
+          required: false
+          description: |
+            ترتیب نتایج. پیشوند `-` ترتیب را نزولی می‌کند. اگر ارسال نشود:
+
+            - با `fromId`: شناسه نزولی
+            - بدون فیلتر `type`: زمان ایجاد نزولی
+            - `type=buy`: قیمت نزولی
+            - `type=sell`: قیمت صعودی
+          schema:
+            type: string
+            enum: [id, -id, created_at, -created_at, price, -price]
+        - name: page
+          in: query
+          required: false
+          description: شماره صفحه؛ با `fromId` هم‌زمان ارسال نشود.
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: تعداد سفارش در صفحه؛ پیش‌فرض ۱۰۰ و با `fromId` حداکثر ۱۰۰۰.
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  orders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SpotOrder"
+                  hasNext:
+                    type: boolean
+                    description: آیا صفحه بعدی وجود دارد؟
+                    example: false
+              example:
+                status: ok
+                orders:
+                  - id: 173546223
+                    type: sell
+                    execution: Limit
+                    tradeType: Spot
+                    market: BTC-USDT
+                    srcCurrency: Bitcoin
+                    dstCurrency: Tether
+                    price: "9750.01"
+                    amount: "0.0123"
+                    totalPrice: "0"
+                    totalOrderPrice: "119.925123"
+                    matchedAmount: "0"
+                    unmatchedAmount: "0.0123"
+                    status: Active
+                    partial: false
+                    fee: "0"
+                    created_at: "2020-07-15T11:32:38.326809+00:00"
+                    averagePrice: "0"
+                    clientOrderId: order1
+                hasNext: false
+
+  /market/orders/update-status:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات اسپات
+      summary: لغو سفارش
+      description: |
+        یک سفارش باز را با `status=canceled` لغو می‌کند. حداقل یکی از `order` یا
+        `clientOrderId` باید ارسال شود؛ اگر هر دو ارسال شوند، `order` اولویت دارد.
+        جست‌وجو با `clientOrderId` فقط میان سفارش‌های باز انجام می‌شود.
+
+        فقط انتقال سفارش‌های `New`، `Active` یا `Inactive` به `Canceled` پشتیبانی
+        می‌شود. اگر سفارش بخشی از یک OCO انجام‌نشده باشد، هر دو سفارش مرتبط لغو
+        می‌شوند. پاسخ موفق، علاوه بر `updatedStatus`، شیء کامل `order` را نیز
+        برمی‌گرداند. اگر انتقال وضعیت اعمال نشود، پاسخ همچنان با HTTP 200 برمی‌گردد،
+        اما مقدار `status` برابر `failed` است و پاسخ شامل `updatedStatus` و `order`
+        خواهد بود.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۹۰ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpotOrderCancelRequest"
+            example:
+              order: 5684
+              status: canceled
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required:
+                      - status
+                      - updatedStatus
+                      - order
+                    properties:
+                      status:
+                        type: string
+                        enum: [ok]
+                        example: ok
+                      updatedStatus:
+                        type: string
+                        example: Canceled
+                      order:
+                        $ref: "#/components/schemas/SpotOrder"
+                  - type: object
+                    required:
+                      - status
+                      - updatedStatus
+                      - order
+                    properties:
+                      status:
+                        type: string
+                        enum: [failed]
+                        example: failed
+                      updatedStatus:
+                        type: string
+                        description: وضعیت نمایشی سفارش پس از تلاش برای لغو
+                        example: Done
+                      order:
+                        $ref: "#/components/schemas/SpotOrder"
+                  - $ref: "#/components/schemas/SpotOrderFailedResponse"
+              examples:
+                success:
+                  summary: سفارش لغوشده
+                  value:
+                    status: ok
+                    updatedStatus: Canceled
+                    order:
+                      amount: "60"
+                      averagePrice: "0"
+                      clientOrderId: null
+                      created_at: "2025-10-28T09:25:17.774332+00:00"
+                      dstCurrency: "﷼"
+                      execution: Market
+                      fee: "0"
+                      id: 5684
+                      market: USDT-RLS
+                      matchedAmount: "0"
+                      partial: false
+                      price: market
+                      srcCurrency: Tether
+                      status: Canceled
+                      totalOrderPrice: "2550000"
+                      totalPrice: "0"
+                      tradeType: Spot
+                      type: sell
+                      unmatchedAmount: "60"
+                missing_identifier:
+                  summary: شناسه ارسال نشده است
+                  value:
+                    status: failed
+                    code: NullIdAndClientOrderId
+                    message: Both id and clientOrderId cannot be null
+
+  /market/orders/cancel-old:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات اسپات
+      summary: لغو جمعی سفارشات قدیمی
+      description: |
+        لغو دسته‌جمعی سفارش‌های `Active` با فیلترهای زمانی، بازار، نحوه اجرا و نوع
+        معامله. `hours` تعداد ساعت پیش از زمان درخواست را مشخص می‌کند؛ برای مثال
+        مقدار `2` سفارش‌های قدیمی‌تر از دو ساعت را لغو می‌کند. اگر `hours` ارسال
+        نشود، همه سفارش‌های فعال منطبق با سایر فیلترها لغو می‌شوند.
+
+        سفارش‌های حد ضرر غیرفعال غیر OCO در این عملیات لغو نمی‌شوند.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hours:
+                  type: number
+                  format: float
+                  description: سفارش‌های قدیمی‌تر از این تعداد ساعت لغو می‌شوند
+                  example: 2.4
+                execution:
+                  type: string
+                  description: فیلتر نحوه اجرای سفارش.
+                  enum: [market, limit, stop_market, stop_limit]
+                tradeType:
+                  type: string
+                  description: فیلتر نوع معامله.
+                  enum: [spot, margin]
+                srcCurrency:
+                  type: string
+                  description: نماد رمزارز مبدأ.
+                  example: btc
+                dstCurrency:
+                  type: string
+                  description: نماد ارز مقصد.
+                  example: rls
+            example:
+              execution: limit
+              srcCurrency: btc
+              dstCurrency: rls
+              hours: 2.4
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required:
+                      - status
+                    properties:
+                      status:
+                        type: string
+                        enum: [ok]
+                        example: ok
+                  - $ref: "#/components/schemas/SpotOrderFailedResponse"
+              examples:
+                success:
+                  value:
+                    status: ok
+                failed:
+                  value:
+                    status: failed
+                    code: ErrorCode
+                    message: Human readable error message
+
+  /market/trades/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات اسپات
+      summary: فهرست معاملات کاربر
+      description: |
+        فهرست معاملات ۱۸۰ روز اخیر کاربر در بازار اسپات.
+
+        برای فیلتر بازار، `srcCurrency` و `dstCurrency` باید یا هر دو ارسال شوند یا
+        هر دو خالی باشند. `fromId` معاملاتی با شناسه بزرگ‌تر یا مساوی مقدار داده‌شده
+        را برمی‌گرداند.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        - صفحه‌بندی: دارد (پیش‌فرض ۳۰)
+        - حداکثر شماره صفحه: ۱۰۰
+        - حداکثر اندازه صفحه: ۵۰۰
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - name: srcCurrency
+          in: query
+          required: false
+          description: |
+            نماد رمزارز مبدأ بازار. باید همراه `dstCurrency` ارسال شود.
+          schema:
+            type: string
+          example: usdt
+        - name: dstCurrency
+          in: query
+          required: false
+          description: |
+            نماد ارز مقصد بازار. باید همراه `srcCurrency` ارسال شود.
+          schema:
+            type: string
+          example: rls
+        - name: fromId
+          in: query
+          required: false
+          description: حداقل شناسه معامله؛ نتیجه شامل خود این شناسه نیز می‌شود.
+          schema:
+            type: integer
+            minimum: 1
+          example: 10023
+        - name: tradeType
+          in: query
+          required: false
+          description: فیلتر جهت معامله کاربر.
+          schema:
+            type: string
+            enum: [buy, sell]
+        - name: tradeOrder
+          in: query
+          required: false
+          description: ترتیب زمانی معاملات؛ پیش‌فرض نزولی است.
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+        - name: page
+          in: query
+          required: false
+          description: شماره صفحه.
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 100
+        - name: pageSize
+          in: query
+          required: false
+          description: تعداد معامله در صفحه.
+          schema:
+            type: integer
+            default: 30
+            minimum: 1
+            maximum: 500
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  trades:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Trade"
+                  hasNext:
+                    type: boolean
+                    description: آیا صفحه بعدی وجود دارد؟
+                    example: false
+              example:
+                status: ok
+                trades:
+                  - id: 123412
+                    orderId: 1231222
+                    srcCurrency: Tether
+                    dstCurrency: "﷼"
+                    market: USDT-RLS
+                    timestamp: "2022-07-05T09:57:38.560820+00:00"
+                    type: sell
+                    price: "316800"
+                    amount: "57.3605"
+                    total: "18171806.4"
+                    fee: "27257.7096"
+                hasNext: false
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: توکن احراز هویت به صورت `Token <token>`.
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  schemas:
+    SpotOrderAddRequest:
+      type: object
+      required:
+        - type
+        - srcCurrency
+        - dstCurrency
+        - amount
+      oneOf:
+        - title: سفارش Limit
+          required:
+            - price
+          properties:
+            execution:
+              enum: [limit]
+            mode:
+              enum: [default]
+        - title: سفارش Market
+          required:
+            - execution
+          properties:
+            execution:
+              enum: [market]
+            mode:
+              enum: [default]
+        - title: سفارش StopMarket
+          required:
+            - execution
+            - stopPrice
+          properties:
+            execution:
+              enum: [stop_market]
+            mode:
+              enum: [default]
+        - title: سفارش StopLimit
+          required:
+            - execution
+            - price
+            - stopPrice
+          properties:
+            execution:
+              enum: [stop_limit]
+            mode:
+              enum: [default]
+        - title: سفارش OCO
+          required:
+            - mode
+            - price
+            - stopPrice
+            - stopLimitPrice
+          properties:
+            execution:
+              enum: [limit]
+            mode:
+              enum: [oco]
+      properties:
+        type:
+          type: string
+          description: نوع سفارش
+          example: buy
+          enum: [buy, sell]
+        execution:
+          type: string
+          description: |
+            نحوه اجرای سفارش. مقدار پیش‌فرض `limit` است. در `stop_limit` و
+            `stop_market` ارسال `stopPrice` الزامی است.
+          default: limit
+          enum: [limit, market, stop_limit, stop_market]
+          example: limit
+        srcCurrency:
+          type: string
+          description: نماد رمزارز مبدأ.
+          example: btc
+        dstCurrency:
+          type: string
+          description: نماد ارز مقصد.
+          example: rls
+        amount:
+          type: string
+          description: |
+            حجم سفارش با واحد `srcCurrency`. تعداد رقم اعشار مجاز به بازار بستگی دارد.
+          example: "0.6"
+        price:
+          type: string
+          description: |
+            قیمت واحد. برای سفارش‌های Limit و StopLimit الزامی است. در سفارش Market
+            اختیاری است و بازه مورد انتظار قیمت را محدود می‌کند.
+          example: "520000000"
+        clientOrderId:
+          type: string
+          nullable: true
+          maxLength: 32
+          pattern: "^[A-Za-z0-9-]+$"
+          description: |
+            شناسه اختیاری سفارش کاربر؛ حداکثر ۳۲ نویسه و یکتا در میان سفارش‌های باز.
+          example: order1
+        pro:
+          type: boolean
+          default: false
+          description: |
+            با مقدار `true` بررسی سفارش تکراری ده‌ثانیه‌ای غیرفعال می‌شود. در این
+            حالت برای جلوگیری از ثبت ناخواسته سفارش تکراری از `clientOrderId` استفاده کنید.
+        mode:
+          type: string
+          default: default
+          description: برای سفارش OCO مقدار `oco`؛ در سفارش عادی مقدار پیش‌فرض `default`.
+          enum: [default, oco]
+        stopPrice:
+          type: string
+          description: قیمت توقف؛ برای سفارش حد ضرر و OCO الزامی است.
+          example: "47500"
+        stopLimitPrice:
+          type: string
+          description: قیمت سفارش StopLimit جفت؛ فقط برای OCO الزامی است.
+          example: "42715"
+
+    SpotOrderStatusRequest:
+      type: object
+      description: حداقل یکی از `id` یا `clientOrderId` باید ارسال شود.
+      anyOf:
+        - required:
+            - id
+        - required:
+            - clientOrderId
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: شناسه سفارش.
+          example: 5684
+        clientOrderId:
+          type: string
+          maxLength: 32
+          pattern: "^[A-Za-z0-9-]+$"
+          description: شناسه سفارش کاربر.
+          example: order1
+
+    SpotOrderCancelRequest:
+      type: object
+      required:
+        - status
+      anyOf:
+        - required:
+            - order
+        - required:
+            - clientOrderId
+      properties:
+        order:
+          type: integer
+          minimum: 1
+          description: شناسه سفارش.
+          example: 5684
+        clientOrderId:
+          type: string
+          maxLength: 32
+          pattern: "^[A-Za-z0-9-]+$"
+          description: شناسه سفارش کاربر.
+          example: order1
+        status:
+          type: string
+          enum: [canceled]
+          description: تنها وضعیت مقصد پشتیبانی‌شده.
+          example: canceled
+
+    SpotOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: شناسه سفارش؛ در سطح جزئیات ۲ برگردانده می‌شود.
+          example: 5684
+        type:
+          type: string
+          description: جهت سفارش.
+          enum: [buy, sell]
+          example: sell
+        execution:
+          type: string
+          description: نحوه اجرای سفارش.
+          enum: [Limit, Market, StopLimit, StopMarket]
+          example: Limit
+        tradeType:
+          type: string
+          description: نوع معامله.
+          enum: [Spot, Margin, Credit, Debit]
+          example: Spot
+        market:
+          type: string
+          description: نماد بازار.
+          example: BTC-USDT
+        srcCurrency:
+          type: string
+          description: نام رمزارز مبدأ.
+          example: Bitcoin
+        dstCurrency:
+          type: string
+          description: نام ارز مقصد.
+          example: Tether
+        price:
+          type: string
+          description: قیمت ثبت‌شده یا `market` برای سفارش بازار.
+          example: "9750.01"
+        amount:
+          type: string
+          description: حجم ثبت‌شده سفارش.
+          example: "0.0123"
+        totalPrice:
+          type: string
+          description: ارزش بخشی از سفارش که تاکنون معامله شده است.
+          example: "0"
+        totalOrderPrice:
+          type: string
+          description: ارزش کل سفارش بر اساس قیمت ثبت‌شده.
+          example: "119.925123"
+        matchedAmount:
+          type: string
+          description: حجم پرشده سفارش.
+          example: "0"
+        unmatchedAmount:
+          type: string
+          description: حجم پرنشده سفارش.
+          example: "0.0123"
+        status:
+          type: string
+          description: وضعیت فعلی؛ در سطح جزئیات ۲ برگردانده می‌شود.
+          enum: [New, Active, Inactive, Done, Canceled]
+          example: Active
+        partial:
+          type: boolean
+          description: آیا سفارش فقط بخشی پر شده است؟
+          example: false
+        fee:
+          type: string
+          description: کارمزد سفارش تاکنون؛ در سطح جزئیات ۲ برگردانده می‌شود.
+          example: "0"
+        created_at:
+          type: string
+          format: date-time
+          description: زمان ایجاد؛ در سطح جزئیات ۲ برگردانده می‌شود.
+          example: "2020-07-15T11:32:38.326809+00:00"
+        averagePrice:
+          type: string
+          description: میانگین قیمت اجرا؛ در سطح جزئیات ۲ برگردانده می‌شود.
+          example: "0"
+        clientOrderId:
+          type: string
+          nullable: true
+          description: شناسه تعیین‌شده توسط کاربر.
+          example: order1
+        pairId:
+          type: integer
+          nullable: true
+          description: شناسه سفارش جفت در OCO.
+          example: 28
+        param1:
+          type: string
+          description: قیمت توقف در سفارش‌های حد ضرر
+          example: "42700"
+
+    SpotOrderAddResponseSingle:
+      type: object
+      required:
+        - status
+        - order
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        order:
+          $ref: "#/components/schemas/SpotOrder"
+
+    SpotOrderAddResponseOCO:
+      type: object
+      required:
+        - status
+        - orders
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        orders:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/SpotOrder"
+
+    SpotOrderFailedResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا. خطاهای مستند ثبت سفارش:
+
+            - `InvalidOrderPrice`: قیمت لازم ارسال نشده یا نامعتبر است.
+            - `BadPrice`: قیمت سفارش عادی بیش از بازه مجاز از بازار فاصله دارد، یا
+              قیمت سفارش حد ضرر از قیمت توقف بهتر است.
+            - `PriceConditionFailed`: شرط قیمت سفارش رعایت نشده است.
+            - `OverValueOrder`: حجم یا ارزش سفارش از موجودی قابل استفاده بیشتر است.
+            - `SmallOrder`: حداقل ارزش جاری بازار رعایت نشده است. مقدارهای جاری
+              را از فیلد `nobitex.minOrders` در پاسخ `GET /v2/options` دریافت کنید.
+            - `DuplicateOrder`: سفارش یکسان در ده ثانیه اخیر ارسال شده است.
+            - `InvalidMarketPair`: جفت‌ارز نامعتبر است.
+            - `MarketClosed`: بازار موقتاً بسته است.
+            - `TradingUnavailable`: کاربر اجازه معامله ندارد.
+            - `FeatureUnavailable`: قابلیت آزمایشی برای کاربر فعال نیست.
+            - `DuplicateClientOrderId`: شناسه سفارش کاربر تکراری است.
+            - `NullIdAndClientOrderId`: شناسه لازم برای مشاهده یا لغو ارسال نشده است.
+          example: InvalidOrderPrice
+        message:
+          type: string
+          example: Price Validation Failed
+        clientOrderId:
+          type: string
+          nullable: true
+          description: شناسه سفارش کاربر، اگر در درخواست ثبت سفارش ارسال شده باشد.
+          example: order1
+
+    Trade:
+      type: object
+      required:
+        - id
+        - orderId
+        - srcCurrency
+        - dstCurrency
+        - market
+        - timestamp
+        - type
+        - price
+        - amount
+        - total
+        - fee
+      properties:
+        id:
+          type: integer
+          description: شناسه معامله.
+          example: 123412
+        orderId:
+          type: integer
+          nullable: true
+          description: شناسه سفارش کاربر مرتبط با معامله.
+          example: 1231222
+        srcCurrency:
+          type: string
+          description: نام رمزارز مبدأ.
+          example: Tether
+        dstCurrency:
+          type: string
+          description: نام ارز مقصد.
+          example: "﷼"
+        market:
+          type: string
+          description: نماد بازار.
+          example: USDT-RLS
+        timestamp:
+          type: string
+          format: date-time
+          description: زمان انجام معامله.
+          example: "2022-07-05T09:57:38.560820+00:00"
+        type:
+          type: string
+          description: جهت معامله از دید کاربر.
+          enum: [buy, sell]
+          example: sell
+        price:
+          type: string
+          description: قیمت انجام معامله.
+          example: "316800"
+        amount:
+          type: string
+          description: حجم معامله.
+          example: "57.3605"
+        total:
+          type: string
+          description: ارزش کل معامله.
+          example: "18171806.4"
+        fee:
+          type: string
+          description: کارمزد معامله.
+          example: "27257.7096"

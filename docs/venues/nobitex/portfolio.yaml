@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: API سود و زیان نوبیتکس
+  version: "1.0.0"
+  description: |
+    APIهای مربوط به پرتفو و گزارش سود و زیان کاربر در نوبیتکس.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: سود و زیان
+    description: گزارش‌های پرتفو و سود و زیان کاربر
+
+paths:
+  /users/portfolio/last-week-daily-profit:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - سود و زیان
+      summary: سود و زیان روزانه هفته گذشته
+      description: |
+        گزارش سود و زیان روزانه هفته گذشته (یا ۳۰ روز گذشته در صورت monthly=true).
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۰ درخواست در ۳ دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        - در صورت غیرفعال بودن پرتفو، خطای `FeatureUnavailable` برمی‌گردد.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                monthly:
+                  type: boolean
+                  description: اگر true باشد، گزارش ۳۰ روز گذشته برمی‌گردد.
+                  default: false
+                  example: true
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/DailyProfit"
+                  - $ref: "#/components/schemas/PortfolioFailedResponse"
+              examples:
+                success:
+                  summary: پاسخ موفق
+                  value:
+                    status: ok
+                    data:
+                      - report_date: "2021-07-05"
+                        total_profit: "0E-10"
+                        total_profit_percentage: "0E-10"
+                        total_balance: "4516559.920590000"
+                disabled:
+                  summary: پرتفو غیرفعال
+                  value:
+                    status: failed
+                    code: FeatureUnavailable
+                    message: "portfolio feature is not available for your user"
+
+  /users/portfolio/last-week-daily-total-profit:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - سود و زیان
+      summary: سود و زیان کل به صورت روزانه در هفته گذشته
+      description: |
+        سود و زیان کل پرتفو به تفکیک روز، برای هفته گذشته
+        (یا ۳۰ روز گذشته در صورت `monthly=true`).
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۰ درخواست در ۳ دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                monthly:
+                  type: boolean
+                  description: اگر `true` باشد، گزارش ۳۰ روز گذشته برمی‌گردد.
+                  default: false
+                  example: true
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/DailyTotalProfit"
+                  - $ref: "#/components/schemas/PortfolioFailedResponse"
+
+  /users/portfolio/last-month-total-profit:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - سود و زیان
+      summary: سود و زیان کل ماه گذشته
+      description: |
+        سود و زیان کل پرتفو در ماه گذشته.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۰ درخواست در ۳ دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      data:
+                        $ref: "#/components/schemas/MonthlyTotalProfit"
+                  - $ref: "#/components/schemas/PortfolioFailedResponse"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: توکن احراز هویت به صورت `Token yourTOKENhereHEX0000`.
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  schemas:
+    DailyProfit:
+      type: object
+      properties:
+        report_date:
+          type: string
+          format: date
+        total_profit:
+          type: string
+        total_profit_percentage:
+          type: string
+        total_balance:
+          type: string
+
+    DailyTotalProfit:
+      type: object
+      properties:
+        report_date:
+          type: string
+          format: date
+        total_profit:
+          type: string
+        total_profit_percentage:
+          type: string
+
+    MonthlyTotalProfit:
+      type: object
+      properties:
+        total_profit:
+          type: string
+        total_profit_percentage:
+          type: string
+
+    PortfolioFailedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: failed
+        code:
+          type: string
+          example: FeatureUnavailable
+        message:
+          type: string
+          example: "portfolio feature is not available for your user"

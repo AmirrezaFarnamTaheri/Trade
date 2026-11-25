@@ -1,0 +1,609 @@
+openapi: 3.0.3
+info:
+  title: API برداشت ریالی نوبیتکس
+  version: "2.0.0"
+  description: |
+    APIهای برداشت ریالی. نسخه جدید با جریان یک‌مرحله‌ای.
+    
+    نسخه قدیمی که در آدرس /users/wallets/withdraw به طور مشترک با برداشت رمزارزی قرار داشت، برای برداشت ریالی منسوخ (`deprecated`) شده است.
+    ## تفاوت با نسخه قدیمی
+    - ثبت و تأیید در یک مرحله انجام می‌شود و نیاز به فراخوانی جداگانه تأیید نیست.
+    - شناسه برداشت یک رشته با پیشوند `CW` است (مثال: `CW503`).
+    - کارمزد و اطلاعات پرداخت بانکی در پاسخ موجود است.
+    - امکان لغو تنها تا **۳ دقیقه** پس از ثبت وجود دارد.
+
+    ## جریان برداشت
+    1. **ثبت درخواست** — `POST /cobank/withdraw` → برداشت بلافاصله در صف پردازش قرار می‌گیرد
+    2. **پیگیری وضعیت** — `GET /cobank/withdraw/{id}` → بررسی وضعیت و جزئیات پرداخت
+
+    ## لیست برداشت‌ها
+    لیست کامل برداشت‌های ریالی (قدیمی و جدید) از طریق
+    [API مشترک فهرست برداشت‌ها](/withdraw/فهرست-برداشت-ها) قابل دریافت است.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: برداشت ریالی
+    description: مدیریت درخواست‌های برداشت ریالی (نسخه جدید)
+
+security:
+  - TokenAuth: []
+  - KeyAuth: []
+    SignatureAuth: []
+    TimestampAuth: []
+
+paths:
+  /cobank/withdraw:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: cobankWithdrawRequest
+      tags:
+        - برداشت ریالی
+      summary: ثبت درخواست برداشت ریالی
+      description: |
+        ثبت درخواست برداشت ریالی. ثبت و تأیید به‌صورت خودکار در یک مرحله انجام می‌شود.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۱۰ درخواست در ۳ دقیقه
+        - در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+
+        ### نکات
+        - `destinationBankAccountId` باید شناسه حساب بانکی تأییدشده کاربر باشد.
+        - پس از موفقیت، مبلغ کامل (`amount`) از موجودی کاربر کسر می‌شود.
+          کارمزد (`fee`) از مبلغ برداشت کسر می‌شود و مابقی (`amount - fee`) به حساب مقصد واریز می‌شود.
+        - اگر حساب بانک مقصد در خروجی [این درخواست](/rial-withdraw/cobank-get-withdraw-banks) بود، مبلغ تا ۳۰ دقیقه به حساب شما خواهد نشست.
+          در غیر این‌ صورت، مبلغ در چرخه پایا تسویه خواهد شد.
+        - سقف برداشت روزانه و ماهانه کاربر با توجه به سطح کاربری مشخص می‌شود. برای مشاهده سقف برداشت خود، به [این بخش](/user_data/دریافت-محدودیت-های-کاربر) مراجعه کنید.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoBankWithdrawRequest"
+            example:
+              destinationBankAccountId: 256854
+              amount: "5000000"
+      responses:
+        "200":
+          description: ثبت موفق درخواست
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawResultResponse"
+              examples:
+                success:
+                  summary: ثبت موفق
+                  value:
+                    status: ok
+                    result:
+                      id: "CW503"
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: New
+                      amount: "5000000"
+                      fee: "20000"
+                      fulfilledAmount: "0"
+                      bankAccountId: 256854
+                      bankAccountInfo: "شماره شبا: IR123456789012345678901234"
+                      isCancelable: true
+                      records: []
+        "400":
+          description: پارامترهای ورودی نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawRequestFailedResponse"
+              examples:
+                failed_insufficient_balance:
+                  summary: موجودی ناکافی
+                  value:
+                    status: failed
+                    code: InsufficientBalance
+                    message: Insufficient Balance
+                failed_amount_too_low:
+                  summary: مقدار کمتر از حداقل
+                  value:
+                    status: failed
+                    code: AmountTooLow
+                    message: msgAmountTooLow
+                failed_invalid_amount:
+                  summary: تعداد اعشار نامعتبر
+                  value:
+                    status: failed
+                    code: InvalidAmount
+                    message: Rial maximum decimal places is 0
+        "404":
+          description: حساب بانکی با این شناسه برای کاربر یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: BankAccountNotFound
+                message: BankAccount not found
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /cobank/withdraw/{withdrawId}:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      operationId: cobankGetWithdraw
+      tags:
+        - برداشت ریالی
+      summary: مشاهده جزئیات یک برداشت ریالی
+      description: |
+        مشاهده وضعیت و جزئیات یک درخواست برداشت ریالی.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶۰ درخواست در ۲ دقیقه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        
+        ### نکات
+        - شناسه‌های `CW...` و `WJ...` پذیرفته می‌شوند. پیشوند قدیمی `W...` نیز
+          برای سازگاری با نسخه‌های قبلی قابل استفاده است و در پاسخ به `WJ`
+          تبدیل می‌شود.
+        - درخواست‌ها با مبالغ بالا، به صورت چند انتقال جداگانه سمت بانک ارسال خواهد شد. این مسئله باعث وجود چندین تراکنش مختلف ارسالی به سمت بانک می‌شود که در خروجی در فیلد `records` قابل مشاهده هستند. همچنین هر یک از این انتقال‌ها می‌تواند در مدت زمان مختلفی توسط بانک پردازش شود یا برخی از آن‌ها توسط بانک رد شود که در این‌صورت مجدد تکرار خواهند شد. به همین دلیل فیلد `fulfilledAmount` مبلغ منتقل شده تا الان برای این درخواست را نشان می‌دهد. توجه کنید که تمامی این فرایند و شکست‌ها به صورت خودکار توسط نوبیتکس انجام می‌شود و نیاز به هیچ تغییری از سوی کاربر نیست.
+      parameters:
+        - name: withdrawId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^([Cc][Ww]|[Ww][Jj]|[Ww])[0-9]+$"
+          description: شناسه درخواست برداشت با پیشوند `CW`، `WJ` یا `W`
+          example: "CW503"
+      responses:
+        "200":
+          description: جزئیات برداشت
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  result:
+                    $ref: "#/components/schemas/WithdrawResult"
+              examples:
+                pending:
+                  summary: برداشت در صف پردازش
+                  value:
+                    status: ok
+                    result:
+                      id: "CW503"
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: New
+                      amount: "5000000"
+                      fee: "20000"
+                      fulfilledAmount: "0"
+                      bankAccountId: 256854
+                      bankAccountInfo: "شماره شبا: IR123456789012345678901234"
+                      isCancelable: true
+                      records: []
+                done:
+                  summary: برداشت تکمیل‌شده
+                  value:
+                    status: ok
+                    result:
+                      id: "CW503"
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: Done
+                      amount: "5000000"
+                      fee: "20000"
+                      fulfilledAmount: "4980000"
+                      bankAccountId: 256854
+                      bankAccountInfo: "شماره شبا: IR123456789012345678901234"
+                      isCancelable: false
+                      records:
+                        - amount: "4980000"
+                          bankReferenceNumber: "123456789012"
+                          status: Transferred
+                          estimatedSettleAt: "2024-01-15T12:00:00Z"
+                          providerUpdatedAt: "2024-01-15T11:45:00Z"
+                          transferType: paya
+        "404":
+          description: درخواست برداشت یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: WithdrawRequestNotFound
+                message: Withdraw Request Not Found
+
+  /cobank/withdraw-banks:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      operationId: cobankGetWithdrawBanks
+      tags:
+        - برداشت ریالی
+      summary: لیست بانک‌های پشتیبانی‌شده برای برداشت سریع
+      description: |
+        لیست شناسه بانک‌هایی که برداشت ریالی سریع از طریق آن‌ها پشتیبانی می‌شود.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۱۰ درخواست در دقیقه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+
+        ### نکات
+        - اگر بانک حساب مقصد کاربر در این لیست نباشد، برداشت در چرخه پایا تسویه می‌شود.
+        - شناسه بانک سه رقمی و بدون فاصله است.
+      responses:
+        "200":
+          description: لیست بانک‌های پشتیبانی‌شده
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  results:
+                    type: array
+                    description: لیست شناسه سه‌رقمی بانک‌های پشتیبانی‌شده. لیست شناسه‌های بانک‌ها از طریق [این آدرس](https://content.nobitex.ir/api/banks) قابل مشاهده است.
+                    items:
+                      type: string
+                      example: "062"
+              example:
+                status: ok
+                results:
+                  - "062"
+                  - "054"
+                  - "021"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /cobank/withdraw/{withdrawId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: cobankCancelWithdraw
+      tags:
+        - برداشت ریالی
+      summary: لغو درخواست برداشت ریالی
+      description: |
+        لغو یک درخواست برداشت ریالی.
+
+        ### شرایط لغو
+        - برای شناسه‌های `CW`، درخواست باید در **۳ دقیقه** گذشته ایجاد شده باشد،
+          فیلد `isCancelable` برابر `true` و وضعیت درخواست `New` باشد.
+        - برای شناسه‌های `WJ` یا پیشوند قدیمی `W`، محدودیت سه‌دقیقه‌ای اعمال
+          نمی‌شود؛ فیلد `isCancelable` باید `true` و وضعیت یکی از `New`،
+          `Verified`، `Waiting`، `Accepted` یا `Processing` باشد.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۱۰ درخواست در دقیقه و ۶۰ درخواست در ساعت
+        - در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+      parameters:
+        - name: withdrawId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^([Cc][Ww]|[Ww][Jj]|[Ww])[0-9]+$"
+          description: شناسه درخواست برداشت با پیشوند `CW`، `WJ` یا `W`
+          example: "CW503"
+      responses:
+        "200":
+          description: لغو موفق درخواست
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawResultResponse"
+              examples:
+                success:
+                  summary: لغو موفق
+                  value:
+                    status: ok
+                    result:
+                      id: "CW503"
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: Canceled
+                      amount: "5000000"
+                      fee: "20000"
+                      fulfilledAmount: "0"
+                      bankAccountId: 256854
+                      bankAccountInfo: "شماره شبا: IR123456789012345678901234"
+                      isCancelable: false
+                      records: []
+        "400":
+          description: خطا در لغو
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawCancelFailedResponse"
+              examples:
+                not_cancelable:
+                  summary: قابل لغو نیست
+                  value:
+                    status: failed
+                    code: NotCancellable
+                    message: Withdraw is not cancellable
+                cancellation_failed:
+                  summary: خطا در فرایند لغو
+                  value:
+                    status: failed
+                    code: CancellationFailed
+                    message: Cancellation failed
+        "404":
+          description: درخواست برداشت یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: WithdrawRequestNotFound
+                message: Withdraw Request Not Found
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        توکن احراز هویت به فرمت `Token <token>`.
+        مثال: `Authorization: Token abc123`
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  responses:
+    RateLimitExceeded:
+      description: محدودیت تعداد درخواست‌ها
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: failed
+              code:
+                type: string
+                example: TooManyRequests
+
+  schemas:
+    APIErrorResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          example: ParseError
+        message:
+          type: string
+          example: Invalid request
+
+    CoBankWithdrawRequest:
+      type: object
+      description: پارامترهای ثبت درخواست برداشت ریالی
+      required:
+        - destinationBankAccountId
+        - amount
+      properties:
+        destinationBankAccountId:
+          type: integer
+          description: شناسه (`id`) حساب بانکی تأییدشده کاربر (الزامی). لیست حساب‌های بانکی کاربر را از [اینجا](/user_data/دریافت-پروفایل-کاربر) ببینید.
+          example: 256854
+        amount:
+          type: string
+          description: مقدار کل برداشت به ریال. کارمزد از این مقدار کسر می‌شود (الزامی)
+          example: "5000000"
+
+    WithdrawResult:
+      type: object
+      description: جزئیات درخواست برداشت ریالی
+      properties:
+        id:
+          type: string
+          description: شناسه یکتای درخواست برداشت.
+          example: "CW503"
+        createdAt:
+          type: string
+          format: date-time
+          description: زمان ایجاد درخواست
+          example: "2024-01-15T10:30:00Z"
+        status:
+          type: string
+          description: |
+            وضعیت جاری درخواست برداشت.
+
+            | مقدار | توضیح |
+            |-------|-------|
+            | `New` | ثبت‌شده، در صف پردازش |
+            | `Sent` | ارسال‌شده به بانک |
+            | `Bank processing` | در حال پردازش توسط بانک |
+            | `Done` | تکمیل‌شده |
+            | `Partially done` | انتقال ناقص — بخشی از مبلغ واریز شده |
+            | `Canceled` | لغوشده |
+            | `Failed` | ناموفق |
+            | `Rejected` | رد شده توسط سیستم |
+            | `Other` | وضعیت دیگری که توسط جریان پردازش نگاشت نشده است |
+          example: New
+        amount:
+          type: string
+          description: مقدار کل برداشت (شامل کارمزد)
+          example: "5000000"
+        fee:
+          type: string
+          description: کارمزد برداشت — از مبلغ کسر می‌شود و به حساب مقصد نمی‌رسد
+          example: "20000"
+        fulfilledAmount:
+          type: string
+          description: مقداری که تاکنون به حساب مقصد واریز شده (`amount - fee` پس از تکمیل). این مقدار ممکن است در بازه‌هایی با مبلغ نهایی مغایرت داشته باشد، دلیل این اتفاق شکستن مبالغ بالا به چند تراکنش برای ارسال به بانک است، که ممکن است هر تراکنش در مدت زمانی متفاوتی توسط بانک انجام شود.
+          example: "4980000"
+        bankAccountId:
+          type: integer
+          description: شناسه حساب بانکی مقصد
+          example: 256854
+        bankAccountInfo:
+          type: string
+          nullable: true
+          description: نام نمایشی حساب بانکی مقصد (مثلاً شماره شبا)
+          example: "شماره شبا: IR123456789012345678901234"
+        isCancelable:
+          type: boolean
+          description: |
+            آیا درخواست در زمان پاسخ قابل لغو است. برای شناسه‌های `CW`، این مقدار
+            تنها در وضعیت `New` و تا ۳ دقیقه پس از ثبت می‌تواند `true` باشد. برای
+            شناسه‌های `WJ` یا پیشوند قدیمی `W` محدودیت زمانی سه‌دقیقه‌ای وجود ندارد
+            و قابل‌لغوبودن بر اساس وضعیت درخواست در جریان قدیمی تعیین می‌شود.
+          example: true
+        records:
+          type: array
+          description: لیست تراکنش‌های بانکی مرتبط با این برداشت (پس از پردازش تکمیل می‌شود)
+          items:
+            $ref: "#/components/schemas/TransferRecord"
+
+    TransferRecord:
+      type: object
+      description: اطلاعات یک تراکنش بانکی مرتبط با برداشت
+      properties:
+        amount:
+          type: string
+          description: مقدار این تراکنش
+          example: "4980000"
+        bankReferenceNumber:
+          type: string
+          nullable: true
+          description: شماره مرجع بانکی
+          example: "123456789012"
+        status:
+          type: string
+          description: |
+            وضعیت تراکنش.
+
+            | مقدار | توضیح |
+            |-------|-------|
+            | `Pending` | در حال پردازش |
+            | `Transferred` | واریز موفق |
+            | `Failed` | ناموفق |
+          example: Transferred
+        estimatedSettleAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: زمان تخمینی تسویه توسط بانک
+          example: "2024-01-15T12:00:00Z"
+        providerUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: آخرین زمان به‌روزرسانی وضعیت توسط ارائه‌دهنده
+          example: "2024-01-15T11:45:00Z"
+        transferType:
+          type: string
+          description: |
+            نوع انتقال بانکی.
+
+            | مقدار | توضیح |
+            |-------|-------|
+            | `normal` | انتقال آنی درون‌بانکی |
+            | `paya` | پایا (ACH) |
+            | `satna` | ساتنا (RTGS) |
+          example: paya
+
+    WithdrawResultResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        result:
+          $ref: "#/components/schemas/WithdrawResult"
+
+    WithdrawRequestFailedResponse:
+      type: object
+      description: پاسخ خطای ثبت برداشت
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `FeatureUnavailable` | قابلیت برداشت ریال برای کاربر فعال نیست. |
+            | `ParseError` | خطا در پردازش داده‌های ورودی. فرمت ورودی داده‌ها نادرست است |
+            | `WithdrawUnavailable` | کاربر مجاز به برداشت نیست |
+            | `WithdrawAmountLimitation` | مقدار برداشت بیش از سقف مجاز سطح کاربری است |
+            | `InsufficientBalance` | موجودی کافی نیست |
+            | `AmountTooLow` | مقدار کمتر از حداقل مجاز است |
+            | `InvalidAmount` | تعداد اعشار مبلغ برای ریال نامعتبر است |
+          example: InsufficientBalance
+        message:
+          type: string
+          description: توضیح خطا
+          example: Insufficient Balance
+
+    WithdrawCancelFailedResponse:
+      type: object
+      description: پاسخ خطای لغو برداشت
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `NotCancellable` | شرایط لغو برقرار نیست (خارج از بازه ۳ دقیقه یا وضعیت اشتباه) |
+            | `CancellationFailed` | خطای داخلی در فرآیند لغو |
+          example: NotCancellable
+        message:
+          type: string
+          description: توضیح خطا
+          example: Withdraw is not cancellable

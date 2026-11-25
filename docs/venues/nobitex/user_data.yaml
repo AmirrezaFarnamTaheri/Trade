@@ -1,0 +1,1037 @@
+openapi: 3.0.3
+info:
+  title: API اطلاعات کاربر نوبیتکس
+  version: "1.1.0"
+  description: |
+    APIهای مربوط به پروفایل کاربر، کیف‌پول‌ها، کارت و حساب بانکی،
+    محدودیت‌ها و تراکنش‌ها در نوبیتکس.
+
+    برخی مسیرهای قدیمی این بخش برای سازگاری ممکن است `GET` را نیز بپذیرند؛
+    برای مسیرهایی که با `POST` مستند شده‌اند، `POST` روش توصیه‌شده است.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: اطلاعات کاربر
+    description: تمام متدهای مربوط به اطلاعات و عملیات کاربر
+
+paths:
+  /users/profile:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات کاربر
+      summary: دریافت پروفایل کاربر
+      description: |
+        پروفایل کاربر و آمار معاملاتی را برمی‌گرداند.
+
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+
+  /users/wallets/generate-address:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - اطلاعات کاربر
+      summary: تولید آدرس واریز بلاکچین
+      description: |
+        آدرس واریز بلاکچین را برای کیف‌پول اسپات کاربر تولید یا بازیابی می‌کند.
+
+        این API آدرس فعلی را برمی‌گرداند و در صورت وجود آن را دوباره نمی‌سازد.
+        برای ساخت آدرس واریز **جدید** (علاوه بر آدرس‌های قبلی) از
+        [تولید آدرس واریز جدید](/deposit_address/generate-deposit-address) استفاده کنید.
+
+        - محدودیت فراخوانی: ۳۰ درخواست در ساعت
+        - باید حداقل یکی از `wallet` یا `currency` ارسال شود؛ در صورت ارسال هر دو، `wallet` اولویت دارد.
+        - `network` اختیاری است و در صورت عدم ارسال، شبکه پیش‌فرض ارز استفاده می‌شود.
+        - `addressType` فقط `default` یا `legacy` است.
+        - برای ارزهای tag-based مانند XRP/XLM/TON، فیلد `tag` نیز برمی‌گردد.
+        - در صورت استفاده از API Key، دسترسی `DEPOSIT` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateAddressRequest"
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/GenerateAddressResponse"
+                  - $ref: "#/components/schemas/FailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/cards-add:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: addBankCard
+      tags:
+        - اطلاعات کاربر
+      summary: افزودن کارت بانکی
+      description: |
+        یک کارت بانکی جدید به حساب کاربر اضافه می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۳۰ درخواست در ۳۰ دقیقه
+
+        ### نکات
+        - شماره کارت باید ۱۶ رقمی و معتبر باشد.
+        - کاربر باید احراز هویت سطح ۱ را کامل کرده باشد.
+        - در صورت افزودن کارت جدید، شماره شبا کاربر به صورت خودکار استعلام خواهد شد و حساب بانکی مربوطه نیز برای کاربر ایجاد می‌شود.
+      security:
+        - TokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCardRequest"
+            example:
+              number: "6037997599999999"
+              bank: بانک ملی
+      responses:
+        "200":
+          description: نتیجه افزودن کارت (موفق یا ناموفق)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BankOperationSuccessResponse"
+                  - $ref: "#/components/schemas/AddBankCardFailedResponse"
+              examples:
+                success:
+                  summary: افزودن موفق
+                  value:
+                    status: ok
+                failed_duplicated:
+                  summary: کارت تکراری
+                  value:
+                    status: failed
+                    code: DuplicatedCard
+                    message: Duplicated Card
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/accounts-add:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: addBankAccount
+      tags:
+        - اطلاعات کاربر
+      summary: افزودن حساب بانکی
+      description: |
+        یک حساب بانکی جدید با استفاده از شماره شبا به حساب کاربر اضافه می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۳۰ درخواست در ۳۰ دقیقه
+
+        ### نکات
+        - شماره شبا باید ۲۶ کاراکتری و با `IR` شروع شود.
+        - کاربر باید احراز هویت سطح ۱ را کامل کرده باشد.
+        - اگر شبا با `IRIR` شروع شود، دو کاراکتر اول حذف می‌شوند.
+      security:
+        - TokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddAccountRequest"
+            example:
+              shaba: IR050120000000000000011111
+      responses:
+        "200":
+          description: نتیجه افزودن حساب (موفق یا ناموفق)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BankOperationSuccessResponse"
+                  - $ref: "#/components/schemas/AddBankAccountFailedResponse"
+              examples:
+                success:
+                  summary: افزودن موفق
+                  value:
+                    status: ok
+                failed_duplicated:
+                  summary: شبا تکراری
+                  value:
+                    status: failed
+                    code: DuplicatedShaba
+                    message: Duplicated Shaba
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/cards-delete:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: deleteBankCard
+      tags:
+        - اطلاعات کاربر
+      summary: حذف کارت بانکی
+      description: |
+        یک کارت بانکی را از حساب کاربر حذف می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۳۰ درخواست در ۳۰ دقیقه
+        
+        ### نکات
+        - در صورت حذف کارت، حساب بانکی مربوطه حذف نخواهد شد.
+      security:
+        - TokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteBankCardRequest"
+            example:
+              id: 12
+      responses:
+        "200":
+          description: نتیجه حذف کارت (موفق یا ناموفق)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BankOperationSuccessResponse"
+                  - $ref: "#/components/schemas/DeleteBankCardFailedResponse"
+              examples:
+                success:
+                  summary: حذف موفق
+                  value:
+                    status: ok
+                failed_not_found:
+                  summary: کارت یافت نشد
+                  value:
+                    status: failed
+                    code: InvalidBankCardID
+                    message: Invalid Bank Card ID
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/accounts-delete:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: deleteBankAccount
+      tags:
+        - اطلاعات کاربر
+      summary: حذف حساب بانکی
+      description: |
+        یک حساب بانکی را از حساب کاربر حذف می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۳۰ درخواست در ۳۰ دقیقه
+      security:
+        - TokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteBankAccountRequest"
+            example:
+              id: 7
+      responses:
+        "200":
+          description: نتیجه حذف حساب (موفق یا ناموفق)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BankOperationSuccessResponse"
+                  - $ref: "#/components/schemas/DeleteBankAccountFailedResponse"
+              examples:
+                success:
+                  summary: حذف موفق
+                  value:
+                    status: ok
+                failed_not_found:
+                  summary: حساب یافت نشد
+                  value:
+                    status: failed
+                    code: InvalidBankAccountID
+                    message: Invalid Bank Account ID
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/limitations:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - اطلاعات کاربر
+      summary: دریافت محدودیت‌های کاربر
+      description: |
+        سطح کاربر، قابلیت‌های مجاز و محدودیت‌های واریز/برداشت را برمی‌گرداند.
+
+        - روش توصیه‌شده برای فراخوانی این API متد `POST` است.
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserLimitationsResponse"
+
+  /users/wallets/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - اطلاعات کاربر
+      summary: لیست کیف‌پول‌های کاربر
+      description: |
+        لیست کیف‌پول‌های کاربر را برای نوع مشخص‌شده برمی‌گرداند.
+
+        - محدودیت فراخوانی: ۲۰ درخواست در دقیقه
+        - روش توصیه‌شده برای فراخوانی این API متد `POST` است.
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  default: spot
+                  enum: [spot, margin, credit, debit]
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletsListResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /v2/wallets:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - اطلاعات کاربر
+      summary: لیست انتخابی کیف‌پول‌ها
+      description: |
+        لیست کیف‌پول‌های کاربر را برای ارزها و نوع انتخاب‌شده برمی‌گرداند.
+
+        - محدودیت فراخوانی: ۱۵ درخواست در دقیقه
+        - روش توصیه‌شده برای فراخوانی این API متد `POST` است.
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/V2WalletsRequest"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V2WalletsResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/wallets/balance:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - اطلاعات کاربر
+      summary: دریافت موجودی یک کیف‌پول
+      description: |
+        موجودی کیف‌پول یک ارز مشخص را برمی‌گرداند.
+
+        - محدودیت فراخوانی: ۶۰ درخواست در هر ۲ دقیقه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletBalanceRequest"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalanceResponse"
+        "400":
+          description: ارز ارسال نشده یا مقدار آن نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/wallets/transactions/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات کاربر
+      summary: لیست تراکنش‌های یک کیف‌پول
+      description: |
+        لیست تراکنش‌های کیف‌پول مشخص را با صفحه‌بندی برمی‌گرداند.
+
+        - محدودیت فراخوانی: ۶۰ درخواست در هر ۲ دقیقه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - name: wallet
+          in: query
+          required: true
+          description: شناسه کیف‌پول
+          schema:
+            type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: details
+          in: query
+          required: false
+          description: سطح جزئیات تراکنش‌ها؛ در محیط production همواره سطح `1` استفاده می‌شود
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionsListResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/transactions-history:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات کاربر
+      summary: تاریخچه تراکنش‌ها
+      description: |
+        تاریخچه تراکنش‌های کاربر را با فیلترهای اختیاری برمی‌گرداند.
+
+        - محدودیت فراخوانی: ۶۰ درخواست در ساعت
+        - در صورت ارسال `download=true` خروجی CSV برگردانده می‌شود.
+        - بازه زمانی نباید از محدودیت تعریف‌شده در تنظیمات بک‌اند بیشتر باشد.
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tp
+          in: query
+          required: false
+          description: لیست نوع تراکنش‌ها
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          description: زمان شروع بازه به‌صورت Unix timestamp بر حسب ثانیه
+          schema:
+            type: integer
+        - name: to
+          in: query
+          required: false
+          description: زمان پایان بازه به‌صورت Unix timestamp بر حسب ثانیه
+          schema:
+            type: integer
+        - name: from_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: details
+          in: query
+          required: false
+          description: سطح جزئیات تراکنش‌ها؛ در محیط production همواره سطح `2` استفاده می‌شود
+          schema:
+            type: integer
+            default: 2
+        - name: download
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserTransactionsHistoryResponse"
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: فیلترهای درخواست نامعتبر هستند
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+        "422":
+          description: بازه زمانی نامعتبر یا طولانی‌تر از حد مجاز است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/wallets/deposits/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات کاربر
+      summary: لیست واریزها
+      description: |
+        لیست واریزهای انجام‌شده به کیف‌پول‌های کاربر را برمی‌گرداند.
+
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - name: wallet
+          in: query
+          required: false
+          description: شناسه کیف‌پول؛ در صورت عدم ارسال همه کیف‌پول‌ها لحاظ می‌شوند
+          schema:
+            type: string
+            default: all
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletDepositsListResponse"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: توکن احراز هویت به صورت `Token yourTOKENhereHEX0000` در هدر ارسال می‌شود.
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  responses:
+    RateLimitExceeded:
+      description: محدودیت تعداد درخواست‌ها
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - status
+              - code
+            properties:
+              status:
+                type: string
+                enum: [failed]
+                example: failed
+              code:
+                type: string
+                example: TooManyRequests
+
+
+  schemas:
+    FailedResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          example: ValidationError
+        message:
+          type: string
+          example: Validation Failed
+
+    UserProfileResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        profile:
+          type: object
+          description: پروفایل سریالایزشده کاربر
+        isBusinessAccount:
+          type: boolean
+          description: نشان می‌دهد حساب کاربر تجاری است یا خیر
+        tradeStats:
+          type: object
+          description: آمار معاملاتی کاربر
+    GenerateAddressRequest:
+      type: object
+      description: باید حداقل یکی از `wallet` یا `currency` ارسال شود؛ در صورت ارسال هر دو، `wallet` اولویت دارد.
+      properties:
+        wallet:
+          type: integer
+          description: شناسه کیف‌پول اسپات
+        currency:
+          type: string
+          description: کد ارز؛ در صورت نبود `wallet`
+          example: btc
+        network:
+          type: string
+          description: نام شبکه
+          example: BTC
+        addressType:
+          type: string
+          enum: [default, legacy]
+          default: default
+    GenerateAddressResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        address:
+          type: string
+          nullable: true
+          example: 0000xxxx1111zzzz
+        tag:
+          type: string
+          nullable: true
+          example: test17280992
+
+    AddCardRequest:
+      type: object
+      required:
+        - number
+      properties:
+        number:
+          type: string
+        bank:
+          type: string
+          description: در صورت عدم ارسال، مقدار `سایر` استفاده می‌شود
+
+    AddAccountRequest:
+      type: object
+      required:
+        - shaba
+      properties:
+        number:
+          type: string
+          description: شماره حساب؛ در صورت عدم ارسال، مقدار پیش‌فرض داخلی استفاده می‌شود
+        shaba:
+          type: string
+
+    StatusOnlyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    UserLimitationsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        limitations:
+          type: object
+          properties:
+            userLevel:
+              type: string
+            features:
+              type: object
+            limits:
+              type: object
+            depositLimits:
+              type: object
+
+    WalletsListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        wallets:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              currency:
+                type: string
+              balance:
+                type: string
+              blockedBalance:
+                type: string
+              activeBalance:
+                type: string
+              rialBalance:
+                type: integer
+              rialBalanceSell:
+                type: integer
+
+    V2WalletsRequest:
+      type: object
+      properties:
+        currencies:
+          type: string
+          description: لیست ارزها به‌صورت جداشده با کاما
+          example: btc,rls,usdt
+        type:
+          type: string
+          default: spot
+          enum: [spot, margin, credit, debit]
+
+    V2WalletsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        wallets:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              id:
+                type: integer
+              balance:
+                type: string
+              blocked:
+                type: string
+
+    WalletBalanceRequest:
+      type: object
+      required:
+        - currency
+      properties:
+        currency:
+          type: string
+          example: btc
+
+    WalletBalanceResponse:
+      type: object
+      required:
+        - status
+        - balance
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        balance:
+          type: string
+          example: "0.6"
+
+    WalletTransactionsListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        transactions:
+          type: array
+          items:
+            type: object
+
+    UserTransactionsHistoryResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        transactions:
+          type: array
+          items:
+            type: object
+        hasNext:
+          type: boolean
+
+    WalletDepositsListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        deposits:
+          type: array
+          items:
+            type: object
+        withdraws:
+          type: array
+          items:
+            type: object
+        hasNext:
+          type: boolean
+
+    BankOperationSuccessResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+
+    AddBankCardFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `UserLevelRestriction` | احراز هویت کاربر کافی نیست — سطح ۱ الزامی است |
+            | `DuplicatedCard` | این کارت قبلاً به حساب اضافه شده است |
+            | `ValidationError` | شماره کارت نامعتبر است (باید ۱۶ رقمی باشد) |
+          example: DuplicatedCard
+        message:
+          type: string
+          description: توضیح خطا
+          example: Duplicated Card
+
+    AddBankAccountFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `UserLevelRestriction` | احراز هویت کاربر کافی نیست — سطح ۱ الزامی است |
+            | `DuplicatedShaba` | این شبا قبلاً به حساب اضافه شده است |
+            | `ValidationError` | شبا نامعتبر است (باید ۲۶ کاراکتر با پیشوند `IR` باشد) |
+          example: DuplicatedShaba
+        message:
+          type: string
+          description: توضیح خطا
+          example: Duplicated Shaba
+
+    DeleteBankCardRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: integer
+          description: شناسه کارت بانکی
+          example: 12
+
+    DeleteBankCardFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `InvalidBankCardID` | کارت با این شناسه برای کاربر یافت نشد |
+          example: InvalidBankCardID
+        message:
+          type: string
+          description: توضیح خطا
+          example: Invalid Bank Card ID
+
+    DeleteBankAccountRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: integer
+          description: شناسه حساب بانکی
+          example: 7
+
+    DeleteBankAccountFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `InvalidBankAccountID` | حساب با این شناسه برای کاربر یافت نشد |
+          example: InvalidBankAccountID
+        message:
+          type: string
+          description: توضیح خطا
+          example: Invalid Bank Account ID

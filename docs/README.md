@@ -24,6 +24,7 @@ Top-level governance, architecture decisions, and system specifications. For `gy
 | [architecture/ensemble-gateway-design.md](architecture/ensemble-gateway-design.md) | Uncorrelated multi-timeframe ensemble & calibrated ML meta-gateway specification |
 | [architecture/ensemble-gateway-design-review.md](architecture/ensemble-gateway-design-review.md) | Adversarial design review of the ensemble gateway & financial-engine bottlenecks |
 | [architecture/ensemble-gateway-repair-plan.md](architecture/ensemble-gateway-repair-plan.md) | Engine repair and first paper experiment implementation plan |
+| [venues/README.md](venues/README.md) | Canonical Nobitex OpenAPI YAML & Wallex Swagger JSON specs, WebSocket v2 channels, and execution guardrails |
 
 ## Runtime & Evidence Docs
 

@@ -1,0 +1,2896 @@
+openapi: 3.0.3
+info:
+  title: API معاملات تعهدی نوبیتکس
+  version: "1.0.0"
+  description: |
+    APIهای مربوط به معاملات تعهدی (Margin)، استخرهای مشارکت، انتقال به کیف‌پول تعهدی،
+    سفارش‌گذاری تعهدی و مدیریت موقعیت‌ها.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: معاملات تعهدی
+    description: بازار تعهدی، استخرها، سفارش‌ها و موقعیت‌ها
+
+paths:
+  /margin/markets/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات تعهدی
+      summary: مشاهده بازارهای معاملات تعهدی
+      description: |
+        لیست بازارهای پشتیبانی‌شده برای معاملات تعهدی را برمی‌گرداند.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰ درخواست در دقیقه
+        </div>
+        <br/>
+
+        کلیدهای شیء `markets` نماد بازار هستند؛ برای نمونه:
+
+        - `BTCIRT`: بازار بیت‌کوین/ریال
+        - `BTCUSDT`: بازار بیت‌کوین/تتر
+        - `DOGEIRT`: بازار دوج‌کوین/ریال
+
+        این متد بدون احراز هویت نیز قابل استفاده است. در صورت ارسال توکن معتبر، پاسخ می‌تواند
+        با توجه به سطح کاربری، عمق بازار، دسترسی به استخرهای خصوصی و محدودیت‌های اختصاصی کاربر
+        شخصی‌سازی شود.
+
+        **نکات مهم:**
+        - مقدار `maxLeverage` ممکن است بین کاربران مختلف متفاوت باشد.
+        - نرخ تمدید روزانه می‌تواند بر اساس سمت موقعیت و ارزش دارایی وکالت‌گرفته‌شده پله‌ای باشد.
+        - فیلدهای `sellPositionFeeRate`، `buyPositionFeeRate` و سقف‌های وکالت ممکن است فقط
+          در پاسخ احراز هویت‌شده یا در شرایط خاص موجود باشند؛ بنابراین کلاینت باید نبودن یا
+          `null` بودن آن‌ها را مدیریت کند.
+        <br/>
+
+      security:
+        - {}
+        - TokenAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarginMarketsDetailsRequest"
+            example:
+              details: true
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              example:
+                status: ok
+                markets:
+                  BTCUSDT:
+                    srcCurrency: btc
+                    dstCurrency: usdt
+                    positionFeeRate: "0.001"
+                    maxLeverage: "5"
+                    sellEnabled: true
+                    buyEnabled: true
+                    sellPositionFeeRate: "0.001"
+                    buyPositionFeeRate: "0.001"
+                    sellMaxDelegation: "100000"
+                    buyMaxDelegation: "100000"
+                    buyMaxDelegationInSrcCurrency: "0.002"
+
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  markets:
+                    type: object
+                    additionalProperties:
+                      $ref: "#/components/schemas/MarginMarketSetting"
+
+
+  /liquidity-pools/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات تعهدی
+      summary: مشاهده استخرهای مشارکت ارزی فعال 
+      description: |
+        استخرهای مشارکت موجودی مورد نیاز برای اعطای وکالت خرید و فروش تعهدی را تامین می‌کنند. ظرفیت مشارکت افراد در معاملات تعهدی را موجودی استخرها تعیین می‌کنند. استخرها ممکن است در زمان‌هایی فعال و غیرفعال شوند. در استخرهای غیرفعال امکان ثبت سفارش جدید تعهدی وجود ندارد (اما بستن موقعیت همچنان میسر است). برای دریافت ظرفیت استخرهای فعال از این درخواست استفاده نمایید.
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۲ درخواست در دقیقه
+        </div>
+        <br/>
+      security:
+        - {}
+        - TokenAuth: []      
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              example:
+                status: ok
+                pools:
+                  btc:
+                    id: 1
+                    capacity: "40"
+                    filledCapacity: "40"
+                    currentProfit: 1320419257
+                    APR: "6.58"
+                    profitPeriod: 31
+                    startDate: "2026-07-23"
+                    endDate: "2026-08-22"
+                    profitDate: "2026-08-23"
+                    minDelegation: "0.000008"
+                    maxDelegation: "0.16529"
+                    hasDelegate: false
+                    hasActiveAlert: false
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  pools:
+                    type: object
+                    additionalProperties:
+                      $ref: "#/components/schemas/LiquidityPool"
+
+  /wallets/transfer:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات تعهدی
+      summary: انتقال پول بین کیف‌پول‌های کاربر
+      description: |
+        وجوه تضمین قبل از دریافت وکالت خرید و فروش تعهدی باید در کیف‌پول تعهدی قرار گیرند. برای انتقال موجودی میان دو کیف‌پول اسپات و تعهدی از این درخواست استفاده نمایید.
+
+        انتقال وجه در مسیرهای زیر پشتیبانی می‌شود:
+
+        - از کیف‌پول اسپات (`spot`) به کیف‌پول تعهدی (`margin`)
+        - از کیف‌پول تعهدی (`margin`) به کیف‌پول اسپات (`spot`)
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۰ درخواست در دقیقه
+        </div>
+        <br/>
+
+        ### **نکات و ملاحظات**
+        نوع کیف‌پول مبدا و مقصد نباید یکسان باشد.
+        کیف‌پول تعهدی ضمن اولین انتقال به آن ایجاد می‌شود. پس از آن موجودی این کیف‌پول را می‌توان از طریق لیست کیف‌پول‌ها مشاهده کرد.
+
+        <br/>
+
+
+      security:
+        - TokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletTransferRequest"
+      responses:
+        "200":
+          description: |
+            پاسخ درخواست.
+            <br/>
+            **توجه**: خطاهای بیزینسی نیز با status code 200 برگردانده می‌شوند.
+
+          content:
+            application/json:
+              examples:
+                success_response:
+                  summary: انتقال موفق
+                  value:
+                    status: ok
+                    srcWallet:
+                      id: 5678
+                      currency: usdt
+                      balance: "250.5000000000"
+                      blockedBalance: "20.0000000000"
+                      activeBalance: "230.5000000000"
+                      rialBalance: 728250000
+                      rialBalanceSell: 730000000
+                      type: margin
+                    dstWallet:
+                      id: 1234
+                      currency: usdt
+                      balance: "85.7500000000"
+                      blockedBalance: "15.2500000000"
+                      activeBalance: "70.5000000000"
+                      rialBalance: 249750000
+                      rialBalanceSell: 251000000
+                      type: spot
+                
+                fail InsufficientBalance:
+                  summary: موجودی کافی نیست
+                  value:
+                    status: failed
+                    code: InsufficientBalance
+                    message: mount cannot exceed active balance
+                
+                fail SameDestination:
+                  summary: مبدا و مقصد یک نوع هستند
+                  value:
+                    status: failed
+                    code: SameDestination
+                    message: Dst wallet must be different from src wallet
+                fail InvalidAmount:
+                  summary: مقدار انتقال نامعتبر است
+                  value:
+                    status: failed
+                    code: InvalidAmount
+                    message: Amount must be positive
+
+                fail WalletNotFound:
+                  summary: کیف پول ارسال شده برای انتقال پیدا نشد
+                  value:
+                    status: failed
+                    code: WalletNotFound
+                    message: Dst/Src wallet not found
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/WalletTransferResponse"
+                  - $ref: "#/components/schemas/MarginFailedResponse"
+        "400":
+          description: خطای فرمت درخواست
+          content:
+            application/json:
+              example:
+                  status: failed
+                  code: ParseError
+                  message: فرمت ورودی‌ها مطابق فرمت خواسته شده نیست.
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+
+
+  /margin/v2/delegation-limit:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات تعهدی
+      summary: دریافت محدودیت وکالت بر اساس بازار
+      description: |
+        برای دریافت سقف باقی‌مانده وکالت کاربر در یک بازار تعهدی از این درخواست استفاده کنید. 
+         در پاسخ، محدودیت‌های باقی‌مانده به تفکیک سمت `buy` و `sell` و برای هر اهرم مجاز بازار بازگردانده می‌شود. در سمت `sell` واحد `limit` برابر رمزارز مبدا بازار و در سمت `buy` واحد limit برابر رمزارز مقصد بازار است.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۲ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key 
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+        ### نکات و ملاحظات
+        نمونه پاسخ  در مثال پاسخ‌ها گذاشته شده و آرایه هر سمت از اهرم `1` تا حداکثر اهرم مجاز آن بازار، با گام `0.5` ادامه پیدا می‌کند.
+        مقدار `limit` در هر ورودی، سقف باقی‌مانده قابل استفاده برای همان سمت و همان اهرم است.
+        با باز بودن موقعیت‌ها و سفارش‌های تعهدی، این مقادیر کاهش می‌یابند و با بستن یا تسویه آن‌ها دوباره افزایش پیدا می‌کنند.
+        در سفارش فروش تعهدی، مقدار سفارش باید از `sell.limit` اهرم انتخابی کمتر یا مساوی باشد.
+        در سفارش خرید تعهدی، ارزش کل سفارش `(price × amount)` باید از `buy.limit` اهرم انتخابی کمتر یا مساوی باشد.
+
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - name: market
+          in: query
+          required: true
+          schema:
+            type: string
+          description: نماد بازار، مانند `BTCIRT`.
+          example: BTCIRT
+      responses:
+        "200":
+          description: |
+            پاسخ درخواست.
+            <br/>
+            **توجه**: خطاهای بیزینسی نیز با status code 200 برگردانده می‌شوند.
+          content:
+            application/json:
+              examples:
+                success:
+                  summary: پاسخ موفق
+                  value:
+                    status: ok
+                    limits:
+                      sell:
+                        - leverage: "1"
+                          limit: "0.423"
+                        - leverage: "1.5"
+                          limit: "0.396"
+                        - leverage: "2"
+                          limit: "0.37"
+                        - leverage: "2.5"
+                          limit: "0.343"
+                        - leverage: "3"
+                          limit: "0.317"
+                        - leverage: "3.5"
+                          limit: "0.29"
+                        - leverage: "4"
+                          limit: "0.264"
+                        - leverage: "4.5"
+                          limit: "0.238"
+                        - leverage: "5"
+                          limit: "0.211"
+
+                      buy:
+                        - leverage: "1"
+                          limit: "476000000"
+                        - leverage: "1.5"
+                          limit: "446000000"
+                        - leverage: "2"
+                          limit: "416000000"
+                        - leverage: "2.5"
+                          limit: "387000000"
+                        - leverage: "3"
+                          limit: "357000000"
+                        - leverage: "3.5"
+                          limit: "327000000"
+                        - leverage: "4"
+                          limit: "297000000"
+                        - leverage: "4.5"
+                          limit: "268000000"
+                        - leverage: "5"
+                          limit: "238000000"
+                fail InvalidMarket:
+                  summary: مارکت نامعتبر
+                  value:
+                    status: failed
+                    code: InvalidMarket
+                    message: InvalidMarket
+                fail UnsupportedMarginSymbol:
+                  summary: مارکت از مارجین پشتیبانی نمی‌کند
+                  value:
+                    status: failed
+                    code: UnsupportedMarginSymbol
+                    message: UnsupportedMarginSymbol
+                fail TradeLimitation:
+                  summary: کاربر سطح احراز کافی ندارد.
+                  value:
+                    status: failed
+                    code: TradeLimitation
+                    message: TradeLimitation
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MarginDelegationLimitV2Response"
+                  - $ref: "#/components/schemas/MarginFailedResponse"
+
+
+  /margin/orders/add:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات تعهدی
+      summary: درج سفارش تعهدی
+      description: |
+       سفارش‌گذاری تعهدی در نوبیتکس امکان ایجاد موقعیت معاملاتی خرید یا فروش با استفاده از اعتبار معاملاتی یا اهرم را فراهم می‌کند.
+        کاربر با تعیین بازار، جهت سفارش، مقدار، قیمت و میزان اهرم می‌تواند موقعیت معاملاتی موردنظر خود را ایجاد کند.
+        در سفارش‌های تعهدی، اجرای سفارش به شرایط بازار، قیمت تعیین‌شده، نقدینگی موجود و قوانین بازار مربوطه بستگی دارد.
+
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:**  ۳۰۰ درخواست در ۱۰ دقیقه
+
+        **نکته مهم:** این اندپوینت محدودیت فراخوانی مشترک با سفارش گذاری در بازار اسپات دارد
+        </div>
+         <br/>
+        <div class="alert alert--secondary">
+          #### API Key 
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+
+
+        ### انواع سفارش‌ها
+
+        | نوع سفارش | توضیحات |
+        |---|---|
+        | `Limit` | ثبت سفارش با قیمت مشخص؛ سفارش پس از رسیدن بازار به قیمت تعیین‌شده اجرا می‌شود. |
+        | `Market` | ثبت سفارش بدون تعیین قیمت و اجرای آن با بهترین قیمت موجود بازار. |
+        | `Stop Market` | سفارش شرطی که پس از رسیدن قیمت به نقطه فعال‌سازی، به سفارش `Market` تبدیل می‌شود. |
+        | `Stop Limit` | سفارش شرطی که پس از رسیدن قیمت به نقطه فعال‌سازی، یک سفارش `Limit` ایجاد می‌کند. |
+        | `OCO` | ترکیبی از سفارش‌های `Limit` و `Stop Limit`؛ با اجرای یکی، سفارش دیگر به‌صورت خودکار لغو می‌شود. |
+
+        ### شرایط سفارش OCO
+        **خرید:** <span dir="ltr"><code>price &lt; آخرین قیمت بازار &lt; stopPrice و stopLimitPrice</code></span>
+
+        **فروش:** <span dir="ltr"><code>price &gt; آخرین قیمت بازار &gt; stopPrice و stopLimitPrice</code></span>
+
+        <br/>
+
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/MarginLimitOrderRequest"
+                - $ref: "#/components/schemas/MarginMarketOrderRequest"
+                - $ref: "#/components/schemas/MarginStopMarketOrderRequest"
+                - $ref: "#/components/schemas/MarginStopLimitOrderRequest"
+                - $ref: "#/components/schemas/MarginOCOOrderRequest"
+      responses:
+        "200":
+          description: |
+            پاسخ درخواست.
+            <br/>
+            **توجه**: خطاهای بیزینسی نیز با status code 200 برگردانده می‌شوند.
+            
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MarginOrderResponseSingle"
+                  - $ref: "#/components/schemas/MarginOrderResponseOCO"
+                  - $ref: "#/components/schemas/MarginFailedResponse"
+              
+              examples:
+                successfulMarginOrder:
+                  summary: ثبت موفق سفارش تعهدی
+                  description: سفارش فروش تعهدی با موفقیت ثبت شده است.
+                  value:
+                    status: ok
+                    order:
+                      id: 25
+                      type: sell
+                      execution: Limit
+                      tradeType: Margin
+                      srcCurrency: btc
+                      dstCurrency: rls
+                      price: "6400000000"
+                      amount: "0.01"
+                      status: Active
+                      totalPrice: "0"
+                      totalOrderPrice: "64000000"
+                      matchedAmount: "0"
+                      unmatchedAmount: "0.01"
+                      leverage: "2"
+                      side: open
+                      partial: false
+                      fee: "0"
+                      created_at: "2022-10-20T11:36:13.592827+00:00"
+                      averagePrice: "0"
+
+                tradeLimitation:
+                  summary: ناکافی بودن سطح احراز هویت
+                  description: کاربر سطح احراز کافی ندارد.
+                  value:
+                    status: failed
+                    code: TradeLimitation
+                    message: TradeLimitation
+
+                invalidMarketPair:
+                  summary: زوج بازار نامعتبر
+                  description: زوج مبدا/مقصد بازار در میان بازارهای نوبیتکس وجود ندارد.
+                  value:
+                    status: failed
+                    code: InvalidMarketPair
+                    message: Market Validation Failed
+
+                marketValidationFailed:
+                  summary: اعتبارسنجی بازار ناموفق بود
+                  description: بازار بسته شده یا هنوز باز نشده است.
+                  value:
+                    status: failed
+                    code: MarketClosed
+                    message: Market Validation Failed
+
+                marketClosed:
+                  summary: بازار بسته است
+                  description: بازار بسته شده یا هنوز باز نشده است.
+                  value:
+                    status: failed
+                    code: MarketClosed
+                    message: Market is currently closed!
+
+                marketNotOpened:
+                  summary: بازار هنوز باز نشده است
+                  description: بازار بسته شده یا هنوز باز نشده است.
+                  value:
+                    status: failed
+                    code: MarketClosed
+                    message: Market is not opened yet!
+
+                marginClosed:
+                  summary: معاملات تعهدی فعال نیست
+                  description: معاملات خرید/فروش تعهدی بسته شده یا باز نشده است.
+                  value:
+                    status: failed
+                    code: MarginClosed
+                    message: Margin Trading Not Open
+
+                unsupportedMarginSrc:
+                  summary: رمزارز مبدأ پشتیبانی نمی‌شود
+                  description: رمزارز درخواستی برای معاملات خرید/فروش تعهدی پشتیبانی نمی‌شود.
+                  value:
+                    status: failed
+                    code: UnsupportedMarginSrc
+                    message: Unsupported Margin Src Currency
+
+                unsupportedMarginDst:
+                  summary: رمزارز مقصد پشتیبانی نمی‌شود
+                  description: رمزارز مقصد برای معاملات خرید/فروش تعهدی پشتیبانی نمی‌شود.
+                  value:
+                    status: failed
+                    code: UnsupportedMarginDst
+                    message: Unsupported Margin Dst Currency
+
+                invalidOrderPrice:
+                  summary: قیمت سفارش نامعتبر
+                  description: قیمت سفارش، اعتبارسنجی موردنیاز بازار را با موفقیت طی نکرده است.
+                  value:
+                    status: failed
+                    code: InvalidOrderPrice
+                    message: Price Validation Failed
+
+                amountUnavailable:
+                  summary: مقدار درخواستی موجود نیست
+                  description: مقدار مورد تقاضا برای اخذ وکالت فروش در استخر موجود نیست.
+                  value:
+                    status: failed
+                    code: AmountUnavailable
+                    message: Amount Unavailable
+
+                exceedDelegationLimit:
+                  summary: مقدار بیشتر از سقف وکالت
+                  description: مقدار از سقف مجاز فروش باقی‌مانده کاربر بیشتر است.
+                  value:
+                    status: failed
+                    code: ExceedDelegationLimit
+                    message: Amount exceeds delegation limit
+
+                exceedSellLimit:
+                  summary: مقدار بیشتر از سقف فروش
+                  description: مقدار سفارش از سقف مجاز فروش بیشتر است.
+                  value:
+                    status: failed
+                    code: ExceedSellLimit
+                    message: Amount Exceeds Sell Limit
+
+                insufficientBalance:
+                  summary: موجودی ناکافی
+                  description: موجودی کیف‌پول تعهدی کاربر برای تامین وجه تضمین به اندازه مبلغ کل سفارش کافی نیست.
+                  value:
+                    status: failed
+                    code: InsufficientBalance
+                    message: Insufficient Balance
+
+                leverageUnavailable:
+                  summary: عدم دسترسی کاربر به ضریب وکالت
+                  description: کاربر محدودیت استفاده از ضریب وکالت از جانب پشتیبانی دارد.
+                  value:
+                    status: failed
+                    code: LeverageUnavailable
+                    message: LeverageUnavailable
+
+                userLeverageTooHigh:
+                  summary: ضریب وکالت بیشتر از سقف کاربر
+                  description: ضریب وکالت درخواست از بیشینه مجاز بازار، بسته به استخر یا سطح کاربری، بیشتر است.
+                  value:
+                    status: failed
+                    code: LeverageTooHigh
+                    message: Max leverage for user is 3
+
+                marketLeverageTooHigh:
+                  summary: ضریب وکالت بیشتر از سقف بازار
+                  description: ضریب وکالت درخواست از بیشینه مجاز بازار، بسته به استخر یا سطح کاربری، بیشتر است.
+                  value:
+                    status: failed
+                    code: LeverageTooHigh
+                    message: Max leverage for BTCIRT is 3
+
+                exceedLiability:
+                  summary: مقدار بیشتر از بدهی موقعیت
+                  description: مقدار سفارش از میزان بدهی موقعیت بیشتر است.
+                  value:
+                    status: failed
+                    code: ExceedLiability
+                    message: Amount Exceeds Liability
+
+                exceedTotalAsset:
+                  summary: مبلغ بیشتر از کل دارایی موقعیت
+                  description: قیمت کل سفارش از کل دارایی موقعیت بیشتر است.
+                  value:
+                    status: failed
+                    code: ExceedTotalAsset
+                    message: Total Price Exceeds Position Total Asset
+
+                duplicateOrder:
+                  summary: سفارش تکراری
+                  description: سفارشی با همین مشخصات توسط شما در بازه زمانی ده ثانیه اخیر ارسال شده است. مشابه درج سفارش اسپات.
+                  value:
+                    status: failed
+                    code: DuplicateOrder
+                    message: Duplicate orders are ignored for 10 seconds
+
+                largeOrder:
+                  summary: سفارش بزرگ‌تر از محدودیت موقت
+                  description: ارزش سفارش از سقف موقت تعیین‌شده برای ثبت سفارش بیشتر است.
+                  value:
+                    status: failed
+                    code: LargeOrder
+                    message: Order value is temporarily limited to below 1,000,000,000.
+
+                marketExecutionTypeTemporaryClosed:
+                  summary: غیرفعال بودن موقت سفارش سریع
+                  description: در حال حاضر امکان ثبت سفارش سریع در این بازار وجود ندارد و باید از سفارش‌گذاری با تعیین قیمت استفاده شود.
+                  value:
+                    status: failed
+                    code: MarketExecutionTypeTemporaryClosed
+                    message: در حال حاضر امکان ثبت سفارش سریع در این بازار وجود ندارد. لطفاً از سفارش گذاری با تعیین قیمت استفاده نمایید.
+
+                smallOrder:
+                  summary: مبلغ سفارش کمتر از حداقل مجاز
+                  description: سفارش کوچک است و کمینه اندازه سفارش بازار را رعایت نکرده است. مشابه درج سفارش اسپات.
+                  value:
+                    status: failed
+                    code: SmallOrder
+                    message: Order Validation Failed
+
+                duplicateClientOrderId:
+                  summary: شناسه سفارش تکراری
+                  description: شناسه سمت کاربر سفارش قبلاً برای سفارش دیگری استفاده شده است.
+                  value:
+                    status: failed
+                    code: DuplicateClientOrderId
+                    message: Order Validation Failed
+
+                overValueOrder:
+                  summary: ارزش سفارش بیشتر از حد مجاز
+                  description: ارزش کل سفارش از سقف مجاز ثبت سفارش بیشتر است.
+                  value:
+                    status: failed
+                    code: OverValueOrder
+                    message: Order Validation Failed
+
+                priceUnavailable:
+                  summary: قیمت در دسترس نیست
+                  description: قیمت موردنیاز برای ثبت یا محاسبه سفارش در دسترس نیست.
+                  value:
+                    status: failed
+                    code: PriceUnavailable
+                    message: Order Validation Failed
+
+                unexpectedMarketType:
+                  summary: نوع بازار نامعتبر
+                  description: نوع بازار ارسال‌شده با نوع بازار مورد انتظار مطابقت ندارد.
+                  value:
+                    status: failed
+                    code: UnexpectedMarketType
+                    message: Order Validation Failed
+
+                unexpectedMarketPrice:
+                  summary: قیمت بازار غیرمنتظره
+                  description: قیمت بازار با شرایط یا مقادیر مورد انتظار سفارش مطابقت ندارد.
+                  value:
+                    status: failed
+                    code: UnexpectedMarketPrice
+                    message: Order Validation Failed
+
+                amountTooLow:
+                  summary: مقدار سفارش کمتر از حد مجاز
+                  description: مقدار سفارش از کمینه مقدار مجاز بازار کمتر است.
+                  value:
+                    status: failed
+                    code: AmountTooLow
+                    message: Order Validation Failed
+
+                missingStopPrice:
+                  summary: قیمت توقف ارسال نشده است
+                  description: پارامتر قیمت توقف برای این نوع سفارش ارسال نشده است.
+                  value:
+                    status: failed
+                    code: MissingStopPrice
+                    message: Order Validation Failed
+
+                invalidPair:
+                  summary: زوج رمزارز نامعتبر
+                  description: زوج رمزارز ارسال‌شده برای این سفارش معتبر نیست.
+                  value:
+                    status: failed
+                    code: InvalidPair
+                    message: Order Validation Failed
+
+                badPrice:
+                  summary: قیمت سفارش نامعقول
+                  description: قیمت سفارش نامعقول است. مشابه درج سفارش اسپات.
+                  value:
+                    status: failed
+                    code: BadPrice
+                    message: Order Validation Failed
+
+                priceConditionFailed:
+                  summary: برقرار نبودن شرط قیمت
+                  description: شرط قیمت میان پارامترهای قیمتی و قیمت بازار در سفارش لحاظ نشده است. مشابه اسپات.
+                  value:
+                    status: failed
+                    code: PriceConditionFailed
+                    message: Order Validation Failed
+        "400":
+          description: ورودی نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+
+              examples:
+                parseError:
+                  summary: فرمت نامعتبر پارامتر ورودی
+                  description: فرمت ورودی‌ها مطابق فرمت خواسته‌شده نیست.
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Invalid monetary value
+
+                missingMonetaryValue:
+                  summary: ارسال نشدن مقدار مالی
+                  description: فرمت ورودی‌ها مطابق فرمت خواسته‌شده نیست.
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Missing monetary value
+
+                invalidOrderType:
+                  summary: نوع سفارش نامعتبر
+                  description: فرمت ورودی‌ها مطابق فرمت خواسته‌شده نیست.
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Invalid order type
+
+                unverifiedEmail:
+                  summary: ایمیل کاربر تأیید نشده است
+                  description: کاربر دارای ایمیل تأییدشده نیست.
+                  value:
+                    status: failed
+                    code: UnverifiedEmail
+                    message: User does not have a verified email.
+        
+          
+
+  /positions/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات تعهدی
+      summary: مشاهده لیست موقعیت‌ها
+      description: |
+        برای دریافت لیست موقعیت‌های باز و تاریخچه موقعیت‌های پایان‌یافته
+        از این درخواست استفاده کنید.
+
+         <div class="alert alert--warning">
+        **محدودیت فراخوانی:**  ۳۰ درخواست در ۱۰ دقیقه
+        </div>
+         <br/>
+        <div class="alert alert--secondary">
+          #### API Key 
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+
+
+        مقدار پارامتر `status` مشخص می‌کند چه نوع موقعیت‌هایی برگردانده شوند:
+
+        - `active`: موقعیت‌های باز و تسویه‌نشده
+        - `past`: موقعیت‌های بسته، لیکوییدشده یا منقضی‌شده که تسویه شده‌اند
+
+
+        **صفحه‌بندی:** دارد؛ اندازه پیش‌فرض هر صفحه ۵۰ موقعیت است.
+
+        ممکن است بین زمان لیکویید یا منقضی‌شدن یک موقعیت و زمان تسویه کامل آن
+        توسط سفارش‌های سیستمی فاصله کوتاهی وجود داشته باشد. در این بازه،
+        موقعیت لیکوییدشده یا منقضی‌شده همچنان در فهرست موقعیت‌های فعال
+        برگردانده می‌شود.
+
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+
+      parameters:
+        - name: srcCurrency
+          in: query
+          required: false
+          description: |
+            رمزارز مبدأ بازار.
+
+            در صورت ارسال‌نشدن این پارامتر، موقعیت‌های همه رمزارزهای مبدأ
+            برگردانده می‌شوند.
+          schema:
+            type: string
+          example: btc
+
+        - name: dstCurrency
+          in: query
+          required: false
+          description: |
+            ارز مقصد بازار.
+
+            در صورت ارسال‌نشدن این پارامتر، موقعیت‌های همه ارزهای مقصد
+            برگردانده می‌شوند.
+          schema:
+            type: string
+          example: rls
+
+        - name: status
+          in: query
+          required: false
+          description: |
+            نوع موقعیت‌های درخواستی.
+
+            - `active`: موقعیت‌های باز و تسویه‌نشده
+            - `past`: موقعیت‌های تسویه‌شده، بسته، لیکوییدشده یا منقضی‌شده
+          schema:
+            type: string
+            default: active
+            enum:
+              - active
+              - past
+          example: active
+
+        - name: page
+          in: query
+          required: false
+          description: شماره صفحه در نتایج صفحه‌بندی‌شده.
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+
+        - name: pageSize
+          in: query
+          required: false
+          description: تعداد موقعیت‌های برگردانده‌شده در هر صفحه.
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+          example: 50
+  
+      responses:
+        "200":
+          description: پاسخ موفق لیستی از پوزیشن‌های کاربر را بر می‌گرداند
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  positions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Position"
+                  hasNext:
+                    type: boolean
+
+              examples:
+                positionsList:
+                  summary: لیست موقعیت‌های تعهدی
+                  description: نمونه پاسخ شامل یک موقعیت باز و یک موقعیت بسته.
+                  value:
+                    status: ok
+                    positions:
+                      - id: 128
+                        createdAt: "2022-10-20T11:36:13.604420+00:00"
+                        srcCurrency: btc
+                        dstCurrency: rls
+                        side: sell
+                        status: Open
+                        marginType: Isolated Margin
+                        collateral: "320000000"
+                        leverage: "2"
+                        openedAt: "2022-10-20T11:36:16.562038+00:00"
+                        closedAt: null
+                        liquidationPrice: "25174302690"
+                        entryPrice: "6400000000"
+                        exitPrice: null
+                        delegatedAmount: "0.03"
+                        liability: "0.0300450676"
+                        totalAsset: "831712000"
+                        marginRatio: "1.49"
+                        liabilityInOrder: "0"
+                        assetInOrder: "0"
+                        unrealizedPNL: "−576435"
+                        unrealizedPNLPercent: "−0.09"
+                        expirationDate: "2022-11-20"
+                        extensionFee: "320000"
+                        markPrice: "6430000000"
+
+                      - id: 32
+                        createdAt: "2022-08-14T15:09:58.001901+00:00"
+                        srcCurrency: btc
+                        dstCurrency: usdt
+                        side: sell
+                        status: Closed
+                        marginType: Isolated Margin
+                        collateral: "2130"
+                        leverage: "1"
+                        openedAt: "2022-08-14T15:10:19.937801+00:00"
+                        closedAt: "2022-08-17T18:39:52.890674+00:00"
+                        liquidationPrice: "38986.54"
+                        entryPrice: "21300"
+                        exitPrice: "19900"
+                        PNL: "118.46"
+                        PNLPercent: "5.56"
+
+                    hasNext: false
+
+        "400":
+          description: ورودی نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+
+
+  /positions/{positionId}/status:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - معاملات تعهدی
+      summary: مشاهده یک موقعیت
+      description: |
+        وضعیت یک موقعیت تعهدی خاص را برمی‌گرداند.
+
+         <div class="alert alert--warning">
+        **محدودیت فراخوانی:**  ۱۰۰ درخواست در ۱۰ دقیقه
+        </div>
+         <br/>
+        <div class="alert alert--secondary">
+          #### API Key 
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+      
+      
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PositionId"
+      responses:
+        "200":
+          description: موفق یا ناموفق
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - position
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    example: ok
+
+                  position:
+                    $ref: "#/components/schemas/Position"
+
+              examples:
+                activePosition:
+                  summary: موقعیت تعهدی باز
+                  description: نمونه پاسخ شامل یک موقعیت باز.
+                  value:
+                    status: ok
+                    position:
+                      id: 128
+                      createdAt: "2022-10-20T11:36:13.604420+00:00"
+                      srcCurrency: btc
+                      dstCurrency: rls
+                      side: sell
+                      status: Open
+                      marginType: Isolated Margin
+                      collateral: "320000000"
+                      leverage: "2"
+                      openedAt: "2022-10-20T11:36:16.562038+00:00"
+                      closedAt: null
+                      liquidationPrice: "25174302690"
+                      entryPrice: "6400000000"
+                      exitPrice: null
+                      delegatedAmount: "0.03"
+                      liability: "0.0300450676"
+                      totalAsset: "831712000"
+                      marginRatio: "1.49"
+                      liabilityInOrder: "0"
+                      assetInOrder: "0"
+                      unrealizedPNL: "-576435"
+                      unrealizedPNLPercent: "-0.09"
+                      expirationDate: "2022-11-20"
+                      extensionFee: "320000"
+                      markPrice: "6430000000"
+
+                closedPosition:
+                  summary: موقعیت تعهدی بسته
+                  description: نمونه پاسخ شامل یک موقعیت بسته.
+                  value:
+                    status: ok
+                    position:
+                      id: 32
+                      createdAt: "2022-08-14T15:09:58.001901+00:00"
+                      srcCurrency: btc
+                      dstCurrency: usdt
+                      side: sell
+                      status: Closed
+                      marginType: Isolated Margin
+                      collateral: "2130"
+                      leverage: "1"
+                      openedAt: "2022-08-14T15:10:19.937801+00:00"
+                      closedAt: "2022-08-17T18:39:52.890674+00:00"
+                      liquidationPrice: "38986.54"
+                      entryPrice: "21300"
+                      exitPrice: "19900"
+                      PNL: "118.46"
+                      PNLPercent: "5.56"
+        "404":
+          description: موقعیت پیدا نشد
+
+  /positions/{positionId}/close:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - معاملات تعهدی
+      summary: بستن موقعیت
+      description: |
+        برای بستن موقعیت، یک سفارش در جهت عکس موقعیت اولیه ثبت می‌شود:
+
+        - موقعیت فروش با ثبت سفارش خرید تعهدی بسته می‌شود.
+        - موقعیت خرید با ثبت سفارش فروش تعهدی بسته می‌شود.
+
+        پس از تکمیل سفارش تسویه، تعهد موقعیت بازپرداخت شده و سود یا زیان
+        نهایی به کیف‌پول تعهدی کاربر واریز می‌شود.
+        
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:**  ۳۰۰ درخواست در ۱۰ دقیقه
+        </div>
+         <br/>
+        <div class="alert alert--secondary">
+          #### API Key 
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        ### سفارش تسویه از دارایی کلی موقعیت تأمین اعتبار می‌شود و باید شرایط زیر را داشته باشد:
+
+        - مجموع مقدار باز سفارش‌های تسویه از تعهد باقی‌مانده موقعیت بیشتر نباشد:
+          `liability - liabilityInOrder`
+        - ارزش کل سفارش‌های باز تسویه از دارایی آزاد موقعیت بیشتر نباشد:
+          `totalAsset - assetInOrder`
+        - سفارش‌های تسویه جزئی باید حداقل مقدار سفارش بازار را رعایت کنند.
+        - در تسویه نهایی، تمام تعهد باقی‌مانده باید با `دقت حداکثر ۱۰ رقم اعشار` ارسال شود.
+
+
+
+        #### انواع اجرای سفارش:
+
+        - `limit`: سفارش با قیمت معین
+        - `market`: سفارش با قیمت بازار
+        - `stop_limit`: سفارش حد ضرر با قیمت معین
+        - `stop_market`: سفارش حد ضرر با قیمت بازار
+        - `oco`: ثبت هم‌زمان سفارش با قیمت معین و سفارش حد ضرر
+
+        #### شرایط سفارش OCO
+
+        - شرط قیمت سفارش OCO برای بستن موقعیت فروش با سفارش خرید:
+
+        `price < marketPrice < stopPrice و stopLimitPrice`
+
+        - شرط قیمت سفارش OCO برای بستن موقعیت خرید با سفارش فروش:
+
+        `price > marketPrice > stopPrice و stopLimitPrice`
+
+
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+
+      parameters:
+        - $ref: "#/components/parameters/PositionId"
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PositionCloseRequest"
+
+      responses:
+        "200":
+          description: |
+            پاسخ درخواست.
+              <br/>
+              **توجه**: خطاهای بیزینسی نیز با status code 200 برگردانده می‌شوند.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MarginOrderResponseSingle"
+                  - $ref: "#/components/schemas/MarginOrderResponseOCO"
+                  - $ref: "#/components/schemas/MarginFailedResponse"
+        
+              examples:
+                successfulCloseOrder:
+                  summary: ثبت موفق سفارش تسویه
+                  description: موقعیت با ثبت یک سفارش Limit در جهت عکس بسته می‌شود.
+                  value:
+                    status: ok
+                    order:
+                      id: 28
+                      type: buy
+                      execution: Limit
+                      tradeType: Margin
+                      srcCurrency: btc
+                      dstCurrency: rls
+                      price: "6200000000"
+                      amount: "0.0100150225"
+                      status: Active
+                      totalPrice: "0"
+                      totalOrderPrice: "62093139"
+                      matchedAmount: "0"
+                      unmatchedAmount: "0.0100150225"
+                      leverage: "2"
+                      side: close
+                      partial: false
+                      fee: "0"
+                      created_at: "2022-10-25T09:57:38.560820+00:00"
+                      averagePrice: "0"
+
+                successfulOCOCloseOrder:
+                  summary: ثبت موفق سفارش تسویه OCO
+                  description: دو سفارش مرتبط برای تسویه موقعیت ثبت شده‌اند.
+                  value:
+                    status: ok
+                    orders:
+                      - id: 29
+                        type: buy
+                        execution: Limit
+                        tradeType: Margin
+                        srcCurrency: btc
+                        dstCurrency: rls
+                        price: "12600000000"
+                        amount: "0.0100150225"
+                        status: Active
+                        totalPrice: "0"
+                        totalOrderPrice: "126189283.5"
+                        matchedAmount: "0"
+                        unmatchedAmount: "0.0100150225"
+                        leverage: "2"
+                        side: close
+                        partial: false
+                        fee: "0"
+                        created_at: "2022-10-25T09:57:38.560820+00:00"
+                        averagePrice: "0"
+
+                      - id: 30
+                        type: buy
+                        execution: StopLimit
+                        tradeType: Margin
+                        srcCurrency: btc
+                        dstCurrency: rls
+                        price: "13610000000"
+                        amount: "0.0100150225"
+                        status: Inactive
+                        totalPrice: "0"
+                        totalOrderPrice: "136304456.225"
+                        matchedAmount: "0"
+                        unmatchedAmount: "0.0100150225"
+                        param1: "13600000000"
+                        leverage: "2"
+                        side: close
+                        partial: false
+                        fee: "0"
+                        created_at: "2022-10-25T09:57:38.560820+00:00"
+                        averagePrice: "0"
+
+                tradeLimitation:
+                  summary: سطح احراز هویت ناکافی
+                  description: کاربر سطح احراز کافی برای معامله ندارد.
+                  value:
+                    status: failed
+                    code: TradeLimitation
+                    message: TradeLimitation
+
+                tradingUnavailable:
+                  summary: محدودیت معامله
+                  description: کاربر از جانب پشتیبانی محدودیت معامله دارد.
+                  value:
+                    status: failed
+                    code: TradingUnavailable
+                    message: TradingUnavailable
+
+                exceedLiability:
+                  summary: مقدار بیشتر از تعهد باقی‌مانده
+                  description: مقدار سفارش از تعهد باقی‌مانده موقعیت بیشتر است.
+                  value:
+                    status: failed
+                    code: ExceedLiability
+                    message: Amount Exceeds Liability
+
+                exceedTotalAsset:
+                  summary: ارزش سفارش بیشتر از دارایی آزاد
+                  description: ارزش کل سفارش از دارایی آزاد موقعیت بیشتر است.
+                  value:
+                    status: failed
+                    code: ExceedTotalAsset
+                    message: Total Price Exceeds Position Total Asset
+
+                badPrice:
+                  summary: قیمت نامعقول
+                  description: قیمت سفارش با محدوده قابل قبول بازار مطابقت ندارد.
+                  value:
+                    status: failed
+                    code: BadPrice
+                    message: Order Validation Failed
+
+                smallOrder:
+                  summary: سفارش کوچک
+                  description: سفارش حداقل اندازه مجاز بازار را رعایت نکرده است.
+                  value:
+                    status: failed
+                    code: SmallOrder
+                    message: Order Validation Failed
+
+                priceConditionFailed:
+                  summary: برقرار نبودن شرط قیمت
+                  description: |
+                    رابطه قیمت سفارش، قیمت توقف و قیمت فعلی بازار معتبر نیست.
+                  value:
+                    status: failed
+                    code: PriceConditionFailed
+                    message: Order Validation Failed
+
+        
+        "400":
+          description: ورودی نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+              examples:
+                parseError:
+                  summary: فرمت نامعتبر ورودی
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Invalid monetary value
+
+        "404":
+          description: موقعیت باز موردنظر پیدا نشد.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+
+              examples:
+                noOpenPosition:
+                  summary: موقعیت فعال وجود ندارد
+                  description: |
+                    موقعیتی با این شناسه وجود ندارد یا موقعیت قبلاً بسته شده است.
+                  value:
+                    status: failed
+                    code: NoOpenPosition
+                    message: No open position found.
+
+
+  /positions/{positionId}/edit-collateral:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+
+    post:
+      tags:
+        - معاملات تعهدی
+      summary: ویرایش وجه تضمین موقعیت باز
+      description: |
+        برای افزایش یا کاهش وجه تضمین یک موقعیت تعهدی باز استفاده می‌شود.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:**  ۶۰ درخواست در دقیقه
+        </div>
+         <br/>
+        <div class="alert alert--secondary">
+          #### API Key 
+          در صورت استفاده از API Key، دسترسی `TRADE` روی کلید الزامی است.
+        </div>
+        <br/>
+        ### نکات و ملاحظات
+         -        در صورتی که موقعیت در سوددهی باشد (نسبت تعهد > نسبت تعهد اولیه = ضریب / 1 + 1)، کاربر می‌تواند مازاد وجه تضمین خود را تا نسبت تعهد اولیه از بلوکه در بیاورد. -- سود تنها زمان بسته شدن کامل موقعیت قابل دستیابی است.
+        -         در صورتی که موقعیت به نقطه لیکوئید شدن نزدیک باشد و کاربر بخواهد موقعیت خود (به امید تغییر جهت بازار) باز نگهدارد، می‌تواند با افزایش وجه تضمین خود، قیمت لیکوئید شدن خود را بهبود دهد.
+
+      operationId: editPositionCollateral
+
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+
+      parameters:
+        - $ref: "#/components/parameters/PositionId"
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PositionCollateralEditRequest"
+
+      responses:
+        "200":
+          description: |
+            پاسخ درخواست.
+            <br/>
+            **توجه**: خطاهای بیزینسی نیز با status code 200 برگردانده می‌شوند.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required:
+                      - status
+                      - position
+                    properties:
+                      status:
+                        type: string
+                        enum: [ok]
+                        example: ok
+                      position:
+                        $ref: "#/components/schemas/Position"
+                  - $ref: "#/components/schemas/MarginFailedResponse"
+              examples:
+                success:
+                  summary: پاسخ موفق
+                  value:
+                    status: ok
+                    position:
+                      id: 128
+                      createdAt: "2022-10-20T11:36:13.604420+00:00"
+                      srcCurrency: btc
+                      dstCurrency: rls
+                      side: sell
+                      status: Open
+                      marginType: Isolated Margin
+                      collateral: "230000000"
+                      leverage: "2"
+                      openedAt: "2022-10-20T11:36:16.562038+00:00"
+                      closedAt: null
+                      liquidationPrice: "12230682570"
+                      entryPrice: "6400000000"
+                      exitPrice: "6100000000"
+                      PNL: null
+                      delegatedAmount: "0.02"
+                      liability: "0.0200300451"
+                      totalAsset: "257023981"
+                      marginRatio: "2.03"
+                      liabilityInOrder: "0"
+                      assetInOrder: "0"
+                      unrealizedPNL: "23423565"
+                      unrealizedPNLPercent: "10.18"
+                      expirationDate: "2022-11-20"
+                      extensionFee: "320000"
+                      markPrice: "6090000000"
+                lowMarginRatio:
+                  summary: کاهش بیش از حد وجه تضمین.کاهش وجه تضمین باعث کمتر شدن نسبت تعهد از حد مجاز می‌شود.
+
+                  value:
+                    status: failed
+                    code: LowMarginRatio
+                    message: Margin ratio must be above .... after collateral change
+                insufficientBalance:
+                  summary: موجودی ناکافی
+                  value:
+                    status: failed
+                    code: InsufficientBalance
+                    message: Insufficient margin active balance
+
+        "400":
+          description: ورودی نامعتبر یا عدم امکان تغییر وجه تضمین
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+              examples:
+                parseError:
+                  summary: فرمت نامعتبر ورودی
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: فرمت ورودی‌ها معتبر نیست.
+        "422":
+          description: ورودی نامعتبر یا عدم امکان تغییر وجه تضمین
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarginFailedResponse"
+              examples:
+                tryAgainLater:
+                  summary: عدم امکان موقت تغییر وجه تضمین
+                  value:
+                    status: failed
+                    code: TryAgainLater
+                    message: Collateral change is temporarily unavailable
+        "404":
+          description: موقعیت باز پیدا نشد.
+          
+
+  
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+    PositionId:
+      name: positionId
+      in: path
+      required: true
+      schema:
+        type: integer
+      example: 128
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        توکن کاربر در قالب `Authorization: Token <token>`.
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  schemas:
+    MarginMarketsDetailsRequest:
+        type: object
+        properties:
+          details:
+            type: boolean
+            description: اطلاعات تکمیلی بازار، مانند محدودیت‌های وکالت را برمی‌گرداند.
+            example: true
+    
+    
+    MarginMarketSetting:
+      type: object
+      description: تنظیمات و محدودیت‌های یک بازار معاملات تعهدی
+      properties:
+        srcCurrency:
+          type: string
+          description: |
+            نماد رمزارز مبدأ یا دارایی پایه بازار، با حروف کوچک.
+            این مقدار بخش نخست نماد بازار را مشخص می‌کند.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            نماد ارز مقصد یا دارایی مظنه بازار، با حروف کوچک؛ معمولاً `rls` یا `usdt`.
+          example: usdt
+
+        positionFeeRate:
+          type: string
+          nullable: true
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            نرخ کارمزد تمدید روزانه موقعیت به‌صورت عدد اعشاری رشته‌ای.
+            برای نمونه، مقدار `0.001` معادل ۰٫۱ درصد است.
+
+            این مقدار می‌تواند `null` باشد. اگر نرخ هر سمت به‌صورت جداگانه در
+            `sellPositionFeeRate` و `buyPositionFeeRate` ارائه شده باشد، کلاینت می‌تواند
+            از نرخ متناظر با سمت موقعیت استفاده کند.
+          example: "0.001"
+
+        maxLeverage:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            بیشینه ضریب مجاز اهرم در این بازار. مقدار دقیق می‌تواند به عمق بازار،
+            سطح کاربری، ظرفیت استخرها و دسترسی‌های کاربر وابسته باشد.
+          example: "5"
+
+        sellEnabled:
+          type: boolean
+          description: آیا ایجاد موقعیت فروش تعهدی در این بازار فعال است؟
+          example: true
+
+        buyEnabled:
+          type: boolean
+          description: آیا ایجاد موقعیت خرید تعهدی در این بازار فعال است؟
+          example: true
+
+        sellPositionFeeRate:
+          type: string
+          nullable: true
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            نرخ کارمزد تمدید روزانه برای موقعیت فروش تعهدی. این فیلد ممکن است در پاسخ
+            عمومی موجود نباشد یا مقدار آن `null` باشد.
+          example: "0.001"
+
+        buyPositionFeeRate:
+          type: string
+          nullable: true
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            نرخ کارمزد تمدید روزانه برای موقعیت خرید تعهدی. این فیلد ممکن است در پاسخ
+            عمومی موجود نباشد یا مقدار آن `null` باشد.
+          example: "0.001"
+
+        sellMaxDelegation:
+          type: string
+          nullable: true
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            حداکثر مقدار دارایی قابل وکالت برای سمت فروش تعهدی، معمولاً بر حسب
+            `srcCurrency`. این مقدار به سطح کاربر، ظرفیت استخر و محدودیت‌های بازار وابسته
+            است و ممکن است در پاسخ عمومی موجود نباشد.
+          example: "0.002"
+
+        buyMaxDelegation:
+          type: string
+          nullable: true
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            حداکثر مقدار دارایی قابل وکالت برای سمت خرید تعهدی، معمولاً بر حسب
+            `dstCurrency`. این مقدار ممکن است در پاسخ عمومی موجود نباشد.
+          example: "100000"
+
+        buyMaxDelegationInSrcCurrency:
+          type: string
+          nullable: true
+          pattern: '^[0-9]+(\.[0-9]+)?$'
+          description: |
+            معادل سقف وکالت خرید، تبدیل‌شده به واحد `srcCurrency`. این مقدار برای مقایسه
+            مستقیم سقف خرید با مقدار دارایی پایه بازار کاربرد دارد و ممکن است در پاسخ
+            عمومی موجود نباشد.
+          example: "0.002"
+
+    LiquidityPool:
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+
+        capacity:
+          type: string
+          description: ظرفیت کل استخر
+          example: "40"
+
+        filledCapacity:
+          type: string
+          description: مقدار پرشده از ظرفیت استخر
+          example: "32.5"
+
+        currentProfit:
+          type: integer
+          format: int64
+          description: سود فعلی استخر
+          example: 1320419257
+
+        APR:
+          type: string
+          nullable: true
+          description: نرخ سود سالانه استخر
+          example: "6.58"
+
+        minDelegation:
+          type: string
+          nullable: true
+          description: حداقل مقدار مجاز برای مشارکت در استخر
+          example: "0.000008"
+
+        maxDelegation:
+          type: string
+          nullable: true
+          description: حداکثر مقدار مجاز برای مشارکت در استخر
+          example: "0.16529"
+
+        startDate:
+          type: string
+          format: date
+          description: تاریخ شروع امکان مشارکت در استخر
+          example: "2026-07-23"
+
+        endDate:
+          type: string
+          format: date
+          description: تاریخ پایان امکان مشارکت در استخر
+          example: "2026-08-22"
+
+        profitPeriod:
+          type: integer
+          description: دوره محاسبه سود برحسب روز
+          example: 31
+
+        profitDate:
+          type: string
+          format: date
+          description: تاریخ پرداخت یا ثبت سود
+          example: "2026-08-23"
+
+        hasDelegate:
+          type: boolean
+          description: آیا کاربر احراز هویت‌شده در این استخر مشارکت فعال دارد؟
+          example: false
+
+        hasActiveAlert:
+          type: boolean
+          description: آیا کاربر هشدار فعال مربوط به ظرفیت این استخر دارد؟
+          example: false
+    
+    WalletTransferRequest:
+      type: object
+      required:
+        - currency
+        - amount
+        - src
+        - dst
+      properties:
+        currency:
+          type: string
+          description: نام ارز
+          example: btc
+        amount:
+          type: string
+          description: مقدار مورد نظر برای انتقال
+          example: "0.01"
+        src:
+          type: string
+          description: انتقال از کیف مبدا
+          enum: [spot, margin]
+          example: spot
+        dst:
+          type: string
+          description: انتقال به کیف مقصد
+          enum: [spot, margin]
+          example: margin
+
+    WalletTransferResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        srcWallet:
+          $ref: "#/components/schemas/Wallet"
+
+        dstWallet:
+          $ref: "#/components/schemas/Wallet"
+
+          
+
+    MarginDelegationLimitV2Response:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        limits:
+          type: object
+          properties:
+            buy:
+              type: array
+              items:
+                $ref: "#/components/schemas/DelegationLimitItem"
+            sell:
+              type: array
+              items:
+                $ref: "#/components/schemas/DelegationLimitItem"
+
+    DelegationLimitItem:
+      type: object
+      properties:
+        leverage:
+          type: string
+          example: "5"
+        limit:
+          type: string
+          example: "0.039062"
+
+    MarginLimitOrderRequest:
+      title: سفارش Limit
+      type: object
+
+      required:
+        - execution
+        - srcCurrency
+        - dstCurrency
+        - amount
+        - price
+        - type
+
+      properties:
+        execution:
+          type: string
+          description: نوع سفارش. برای سفارش Limit مقدار این فیلد باید برابر با limit باشد.
+          example: limit
+
+        srcCurrency:
+          type: string
+          description: |
+            نماد رمزارز پایه بازار که سفارش بر روی آن ایجاد می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد btc است.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            ارز مقابل بازار که قیمت سفارش بر اساس آن تعیین می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد usdt است.
+          example: usdt
+
+        type:
+          type: string
+          description: |
+            جهت سفارش:
+            - buy: ایجاد موقعیت خرید
+            - sell: ایجاد موقعیت فروش
+          enum:
+            - buy
+            - sell
+          default: sell
+          example: sell
+
+        leverage:
+          type: string
+          description: |
+            ضریب اهرم مورد استفاده در معامله تعهدی.
+            مقدار بالاتر باعث افزایش حجم موقعیت نسبت به سرمایه اولیه می‌شود.
+          default: "1"
+          example: "2"
+
+        amount:
+          type: string
+          description: مقدار دارایی موردنظر برای معامله.
+          example: "0.01"
+
+        price:
+          type: string
+          description: |
+            قیمت موردنظر برای ثبت سفارش Limit.
+            سفارش تنها در صورت رسیدن قیمت بازار به این مقدار اجرا می‌شود.
+          example: "13400000000"
+
+        clientOrderId:
+          type: string
+          nullable: true
+          description: |
+            شناسه اختیاری سفارش که توسط کاربر برای پیگیری و مدیریت سفارش ایجاد می‌شود.
+            این مقدار باید در میان سفارش‌های باز کاربر یکتا باشد.
+
+            محدودیت‌ها:
+            - حداکثر طول مقدار ۳۲ نویسه است.
+            - فقط شامل حروف انگلیسی (A-Z و a-z)، اعداد (0-9) و خط تیره (-) مجاز است.
+            - مقدار باید با الگوی زیر مطابقت داشته باشد:
+              ^[A-Za-z0-9-]+$
+          example: my-order-123
+
+    MarginMarketOrderRequest:
+      title: سفارش Market
+      type: object
+
+      required:
+        - execution
+        - srcCurrency
+        - dstCurrency
+        - amount
+
+      properties:
+        execution:
+          type: string
+          description: نوع سفارش. برای سفارش Market مقدار این فیلد باید برابر با market باشد.
+          example: market
+
+        srcCurrency:
+          type: string
+          description: |
+            نماد رمزارز پایه بازار که سفارش بر روی آن ایجاد می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد btc است.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            ارز مقابل بازار که ارزش سفارش بر اساس آن محاسبه می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد usdt است.
+          example: usdt
+
+        type:
+          type: string
+          description: |
+            جهت سفارش:
+            - buy: ایجاد موقعیت خرید
+            - sell: ایجاد موقعیت فروش
+          enum:
+            - buy
+            - sell
+          example: sell
+
+        leverage:
+          type: string
+          description: |
+            ضریب اهرم مورد استفاده در معامله تعهدی.
+            مقدار بالاتر باعث افزایش حجم موقعیت نسبت به سرمایه اولیه می‌شود.
+          default: "1"
+          example: "2"
+
+        amount:
+          type: string
+          description: |
+            مقدار دارایی موردنظر برای معامله.
+            سفارش Market بدون تعیین قیمت و با بهترین قیمت موجود در بازار اجرا می‌شود.
+          example: "0.01"
+
+        clientOrderId:
+          type: string
+          nullable: true
+          description: |
+            شناسه اختیاری سفارش که توسط کاربر برای پیگیری و مدیریت سفارش ایجاد می‌شود.
+            این مقدار باید در میان سفارش‌های باز کاربر یکتا باشد.
+
+            محدودیت‌ها:
+            - حداکثر طول مقدار ۳۲ نویسه است.
+            - فقط حروف انگلیسی (A-Z و a-z)، اعداد (0-9) و خط تیره (-) مجاز است.
+            - مقدار باید با الگوی زیر مطابقت داشته باشد:
+              ^[A-Za-z0-9-]+$
+          example: my-order-123
+
+    MarginStopMarketOrderRequest:
+      title: سفارش Stop Market
+      type: object
+
+      required:
+        - execution
+        - srcCurrency
+        - dstCurrency
+        - amount
+        - stopPrice
+
+      properties:
+        execution:
+          type: string
+          description: نوع سفارش. برای سفارش Stop Market مقدار این فیلد باید برابر با stop_market باشد.
+          enum:
+            - stop_market
+          example: stop_market
+
+        srcCurrency:
+          type: string
+          description: |
+            نماد رمزارز پایه بازار که سفارش بر روی آن ایجاد می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد btc است.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            ارز مقابل بازار که ارزش سفارش بر اساس آن محاسبه می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد usdt است.
+          example: usdt
+
+        type:
+          type: string
+          description: |
+            جهت سفارش:
+            - buy: ایجاد موقعیت خرید
+            - sell: ایجاد موقعیت فروش
+          enum:
+            - buy
+            - sell
+          example: sell
+
+        leverage:
+          type: string
+          description: |
+            ضریب اهرم مورد استفاده در معامله تعهدی.
+            مقدار بالاتر باعث افزایش حجم موقعیت نسبت به سرمایه اولیه می‌شود.
+          default: "1"
+          example: "2"
+
+        amount:
+          type: string
+          description: |
+            مقدار دارایی موردنظر برای معامله.
+            پس از رسیدن قیمت بازار به قیمت توقف، سفارش با بهترین قیمت موجود در بازار اجرا می‌شود.
+          example: "0.01"
+
+        stopPrice:
+          type: string
+          description: |
+            قیمت فعال‌سازی سفارش Stop Market.
+            زمانی که قیمت بازار به این مقدار برسد، سفارش فعال شده و به‌صورت Market اجرا می‌شود.
+          example: "12600000000"
+
+        clientOrderId:
+          type: string
+          nullable: true
+          description: |
+            شناسه اختیاری سفارش که توسط کاربر برای پیگیری و مدیریت سفارش ایجاد می‌شود.
+            این مقدار باید در میان سفارش‌های باز کاربر یکتا باشد.
+
+            محدودیت‌ها:
+            - حداکثر طول مقدار ۳۲ نویسه است.
+            - فقط حروف انگلیسی (A-Z و a-z)، اعداد (0-9) و خط تیره (-) مجاز است.
+            - مقدار باید با الگوی زیر مطابقت داشته باشد:
+              ^[A-Za-z0-9-]+$
+            example: my-order-123
+
+    MarginStopLimitOrderRequest:
+      title: سفارش Stop Limit
+      type: object
+
+      required:
+        - execution
+        - srcCurrency
+        - dstCurrency
+        - amount
+        - price
+        - stopPrice
+
+      properties:
+        execution:
+          type: string
+          description: نوع سفارش. برای سفارش Stop Limit مقدار این فیلد باید برابر با stop_limit باشد.
+          enum:
+            - stop_limit
+          example: stop_limit
+
+        srcCurrency:
+          type: string
+          description: |
+            نماد رمزارز پایه بازار که سفارش بر روی آن ایجاد می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد btc است.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            ارز مقابل بازار که قیمت سفارش بر اساس آن تعیین می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد usdt است.
+          example: usdt
+
+        type:
+          type: string
+          description: |
+            جهت سفارش:
+            - buy: ایجاد موقعیت خرید
+            - sell: ایجاد موقعیت فروش
+          enum:
+            - buy
+            - sell
+          example: sell
+
+        leverage:
+          type: string
+          description: |
+            ضریب اهرم مورد استفاده در معامله تعهدی.
+            مقدار بالاتر باعث افزایش حجم موقعیت نسبت به سرمایه اولیه می‌شود.
+          default: "1"
+          example: "2"
+
+        amount:
+          type: string
+          description: |
+            مقدار دارایی موردنظر برای معامله.
+            پس از رسیدن قیمت بازار به قیمت فعال‌سازی، یک سفارش Limit با این مقدار ایجاد می‌شود.
+          example: "0.01"
+
+        price:
+          type: string
+          description: |
+            قیمت سفارش Limit که پس از فعال‌شدن سفارش Stop Limit ثبت می‌شود.
+            اجرای سفارش در این قیمت یا قیمت بهتر، به شرایط و نقدینگی بازار بستگی دارد.
+          example: "12500000000"
+
+        stopPrice:
+          type: string
+          description: |
+            قیمت فعال‌سازی سفارش Stop Limit.
+            زمانی که قیمت بازار به این مقدار برسد، یک سفارش Limit با قیمت تعیین‌شده در فیلد price ایجاد می‌شود.
+          example: "12600000000"
+
+        clientOrderId:
+          type: string
+          nullable: true
+          description: |
+            شناسه اختیاری سفارش که توسط کاربر برای پیگیری و مدیریت سفارش ایجاد می‌شود.
+            این مقدار باید در میان سفارش‌های باز کاربر یکتا باشد.
+
+            محدودیت‌ها:
+            - حداکثر طول مقدار ۳۲ نویسه است.
+            - فقط حروف انگلیسی (A-Z و a-z)، اعداد (0-9) و خط تیره (-) مجاز است.
+            - مقدار باید با الگوی زیر مطابقت داشته باشد:
+              ^[A-Za-z0-9-]+$
+          example: my-order-123
+
+
+    MarginOCOOrderRequest:
+      title: سفارش OCO
+      type: object
+
+      required:
+        - execution
+        - mode
+        - srcCurrency
+        - dstCurrency
+        - amount
+        - price
+        - stopPrice
+        - stopLimitPrice
+
+      properties:
+        execution:
+          type: string
+          description: |
+            نوع سفارش پایه. برای سفارش OCO مقدار این فیلد باید برابر با limit باشد.
+          enum:
+            - limit
+          example: limit
+
+        mode:
+          type: string
+          description: |
+            حالت ثبت سفارش. برای ایجاد سفارش OCO مقدار این فیلد باید برابر با oco باشد.
+          enum:
+            - oco
+          example: oco
+
+        srcCurrency:
+          type: string
+          description: |
+            نماد رمزارز پایه بازار که سفارش بر روی آن ایجاد می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد btc است.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            ارز مقابل بازار که قیمت سفارش بر اساس آن تعیین می‌شود.
+            مثال: در بازار BTC/USDT مقدار این فیلد usdt است.
+          example: usdt
+
+        type:
+          type: string
+          description: |
+            جهت سفارش:
+            - buy: ایجاد موقعیت خرید
+            - sell: ایجاد موقعیت فروش
+          enum:
+            - buy
+            - sell
+          example: sell
+
+        leverage:
+          type: string
+          description: |
+            ضریب اهرم مورد استفاده در معامله تعهدی.
+            مقدار بالاتر باعث افزایش حجم موقعیت نسبت به سرمایه اولیه می‌شود.
+          default: "1"
+          example: "2"
+
+        amount:
+          type: string
+          description: |
+            مقدار دارایی موردنظر برای معامله.
+            این مقدار برای هر دو بخش Limit و Stop Limit سفارش OCO استفاده می‌شود.
+          example: "0.01"
+
+        price:
+          type: string
+          description: |
+            قیمت بخش Limit سفارش OCO.
+
+            شرایط مقداردهی:
+            - در سفارش خرید، این مقدار باید کمتر از آخرین قیمت بازار باشد.
+            - در سفارش فروش، این مقدار باید بیشتر از آخرین قیمت بازار باشد.
+          example: "13400000000"
+
+        stopPrice:
+          type: string
+          description: |
+            قیمت فعال‌سازی بخش Stop Limit سفارش OCO.
+            با رسیدن قیمت بازار به این مقدار، سفارش Stop Limit فعال می‌شود.
+
+            شرایط مقداردهی:
+            - در سفارش خرید، این مقدار باید بیشتر از آخرین قیمت بازار باشد.
+            - در سفارش فروش، این مقدار باید کمتر از آخرین قیمت بازار باشد.
+          example: "12600000000"
+
+        stopLimitPrice:
+          type: string
+          description: |
+            قیمت سفارش Limit که پس از رسیدن بازار به stopPrice ثبت می‌شود.
+
+            شرایط قیمت سفارش OCO:
+            - خرید: price کمتر از آخرین قیمت بازار است و آخرین قیمت بازار نیز باید کمتر از stopPrice و stopLimitPrice باشد.
+            - فروش: price بیشتر از آخرین قیمت بازار است و آخرین قیمت بازار نیز باید بیشتر از stopPrice و stopLimitPrice باشد.
+
+            با اجرای یکی از بخش‌های Limit یا Stop Limit، بخش دیگر به‌صورت خودکار لغو می‌شود.
+          example: "12500000000"
+
+    PositionCloseRequest:
+      description: |
+        درخواست ثبت سفارش تسویه موقعیت.
+
+        ساختار الزامی فیلدها بر اساس نوع اجرای سفارش متفاوت است.
+      oneOf:
+        - $ref: "#/components/schemas/PositionCloseLimitRequest"
+        - $ref: "#/components/schemas/PositionCloseMarketRequest"
+        - $ref: "#/components/schemas/PositionCloseStopLimitRequest"
+        - $ref: "#/components/schemas/PositionCloseStopMarketRequest"
+        - $ref: "#/components/schemas/PositionCloseOCORequest"
+
+    PositionCloseLimitRequest:
+      type: object
+      title: سفارش Limit
+      required:
+        - amount
+        - price
+      properties:
+        execution:
+          type: string
+          description: ثبت سفارش با قیمت معین.
+          default: limit
+
+        amount:
+          type: string
+          description: |
+            مقدار سفارش تسویه.
+
+            در تسویه نهایی باید تمام تعهد باقی‌مانده با دقت کامل ارسال شود.
+          example: "0.0100150225"
+
+        price:
+          type: string
+          description: قیمت سفارش.
+          example: "6200000000"
+
+        clientOrderId:
+          type: string
+          description: شناسه اختیاری سفارش در سمت کاربر.
+          example: close-position-128
+
+      additionalProperties: false
+
+    PositionCloseMarketRequest:
+      type: object
+      title: سفارش Market
+      required:
+        - execution
+        - amount
+      properties:
+        execution:
+          type: string
+          description: ثبت سفارش با قیمت بازار.
+          example: market
+
+        amount:
+          type: string
+          description: مقدار سفارش تسویه.
+          example: "0.0100150225"
+
+        clientOrderId:
+          type: string
+          description: شناسه اختیاری سفارش در سمت کاربر.
+          example: close-position-128
+
+      additionalProperties: false
+
+    PositionCloseStopLimitRequest:
+      type: object
+      title: سفارش Stop Limit
+      required:
+        - execution
+        - amount
+        - price
+        - stopPrice
+      properties:
+        execution:
+          type: string
+          description: سفارش حد ضرر با قیمت معین.
+          example: stop_limit
+
+        amount:
+          type: string
+          description: مقدار سفارش تسویه.
+          example: "0.0100150225"
+
+        price:
+          type: string
+          description: قیمت سفارش پس از فعال‌شدن شرط توقف.
+          example: "6200000000"
+
+        stopPrice:
+          type: string
+          description: قیمت فعال‌شدن سفارش حد ضرر.
+          example: "6300000000"
+
+        clientOrderId:
+          type: string
+          description: شناسه اختیاری سفارش در سمت کاربر.
+          example: close-position-128
+
+      additionalProperties: false
+
+    PositionCloseStopMarketRequest:
+      type: object
+      title: سفارش Stop Market
+      required:
+        - execution
+        - amount
+        - stopPrice
+      properties:
+        execution:
+          type: string
+          description: سفارش حد ضرر با قیمت بازار.
+          example: stop_market
+
+        amount:
+          type: string
+          description: مقدار سفارش تسویه.
+          example: "0.0100150225"
+
+        stopPrice:
+          type: string
+          description: قیمت فعال‌شدن سفارش بازار.
+          example: "6300000000"
+
+        clientOrderId:
+          type: string
+          description: شناسه اختیاری سفارش در سمت کاربر.
+          example: close-position-128
+
+      additionalProperties: false
+
+    PositionCloseOCORequest:
+      type: object
+      title: سفارش OCO
+      required:
+        - mode
+        - amount
+        - price
+        - stopPrice
+        - stopLimitPrice
+      properties:
+        mode:
+          type: string
+          description: حالت ثبت دو سفارش مرتبط OCO.
+          example: oco
+
+        execution:
+          type: string
+          description: نوع سفارش اصلی OCO.
+          default: limit
+          enum:
+            - limit
+
+        amount:
+          type: string
+          description: مقدار مشترک سفارش‌های تسویه OCO.
+          example: "0.0100150225"
+
+        price:
+          type: string
+          description: قیمت سفارش Limit اصلی.
+          example: "12600000000"
+
+        stopPrice:
+          type: string
+          description: قیمت فعال‌شدن سفارش حد ضرر.
+          example: "13600000000"
+
+        stopLimitPrice:
+          type: string
+          description: قیمت سفارش Limit پس از فعال‌شدن شرط توقف.
+          example: "13610000000"
+
+        clientOrderId:
+          type: string
+          description: شناسه اختیاری سفارش در سمت کاربر.
+          example: close-position-128
+
+      additionalProperties: false
+
+
+    MarginOrder:
+      type: object
+      description: |
+        فیلدهای `param1` و `pairId` شرطی هستند.
+        فیلدهای `leverage` و `side` فقط برای سفارش‌های تعهدی برگردانده می‌شوند.
+
+      properties:
+        type:
+          type: string
+          description: نوع سفارش.
+          enum:
+            - buy
+            - sell
+          example: sell
+
+        execution:
+          type: string
+          description: نوع اجرای سفارش.
+          enum:
+            - Limit
+            - Market
+            - StopLimit
+            - StopMarket
+          example: Limit
+
+        tradeType:
+          type: string
+          description: نوع معامله.
+          enum:
+            - Spot
+            - Margin
+            - Credit
+            - Debit
+          example: Margin
+
+        srcCurrency:
+          type: string
+          description: |
+            عنوان نمایشی رمزارز مبدأ.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: |
+            عنوان نمایشی رمزارز مقصد.
+          example: rls
+
+        price:
+          description: |
+            قیمت سفارش.
+
+            برای سفارش‌های بازار مقدار این فیلد برابر `market` است.
+            در سایر سفارش‌ها مقدار قیمت سفارش برگردانده می‌شود.
+          type: string
+          example: "6400000000"
+
+        amount:
+          description: مقدار سفارش.
+          type: string
+          example: "0.01"
+
+        totalPrice:
+          description: مجموع قیمت بخش انجام‌شده سفارش.
+          type: string
+          example: "0"
+
+        totalOrderPrice:
+          description: قیمت کل سفارش.
+          type: string
+          example: "64000000"
+
+        matchedAmount:
+          description: مقدار انجام‌شده سفارش.
+          type: string
+          example: "0"
+
+        unmatchedAmount:
+          description: مقدار انجام‌نشده سفارش.
+          type: string
+          example: "0.01"
+
+        clientOrderId:
+          type: string
+          nullable: true
+          description: شناسه سفارش تعیین‌شده توسط کاربر.
+          example: null
+
+        param1:
+          description: |
+            پارامتر تکمیلی سفارش.
+
+            این فیلد فقط زمانی برگردانده می‌شود که مقدار `order.param1`
+            برابر `null` نباشد. در سفارش‌های حد ضرر معمولاً شامل قیمت
+            توقف است.
+          type: string
+          example: "6450000000"
+
+        pairId:
+          type: integer
+          nullable: true
+          description: |
+            شناسه زوج بازار.
+
+            این فیلد فقط زمانی برگردانده می‌شود که سفارش دارای `pair_id`
+            باشد.
+          example: 12
+
+        leverage:
+          description: |
+            ضریب وکالت سفارش.
+
+            این فیلد فقط برای سفارش‌هایی که `is_margin` هستند برگردانده
+            می‌شود.
+          type: string
+          example: "2"
+
+        side:
+          type: string
+          description: |
+            وضعیت باز یا بسته‌کردن موقعیت.
+
+            اگر `order.side` با `order.order_type` برابر باشد، مقدار `open`
+            و در غیر این صورت مقدار `close` برگردانده می‌شود.
+
+            این فیلد فقط برای سفارش‌های تعهدی برگردانده می‌شود.
+          enum:
+            - open
+            - close
+          example: open
+
+        id:
+          type: integer
+          description: شناسه سفارش.
+          example: 25
+
+        status:
+          type: string
+          description: وضعیت سفارش.
+          enum:
+            - New
+            - Active
+            - Done
+            - Canceled
+            - Inactive
+          example: Active
+
+        partial:
+          type: boolean
+          description: مشخص می‌کند سفارش به‌صورت جزئی انجام شده است یا خیر.
+          example: false
+
+        fee:
+          description: کارمزد سفارش.
+          type: string
+          example: "0"
+
+        created_at:
+          type: string
+          format: date-time
+          description: زمان ایجاد سفارش.
+          example: "2022-10-20T11:36:13.592827+00:00"
+
+        averagePrice:
+          description: میانگین قیمت معاملات انجام‌شده سفارش.
+          type: string
+          example: "0"
+
+
+    MarginOrderResponseSingle:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        order:
+          $ref: "#/components/schemas/MarginOrder"
+
+    MarginOrderResponseOCO:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        orders:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/MarginOrder"
+
+    PositionListResponse:
+          type: object
+          properties:
+            status:
+              type: string
+              description: وضعیت کلی پاسخ.
+              enum:
+                - ok
+              example: ok
+
+            positions:
+              type: array
+              description: لیست موقعیت‌های مطابق فیلترهای درخواست.
+              items:
+                $ref: "#/components/schemas/Position"
+
+            hasNext:
+              type: boolean
+              description: |
+                مشخص می‌کند پس از صفحه فعلی، صفحه دیگری از نتایج وجود دارد یا خیر.
+              example: false
+
+    Position:
+      type: object
+      description: |
+        اطلاعات یک موقعیت تعهدی.
+
+        برخی فیلدها فقط برای موقعیت‌های فعال و برخی دیگر فقط برای
+        موقعیت‌های پایان‌یافته برگردانده می‌شوند.
+
+        مقادیر مالی و اعشاری به‌صورت رشته برگردانده می‌شوند تا دقت
+        اعداد اعشاری حفظ شود.
+
+      properties:
+        id:
+          type: integer
+          description: شناسه یکتای موقعیت.
+          example: 128
+
+        createdAt:
+          type: string
+          format: date-time
+          description: |
+            زمان ایجاد موقعیت یا زمان ثبت سفارش اولیه معاملات تعهدی.
+          example: "2022-10-20T11:36:13.604420+00:00"
+
+        srcCurrency:
+          type: string
+          description: رمزارز مبدأ بازار.
+          example: btc
+
+        dstCurrency:
+          type: string
+          description: ارز مقصد بازار.
+          example: rls
+
+        side:
+          type: string
+          description: جهت موقعیت.
+          enum:
+            - buy
+            - sell
+          example: sell
+
+        status:
+          type: string
+          description: |
+            وضعیت فعلی موقعیت.
+
+            - `Open`: همه یا بخشی از سفارش تعهدی در بازار انجام شده و موقعیت باز است.
+            - `Closed`: مقدار وکالت گرفته‌شده بازپرداخت و موقعیت تسویه شده است.
+            - `Liquidated`: موقعیت به دلیل عبور از حد مجاز ریسک لیکویید شده است.
+            - `Expired`: مهلت موقعیت پایان یافته است.
+
+            ممکن است موقعیت‌های `Liquidated` یا `Expired` تا پایان فرایند
+            تسویه سیستمی، موقتاً در پاسخ موقعیت‌های فعال برگردانده شوند.
+          enum:
+            - Open
+            - Closed
+            - Liquidated
+            - Expired
+          example: Open
+
+        marginType:
+          type: string
+          description: |
+            نوع تضمین موقعیت.
+
+            - `Isolated Margin`: زیان حداکثر به اندازه وجه تضمین همان موقعیت است.
+            - `Cross Margin`: زیان می‌تواند از کل موجودی آزاد کیف‌پول تعهدی تأمین شود.
+
+            در حال حاضر نوع پیش‌فرض و قابل استفاده `Isolated Margin` است.
+          enum:
+            - Isolated Margin
+            - Cross Margin
+          example: Isolated Margin
+
+        collateral:
+          type: string
+          description: |
+            وجه تضمین بلوکه‌شده در کیف‌پول تعهدی، بر حسب ارز مقصد.
+          example: "640000000"
+
+        leverage:
+          type: string
+          description: ضریب وکالت موقعیت.
+          example: "2"
+
+        openedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            زمان بازشدن موقعیت؛ یعنی زمانی که همه یا بخشی از سفارش اولیه
+            در بازار انجام شده است.
+          example: "2022-10-20T11:36:16.562038+00:00"
+
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            زمان تسویه نهایی موقعیت.
+
+            این مقدار برای موقعیت‌های فعال معمولاً `null` است.
+          example: "2022-10-25T09:57:38.560820+00:00"
+
+        liquidationPrice:
+          type: string
+          nullable: true
+          description: |
+            قیمت تقریبی لیکوییدشدن موقعیت، بر حسب ارز مقصد بازار.
+          example: "25174302690"
+
+        entryPrice:
+          type: string
+          nullable: true
+          description: |
+            میانگین قیمت سفارش‌هایی که باعث بازشدن موقعیت شده‌اند.
+          example: "6400000000"
+
+        exitPrice:
+          type: string
+          nullable: true
+          description: |
+            میانگین قیمت سفارش‌های تسویه موقعیت.
+
+            این فیلد برای موقعیت‌های فعال معمولاً `null` است.
+          example: "6200000000"
+
+        delegatedAmount:
+          type: string
+          nullable: true
+          description: |
+            مقدار وکالت گرفته‌شده در لحظه، بر حسب رمزارز مبدأ.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "0.03"
+
+        liability:
+          type: string
+          nullable: true
+          description: |
+            مقدار تعهد فعلی موقعیت.
+
+            در موقعیت فروش، تعهد خرید شامل مقدار وکالت گرفته‌شده به‌علاوه
+            کارمزد سفارش خرید است. در موقعیت خرید، کارمزد سفارش خرید از
+            مقدار تعهد کسر می‌شود.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "0.0300450676"
+
+        totalAsset:
+          type: string
+          nullable: true
+          description: |
+            دارایی کلی موقعیت، بر حسب ارز مقصد.
+
+            در موقعیت فروش، شامل وجه تضمین و باقی‌مانده وجه حاصل از فروش است.
+            در موقعیت خرید، برابر ارزش لحظه‌ای دارایی خریداری‌شده است.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "831712000"
+
+        marginRatio:
+          type: string
+          nullable: true
+          description: |
+            نسبت تعهد موقعیت.
+
+            نسبت اولیه معمولاً `2` است و حداقل نسبت لازم برای جلوگیری از
+            لیکوییدشدن `1.1` است.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "1.49"
+
+        liabilityInOrder:
+          type: string
+          nullable: true
+          description: |
+            بخشی از تعهد که در سفارش‌های باز تسویه قرار دارد.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "0"
+
+        assetInOrder:
+          type: string
+          nullable: true
+          description: |
+            بخشی از دارایی کلی که در سفارش‌های باز تسویه قرار دارد.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "0"
+
+        unrealizedPNL:
+          type: string
+          nullable: true
+          description: |
+            سود یا زیان محقق‌نشده و لحظه‌ای موقعیت، بر حسب ارز مقصد.
+
+            مقدار منفی نشان‌دهنده زیان و مقدار مثبت نشان‌دهنده سود است.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "-576435"
+
+        unrealizedPNLPercent:
+          type: string
+          nullable: true
+          description: |
+            درصد سود یا زیان محقق‌نشده و لحظه‌ای موقعیت.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "-0.09"
+
+        expirationDate:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            تاریخ انقضای نهایی موقعیت.
+
+            هر موقعیت از زمان ثبت سفارش اولیه حداکثر ۳۰ روز می‌تواند باز بماند.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "2022-11-20"
+
+        extensionFee:
+          type: string
+          nullable: true
+          description: |
+            مقدار کارمزد تمدید موقعیت در پایان روز، بر حسب ارز مقصد.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "320000"
+
+        markPrice:
+          type: string
+          nullable: true
+          description: |
+            قیمت معیار بازار در لحظه محاسبه اطلاعات موقعیت.
+
+            این فیلد ویژه موقعیت‌های فعال است.
+          example: "6430000000"
+
+        PNL:
+          type: string
+          nullable: true
+          description: |
+            سود یا زیان نهایی موقعیت، بر حسب ارز مقصد.
+
+            مقدار منفی نشان‌دهنده زیان و مقدار مثبت نشان‌دهنده سود است.
+
+            این فیلد ویژه موقعیت‌های پایان‌یافته است.
+          example: "35584000"
+
+        PNLPercent:
+          type: string
+          nullable: true
+          description: |
+            درصد سود یا زیان نهایی موقعیت.
+
+            این فیلد ویژه موقعیت‌های پایان‌یافته است.
+          example: "5.56"
+
+
+    PositionCollateralEditRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - collateral
+      properties:
+        collateral:
+          type: string
+          description: |
+            مقدار جدید وجه تضمین موقعیت.
+
+            مقدار باید به‌صورت رشته‌ای از عدد ارسال شود و بیانگر کل وجه
+            تضمین جدید موقعیت است، نه مقدار افزایش یا کاهش آن.
+          pattern: "^[0-9]+(?:\\.[0-9]+)?$"
+          example: "230000000"
+
+
+    MarginFailedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+        message:
+          type: string
+
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1234
+
+        currency:
+          type: string
+          description: نماد ارز مربوط به کیف پول
+          example: usdt
+
+        balance:
+          type: string
+          description: موجودی کل کیف پول شامل موجودی قابل‌استفاده و موجودی بلوکه‌شده
+          example: "101.6722709097"
+
+        blockedBalance:
+          type: string
+          description: مقدار موجودی بلوکه 
+          example: "0"
+
+        activeBalance:
+          type: string
+          description: مقدار موجودی فعال و قابل‌استفاده کیف پول
+          example: "101.6722709097"
+
+        rialBalance:
+          type: integer
+          format: int64
+          description: ارزش ریالی موجودی کیف پول بر اساس نرخ محاسبه‌شده فعلی
+          example: 296058089
+
+        rialBalanceSell:
+          type: integer
+          format: int64
+          description: ارزش ریالی موجودی کیف پول بر اساس نرخ فروش ارز
+          example: 2964682847
+
+        type:
+          type: string
+          description: نوع کیف پول و کاربرد آن در سامانه
+          enum:
+            - spot
+            - margin
+          example: spot

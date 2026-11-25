@@ -37,6 +37,7 @@ from ...domain.ignition_upgrades import (
 from ...domain.multi_asset_research import BASE_13_SYMBOLS
 from ...domain.strategy_sleeves import compute_slow_sleeves
 from ...domain.timeframe_panel import BarPoint, resample_hourly_to_bucket
+from ...domain.venue_leverage_models import NOBITEX_MARGIN_ELIGIBLE_USDT
 from .admm_helpers import (
     build_dated_returns_index,
     build_shrunk_horizon_cov,
@@ -176,6 +177,24 @@ def _score_phase_v2_triggers(
 
     triggers.sort(key=lambda x: (-x["pred_path_pnl"], -x["z_score"], x["symbol"]))
     return latest_ts, triggers[:3], {t["symbol"]: t["slot_weight"] for t in triggers[:3]}
+
+
+def _latest_nobitex_usdt_pool_apr(multi_venue_db: Path | None) -> float | None:
+    if multi_venue_db is None or not multi_venue_db.is_file():
+        return None
+    con = open_readonly_market_db(multi_venue_db)
+    try:
+        has_tbl = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='venue_liquidity_pools'"
+        ).fetchone()
+        if not has_tbl:
+            return None
+        row = con.execute(
+            "SELECT apr_pct FROM venue_liquidity_pools WHERE venue='nobitex' AND currency='USDT' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return float(row[0]) if (row and row[0]) else None
+    finally:
+        con.close()
 
 
 def _load_v2_state(journal_path: Path) -> tuple[set[str], dict[str, float], list[float]]:
@@ -321,6 +340,14 @@ def record_champion_v2_journal(
         sc = 0.95 / gross
         blended = {k: round(v * sc, 4) for k, v in blended.items()}
 
+    all_trigs = trig0 + trig1
+    nbx_2x_elig = [
+        t["symbol"]
+        for t in all_trigs
+        if t.get("leverage", 1.0) > 1.0 and t.get("symbol") in NOBITEX_MARGIN_ELIGIBLE_USDT
+    ]
+    usdt_pool_apr = _latest_nobitex_usdt_pool_apr(multi_venue_db)
+
     record = {
         "schema": "champion-v2-forward-journal/1",
         "slot_key": slot_key,
@@ -331,7 +358,9 @@ def record_champion_v2_journal(
         "dd_leverage_governor_active": in_dd,
         "slow_weights": slow_w,
         "metals_reserve": {k: round(v, 4) for k, v in res_m.items() if v > 0},
-        "ignition_triggers": trig0 + trig1,
+        "ignition_triggers": all_trigs,
+        "nobitex_margin_2x_eligible_triggers": sorted(set(nbx_2x_elig)),
+        "live_idle_usdt_pool_apr_pct": usdt_pool_apr,
         "blended_weights": blended,
         "cash_weight": round(max(0.0, 1.0 - sum(blended.values())), 4),
         "live_quotes": {k: quotes[k] for k in sorted(set(blended) | {"BTCUSDT", "ETHUSDT", "XAUTUSDT", "PAXGUSDT"}) if k in quotes},

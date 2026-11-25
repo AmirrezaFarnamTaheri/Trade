@@ -82,6 +82,17 @@ def _check_multi_venue_db(mv_db: Path, now: datetime) -> dict:
         rows = con.execute(
             "SELECT venue, symbol, COUNT(*), MAX(ts_avail) FROM venue_quotes GROUP BY venue, symbol"
         ).fetchall()
+        tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        pools_cnt = con.execute("SELECT COUNT(*) FROM venue_liquidity_pools").fetchone()[0] if "venue_liquidity_pools" in tables else 0
+        usdt_apr_row = (
+            con.execute(
+                "SELECT apr_pct FROM venue_liquidity_pools WHERE venue='nobitex' AND currency='USDT' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if "venue_liquidity_pools" in tables
+            else None
+        )
+        ratios_cnt = con.execute("SELECT COUNT(*) FROM venue_margin_ratios").fetchone()[0] if "venue_margin_ratios" in tables else 0
+        fair_cnt = con.execute("SELECT COUNT(*) FROM venue_fair_prices").fetchone()[0] if "venue_fair_prices" in tables else 0
     finally:
         con.close()
     nbx_fresh, nbx_stale = 0, []
@@ -104,6 +115,10 @@ def _check_multi_venue_db(mv_db: Path, now: datetime) -> dict:
         "latest_quote_ts": latest_ts,
         "nobitex_fresh_symbols": nbx_fresh,
         "nobitex_stale_symbols": sorted(nbx_stale),
+        "nobitex_liquidity_pool_rows": pools_cnt,
+        "nobitex_latest_usdt_pool_apr_pct": float(usdt_apr_row[0]) if (usdt_apr_row and usdt_apr_row[0]) else None,
+        "wallex_margin_ratio_rows": ratios_cnt,
+        "wallex_fair_price_rows": fair_cnt,
     }
 
 

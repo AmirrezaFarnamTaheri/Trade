@@ -1,0 +1,1356 @@
+openapi: 3.0.3
+info:
+  title: API وب‌سوکت نوبیتکس
+  version: "1.0.0"
+  description: |
+    مستندات اتصال وب‌سوکت نوبیتکس، دریافت توکن اتصال و کانال‌های عمومی و خصوصی.
+
+    وب‌سوکت نوبیتکس بر پایه پروتکل Centrifugo است و برای دریافت داده‌های لحظه‌ای بازار و رویدادهای خصوصی کاربر استفاده می‌شود.
+
+    - آدرس وب‌سوکت اصلی: `wss://ws.nobitex.ir/connection/websocket`
+    - آدرس وب‌سوکت تست‌نت: `wss://testnetws.nobitex.ir/connection/websocket`
+    - کانال‌های عمومی با پیشوند `public:` بدون توکن قابل استفاده هستند.
+    - کانال‌های خصوصی با پیشوند `private:` به توکن اتصال و `websocketAuthParam` کاربر نیاز دارند.
+    - حداکثر اتصال هم‌زمان برای هر کاربر احراز هویت‌شده روی هر نود: ۱۰۰ اتصال
+    - حداکثر تعداد کانال برای هر کلاینت متصل: ۴۵۰ کانال
+
+servers:
+  - url: https://apiv2.nobitex.ir
+    description: API اصلی برای دریافت توکن اتصال
+  - url: https://testnetapiv2.nobitex.ir
+    description: API تست‌نت برای دریافت توکن اتصال
+
+tags:
+  - name: وب‌سوکت
+    description: |
+      نوبیتکس برای ارائه داده‌های لحظه‌ای بازار و رویدادهای خصوصی کاربر از وب‌سوکت مبتنی بر Centrifugo استفاده می‌کند.
+
+      مسیر کلی استفاده:
+
+      1. برای کانال‌های عمومی، به وب‌سوکت وصل شوید و در کانال عمومی مورد نظر عضو شوید. توکن لازم نیست.
+      2. برای کانال‌های خصوصی، ابتدا از API دریافت توکن اتصال، توکن بگیرید و مقدار `websocketAuthParam` را از پروفایل کاربر بخوانید.
+      3. با توکن اتصال به وب‌سوکت وصل شوید و در کانال خصوصی با الگوی `private:{channelName}#{websocketAuthParam}` عضو شوید.
+
+      نکته‌ها:
+
+      - توکن اتصال وب‌سوکت ۱۲۰۰ ثانیه اعتبار دارد و فقط برای اتصال احراز هویت‌شده استفاده می‌شود.
+      - مقدار `websocketAuthParam` برای نام کانال خصوصی استفاده می‌شود، برای هر کاربر ثابت است و توکن اتصال نیست.
+      - برای دریافت پیام‌ها، بعد از اتصال باید در یک یا چند کانال عضو شوید.
+
+      SDKهای رسمی پیشنهادی Centrifugo:
+
+      | SDK | کاربرد |
+      | --- | --- |
+      | [centrifuge-js](https://github.com/centrifugal/centrifuge-js) | مرورگر، Node.js و React Native |
+      | [centrifuge-python](https://github.com/centrifugal/centrifuge-python) | پایتون و asyncio |
+      | [centrifuge-java](https://github.com/centrifugal/centrifuge-java) | جاوا و Android |
+      | [centrifuge-go](https://github.com/centrifugal/centrifuge-go) | Go |
+      | [centrifuge-swift](https://github.com/centrifugal/centrifuge-swift) | iOS و Swift |
+      | [centrifuge-dart](https://github.com/centrifugal/centrifuge-dart) | Dart و Flutter |
+
+      SDK غیررسمی قابل استفاده:
+
+      - [centrifuge-csharp](https://github.com/charmy/centrifuge-csharp) برای C#، .NET و Unity
+
+paths:
+  /connection/websocket:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: اتصال و عضویت
+      description: |
+        این مسیر نقطه اتصال اصلی وب‌سوکت است. بعد از اتصال باید در کانال‌های مورد نیاز عضو شوید تا پیام‌های لحظه‌ای دریافت کنید.
+
+        آدرس‌های اتصال:
+
+        - اصلی: `wss://ws.nobitex.ir/connection/websocket`
+        - تست‌نت: `wss://testnetws.nobitex.ir/connection/websocket`
+
+        کاربرد این صفحه:
+
+        - اتصال به وب‌سوکت
+        - عضویت در کانال‌های عمومی
+        - مدیریت ping/pong و محدودیت‌های اتصال
+
+        برای کانال‌های خصوصی، ابتدا از `/auth/ws/token/` توکن اتصال بگیرید و سپس با توکن وصل شوید. جزئیات در صفحه «توکن اتصال خصوصی» آمده است.
+
+        محدودیت‌ها و رفتار اتصال:
+
+        - کانال‌های عمومی بدون توکن قابل استفاده هستند.
+        - حداکثر اتصال هم‌زمان برای هر کاربر احراز هویت‌شده روی هر نود: ۱۰۰ اتصال
+        - حداکثر تعداد کانال برای هر کلاینت متصل: ۴۵۰ کانال
+        - سرور پیام ping خالی `{}` می‌فرستد و کلاینتی که بدون SDK متصل شده است باید ظرف ۲۰ ثانیه pong خالی `{}` برگرداند.
+        - SDKهای رسمی Centrifugo فرایند ping/pong را خودکار مدیریت می‌کنند.
+        - در SDKهای رسمی می‌توانید هنگام عضویت گزینه `{ delta: 'fossil' }` را فعال کنید. این گزینه باعث کاهش حجم انتقال می‌شود و SDK رسمی داده را به شکل عادی به تابع بازگشتی تحویل می‌دهد.
+        - اگر بدون SDK یا با کتابخانه غیررسمی متصل می‌شوید، گزینه delta را فعال نکنید مگر اینکه بازیابی داده با الگوریتم Fossil را پیاده‌سازی کرده باشید.
+
+        نصب SDK جاوااسکریپت:
+
+        ```bash
+        npm install centrifuge
+        ```
+
+        اتصال عمومی با SDK:
+
+        ```javascript
+        import { Centrifuge } from 'centrifuge';
+
+        const client = new Centrifuge('wss://ws.nobitex.ir/connection/websocket', {});
+
+        client.on('connected', (ctx) => {
+          console.log('connected', ctx);
+        });
+
+        client.connect();
+        ```
+
+        عضویت در کانال عمومی با SDK:
+
+        ```javascript
+        const sub = client.newSubscription('public:trades-BTCIRT', { delta: 'fossil' });
+
+        sub.on('publication', (ctx) => {
+          console.log(ctx.data);
+        });
+
+        sub.subscribe();
+        ```
+
+        استفاده مستقیم در HTML:
+
+        ```html
+        <script src="https://unpkg.com/centrifuge@5/dist/centrifuge.js"></script>
+        ```
+
+        اتصال مستقیم بدون SDK:
+
+        ```json
+        {
+          "connect": {},
+          "id": 1
+        }
+        ```
+
+        عضویت در چند کانال با یک اتصال:
+
+        ```javascript
+        const channels = ['public:orderbook-BTCIRT', 'public:trades-BTCIRT'];
+
+        channels.forEach((channel) => {
+          const sub = client.newSubscription(channel, { delta: 'fossil' });
+          sub.on('publication', (ctx) => {
+            console.log(channel, ctx.data);
+          });
+          sub.subscribe();
+        });
+        ```
+      operationId: websocketConnection
+      servers:
+        - url: wss://ws.nobitex.ir
+          description: وب‌سوکت اصلی
+        - url: wss://testnetws.nobitex.ir
+          description: وب‌سوکت تست‌نت
+      x-websocket: true
+      responses:
+        "101":
+          description: اتصال وب‌سوکت برقرار شد
+        "400":
+          description: درخواست ارتقای وب‌سوکت نامعتبر است
+        "429":
+          description: محدودیت اتصال یا تعداد کانال رعایت نشده است
+
+  /auth/ws/token/:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - وب‌سوکت
+      summary: توکن اتصال خصوصی
+      description: |
+        این API یک توکن JWT برای اتصال احراز هویت‌شده به وب‌سوکت تولید می‌کند. این توکن فقط برای کانال‌های خصوصی لازم است؛ کانال‌های عمومی به توکن نیاز ندارند.
+
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        تفاوت دو مقدار احراز هویت:
+
+        | مقدار | از کجا می‌آید؟ | کاربرد |
+        | --- | --- | --- |
+        | `token` | پاسخ همین API | احراز هویت اتصال وب‌سوکت |
+        | `websocketAuthParam` | پاسخ پروفایل کاربر | ساخت نام کانال خصوصی |
+
+        مراحل استفاده از کانال خصوصی:
+
+        1. مقدار `websocketAuthParam` را از پاسخ پروفایل کاربر بخوانید.
+        2. از این API توکن اتصال بگیرید.
+        3. با مقدار `token` به وب‌سوکت وصل شوید.
+        4. در کانال خصوصی مورد نظر با الگوی `private:{channelName}#{websocketAuthParam}` عضو شوید.
+
+        نکته‌ها:
+
+        - مدت اعتبار توکن اتصال: ۱۲۰۰ ثانیه
+        - در کلاینت‌های Centrifugo مقدار `token` برگشتی را به گزینه اتصال یا تابع `getToken` بدهید.
+        - در اتصال مستقیم بدون SDK، پیام اتصال خصوصی به شکل `{"connect":{"token":"<CONNECTION_TOKEN>"},"id":1}` ارسال می‌شود.
+        - مقدار `websocketAuthParam` توکن نیست و نیازی به تمدید ندارد.
+
+        نمونه درخواست:
+
+        ```bash
+        curl 'https://apiv2.nobitex.ir/auth/ws/token/' \
+          -H 'Authorization: Token <USER_TOKEN>'
+        ```
+
+        اتصال با توکن ثابت:
+
+        ```javascript
+        import { Centrifuge } from 'centrifuge';
+
+        const client = new Centrifuge('wss://ws.nobitex.ir/connection/websocket', {
+          token: '<CONNECTION_TOKEN>',
+        });
+
+        client.connect();
+        ```
+
+        دریافت و تمدید خودکار توکن با SDK:
+
+        ```javascript
+        import { Centrifuge, UnauthorizedError } from 'centrifuge';
+
+        async function getToken() {
+          const response = await fetch('https://apiv2.nobitex.ir/auth/ws/token/', {
+            headers: {
+              Authorization: 'Token <USER_TOKEN>',
+            },
+          });
+
+          if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+              throw new UnauthorizedError('WebSocket authentication failed');
+            }
+            throw new Error(`Unexpected status code ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data.token;
+        }
+
+        const client = new Centrifuge('wss://ws.nobitex.ir/connection/websocket', {
+          getToken,
+        });
+
+        client.connect();
+        ```
+
+        اتصال مستقیم بدون SDK با توکن:
+
+        ```json
+        {
+          "connect": {
+            "token": "<CONNECTION_TOKEN>"
+          },
+          "id": 1
+        }
+        ```
+      operationId: getWebsocketToken
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebsocketTokenResponse"
+              example:
+                status: ok
+                token: "eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.example"
+        "401":
+          description: احراز هویت نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: دسترسی لازم برای دریافت توکن وجود ندارد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: محدودیت فراخوانی یا اتصال رد شده است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /channels/orderbook:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: "کانال لیست سفارش‌ها: اردربوک"
+      description: |
+        کانال اردربوک با هر تغییر در اردربوک بازار پیام منتشر می‌کند.
+
+        الگوی کانال:
+
+        - `public:orderbook-{MARKET_SYMBOL}`
+
+        مقدار `MARKET_SYMBOL` باید با حروف بزرگ ارسال شود؛ مثل `BTCIRT` یا `ETHUSDT`.
+
+        نکته مهم: این کانال‌ها تنها در صورت وقوع تغییر در اردربوک پیام ارسال می‌کنند. بنابراین، در بازارهایی با حجم معاملات کم، ممکن است مدت زمان زیادی بین پیام‌ها فاصله باشد. به‌منظور رفع این مشکل توصیه می‌شود قبل از اشتراک در کانال‌های وب‌سوکت، یک بار اطلاعات اولیه اردربوک را از طریق API اردربوک ورژن ۳ دریافت کنید.
+
+        عضویت با SDK:
+
+        ```javascript
+        const sub = client.newSubscription('public:orderbook-BTCIRT', { delta: 'fossil' });
+
+        sub.on('subscribed', () => {
+          console.log('subscribed');
+        });
+
+        sub.on('publication', (ctx) => {
+          console.log(ctx.data);
+        });
+
+        sub.subscribe();
+        ```
+
+        عضویت مستقیم بدون SDK:
+
+        ```json
+        {
+          "id": 2,
+          "subscribe": {
+            "channel": "public:orderbook-BTCIRT"
+          }
+        }
+        ```
+
+        نمونه پیام در SDK:
+
+        ```json
+        {
+          "asks": [
+            ["35077909990", "0.009433"],
+            ["35078000000", "0.000274"]
+          ],
+          "bids": [
+            ["35020080080", "0.185784"],
+            ["35020070060", "0.086916"]
+          ],
+          "lastTradePrice": "35077909990",
+          "lastUpdate": 1726581829816
+        }
+        ```
+
+        نمونه پیام در اتصال مستقیم بدون SDK:
+
+        ```json
+        {
+          "push": {
+            "channel": "public:orderbook-BTCIRT",
+            "pub": {
+              "data": "{\"asks\":[[\"35077909990\",\"0.009433\"]],\"bids\":[[\"35020080080\",\"0.185784\"]],\"lastTradePrice\":\"35077909990\",\"lastUpdate\":1726581829816}",
+              "offset": 989153
+            }
+          }
+        }
+        ```
+      operationId: websocketOrderbookChannel
+      x-websocket: true
+      x-websocket-channel: public:orderbook-{MARKET_SYMBOL}
+      responses:
+        "200":
+          description: پیام کانال اردربوک
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderbookUpdate"
+
+  /channels/candle:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: کانال آمار OHLC بازار نوبیتکس
+      description: |
+        کانال کندل، داده OHLC بازار را به صورت دوره‌ای و تقریبا هر ۱۰ ثانیه منتشر می‌کند.
+
+        الگوی کانال:
+
+        - `public:candle-{MARKET_SYMBOL}-{RESOLUTION}`
+
+        مقدار `MARKET_SYMBOL` باید با حروف بزرگ ارسال شود؛ مثل `BTCIRT` یا `ETHUSDT`.
+
+        رزولوشن‌های قابل استفاده:
+
+        | دسته | مقدارها |
+        | --- | --- |
+        | دقیقه | `1`، `5`، `15`، `30` |
+        | ساعت | `60`، `180`، `240`، `360`، `720` |
+        | روز | `D`، `1D`، `2D`، `3D` |
+
+        کندل‌های ۱، ۵، ۱۵ و ۳۰ دقیقه‌ای برای ۷ روز اخیر در دسترس هستند.
+
+        عضویت با SDK:
+
+        ```javascript
+        const sub = client.newSubscription('public:candle-BTCIRT-15', { delta: 'fossil' });
+
+        sub.on('publication', (ctx) => {
+          console.log(ctx.data);
+        });
+
+        sub.subscribe();
+        ```
+
+        عضویت مستقیم بدون SDK:
+
+        ```json
+        {
+          "id": 2,
+          "subscribe": {
+            "channel": "public:candle-BTCIRT-15"
+          }
+        }
+        ```
+
+        نمونه پیام:
+
+        ```json
+        {
+          "t": 1731852900,
+          "o": 6240000001.0,
+          "h": 6250000000.0,
+          "l": 6238000000.0,
+          "c": 6238031033.0,
+          "v": 1.26
+        }
+        ```
+      operationId: websocketCandleChannel
+      x-websocket: true
+      x-websocket-channel: public:candle-{MARKET_SYMBOL}-{RESOLUTION}
+      responses:
+        "200":
+          description: پیام کانال OHLC
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandleOhlc"
+
+  /channels/public-trades:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: کانال عمومی معاملات
+      description: |
+        در این کانال، معاملات انجام‌شده در یک بازار منتشر می‌شود.
+
+        الگوی کانال:
+
+        - `public:trades-{MARKET_SYMBOL}`
+
+        مقدار `MARKET_SYMBOL` باید با حروف بزرگ ارسال شود؛ مثل `BTCIRT` یا `ETHUSDT`.
+
+        عضویت با SDK:
+
+        ```javascript
+        const sub = client.newSubscription('public:trades-BTCIRT', { delta: 'fossil' });
+
+        sub.on('publication', (ctx) => {
+          console.log(ctx.data);
+        });
+
+        sub.subscribe();
+        ```
+
+        نمونه پیام:
+
+        ```json
+        {
+          "price": "120000000000",
+          "time": 1762781164192,
+          "type": "sell",
+          "volume": "0.000003"
+        }
+        ```
+      operationId: websocketPublicTradesChannel
+      x-websocket: true
+      x-websocket-channel: public:trades-{MARKET_SYMBOL}
+      responses:
+        "200":
+          description: پیام کانال معاملات عمومی
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicTrade"
+
+  /channels/market-stats:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: کانال وضعیت بازارها
+      description: |
+        این کانال‌ها آمار ۲۴ ساعته بازارها را منتشر می‌کنند.
+
+        الگوی کانال آمار یک بازار:
+
+        - `public:market-stats-{MARKET_SYMBOL}`
+
+        کانال آمار همه بازارها:
+
+        - `public:market-stats-all`
+
+        مقدار `MARKET_SYMBOL` باید با حروف بزرگ ارسال شود؛ مثل `BTCIRT` یا `ETHUSDT`.
+
+        نمونه پیام آمار یک بازار:
+
+        ```json
+        {
+          "isClosed": false,
+          "bestSell": "121073861950",
+          "bestBuy": "120000000000",
+          "volumeSrc": "0.000185131782",
+          "volumeDst": "21590044.0170869949",
+          "latest": "114879999920",
+          "mark": "123288285750",
+          "dayLow": "110850000360",
+          "dayHigh": "121073861950",
+          "dayOpen": "121073861910",
+          "dayClose": "114879999920",
+          "dayChange": "-5.12"
+        }
+        ```
+
+        نمونه پیام آمار همه بازارها:
+
+        ```json
+        {
+          "btc-rls": {
+            "isClosed": false,
+            "bestSell": "121073861950",
+            "bestBuy": "120000000000",
+            "volumeSrc": "0.000185131782",
+            "volumeDst": "21590044.0170869949",
+            "latest": "114879999920",
+            "mark": "123288285750",
+            "dayLow": "110850000360",
+            "dayHigh": "121073861950",
+            "dayOpen": "121073861910",
+            "dayClose": "114879999920",
+            "dayChange": "-5.12"
+          }
+        }
+        ```
+      operationId: websocketMarketStatsChannel
+      x-websocket: true
+      x-websocket-channel: public:market-stats-{MARKET_SYMBOL}
+      responses:
+        "200":
+          description: پیام کانال وضعیت بازارها
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MarketStats"
+                  - $ref: "#/components/schemas/MarketStatsAll"
+
+  /channels/private-orders:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: کانال خصوصی سفارشات کاربر
+      description: |
+        در این کانال، رویدادهای سفارش کاربر منتشر می‌شود.
+
+        الگوی کانال:
+
+        - `private:orders#{websocketAuthParam}`
+
+        عضویت در این کانال به توکن اتصال وب‌سوکت و `websocketAuthParam` کاربر نیاز دارد.
+
+        نمونه عضویت با SDK:
+
+        ```javascript
+        const websocketAuthParam = '<WEBSOCKET_AUTH_PARAM>';
+        const sub = client.newSubscription(`private:orders#${websocketAuthParam}`, { delta: 'fossil' });
+
+        sub.on('publication', (ctx) => {
+          console.log(ctx.data);
+        });
+
+        sub.subscribe();
+        ```
+
+        نمونه پیام سفارش:
+
+        ```json
+        {
+          "amount": "0.0002",
+          "avgFilledPrice": "114879999920",
+          "clientOrderId": null,
+          "dstCurrency": "rls",
+          "eventTime": 1762779011366,
+          "fee": "0.00000031",
+          "filledAmount": "0.0002",
+          "lastFillTime": 1762779011258,
+          "marketType": "Spot",
+          "orderId": 278339,
+          "orderType": "Market",
+          "param1": null,
+          "price": null,
+          "side": "Buy",
+          "srcCurrency": "btc",
+          "status": "Done",
+          "tradeAmount": "0.0002",
+          "tradeId": 92547,
+          "tradePrice": "114879999920"
+        }
+        ```
+
+        نمونه پیام خطای سفارش:
+
+        ```json
+        {
+          "status": "Failed",
+          "code": "OverValueOrder",
+          "message": "Order Validation Failed",
+          "clientOrderId": "TestClientID"
+        }
+        ```
+      operationId: websocketPrivateOrdersChannel
+      x-websocket: true
+      x-websocket-channel: private:orders#{websocketAuthParam}
+      responses:
+        "200":
+          description: پیام کانال خصوصی سفارشات
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivateOrderChannelMessage"
+
+  /channels/private-trades:
+    get:
+      tags:
+        - وب‌سوکت
+      summary: کانال خصوصی معاملات کاربر
+      description: |
+        به محض انجام شدن معامله برای کاربر، اطلاعات معامله در این کانال منتشر می‌شود.
+
+        الگوی کانال:
+
+        - `private:trades#{websocketAuthParam}`
+
+        عضویت در این کانال به توکن اتصال وب‌سوکت و `websocketAuthParam` کاربر نیاز دارد.
+
+        نمونه عضویت با SDK:
+
+        ```javascript
+        const websocketAuthParam = '<WEBSOCKET_AUTH_PARAM>';
+        const sub = client.newSubscription(`private:trades#${websocketAuthParam}`, { delta: 'fossil' });
+
+        sub.on('publication', (ctx) => {
+          console.log(ctx.data);
+        });
+
+        sub.subscribe();
+        ```
+
+        نمونه عضویت مستقیم بدون SDK:
+
+        ```json
+        {
+          "id": 2,
+          "subscribe": {
+            "channel": "private:trades#1987577cdf7c7422dee369e188e276ee"
+          }
+        }
+        ```
+
+        نمونه پیام:
+
+        ```json
+        {
+          "srcCurrency": "btc",
+          "dstCurrency": "rls",
+          "timestamp": "2024-11-23T11:31:27.833000+00:00",
+          "time": 1732361487833,
+          "price": "66683959340",
+          "amount": "0.000404",
+          "total": "26940319.57336",
+          "type": "Sell",
+          "fee": "47150.7989334",
+          "id": 12942226,
+          "orderId": 520305923,
+          "isMaker": true
+        }
+        ```
+
+        فیلد `timestamp` برای سازگاری قبلی باقی مانده و منسوخ است. برای زمان معامله از `time` استفاده کنید.
+      operationId: websocketPrivateTradesChannel
+      x-websocket: true
+      x-websocket-channel: private:trades#{websocketAuthParam}
+      responses:
+        "200":
+          description: پیام کانال خصوصی معاملات
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivateTradeEvent"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        توکن کاربر با فرمت `Authorization: Token <TOKEN>`.
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: |
+        امضای Ed25519 به شکل URL-safe Base64. متن امضا برابر است با `timestamp + method + full_path + raw_body`.
+        برای درخواست GET بدون body، مقدار body در متن امضا وجود ندارد.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      description: پاسخ خطای عمومی.
+      properties:
+        status:
+          type: string
+          example: failed
+        code:
+          type: string
+        message:
+          type: string
+          example: احراز هویت نامعتبر است.
+
+    WebsocketTokenResponse:
+      type: object
+      description: پاسخ دریافت توکن اتصال وب‌سوکت.
+      properties:
+        status:
+          type: string
+          description: وضعیت پاسخ.
+          example: ok
+        token:
+          type: string
+          description: توکن JWT اتصال وب‌سوکت با اعتبار ۱۲۰۰ ثانیه.
+          example: "eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.example"
+      required:
+        - status
+        - token
+
+    WebsocketConnectRequest:
+      type: object
+      description: پیام اتصال مستقیم در پروتکل Centrifugo بدون استفاده از SDK.
+      properties:
+        connect:
+          type: object
+          description: تنظیمات اتصال. برای اتصال عمومی می‌تواند خالی باشد.
+          properties:
+            token:
+              type: string
+              description: توکن دریافتی از `/auth/ws/token/` برای اتصال خصوصی.
+          additionalProperties: true
+        id:
+          type: integer
+          format: int64
+          description: شناسه پیام در سمت کلاینت.
+      required:
+        - connect
+        - id
+      example:
+        connect: {}
+        id: 1
+
+    WebsocketConnectRequestWithToken:
+      allOf:
+        - $ref: "#/components/schemas/WebsocketConnectRequest"
+        - type: object
+          properties:
+            connect:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: توکن دریافتی از `/auth/ws/token/`.
+              required:
+                - token
+          required:
+            - connect
+      description: پیام اتصال همراه با توکن برای استفاده از کانال‌های خصوصی.
+      example:
+        connect:
+          token: "<CONNECTION_TOKEN>"
+        id: 1
+
+    WebsocketSubscribeRequest:
+      type: object
+      description: |
+        پیام عضویت مستقیم در یک کانال بدون استفاده از SDK.
+
+        برای عضویت در چند کانال، همین پیام را با شناسه‌های متفاوت برای هر کانال ارسال کنید یا در کتابخانه رسمی از چند اشتراک روی یک اتصال استفاده کنید.
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: شناسه پیام در سمت کلاینت.
+        subscribe:
+          type: object
+          properties:
+            channel:
+              type: string
+              description: نام کانال مقصد.
+              example: public:orderbook-BTCIRT
+          required:
+            - channel
+      required:
+        - id
+        - subscribe
+      example:
+        id: 2
+        subscribe:
+          channel: public:orderbook-BTCIRT
+
+    WebsocketPingPong:
+      type: object
+      description: داده پیام ping و pong در اتصال مستقیم بدون SDK. مقدار هر دو `{}` است.
+      additionalProperties: false
+      example: {}
+
+    WebsocketPushEnvelope:
+      type: object
+      description: |
+        قالب پیام دریافتی در اتصال مستقیم به Centrifugo بدون استفاده از SDK.
+
+        در کتابخانه‌های رسمی معمولا داده پیام به شکل شیء آماده در تابع بازگشتی تحویل داده می‌شود.
+        در اتصال مستقیم بدون SDK، داده پیام زیر `push.pub.data` قرار می‌گیرد و باید بر اساس نام کانال به یکی از ساختارهای همین فایل نگاشت شود.
+      properties:
+        push:
+          type: object
+          properties:
+            channel:
+              type: string
+              description: نام کانالی که پیام روی آن منتشر شده است.
+              example: public:orderbook-BTCIRT
+            pub:
+              type: object
+              properties:
+                data:
+                  oneOf:
+                    - type: object
+                      additionalProperties: true
+                    - type: string
+                  description: داده پیام. در بعضی کلاینت‌ها به شکل شیء و در بعضی اتصال‌های بدون SDK به شکل رشته JSON دیده می‌شود.
+                offset:
+                  type: integer
+                  format: int64
+                  description: موقعیت پیام در جریان کانال.
+              required:
+                - data
+                - offset
+          required:
+            - channel
+            - pub
+      required:
+        - push
+
+    Monetary:
+      type: string
+      description: عدد اعشاری که به صورت رشته ارسال می‌شود.
+      example: "47150.7989334"
+
+    NullableMonetary:
+      type: string
+      nullable: true
+      description: عدد اعشاری رشته‌ای که ممکن است `null` باشد.
+      example: "47150.7989334"
+
+    UnixMillis:
+      type: integer
+      format: int64
+      description: زمان Unix بر حسب میلی‌ثانیه.
+      example: 1762779011366
+
+    UnixSeconds:
+      type: integer
+      format: int64
+      description: زمان Unix بر حسب ثانیه.
+      example: 1731852900
+
+    OrderbookLevel:
+      type: array
+      description: یک ردیف اردربوک به شکل `[price, amount]`.
+      minItems: 2
+      maxItems: 2
+      items:
+        type: string
+      example:
+        - "35077909990"
+        - "0.009433"
+
+    OrderbookUpdate:
+      type: object
+      description: |
+        پیام اردربوک روی کانال `public:orderbook-{MARKET_SYMBOL}`.
+
+        این کانال پس از تغییر اردربوک پیام منتشر می‌کند. برای داشتن نمای اولیه، به‌خصوص در بازارهای کم‌تغییر، ابتدا اردربوک را از `GET /v3/orderbook/{symbol}` بگیرید و سپس در کانال وب‌سوکت همان بازار عضو شوید.
+      x-channel: public:orderbook-{MARKET_SYMBOL}
+      properties:
+        asks:
+          type: array
+          description: سفارش‌های فروش به شکل آرایه‌ای از `[price, amount]`.
+          items:
+            $ref: "#/components/schemas/OrderbookLevel"
+        bids:
+          type: array
+          description: سفارش‌های خرید به شکل آرایه‌ای از `[price, amount]`.
+          items:
+            $ref: "#/components/schemas/OrderbookLevel"
+        lastTradePrice:
+          type: string
+          description: قیمت آخرین معامله.
+          example: "35077909990"
+        lastUpdate:
+          $ref: "#/components/schemas/UnixMillis"
+      required:
+        - asks
+        - bids
+        - lastTradePrice
+        - lastUpdate
+      example:
+        asks:
+          - ["35077909990", "0.009433"]
+          - ["35078000000", "0.000274"]
+        bids:
+          - ["35020080080", "0.185784"]
+          - ["35020070060", "0.086916"]
+        lastTradePrice: "35077909990"
+        lastUpdate: 1726581829816
+
+    CandleOhlc:
+      type: object
+      description: پیام کندل روی کانال `public:candle-{MARKET_SYMBOL}-{RESOLUTION}`.
+      x-channel: public:candle-{MARKET_SYMBOL}-{RESOLUTION}
+      properties:
+        t:
+          $ref: "#/components/schemas/UnixSeconds"
+        o:
+          type: number
+          format: double
+          description: قیمت باز شدن کندل.
+        h:
+          type: number
+          format: double
+          description: بیشترین قیمت کندل.
+        l:
+          type: number
+          format: double
+          description: کمترین قیمت کندل.
+        c:
+          type: number
+          format: double
+          description: قیمت بسته شدن کندل.
+        v:
+          type: number
+          format: double
+          description: حجم معامله‌شده در کندل.
+      required:
+        - t
+        - o
+        - h
+        - l
+        - c
+        - v
+      example:
+        t: 1731852900
+        o: 6240000001.0
+        h: 6250000000.0
+        l: 6238000000.0
+        c: 6238031033.0
+        v: 1.26
+
+    PublicTrade:
+      type: object
+      description: پیام معامله عمومی روی کانال `public:trades-{MARKET_SYMBOL}`.
+      x-channel: public:trades-{MARKET_SYMBOL}
+      properties:
+        time:
+          $ref: "#/components/schemas/UnixMillis"
+        price:
+          $ref: "#/components/schemas/Monetary"
+        volume:
+          $ref: "#/components/schemas/Monetary"
+        type:
+          type: string
+          description: سمت معامله عمومی منتشرشده.
+          enum:
+            - buy
+            - sell
+      required:
+        - time
+        - price
+        - volume
+        - type
+      example:
+        time: 1762781164192
+        price: "120000000000"
+        volume: "0.000003"
+        type: sell
+
+    MarketStats:
+      type: object
+      description: آمار ۲۴ ساعته یک بازار روی کانال `public:market-stats-{MARKET_SYMBOL}`.
+      x-channel: public:market-stats-{MARKET_SYMBOL}
+      properties:
+        isClosed:
+          type: boolean
+          description: بسته بودن بازار.
+        isClosedReason:
+          type: string
+          description: دلیل بسته بودن یا نبود داده؛ فقط در بعضی حالت‌های بدون داده ارسال می‌شود.
+          example: NoData
+        bestSell:
+          $ref: "#/components/schemas/Monetary"
+        bestBuy:
+          $ref: "#/components/schemas/Monetary"
+        volumeSrc:
+          $ref: "#/components/schemas/Monetary"
+        volumeDst:
+          $ref: "#/components/schemas/Monetary"
+        latest:
+          $ref: "#/components/schemas/Monetary"
+        mark:
+          $ref: "#/components/schemas/NullableMonetary"
+        dayLow:
+          $ref: "#/components/schemas/Monetary"
+        dayHigh:
+          $ref: "#/components/schemas/Monetary"
+        dayOpen:
+          $ref: "#/components/schemas/Monetary"
+        dayClose:
+          $ref: "#/components/schemas/Monetary"
+        dayChange:
+          type: string
+          description: درصد تغییر قیمت در ۲۴ ساعت گذشته، به صورت رشته.
+          example: "-5.12"
+      required:
+        - isClosed
+        - bestSell
+        - bestBuy
+        - volumeSrc
+        - volumeDst
+        - latest
+        - mark
+        - dayLow
+        - dayHigh
+        - dayOpen
+        - dayClose
+        - dayChange
+      example:
+        isClosed: false
+        bestSell: "121073861950"
+        bestBuy: "120000000000"
+        volumeSrc: "0.000185131782"
+        volumeDst: "21590044.0170869949"
+        latest: "114879999920"
+        mark: "123288285750"
+        dayLow: "110850000360"
+        dayHigh: "121073861950"
+        dayOpen: "121073861910"
+        dayClose: "114879999920"
+        dayChange: "-5.12"
+
+    MarketStatsAll:
+      type: object
+      description: |
+        پیام آمار همه بازارها روی کانال `public:market-stats-all`.
+        کلید هر عضو نام جفت‌ارز با حروف کوچک است؛ مثل `btc-rls` یا `usdt-rls`.
+      x-channel: public:market-stats-all
+      additionalProperties:
+        $ref: "#/components/schemas/MarketStats"
+      example:
+        btc-rls:
+          isClosed: false
+          bestSell: "121073861950"
+          bestBuy: "120000000000"
+          volumeSrc: "0.000185131782"
+          volumeDst: "21590044.0170869949"
+          latest: "114879999920"
+          mark: "123288285750"
+          dayLow: "110850000360"
+          dayHigh: "121073861950"
+          dayOpen: "121073861910"
+          dayClose: "114879999920"
+          dayChange: "-5.12"
+
+    PrivateOrderChannelMessage:
+      oneOf:
+        - $ref: "#/components/schemas/PrivateOrderEvent"
+        - $ref: "#/components/schemas/PrivateOrderFailedEvent"
+      description: |
+        پیام‌های کانال `private:orders#{websocketAuthParam}`.
+        این کانال هم رویدادهای موفق سفارش را ارسال می‌کند و هم خطای رد شدن درخواست سفارش را.
+
+    PrivateOrderEvent:
+      type: object
+      description: رویداد سفارش موفق روی کانال `private:orders#{websocketAuthParam}`.
+      x-channel: private:orders#{websocketAuthParam}
+      properties:
+        orderId:
+          type: integer
+          format: int64
+          description: شناسه سفارش.
+        tradeId:
+          type: integer
+          format: int64
+          nullable: true
+          description: شناسه آخرین معامله مرتبط؛ اگر معامله‌ای انجام نشده باشد `null` است.
+        clientOrderId:
+          type: string
+          maxLength: 32
+          nullable: true
+          description: شناسه سفارش در سمت کلاینت.
+        srcCurrency:
+          type: string
+          description: ارز مبدا.
+          example: btc
+        dstCurrency:
+          type: string
+          description: ارز مقصد.
+          example: rls
+        eventTime:
+          $ref: "#/components/schemas/UnixMillis"
+        lastFillTime:
+          type: integer
+          format: int64
+          nullable: true
+          description: زمان آخرین پر شدن سفارش؛ اگر معامله‌ای انجام نشده باشد `null` است.
+          example: 1762779011258
+        side:
+          type: string
+          description: سمت سفارش.
+          enum:
+            - Buy
+            - Sell
+        status:
+          type: string
+          description: وضعیت سفارش.
+          enum:
+            - New
+            - Active
+            - Done
+            - Canceled
+            - Inactive
+        fee:
+          $ref: "#/components/schemas/Monetary"
+        price:
+          $ref: "#/components/schemas/NullableMonetary"
+        avgFilledPrice:
+          $ref: "#/components/schemas/NullableMonetary"
+        tradePrice:
+          $ref: "#/components/schemas/NullableMonetary"
+        amount:
+          $ref: "#/components/schemas/Monetary"
+        tradeAmount:
+          $ref: "#/components/schemas/NullableMonetary"
+        filledAmount:
+          $ref: "#/components/schemas/Monetary"
+        param1:
+          $ref: "#/components/schemas/NullableMonetary"
+        orderType:
+          type: string
+          description: نوع اجرای سفارش.
+          enum:
+            - Limit
+            - Market
+            - StopLimit
+            - StopMarket
+        marketType:
+          type: string
+          description: نوع بازار سفارش.
+          enum:
+            - Spot
+            - Margin
+            - Credit
+            - Debit
+      required:
+        - orderId
+        - tradeId
+        - clientOrderId
+        - srcCurrency
+        - dstCurrency
+        - eventTime
+        - lastFillTime
+        - side
+        - status
+        - fee
+        - price
+        - avgFilledPrice
+        - tradePrice
+        - amount
+        - tradeAmount
+        - filledAmount
+        - param1
+        - orderType
+        - marketType
+      example:
+        orderId: 278339
+        tradeId: 92547
+        clientOrderId: null
+        srcCurrency: btc
+        dstCurrency: rls
+        eventTime: 1762779011366
+        lastFillTime: 1762779011258
+        side: Buy
+        status: Done
+        fee: "0.00000031"
+        price: null
+        avgFilledPrice: "114879999920"
+        tradePrice: "114879999920"
+        amount: "0.0002"
+        tradeAmount: "0.0002"
+        filledAmount: "0.0002"
+        param1: null
+        orderType: Market
+        marketType: Spot
+
+    PrivateOrderFailedEvent:
+      type: object
+      description: پیام رد شدن درخواست سفارش روی کانال `private:orders#{websocketAuthParam}`.
+      x-channel: private:orders#{websocketAuthParam}
+      properties:
+        status:
+          type: string
+          description: وضعیت خطا.
+          example: Failed
+        code:
+          type: string
+          nullable: true
+          description: کد خطای اعتبارسنجی سفارش.
+          example: OverValueOrder
+        message:
+          type: string
+          nullable: true
+          description: متن خطا.
+          example: Order Validation Failed
+        clientOrderId:
+          type: string
+          nullable: true
+          description: شناسه سفارش در سمت کلاینت.
+          example: TestClientID
+      required:
+        - status
+        - code
+        - message
+        - clientOrderId
+      example:
+        status: Failed
+        code: OverValueOrder
+        message: Order Validation Failed
+        clientOrderId: TestClientID
+
+    PrivateTradeEvent:
+      type: object
+      description: پیام معامله خصوصی روی کانال `private:trades#{websocketAuthParam}`.
+      x-channel: private:trades#{websocketAuthParam}
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: شناسه معامله.
+        orderId:
+          type: integer
+          format: int64
+          description: شناسه سفارش مرتبط.
+        srcCurrency:
+          type: string
+          description: ارز مبدا.
+          example: btc
+        dstCurrency:
+          type: string
+          description: ارز مقصد.
+          example: rls
+        timestamp:
+          type: string
+          format: date-time
+          deprecated: true
+          description: زمان معامله در قالب ISO-8601. این فیلد منسوخ است؛ از `time` استفاده کنید.
+        time:
+          $ref: "#/components/schemas/UnixMillis"
+        type:
+          type: string
+          description: سمت سفارش کاربر در این معامله.
+          enum:
+            - Buy
+            - Sell
+        price:
+          $ref: "#/components/schemas/Monetary"
+        amount:
+          $ref: "#/components/schemas/Monetary"
+        total:
+          $ref: "#/components/schemas/Monetary"
+        fee:
+          $ref: "#/components/schemas/Monetary"
+        isMaker:
+          type: boolean
+          description: اگر سفارش کاربر maker بوده باشد مقدار `true` است.
+      required:
+        - id
+        - orderId
+        - srcCurrency
+        - dstCurrency
+        - timestamp
+        - time
+        - type
+        - price
+        - amount
+        - total
+        - fee
+        - isMaker
+      example:
+        id: 12942226
+        orderId: 520305923
+        srcCurrency: btc
+        dstCurrency: rls
+        timestamp: "2024-11-23T11:31:27.833000+00:00"
+        time: 1732361487833
+        type: Sell
+        price: "66683959340"
+        amount: "0.000404"
+        total: "26940319.57336"
+        fee: "47150.7989334"
+        isMaker: true

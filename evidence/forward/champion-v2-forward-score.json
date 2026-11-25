@@ -1,6 +1,6 @@
 {
   "status": "TRACKING",
-  "observations": 4,
+  "observations": 5,
   "forward_days": 2,
   "first_day": "2026-11-24",
   "latest_day": "2026-11-25",
@@ -11,7 +11,7 @@
   "latest_blended_weights": {},
   "latest_ignition_triggers": [],
   "median_live_nobitex_spread_bps": 12.38,
-  "median_live_wallex_spread_bps": 15.78,
+  "median_live_wallex_spread_bps": 18.29,
   "backtest_assumption_nbx_allin_bps": 16.0,
   "backtest_assumption_wlx_allin_bps": 25.0
 }
