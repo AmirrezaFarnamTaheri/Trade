@@ -597,6 +597,34 @@ def test_duplicate_listing_invariant_adds_zero_independent_risk() -> None:
     assert {canonical_underlying(it.symbol) for it in deduped} == {"BTC", "ETH"}
 
 
+def test_order_timeout_replacement_partial_and_late_fill_reconciliation() -> None:
+    """Out-of-order timeout, replacement partial fill, and late original fill must reconcile exact cash, units, and fees."""
+    from gym.services.experiments.remaining_cross_layer_suite_study import (
+        OrderEvent,
+        reconcile_order_events,
+    )
+
+    events = [
+        OrderEvent("ord_1", "SUBMIT", "BUY", 1.0, 100.0, fee_bps=10.0),
+        OrderEvent("ord_1", "TIMEOUT", "BUY", 1.0, 100.0, fee_bps=10.0),
+        OrderEvent("ord_2", "REPLACE", "BUY", 1.0, 100.5, fee_bps=10.0),
+        OrderEvent("ord_2", "FILL", "BUY", 0.4, 100.5, fee_bps=10.0),
+        OrderEvent("ord_1", "FILL", "BUY", 1.0, 100.0, fee_bps=10.0),
+        # Duplicate replay of ord_1 fill after restart must be idempotent
+        OrderEvent("ord_1", "FILL", "BUY", 1.0, 100.0, fee_bps=10.0),
+    ]
+    res_a = reconcile_order_events(events, starting_cash=1000.0)
+    res_b = reconcile_order_events(list(reversed(events)), starting_cash=1000.0)
+    assert res_a == res_b
+    assert res_a["units"] == pytest.approx(1.4, abs=1e-8)
+    expected_notional = 0.4 * 100.5 + 1.0 * 100.0
+    expected_fees = expected_notional * 0.001
+    assert res_a["fees"] == pytest.approx(expected_fees, abs=1e-6)
+    assert res_a["cash"] == pytest.approx(1000.0 - expected_notional - expected_fees, abs=1e-6)
+    assert res_a["overfilled_orders"] is True
+
+
+
 
 
 

@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-11-25T21:51:32.420957+00:00",
+  "executor_state": "DISARMED",
+  "rel_strength_selloff_and_sensor": {
+    "selloff_episodes_triggered": 26,
+    "source_symbol_mean_12h_net_bps": -113.72,
+    "liquid_btc_equiv_mean_12h_net_bps": -42.17,
+    "low_beta_control_mean_12h_net_bps": -42.17
+  },
+  "liquidity_recovery_and_adverse_fill": {
+    "liquidity_recovery_events_full": 3,
+    "liquidity_recovery_events_3x_thinned": 1,
+    "blind_scanner_miss_rate_3x_pct": 66.7,
+    "liquidity_recovery_mean_net_bps": -27.05,
+    "fast_passive_fill_le60s_markout_bps": 0.0,
+    "slow_passive_fill_gt60s_markout_bps": -12.82,
+    "unfilled_passive_missed_drift_bps": 16.93
+  },
+  "tmn_delist_gap_and_rails": {
+    "clean_slow_ret_pct": 152.24,
+    "delist_sol_50pct_rec_ret_pct": 156.63,
+    "delist_sol_0pct_rec_ret_pct": 156.63,
+    "gap_5d_recompute_ret_pct": 151.95,
+    "gap_5d_discard_ret_pct": 151.15,
+    "gap_5d_replay_stale_ret_pct": 151.75,
+    "tmn_100m_after_20m_spike_withdrawal_end_m": 1905.04,
+    "tmn_withdrawal_spike_cost_usdt": 21.3,
+    "shared_dependency_stress": {
+      "NOBITEX_OFFLINE_STRANDED_PCT": 50.0,
+      "USDT_5PCT_DEPEG_LOSS_USDT": 40.0,
+      "XAUT_ISSUER_FREEZE_STRANDED_PCT": 20.0,
+      "DUAL_NOBITEX_PLUS_XAUT_STRANDED_PCT": 60.0
+    }
+  },
+  "order_timeout_late_fill_reconciliation": {
+    "cash": 859.57568,
+    "units": 1.4,
+    "fees": 0.22432,
+    "filled_by_order": {
+      "ord_1": 1.0,
+      "ord_2": 0.4
+    },
+    "overfilled_orders": true
+  }
+}
