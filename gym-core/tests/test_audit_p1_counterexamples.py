@@ -452,4 +452,26 @@ def test_dual_clock_nobitex_orderbook_parses_ts_event() -> None:
     assert qs.ts_event == datetime(2026, 11, 25, 20, 0, 4, tzinfo=UTC)
 
 
+def test_finding_12_atomic_json_and_locked_jsonl_writer(tmp_path) -> None:
+    """append_jsonl_locked and write_json_atomic must leave clean files with no lingering lock/tmp artifacts."""
+    import json
+
+    from gym.services.experiments.champion_forward_journal import (
+        append_jsonl_locked,
+        write_json_atomic,
+    )
+
+    jpath = tmp_path / "locked.jsonl"
+    append_jsonl_locked(jpath, {"slot": 1, "nav": 1000.0})
+    append_jsonl_locked(jpath, {"slot": 2, "nav": 1010.0})
+    lines = [json.loads(ln) for ln in jpath.read_text(encoding="utf-8").splitlines()]
+    assert len(lines) == 2 and lines[1]["nav"] == 1010.0
+    assert not jpath.with_suffix(".jsonl.lock").exists()
+
+    spath = tmp_path / "score.json"
+    write_json_atomic(spath, {"paper_nav": 1010.0, "peak_nav": 1010.0})
+    assert json.loads(spath.read_text(encoding="utf-8"))["paper_nav"] == 1010.0
+
+
+
 

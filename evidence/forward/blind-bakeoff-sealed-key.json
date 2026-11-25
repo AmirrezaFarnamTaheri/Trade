@@ -1,0 +1,26 @@
+{
+  "schema": "blind-bakeoff-sealed-key/1",
+  "created_at": "2026-11-25T20:56:04.567216+00:00",
+  "mapping": {
+    "BLIND_ARM_A": {
+      "identity_hash": "850dab259f54",
+      "true_name": "E3_V2_PLUS_BEAR50_UNIFIED",
+      "role": "challenger_b"
+    },
+    "BLIND_ARM_B": {
+      "identity_hash": "ac6c039ca0b1",
+      "true_name": "EXPOSURE_MATCHED_SHUFFLED_PLACEBO",
+      "role": "placebo"
+    },
+    "BLIND_ARM_C": {
+      "identity_hash": "bd6040ae587e",
+      "true_name": "CHAMPION_V2_TWIN_GRU11",
+      "role": "challenger_a"
+    },
+    "BLIND_ARM_D": {
+      "identity_hash": "e62aab674f1c",
+      "true_name": "FIXED_S1_SLOW_SPOT_BENCHMARK",
+      "role": "baseline"
+    }
+  }
+}

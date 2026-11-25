@@ -63,7 +63,7 @@ def _sleeve_score(sig: SleeveSignal, mode: str, vote_gw: AdaptiveVoteGateway | N
     return sum(parts) / len(parts) if parts else 0.0
 
 
-def _portfolio_metrics(nav_by_date: dict[str, float]) -> dict:
+def _portfolio_metrics(nav_by_date: dict[str, float], *, starting_nav: float | None = None) -> dict:
     dates = sorted(nav_by_date)
     if len(dates) < 5:
         return {"days": len(dates), "ending_nav": 1000.0, "ret_pct": 0.0, "ann_sharpe": 0.0, "max_dd_pct": 0.0}
@@ -72,17 +72,21 @@ def _portfolio_metrics(nav_by_date: dict[str, float]) -> dict:
     mean_r = sum(rets) / len(rets)
     var_r = sum((r - mean_r) ** 2 for r in rets) / max(1, len(rets) - 1)
     sr = (mean_r / math.sqrt(var_r)) * math.sqrt(365.0) if var_r > 1e-14 else 0.0
-    peak, max_dd = navs[0], 0.0
+    peak, max_dd = (starting_nav if starting_nav is not None else navs[0]), 0.0
     for v in navs:
         peak = max(peak, v)
         max_dd = max(max_dd, (peak - v) / peak)
+    base_nav = starting_nav if (starting_nav is not None and starting_nav > 0) else navs[0]
     return {
         "days": len(dates),
         "ending_nav": round(navs[-1], 2),
-        "ret_pct": round((navs[-1] / navs[0] - 1.0) * 100.0, 2),
+        "ret_pct": round((navs[-1] / base_nav - 1.0) * 100.0, 2),
         "ann_sharpe": round(sr, 3),
         "max_dd_pct": round(max_dd * 100.0, 2),
     }
+
+
+portfolio_metrics = _portfolio_metrics
 
 
 def _daily_returns_map(nav_by_date: dict[str, float]) -> dict[str, float]:
@@ -92,6 +96,9 @@ def _daily_returns_map(nav_by_date: dict[str, float]) -> dict[str, float]:
         for i in range(1, len(dates))
         if nav_by_date[dates[i - 1]] > 0
     }
+
+
+daily_returns_map = _daily_returns_map
 
 
 def _dated_returns(panel: dict[str, list[BarPoint]]) -> dict[str, dict[datetime, float]]:

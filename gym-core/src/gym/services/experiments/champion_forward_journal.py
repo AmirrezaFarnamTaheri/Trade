@@ -286,6 +286,45 @@ def _score_live_2h_ignition(
     return latest_ts, triggers[:3], ign_weights
 
 
+def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 5.0) -> None:
+    """Append one JSONL record under an exclusive sidecar lockfile with fsync durability."""
+    import time
+
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = journal_path.with_suffix(journal_path.suffix + ".lock")
+    deadline = time.monotonic() + timeout_s
+    fd: int | None = None
+    while fd is None:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"could not acquire journal lock {lock_path}") from None
+            time.sleep(0.05)
+    try:
+        with journal_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, sort_keys=True) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+    finally:
+        os.close(fd)
+        try:
+            lock_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def write_json_atomic(path: Path, payload: dict) -> None:
+    """Atomically write JSON via temp file + fsync + os.replace so readers never see partial writes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+    with tmp.open("w", encoding="utf-8") as fh:
+        fh.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 def _load_last_journal_state(journal_path: Path) -> tuple[set[str], dict[str, float]]:
     if not journal_path.is_file():
         return set(), {}
@@ -413,11 +452,7 @@ def record_champion_ensemble_journal(
         "executor_state": "DISARMED",
     }
 
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    with journal_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, sort_keys=True) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
+    append_jsonl_locked(journal_path, record)
 
     return {"status": "RECORDED", **record}
 

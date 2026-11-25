@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import median
@@ -45,6 +44,7 @@ from .admm_helpers import (
 )
 from .champion_forward_journal import (
     _latest_live_quotes,
+    append_jsonl_locked,
     load_stitched_1h_panel,
     score_champion_forward_journal,
 )
@@ -389,9 +389,5 @@ def record_champion_v2_journal(
         "engine_digest": engine_digest,
         "executor_state": "DISARMED",
     }
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    with journal_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, sort_keys=True) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
+    append_jsonl_locked(journal_path, record)
     return {"status": "RECORDED", **record}

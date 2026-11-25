@@ -361,8 +361,8 @@ def run_v2_champion_verification(db_path: Path, report_path: Path, receipt_path:
             rets = _daily_returns_map(nav)
             ub = paired_baseline_uplift(rets, base_rets, simulations=499, seed=42)
             uv = paired_baseline_uplift(rets, v1_rets, simulations=499, seed=42)
-            cib = ub.get("ci_95") or (0.0, 0.0)
-            civ = uv.get("ci_95") or (0.0, 0.0)
+            cib = ub.get("ci_95")
+            civ = uv.get("ci_95")
             arms_out.append({
                 "name": name,
                 "full": _portfolio_metrics(nav),
@@ -371,9 +371,9 @@ def run_v2_champion_verification(db_path: Path, report_path: Path, receipt_path:
                 "fees_usdt": run["total_fees_usdt"],
                 "turnover": run["turnover_multiple"],
                 "vs_base_bps": round(float(ub.get("mean_uplift", 0.0)) * 10000.0, 2),
-                "ci_base_bps": [round(cib[0] * 10000.0, 2), round(cib[1] * 10000.0, 2)],
+                "ci_base_bps": [round(cib[0] * 10000.0, 2), round(cib[1] * 10000.0, 2)] if cib is not None else None,
                 "vs_v1_bps": round(float(uv.get("mean_uplift", 0.0)) * 10000.0, 2),
-                "ci_v1_bps": [round(civ[0] * 10000.0, 2), round(civ[1] * 10000.0, 2)],
+                "ci_v1_bps": [round(civ[0] * 10000.0, 2), round(civ[1] * 10000.0, 2)] if civ is not None else None,
             })
 
     payload = {
@@ -406,11 +406,13 @@ def _write_markdown(report_path: Path, p: dict) -> None:
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |",
     ]
     for r in p["arms"]:
+        cb = f"[{r['ci_base_bps'][0]:+.2f}, {r['ci_base_bps'][1]:+.2f}]" if r["ci_base_bps"] is not None else "N/A"
+        cv = f"[{r['ci_v1_bps'][0]:+.2f}, {r['ci_v1_bps'][1]:+.2f}]" if r["ci_v1_bps"] is not None else "N/A"
         lines.append(
             f"| `{r['name']}` | `${r['full']['ending_nav']:.2f}` | `{r['full']['ret_pct']:+.2f}%` | `{r['stress']['ret_pct']:+.2f}%` | "
             f"`{r['full']['ann_sharpe']:.3f}` | `{r['full']['max_dd_pct']:.2f}%` | `{r['fills']}` | `${r['fees_usdt']:.2f}` | "
-            f"`{r['vs_base_bps']:+.2f} [{r['ci_base_bps'][0]:+.2f}, {r['ci_base_bps'][1]:+.2f}]` | "
-            f"`{r['vs_v1_bps']:+.2f} [{r['ci_v1_bps'][0]:+.2f}, {r['ci_v1_bps'][1]:+.2f}]` |"
+            f"`{r['vs_base_bps']:+.2f} {cb}` | "
+            f"`{r['vs_v1_bps']:+.2f} {cv}` |"
         )
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
