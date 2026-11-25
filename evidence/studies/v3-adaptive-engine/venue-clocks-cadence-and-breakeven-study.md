@@ -1,29 +1,30 @@
 # Post-Repair Cross-Venue Clocks, Cadence, Blind Bake-Off & Cost Break-Even Study (Menu Ideas 12, 13, 14 + Review #3)
 
-- **Generated:** `2026-11-25T20:56:03.889546+00:00` · **Executor:** `DISARMED` (`$0` funded budget)
+- **Generated:** `2026-11-25T21:35:50.615977+00:00` · **Executor:** `DISARMED` (`$0` funded budget)
 
 ## Idea 12 — Cross-Venue Price Discovery (With 1-Step Delay & Swapped-Label Controls)
 
 | Symbol | Samples | WLX→NBX Hit% (bps) | NBX→WLX Hit% (bps) | WLX Delayed +1 Step (bps) | Swapped Placebo (bps) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `BTCUSDT` | `1192` | `57.3%` (`+1.54`) | `53.6%` (`+2.27`) | `-0.79` | `+0.00` |
-| `ETHUSDT` | `1214` | `54.3%` (`+1.62`) | `63.3%` (`+4.51`) | `-0.05` | `-0.33` |
-| `SOLUSDT` | `1136` | `52.4%` (`+0.87`) | `51.2%` (`+3.00`) | `+0.12` | `-0.51` |
-| `XRPUSDT` | `1238` | `52.8%` (`+0.90`) | `57.3%` (`+3.30`) | `-0.30` | `+0.43` |
+| `BTCUSDT` | `727` | `56.8%` (`+1.46`) | `53.9%` (`+2.38`) | `-0.77` | `+0.09` |
+| `ETHUSDT` | `590` | `54.1%` (`+1.55`) | `62.7%` (`+4.40`) | `-0.07` | `+0.16` |
+| `SOLUSDT` | `954` | `51.9%` (`+0.76`) | `51.5%` (`+3.04`) | `+0.06` | `+0.51` |
+| `XRPUSDT` | `622` | `53.1%` (`+0.89`) | `57.4%` (`+3.33`) | `-0.37` | `-0.15` |
 
-## Idea 13 — Event-Driven vs. Fixed-Cadence Engine Runs
-- **Fixed 2h Evaluations:** `13003` · **Event-Triggered Evaluations:** `7144` · **CPU Saved:** **`45.1%`**
-- **Triggers Captured:** `266 / 267` (**`99.63%`**)
+## Idea 13 — Event-Driven vs. Fixed-Cadence Engine Runs (Measured CPU & Missed-Trigger Cost)
+- **Evaluations:** `13002` fixed → `7143` event (`45.1%` fewer evals)
+- **Measured Process CPU:** `468.8 ms` → `390.6 ms` (**`16.7%` CPU saved**) · **p95 Bar Latency:** `0.1298 ms` vs `0.1290 ms`
+- **Triggers Captured:** `266 / 267` (`99.63%`) · **Missed Trigger 24h Net P&L (bps):** `[-61.22]`
 
-## Idea 14 — Blind Prospective Paper Bake-Off Manifest
-- **Sealed Key File:** `D:\GitHub\Trade\evidence\forward\blind-bakeoff-sealed-key.json`
+## Idea 14 — Blind Prospective Paper Bake-Off Manifest (Concealed Salt, Key Outside Git)
+- **Sealed Key SHA-256 Commitment:** `67ec03c38fb5c5dbc4fdcee0e24e370844d200aa8839424bceec9fbf20dfd49c`
 
 | Blinded Alias | Identity Hash | Status |
 | --- | --- | --- |
-| `BLIND_ARM_A` | `850dab259f54` | `PENDING_PROSPECTIVE_WINDOW` |
-| `BLIND_ARM_B` | `ac6c039ca0b1` | `PENDING_PROSPECTIVE_WINDOW` |
-| `BLIND_ARM_C` | `bd6040ae587e` | `PENDING_PROSPECTIVE_WINDOW` |
-| `BLIND_ARM_D` | `e62aab674f1c` | `PENDING_PROSPECTIVE_WINDOW` |
+| `BLIND_ARM_A` | `b564918bd6bc` | `PENDING_PROSPECTIVE_WINDOW` |
+| `BLIND_ARM_B` | `c109bc881578` | `PENDING_PROSPECTIVE_WINDOW` |
+| `BLIND_ARM_C` | `e9dcf5db7d36` | `PENDING_PROSPECTIVE_WINDOW` |
+| `BLIND_ARM_D` | `ece9239a89ce` | `PENDING_PROSPECTIVE_WINDOW` |
 
 ## Review Priority #3 & F11 — Cost/Missed-Fill Break-Even Sweep & `SLOW_40PCT_PLUS_CASH` Control
 

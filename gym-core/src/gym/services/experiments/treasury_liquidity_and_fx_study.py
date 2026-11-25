@@ -94,44 +94,90 @@ def _sim_prefund_split(
     *,
     order_usdt: float = 125.0,
     outage_nbx_frac: float = 0.0,
+    sides: list[str] | None = None,
+    settlement_steps: int = 1,
 ) -> dict:
-    """Simulate sequential BUY/SELL orders with fixed venue cash balances (no instant cross-venue transfer)."""
-    nbx_cash, wlx_cash = nbx_init, wlx_init
+    """Strict venue-inventory & settlement ledger: buys debit cash and credit units; cash only returns after explicit sells settle."""
+    cash = {"nobitex": float(nbx_init), "wallex": float(wlx_init)}
+    units = {"nobitex": 0.0, "wallex": 0.0}
+    pending_cash: list[tuple[int, str, float]] = []  # (settle_idx, venue, amount)
     costs_bps: list[float] = []
     missed = 0
+    executed = 0
     total = 0
     outage_start = int((1.0 - outage_nbx_frac) * len(snaps)) if outage_nbx_frac > 0 else len(snaps)
+    last_mid = 1.0
 
     for idx, m in enumerate(snaps):
+        # Release settled sale proceeds
+        still_pending = []
+        for s_idx, ven, amt in pending_cash:
+            if s_idx <= idx:
+                cash[ven] += amt
+            else:
+                still_pending.append((s_idx, ven, amt))
+        pending_cash = still_pending
+
         total += 1
         mid = 0.5 * (m["w_mid"] + m["n_mid"])
-        wc, _ = _taker_cost_bps(m["w_asks"], mid, "BUY", order_usdt, 25.0)
-        nc, _ = _taker_cost_bps(m["n_asks"], mid, "BUY", order_usdt, 16.0)
+        last_mid = mid
+        side = sides[idx] if (sides is not None and idx < len(sides)) else ("BUY" if idx % 2 == 0 else "SELL")
         nbx_up = idx < outage_start
-        prefer_nbx = nbx_up and (nc <= wc)
-        if prefer_nbx and nbx_cash >= order_usdt:
-            nbx_cash -= order_usdt
-            costs_bps.append(nc)
-            # Replenish on same venue 4 steps later (representing local sell cycle)
-            nbx_cash += order_usdt * (1.0 - nc / 10_000.0)
-        elif wlx_cash >= order_usdt:
-            wlx_cash -= order_usdt
-            costs_bps.append(wc)
-            wlx_cash += order_usdt * (1.0 - wc / 10_000.0)
-        elif nbx_up and nbx_cash >= order_usdt:
-            nbx_cash -= order_usdt
-            costs_bps.append(nc)
-            nbx_cash += order_usdt * (1.0 - nc / 10_000.0)
-        else:
-            missed += 1
 
+        if side == "BUY":
+            wc, wf = _taker_cost_bps(m["w_asks"], mid, "BUY", order_usdt, 25.0)
+            nc, nf = _taker_cost_bps(m["n_asks"], mid, "BUY", order_usdt, 16.0)
+            order_venues = ("nobitex", "wallex") if (nbx_up and nc <= wc) else ("wallex", "nobitex")
+            filled = False
+            for ven in order_venues:
+                if ven == "nobitex" and not nbx_up:
+                    continue
+                c_bps, f_frac = (nc, nf) if ven == "nobitex" else (wc, wf)
+                if cash[ven] >= order_usdt and f_frac > 0:
+                    spent = order_usdt * f_frac
+                    cash[ven] -= spent
+                    eff_px = mid * (1.0 + c_bps / 10_000.0)
+                    units[ven] += spent / max(1e-9, eff_px)
+                    costs_bps.append(c_bps)
+                    executed += 1
+                    filled = True
+                    break
+            if not filled:
+                missed += 1
+        else:
+            wc, wf = _taker_cost_bps(m["w_bids"], mid, "SELL", order_usdt, 25.0)
+            nc, nf = _taker_cost_bps(m["n_bids"], mid, "SELL", order_usdt, 16.0)
+            order_venues = ("nobitex", "wallex") if (nbx_up and nc <= wc) else ("wallex", "nobitex")
+            filled = False
+            for ven in order_venues:
+                if ven == "nobitex" and not nbx_up:
+                    continue
+                if units[ven] * mid >= order_usdt * 0.25:
+                    c_bps, f_frac = (nc, nf) if ven == "nobitex" else (wc, wf)
+                    sell_u = min(units[ven], (order_usdt * f_frac) / max(1e-9, mid))
+                    if sell_u > 0:
+                        units[ven] -= sell_u
+                        proceeds = sell_u * mid * (1.0 - c_bps / 10_000.0)
+                        pending_cash.append((idx + max(1, settlement_steps), ven, proceeds))
+                        costs_bps.append(c_bps)
+                        executed += 1
+                        filled = True
+                        break
+            if not filled:
+                missed += 1
+
+    settled_total = cash["nobitex"] + cash["wallex"] + sum(a for _, _, a in pending_cash)
+    inv_val = (units["nobitex"] + units["wallex"]) * last_mid
     return {
         "nbx_init_usdt": nbx_init,
         "wlx_init_usdt": wlx_init,
         "orders": total,
+        "executed": executed,
+        "missed": missed,
         "missed_pct": round(missed / max(1, total) * 100.0, 1),
         "mean_exec_cost_bps": round(mean(costs_bps), 2) if costs_bps else 0.0,
-        "ending_equity_usdt": round(nbx_cash + wlx_cash, 2),
+        "ending_cash_usdt": round(cash["nobitex"] + cash["wallex"], 2),
+        "ending_equity_usdt": round(settled_total + inv_val, 2),
     }
 
 
@@ -155,62 +201,76 @@ def _run_idea_7_venue_prefunding(matched_books: dict[str, list[dict]]) -> list[d
     return rows
 
 
-def _run_idea_8_gold_substitution(con) -> dict:
-    """Idea 8: Compare XAUT-only, fixed 50/50 XAUT/PAXG split, and cost-aware switching (+ -3% issuer shock)."""
-    xaut = {b.ts_avail.date().isoformat(): b.close for b in load_keyed_candles(con, "XAUTUSDT", "1d", limit=2500)}
-    paxg = {b.ts_avail.date().isoformat(): b.close for b in load_keyed_candles(con, "PAXGUSDT", "1d", limit=2500)}
-    days = sorted(d for d in (set(xaut) & set(paxg)) if d >= "2024-01-01")
+def _run_idea_8_gold_substitution(con, *, as_of: datetime | None = None) -> dict:
+    """Idea 8: Compare XAUT-only, 50/50 split, and switching under 3 explicit execution timings (same-close, next-open, next-close)."""
+    cutoff = as_of or datetime.now(UTC)
+    x_bars = {b.ts_avail.date().isoformat(): b for b in load_keyed_candles(con, "XAUTUSDT", "1d", limit=2500, as_of=cutoff)}
+    p_bars = {b.ts_avail.date().isoformat(): b for b in load_keyed_candles(con, "PAXGUSDT", "1d", limit=2500, as_of=cutoff)}
+    days = sorted(d for d in (set(x_bars) & set(p_bars)) if d >= "2024-01-01")
     if len(days) < 30:
         return {"status": "INSUFFICIENT_GOLD_OVERLAP", "days": len(days)}
 
     rt_fee = 0.0032
     shock_idx = len(days) // 2
-    nav_x, nav_sp, nav_sw = {}, {}, {}
-    nav_x_s, nav_sp_s, nav_sw_s = {}, {}, {}
-    held = "XAUT"
-    qty_x = 1000.0 / xaut[days[0]]
-    qty_sp_x, qty_sp_p = 500.0 / xaut[days[0]], 500.0 / paxg[days[0]]
-    qty_sw = 1000.0 / xaut[days[0]]
-    switches = 0
 
-    for i, d in enumerate(days):
-        px_x, px_p = xaut[d], paxg[d]
-        sh_x = px_x * (0.97 if i >= shock_idx else 1.0)
-        # Cost-aware switch when relative basis exceeds 60 bps
-        ratio = (px_p - px_x) / px_x
-        if held == "XAUT" and ratio < -0.006:
-            qty_sw = (qty_sw * px_x * (1.0 - rt_fee)) / px_p
-            held = "PAXG"
-            switches += 1
-        elif held == "PAXG" and ratio > 0.006:
-            qty_sw = (qty_sw * px_p * (1.0 - rt_fee)) / px_x
-            held = "XAUT"
-            switches += 1
+    def _sim_switch(mode: str, *, apply_shock: bool = False) -> tuple[dict[str, float], int]:
+        nav: dict[str, float] = {}
+        held = "XAUT"
+        qty = 1000.0 / x_bars[days[0]].close
+        switches = 0
+        for i, d in enumerate(days):
+            sh = 0.97 if (apply_shock and i >= shock_idx) else 1.0
+            px_x = x_bars[d].close * sh
+            px_p = p_bars[d].close
+            nav[d] = qty * (px_x if held == "XAUT" else px_p)
+            if i + 1 >= len(days) and mode != "same_close":
+                continue
+            ratio = (px_p - px_x) / px_x
+            want = "PAXG" if (held == "XAUT" and ratio < -0.006) else ("XAUT" if (held == "PAXG" and ratio > 0.006) else None)
+            if want is not None:
+                sh_ex = 0.97 if (apply_shock and (i if mode == "same_close" else i + 1) >= shock_idx) else 1.0
+                if mode == "same_close":
+                    ex_x, ex_p = px_x, px_p
+                elif mode == "next_open":
+                    ex_x, ex_p = x_bars[days[i + 1]].open * sh_ex, p_bars[days[i + 1]].open
+                else:
+                    ex_x, ex_p = x_bars[days[i + 1]].close * sh_ex, p_bars[days[i + 1]].close
+                if want == "PAXG":
+                    qty = (qty * ex_x * (1.0 - rt_fee)) / ex_p
+                else:
+                    qty = (qty * ex_p * (1.0 - rt_fee)) / ex_x
+                held = want
+                switches += 1
+        return nav, switches
 
-        nav_x[d] = qty_x * px_x
-        nav_sp[d] = qty_sp_x * px_x + qty_sp_p * px_p
-        nav_sw[d] = qty_sw * (px_x if held == "XAUT" else px_p)
+    nav_x = {d: (1000.0 / x_bars[days[0]].close) * x_bars[d].close for d in days}
+    nav_sp = {d: (500.0 / x_bars[days[0]].close) * x_bars[d].close + (500.0 / p_bars[days[0]].close) * p_bars[d].close for d in days}
+    nav_x_s = {d: (1000.0 / x_bars[days[0]].close) * x_bars[d].close * (0.97 if i >= shock_idx else 1.0) for i, d in enumerate(days)}
+    nav_sp_s = {d: (500.0 / x_bars[days[0]].close) * x_bars[d].close * (0.97 if i >= shock_idx else 1.0) + (500.0 / p_bars[days[0]].close) * p_bars[d].close for i, d in enumerate(days)}
 
-        nav_x_s[d] = qty_x * sh_x
-        nav_sp_s[d] = qty_sp_x * sh_x + qty_sp_p * px_p
-        nav_sw_s[d] = qty_sw * (sh_x if held == "XAUT" else px_p)
+    nav_sc, sw_sc = _sim_switch("same_close")
+    nav_no, sw_no = _sim_switch("next_open")
+    nav_nc, sw_nc = _sim_switch("next_close")
+    nav_no_s, _ = _sim_switch("next_open", apply_shock=True)
 
     return {
         "days": len(days),
-        "switches": switches,
+        "switches": sw_no,
         "xaut_only": portfolio_metrics(nav_x, starting_nav=1000.0),
         "split_50_50": portfolio_metrics(nav_sp, starting_nav=1000.0),
-        "cost_aware_switch": portfolio_metrics(nav_sw, starting_nav=1000.0),
+        "switch_same_close_upper_bound": portfolio_metrics(nav_sc, starting_nav=1000.0),
+        "switch_causal_next_open": portfolio_metrics(nav_no, starting_nav=1000.0),
+        "switch_causal_next_close": portfolio_metrics(nav_nc, starting_nav=1000.0),
         "issuer_shock_3pct_ret": {
             "xaut_only_pct": portfolio_metrics(nav_x_s, starting_nav=1000.0)["ret_pct"],
             "split_50_50_pct": portfolio_metrics(nav_sp_s, starting_nav=1000.0)["ret_pct"],
-            "cost_aware_switch_pct": portfolio_metrics(nav_sw_s, starting_nav=1000.0)["ret_pct"],
+            "switch_next_open_shocked_pct": portfolio_metrics(nav_no_s, starting_nav=1000.0)["ret_pct"],
         },
     }
 
 
 def _run_idea_9_liquidation_deadlines(matched_books: dict[str, list[dict]]) -> list[dict]:
-    """Idea 9: Rank portfolios by spendable USDT recovered within 5m, 1h, and 1d depth limits."""
+    """Idea 9: Rank portfolios by net spendable USDT recovered against the ORIGINAL portfolio (never dropping missing books)."""
     books = {
         "BTC_ETH_XAUT_CORE": {"BTCUSDT": 0.40, "ETHUSDT": 0.30, "XAUTUSDT": 0.30},
         "ALT_HEAVY_BASKET": {"SOLUSDT": 0.35, "XRPUSDT": 0.35, "ADAUSDT": 0.30},
@@ -218,16 +278,21 @@ def _run_idea_9_liquidation_deadlines(matched_books: dict[str, list[dict]]) -> l
     deadlines = (("5m", 1.0), ("1h", 4.0), ("1d", 20.0))
     rows = []
     for book_name, weights in books.items():
+        orig_w = sum(weights.values())
         for notional in (10_000.0, 50_000.0):
             for dl_name, depth_mult in deadlines:
-                rec_fracs, shortfalls = [], []
+                net_cash_w = 0.0
+                unpriced_w = 0.0
+                shortfalls = []
+                covered_w = 0.0
                 for sym, w in weights.items():
                     snaps = matched_books.get(sym, [])
                     if not snaps:
+                        unpriced_w += w
                         continue
+                    covered_w += w
                     m = snaps[-1]
-                    leg_n = notional * w
-                    # Combine Nobitex + Wallex bid depth scaled by deadline liquidity multiplier
+                    leg_n = notional * (w / orig_w)
                     comb_bids = sorted(
                         [(p, q * depth_mult) for p, q in (m["n_bids"] + m["w_bids"])],
                         key=lambda x: x[0],
@@ -235,18 +300,21 @@ def _run_idea_9_liquidation_deadlines(matched_books: dict[str, list[dict]]) -> l
                     )
                     mid = 0.5 * (m["n_mid"] + m["w_mid"])
                     vwap, fill_f = walk_orderbook_vwap(comb_bids, leg_n)
+                    fee_frac = 0.0016
                     sf = ((mid - vwap) / mid * 10_000.0 + 16.0) if (mid > 0 and vwap > 0) else 50.0
-                    rec_fracs.append(w * fill_f)
+                    # Net spendable cash after slippage & 16 bps taker fee relative to decision mid
+                    net_cash_w += w * fill_f * max(0.0, (vwap / mid) * (1.0 - fee_frac)) if (mid > 0 and vwap > 0) else 0.0
                     shortfalls.append(w * sf)
-                tot_w = sum(w for s, w in weights.items() if matched_books.get(s))
-                rec_pct = (sum(rec_fracs) / max(1e-9, tot_w)) * 100.0 if tot_w > 0 else 0.0
-                sf_bps = (sum(shortfalls) / max(1e-9, tot_w)) if tot_w > 0 else 0.0
+                rec_pct = (net_cash_w / orig_w) * 100.0 if orig_w > 0 else 0.0
+                unpriced_pct = (unpriced_w / orig_w) * 100.0 if orig_w > 0 else 0.0
+                sf_bps = (sum(shortfalls) / max(1e-9, covered_w)) if covered_w > 0 else 0.0
                 rows.append({
                     "book": book_name,
                     "notional_usdt": notional,
                     "deadline": dl_name,
                     "cash_recovered_pct": round(rec_pct, 1),
-                    "residual_inventory_pct": round(100.0 - rec_pct, 1),
+                    "residual_inventory_pct": round(max(0.0, 100.0 - rec_pct), 1),
+                    "unpriced_inventory_pct": round(unpriced_pct, 1),
                     "shortfall_bps": round(sf_bps, 2),
                 })
     return rows
@@ -348,19 +416,20 @@ def _write_markdown(report_path: Path, p: dict) -> None:
     i8 = p["idea_8_gold_substitution"]
     lines.extend([
         "",
-        "## Idea 8 — Gold Token Substitution (`XAUT` vs `PAXG`, +3% Issuer-Discount Stress)",
-        f"- **Overlap Days:** `{i8.get('days')}` · **Cost-Aware Switches:** `{i8.get('switches', 0)}`",
-        f"- **Unstressed Return:** `XAUT_ONLY={i8.get('xaut_only', {}).get('ret_pct')}%` · `SPLIT_50_50={i8.get('split_50_50', {}).get('ret_pct')}%` · `COST_AWARE_SWITCH={i8.get('cost_aware_switch', {}).get('ret_pct')}%`",
-        f"- **Under -3% XAUT Issuer Shock:** `{i8.get('issuer_shock_3pct_ret')}`",
+        "## Idea 8 — Gold Token Substitution (`XAUT` vs `PAXG`, 3 Execution Timings + -3% Issuer Shock)",
+        f"- **Overlap Days (Closed Bars Only):** `{i8.get('days')}` · **Switches:** `{i8.get('switches', 0)}`",
+        f"- **Hold Benchmarks:** `XAUT_ONLY={i8.get('xaut_only', {}).get('ret_pct')}%` · `SPLIT_50_50={i8.get('split_50_50', {}).get('ret_pct')}%`",
+        f"- **Switching Timing Sensitivity:** `SAME_CLOSE_UPPER={i8.get('switch_same_close_upper_bound', {}).get('ret_pct')}%` · `CAUSAL_NEXT_OPEN={i8.get('switch_causal_next_open', {}).get('ret_pct')}%` · `CAUSAL_NEXT_CLOSE={i8.get('switch_causal_next_close', {}).get('ret_pct')}%`",
+        f"- **Under -3% XAUT Issuer Shock (Applied to Execution & Marks):** `{i8.get('issuer_shock_3pct_ret')}`",
         "",
-        "## Idea 9 — Cash Recoverable on Deadline (Live Walked L2 Depth)",
+        "## Idea 9 — Cash Recoverable on Deadline (Net of Fees, Original Portfolio Denominator)",
         "",
-        "| Book | Notional | Deadline | Cash Recovered% | Residual Inv% | Shortfall (bps) |",
-        "| --- | ---: | --- | ---: | ---: | ---: |",
+        "| Book | Notional | Deadline | Net Cash Recovered% | Residual Inv% | Unpriced Inv% | Shortfall (bps) |",
+        "| --- | ---: | --- | ---: | ---: | ---: | ---: |",
     ])
     for r in p["idea_9_liquidation_deadlines"]:
         lines.append(
-            f"| `{r['book']}` | `${r['notional_usdt']:,.0f}` | `{r['deadline']}` | `{r['cash_recovered_pct']:.1f}%` | `{r['residual_inventory_pct']:.1f}%` | `{r['shortfall_bps']:+.2f}` |"
+            f"| `{r['book']}` | `${r['notional_usdt']:,.0f}` | `{r['deadline']}` | `{r['cash_recovered_pct']:.1f}%` | `{r['residual_inventory_pct']:.1f}%` | `{r['unpriced_inventory_pct']:.1f}%` | `{r['shortfall_bps']:+.2f}` |"
         )
     i10 = p["idea_10_tmn_fx_separation"]
     lines.extend([

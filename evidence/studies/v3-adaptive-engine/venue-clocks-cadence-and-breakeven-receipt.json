@@ -1,80 +1,98 @@
 {
-  "generated_at": "2026-11-25T20:56:03.889546+00:00",
+  "generated_at": "2026-11-25T21:35:50.615977+00:00",
   "executor_state": "DISARMED",
   "idea_12_price_discovery": [
     {
       "symbol": "BTCUSDT",
-      "samples": 1192,
-      "wlx_leads_nbx_hit_pct": 57.3,
-      "wlx_leads_nbx_bps": 1.54,
-      "nbx_leads_wlx_hit_pct": 53.6,
-      "nbx_leads_wlx_bps": 2.27,
-      "wlx_delayed_1step_bps": -0.79,
-      "swapped_placebo_bps": 0.0
+      "total_samples": 1226,
+      "samples": 727,
+      "eligible_samples": 727,
+      "wlx_leads_nbx_hit_pct": 56.8,
+      "wlx_leads_nbx_bps": 1.46,
+      "nbx_leads_wlx_hit_pct": 53.9,
+      "nbx_leads_wlx_bps": 2.38,
+      "wlx_delayed_1step_bps": -0.77,
+      "swapped_placebo_bps": 0.09
     },
     {
       "symbol": "ETHUSDT",
-      "samples": 1214,
-      "wlx_leads_nbx_hit_pct": 54.3,
-      "wlx_leads_nbx_bps": 1.62,
-      "nbx_leads_wlx_hit_pct": 63.3,
-      "nbx_leads_wlx_bps": 4.51,
-      "wlx_delayed_1step_bps": -0.05,
-      "swapped_placebo_bps": -0.33
+      "total_samples": 1248,
+      "samples": 590,
+      "eligible_samples": 590,
+      "wlx_leads_nbx_hit_pct": 54.1,
+      "wlx_leads_nbx_bps": 1.55,
+      "nbx_leads_wlx_hit_pct": 62.7,
+      "nbx_leads_wlx_bps": 4.4,
+      "wlx_delayed_1step_bps": -0.07,
+      "swapped_placebo_bps": 0.16
     },
     {
       "symbol": "SOLUSDT",
-      "samples": 1136,
-      "wlx_leads_nbx_hit_pct": 52.4,
-      "wlx_leads_nbx_bps": 0.87,
-      "nbx_leads_wlx_hit_pct": 51.2,
-      "nbx_leads_wlx_bps": 3.0,
-      "wlx_delayed_1step_bps": 0.12,
-      "swapped_placebo_bps": -0.51
+      "total_samples": 1169,
+      "samples": 954,
+      "eligible_samples": 954,
+      "wlx_leads_nbx_hit_pct": 51.9,
+      "wlx_leads_nbx_bps": 0.76,
+      "nbx_leads_wlx_hit_pct": 51.5,
+      "nbx_leads_wlx_bps": 3.04,
+      "wlx_delayed_1step_bps": 0.06,
+      "swapped_placebo_bps": 0.51
     },
     {
       "symbol": "XRPUSDT",
-      "samples": 1238,
-      "wlx_leads_nbx_hit_pct": 52.8,
-      "wlx_leads_nbx_bps": 0.9,
-      "nbx_leads_wlx_hit_pct": 57.3,
-      "nbx_leads_wlx_bps": 3.3,
-      "wlx_delayed_1step_bps": -0.3,
-      "swapped_placebo_bps": 0.43
+      "total_samples": 1272,
+      "samples": 622,
+      "eligible_samples": 622,
+      "wlx_leads_nbx_hit_pct": 53.1,
+      "wlx_leads_nbx_bps": 0.89,
+      "nbx_leads_wlx_hit_pct": 57.4,
+      "nbx_leads_wlx_bps": 3.33,
+      "wlx_delayed_1step_bps": -0.37,
+      "swapped_placebo_bps": -0.15
     }
   ],
   "idea_13_event_vs_fixed_cadence": {
-    "fixed_2h_evaluations": 13003,
-    "event_triggered_evaluations": 7144,
+    "fixed_2h_evaluations": 13002,
+    "event_triggered_evaluations": 7143,
     "cpu_evaluations_saved_pct": 45.1,
+    "fixed_cpu_ms": 468.8,
+    "event_cpu_ms": 390.6,
+    "measured_cpu_saved_pct": 16.7,
+    "fixed_p95_bar_ms": 0.1298,
+    "event_p95_bar_ms": 0.129,
     "fixed_triggers": 267,
     "event_triggers_captured": 266,
-    "trigger_capture_rate_pct": 99.63
+    "trigger_capture_rate_pct": 99.63,
+    "missed_trigger_count": 1,
+    "missed_triggers_net_24h_bps": [
+      -61.22
+    ]
   },
   "idea_14_blind_bakeoff": {
     "blinded_arms": [
       {
         "alias": "BLIND_ARM_A",
-        "identity_hash": "850dab259f54",
+        "identity_hash": "b564918bd6bc",
         "verdict": "PENDING_PROSPECTIVE_WINDOW"
       },
       {
         "alias": "BLIND_ARM_B",
-        "identity_hash": "ac6c039ca0b1",
+        "identity_hash": "c109bc881578",
         "verdict": "PENDING_PROSPECTIVE_WINDOW"
       },
       {
         "alias": "BLIND_ARM_C",
-        "identity_hash": "bd6040ae587e",
+        "identity_hash": "e9dcf5db7d36",
         "verdict": "PENDING_PROSPECTIVE_WINDOW"
       },
       {
         "alias": "BLIND_ARM_D",
-        "identity_hash": "e62aab674f1c",
+        "identity_hash": "ece9239a89ce",
         "verdict": "PENDING_PROSPECTIVE_WINDOW"
       }
     ],
-    "sealed_key_path": "D:\\GitHub\\Trade\\evidence\\forward\\blind-bakeoff-sealed-key.json"
+    "sealed_key_sha256": "67ec03c38fb5c5dbc4fdcee0e24e370844d200aa8839424bceec9fbf20dfd49c",
+    "sealed_key_path": "D:\\GitHub\\Trade\\data\\live\\private\\blind-bakeoff-sealed-key.json"
   },
   "cost_and_slow40_breakeven_sweep": [
     {

@@ -342,7 +342,7 @@ def record_champion_v2_journal(
                 slow_w[ms] = round(slow_w.get(ms, 0.0) + take, 4)
                 free_c -= take
 
-        quotes = _latest_live_quotes(con, multi_venue_db, all_syms)
+        quotes = _latest_live_quotes(con, multi_venue_db, all_syms, as_of=now)
     finally:
         con.close()
 

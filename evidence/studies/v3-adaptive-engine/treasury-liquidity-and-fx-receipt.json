@@ -1,71 +1,85 @@
 {
-  "generated_at": "2026-11-25T20:55:41.596203+00:00",
+  "generated_at": "2026-11-25T21:35:32.878336+00:00",
   "executor_state": "DISARMED",
   "idea_7_prefunding_sweep": [
     {
       "split_label": "NBX_0_WLX_1000",
-      "normal_cost_bps": 41.83,
-      "normal_missed_pct": 31.9,
-      "outage_cost_bps": 41.83,
-      "outage_missed_pct": 31.9
+      "normal_cost_bps": 39.12,
+      "normal_missed_pct": 38.5,
+      "outage_cost_bps": 39.12,
+      "outage_missed_pct": 38.5
     },
     {
       "split_label": "NBX_250_WLX_750",
-      "normal_cost_bps": 36.81,
-      "normal_missed_pct": 33.7,
-      "outage_cost_bps": 36.81,
-      "outage_missed_pct": 33.7
+      "normal_cost_bps": 34.63,
+      "normal_missed_pct": 42.1,
+      "outage_cost_bps": 34.63,
+      "outage_missed_pct": 42.1
     },
     {
       "split_label": "NBX_500_WLX_500",
-      "normal_cost_bps": 25.07,
-      "normal_missed_pct": 2.6,
-      "outage_cost_bps": 25.07,
-      "outage_missed_pct": 2.6
+      "normal_cost_bps": 28.76,
+      "normal_missed_pct": 25.9,
+      "outage_cost_bps": 28.76,
+      "outage_missed_pct": 25.9
     },
     {
       "split_label": "NBX_750_WLX_250",
-      "normal_cost_bps": 21.84,
-      "normal_missed_pct": 0.0,
-      "outage_cost_bps": 21.72,
-      "outage_missed_pct": 20.8
+      "normal_cost_bps": 24.51,
+      "normal_missed_pct": 21.0,
+      "outage_cost_bps": 24.59,
+      "outage_missed_pct": 23.4
     },
     {
       "split_label": "NBX_1000_WLX_0",
-      "normal_cost_bps": 22.44,
-      "normal_missed_pct": 0.0,
-      "outage_cost_bps": 21.69,
+      "normal_cost_bps": 23.89,
+      "normal_missed_pct": 3.5,
+      "outage_cost_bps": 23.63,
       "outage_missed_pct": 25.0
     }
   ],
   "idea_8_gold_substitution": {
-    "days": 842,
+    "days": 841,
     "switches": 49,
     "xaut_only": {
-      "days": 842,
-      "ending_nav": 1460.82,
-      "ret_pct": 46.08,
-      "ann_sharpe": 0.743,
-      "max_dd_pct": 36.38
+      "days": 841,
+      "ending_nav": 1474.55,
+      "ret_pct": 47.45,
+      "ann_sharpe": 0.758,
+      "max_dd_pct": 35.95
     },
     "split_50_50": {
-      "days": 842,
-      "ending_nav": 1467.77,
-      "ret_pct": 46.78,
-      "ann_sharpe": 0.766,
-      "max_dd_pct": 34.97
+      "days": 841,
+      "ending_nav": 1479.51,
+      "ret_pct": 47.95,
+      "ann_sharpe": 0.78,
+      "max_dd_pct": 34.65
     },
-    "cost_aware_switch": {
-      "days": 842,
-      "ending_nav": 2384.87,
-      "ret_pct": 138.49,
-      "ann_sharpe": 1.313,
+    "switch_same_close_upper_bound": {
+      "days": 841,
+      "ending_nav": 2400.65,
+      "ret_pct": 140.06,
+      "ann_sharpe": 1.317,
       "max_dd_pct": 31.19
     },
+    "switch_causal_next_open": {
+      "days": 841,
+      "ending_nav": 1880.82,
+      "ret_pct": 88.08,
+      "ann_sharpe": 0.991,
+      "max_dd_pct": 32.49
+    },
+    "switch_causal_next_close": {
+      "days": 841,
+      "ending_nav": 1482.67,
+      "ret_pct": 48.27,
+      "ann_sharpe": 0.674,
+      "max_dd_pct": 33.28
+    },
     "issuer_shock_3pct_ret": {
-      "xaut_only_pct": 41.7,
-      "split_50_50_pct": 44.59,
-      "cost_aware_switch_pct": 138.49
+      "xaut_only_pct": 43.03,
+      "split_50_50_pct": 45.74,
+      "switch_next_open_shocked_pct": 130.03
     }
   },
   "idea_9_liquidation_deadlines": [
@@ -73,97 +87,109 @@
       "book": "BTC_ETH_XAUT_CORE",
       "notional_usdt": 10000.0,
       "deadline": "5m",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 26.12
+      "cash_recovered_pct": 94.4,
+      "residual_inventory_pct": 5.6,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 24.81
     },
     {
       "book": "BTC_ETH_XAUT_CORE",
       "notional_usdt": 10000.0,
       "deadline": "1h",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 22.03
+      "cash_recovered_pct": 99.8,
+      "residual_inventory_pct": 0.2,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 22.76
     },
     {
       "book": "BTC_ETH_XAUT_CORE",
       "notional_usdt": 10000.0,
       "deadline": "1d",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 20.14
+      "cash_recovered_pct": 99.8,
+      "residual_inventory_pct": 0.2,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 22.45
     },
     {
       "book": "BTC_ETH_XAUT_CORE",
       "notional_usdt": 50000.0,
       "deadline": "5m",
-      "cash_recovered_pct": 92.2,
-      "residual_inventory_pct": 7.8,
-      "shortfall_bps": 28.96
+      "cash_recovered_pct": 44.7,
+      "residual_inventory_pct": 55.3,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 25.04
     },
     {
       "book": "BTC_ETH_XAUT_CORE",
       "notional_usdt": 50000.0,
       "deadline": "1h",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 26.45
+      "cash_recovered_pct": 88.9,
+      "residual_inventory_pct": 11.1,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 25.04
     },
     {
       "book": "BTC_ETH_XAUT_CORE",
       "notional_usdt": 50000.0,
       "deadline": "1d",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 22.03
+      "cash_recovered_pct": 99.8,
+      "residual_inventory_pct": 0.2,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 22.76
     },
     {
       "book": "ALT_HEAVY_BASKET",
       "notional_usdt": 10000.0,
       "deadline": "5m",
-      "cash_recovered_pct": 79.8,
-      "residual_inventory_pct": 20.2,
-      "shortfall_bps": 41.42
+      "cash_recovered_pct": 99.4,
+      "residual_inventory_pct": 0.6,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 56.0
     },
     {
       "book": "ALT_HEAVY_BASKET",
       "notional_usdt": 10000.0,
       "deadline": "1h",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 31.01
+      "cash_recovered_pct": 99.8,
+      "residual_inventory_pct": 0.2,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 21.64
     },
     {
       "book": "ALT_HEAVY_BASKET",
       "notional_usdt": 10000.0,
       "deadline": "1d",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 26.63
+      "cash_recovered_pct": 99.8,
+      "residual_inventory_pct": 0.2,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 20.71
     },
     {
       "book": "ALT_HEAVY_BASKET",
       "notional_usdt": 50000.0,
       "deadline": "5m",
-      "cash_recovered_pct": 22.2,
-      "residual_inventory_pct": 77.8,
-      "shortfall_bps": 45.97
+      "cash_recovered_pct": 40.5,
+      "residual_inventory_pct": 59.5,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 93.94
     },
     {
       "book": "ALT_HEAVY_BASKET",
       "notional_usdt": 50000.0,
       "deadline": "1h",
-      "cash_recovered_pct": 75.6,
-      "residual_inventory_pct": 24.4,
-      "shortfall_bps": 42.49
+      "cash_recovered_pct": 99.3,
+      "residual_inventory_pct": 0.7,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 68.45
     },
     {
       "book": "ALT_HEAVY_BASKET",
       "notional_usdt": 50000.0,
       "deadline": "1d",
-      "cash_recovered_pct": 100.0,
-      "residual_inventory_pct": 0.0,
-      "shortfall_bps": 31.01
+      "cash_recovered_pct": 99.8,
+      "residual_inventory_pct": 0.2,
+      "unpriced_inventory_pct": 0.0,
+      "shortfall_bps": 21.64
     }
   ],
   "idea_10_tmn_fx_separation": {

@@ -15,7 +15,7 @@ def main() -> None:
         multi_venue_db=repo / "data" / "live" / "multi_venue_quotes.sqlite3",
         report_path=repo / "evidence" / "studies" / "v3-adaptive-engine" / "venue-clocks-cadence-and-breakeven-study.md",
         receipt_path=repo / "evidence" / "studies" / "v3-adaptive-engine" / "venue-clocks-cadence-and-breakeven-receipt.json",
-        sealed_key_path=repo / "evidence" / "forward" / "blind-bakeoff-sealed-key.json",
+        sealed_key_path=repo / "data" / "live" / "private" / "blind-bakeoff-sealed-key.json",
     )
     print("Idea 12 Price Discovery:", res["idea_12_price_discovery"])
     print("Idea 13 Event Cadence:", res["idea_13_event_vs_fixed_cadence"])

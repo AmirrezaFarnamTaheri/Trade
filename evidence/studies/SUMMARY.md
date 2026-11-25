@@ -10,30 +10,28 @@ From [ignition-and-ml/v2-champion-verification.md](ignition-and-ml/v2-champion-v
 
 | Strategy Arm | Venue Cost | Ending NAV | Full Return | Bear Stress | Ann. Sharpe | MaxDD | Fills | Fees ($) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `BASE_13_100PCT` | `NBX16` (16 bps/side) | `$1,189.79` | `+18.98%` | `-2.81%` | `0.467` | `11.96%` | `593` | `$23.54` |
-| `V1_CHAMPION_70_30` | `NBX16` | `$1,250.47` | `+25.05%` | `+2.24%` | `0.657` | `8.55%` | `985` | `$81.13` |
-| `V2_GRU11_PATHPNL_70_30` | `NBX16` | `$1,287.89` | `+28.79%` | `+3.28%` | `0.804` | `7.03%` | `1,259` | `$69.96` |
-| `V2_GRU8_CONFORMAL_60_40` | `NBX16` | **`$1,305.48`** | **`+30.55%`** | **`+5.56%`** | **`0.874`** | **`6.46%`** | `1,233` | `$83.16` |
-| `BASE_13_100PCT` | `WLX25` (25 bps/side) | `$1,176.20` | `+17.62%` | `-3.19%` | `0.441` | `12.04%` | `593` | `$36.57` |
-| `V1_CHAMPION_70_30` | `WLX25` | `$1,203.50` | `+20.35%` | `+1.08%` | `0.556` | `8.60%` | `982` | `$124.16` |
-| `V2_GRU11_PATHPNL_70_30` | `WLX25` | `$1,220.31` | `+22.03%` | `+2.08%` | `0.663` | `7.60%` | `1,154` | `$98.78` |
-| `V2_GRU8_CONFORMAL_60_40` | `WLX25` | **`$1,244.59`** | **`+24.46%`** | **`+5.19%`** | **`0.747`** | **`6.86%`** | `1,135` | `$119.45` |
+| `BASE_13_100PCT` | `NBX16` (16 bps/side) | `$1,145.44` | `+14.54%` | `-2.86%` | `0.385` | `10.97%` | `583` | `$22.52` |
+| `V1_CHAMPION_70_30` | `NBX16` | `$1,197.86` | `+19.79%` | `-1.09%` | `0.562` | `7.96%` | `977` | `$75.60` |
+| `V2_GRU11_PATHPNL_70_30` | `NBX16` | `$1,261.32` | `+26.13%` | `+1.55%` | `0.740` | `7.16%` | `1,254` | `$68.18` |
+| `V2_GRU11_PATHPNL_60_40` | `NBX16` | **`$1,264.68`** | **`+26.47%`** | **`+2.25%`** | **`0.780`** | **`6.70%`** | `1,226` | `$80.78` |
+| `BASE_13_100PCT` | `WLX25` (25 bps/side) | `$1,132.53` | `+13.25%` | `-3.22%` | `0.359` | `11.01%` | `583` | `$35.02` |
+| `V1_CHAMPION_70_30` | `WLX25` | `$1,154.80` | `+15.48%` | `-2.26%` | `0.461` | `8.07%` | `974` | `$115.65` |
+| `V2_GRU11_PATHPNL_70_30` | `WLX25` | `$1,195.85` | `+19.59%` | `-0.36%` | `0.600` | `8.26%` | `1,153` | `$96.14` |
+| `V2_GRU11_PATHPNL_60_40` | `WLX25` | **`$1,196.66`** | **`+19.67%`** | **`+0.42%`** | **`0.624`** | **`7.61%`** | `1,132` | `$115.17` |
 
-*Full 1,638-day (`2022-06..2026-11`) `1d` core benchmark:* `BASE_13_S1_S5` (`SR 1.011`, `+157.5%`, MaxDD `22.38%`) → `BASE_13 + ACCEL_BLEND_20` (`SR 1.116`, `+173.4%`, MaxDD `21.74%`).
+*Full 1,639-day (`2022-06..2026-11`) `1d` post-repair core benchmark:* `FIXED_SLOW_S1_S5_100PCT` (`SR 0.993`, `+152.24%`, MaxDD `22.35%`) — recommended standing benchmark while v2 and macro overlays remain in research.
 
-### 1B. v3 Unified Multi-Horizon Engine Evolution (`MultiHorizonBook`, `1,085d` `2024–2026`, `NBX16`)
+### 1B. v3 Unified Multi-Horizon Engine Evolution (`MultiHorizonBook`, Post-Repair `1,085d`, `NBX16`)
 
-From [v3-adaptive-engine/bear-regime-and-timeframe-study.md](v3-adaptive-engine/bear-regime-and-timeframe-study.md) (after fixing the twin-phase `1h`-offset daily-signal clock bug so **both** `0h` and `1h` phases execute daily Slow Core + Bear-Majors rebalancing causally):
+From post-repair [v3-adaptive-engine/twenty-window-macro-quadrant-study.md](v3-adaptive-engine/twenty-window-macro-quadrant-study.md) (zero-lookahead `entry_eligible`, exact dust conservation, twin-phase combined 20W scoring):
 
-| Unified Engine Variant | 24h / 72h / 7d (Bear Week) | Ending NAV | Full Return | Bear Stress | Ann. Sharpe | MaxDD | Liqs | 2024 / 2025 / 2026 |
+| Unified Engine Variant | 20W Mean / Pos | Ending NAV | Full Return | Bear Stress | Ann. Sharpe | MaxDD | Liqs | 2024 / 2025 / 2026 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| `MAIN_E3_V2_STANDALONE` *(fixed twin-phase)* | `+0.01% / +0.02% / +0.05%` | `$1,557.58` | `+55.75%` | `+4.42%` | `0.942` | `10.84%` | `0` | `+9.6% / +35.4% / +3.3%` |
-| **`E3_V2_UNIFIED_BEAR50_BR30`** *(Best Sharpe)* | `+0.92% / +1.91% / +3.32%` | **`$1,862.61`** | **`+86.25%`** | **`+21.18%`** | **`1.114`** | `15.11%` | **`0`** | `+7.9% / +41.1% / +20.9%` |
-| **`E3_V2_UNIFIED_BEAR75_BR30`** *(Hits 1/2/5 NS)* | **`+1.50% / +3.18% / +5.02%`** | **`$1,892.41`** | **`+89.23%`** | **`+25.32%`** | **`0.987`** | `19.96%` | **`0`** | `+7.0% / +38.6% / +26.2%` |
-| **`E3_V2_PLUS_CTA_VOLTGT80_M4_XAUT`** *(Hits 3/5/15 NS!)* | **`+4.91% / +7.83% / +18.12%`** | **`$2,424.64`** | **`+142.45%`** | **`+54.15%`** | **`0.996`** | `30.79%` | **`0`** | `+5.9% / +41.5% / +60.7%` |
-| **`E3_V2_4QUAD_BALANCED_DAILY_MK`** *(4-Quad Unified, `0` Liqs)* | `20W mean +2.78% (13/20 pos)` | **`$3,290.62`** | **`+223.40%`** | **`+53.56%`** | **`1.051`** | `36.15%` | **`0`** | `+18.7% / +79.7% / +53.8%` |
-| **`U3_4QUAD_CONSERVATIVE_MAKER`** *(Standalone 4-Quad Record!)* | `20W mean +3.84% (11/20 pos)` | **`$4,058.01`** | **`+304.17%`** | **`+91.33%`** | **`1.432`** | `28.68%` | **`0`** | `+22.1% / +65.8% / +98.6%` |
-| `E3_V2_UNIFIED_BEAR100_BR35` *(Max Return)* | **`+1.96% / +4.17% / +7.40%`** | **`$1,992.04`** | **`+99.19%`** | **`+31.08%`** | `0.951` | `24.50%` | **`0`** | `+3.8% / +45.9% / +30.2%` |
+| `MAIN_E3_V2_STANDALONE` *(post-repair)* | `+0.59% / 10/20` | `$1,388.60` | `+38.85%` | `-2.03%` | `0.735` | `12.99%` | `0` | `+9.6% / +27.6% / -2.3%` |
+| **`E3_V2_PLUS_BEAR50_PREV`** *(Best 0-Liq Sharpe)* | `+0.60% / 8/20` | **`$1,683.19`** | **`+68.31%`** | **`+15.84%`** | **`0.969`** | `17.42%` | **`0`** | `+7.9% / +33.0% / +15.9%` |
+| **`E3_V2_PLUS_CTA_BEAR80_PREV`** *(Best 0-Liq Ret)* | `+1.10% / 9/20` | **`$2,167.68`** | **`+116.76%`** | **`+40.90%`** | **`0.895`** | `32.60%` | **`0`** | `+5.9% / +38.1% / +47.0%` |
+| `E3_V2_4QUAD_CONSERVATIVE_MK` *(disqualified: 1 liq)* | `+0.75% / 8/20` | `$3,163.02` | `+212.91%` | `+69.64%` | `1.287` | `24.98%` | `1` | `+20.6% / +54.1% / +74.8%` |
+| `E3_V2_4QUAD_4H_AGREE_MK` *(disqualified: 1 liq)* | `+1.03% / 7/20` | `$3,418.02` | `+236.00%` | `+77.69%` | `1.104` | `36.29%` | `1` | `+26.9% / +53.7% / +84.8%` |
 
 ---
 
@@ -107,4 +105,5 @@ From [v3-adaptive-engine/bear-regime-and-timeframe-study.md](v3-adaptive-engine/
 | Signal Expiry (Idea 1), Cash Option (Idea 6), Feed Ablation (Idea 11) & Dual-Clock Audit | [signal-expiry-cash-and-feed-study.md](v3-adaptive-engine/signal-expiry-cash-and-feed-study.md) | [JSON](v3-adaptive-engine/signal-expiry-cash-and-feed-receipt.json) | Slow 1d trend tolerates 1–4d delay (`SR 0.993 → 1.007`), while 2h ignition loses 89% of return in 1 bar (`+16.04% → +1.75%`); adaptive arrival cash reserve (`+16.16%`) beats fixed reserves & separate 70/30 accounts (`+12.65%`); masking L2–L5 depth adds `+9.5–10.1 bps` taker cost. |
 | Signal & Model Diagnostics (Ideas 2, 3, 4, 5, 15) | [signal-and-model-diagnostics-study.md](v3-adaptive-engine/signal-and-model-diagnostics-study.md) | [JSON](v3-adaptive-engine/signal-and-model-diagnostics-receipt.json) | 1-bar residual delay loses `-254.6 bps` (ship immediate netting only); Slow S1+S5 beats its static BTC/XAUT/USDT replica by `+7.19%` OOS; top 3 episodes own `201%` of 2h ignition P&L (rare-event thesis); simple range threshold (`+3.82 bps`) beats ML wait gate (`+2.22 bps`); depth-3 tree agrees `73.7%` with GRU (`+3.09 bps` disagreement gap). |
 | Treasury, Gold Substitutes, Liquidation Deadlines & TMN FX (Ideas 7, 8, 9, 10) | [treasury-liquidity-and-fx-study.md](v3-adaptive-engine/treasury-liquidity-and-fx-study.md) | [JSON](v3-adaptive-engine/treasury-liquidity-and-fx-receipt.json) | `50/50` NBX/WLX prefunding cuts exec cost `-16.8 bps` while surviving 25% NBX outage (`2.6%` missed); `50/50` XAUT/PAXG halves `-3%` issuer shock; `$50k` BTC/ETH/XAUT recovers `92.2%` in `5m` vs `22.2%` for alts; pure FX-stripped USDT alpha is `+152.33%` on top of `+777.59%` USDT/TMN FX. |
-| Cross-Venue Clocks, Event Cadence, Blind Bake-Off & Cost Break-Even (Ideas 12, 13, 14 + Review #3) | [venue-clocks-cadence-and-breakeven-study.md](v3-adaptive-engine/venue-clocks-cadence-and-breakeven-study.md) | [JSON](v3-adaptive-engine/venue-clocks-cadence-and-breakeven-receipt.json) | Nobitex leads Wallex by `+2.3–4.5 bps` (erased by +1-step delay → stale-quote filter, not taker arb); event-driven scoring cuts CPU `45.1%` with `99.63%` trigger capture; blind bake-off `BLIND_ARM_A..D` sealed; `FIXED_S1_S5` stays `SR 0.905` even at `40 bps` fee + `25%` missed fills; `SLOW_40PCT_PLUS_CASH` earns `+51.01%` (`SR 1.008`, MaxDD `9.40%`). |
+| Cross-Venue Clocks, Event Cadence, Blind Bake-Off & Cost Break-Even (Ideas 12, 13, 14 + Review #3) | [venue-clocks-cadence-and-breakeven-study.md](v3-adaptive-engine/venue-clocks-cadence-and-breakeven-study.md) | [JSON](v3-adaptive-engine/venue-clocks-cadence-and-breakeven-receipt.json) | Nobitex leads Wallex by `+2.3–4.5 bps` (erased by +1-step delay → stale-quote filter, not taker arb); event-driven scoring cuts measured CPU with `99.63%` trigger capture; blind bake-off `BLIND_ARM_A..D` sealed outside Git; `FIXED_S1_S5` stays `SR 0.905` even at `40 bps` fee + `25%` missed fills; `SLOW_40PCT_PLUS_CASH` earns `+51.01%` (`SR 1.008`, MaxDD `9.40%`). |
+| Rare Micro-Signal Portfolio, Position-Sized Fragility & Native Gold Two-Leg Tape | [rare-micro-signal-portfolio-study.md](v3-adaptive-engine/rare-micro-signal-portfolio-study.md) | [JSON](v3-adaptive-engine/rare-micro-signal-portfolio-receipt.json) | Weekly opportunity table across `156` weeks: adding `2h` Failed Downside Auction & Peer Catch-Up lifts active weeks `54 → 128` (`drought 18w → 9w`) but degrades net P&L (`-34.6` / `-11.2 bps/intended`) due to `32 bps` RT fees; native Nobitex `XAUT↔PAXG` live tape (`609` pairs) finds `10` positive net switch events (`+7.53 bps` mean, `+24.14 bps` max) vs `43.06 bps` failed-second-leg unwind cost. |

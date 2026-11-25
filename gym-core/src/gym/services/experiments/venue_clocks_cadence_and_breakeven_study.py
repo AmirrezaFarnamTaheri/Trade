@@ -13,6 +13,8 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import secrets
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -32,14 +34,14 @@ from .treasury_liquidity_and_fx_study import _load_matched_live_books
 from .unified_book_helpers import resolve_bar_prices
 
 
-def _lead_hit_rate(pairs: list[tuple[float, float]]) -> tuple[float, float]:
-    """Return (directional hit rate %, mean predicted-direction return bps) for (basis_bps, next_ret_bps)."""
+def _lead_hit_rate(pairs: list[tuple[float, float]]) -> tuple[int, float, float]:
+    """Return (eligible_count, directional hit rate %, mean predicted-direction return bps) for |basis| >= 5 bps."""
     valid = [(b, r) for b, r in pairs if abs(b) >= 5.0]
     if not valid:
-        return 0.0, 0.0
+        return 0, 0.0, 0.0
     hits = sum(1 for b, r in valid if (b > 0 and r > 0) or (b < 0 and r < 0))
     signed_bps = [r if b > 0 else -r for b, r in valid]
-    return round(hits / len(valid) * 100.0, 1), round(mean(signed_bps), 2)
+    return len(valid), round(hits / len(valid) * 100.0, 1), round(mean(signed_bps), 2)
 
 
 def _run_idea_12_price_discovery(matched_books: dict[str, list[dict]]) -> list[dict]:
@@ -69,13 +71,15 @@ def _run_idea_12_price_discovery(matched_books: dict[str, list[dict]]) -> list[d
             sign = 1.0 if rng.random() < 0.5 else -1.0
             placebo.append((sign * basis_w_minus_n, n_next_ret))
 
-        wh, wb = _lead_hit_rate(wlx_leads_nbx)
-        nh, nb = _lead_hit_rate(nbx_leads_wlx)
-        dh, db = _lead_hit_rate(delayed_wlx)
-        ph, pb = _lead_hit_rate(placebo)
+        wn, wh, wb = _lead_hit_rate(wlx_leads_nbx)
+        nn, nh, nb = _lead_hit_rate(nbx_leads_wlx)
+        _, dh, db = _lead_hit_rate(delayed_wlx)
+        _, ph, pb = _lead_hit_rate(placebo)
         rows.append({
             "symbol": sym,
-            "samples": len(wlx_leads_nbx),
+            "total_samples": len(wlx_leads_nbx),
+            "samples": wn,
+            "eligible_samples": wn,
             "wlx_leads_nbx_hit_pct": wh,
             "wlx_leads_nbx_bps": wb,
             "nbx_leads_wlx_hit_pct": nh,
@@ -90,64 +94,96 @@ def _run_idea_13_event_vs_fixed_cadence(
     panel_2h: dict[str, list[BarPoint]],
     daily_breadth: dict[str, float],
 ) -> dict:
-    """Idea 13: Shadow fixed 2h cadence against event-triggered scoring (move >=1.5% or 2x vol or 24h heartbeat)."""
+    """Idea 13: Benchmark two genuinely separate scheduler paths with process_time CPU, p95 latency & missed-trigger P&L."""
     by_avail = {s: {b.ts_avail: b for b in panel_2h.get(s, [])} for s in IGNITION_18_CRYPTO}
+    by_start = {s: {b.ts_start: b for b in panel_2h.get(s, [])} for s in IGNITION_18_CRYPTO}
     all_ts = sorted({t for d in by_avail.values() for t in d})
-    ret_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
-    vol_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
-    high_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
-    low_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
-    prev_c: dict[str, float] = {}
+    ts_pos = {t: i for i, t in enumerate(all_ts)}
 
-    fixed_evals = event_evals = fixed_trigs = event_trigs = 0
-    bars_since_eval = 0
+    def _run_scheduler(*, event_gated: bool) -> tuple[int, list[tuple[datetime, str]], float, float]:
+        ret_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
+        vol_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
+        high_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
+        low_h: dict[str, list[float]] = {s: [] for s in IGNITION_18_CRYPTO}
+        prev_c: dict[str, float] = {}
+        evals = 0
+        bars_since = 0
+        trigs: list[tuple[datetime, str]] = []
+        bar_ms: list[float] = []
+        cpu0 = time.process_time()
 
-    for ts in all_ts:
-        fixed_evals += 1
-        bars_since_eval += 1
-        material_event = bars_since_eval >= 12  # 24h max-silence heartbeat
-        bar_hits = 0
+        for ts in all_ts:
+            w0 = time.perf_counter()
+            bars_since += 1
+            cur_rets: dict[str, float] = {}
+            material = (not event_gated) or (bars_since >= 12)
+            for sym in IGNITION_18_CRYPTO:
+                cur = by_avail[sym].get(ts)
+                if cur is None or cur.close <= 0:
+                    continue
+                r = ((cur.close - prev_c[sym]) / prev_c[sym]) if (sym in prev_c and prev_c[sym] > 0) else 0.0
+                cur_rets[sym] = r
+                if event_gated and abs(r) >= 0.015:
+                    material = True
+            if material:
+                evals += 1
+                bars_since = 0
+                if daily_breadth.get(ts.date().isoformat(), 0.0) >= 0.45:
+                    for sym, r in cur_rets.items():
+                        cur = by_avail[sym][ts]
+                        if cur.entry_eligible:
+                            hit = _breakdown_or_breakout_z(
+                                cur, r, high_h[sym][-72:], low_h[sym][-72:], ret_h[sym][-36:], vol_h[sym][-36:],
+                                side="LONG", breakout_bars=72, vol_lookback=36, z_threshold=3.0, vol_mult=2.5,
+                            )
+                            if hit is not None:
+                                trigs.append((ts, sym))
+            for sym, r in cur_rets.items():
+                cur = by_avail[sym][ts]
+                if sym in prev_c and prev_c[sym] > 0:
+                    ret_h[sym].append(r)
+                prev_c[sym] = cur.close
+                vol_h[sym].append(cur.volume)
+                high_h[sym].append(cur.high)
+                low_h[sym].append(cur.low)
+            bar_ms.append((time.perf_counter() - w0) * 1000.0)
 
-        for sym in IGNITION_18_CRYPTO:
-            cur = by_avail[sym].get(ts)
-            if cur is None or cur.close <= 0:
-                continue
-            r = ((cur.close - prev_c[sym]) / prev_c[sym]) if (sym in prev_c and prev_c[sym] > 0) else 0.0
-            if abs(r) >= 0.015:
-                material_event = True
-            if cur.entry_eligible and daily_breadth.get(ts.date().isoformat(), 0.0) >= 0.45:
-                hit = _breakdown_or_breakout_z(
-                    cur, r, high_h[sym][-72:], low_h[sym][-72:], ret_h[sym][-36:], vol_h[sym][-36:],
-                    side="LONG", breakout_bars=72, vol_lookback=36, z_threshold=3.0, vol_mult=2.5,
-                )
-                if hit is not None:
-                    bar_hits += 1
-            if sym in prev_c and prev_c[sym] > 0:
-                ret_h[sym].append(r)
-            prev_c[sym] = cur.close
-            vol_h[sym].append(cur.volume)
-            high_h[sym].append(cur.high)
-            low_h[sym].append(cur.low)
+        cpu_ms = (time.process_time() - cpu0) * 1000.0
+        bar_ms.sort()
+        p95 = bar_ms[int(0.95 * (len(bar_ms) - 1))] if bar_ms else 0.0
+        return evals, trigs, cpu_ms, p95
 
-        fixed_trigs += bar_hits
-        if material_event:
-            event_evals += 1
-            event_trigs += bar_hits
-            bars_since_eval = 0
+    f_evals, f_trigs, f_cpu, f_p95 = _run_scheduler(event_gated=False)
+    e_evals, e_trigs, e_cpu, e_p95 = _run_scheduler(event_gated=True)
+    missed = sorted(set(f_trigs) - set(e_trigs))
+    missed_pnls_bps: list[float] = []
+    for ts, sym in missed:
+        i0 = ts_pos.get(ts, 0)
+        b0 = by_start[sym].get(ts)
+        b12 = by_start[sym].get(all_ts[min(len(all_ts) - 1, i0 + 12)])
+        if b0 and b12 and b0.open > 0:
+            missed_pnls_bps.append(((b12.open - b0.open) / b0.open - 0.0032) * 10_000.0)
 
     return {
-        "fixed_2h_evaluations": fixed_evals,
-        "event_triggered_evaluations": event_evals,
-        "cpu_evaluations_saved_pct": round((1.0 - event_evals / max(1, fixed_evals)) * 100.0, 1),
-        "fixed_triggers": fixed_trigs,
-        "event_triggers_captured": event_trigs,
-        "trigger_capture_rate_pct": round(event_trigs / max(1, fixed_trigs) * 100.0, 2),
+        "fixed_2h_evaluations": f_evals,
+        "event_triggered_evaluations": e_evals,
+        "cpu_evaluations_saved_pct": round((1.0 - e_evals / max(1, f_evals)) * 100.0, 1),
+        "fixed_cpu_ms": round(f_cpu, 1),
+        "event_cpu_ms": round(e_cpu, 1),
+        "measured_cpu_saved_pct": round((1.0 - e_cpu / max(1e-6, f_cpu)) * 100.0, 1),
+        "fixed_p95_bar_ms": round(f_p95, 4),
+        "event_p95_bar_ms": round(e_p95, 4),
+        "fixed_triggers": len(f_trigs),
+        "event_triggers_captured": len(e_trigs),
+        "trigger_capture_rate_pct": round(len(e_trigs) / max(1, len(f_trigs)) * 100.0, 2),
+        "missed_trigger_count": len(missed),
+        "missed_triggers_net_24h_bps": [round(x, 2) for x in missed_pnls_bps],
     }
 
 
-def _run_idea_14_blind_bakeoff_manifest(sealed_key_path: Path) -> dict:
-    """Idea 14: Create SHA-256 blinded aliases for prospective bake-off arms + sealed unblinding key."""
-    salt = "tradinggym-prospective-bakeoff-2026-11-25"
+def _run_idea_14_blind_bakeoff_manifest(sealed_key_path: Path, *, public_manifest_path: Path | None = None) -> dict:
+    """Idea 14: Concealed-salt SHA-256 blinded bake-off; sealed key stays outside Git, public manifest has hashes only."""
+    salt = secrets.token_hex(16)
     arms = (
         ("FIXED_S1_SLOW_SPOT_BENCHMARK", "baseline"),
         ("CHAMPION_V2_TWIN_GRU11", "challenger_a"),
@@ -163,16 +199,34 @@ def _run_idea_14_blind_bakeoff_manifest(sealed_key_path: Path) -> dict:
         aliases[i]: {"identity_hash": hashed[i][0], "true_name": hashed[i][1], "role": hashed[i][2]}
         for i in range(len(hashed))
     }
+    sealed_payload = {
+        "schema": "blind-bakeoff-sealed-key/2",
+        "created_at": datetime.now(UTC).isoformat(),
+        "salt": salt,
+        "mapping": sealed_map,
+    }
     sealed_key_path.parent.mkdir(parents=True, exist_ok=True)
-    sealed_key_path.write_text(
-        json.dumps({"schema": "blind-bakeoff-sealed-key/1", "created_at": datetime.now(UTC).isoformat(), "mapping": sealed_map}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    sealed_key_path.write_text(json.dumps(sealed_payload, indent=2) + "\n", encoding="utf-8")
+    key_digest = hashlib.sha256(json.dumps(sealed_payload, sort_keys=True).encode()).hexdigest()
+
+    public_arms = [
+        {"alias": aliases[i], "identity_hash": hashed[i][0], "verdict": "PENDING_PROSPECTIVE_WINDOW"}
+        for i in range(len(hashed))
+    ]
+    if public_manifest_path is not None:
+        public_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        public_manifest_path.write_text(
+            json.dumps({
+                "schema": "blind-bakeoff-public-manifest/2",
+                "created_at": sealed_payload["created_at"],
+                "sealed_key_sha256": key_digest,
+                "arms": public_arms,
+            }, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return {
-        "blinded_arms": [
-            {"alias": aliases[i], "identity_hash": hashed[i][0], "verdict": "PENDING_PROSPECTIVE_WINDOW"}
-            for i in range(len(hashed))
-        ],
+        "blinded_arms": public_arms,
+        "sealed_key_sha256": key_digest,
         "sealed_key_path": str(sealed_key_path),
     }
 
@@ -269,12 +323,13 @@ def _write_markdown(report_path: Path, p: dict) -> None:
     i13 = p["idea_13_event_vs_fixed_cadence"]
     lines.extend([
         "",
-        "## Idea 13 — Event-Driven vs. Fixed-Cadence Engine Runs",
-        f"- **Fixed 2h Evaluations:** `{i13['fixed_2h_evaluations']}` · **Event-Triggered Evaluations:** `{i13['event_triggered_evaluations']}` · **CPU Saved:** **`{i13['cpu_evaluations_saved_pct']:.1f}%`**",
-        f"- **Triggers Captured:** `{i13['event_triggers_captured']} / {i13['fixed_triggers']}` (**`{i13['trigger_capture_rate_pct']:.2f}%`**)",
+        "## Idea 13 — Event-Driven vs. Fixed-Cadence Engine Runs (Measured CPU & Missed-Trigger Cost)",
+        f"- **Evaluations:** `{i13['fixed_2h_evaluations']}` fixed → `{i13['event_triggered_evaluations']}` event (`{i13['cpu_evaluations_saved_pct']:.1f}%` fewer evals)",
+        f"- **Measured Process CPU:** `{i13['fixed_cpu_ms']:.1f} ms` → `{i13['event_cpu_ms']:.1f} ms` (**`{i13['measured_cpu_saved_pct']:.1f}%` CPU saved**) · **p95 Bar Latency:** `{i13['fixed_p95_bar_ms']:.4f} ms` vs `{i13['event_p95_bar_ms']:.4f} ms`",
+        f"- **Triggers Captured:** `{i13['event_triggers_captured']} / {i13['fixed_triggers']}` (`{i13['trigger_capture_rate_pct']:.2f}%`) · **Missed Trigger 24h Net P&L (bps):** `{i13['missed_triggers_net_24h_bps']}`",
         "",
-        "## Idea 14 — Blind Prospective Paper Bake-Off Manifest",
-        f"- **Sealed Key File:** `{p['idea_14_blind_bakeoff']['sealed_key_path']}`",
+        "## Idea 14 — Blind Prospective Paper Bake-Off Manifest (Concealed Salt, Key Outside Git)",
+        f"- **Sealed Key SHA-256 Commitment:** `{p['idea_14_blind_bakeoff'].get('sealed_key_sha256')}`",
         "",
         "| Blinded Alias | Identity Hash | Status |",
         "| --- | --- | --- |",

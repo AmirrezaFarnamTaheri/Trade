@@ -24,24 +24,29 @@ def load_keyed_candles(
 ) -> list[BarPoint]:
     """Seek directly on (instrument_id, resolution, t) and return domain BarPoint records.
 
-    When `as_of` is supplied, strictly excludes unfinished bars whose `ts_avail > as_of`.
-    When `since_iso` is supplied, loads only candles with `t >= since_iso`.
+    When `as_of` is supplied, pushes the closed-bar availability cutoff into SQL BEFORE LIMIT
+    so older historical bars are never truncated by newer candles.
     """
+    from ..domain.timeframe_panel import resolution_timedelta
+
     inst = con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (symbol,)).fetchone()
     if inst is None:
         return []
+    clauses = ["instrument_id = ?", "resolution = ?"]
+    params: list = [inst[0], resolution]
     if since_iso is not None:
-        rows = con.execute(
-            "SELECT t, o, h, l, c, v FROM venue_candles "
-            "WHERE instrument_id = ? AND resolution = ? AND t >= ? ORDER BY t DESC LIMIT ?",
-            (inst[0], resolution, since_iso, limit),
-        ).fetchall()
-    else:
-        rows = con.execute(
-            "SELECT t, o, h, l, c, v FROM venue_candles "
-            "WHERE instrument_id = ? AND resolution = ? ORDER BY t DESC LIMIT ?",
-            (inst[0], resolution, limit),
-        ).fetchall()
+        clauses.append("t >= ?")
+        params.append(since_iso)
+    if as_of is not None:
+        max_start = (as_of - resolution_timedelta(resolution)).isoformat().replace("+00:00", "Z")
+        clauses.append("t <= ?")
+        params.append(max_start)
+    params.append(limit)
+    sql = (
+        "SELECT t, o, h, l, c, v FROM venue_candles "
+        f"WHERE {' AND '.join(clauses)} ORDER BY t DESC LIMIT ?"
+    )
+    rows = con.execute(sql, tuple(params)).fetchall()
     rows.reverse()
     bars = build_bar_points_from_rows(symbol, resolution, rows)
     if as_of is not None:

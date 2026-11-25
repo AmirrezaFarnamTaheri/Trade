@@ -165,19 +165,34 @@ def train_and_freeze_gru_ignition(
     }
 
 
-def _latest_live_quotes(wallex_con, mv_db: Path | None, symbols: tuple[str, ...]) -> dict[str, dict]:
-    """Fetch latest live L1 spread & mid from Wallex (market.db) and Nobitex (multi_venue_quotes.sqlite3)."""
+def _latest_live_quotes(
+    wallex_con,
+    mv_db: Path | None,
+    symbols: tuple[str, ...],
+    *,
+    as_of: datetime | None = None,
+) -> dict[str, dict]:
+    """Fetch latest live L1 spread & mid from Wallex and Nobitex strictly <= as_of when supplied."""
     quotes: dict[str, dict] = {s: {} for s in symbols}
+    as_of_iso = as_of.isoformat().replace("+00:00", "Z") if as_of is not None else None
     for sym in symbols:
         inst = wallex_con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (sym,)).fetchone()
         if inst is None:
             continue
-        row = wallex_con.execute(
-            "SELECT bid, ask, ts_avail FROM book_top "
-            "WHERE instrument_id = ? AND bid IS NOT NULL AND ask IS NOT NULL "
-            "ORDER BY ts_avail DESC LIMIT 1",
-            (inst[0],),
-        ).fetchone()
+        if as_of_iso is not None:
+            row = wallex_con.execute(
+                "SELECT bid, ask, ts_avail FROM book_top "
+                "WHERE instrument_id = ? AND ts_avail <= ? AND bid IS NOT NULL AND ask IS NOT NULL "
+                "ORDER BY ts_avail DESC LIMIT 1",
+                (inst[0], as_of_iso),
+            ).fetchone()
+        else:
+            row = wallex_con.execute(
+                "SELECT bid, ask, ts_avail FROM book_top "
+                "WHERE instrument_id = ? AND bid IS NOT NULL AND ask IS NOT NULL "
+                "ORDER BY ts_avail DESC LIMIT 1",
+                (inst[0],),
+            ).fetchone()
         if row:
             wb, wa = float(dec(row[0])), float(dec(row[1]))
             mid = 0.5 * (wb + wa)
@@ -189,11 +204,18 @@ def _latest_live_quotes(wallex_con, mv_db: Path | None, symbols: tuple[str, ...]
         mcon = open_readonly_market_db(mv_db)
         try:
             for sym in symbols:
-                row = mcon.execute(
-                    "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
-                    "WHERE venue = 'nobitex' AND symbol = ? ORDER BY id DESC LIMIT 1",
-                    (sym,),
-                ).fetchone()
+                if as_of_iso is not None:
+                    row = mcon.execute(
+                        "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
+                        "WHERE venue = 'nobitex' AND symbol = ? AND ts_avail <= ? ORDER BY ts_avail DESC LIMIT 1",
+                        (sym, as_of_iso),
+                    ).fetchone()
+                else:
+                    row = mcon.execute(
+                        "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
+                        "WHERE venue = 'nobitex' AND symbol = ? ORDER BY id DESC LIMIT 1",
+                        (sym,),
+                    ).fetchone()
                 if row:
                     nb, na = float(dec(row[0])), float(dec(row[1]))
                     mid = 0.5 * (nb + na)
@@ -286,8 +308,11 @@ def _score_live_2h_ignition(
     return latest_ts, triggers[:3], ign_weights
 
 
-def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 5.0) -> None:
-    """Append one JSONL record under an exclusive sidecar lockfile with fsync durability."""
+def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 5.0) -> bool:
+    """Append one JSONL record under an exclusive sidecar lockfile with atomic slot_key deduplication.
+
+    Returns True if appended, False if an identical slot_key already existed in the journal.
+    """
     import time
 
     journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -302,10 +327,16 @@ def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 
                 raise TimeoutError(f"could not acquire journal lock {lock_path}") from None
             time.sleep(0.05)
     try:
+        slot_key = record.get("slot_key")
+        if slot_key is not None and journal_path.is_file():
+            for ln in journal_path.read_text(encoding="utf-8").splitlines():
+                if ln.strip() and json.loads(ln).get("slot_key") == slot_key:
+                    return False
         with journal_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, sort_keys=True) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
+        return True
     finally:
         os.close(fd)
         try:
@@ -415,7 +446,7 @@ def record_champion_ensemble_journal(
 
         panel_2h = load_stitched_2h_panel(con, IGNITION_18_CRYPTO, as_of=now)
         latest_2h, ign_triggers, ign_weights = _score_live_2h_ignition(panel_2h, daily_breadth, model, base_prob)
-        quotes = _latest_live_quotes(con, multi_venue_db, all_syms)
+        quotes = _latest_live_quotes(con, multi_venue_db, all_syms, as_of=now)
     finally:
         con.close()
 
@@ -457,62 +488,152 @@ def record_champion_ensemble_journal(
     return {"status": "RECORDED", **record}
 
 
-def score_champion_forward_journal(journal_path: Path, db_path: Path) -> dict:
-    """Score untouched forward shadow NAV, realized slippage vs backtest assumptions, and sequential e-process."""
+def _resolve_event_prices(
+    rec: dict,
+    bar_marks: dict[str, list[tuple[datetime, float]]],
+    ev_ts: datetime,
+) -> dict[str, float]:
+    """Resolve strictly causal prices at ev_ts (live_quotes if present, else latest closed bar ts_avail <= ev_ts)."""
+    from bisect import bisect_right
+
+    px: dict[str, float] = {}
+    for sym, q in (rec.get("live_quotes") or {}).items():
+        val = q.get("nobitex_mid") or q.get("wallex_mid")
+        if val is not None and float(val) > 0:
+            px[sym] = float(val)
+    for sym, series in bar_marks.items():
+        if sym in px or not series:
+            continue
+        ts_only = [t for t, _ in series]
+        pos = bisect_right(ts_only, ev_ts) - 1
+        if pos >= 0:
+            px[sym] = series[pos][1]
+    return px
+
+
+def _rebalance_forward_event(
+    cash: float,
+    units: dict[str, float],
+    targets: dict[str, float],
+    px_map: dict[str, float],
+    nav: float,
+    leg_fee_bps: float,
+    unpriced: set[str],
+) -> tuple[float, float, int]:
+    """Apply one event's target weights at current event prices; returns (new_cash, fees_paid, fills_count)."""
+    fees_paid = 0.0
+    fills = 0
+    for sym in sorted(set(units) | set(targets)):
+        tgt_val = max(0.0, targets.get(sym, 0.0)) * nav
+        cur_u = units.get(sym, 0.0)
+        px = px_map.get(sym)
+        if px is None or px <= 0:
+            if tgt_val > 0 or cur_u > 0:
+                unpriced.add(sym)
+            continue
+        delta = tgt_val - (cur_u * px)
+        if abs(delta) < 1e-6:
+            continue
+        fee = abs(delta) * (leg_fee_bps / 10_000.0)
+        if delta > 0:
+            spend = min(delta + fee, cash)
+            if spend <= fee:
+                continue
+            cash -= spend
+            units[sym] = cur_u + ((spend - fee) / px)
+        else:
+            sell_val = min(cur_u * px, -delta)
+            cash += max(0.0, sell_val - fee)
+            rem_u = max(0.0, cur_u - (sell_val / px))
+            if rem_u <= 1e-12:
+                units.pop(sym, None)
+            else:
+                units[sym] = rem_u
+        fees_paid += fee
+        fills += 1
+    return cash, fees_paid, fills
+
+
+def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee_bps: float = 0.0) -> dict:
+    """Event-by-event forward shadow account: deduplicates slots, never credits pre-entry moves, tracks unpriced symbols."""
     if not journal_path.is_file():
         return {"status": "NO_JOURNAL", "observations": 0, "paper_nav": 1000.0, "e_process": 1.0}
-    rows = [json.loads(ln) for ln in journal_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    if not rows:
+    raw_rows = [json.loads(ln) for ln in journal_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not raw_rows:
         return {"status": "EMPTY_JOURNAL", "observations": 0, "paper_nav": 1000.0, "e_process": 1.0}
 
-    # Deduplicate to latest snapshot per calendar day for daily forward NAV marking
-    by_day: dict[str, dict] = {}
-    for r in rows:
-        day = parse_ts(r["as_of"]).date().isoformat()
-        by_day[day] = r
-    days = sorted(by_day)
+    # Chronological event stream deduplicated by slot_key (replaying a decision twice posts once).
+    seen_slots: set[str] = set()
+    events: list[tuple[datetime, dict]] = []
+    for r in sorted(raw_rows, key=lambda x: parse_ts(x["as_of"])):
+        sk = r.get("slot_key")
+        if sk is not None:
+            if sk in seen_slots:
+                continue
+            seen_slots.add(str(sk))
+        events.append((parse_ts(r["as_of"]), r))
 
     nbx_spreads, wlx_spreads = [], []
-    for r in rows:
+    for _, r in events:
         for q in (r.get("live_quotes") or {}).values():
             if "nobitex_spread_bps" in q:
                 nbx_spreads.append(float(q["nobitex_spread_bps"]))
             if "wallex_spread_bps" in q:
                 wlx_spreads.append(float(q["wallex_spread_bps"]))
 
+    all_syms = sorted({s for _, r in events for s in (r.get("blended_weights") or {})})
+    bar_marks: dict[str, list[tuple[datetime, float]]] = {}
+    if len(events) >= 2 and all_syms and db_path.is_file():
+        con = open_readonly_market_db(db_path)
+        try:
+            since_iso = (events[0][0] - timedelta(days=2)).isoformat()
+            for sym in all_syms:
+                bars = load_keyed_candles(con, sym, "1d", limit=5000, since_iso=since_iso)
+                bar_marks[sym] = [(b.ts_avail, b.close) for b in bars if b.close > 0]
+        finally:
+            con.close()
+
+    cash = 1000.0
+    units: dict[str, float] = {}
+    last_known_px: dict[str, float] = {}
+    unpriced: set[str] = set()
+    fills = 0
+    total_fees = 0.0
     nav = 1000.0
     peak_nav = 1000.0
     e_val = 1.0
-    daily_rets: list[float] = []
-    if len(days) >= 2:
-        con = open_readonly_market_db(db_path)
-        try:
-            all_syms = sorted({s for r in by_day.values() for s in (r.get("blended_weights") or {})})
-            closes_by_day: dict[str, dict[str, float]] = {}
-            # Load full interval from first_day onward (never a fixed 120-bar tail that rewrites history).
-            since_iso = (parse_ts(f"{days[0]}T00:00:00Z") - timedelta(days=2)).isoformat()
-            for sym in all_syms:
-                for b in load_keyed_candles(con, sym, "1d", limit=5000, since_iso=since_iso):
-                    closes_by_day.setdefault(b.ts_avail.date().isoformat(), {})[sym] = b.close
-        finally:
-            con.close()
-        for i in range(1, len(days)):
-            d0, d1 = days[i - 1], days[i]
-            w0 = by_day[d0].get("blended_weights") or {}
-            p0, p1 = closes_by_day.get(d0, {}), closes_by_day.get(d1, {})
-            day_ret = 0.0
-            for sym, w in w0.items():
-                if sym in p0 and sym in p1 and p0[sym] > 0:
-                    day_ret += float(w) * (p1[sym] / p0[sym] - 1.0)
-            nav *= max(0.0, 1.0 + day_ret)
-            peak_nav = max(peak_nav, nav)
-            daily_rets.append(day_ret)
-            # Exact unclipped supermartingale for r >= -1 under E[r] <= 0 (lambda=0.5 -> E[1 + 0.5*r] <= 1).
-            e_val *= max(0.0, 1.0 + 0.5 * max(-1.0, day_ret))
+    prev_day: str | None = None
+    prev_day_nav = 1000.0
 
+    for ev_ts, rec in events:
+        px_map = _resolve_event_prices(rec, bar_marks, ev_ts)
+        last_known_px.update(px_map)
+        # Mark existing holdings at current event prices before rebalancing (pre-entry moves earn $0).
+        nav = cash + sum(u * last_known_px[s] for s, u in units.items() if s in last_known_px)
+        unpriced.update(s for s, u in units.items() if u > 0 and s not in last_known_px)
+        peak_nav = max(peak_nav, nav)
+
+        day_str = ev_ts.date().isoformat()
+        if prev_day is not None and day_str != prev_day and prev_day_nav > 0:
+            day_ret = (nav / prev_day_nav) - 1.0
+            e_val *= max(0.0, 1.0 + 0.5 * max(-1.0, day_ret))
+            prev_day_nav = nav
+        elif prev_day is None:
+            prev_day_nav = nav
+        prev_day = day_str
+
+        # Rebalance to event target weights strictly at current event price (never backward).
+        targets = {s: float(w) for s, w in (rec.get("blended_weights") or {}).items()}
+        cash, ev_fees, ev_fills = _rebalance_forward_event(cash, units, targets, px_map, nav, leg_fee_bps, unpriced)
+        total_fees += ev_fees
+        fills += ev_fills
+
+    days = sorted({ts.date().isoformat() for ts, _ in events})
+    latest_rec = events[-1][1]
     return {
         "status": "TRACKING",
-        "observations": len(rows),
+        "observations": len(raw_rows),
+        "unique_slots": len(events),
         "forward_days": len(days),
         "first_day": days[0],
         "latest_day": days[-1],
@@ -520,9 +641,12 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path) -> dict:
         "peak_nav": round(peak_nav, 2),
         "cum_ret_pct": round((nav / 1000.0 - 1.0) * 100.0, 2),
         "e_process": round(e_val, 4),
-        "latest_cash_weight": by_day[days[-1]].get("cash_weight", 1.0),
-        "latest_blended_weights": by_day[days[-1]].get("blended_weights", {}),
-        "latest_ignition_triggers": by_day[days[-1]].get("ignition_triggers", []),
+        "fills": fills,
+        "total_fees_usdt": round(total_fees, 2),
+        "unpriced_symbols": sorted(unpriced),
+        "latest_cash_weight": latest_rec.get("cash_weight", 1.0),
+        "latest_blended_weights": latest_rec.get("blended_weights", {}),
+        "latest_ignition_triggers": latest_rec.get("ignition_triggers", []),
         "median_live_nobitex_spread_bps": round(median(nbx_spreads), 2) if nbx_spreads else None,
         "median_live_wallex_spread_bps": round(median(wlx_spreads), 2) if wlx_spreads else None,
         "backtest_assumption_nbx_allin_bps": 16.0,

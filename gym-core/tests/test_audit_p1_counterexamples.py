@@ -473,5 +473,107 @@ def test_finding_12_atomic_json_and_locked_jsonl_writer(tmp_path) -> None:
     assert json.loads(spath.read_text(encoding="utf-8"))["paper_nav"] == 1010.0
 
 
+def test_review2_sql_as_of_cutoff_before_limit(tmp_path) -> None:
+    """8 daily candles through Jan 8 queried as_of=Jan 4 with limit=2 must return 2 bars, not 0."""
+    import sqlite3
+
+    from gym.adapters.candle_reader import load_keyed_candles
+
+    db = tmp_path / "m.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE instruments (instrument_id INTEGER PRIMARY KEY, symbol TEXT)")
+    con.execute("CREATE TABLE venue_candles (instrument_id INTEGER, resolution TEXT, t TEXT, o REAL, h REAL, l REAL, c REAL, v REAL)")
+    con.execute("INSERT INTO instruments VALUES (1, 'BTCUSDT')")
+    for d in range(1, 9):
+        con.execute(f"INSERT INTO venue_candles VALUES (1, '1d', '2026-01-0{d}T00:00:00Z', 100, 100, 100, 100, 10)")
+    con.commit()
+    bars = load_keyed_candles(con, "BTCUSDT", "1d", limit=2, as_of=datetime(2026, 1, 4, 0, 0, tzinfo=UTC))
+    con.close()
+    assert len(bars) == 2
+    assert all(b.ts_avail <= datetime(2026, 1, 4, 0, 0, tzinfo=UTC) for b in bars)
+
+
+def test_review2_prefunding_cannot_recycle_130_usdt_four_times() -> None:
+    """With $130 cash and 4 consecutive $125 BUY orders (no sells), only 1 buy can fill."""
+    from gym.services.experiments.treasury_liquidity_and_fx_study import (
+        _sim_prefund_split,
+    )
+
+    snap = {
+        "epoch": 1000.0, "w_mid": 100.0, "n_mid": 100.0,
+        "w_bids": [(99.9, 10.0)], "w_asks": [(100.1, 10.0)],
+        "n_bids": [(99.9, 10.0)], "n_asks": [(100.1, 10.0)],
+    }
+    res = _sim_prefund_split([snap] * 4, 130.0, 0.0, order_usdt=125.0, sides=["BUY", "BUY", "BUY", "BUY"])
+    assert res["executed"] == 1
+    assert res["missed"] == 3
+    assert res["ending_cash_usdt"] == pytest.approx(5.0, abs=1e-6)
+
+
+def test_review2_liquidation_never_drops_missing_books_from_denominator() -> None:
+    """Supplying only a BTC book for a 40% BTC / 30% ETH / 30% XAUT portfolio must leave 60% unpriced."""
+    from gym.services.experiments.treasury_liquidity_and_fx_study import (
+        _run_idea_9_liquidation_deadlines,
+    )
+
+    btc_snap = {
+        "epoch": 1000.0, "w_mid": 100.0, "n_mid": 100.0,
+        "w_bids": [(99.9, 1000.0)], "w_asks": [(100.1, 1000.0)],
+        "n_bids": [(99.9, 1000.0)], "n_asks": [(100.1, 1000.0)],
+    }
+    rows = _run_idea_9_liquidation_deadlines({"BTCUSDT": [btc_snap]})
+    core_5m = next(r for r in rows if r["book"] == "BTC_ETH_XAUT_CORE" and r["notional_usdt"] == 10_000.0 and r["deadline"] == "5m")
+    assert core_5m["cash_recovered_pct"] <= 40.0
+    assert core_5m["unpriced_inventory_pct"] == pytest.approx(60.0, abs=0.1)
+
+
+def test_review2_forward_account_pre_entry_jump_earns_zero_and_dedups_slot(tmp_path) -> None:
+    """A price jump before entry must earn $0 and a duplicate slot_key must post only once."""
+
+    from gym.services.experiments.champion_forward_journal import (
+        append_jsonl_locked,
+        score_champion_forward_journal,
+    )
+
+    jpath = tmp_path / "fwd.jsonl"
+    # Slot 1: 100% cash at price 100; Slot 2: enter BTC at price 120 (after 20% jump!)
+    assert append_jsonl_locked(jpath, {
+        "slot_key": "s1", "as_of": "2026-01-01T00:00:00+00:00",
+        "blended_weights": {}, "live_quotes": {"BTCUSDT": {"nobitex_mid": 100.0}},
+    }) is True
+    assert append_jsonl_locked(jpath, {
+        "slot_key": "s2", "as_of": "2026-01-01T12:00:00+00:00",
+        "blended_weights": {"BTCUSDT": 1.0}, "live_quotes": {"BTCUSDT": {"nobitex_mid": 120.0}},
+    }) is True
+    # Duplicate slot_key s2 must be rejected atomically
+    assert append_jsonl_locked(jpath, {
+        "slot_key": "s2", "as_of": "2026-01-01T12:00:01+00:00",
+        "blended_weights": {"BTCUSDT": 1.0}, "live_quotes": {"BTCUSDT": {"nobitex_mid": 120.0}},
+    }) is False
+
+    score = score_champion_forward_journal(jpath, tmp_path / "missing.db")
+    assert score["unique_slots"] == 2
+    assert score["paper_nav"] == pytest.approx(1000.0, abs=1e-6)
+
+
+def test_review2_summary_headlines_match_post_repair_receipts() -> None:
+    """evidence/studies/SUMMARY.md must match post-repair JSON receipts and never advertise superseded headlines."""
+    import json
+    from pathlib import Path
+
+    repo = Path("D:/Github/Trade")
+    summary = (repo / "evidence" / "studies" / "SUMMARY.md").read_text(encoding="utf-8")
+    v2 = json.loads((repo / "evidence" / "studies" / "ignition-and-ml" / "v2-champion-verification.json").read_text(encoding="utf-8"))
+    w20 = json.loads((repo / "evidence" / "studies" / "v3-adaptive-engine" / "twenty-window-macro-quadrant-study.json").read_text(encoding="utf-8"))
+
+    v2_70 = next(a for a in v2["arms"] if a["name"] == "V2_GRU11_PATHPNL_70_30_NBX16")
+    bear50 = next(r for r in w20["unified_e3v2_enhanced"] if r["label"] == "E3_V2_PLUS_BEAR50_PREV")
+    assert f"${v2_70['full']['ending_nav']:,.2f}" in summary
+    assert f"${bear50['ending_nav']:,.2f}" in summary
+    assert "+223.40%" not in summary
+    assert "$1,287.89" not in summary
+
+
+
 
 
