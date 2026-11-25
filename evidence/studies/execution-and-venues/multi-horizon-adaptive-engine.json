@@ -1,0 +1,459 @@
+{
+  "generated_at": "2026-11-25T14:28:08.211598+00:00",
+  "executor_state": "DISARMED",
+  "gru11_oos_auc": {
+    "phase_0h": 0.5675,
+    "phase_1h": 0.5991
+  },
+  "in_position_training_rows": {
+    "phase_0h": 2475,
+    "phase_1h": 1971
+  },
+  "v2_reference": {
+    "label": "V2_CHAMPION_60_40_NBX16_REF",
+    "full": {
+      "days": 1085,
+      "ending_nav": 1292.84,
+      "ret_pct": 29.28,
+      "ann_sharpe": 0.849,
+      "max_dd_pct": 6.44
+    },
+    "stress": {
+      "days": 367,
+      "ending_nav": 1292.84,
+      "ret_pct": 4.49,
+      "ann_sharpe": 0.456,
+      "max_dd_pct": 6.44
+    },
+    "fills": 1225,
+    "fees_usdt": 83.89
+  },
+  "ablation_arms": [
+    {
+      "label": "F1_LOT_BOOK_TRUE_MARGIN_5X",
+      "days": 1085,
+      "ending_nav": 1338.53,
+      "ret_pct": 33.85,
+      "stress_ret_pct": -5.97,
+      "ann_sharpe": 0.874,
+      "max_dd_pct": 10.94,
+      "sharpe_0h": 0.487,
+      "sharpe_1h": 1.0,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 174.47,
+      "borrow_usdt_avg": 7.25,
+      "pool_yield_usdt_avg": 80.24,
+      "oco_tp_avg": 0.0,
+      "early_ml_avg": 0.0,
+      "pyramids_avg": 0.0,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 0.0,
+      "max_leverage_used": 5.0,
+      "vs_v2_bps": 0.35,
+      "vs_v2_ci": [
+        -1.85,
+        2.57
+      ]
+    },
+    {
+      "label": "F1_F3_ONLINE_IC_ZERO_BUCKET_5X",
+      "days": 1085,
+      "ending_nav": 1262.17,
+      "ret_pct": 26.22,
+      "stress_ret_pct": -8.19,
+      "ann_sharpe": 0.754,
+      "max_dd_pct": 11.75,
+      "sharpe_0h": 0.247,
+      "sharpe_1h": 1.0,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 182.87,
+      "borrow_usdt_avg": 6.83,
+      "pool_yield_usdt_avg": 81.22,
+      "oco_tp_avg": 0.0,
+      "early_ml_avg": 0.0,
+      "pyramids_avg": 0.0,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 0.0,
+      "max_leverage_used": 5.0,
+      "vs_v2_bps": -0.21,
+      "vs_v2_ci": [
+        -2.39,
+        2.23
+      ]
+    },
+    {
+      "label": "F1_F3_F2_TEHRAN_CLOCK_OCO_5X",
+      "days": 1085,
+      "ending_nav": 1196.81,
+      "ret_pct": 19.68,
+      "stress_ret_pct": -5.72,
+      "ann_sharpe": 0.755,
+      "max_dd_pct": 10.07,
+      "sharpe_0h": 0.45,
+      "sharpe_1h": 1.172,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 156.22,
+      "borrow_usdt_avg": 4.7,
+      "pool_yield_usdt_avg": 78.41,
+      "oco_tp_avg": 67.0,
+      "early_ml_avg": 0.0,
+      "pyramids_avg": 0.0,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 0.0,
+      "max_leverage_used": 5.0,
+      "vs_v2_bps": -0.78,
+      "vs_v2_ci": [
+        -2.69,
+        1.05
+      ]
+    },
+    {
+      "label": "F1_F3_F2_F4_ML_EXIT_PYRAMID_5X",
+      "days": 1085,
+      "ending_nav": 1206.27,
+      "ret_pct": 20.63,
+      "stress_ret_pct": -4.97,
+      "ann_sharpe": 0.788,
+      "max_dd_pct": 9.3,
+      "sharpe_0h": 0.489,
+      "sharpe_1h": 1.173,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 157.16,
+      "borrow_usdt_avg": 4.63,
+      "pool_yield_usdt_avg": 78.55,
+      "oco_tp_avg": 66.5,
+      "early_ml_avg": 5.0,
+      "pyramids_avg": 1.5,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 0.0,
+      "max_leverage_used": 5.0,
+      "vs_v2_bps": -0.7,
+      "vs_v2_ci": [
+        -2.6,
+        1.04
+      ]
+    },
+    {
+      "label": "F1_TO_F6_FULL_WITH_RV_HEDGE_5X",
+      "days": 1085,
+      "ending_nav": 1200.31,
+      "ret_pct": 20.03,
+      "stress_ret_pct": -5.3,
+      "ann_sharpe": 0.771,
+      "max_dd_pct": 9.29,
+      "sharpe_0h": 0.466,
+      "sharpe_1h": 1.171,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 161.72,
+      "borrow_usdt_avg": 5.34,
+      "pool_yield_usdt_avg": 78.36,
+      "oco_tp_avg": 66.5,
+      "early_ml_avg": 5.0,
+      "pyramids_avg": 1.5,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 10.0,
+      "max_leverage_used": 5.0,
+      "vs_v2_bps": -0.75,
+      "vs_v2_ci": [
+        -2.62,
+        1.01
+      ]
+    },
+    {
+      "label": "F1_TO_F6_FULL_WITH_RV_HEDGE_2X",
+      "days": 1085,
+      "ending_nav": 1163.37,
+      "ret_pct": 16.34,
+      "stress_ret_pct": -5.24,
+      "ann_sharpe": 0.687,
+      "max_dd_pct": 9.38,
+      "sharpe_0h": 0.448,
+      "sharpe_1h": 1.043,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 142.85,
+      "borrow_usdt_avg": 3.4,
+      "pool_yield_usdt_avg": 77.06,
+      "oco_tp_avg": 66.5,
+      "early_ml_avg": 5.0,
+      "pyramids_avg": 1.5,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 10.0,
+      "max_leverage_used": 2.0,
+      "vs_v2_bps": -1.05,
+      "vs_v2_ci": [
+        -2.84,
+        0.62
+      ]
+    },
+    {
+      "label": "WINNERS_ONLY_F1_F2CLOCK_F4_5X",
+      "days": 1085,
+      "ending_nav": 1385.03,
+      "ret_pct": 38.5,
+      "stress_ret_pct": -2.34,
+      "ann_sharpe": 0.952,
+      "max_dd_pct": 10.32,
+      "sharpe_0h": 0.611,
+      "sharpe_1h": 0.996,
+      "liquidations_sum": 0,
+      "fees_usdt_avg": 175.54,
+      "borrow_usdt_avg": 7.69,
+      "pool_yield_usdt_avg": 80.23,
+      "oco_tp_avg": 0.0,
+      "early_ml_avg": 5.0,
+      "pyramids_avg": 5.0,
+      "internal_shorts_avg": 0.0,
+      "rv_hedges_avg": 0.0,
+      "max_leverage_used": 5.0,
+      "vs_v2_bps": 0.68,
+      "vs_v2_ci": [
+        -1.47,
+        2.91
+      ]
+    }
+  ],
+  "best_arm": {
+    "label": "WINNERS_ONLY_F1_F2CLOCK_F4_5X",
+    "days": 1085,
+    "ending_nav": 1385.03,
+    "ret_pct": 38.5,
+    "stress_ret_pct": -2.34,
+    "ann_sharpe": 0.952,
+    "max_dd_pct": 10.32,
+    "sharpe_0h": 0.611,
+    "sharpe_1h": 0.996,
+    "liquidations_sum": 0,
+    "fees_usdt_avg": 175.54,
+    "borrow_usdt_avg": 7.69,
+    "pool_yield_usdt_avg": 80.23,
+    "oco_tp_avg": 0.0,
+    "early_ml_avg": 5.0,
+    "pyramids_avg": 5.0,
+    "internal_shorts_avg": 0.0,
+    "rv_hedges_avg": 0.0,
+    "max_leverage_used": 5.0,
+    "vs_v2_bps": 0.68,
+    "vs_v2_ci": [
+      -1.47,
+      2.91
+    ]
+  },
+  "live_audits": {
+    "tehran_clock": {
+      "tightest_hour": {
+        "utc_hour": 5,
+        "tehran_approx": "08:30",
+        "ticks": 34869,
+        "avg_spread_bps": 34.47
+      },
+      "widest_hour": {
+        "utc_hour": 3,
+        "tehran_approx": "06:30",
+        "ticks": 47996,
+        "avg_spread_bps": 44.6
+      },
+      "hourly_profile": [
+        {
+          "utc_hour": 0,
+          "tehran_approx": "03:30",
+          "ticks": 68603,
+          "avg_spread_bps": 36.24
+        },
+        {
+          "utc_hour": 1,
+          "tehran_approx": "04:30",
+          "ticks": 61174,
+          "avg_spread_bps": 41.84
+        },
+        {
+          "utc_hour": 2,
+          "tehran_approx": "05:30",
+          "ticks": 59598,
+          "avg_spread_bps": 42.43
+        },
+        {
+          "utc_hour": 3,
+          "tehran_approx": "06:30",
+          "ticks": 47996,
+          "avg_spread_bps": 44.6
+        },
+        {
+          "utc_hour": 4,
+          "tehran_approx": "07:30",
+          "ticks": 43718,
+          "avg_spread_bps": 42.55
+        },
+        {
+          "utc_hour": 5,
+          "tehran_approx": "08:30",
+          "ticks": 34869,
+          "avg_spread_bps": 34.47
+        },
+        {
+          "utc_hour": 6,
+          "tehran_approx": "09:30",
+          "ticks": 32090,
+          "avg_spread_bps": 34.89
+        },
+        {
+          "utc_hour": 7,
+          "tehran_approx": "10:30",
+          "ticks": 35521,
+          "avg_spread_bps": 37.63
+        },
+        {
+          "utc_hour": 8,
+          "tehran_approx": "11:30",
+          "ticks": 56324,
+          "avg_spread_bps": 40.02
+        },
+        {
+          "utc_hour": 9,
+          "tehran_approx": "12:30",
+          "ticks": 49379,
+          "avg_spread_bps": 37.85
+        },
+        {
+          "utc_hour": 10,
+          "tehran_approx": "13:30",
+          "ticks": 40872,
+          "avg_spread_bps": 34.85
+        },
+        {
+          "utc_hour": 11,
+          "tehran_approx": "14:30",
+          "ticks": 45324,
+          "avg_spread_bps": 37.48
+        },
+        {
+          "utc_hour": 12,
+          "tehran_approx": "15:30",
+          "ticks": 58419,
+          "avg_spread_bps": 40.77
+        },
+        {
+          "utc_hour": 13,
+          "tehran_approx": "16:30",
+          "ticks": 73571,
+          "avg_spread_bps": 40.4
+        },
+        {
+          "utc_hour": 14,
+          "tehran_approx": "17:30",
+          "ticks": 69279,
+          "avg_spread_bps": 42.14
+        },
+        {
+          "utc_hour": 15,
+          "tehran_approx": "18:30",
+          "ticks": 58205,
+          "avg_spread_bps": 40.86
+        },
+        {
+          "utc_hour": 16,
+          "tehran_approx": "19:30",
+          "ticks": 59809,
+          "avg_spread_bps": 40.07
+        },
+        {
+          "utc_hour": 17,
+          "tehran_approx": "20:30",
+          "ticks": 65971,
+          "avg_spread_bps": 42.95
+        },
+        {
+          "utc_hour": 18,
+          "tehran_approx": "21:30",
+          "ticks": 63340,
+          "avg_spread_bps": 39.04
+        },
+        {
+          "utc_hour": 19,
+          "tehran_approx": "22:30",
+          "ticks": 54603,
+          "avg_spread_bps": 39.9
+        },
+        {
+          "utc_hour": 20,
+          "tehran_approx": "23:30",
+          "ticks": 68418,
+          "avg_spread_bps": 34.89
+        },
+        {
+          "utc_hour": 21,
+          "tehran_approx": "00:30",
+          "ticks": 74925,
+          "avg_spread_bps": 36.28
+        },
+        {
+          "utc_hour": 22,
+          "tehran_approx": "01:30",
+          "ticks": 81870,
+          "avg_spread_bps": 34.48
+        },
+        {
+          "utc_hour": 23,
+          "tehran_approx": "02:30",
+          "ticks": 70749,
+          "avg_spread_bps": 37.41
+        }
+      ]
+    },
+    "tmn_triangle_routing": [
+      {
+        "symbol": "BTCUSDT",
+        "matched_minutes": 1961,
+        "buy_synth_win_pct": 12.6,
+        "buy_avg_saving_bps": 83.59,
+        "sell_synth_win_pct": 10.56,
+        "sell_avg_saving_bps": 21.91
+      },
+      {
+        "symbol": "ETHUSDT",
+        "matched_minutes": 1964,
+        "buy_synth_win_pct": 0.56,
+        "buy_avg_saving_bps": 25.43,
+        "sell_synth_win_pct": 1.12,
+        "sell_avg_saving_bps": 12.12
+      },
+      {
+        "symbol": "SOLUSDT",
+        "matched_minutes": 1960,
+        "buy_synth_win_pct": 11.63,
+        "buy_avg_saving_bps": 77.33,
+        "sell_synth_win_pct": 21.02,
+        "sell_avg_saving_bps": 39.91
+      },
+      {
+        "symbol": "XRPUSDT",
+        "matched_minutes": 1965,
+        "buy_synth_win_pct": 1.32,
+        "buy_avg_saving_bps": 27.67,
+        "sell_synth_win_pct": 1.27,
+        "sell_avg_saving_bps": 13.6
+      },
+      {
+        "symbol": "XAUTUSDT",
+        "matched_minutes": 1958,
+        "buy_synth_win_pct": 7.46,
+        "buy_avg_saving_bps": 20.25,
+        "sell_synth_win_pct": 7.3,
+        "sell_avg_saving_bps": 16.73
+      },
+      {
+        "symbol": "PEPEUSDT",
+        "matched_minutes": 1959,
+        "buy_synth_win_pct": 6.18,
+        "buy_avg_saving_bps": 20.7,
+        "sell_synth_win_pct": 13.68,
+        "sell_avg_saving_bps": 14.8
+      }
+    ],
+    "dynamic_borrow_currency": {
+      "total_days": 1740,
+      "tmn_preferred_days": 1081,
+      "tmn_preferred_pct": 62.1,
+      "avg_tmn_carry_advantage_bps_day": 17.86
+    }
+  }
+}
