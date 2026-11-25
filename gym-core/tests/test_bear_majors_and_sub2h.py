@@ -5,7 +5,10 @@ from datetime import UTC, datetime, timedelta
 
 from gym.domain.bear_majors_sleeve import (
     BearMajorsConfig,
+    CtaBearVolConfig,
     compute_calm_bear_majors_targets,
+    compute_cta_vol_targeted_bear_targets,
+    compute_daily_vol_and_kaufman_er,
     rebalance_slow_short_lots,
 )
 from gym.domain.instrument_resolver import build_local_venue_offers
@@ -161,3 +164,38 @@ def test_unified_book_helpers_handle_odd_1h_phase_and_window_returns() -> None:
     assert window_return_pct(nav_ts, 24.0) == 5.0
     daily = nav_ts_to_daily(nav_ts)
     assert year_returns_pct(daily, years=("2026",)) == {"2026": 5.0}
+
+
+def test_cta_vol_targeted_bear_targets_and_kaufman_er_mechanics() -> None:
+    t0 = datetime(2026, 11, 1, 0, 0, tzinfo=UTC)
+    # Smooth straight-line downtrend -> Kaufman ER == 1.0
+    smooth = [_bar("BTCUSDT", t0 + timedelta(days=i), 1440, 100.0 - i, 100.5 - i, 99.5 - i, 100.0 - i) for i in range(25)]
+    vol_m, er_m = compute_daily_vol_and_kaufman_er({"BTCUSDT": smooth}, ("BTCUSDT",))
+    last_ts = smooth[-1].ts_avail
+    assert er_m["BTCUSDT"][last_ts] > 0.99
+    assert vol_m["BTCUSDT"][last_ts] >= 0.10
+
+    cfg = CtaBearVolConfig(target_ann_vol=0.80, use_kaufman_er=True, use_4h_squeeze_guard=True, squeeze_retain_frac=0.40)
+    sigs = {
+        "BTCUSDT": SleeveSignal("BTCUSDT", last_ts, -0.70, 0.0, None, 0.0, 12, 0.02, 0.0, True),
+        "ETHUSDT": SleeveSignal("ETHUSDT", last_ts, -0.70, 0.0, None, 0.0, 12, 0.03, 0.0, True),
+        "SOLUSDT": SleeveSignal("SOLUSDT", last_ts, -0.70, 0.0, None, 0.0, 12, 0.04, 0.0, True),
+        "BNBUSDT": SleeveSignal("BNBUSDT", last_ts, -0.70, 0.0, None, 0.0, 12, 0.03, 0.0, True),
+        "XAUTUSDT": SleeveSignal("XAUTUSDT", last_ts, -0.75, 0.0, None, 0.0, 12, 0.01, 0.0, True),
+    }
+    calm_vol = {s: 0.45 for s in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT")} | {"XAUTUSDT": 0.18}
+    wild_vol = {s: 1.40 for s in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT")} | {"XAUTUSDT": 0.18}
+    smooth_er = {s: 0.45 for s in sigs}
+
+    t_calm = compute_cta_vol_targeted_bear_targets(sigs, {}, 0.0, calm_vol, smooth_er, cfg)
+    t_wild = compute_cta_vol_targeted_bear_targets(sigs, {}, 0.0, wild_vol, smooth_er, cfg)
+    t_sq = compute_cta_vol_targeted_bear_targets(sigs, {}, 0.0, calm_vol, smooth_er, cfg, btc_4h_squeezing=True)
+    # CTA Vol-Targeting auto-delevers when realized vol spikes
+    crypto_calm = sum(-t_calm[s] for s in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"))
+    crypto_wild = sum(-t_wild[s] for s in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"))
+    crypto_sq = sum(-t_sq[s] for s in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"))
+    assert crypto_calm > crypto_wild
+    assert abs(crypto_sq - crypto_calm * 0.40) < 1e-6
+    # Gold short works independently even when crypto breadth is bullish (0.80)
+    t_bull_crypto = compute_cta_vol_targeted_bear_targets(sigs, {}, 0.80, calm_vol, smooth_er, cfg)
+    assert set(t_bull_crypto.keys()) == {"XAUTUSDT"} and t_bull_crypto["XAUTUSDT"] < -0.50
