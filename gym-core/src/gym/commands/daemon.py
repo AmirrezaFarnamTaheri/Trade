@@ -28,11 +28,15 @@ def demo_seed(args) -> int:
         print(f"error: {store_root(args)} already exists; move it away to reseed", file=sys.stderr)
         return 2
     db = open_db(args, preset_at=start)  # demo: the October rules are known from the start of the synthetic past
+    symbols = DEFAULT_WATCH.split(",")
+    for symbol in symbols:
+        instrument = InstrumentId.wallex(symbol)
+        db.upsert_instrument(instrument, {}, {"symbol": symbol, "is_spot": True}, "demo-seed", start)
     rules = RuleService(db).load()[1]
     def closed(symbol, at):
         return not evaluate(rules, InstrumentId.wallex(symbol), "SELL", "EXIT", at, live=False).allowed
     seg = SegmentWriter(store_root(args) / "raw", db)
-    Collector(db, seg, DEFAULT_WATCH.split(","), demo=True, depth_levels=5).demo_history(start, end, closed)
+    Collector(db, seg, symbols, demo=True, depth_levels=5).demo_history(start, end, closed)
     seg.close()
     print(f"DEMO history {start:%Y-%m-%d %H:%M} .. {end:%Y-%m-%d %H:%M} UTC written to {store_root(args)}")
     return 0

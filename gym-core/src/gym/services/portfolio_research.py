@@ -11,18 +11,66 @@ from ..domain.model import now_utc
 from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .attribution import toman_attribution
+from .data_portal import DataPortal, validate_venue
 from .data_quality_gate import recorded_bar_coverage
 from .portfolio import MAX_MARKETS, portfolio
+from .portfolio_margin import load_margin_plans
 from .trial_ledger import TrialLedger
+
+
+def _resolve_selection(db, value, symbols, start, end, *, whole_request, watchlist, store, venue):
+    if whole_request or watchlist is not None:
+        from .historical_universe import whole_window_spot_selection
+
+        selection = whole_window_spot_selection(db, start, end, store=store, watchlist=watchlist, venue=venue)
+    elif "top_n" in value:
+        from .historical_universe import select_universe
+
+        selection = select_universe(db, start, quote_currency=value.get("quote_currency"),
+                                    top_n=value["top_n"], lookback_hours=value.get("lookback_hours", 24))
+        if selection["status"] != "AVAILABLE":
+            raise ValueError("historical top-N portfolio lacks sufficient prior volume evidence")
+    else:
+        selection = None
+    resolved = selection["symbols"] if selection is not None else symbols
+    if len(resolved) < 2:
+        raise ValueError("portfolio requires at least two supported markets")
+    portal = DataPortal(db, venue=venue)
+    if not whole_request and watchlist is None and any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1",
+                                                  (portal.instrument_key(s),)).fetchone() for s in resolved):
+        raise ValueError("portfolio requires observed markets")
+    return resolved, selection
+
+
+def _universe_request(value):
+    symbols = value.get("symbols", [])
+    watchlist_request = "watchlist_id" in value
+    if watchlist_request and {"symbols", "top_n"} & value.keys():
+        raise ValueError("watchlist_id, symbols and top_n are mutually exclusive")
+    whole_request = (not {"cash_by_currency", "venue"}.isdisjoint(value)
+                     and {"watchlist_id", "symbols", "top_n"}.isdisjoint(value))
+    as_of_request = "top_n" in value or whole_request or watchlist_request
+    venue = validate_venue(value.get("venue", "wallex"))
+    if venue != "wallex" and "top_n" in value:
+        raise ValueError("alternate venue replay needs a catalogue, watchlist or explicit selection")
+    if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
+            or (as_of_request and symbols != [])
+            or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
+            or len(set(symbols)) != len(symbols)):
+        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct market symbols")
+    return symbols, whole_request, watchlist_request, as_of_request, venue
 
 
 def portfolio_action(root, action, value, *, store):
     """Validate and persist a reproducible paper-only portfolio research request."""
     runs = root / "runs" / "portfolios"
     if action == "portfolio-list":
+        if value is not None and (type(value) is not dict or value.keys() != {"summary"} or value["summary"] is not True):
+            raise ValueError("portfolio-list accepts only the summary option")
+        rows = list_runs(runs, limit=100)
         if value is not None:
-            raise ValueError("portfolio-list takes no input")
-        return {"authority": "PAPER_ONLY", "runs": list_runs(runs, limit=100)}
+            rows = [_portfolio_list_summary(row) for row in rows]
+        return {"authority": "PAPER_ONLY", "runs": rows}
     if action == "portfolio-read":
         fields(value, "run_id")
         out = load_verified_run(runs, value["run_id"], store=store)
@@ -31,20 +79,21 @@ def portfolio_action(root, action, value, *, store):
         out["observed_bar_coverage"] = recorded_bar_coverage(out)
         out["return_attribution"] = toman_attribution(out)
         return out
-    required = {"symbols", "from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
+    required = {"from", "to", "resolution", "cash", "strategy", "params", "rules_mode", "cost"}
     if (type(value) is not dict or not required <= value.keys()
-            or value.keys() - required - {"policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis"}):
+            or value.keys() - required - {"symbols", "policy", "top_n", "quote_currency", "lookback_hours", "quality_max_bad_share", "hypothesis",
+                                          "cash_by_currency", "dynamic_routes", "funding_legs", "fx_rebalance",
+                                          "margin_positions", "venue", "rank_gate", "watchlist_id", "valuation_symbol"}):
         raise ValueError("invalid portfolio replay fields")
-    symbols = value["symbols"]
-    as_of_request = "top_n" in value
-    if (type(symbols) is not list or (not as_of_request and not 2 <= len(symbols) <= MAX_MARKETS)
-            or (as_of_request and symbols != [])
-            or any(type(s) is not str or not re.fullmatch("[A-Z0-9]{2,24}", s) for s in symbols)
-            or len(set(symbols)) != len(symbols)):
-        raise ValueError(f"a portfolio needs 2..{MAX_MARKETS} distinct market symbols")
+    symbols, whole_request, watchlist_request, as_of_request, venue = _universe_request(value)
     start, end = instant(value["from"]), instant(value["to"])
     if not start < end <= now_utc() or end - start > timedelta(days=31):
         raise ValueError("portfolio window must be historical, positive and at most 31 days")
+    watchlist = None
+    if watchlist_request:
+        from .market_watchlists import load_watchlist
+
+        watchlist = load_watchlist(root, value["watchlist_id"], start)
     if type(value["resolution"]) is not str:
         raise ValueError("portfolio resolution must be a string")
     description = value["cost"]
@@ -89,17 +138,8 @@ def portfolio_action(root, action, value, *, store):
         raise ValueError("portfolio requires an existing market store")
     db = MarketDB(path, readonly=True)
     try:
-        selection = None
-        if as_of_request:
-            from .historical_universe import select_universe
-
-            selection = select_universe(db, start, quote_currency=value.get("quote_currency"),
-                                        top_n=value["top_n"], lookback_hours=value.get("lookback_hours", 24))
-            if selection["status"] != "AVAILABLE" or len(selection["symbols"]) < 2:
-                raise ValueError("historical top-N portfolio lacks sufficient prior volume evidence")
-            symbols = selection["symbols"]
-        if any(not db.c.execute("SELECT 1 FROM book_top WHERE instrument_id=? LIMIT 1", ("wallex:" + s,)).fetchone() for s in symbols):
-            raise ValueError("portfolio requires observed markets")
+        symbols, selection = _resolve_selection(db, value, symbols, start, end, whole_request=whole_request,
+                                                watchlist=watchlist, store=store, venue=venue)
         if "quality_max_bad_share" in value:
             if len(symbols) > 20:
                 raise ValueError("quality-gated portfolios require at most 20 markets")
@@ -121,7 +161,10 @@ def portfolio_action(root, action, value, *, store):
                         "authority": "PAPER_ONLY", "funded_authority": False, "run_saved": False}
         out = portfolio(db, symbols, start, end, resolution=value["resolution"], cash=cash, cost=cost,
                         strategy_id=value["strategy"], params=value["params"], rules_mode=value["rules_mode"], store=store,
-                        policy=value.get("policy"), universe_selection=selection)
+                        policy=value.get("policy"), universe_selection=selection, cash_by_currency=value.get("cash_by_currency"),
+                        dynamic_routes=value.get("dynamic_routes", False), funding_legs=value.get("funding_legs"),
+                        fx_rebalance=value.get("fx_rebalance"), margin_plans=load_margin_plans(root, value.get("margin_positions")),
+                        venue=venue, rank_gate=value.get("rank_gate"), valuation_symbol=value.get("valuation_symbol"))
         size = 0
         for chunk in json.JSONEncoder(default=str, ensure_ascii=False, indent=1).iterencode(out):
             size += len(chunk.encode("utf-8"))
@@ -135,3 +178,12 @@ def portfolio_action(root, action, value, *, store):
                 **({"quality_gate": quality_gate} if quality_gate is not None else {})}
     finally:
         db.c.close()
+
+
+def _portfolio_list_summary(row):
+    inputs = row["inputs"]
+    currencies = inputs.get("cash_by_currency") or {
+        item["quote"]: None for item in inputs.get("instruments", {}).values()
+    }
+    keys = ("strategy", "resolution", "from", "to", "symbols")
+    return {"run_id": row["run_id"], "inputs": {key: inputs[key] for key in keys}, "currencies": sorted(currencies)}

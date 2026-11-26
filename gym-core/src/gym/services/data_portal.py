@@ -1,9 +1,11 @@
 """Point-in-time market-data access and valuation rates over the local market database."""
 import hashlib
 import json
+import re
 from bisect import bisect_right
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 
 from ..adapters.store import MarketDB
 from ..domain.bars import qualified
@@ -20,35 +22,82 @@ from ..domain.rules import is_closed
 from ..domain.sim import Spec
 
 
+def parse_depth(text):
+    if text is None:
+        return None
+    return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
+
+
+@lru_cache(maxsize=4096)
+def _book_receipt_time(stamp):
+    # Collector snapshots share receipt timestamps across instruments.
+    return parse_ts(stamp)
+
+
+@lru_cache(maxsize=64)
+def _book_flags(text):
+    return frozenset(filter(None, text.split(",")))
+
+
+def validate_venue(venue):
+    if not isinstance(venue, str) or re.fullmatch("[a-z][a-z0-9_-]{0,31}", venue) is None:
+        raise ValueError("invalid market venue")
+    return venue
+
+
 class DataPortal:
     """Point-in-time reads: quotes in availability order; specs and rules as they were known at a time."""
 
-    def __init__(self, db: MarketDB, *, excluded=()):
+    def __init__(self, db: MarketDB, *, excluded=(), venue="wallex"):
         self.db = db
         self.excluded = tuple(excluded)
+        self.venue = validate_venue(venue)
+
+    def instrument_key(self, symbol):
+        return f"{self.venue}:{symbol}"
 
     def tops(self, symbol: str, t0: datetime, t1: datetime) -> list[BookTop]:
+        return list(self.iter_tops(symbol, t0, t1))
+
+    def _book_rows(self, symbol, t0, t1, *, include_depth):
         if not t0 < t1:
             raise ValueError(f"inverted or empty range {iso(t0)} .. {iso(t1)}")
-        rows = self.db.c.execute("select ts_avail, bid, ask, bid_qty, ask_qty, flags, depth "
-                                 "from book_top where instrument_id=? and ts_avail>=? and ts_avail<? order by ts_avail, rowid",
-                                 (f"wallex:{symbol}", iso(t0), iso(t1)))
+        columns = "ts_avail, bid, ask, bid_qty, ask_qty, flags" + (", depth" if include_depth else "")
+        return self.db.c.execute(
+            f"SELECT {columns} FROM book_top WHERE instrument_id=? AND ts_avail>=? AND ts_avail<? ORDER BY ts_avail,rowid",
+            (self.instrument_key(symbol), iso(t0), iso(t1)))
+
+    def iter_tops(self, symbol: str, t0: datetime, t1: datetime):
+        """Yield book events from the current read snapshot in stable receipt order."""
+        rows = self._book_rows(symbol, t0, t1, include_depth=True)
+
         def optional_decimal(value):
             return None if value is None else dec(value)
 
-        def depth(text):
-            if text is None:
-                return None
-            return tuple(tuple((dec(p), dec(q)) for p, q in side) for side in json.loads(text))
-
-        excluded, out = self.excluded, []
+        excluded = self.excluded
         for r in rows:
-            t = parse_ts(r[0])
+            t = _book_receipt_time(r[0])
             if excluded and any(start <= t < end for start, end in excluded):
                 continue
-            out.append(BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
-                               optional_decimal(r[4]), frozenset(filter(None, r[5].split(","))), depth(r[6])))
-        return out
+            yield BookTop(symbol, t, optional_decimal(r[1]), optional_decimal(r[2]), optional_decimal(r[3]),
+                          optional_decimal(r[4]), _book_flags(r[5]), parse_depth(r[6]))
+
+    def iter_best_level_evidence(self, symbol, t0, t1):
+        """Project legacy digest fields after replay validates all rows in the same snapshot."""
+        @lru_cache(maxsize=4096)
+        def decimal_text(value):
+            return None if value is None else str(dec(value))
+
+        for stamp, bid, ask, bid_qty, ask_qty, flags in self._book_rows(symbol, t0, t1, include_depth=False):
+            if self.excluded:
+                at = _book_receipt_time(stamp)
+                if any(start <= at < end for start, end in self.excluded):
+                    continue
+            # Stored UTC receipts already have the same fixed-width representation as iso().
+            if len(stamp) != 27 or stamp[10] != "T" or not stamp.endswith("Z"):
+                stamp = iso(_book_receipt_time(stamp))
+            yield (stamp, decimal_text(bid), decimal_text(ask), decimal_text(bid_qty), decimal_text(ask_qty),
+                   sorted(_book_flags(flags)))
 
     def publication(self):
         row = self.db.c.execute("SELECT through FROM collector_publication WHERE singleton=1").fetchone()
@@ -56,7 +105,7 @@ class DataPortal:
 
     def trades_by_event(self, symbol: str, t0: datetime, t1: datetime, *, as_of: datetime | None = None) -> list[TradeTick]:
         available = " AND ts_avail<=?" if as_of is not None else ""
-        params = (f"wallex:{symbol}", iso(t0), iso(t1)) + ((iso(as_of),) if as_of is not None else ())
+        params = (self.instrument_key(symbol), iso(t0), iso(t1)) + ((iso(as_of),) if as_of is not None else ())
         rows = self.db.c.execute("select ts_event, ts_avail, price, qty, aggressor from trades where instrument_id=? "
                                  f"and ts_event>=? and ts_event<?{available} order by ts_event, rowid", params)
         ticks = [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
@@ -64,10 +113,18 @@ class DataPortal:
             return [t for t in ticks if not any(start <= t.ts_avail < end for start, end in self.excluded)]
         return ticks
 
+    def last_trade_before(self, symbol, at):
+        row = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "
+            "AND ts_avail<? AND ts_event<=ts_avail ORDER BY ts_avail DESC,ts_event DESC,rowid DESC LIMIT 1",
+            (self.instrument_key(symbol), iso(at))).fetchone()
+        if row is None:
+            return None
+        return TradeTick(symbol, parse_ts(row[0]), parse_ts(row[1]), dec(row[2]), dec(row[3]), row[4])
+
     def trades_by_availability(self, symbol, after, through):
         rows = self.db.c.execute("SELECT ts_event,ts_avail,price,qty,aggressor FROM trades WHERE instrument_id=? "
             "AND ts_avail>? AND ts_avail<=? ORDER BY ts_avail,ts_event,rowid LIMIT 100001",
-            (f"wallex:{symbol}", iso(after), iso(through))).fetchall()
+            (self.instrument_key(symbol), iso(after), iso(through))).fetchall()
         if len(rows) > 100000:
             raise ValueError("venue stop trade window exceeds budget")
         ticks = [TradeTick(symbol, parse_ts(r[0]), parse_ts(r[1]), dec(r[2]), dec(r[3]), r[4]) for r in rows]
@@ -80,24 +137,29 @@ class DataPortal:
         rows = self.db.c.execute("""SELECT t,o,h,l,c,v,fetched_at FROM (
             SELECT t,o,h,l,c,v,fetched_at,ROW_NUMBER() OVER(PARTITION BY t ORDER BY fetched_at DESC) AS position
             FROM candle_vintages WHERE instrument_id=? AND resolution=? AND t>=? AND t<? AND (? IS NULL OR fetched_at<?))
-            WHERE position=1 ORDER BY t""", (f"wallex:{symbol}", resolution, iso(t0), iso(t1), iso(as_of), iso(as_of)))
+            WHERE position=1 ORDER BY t""", (self.instrument_key(symbol), resolution, iso(t0), iso(t1), iso(as_of), iso(as_of)))
         return [{"t": parse_ts(r[0]), **{k: dec(x) for k, x in zip("ohlcv", r[1:6])}, "fetched_at": parse_ts(r[6])}
                 for r in rows]
 
     def observed(self, symbol: str, t0: datetime, t1: datetime) -> bool:
         """Whether the collector was writing this pair's book (change-only rows plus heartbeats) in [t0, t1)."""
         return self.db.c.execute("select 1 from book_top where instrument_id=? and ts_avail>=? and ts_avail<? limit 1",
-                                 (f"wallex:{symbol}", iso(t0), iso(t1))).fetchone() is not None
+                                 (self.instrument_key(symbol), iso(t0), iso(t1))).fetchone() is not None
 
     def instrument(self, symbol: str) -> InstrumentId:
-        r = self.db.c.execute("select base, quote from instruments where symbol=?", (symbol,)).fetchone()
-        return InstrumentId.wallex(symbol, *r) if r else InstrumentId.wallex(symbol)
+        r = self.db.c.execute("select base, quote, kind from instruments where instrument_id=?",
+                              (self.instrument_key(symbol),)).fetchone()
+        if self.venue == "wallex":
+            return InstrumentId.wallex(symbol, *r[:2]) if r else InstrumentId.wallex(symbol)
+        if r is None or not all(r):
+            raise ValueError(f"missing {self.venue} instrument terms for {symbol}")
+        return InstrumentId(self.venue, symbol, *r)
 
     def metadata_at(self, symbol: str, t: datetime) -> dict | None:
         r = self.db.c.execute("select rowid, valid_from, valid_to, spec, source from instrument_specs where "
                               "instrument_id=? and valid_from<=? and (valid_to is null or valid_to>?) "
                               "order by valid_from desc limit 1",
-                              (f"wallex:{symbol}", iso(t), iso(t))).fetchone()
+                              (self.instrument_key(symbol), iso(t), iso(t))).fetchone()
         if not r:
             return None
         return {"valid_from": parse_ts(r[1]), "valid_to": parse_ts(r[2]) if r[2] else None,
@@ -107,7 +169,7 @@ class DataPortal:
     def spec_at(self, symbol: str, t: datetime) -> Spec:
         r = self.db.c.execute("select spec from instrument_specs where instrument_id=? and valid_from<=? and "
                               "(valid_to is null or valid_to>?) order by valid_from desc limit 1",
-                              (f"wallex:{symbol}", iso(t), iso(t))).fetchone()
+                              (self.instrument_key(symbol), iso(t), iso(t))).fetchone()
         if not r:
             return Spec()  # unknown at that time: not enforced, and the report says so
         s = json.loads(r[0])
@@ -192,8 +254,9 @@ def curve_valuation(quote, curve, start, end, tops, rules_for):
         fx = factor(parse_ts(at))
         valued.append({"at": at, "equity_usdt_eq": (value if quote == "USDT" else
             str(Decimal(value) / Decimal(fx["rate"])) if fx["rate"] else None), "fx": fx})
+    basis = {"TMN": "MID of last qualified quote; derived valuation rate, not executable", "USDT": "USDT identity"}
     return {"pair": "USDTTMN" if quote == "TMN" else None,
-            "basis": "MID of last qualified quote; derived valuation rate, not executable" if quote == "TMN" else "USDT identity",
+            "basis": basis.get(quote, "USDT conversion unavailable"),
             "start": factor(start), "end": factor(end), "curve": valued}
 
 

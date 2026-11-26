@@ -34,8 +34,9 @@ class PendingOrder:
 
 
 class PaperSession:
-    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None, auxiliary_symbols=()):
-        if not cash.is_finite() or cash <= 0:
+    def __init__(self, portal, rules_for, strategy, symbol, start, resolution, cash, cost, subscriptions=(), reference_symbol=None,
+                 auxiliary_symbols=(), *, shared_book=None):
+        if shared_book is None and (not cash.is_finite() or cash <= 0):
             raise ValueError("cash must be positive and finite")
         self.portal = portal
         self.rules_for = rules_for
@@ -60,6 +61,8 @@ class PaperSession:
         self.venue_stop_trades = []
         if strategy.params.get("exit_venue_stop") and self.execution_limits is not None:
             raise ValueError("venue stops require a single-rule strategy")
+        if strategy.params.get("exit_venue_stop") == 3 and (cost.impact_models or cost.hourly_costs or cost.postfill_costs):
+            raise ValueError("stop-limit replay requires recorded touch prices without modeled price adjustments")
         self.bar_spec = BarSpec(resolution, "MID")
         required = getattr(strategy, "required_resolutions", ())
         if any(BarSpec(r).step <= self.bar_spec.step for r in required):
@@ -75,8 +78,9 @@ class PaperSession:
         periods = {"session": self.session_of} if "session" in resolutions else {}
         self.closes = CloseSubscriptions(symbol, resolutions, periods)
         self.consolidator = self.closes.by_resolution[resolution]
-        self.book = CashBook({self.instrument.quote: cash})
+        self.book = shared_book if shared_book is not None else CashBook({self.instrument.quote: cash})
         self.allocation = None  # portfolio hook: rescales an entry fraction against shared cash
+        self.intent_sink = None
         self.decision_filter = None
         self.warmup_until = None  # No simulated orders can enter before this boundary.
         self.risk_budget = None
@@ -292,6 +296,7 @@ class PaperSession:
                         if not stop_distance.is_finite() or not 0<stop_distance<10000:
                             raise ValueError("invalid proposed paper stop distance")
                     self.pending = PendingOrder(order, fraction, bar.avail, quote.ask if side == "BUY" else quote.bid,stop_distance)
+                    self._capture_intent(decision, quote)
                     decision["order"] = ref
             self.decisions.append(decision)
             if quote:
@@ -303,6 +308,18 @@ class PaperSession:
                                      "reason": "VENUE_CLOSED" if venue_closed else "NO_OBSERVATIONS"})
 
         self.latest_bars.update({b.spec.resolution: b for b in closed_bars})
+
+    def _capture_intent(self, decision, quote):
+        if self.intent_sink is None:
+            return
+        pending = self.pending
+        at, side = pending.decision_time, pending.record["side"]
+        asset = self.instrument.quote if side == "BUY" else self.instrument.base
+        self.intent_sink({"symbol": self.symbol, "ref": pending.record["ref"], "side": side,
+                          "decision_at": iso(at), "snapshot": decision["snapshot"], "quote_at": iso(quote.ts_avail),
+                          "decision_price": str(pending.decision_price), "arrival_at": iso(at + self.cost.latency),
+                          "deadline": iso(at + self.cost.max_wait), "amount_asset": asset,
+                          "amount": str(self.book.get(asset) * pending.fraction), "remainder_policy": "cancel"})
 
     def settle(self, top, at, closing=False):
         if not self.pending:
@@ -495,13 +512,41 @@ class PaperSession:
             self.position_closed = False
             if self.strategy.params.get("exit_venue_stop"):
                 stop = self.position_entry * (1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000) / (1 - self.cost.fee_rate)
-                self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None}
+                if self.strategy.params["exit_venue_stop"] == 3:
+                    self._place_stop_limit(order, at, stop)
+                    return
+                if self.strategy.params["exit_venue_stop"] == 2:
+                    high = max(Decimal(order["price"]), (self.venue_stop or {}).get("high_water", Decimal(0)))
+                    trail = 1 - Decimal(self.strategy.params["exit_stop_bps"]) / 10000
+                    stop = high * trail
+                    self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None,
+                                       "high_water": high, "trail_multiplier": trail}
+                else:
+                    self.venue_stop = {"created": at, "checked": at, "price": stop, "activation": None}
         else:
             self.position_closed = sellable_quantity(quantity, top.bid, self.portal.spec_at(self.symbol, at)) == 0
             order["residual_base"] = str(quantity)
             if quantity == 0:
                 self.position_entry = self.position_stop = self.position_opened = self.position_id = None
                 self.venue_stop = None
+
+    def _place_stop_limit(self, entry, at, price):
+        """Protect a long only when a received reference establishes a downward trigger."""
+        self.venue_stop = None
+        reference = self.portal.last_trade_before(self.symbol, at)
+        if reference is None or not reference.price.is_finite() or reference.price <= 0:
+            entry["protection"] = {"status": "NO_VALID_PRIOR_TRADE", "kind": "VENUE_STOP_LIMIT"}
+            return
+        evidence = (iso(reference.ts_event), iso(reference.ts_avail), str(reference.price), str(reference.qty), reference.aggressor)
+        self.venue_stop_trades.append(evidence)
+        if price >= reference.price:
+            entry["protection"] = {"status": "NOT_BELOW_REFERENCE", "kind": "VENUE_STOP_LIMIT", "reference": evidence}
+            return
+        offset = Decimal(self.strategy.params.get("exit_stop_limit_offset_bps", 0)) / 10000
+        limit_price = price * (1 - offset)
+        self.venue_stop = {"created": at, "checked": at, "price": price, "activation": None, "limit_price": limit_price}
+        entry["protection"] = {"status": "WAITING_FOR_TRADE", "kind": "VENUE_STOP_LIMIT", "reference": evidence,
+                               "stop_price": str(price), "limit_price": str(limit_price)}
 
     def settle_venue_stop(self, top):
         """Waiting stops reserve no balance; received trades activate a market exit with working remainders."""
@@ -514,7 +559,16 @@ class PaperSession:
             self.venue_stop_trades.extend((iso(t.ts_event), iso(t.ts_avail), str(t.price), str(t.qty), t.aggressor) for t in ticks)
             if len(self.venue_stop_trades) > 200_000:
                 raise ValueError("venue stop trade budget exceeded")
-            hit = next((t for t in ticks if t.ts_event >= stop["created"] and t.price <= stop["price"]), None)
+            hit = None
+            for tick in ticks:
+                if tick.ts_event < stop["created"]:
+                    continue
+                if "high_water" in stop and tick.price > stop["high_water"]:
+                    stop["high_water"] = tick.price
+                    stop["price"] = tick.price * stop["trail_multiplier"]
+                if tick.price <= stop["price"]:
+                    hit = tick
+                    break
             if hit is None:
                 return
             stop["activation"] = hit.ts_avail
@@ -522,15 +576,24 @@ class PaperSession:
         if self.pending:
             self.pending.record.update(status="CANCELLED", reason="VENUE_STOP_ACTIVATED")
             self.pending = None
-        if not qualified(top):
+        if "limit_price" in stop:
+            self._settle_stop_limit(top, stop)
+            return
+        trailing = "high_water" in stop
+        active_at = stop["activation"] + max(self.cost.latency, timedelta(microseconds=1)) if trailing else stop["activation"]
+        if at < active_at or not qualified(top):
             return
         previous_base, previous_cash = self.book.get(self.instrument.base), self.book.get(self.instrument.quote)
         ref = f"{self.symbol}#{len(self.orders) + 1}"
-        result = market_order(self.book, self.instrument, "SELL", Decimal(1), stop["activation"], stop["price"],
-            [top], 0, replace(self.cost, latency=timedelta(0), max_wait=at - stop["activation"], order_type="market"),
+        participation = (self.cost.max_participation or Decimal(1)) if trailing else self.cost.max_participation
+        result = market_order(self.book, self.instrument, "SELL", Decimal(1), active_at, stop["price"],
+            [top], 0, replace(self.cost, latency=timedelta(0), max_wait=at - active_at, order_type="market",
+                             max_participation=participation),
             self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, ref, self.day_open.get(tehran_day(at)))
         result.update(kind="VENUE_STOP_MARKET", stop_price=str(stop["price"]), created_at=iso(stop["created"]),
                       trigger_event_time=iso(stop["trigger_event"]), trigger_available_at=iso(stop["activation"]))
+        if trailing:
+            result.update(kind="VENUE_TRAILING_STOP_MARKET", high_water=str(stop["high_water"]), active_at=iso(active_at))
         if result["status"] == "FILLED":
             self.orders.append(result)
             self.record_position_fill(result, previous_base, previous_cash, top, at)
@@ -538,6 +601,43 @@ class PaperSession:
         elif result.get("reason") != stop.get("last_nonfill"):
             self.orders.append(result)
             stop["last_nonfill"] = result.get("reason")
+
+    def _settle_stop_limit(self, top, stop):
+        """Take available displayed bids at or above the limit on later open receipts."""
+        at = top.ts_avail
+        if at <= stop.get("examined_at", stop["activation"]) or "CLOSED" in top.flags or not qualified(top):
+            return
+        stop["examined_at"] = at
+        ref = f"{self.symbol}#{len(self.orders) + 1}"
+        activation, limit = stop["activation"], stop["limit_price"]
+        previous_base, previous_cash = self.book.get(self.instrument.base), self.book.get(self.instrument.quote)
+        if previous_base == 0:
+            self.venue_stop = None
+            return
+        if top.bid < limit:
+            result = {"ref": ref, "side": "SELL", "status": "NONFILL", "decision_time": iso(activation),
+                      "reason": "STOP_LIMIT_NOT_MARKETABLE", "observed_at": iso(at)}
+        else:
+            cost = replace(self.cost, latency=timedelta(0), max_wait=at - activation, order_type="market",
+                           walk_depth=False, max_participation=self.cost.max_participation or Decimal(1))
+            result = market_order(self.book, self.instrument, "SELL", Decimal(1), activation, limit, [top], 0, cost,
+                                  self.portal.spec_at(self.symbol, at), self.rules_for(at), self.quota, ref,
+                                  self.day_open.get(tehran_day(at)))
+        result.update(kind="VENUE_STOP_LIMIT", created_at=iso(stop["created"]), stop_price=str(stop["price"]),
+                      limit_price=str(limit), trigger_event_time=iso(stop["trigger_event"]), trigger_available_at=iso(activation))
+        if result["status"] == "FILLED":
+            self.orders.append(result)
+            self.record_position_fill(result, previous_base, previous_cash, top, at)
+            self.curve.append((iso(at), str(self.book.equity(self.instrument, top.bid))))
+        elif result["reason"] != stop.get("last_nonfill"):
+            self.orders.append(result)
+            stop["last_nonfill"] = result["reason"]
+
+    def venue_stop_state(self):
+        if self.venue_stop is None:
+            return None
+        return {key: iso(value) if isinstance(value, datetime) else str(value) if isinstance(value, Decimal) else value
+                for key, value in self.venue_stop.items()}
 
     def risk_cash(self, quote):
         if self.risk_budget is not None:

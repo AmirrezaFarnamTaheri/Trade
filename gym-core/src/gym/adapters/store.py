@@ -55,6 +55,10 @@ MIGRATIONS = [
     create index trades_event on trades(instrument_id, ts_event);
     create index book_top_time on book_top(ts_avail);
     """,
+    """
+    alter table book_top add column bid_ref text;
+    alter table book_top add column ask_ref text;
+    """,
 ]
 
 
@@ -73,11 +77,12 @@ def _decimal_text(value) -> str | None:
 class MarketDB:
     def __init__(self, path: Path, *, readonly=False):
         if readonly:
-            self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None)
+            self.c = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None, timeout=30.0)
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self.c = sqlite3.connect(path, isolation_level=None)
+            self.c = sqlite3.connect(path, isolation_level=None, timeout=30.0)
         try:
+            self.c.execute("pragma busy_timeout=30000")
             v = self.c.execute("pragma user_version").fetchone()[0]
             if not readonly and v <= len(MIGRATIONS):
                 enable_wal(self.c)
@@ -85,7 +90,8 @@ class MarketDB:
                 self.c.execute("BEGIN IMMEDIATE")
                 # Reject future layouts before journal mutation; recheck under the migration lock.
                 v = self.c.execute("pragma user_version").fetchone()[0]
-            if v > len(MIGRATIONS) or (readonly and v != len(MIGRATIONS)):
+            # Schema 6 already has every replay column except the two new nullable side references.
+            if v > len(MIGRATIONS) or (readonly and v not in (6, len(MIGRATIONS))):
                 raise ValueError(f"unsupported market schema {v}; expected {len(MIGRATIONS)}. "
                                  "Older stores require a writable open to migrate before read-only use.")
             if not readonly:
@@ -117,14 +123,14 @@ class MarketDB:
             self.c.execute("RELEASE instrument_spec")
             raise
 
-    def add_trade(self, t: TradeTick, seg_ref: str):
-        self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"wallex:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),
+    def add_trade(self, t: TradeTick, seg_ref: str, *, venue="wallex"):
+        self.c.execute("insert into trades values(?,?,?,?,?,?,?)", (f"{venue}:{t.symbol}", iso(t.ts_event), iso(t.ts_avail),
                        str(t.price), str(t.qty), t.aggressor, seg_ref))
 
-    def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None):
-        self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?)", (f"wallex:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
+    def add_book_top(self, b: BookTop, depth_ref: str | None, depth: str | None = None, *, side_refs=(None, None), venue="wallex"):
+        self.c.execute("insert into book_top values(?,?,?,?,?,?,?,?,?,?,?,?)", (f"{venue}:{b.symbol}", iso(b.ts_avail), iso(b.ts_avail),
                        _decimal_text(b.bid), _decimal_text(b.ask), _decimal_text(b.bid_qty), _decimal_text(b.ask_qty),
-                       depth_ref, ",".join(sorted(b.flags)), depth))
+                       depth_ref, ",".join(sorted(b.flags)), depth, *side_refs))
 
     def upsert_candles(self, symbol: str, resolution: str, candles: list[dict], fetched_at: datetime):
         """Retain each fetch; latest projection may advance but cannot erase older knowledge."""
@@ -352,10 +358,16 @@ def storage_forecast(db: MarketDB, raw: Path, now: datetime) -> dict:
             "hours_to_floor": round(max(0, free - MIN_FREE_BYTES) / per_hour, 1) if per_hour else None}
 
 
-def read_segment(path: Path) -> list[dict]:
+def iter_segment(path: Path):
     with open(path, "rb") as f:
-        text = io.TextIOWrapper(zstd.ZstdDecompressor().stream_reader(f, read_across_frames=True), "utf-8")
-        return [json.loads(line) for line in text if line.strip()]
+        with io.TextIOWrapper(zstd.ZstdDecompressor().stream_reader(f, read_across_frames=True), "utf-8") as stream:
+            for line in stream:
+                if line.strip():
+                    yield json.loads(line)
+
+
+def read_segment(path: Path) -> list[dict]:
+    return list(iter_segment(path))
 
 
 def readable_prefix(path: Path) -> tuple[int, int | None, int | None, bool]:

@@ -95,9 +95,18 @@ class ResearchProtocol:
             raise
 
     def register(self, request):
+        from ._journal_lock import journal_lock
+
+        with journal_lock(self.root / "trial-registration"):
+            return self._register_locked(request)
+
+    def _register_locked(self, request):
         declared = request.get("cost_declaration") if isinstance(request, dict) else None
-        if isinstance(request, dict) and "cost_declaration" in request:
-            request = {k: v for k, v in request.items() if k != "cost_declaration"}
+        supersedes = request.get("supersedes") if isinstance(request, dict) else None
+        if isinstance(request, dict):
+            request = {k: v for k, v in request.items() if k not in {"cost_declaration", "supersedes"}}
+        if supersedes is not None and (type(supersedes) is not str or not re.fullmatch(r"[a-f0-9]{64}", supersedes)):
+            raise ValueError("invalid superseded evaluation ID")
         fields(request, "symbol strategy params selection_end test_from test_to resolution cash fee_rate")
         strategy = create_strategy(request["strategy"], request["params"])
         if type(request["symbol"]) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", request["symbol"]):
@@ -119,18 +128,34 @@ class ResearchProtocol:
         if declared is not None:
             from ..domain.cost_gate import cost_gate
             cost = cost_gate(declared, Decimal(fee))
-        body = {**request, **({"cost_declaration": cost} if cost else {}), "params": strategy.params, "config_hash": strategy.config_hash,
+        body = {**request, **({"cost_declaration": cost} if cost else {}),
+                **({"supersedes": supersedes} if supersedes else {}),
+                "params": strategy.params, "config_hash": strategy.config_hash,
                 "selection_end": iso(selected), "test_from": iso(start), "test_to": iso(end),
                 "engine_digest": _engine_digest(), "store": self.store}
         key = digest(body)
         with self._write():
             existing = self.conn.execute("SELECT 1 FROM evaluations WHERE id=?", (key,)).fetchone()
             if not existing:
+                from .trial_governance import check_registration_budget
+
+                active = self.conn.execute("SELECT id, state, body FROM evaluations "
+                                           "WHERE state IN ('REGISTERED','CONSUMED') "
+                                           "AND json_extract(body,'$.store')=? ORDER BY id", (self.store,)).fetchall()
+                replaceable = {row_id for row_id, state, encoded in active
+                               if state == "REGISTERED" and now < parse_ts(json.loads(encoded)["test_from"])}
+                if supersedes is not None and supersedes not in replaceable:
+                    raise ValueError("only an active evaluation whose window has not started can be superseded")
+                check_registration_budget(self.root, self.store, now, key, supersedes=supersedes)
                 overlap = self.conn.execute("""SELECT 1 FROM evaluations
                     WHERE json_extract(body,'$.symbol')=? AND json_extract(body,'$.test_from')<?
                     AND json_extract(body,'$.test_to')>? LIMIT 1""", (body["symbol"], body["test_to"], body["test_from"])).fetchone()
                 if overlap:
                     raise ValueError("evaluation overlaps a previously registered window")
+                if supersedes is not None:
+                    result = {"verdict": "ABORTED", "reason": "SUPERSEDED", "superseded_by": key, "at": iso(now)}
+                    self.conn.execute("UPDATE evaluations SET state='FAILED', result=? WHERE id=?",
+                                      (json.dumps(result), supersedes))
                 self.conn.execute("INSERT INTO evaluations VALUES(?,?,?,'REGISTERED',NULL)", (key, json.dumps(body), iso(now)))
         from .trial_ledger import TrialLedger
         with TrialLedger(self.root) as ledger:

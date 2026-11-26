@@ -68,5 +68,5 @@ The owner canceled off-machine backup/second-host restoration. That does not mak
 the arm preflight's missing backup or any other missing evidence pass. Keep each
 native step separate for owner review; none of this source is a deployment approval.
 See [native order lifecycle](../../executor/docs/native-order-lifecycle.md) and the
-[review branch record](../../evidence/2026-11-16-review-branches.md). No real order, owner approval evidence
+[review branch record](../../evidence/archive/executor/2026-11-16-review-branches.md). No real order, owner approval evidence
 or funded permission was manufactured. The service still requires the prospective checkpoint.

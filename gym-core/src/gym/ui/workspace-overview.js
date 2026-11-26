@@ -38,9 +38,10 @@ function renderAnswer() {
   const verdicts = Object.keys(kinds);
   const selected = state.trialVerdict || "";
   const filtered = trials.filter(row => !selected || row.verdict === selected);
-  const journals = forwardRecord(forward, trials.find(row => row.id === "btc-daily-trend"), kinds) + mixRecord(value.forward_mix);
+  const journals = forwardRecord(forward, trials.find(row => row.id === "btc-daily-trend"), kinds)
+    + mixRecord(value.forward_mix) + breadthRecord(value.forward_breadth) + continuityAlerts(value.journal_continuity);
   const headline = tally.PASS || tally.NARROW_PASS ? "answerPassed" : "answerNone";
-  setHTML("overview-answer", `${stale}<p class="answer-headline">${esc(t(headline))}</p>${trialOutcomes(tally, verdicts)}`
+  setHTML("overview-answer", `${stale}${checkpointBanner(value)}<p class="answer-headline">${esc(t(headline))}</p>${trialOutcomes(tally, verdicts)}`
     + `<details class="answer-trials" data-key="trial-register"><summary data-focus="trial-register">${esc(t("answerShowTrials"))}</summary>`
     + `<label class="trial-filter" for="trial-verdict-filter">${esc(t("answerVerdict"))}<select id="trial-verdict-filter" data-focus="trial-filter">`
     + ["", ...verdicts].map(key => `<option value="${key}"${key === selected ? " selected" : ""}>${esc(t(key ? `verdict${key}` : "answerAllVerdicts"))}</option>`).join("")
@@ -65,6 +66,46 @@ function trialOutcomes(tally, verdicts) {
   return `<figure class="trial-outcomes"><figcaption>${num(total)} ${esc(t("answerRegistered"))}</figcaption>`
     + `<svg viewBox="0 0 ${total} 12" preserveAspectRatio="none" aria-hidden="true">${parts}</svg>`
     + `<ul class="trial-counts">${verdicts.map((verdict, i) => `<li><span class="trial-swatch trial-${verdict}" aria-hidden="true"></span><strong>${num(counts[i])}</strong> ${esc(t(`verdict${verdict}`))}</li>`).join("")}</ul></figure>`;
+}
+
+/** Truthful evidence stage, DISARMED authority, trial budget, and owner backup exception (U001, U002, U004, U006, U031). */
+function checkpointBanner(value) {
+  const cp = value?.checkpoint;
+  const budget = value?.trial_budget;
+  if (!cp && !budget) return "";
+  const pills = [
+    chip(t("evidenceBadgeDisarmed"), "warn"),
+    chip(t("evidenceBadgePaper"), "neutral"),
+    cp?.backup_policy_exception ? chip(t("backupExceptionBadge"), "warn") : "",
+  ].filter(Boolean).join(" ");
+  const meta = [];
+  if (cp?.date) meta.push(`${esc(t("checkpointDateLabel"))}: <span dir="ltr">${esc(cp.date)}</span>`);
+  if (budget) meta.push(`${esc(t("trialBudgetLabel"))}: <span dir="ltr">${digits(budget.active)}/${digits(budget.limit)}</span>`);
+  return `<div class="checkpoint-strip" role="note"><p>${pills}</p>${meta.length ? `<p class="field-help">${meta.join(" · ")}</p>` : ""}</div>`;
+}
+
+/** Surface missing forward study days or duplicate-day defects honestly (U005, U008). */
+function continuityAlerts(continuity) {
+  if (!continuity) return "";
+  const issues = ["btc_daily_trend", "passive_mix", "breadth_trend"]
+    .map(key => continuity[key])
+    .filter(row => row && (row.evidence_status === "GAP_DETECTED" || row.evidence_status === "BROKEN_DUPLICATE"));
+  if (!issues.length) return "";
+  const items = issues.map(row => `<li>${esc(t("continuityGapLine")
+    .replace("{journal}", row.journal).replace("{status}", row.evidence_status)
+    .replace("{missing}", String(row.missing_days_through_yesterday ?? 0)))}</li>`).join("");
+  return `<div class="notice" role="status"><strong>${esc(t("continuityAttention"))}</strong><ul>${items}</ul></div>`;
+}
+
+/** The breadth-trend forward paper record on Wallex USDT markets (U005). */
+function breadthRecord(breadth) {
+  if (!breadth) return "";
+  return `<h4 class="forward-title">${esc(t("breadthTitle"))}</h4>` + keyValues([
+    [t("forwardDays"), `${num(breadth.days)} · ${esc(t("mixSince"))} <span dir="ltr">${esc(breadth.started)}</span>`],
+    [t("mixEquity"), `<span class="${signed(breadth.net_pct)}" dir="ltr">${digits(breadth.equity)} USDT · ${digits(breadth.net_pct)}%</span>`],
+    [t("breadthGate"), `${esc(t(breadth.gate_open ? "breadthGateOpen" : "breadthGateClosed"))} · ${esc(t("breadthUniverse"))}: ${num(breadth.universe_size)}`],
+    [t("forwardLatest"), stampHtml(breadth.latest)],
+  ]);
 }
 
 /** The passive mix's forward record on Wallex prices, beside the trend rule's. */

@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-<# Start the public all-market collector and paper scheduler using one data root.
+<# Start the public 40-market collector and paper scheduler using one data root.
    Both use limited-user scheduled tasks with single-instance and restart settings.
    -WhatIf previews both actions. This never starts the protected executor.
 #>

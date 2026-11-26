@@ -31,7 +31,8 @@ def test_local_ownership_does_not_load_the_collector_network_stack():
     ("services", {"gym.api"}),
 ])
 def test_imports_follow_dependency_direction(layer, forbidden):
-    for path in (SOURCE / layer).rglob("*.py"):
+    violations: list[str] = []
+    for path in sorted((SOURCE / layer).rglob("*.py")):
         package = ".".join(path.parent.relative_to(SOURCE.parent).parts)
         for node in ast.walk(ast.parse(path.read_text("utf-8"))):
             if isinstance(node, ast.Import):
@@ -42,6 +43,6 @@ def test_imports_follow_dependency_direction(layer, forbidden):
             else:
                 continue
             for imported in imports:
-                assert not any(imported == banned or imported.startswith(banned + ".") for banned in forbidden), (
-                    f"{path.relative_to(SOURCE)} imports {imported}"
-                )
+                if any(imported == banned or imported.startswith(banned + ".") for banned in forbidden):
+                    violations.append(f"{path.relative_to(SOURCE)} imports {imported}")
+    assert not violations, "Forbidden layer imports found:\n" + "\n".join(violations)

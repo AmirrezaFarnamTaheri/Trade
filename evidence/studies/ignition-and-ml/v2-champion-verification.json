@@ -1,0 +1,360 @@
+{
+  "generated_at": "2026-11-25T20:58:19.942886+00:00",
+  "oos_aucs": {
+    "v1_gru6_0h": 0.5755,
+    "v2_gru11_pathpnl_0h": 0.5597,
+    "v2_gru11_pathpnl_1h": 0.6037,
+    "v2_gru8_bce_0h": 0.5756,
+    "v2_gru8_bce_1h": 0.5927
+  },
+  "arms": [
+    {
+      "name": "BASE_13_100PCT_NBX16",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1145.44,
+        "ret_pct": 14.54,
+        "ann_sharpe": 0.385,
+        "max_dd_pct": 10.97
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1145.44,
+        "ret_pct": -2.86,
+        "ann_sharpe": -0.169,
+        "max_dd_pct": 10.97
+      },
+      "fills": 668,
+      "fees_usdt": 23.1,
+      "turnover": 14.43,
+      "vs_base_bps": 0.0,
+      "ci_base_bps": null,
+      "vs_v1_bps": -0.32,
+      "ci_v1_bps": [
+        -1.8,
+        1.08
+      ]
+    },
+    {
+      "name": "V1_CHAMPION_70_30_NBX16",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1197.86,
+        "ret_pct": 19.79,
+        "ann_sharpe": 0.562,
+        "max_dd_pct": 7.96
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1197.86,
+        "ret_pct": -1.09,
+        "ann_sharpe": -0.049,
+        "max_dd_pct": 7.96
+      },
+      "fills": 1036,
+      "fees_usdt": 76.15,
+      "turnover": 47.6,
+      "vs_base_bps": 0.32,
+      "ci_base_bps": [
+        -1.1,
+        1.78
+      ],
+      "vs_v1_bps": 0.0,
+      "ci_v1_bps": null
+    },
+    {
+      "name": "V2_GRU11_PATHPNL_70_30_NBX16",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1261.32,
+        "ret_pct": 26.13,
+        "ann_sharpe": 0.74,
+        "max_dd_pct": 7.16
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1261.32,
+        "ret_pct": 1.55,
+        "ann_sharpe": 0.193,
+        "max_dd_pct": 7.16
+      },
+      "fills": 1350,
+      "fees_usdt": 72.58,
+      "turnover": 45.37,
+      "vs_base_bps": 0.77,
+      "ci_base_bps": [
+        -0.77,
+        2.34
+      ],
+      "vs_v1_bps": 0.46,
+      "ci_v1_bps": [
+        -0.44,
+        1.34
+      ]
+    },
+    {
+      "name": "V2_GRU11_PATHPNL_60_40_NBX16",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1264.68,
+        "ret_pct": 26.47,
+        "ann_sharpe": 0.78,
+        "max_dd_pct": 6.7
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1264.68,
+        "ret_pct": 2.25,
+        "ann_sharpe": 0.26,
+        "max_dd_pct": 6.7
+      },
+      "fills": 1326,
+      "fees_usdt": 87.77,
+      "turnover": 54.86,
+      "vs_base_bps": 0.78,
+      "ci_base_bps": [
+        -1.0,
+        2.71
+      ],
+      "vs_v1_bps": 0.46,
+      "ci_v1_bps": [
+        -0.4,
+        1.34
+      ]
+    },
+    {
+      "name": "V2_GRU8_CONFORMAL_70_30_NBX16",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1258.16,
+        "ret_pct": 25.82,
+        "ann_sharpe": 0.734,
+        "max_dd_pct": 7.01
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1258.16,
+        "ret_pct": 1.79,
+        "ann_sharpe": 0.215,
+        "max_dd_pct": 7.01
+      },
+      "fills": 1342,
+      "fees_usdt": 70.97,
+      "turnover": 44.35,
+      "vs_base_bps": 0.75,
+      "ci_base_bps": [
+        -0.75,
+        2.37
+      ],
+      "vs_v1_bps": 0.43,
+      "ci_v1_bps": [
+        -0.53,
+        1.33
+      ]
+    },
+    {
+      "name": "V2_GRU8_CONFORMAL_60_40_NBX16",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1259.31,
+        "ret_pct": 25.93,
+        "ann_sharpe": 0.77,
+        "max_dd_pct": 6.49
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1259.31,
+        "ret_pct": 2.61,
+        "ann_sharpe": 0.295,
+        "max_dd_pct": 6.49
+      },
+      "fills": 1319,
+      "fees_usdt": 85.54,
+      "turnover": 53.46,
+      "vs_base_bps": 0.74,
+      "ci_base_bps": [
+        -0.97,
+        2.63
+      ],
+      "vs_v1_bps": 0.42,
+      "ci_v1_bps": [
+        -0.5,
+        1.31
+      ]
+    },
+    {
+      "name": "BASE_13_100PCT_WLX25",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1132.53,
+        "ret_pct": 13.25,
+        "ann_sharpe": 0.359,
+        "max_dd_pct": 11.01
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1132.53,
+        "ret_pct": -3.22,
+        "ann_sharpe": -0.199,
+        "max_dd_pct": 11.01
+      },
+      "fills": 667,
+      "fees_usdt": 35.85,
+      "turnover": 14.34,
+      "vs_base_bps": 0.0,
+      "ci_base_bps": null,
+      "vs_v1_bps": -0.08,
+      "ci_v1_bps": [
+        -1.54,
+        1.32
+      ]
+    },
+    {
+      "name": "V1_CHAMPION_70_30_WLX25",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1154.8,
+        "ret_pct": 15.48,
+        "ann_sharpe": 0.461,
+        "max_dd_pct": 8.07
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1154.8,
+        "ret_pct": -2.26,
+        "ann_sharpe": -0.16,
+        "max_dd_pct": 8.03
+      },
+      "fills": 1030,
+      "fees_usdt": 116.73,
+      "turnover": 46.69,
+      "vs_base_bps": 0.08,
+      "ci_base_bps": [
+        -1.35,
+        1.53
+      ],
+      "vs_v1_bps": 0.0,
+      "ci_v1_bps": null
+    },
+    {
+      "name": "V2_GRU11_PATHPNL_70_30_WLX25",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1195.85,
+        "ret_pct": 19.59,
+        "ann_sharpe": 0.6,
+        "max_dd_pct": 8.26
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1195.85,
+        "ret_pct": -0.36,
+        "ann_sharpe": 0.021,
+        "max_dd_pct": 8.26
+      },
+      "fills": 1233,
+      "fees_usdt": 103.66,
+      "turnover": 41.47,
+      "vs_base_bps": 0.37,
+      "ci_base_bps": [
+        -1.14,
+        2.0
+      ],
+      "vs_v1_bps": 0.29,
+      "ci_v1_bps": [
+        -0.57,
+        1.12
+      ]
+    },
+    {
+      "name": "V2_GRU11_PATHPNL_60_40_WLX25",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1196.66,
+        "ret_pct": 19.67,
+        "ann_sharpe": 0.624,
+        "max_dd_pct": 7.61
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1196.66,
+        "ret_pct": 0.42,
+        "ann_sharpe": 0.092,
+        "max_dd_pct": 7.61
+      },
+      "fills": 1215,
+      "fees_usdt": 127.05,
+      "turnover": 50.82,
+      "vs_base_bps": 0.37,
+      "ci_base_bps": [
+        -1.46,
+        2.29
+      ],
+      "vs_v1_bps": 0.28,
+      "ci_v1_bps": [
+        -0.64,
+        1.07
+      ]
+    },
+    {
+      "name": "V2_GRU8_CONFORMAL_70_30_WLX25",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1182.04,
+        "ret_pct": 18.2,
+        "ann_sharpe": 0.568,
+        "max_dd_pct": 8.12
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1182.04,
+        "ret_pct": -0.01,
+        "ann_sharpe": 0.052,
+        "max_dd_pct": 8.12
+      },
+      "fills": 1221,
+      "fees_usdt": 99.18,
+      "turnover": 39.67,
+      "vs_base_bps": 0.27,
+      "ci_base_bps": [
+        -1.3,
+        1.91
+      ],
+      "vs_v1_bps": 0.18,
+      "ci_v1_bps": [
+        -0.75,
+        1.03
+      ]
+    },
+    {
+      "name": "V2_GRU8_CONFORMAL_60_40_WLX25",
+      "full": {
+        "days": 1084,
+        "ending_nav": 1180.2,
+        "ret_pct": 18.02,
+        "ann_sharpe": 0.586,
+        "max_dd_pct": 7.37
+      },
+      "stress": {
+        "days": 367,
+        "ending_nav": 1180.2,
+        "ret_pct": 1.06,
+        "ann_sharpe": 0.154,
+        "max_dd_pct": 7.37
+      },
+      "fills": 1209,
+      "fees_usdt": 120.79,
+      "turnover": 48.31,
+      "vs_base_bps": 0.24,
+      "ci_base_bps": [
+        -1.56,
+        2.15
+      ],
+      "vs_v1_bps": 0.15,
+      "ci_v1_bps": [
+        -0.81,
+        1.04
+      ]
+    }
+  ]
+}

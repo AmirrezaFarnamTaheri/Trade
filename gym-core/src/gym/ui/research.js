@@ -5,7 +5,7 @@ window.gymResearch = (() => {
     register: [T.en.rsRegisterHypothesis, T.fa.rsRegisterHypothesis, 'symbol, strategy, params'],
     'shadow-open': [T.en.rsOpenPaperShadow, T.fa.rsOpenPaperShadow, 'position_id, hypothesis_id, quote, gross_quantity, fee_rate'],
     'shadow-close': [T.en.rsClosePaperShadow, T.fa.rsClosePaperShadow, 'position_id, quote'],
-    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate'],
+    schedule: [T.en.rsScheduleHypothesis, T.fa.rsScheduleHypothesis, 'hypothesis_id, every_seconds, lookback_seconds, first_at, resolution, cash, fee_rate (optional: venue, valuation_symbol, max_fraction, max_participation, portfolio_symbols or watchlist_id, cash_by_currency, dynamic_routes, fx_rebalance, margin_positions)'],
     list: [T.en.rsResearchLedger, T.fa.rsResearchLedger, ''],
     review: [T.en.rsReviewSavedRuns, T.fa.rsReviewSavedRuns, 'run_ids'],
     'claim-check': [T.en.rsCheckNumericClaims, T.fa.rsCheckNumericClaims, 'claims'],
@@ -36,7 +36,7 @@ window.gymResearch = (() => {
   actions['margin-pairs-replay'] = [T.en.rsSimulateAMatchedLongShortMargin, T.fa.rsSimulateAMatchedLongShortMargin, 'long_preview_id, short_preview_id, from, to, exit_fee_rate, holding_seconds, max_skew_seconds (0..120); public archived quotes only, USDT scorecard if both USDT and settled; never venue orders'];
   actions['lead-lag-research'] = [T.en.rsTestCausalLeadLagAlignment, T.fa.rsTestCausalLeadLagAlignment, 'primary, leader, from, to, resolution, max_age_seconds, max_skew_seconds, min_overlap; optional max_delay_bars (1..12), strictly earlier training-only lag choice; descriptive only'];
   actions['twap-preview'] = [T.en.rsPreviewPaperTwapChildFills, T.fa.rsPreviewPaperTwapChildFills, 'symbol, from, to, side (BUY/SELL), quantity, slices, participation, fee_rate, available_quote, available_base, max_delay_seconds; optional cost_models (dated impact_models/hourly_costs); paper-only'];
-  actions['stop-preview'] = [T.en.rsPreviewPaperStopOrder, T.fa.rsPreviewPaperStopOrder, 'symbol, from (order time), to, side (BUY/SELL), quantity, stop_price, type (STOP_MARKET/STOP_LIMIT), limit_price (null for STOP_MARKET), fee_rate; paper-only'];
+  actions['stop-preview'] = [T.en.rsPreviewPaperStopOrder, T.fa.rsPreviewPaperStopOrder, 'symbol, from, to, side, quantity, fee_rate, type. STOP_MARKET/STOP_LIMIT: stop_price, limit_price (null for STOP_MARKET). TRAILING_STOP (SELL): trail_fraction, activation_delay_ms; paper-only'];
   actions['arm-policy-read'] = [T.en.rsReadArmPolicyAndPreflight, T.fa.rsReadArmPolicyAndPreflight, 'null; shows the saved owner policy, the ADR 0007 defaults and the READY/BLOCKED checklist'];
   actions['arm-policy-save'] = [T.en.rsSaveArmPolicy, T.fa.rsSaveArmPolicy, 'the full policy object; see the default from arm-policy-read. Saving arms nothing: the executor stays disarmed'];
   actions['credit-packages'] = [T.en.rsReadCreditPackages, T.fa.rsReadCreditPackages, 'null; reads the public package list and saves a receipt'];
@@ -46,6 +46,9 @@ window.gymResearch = (() => {
   actions['prospective-status'] = [T.en.rsInspectFrozenComparison, T.fa.rsInspectFrozenComparison, 'Saved 64-character registry ID'];
   actions['prospective-evaluate'] = [T.en.rsConsumeFutureComparisonOnce, T.fa.rsConsumeFutureComparisonOnce, 'Saved 64-character registry ID; failures are consumed'];
   actions['market-products'] = [T.en.rsInspectObservedMarketProductsAndCredit, T.fa.rsInspectObservedMarketProductsAndCredit, 'margin_catalogue_id: null or saved public MARKETS receipt ID; stale terms cannot establish current availability'];
+  actions['universe-manifest'] = [T.en.rsUniverseManifest, T.fa.rsUniverseManifest, 'as_of, lookback_seconds, optional venue and symbols or watchlist_id'];
+  actions['watchlist-save'] = [T.en.rsWatchlistSave, T.fa.rsWatchlistSave, 'name, effective_from (ISO timestamp), symbols: [market]'];
+  actions['watchlist-read'] = [T.en.rsWatchlistRead, T.fa.rsWatchlistRead, 'watchlist_id (16 lowercase hex characters)'];
   actions['campaign-status'] = [T.en.rsInspectCampaignProgressAndVerifiedSamples, T.fa.rsInspectCampaignProgressAndVerifiedSamples, 'limit: 1..100; complete journal counts, bounded verified readiness/trade sample; process liveness remains separate'];
   actions['walk-forward'] = [T.en.rsExpandingWalkForwardSearch, T.fa.rsExpandingWalkForwardSearch, 'hypothesis, symbol, candidates: [{strategy, params}], windows: [{train_from, train_to, test_from, test_to}], final_from, resolution, cash, fee_rate, latency_ms, purge_bars'];
   actions['execution-calibration'] = [T.en.rsInspectExecutionAssumptionEvidence, T.fa.rsInspectExecutionAssumptionEvidence, 'symbol (null for all markets), from, to, max_age_seconds; public feed timing only, no automatic cost defaults'];
@@ -64,6 +67,8 @@ window.gymResearch = (() => {
   actions['replay-resume'] = [T.en.rsResumeAndVerifySavedReplay, T.fa.rsResumeAndVerifySavedReplay, 'checkpoint_id'];
   actions['entry-lock-add'] = [T.en.rsRecordPaperEntryLock, T.fa.rsRecordPaperEntryLock, 'run_id, scope (PAIR/GLOBAL), reason (COOLDOWN/DRAWDOWN), duration_seconds, threshold_percent (null for cooldown)'];
   actions['entry-locks'] = [T.en.rsInspectPaperEntryLocks, T.fa.rsInspectPaperEntryLocks, ''];
+  actions['otc-quote-preview'] = [T.en.rsPreviewOtcQuote, T.fa.rsPreviewOtcQuote, 'symbol, side, base_quantity, decision_at, quote {symbol, side, received_at, price, price_expires_at}, market {symbol, received_at, buyStatus, sellStatus, minQty, minNotional, maxNotional}'];
+  actions['otc-route-replay'] = [T.en.rsReplayOtcRoute, T.fa.rsReplayOtcRoute, 'opening_balances, legs. OTC: {base, quote_asset, submit_at, modeled_settle_at, fee_rate, request}. Spot: {spot: {symbol, side, base_quantity, submit_at, settle_by, fee_rate}}'];
   actions['conversion-report'] = [T.en.rsEvaluateModeledConversion, T.fa.rsEvaluateModeledConversion, 'instruction, fills, mark_price, observed_at (offline modeled fills only)'];
   actions['probe-stage'] = [T.en.rsStageOfflineProbeBudget, T.fa.rsStageOfflineProbeBudget, 'total_loss_limit, quote_asset, probe: {probe_id, kind, symbol, worst_case_total_loss, venue_minimum_quote} (no permission to trade)'];
   actions['external-import'] = [T.en.rsImportManualAccountObservations, T.fa.rsImportManualAccountObservations, 'account_id, observed_at, balances, orders, exposure (sanitized observations only; no credentials)'];
@@ -108,7 +113,7 @@ window.gymResearch = (() => {
     const groups = [
       [T.en.rsSchedulesAndRecovery, T.fa.rsSchedulesAndRecovery, /^(schedule|job-|campaign-status$|list$)/],
       [T.en.rsExperimentsAndReplay, T.fa.rsExperimentsAndReplay, /^(register$|review$|experiment-|registry-|annotation-|replay)/],
-      [T.en.rsMarketsAndObservations, T.fa.rsMarketsAndObservations, /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|depth-|unit-|derived$|screen$|observe-)/],
+      [T.en.rsMarketsAndObservations, T.fa.rsMarketsAndObservations, /^(premium-|lead-lag-|technical|spreads$|trade-flow$|candles$|market-|universe-|watchlist-|depth-|unit-|derived$|screen$|observe-)/],
       [T.en.rsResearchEvidenceAndEvaluation, T.fa.rsResearchEvidenceAndEvaluation, /^(research-|prospective-|claim-check$|outcome|final-)/],
       [T.en.rsAccountAndExecutionDiagnostics, T.fa.rsAccountAndExecutionDiagnostics, /./],
     ];
@@ -223,6 +228,9 @@ window.gymResearch = (() => {
       <details><summary>${text(T.en.rsFrozenProspectiveComparisonPaperOnly, T.fa.rsFrozenProspectiveComparisonPaperOnly)}</summary>
         <p class="field-help">${text(T.en.rsFreezeTwoToFourStrategyConfigurations, T.fa.rsFreezeTwoToFourStrategyConfigurations)}</p>
         <form id="prospective-register-form" class="ticket-fields">
+          <label>${text(T.en.rsStudyHypothesis, T.fa.rsStudyHypothesis)}<input id="prospective-hypothesis" maxlength="480" required></label>
+          <label>${text(T.en.rsStudyMinimumUplift, T.fa.rsStudyMinimumUplift)}<input id="prospective-minimum-uplift" inputmode="decimal" maxlength="64" required dir="ltr"></label>
+          <p class="field-help">${text(T.en.rsStudyEvidenceScope, T.fa.rsStudyEvidenceScope)}</p>
           <label>${text(T.en.rsMarketSymbol, T.fa.rsMarketSymbol)}<input id="prospective-symbol" pattern="[A-Z0-9]{2,24}" autocomplete="off" required dir="ltr" placeholder="BTCUSDT"></label>
           <label>${text(T.en.rsSelectionCutoffUtc, T.fa.rsSelectionCutoffUtc)}<input id="prospective-selection-end" type="datetime-local" step="60" required dir="ltr"></label>
           <label>${text(T.en.rsFutureEvaluationStartUtc, T.fa.rsFutureEvaluationStartUtc)}<input id="prospective-test-from" type="datetime-local" step="60" required dir="ltr"></label>
@@ -431,8 +439,13 @@ window.gymResearch = (() => {
           throw new Error(text(T.en.rsSelectTwoToFourDistinctCandidate, T.fa.rsSelectTwoToFourDistinctCandidate));
         const symbol = $('prospective-symbol').value.trim();
         if (!/^[A-Z0-9]{2,24}$/.test(symbol)) throw new Error(text(T.en.rsEnterAValidUppercaseMarketSymbol, T.fa.rsEnterAValidUppercaseMarketSymbol));
+        const hypothesis = $('prospective-hypothesis').value.trim();
+        const uplift = $('prospective-minimum-uplift').value.trim();
+        if (!hypothesis || !prospectiveNumberPattern.test(uplift) || !(Number(uplift) > 0 && Number(uplift) <= 10000))
+          throw new Error(text(T.en.rsStudyIntentValidation, T.fa.rsStudyIntentValidation));
         prospectiveCall(event.target.querySelector('button'), 'prospective-register',
-          {symbol, candidates, selection_end, test_from, test_to, resolution, cash, fee_rate});
+          {symbol, candidates, selection_end, test_from, test_to, resolution, cash, fee_rate,
+           study_intent: {hypothesis, benchmark: 'HOLD_QUOTE_CASH', minimum_net_uplift_bps: uplift}});
       } catch (error) { prospectiveError(error.message || text(T.en.rsInvalidRegistration, T.fa.rsInvalidRegistration)); }
     };
     const prospectiveSavedId = () => {

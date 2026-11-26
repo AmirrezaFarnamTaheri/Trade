@@ -13,8 +13,11 @@ import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from gym.adapters.store import MarketDB, SegmentWriter, read_segment
 from gym.api.server import make_app
+from gym.services.capabilities import market_products
 from gym.services.collector import Collector
 from gym.services.loop_lag import WARN_P99_MS, LoopLag
 from gym.services.rules import RuleService
@@ -61,7 +64,8 @@ def test_full_universe_ticks_keep_event_loop_lag_under_the_bound(tmp_path):
     assert tick_p99 < 1000, durations  # one tick writes every market at once; a second would stall the feed
 
 
-def test_full_frames_market_api_and_hour_rotation_keep_all_observations(tmp_path):
+@pytest.mark.parametrize("readers", [0, 2])
+def test_full_frames_market_api_and_hour_rotation_keep_all_observations(tmp_path, readers):
     from aiohttp.test_utils import TestClient, TestServer
 
     db = MarketDB(tmp_path / "market.db")
@@ -71,10 +75,22 @@ def test_full_frames_market_api_and_hour_rotation_keep_all_observations(tmp_path
     ticks = 16
     start = datetime(2026, 11, 10, 9, 59, 55, tzinfo=UTC)
 
+    def read_products():
+        read_db = MarketDB(tmp_path / "market.db", readonly=True)
+        began = time.perf_counter()
+        try:
+            report = market_products(tmp_path, read_db, {"margin_catalogue_id": None}, store="live")
+            assert len(report["markets"]) == MARKETS
+            return (time.perf_counter() - began) * 1000
+        finally:
+            read_db.c.close()
+
     async def scenario():
         lag = LoopLag(interval=0.01, window=10_000)
         sampler = asyncio.create_task(lag.run())
         frame_ms, tick_ms, api_ms = [], [], []
+        products_ms, wal_peak = [], 0
+        pending = []
         try:
             async with TestClient(TestServer(make_app(col, RuleService(db), "test"), host="127.0.0.1")) as client:
                 for n in range(ticks):
@@ -97,19 +113,27 @@ def test_full_frames_market_api_and_hour_rotation_keep_all_observations(tmp_path
                     began = time.perf_counter()
                     col.tick(now)
                     tick_ms.append((time.perf_counter() - began) * 1000)
+                    wal = tmp_path / "market.db-wal"
+                    wal_peak = max(wal_peak, wal.stat().st_size)
+                    if pending:
+                        products_ms.extend(await asyncio.gather(*pending))
+                    pending = [asyncio.create_task(asyncio.to_thread(read_products)) for _ in range(readers)]
                     began = time.perf_counter()
                     response = await client.get("/api/markets")
                     assert response.status == 200
                     assert len((await response.json())["markets"]) == MARKETS
                     api_ms.append((time.perf_counter() - began) * 1000)
                     await asyncio.sleep(0.02)
+                products_ms.extend(await asyncio.gather(*pending))
         finally:
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
             sampler.cancel()
             await asyncio.gather(sampler, return_exceptions=True)
-        return lag.report(), max(frame_ms), max(tick_ms), max(api_ms)
+        return lag.report(), max(frame_ms), max(tick_ms), max(api_ms), max(products_ms, default=0), wal_peak
 
     try:
-        report, frame_max, tick_max, api_max = asyncio.run(scenario())
+        report, frame_max, tick_max, api_max, products_max, wal_peak = asyncio.run(scenario())
         seg.close()
         assert db.c.execute("select count(*) from book_top").fetchone()[0] == MARKETS * ticks
         assert db.c.execute("select count(*) from trades").fetchone()[0] == MARKETS * ticks
@@ -123,8 +147,9 @@ def test_full_frames_market_api_and_hour_rotation_keep_all_observations(tmp_path
             assert [row["seq"] for row in rows] == list(range(first, last + 1))
             count += len(rows)
         assert count == MARKETS * ticks
-        print(f"full frame/rotation max {frame_max:.1f} ms, tick max {tick_max:.1f} ms, "
-              f"market API max {api_max:.1f} ms; loop lag {report}")
+        print(f"full frame/rotation, readers={readers}, frame max {frame_max:.1f} ms, tick max {tick_max:.1f} ms, "
+              f"market API max {api_max:.1f} ms, product max {products_max:.1f} ms, "
+              f"sampled WAL peak {wal_peak} bytes, loop lag {report}")
         assert report["p99_ms"] < LAG_BOUND_MS, report
         assert max(frame_max, tick_max, api_max) < 1000
     finally:

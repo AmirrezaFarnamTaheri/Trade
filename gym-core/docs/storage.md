@@ -78,6 +78,13 @@ the disk. Move finished days elsewhere with
 current UTC day and refuses if a destination day already exists. Segment files are
 created exclusively, so two writers in the same hour can never share one file.
 
+Use `gymctl research raw-replay-audit <input.json>` to check stored trades and book
+sides against closed frames for a single market and a bounded receipt interval.
+The input fields are `symbol`, `from` and `to`, with zoned timestamps and an exclusive
+end. Set the optional `archives` array to the directories containing any relocated
+day folders. The audit searches the store's `raw` directory first and verifies the
+segment hash before comparing referenced rows.
+
 ### Research backup
 
 The executor-ledger backup does not cover research data. `gymctl backup-research <folder>`

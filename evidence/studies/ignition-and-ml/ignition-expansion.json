@@ -1,0 +1,369 @@
+{
+  "generated_at": "2026-11-24T19:26:47.528713+00:00",
+  "corr_s1s5_vs_ign18_2h": 0.2033,
+  "corr_s1s5_vs_ign18_1h": 0.2133,
+  "part_a_18_market_ignition": [
+    {
+      "label": "IGN18_1H_NOBITEX_16BPS",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1036.4,
+      "ret_pct": 3.64,
+      "ann_sharpe": 0.164,
+      "max_dd_pct": 16.39,
+      "entries": 214,
+      "win_rate_pct": 36.4,
+      "fees_usdt": 219.59
+    },
+    {
+      "label": "IGN18_1H_WALLEX_25BPS",
+      "bucket_hours": 1,
+      "offset_hours": 0,
+      "fee_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 922.84,
+      "ret_pct": -7.72,
+      "ann_sharpe": -0.181,
+      "max_dd_pct": 20.53,
+      "entries": 214,
+      "win_rate_pct": 35.5,
+      "fees_usdt": 323.82
+    },
+    {
+      "label": "IGN18_2H_0H_NOBITEX_16BPS",
+      "bucket_hours": 2,
+      "offset_hours": 0,
+      "fee_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1320.28,
+      "ret_pct": 32.03,
+      "ann_sharpe": 0.754,
+      "max_dd_pct": 13.21,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "fees_usdt": 198.44
+    },
+    {
+      "label": "IGN18_2H_1H_SHIFT_NOBITEX_16BPS",
+      "bucket_hours": 2,
+      "offset_hours": 1,
+      "fee_bps": 16.0,
+      "days": 1043,
+      "ending_nav": 1178.82,
+      "ret_pct": 17.88,
+      "ann_sharpe": 0.492,
+      "max_dd_pct": 9.41,
+      "entries": 170,
+      "win_rate_pct": 37.1,
+      "fees_usdt": 183.68
+    },
+    {
+      "label": "IGN18_2H_0H_WALLEX_25BPS",
+      "bucket_hours": 2,
+      "offset_hours": 0,
+      "fee_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1200.0,
+      "ret_pct": 20.0,
+      "ann_sharpe": 0.519,
+      "max_dd_pct": 14.85,
+      "entries": 175,
+      "win_rate_pct": 37.7,
+      "fees_usdt": 295.15
+    },
+    {
+      "label": "IGN18_2H_1H_SHIFT_WALLEX_25BPS",
+      "bucket_hours": 2,
+      "offset_hours": 1,
+      "fee_bps": 25.0,
+      "days": 1043,
+      "ending_nav": 1075.31,
+      "ret_pct": 7.53,
+      "ann_sharpe": 0.255,
+      "max_dd_pct": 11.48,
+      "entries": 170,
+      "win_rate_pct": 35.3,
+      "fees_usdt": 273.81
+    }
+  ],
+  "part_b_shared_ledger_2h_and_18mkt_blends": [
+    {
+      "name": "SOLO_100_S1S5_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1153.29,
+        "ret_pct": 15.33,
+        "ann_sharpe": 0.404,
+        "max_dd_pct": 11.96
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1153.29,
+        "ret_pct": -2.84,
+        "ann_sharpe": -0.167,
+        "max_dd_pct": 11.96
+      },
+      "fills": 570,
+      "fees_usdt": 22.39,
+      "turnover": 14.0,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_30_IGN8_2H_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1161.86,
+        "ret_pct": 16.19,
+        "ann_sharpe": 0.512,
+        "max_dd_pct": 8.5
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1161.86,
+        "ret_pct": -0.51,
+        "ann_sharpe": 0.001,
+        "max_dd_pct": 8.5
+      },
+      "fills": 769,
+      "fees_usdt": 48.94,
+      "turnover": 30.59,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -6.280849697082804e-06,
+        "ci_95": [
+          -0.0001600419758943263,
+          0.00013509735175928463
+        ],
+        "bootstrap_se": 7.745705549060483e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "BLEND_70_30_IGN18_2H_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1216.13,
+        "ret_pct": 21.61,
+        "ann_sharpe": 0.61,
+        "max_dd_pct": 8.54
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1216.13,
+        "ret_pct": 2.14,
+        "ann_sharpe": 0.24,
+        "max_dd_pct": 8.54
+      },
+      "fills": 939,
+      "fees_usdt": 72.55,
+      "turnover": 45.34,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 4.060188912842465e-05,
+        "ci_95": [
+          -0.00010726425541091779,
+          0.00018999871492658544
+        ],
+        "bootstrap_se": 7.867669346293447e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "BLEND_70_30_IGN18_1H_NOBITEX_16BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1104.5,
+        "ret_pct": 10.45,
+        "ann_sharpe": 0.351,
+        "max_dd_pct": 11.74
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1104.5,
+        "ret_pct": -3.63,
+        "ann_sharpe": -0.273,
+        "max_dd_pct": 11.74
+      },
+      "fills": 1016,
+      "fees_usdt": 83.59,
+      "turnover": 52.24,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": -5.368997204425003e-05,
+        "ci_95": [
+          -0.0001999407332218432,
+          9.243919065384633e-05
+        ],
+        "bootstrap_se": 7.771334633442826e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    },
+    {
+      "name": "SOLO_100_S1S5_WALLEX_25BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1138.84,
+        "ret_pct": 13.88,
+        "ann_sharpe": 0.375,
+        "max_dd_pct": 12.15
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1138.84,
+        "ret_pct": -3.36,
+        "ann_sharpe": -0.208,
+        "max_dd_pct": 12.15
+      },
+      "fills": 568,
+      "fees_usdt": 34.75,
+      "turnover": 13.9,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "BASELINE",
+        "mean_uplift": 0.0,
+        "ci_95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "BLEND_70_30_IGN18_2H_WALLEX_25BPS",
+      "full": {
+        "days": 1043,
+        "ending_nav": 1174.56,
+        "ret_pct": 17.46,
+        "ann_sharpe": 0.513,
+        "max_dd_pct": 8.61
+      },
+      "stress": {
+        "days": 359,
+        "ending_nav": 1174.56,
+        "ret_pct": 0.75,
+        "ann_sharpe": 0.123,
+        "max_dd_pct": 8.61
+      },
+      "fills": 932,
+      "fees_usdt": 111.26,
+      "turnover": 44.5,
+      "intraday_exits": 0,
+      "uplift_vs_baseline": {
+        "status": "NO_EVIDENCE_NOT_ESTABLISHED",
+        "mean_uplift": 1.9163465190173982e-05,
+        "ci_95": [
+          -0.00013388725588136383,
+          0.0001674008730140494
+        ],
+        "bootstrap_se": 7.899636149047201e-05,
+        "mean_block_length": 10,
+        "min_detectable_effect": 0.0,
+        "lineage": {
+          "formula": "paired-date-stationary-bootstrap/1",
+          "seed": 42,
+          "simulations": 499,
+          "denominator_dates": 1042,
+          "block_length": 10,
+          "digest": "fa48ec20abdcd883"
+        },
+        "independent_final_evidence": false
+      }
+    }
+  ],
+  "part_c_subhourly_15m_30m_25d_probe": [
+    {
+      "label": "IGN_30M_NOBITEX_16BPS",
+      "bar": "30m",
+      "cost_bps": 16.0,
+      "days": 24,
+      "ending_nav": 965.45,
+      "ret_pct": -3.45,
+      "ann_sharpe": -4.188,
+      "max_dd_pct": 4.16,
+      "entries": 4,
+      "win_rate_pct": 25.0,
+      "fees_usdt": 3.34
+    },
+    {
+      "label": "IGN_30M_WALLEX_25BPS",
+      "bar": "30m",
+      "cost_bps": 25.0,
+      "days": 24,
+      "ending_nav": 963.64,
+      "ret_pct": -3.64,
+      "ann_sharpe": -4.332,
+      "max_dd_pct": 4.26,
+      "entries": 4,
+      "win_rate_pct": 25.0,
+      "fees_usdt": 5.22
+    },
+    {
+      "label": "IGN_15M_NOBITEX_16BPS",
+      "bar": "15m",
+      "cost_bps": 16.0,
+      "days": 24,
+      "ending_nav": 974.26,
+      "ret_pct": -2.57,
+      "ann_sharpe": -4.286,
+      "max_dd_pct": 3.51,
+      "entries": 4,
+      "win_rate_pct": 75.0,
+      "fees_usdt": 3.8
+    },
+    {
+      "label": "IGN_15M_WALLEX_25BPS",
+      "bar": "15m",
+      "cost_bps": 25.0,
+      "days": 24,
+      "ending_nav": 972.17,
+      "ret_pct": -2.78,
+      "ann_sharpe": -4.565,
+      "max_dd_pct": 3.64,
+      "entries": 4,
+      "win_rate_pct": 50.0,
+      "fees_usdt": 5.94
+    }
+  ]
+}

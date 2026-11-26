@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -21,10 +22,21 @@ MAX_CHANNELS = 64
 MAX_BODY = 4 * 1024 * 1024  # untrusted responses are size-bounded
 
 
+def _ssl_context() -> ssl.SSLContext:
+    ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+
+
 def public_session() -> aiohttp.ClientSession:
     """Session for public venue traffic. GYM_WALLEX_PROXY (an http:// proxy URL) routes REST and WebSocket through it."""
-    return aiohttp.ClientSession(headers={"User-Agent": "TradingGYM/0.1 (observatory)"},
-                                 proxy=os.environ.get("GYM_WALLEX_PROXY") or None)
+    connector = aiohttp.TCPConnector(ssl=_ssl_context(), ttl_dns_cache=60, enable_cleanup_closed=True)
+    return aiohttp.ClientSession(
+        connector=connector,
+        headers={"User-Agent": "TradingGYM/0.1 (observatory)"},
+        proxy=os.environ.get("GYM_WALLEX_PROXY") or None,
+        trust_env=False,
+    )
 
 
 def channels(symbols: list[str]) -> list[str]:

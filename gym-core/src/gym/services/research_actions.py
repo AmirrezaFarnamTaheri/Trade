@@ -5,17 +5,41 @@ from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from pathlib import Path
 
 from ..adapters.store import MarketDB
-from ..domain.market_models import decimal, evaluate_artifact, fields
+from ..domain.artifact_evaluation import evaluate_artifact
+from ..domain.market_models import decimal, fields
 from ..domain.model import iso, now_utc, parse_ts
 from ..domain.periods import instant
 from ..domain.portfolio import rebalance_preview
 from ..domain.strategy import digest
+from .actions.catalog import (
+    CLI_ACTIONS as CLI_ACTIONS,
+)
+from .actions.catalog import (
+    CLI_ONLY_ACTIONS as CLI_ONLY_ACTIONS,
+)
+from .actions.catalog import (
+    LEDGER_ACTIONS as LEDGER_ACTIONS,
+)
+from .actions.catalog import (
+    MARKET_REPORT_ACTIONS as MARKET_REPORT_ACTIONS,
+)
+from .actions.catalog import (
+    OBJECT_ACTIONS as OBJECT_ACTIONS,
+)
+from .actions.catalog import (
+    PROTOCOL_ACTIONS as PROTOCOL_ACTIONS,
+)
+from .actions.catalog import (
+    WORKSPACE_ACTIONS as WORKSPACE_ACTIONS,
+)
+from .actions.catalog import (
+    action_catalog as action_catalog,
+)
+from .actions.market_reports import handle_market_report as _research_action_technicals
 from .data_portal import DataPortal
 from .entry_locks import add_entry_lock
 from .experiment_registry import ExperimentRegistry
-from .feed_crosscheck import candle_crosscheck
 from .liquidity import audit_depth
-from .market_statistics import spread_report, trade_flow_report
 from .operator_actions import OPERATOR_ACTIONS, operator_action
 from .replay_annotations import annotations
 from .replay_checkpoint import checkpoint_replay
@@ -36,35 +60,6 @@ from .research_market import (
 from .research_protocol import ResearchProtocol
 from .return_bootstrap import return_bootstrap
 from .strategy_audit import audit_strategy
-from .technical_analysis import technical_reports
-
-PROTOCOL_ACTIONS = frozenset(("outcome-add", "outcomes", "final-register", "final-run",
-                              "final-status", "observe-import", "screen", "derived", "unit-convert"))
-WORKSPACE_ACTIONS = (*OPERATOR_ACTIONS, "premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "arm-policy-read", "arm-policy-save", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "feed-divergence-screen", "feed-divergence-lock", "fairprice-observe", "fairprice-read", "prospective-register", "prospective-status", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "market-products", "robustness", "execution-calibration", "execution-model-calibrate", "walk-forward", "portfolio-replay", "portfolio-read", "portfolio-list", "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "unit-convert", "market-breadth", "depth-audit", "entry-lock-add", "entry-locks", "replay-checkpoint", "replay-resume", "registry-page", "annotation-add", "annotation-list", "coverage", "market-screen", "return-correlations", "replay", "rebalance", "execution-quality", "experiment-run",
-                     "experiment-list", "experiment-status", "job-recover", "job-catch-up", "job-interrupt", "strategy-audit", "return-bootstrap")
-# One action table: `gymctl research` choices come from CLI_ACTIONS; WORKSPACE_ACTIONS is the
-# browser allowlist; CLI_ONLY_ACTIONS names every CLI action with no browser form, with the reason.
-LEDGER_ACTIONS = ("register", "shadow-open", "shadow-close", "schedule", "tick", "start", "pause", "resume", "list",
-                  "claim-check", "review")
-MARKET_REPORT_ACTIONS = ("candles", "technicals", "spreads", "trade-flow", "diagnostic")
-CLI_ACTIONS = tuple(dict.fromkeys((*LEDGER_ACTIONS, *sorted(PROTOCOL_ACTIONS), *MARKET_REPORT_ACTIONS,
-                                   *WORKSPACE_ACTIONS)))
-CLI_ONLY_ACTIONS = {
-    "tick": "scheduler step; the browser uses the dedicated research runner",
-    "start": "long-running scheduler process",
-    "pause": "browser pauses jobs through /api/research/jobs/{id}/pause",
-    "resume": "browser resumes jobs through /api/research/jobs/{id}/resume",
-    "adaptive-twap-preview": "no browser form yet",
-    "fairprice-observe": "no browser form yet",
-    "fairprice-read": "no browser form yet",
-    "feed-divergence-lock": "no browser form yet",
-    "feed-divergence-screen": "no browser form yet",
-    "postfill-check": "no browser form yet",
-    "shadow-drift-screen": "no browser form yet",
-}
-OBJECT_ACTIONS = frozenset(("register", "shadow-open", "shadow-close", "schedule", "review",
-                           "claim-check", "final-register", "observe-import", "screen", "derived", "diagnostic", "candles",
-                           *OPERATOR_ACTIONS, *[a for a in WORKSPACE_ACTIONS if a not in ("portfolio-list", "experiment-list", "experiment-status", "entry-locks", "margin-markets", "credit-packages", "prospective-status", "prospective-evaluate", "arm-policy-read")]))
 
 
 def _market_db(root):
@@ -333,6 +328,38 @@ def _research_action_market_products(root, action, value, store, at):
         db.c.close()
 
 
+def _research_action_universe_manifest(root, action, value, store, at):
+    from .historical_universe import universe_manifest
+    from .market_watchlists import load_watchlist
+
+    venue = "wallex"
+    if isinstance(value, dict) and "venue" in value:
+        value = dict(value)
+        venue = value.pop("venue")
+    watchlist = None
+    if isinstance(value, dict) and "watchlist_id" in value:
+        fields(value, "as_of lookback_seconds watchlist_id")
+        watchlist = load_watchlist(root, value["watchlist_id"])
+        value = {"as_of": value["as_of"], "lookback_seconds": value["lookback_seconds"]}
+    db = _market_db(root)
+    try:
+        db.c.execute("BEGIN")
+        return universe_manifest(db, value, store=store, watchlist=watchlist, venue=venue)
+    finally:
+        db.c.close()
+
+
+def _research_action_watchlists(root, action, value, store, at):
+    from .market_watchlists import load_watchlist, save_watchlist
+
+    if action == "watchlist-save":
+        record = save_watchlist(root, value)
+    else:
+        fields(value, "watchlist_id")
+        record = load_watchlist(root, value["watchlist_id"])
+    return {"watchlist": record, "funded_authority": False}
+
+
 def _research_action_execution_model_calibrate(root, action, value, store, at):
     from .execution_market_models import market_execution_model_report
 
@@ -363,32 +390,28 @@ def _research_action_walk_forward(root, action, value, store, at):
 
 
 def _research_action_portfolio_replay(root, action, value, store, at):
-    from .portfolio_research import portfolio_action
-    return portfolio_action(root, action, value, store=store)
+    from .actions.portfolio_handlers import handle_portfolio_replay
+    return handle_portfolio_replay(root, action, value, store, at)
 
 
 def _research_action_combine_oos(root, action, value, store, at):
-    from .oos_combination import combine_verified_oos
-
-    return combine_verified_oos(root, value, store=store)
+    from .actions.portfolio_handlers import handle_combine_oos
+    return handle_combine_oos(root, action, value, store, at)
 
 
 def _research_action_strategy_retirement_screen(root, action, value, store, at):
-    from .strategy_retirement import screen_verified_retirement
-
-    return screen_verified_retirement(root, value, store=store)
-
+    from .actions.portfolio_handlers import handle_strategy_retirement_screen
+    return handle_strategy_retirement_screen(root, action, value, store, at)
 
 
 def _research_action_margin_pairs_replay(root, action, value, store, at):
-    from .margin_pairs import margin_pairs_research
-
-    return margin_pairs_research(root, value, store=store)
+    from .actions.portfolio_handlers import handle_margin_pairs_replay
+    return handle_margin_pairs_replay(root, action, value, store, at)
 
 
 def _research_action_margin_markets(root, action, value, store, at):
-    from .margin import margin_action
-    return margin_action(root, action, value, store=store)
+    from .actions.portfolio_handlers import handle_margin_markets
+    return handle_margin_markets(root, action, value, store, at)
 
 
 def _research_action_depth_audit(root, action, value, store, at):
@@ -485,39 +508,6 @@ def _research_action_job_recover(root, action, value, store, at):
             db.c.close()
 
 
-def _research_action_technicals(root, action, value, store, at):
-    fields(value, {"technicals": "symbol from to resolutions", "candles": "symbol from to as_of tolerance_bps"}.get(action, "symbol from to"))
-    if not isinstance(value["from"], str) or not isinstance(value["to"], str):
-        raise ValueError("report bounds must be zoned timestamps")
-    start, end = parse_ts(value["from"]), parse_ts(value["to"])
-    if not start < end or end - start > timedelta(days=31):
-        raise ValueError("report window must be positive and at most 31 days")
-    if not isinstance(value["symbol"], str) or not re.fullmatch(r"[A-Z0-9]{2,24}", value["symbol"]):
-        raise ValueError("report requires one market symbol")
-    db = _market_db(root)
-    try:
-        if action == "technicals":
-            return technical_reports(db, value["symbol"], start, end, resolutions=value["resolutions"], store=store)
-        db.c.execute("BEGIN")
-        table, timestamp = ("trades", "ts_event") if action in ("trade-flow", "candles") else ("book_top", "ts_avail")
-        count = db.c.execute(f"SELECT count(*) FROM {table} WHERE instrument_id=? AND substr({timestamp},1,10)>=? AND substr({timestamp},1,10)<=?",
-                            ("wallex:" + value["symbol"], start.date().isoformat(), end.date().isoformat())).fetchone()[0]
-        if count > 100000:
-            raise ValueError("too many observations; narrow the report window")
-        if action == "candles":
-            if not isinstance(value["as_of"], str) or not isinstance(value["tolerance_bps"], str):
-                raise ValueError("candle cutoff and tolerance must be strings")
-            cutoff = parse_ts(value["as_of"])
-            if cutoff > now_utc():
-                raise ValueError("candle cutoff cannot be in the future")
-            report = candle_crosscheck(DataPortal(db), value["symbol"], start, end,
-                                       tolerance_bps=decimal(value["tolerance_bps"], "tolerance_bps"), as_of=cutoff)
-            return {**report, "store": store, "funded_authority": False, "order_submitted": False}
-        return (trade_flow_report if action == "trade-flow" else spread_report)(db, start, end, symbol=value["symbol"], store=store)
-    finally:
-        db.c.close()
-
-
 def _research_action_claim_check(root, action, value, store, at):
     return check_claims(root / "runs", value, store=store)
 
@@ -528,33 +518,17 @@ def _research_action_review(root, action, value, store, at):
 
 
 def _research_action_protocol_actions(root, action, value, store, at):
-    if action != "outcomes" and value is None:
-        raise ValueError("this action requires an input file or ID")
-    if action in ("outcomes", "final-run", "final-status", "screen", "derived", "unit-convert") and not (root / "research_protocol.sqlite3").is_file():
-        raise ValueError("research protocol is not initialized")
-    root.mkdir(parents=True, exist_ok=True)
-    with ResearchProtocol(root, store=store) as protocol:
-        if action == "outcomes":
-            return protocol.outcomes(parse_ts(at) if at else now_utc())
-        if action == "outcome-add":
-            return protocol.record_outcome(value)
-        if action == "final-register":
-            return protocol.register(value)
-        if action == "final-status":
-            return protocol.evaluation(value)
-        if action == "observe-import":
-            return protocol.ingest_observations(value)
-        if action == "screen":
-            return protocol.screen(value)
-        if action == "derived":
-            return derived_series(protocol, value)
-        if action == "unit-convert":
-            return convert_series(protocol, value)
-        db = _market_db(root)
-        try:
-            return protocol.consume(value, db)
-        finally:
-            db.c.close()
+    from .actions.protocol_handlers import handle_protocol_action
+    return handle_protocol_action(
+        root,
+        action,
+        value,
+        store,
+        at,
+        market_db_fn=_market_db,
+        derived_fn=derived_series,
+        convert_fn=convert_series,
+    )
 
 
 def _research_action_arm_policy(root, action, value, store, at):
@@ -577,40 +551,162 @@ def _research_action_credit(root, action, value, store, at):
 
 
 def _research_action_stop_preview(root, action, value, store, at):
+    from ..domain.execution_qualification import simulate_trailing_stop
     from ..domain.market_models import instant
-    from .paper_stop import simulate_stop
-    fields(value, "symbol from to side quantity stop_price type limit_price fee_rate")
+    from .paper_stop import MAX_ROWS, simulate_stop
+
+    trailing = isinstance(value, dict) and value.get("type") == "TRAILING_STOP"
+    terms = "trail_fraction activation_delay_ms" if trailing else "stop_price limit_price"
+    fields(value, f"symbol from to side quantity type fee_rate {terms}")
     symbol = value["symbol"]
     if type(symbol) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", symbol):
         raise ValueError("invalid stop market")
     start, end = instant(value["from"]), instant(value["to"])
-    if not start < end <= now_utc():
-        raise ValueError("a stop replay requires an observed past window")
+    if not start < end <= now_utc() or end - start > timedelta(days=1):
+        raise ValueError("a stop replay requires an observed past window of at most one day")
+    if trailing:
+        delay_ms = value["activation_delay_ms"]
+        if type(delay_ms) is not int or not 1 <= delay_ms <= 60000:
+            raise ValueError("activation_delay_ms must be an integer in 1..60000")
     db = _market_db(root)
     try:
         db.c.execute("BEGIN")
         portal, window = DataPortal(db), ("wallex:" + symbol, iso(start), iso(end))
-        for table, column in (("book_top", "ts_avail"), ("trades", "ts_event")):
-            if db.c.execute(f"SELECT count(*) FROM {table} WHERE instrument_id=? AND {column}>=? AND {column}<?", window).fetchone()[0] > 100000:
-                raise ValueError("too many stop replay observations")
-        last = db.c.execute("SELECT price FROM trades WHERE instrument_id=? AND ts_event<? ORDER BY ts_event DESC, rowid DESC LIMIT 1",
-                            window[:2]).fetchone()
+        if db.c.execute("SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id=? "
+                        "AND ts_avail>=? AND ts_avail<? LIMIT ?)", (*window, MAX_ROWS + 1)).fetchone()[0] > MAX_ROWS:
+            raise ValueError("too many stop replay observations")
+        last = portal.last_trade_before(symbol, start)
         if last is None:
             raise ValueError("no trade was recorded before the order time")
+        reference = decimal(last.price, "last trade", positive=True)
+        quantity = decimal(value["quantity"], "quantity", positive=True)
+        fee = decimal(value["fee_rate"], "fee rate")
+        tick = timedelta(microseconds=1)
+        trades = portal.trades_by_availability(symbol, start - tick, end - tick)
+        quotes = portal.tops(symbol, start, end)
+        if trailing:
+            if not 0 <= fee < 1:
+                raise ValueError("fee rate must be in [0, 1)")
+            result = simulate_trailing_stop(side=value["side"], quantity=quantity,
+                                            trail_fraction=decimal(value["trail_fraction"], "trail fraction", positive=True),
+                                            trades=trades, quotes=quotes, fee_rate=fee, reference_price=reference,
+                                            activation_delay=timedelta(milliseconds=delay_ms))
+            return {**result, "symbol": symbol, "store": store, "type": value["type"],
+                    "reference_trade_price": str(reference), "evidence_tier": "MODELED_PAPER_REFERENCE",
+                    "authenticated_settlement": False, "order_submitted": False, "funded_authority": False,
+                    "scope": "Receipt-ordered trades and displayed bids. Venue status, rules and settlement are unverified."}
         limit = value["limit_price"]
-        return simulate_stop(portal.instrument(symbol), decimal(last[0], "last trade", positive=True),
-                             portal.trades_by_event(symbol, start, end), portal.tops(symbol, start, end),
+        return simulate_stop(portal.instrument(symbol), reference, trades, quotes,
                              portal.spec_at(symbol, start), start, end, side=value["side"],
-                             quantity=decimal(value["quantity"], "quantity", positive=True),
+                             quantity=quantity,
                              stop_price=decimal(value["stop_price"], "stop price", positive=True), order_type=value["type"],
                              limit_price=None if limit is None else decimal(limit, "limit price", positive=True),
-                             fee_rate=decimal(value["fee_rate"], "fee rate"), store=store)
+                             fee_rate=fee, store=store)
     finally:
         db.c.rollback()
         db.c.close()
 
 
+def _research_action_raw_audit(root, action, value, store, at):
+    from ..domain.market_models import instant
+    from .replay_input_audit import audit_replay_inputs
+
+    fields(value, "symbol from to archives" if isinstance(value, dict) and "archives" in value else "symbol from to")
+    if not isinstance(value["symbol"], str):
+        raise ValueError("expected a market symbol")
+    archives = value.get("archives", [])
+    if not isinstance(archives, list) or any(not isinstance(path, str) or not path.strip() for path in archives):
+        raise ValueError("archives must be a list of archive directory paths")
+    db = _market_db(root)
+    try:
+        db.c.execute("BEGIN")
+        roots = [root / "raw", *(Path(path) for path in archives)]
+        return audit_replay_inputs(db, roots, value["symbol"], instant(value["from"]), instant(value["to"]))
+    finally:
+        db.c.close()
+
+
+def _research_action_spot_receipt(root, action, value, store, at):
+    from itertools import islice
+
+    from ..domain.market_models import instant, rate
+    from ..domain.sim import CashBook, CostModel, SharedMarketReceipt
+    from .research_market import _symbol
+    from .rules import RuleService
+
+    fields(value, "symbol decision_at receipt_at cash_quote inventory_base fee_rate max_participation orders")
+    symbol, decision, receipt = _symbol(value["symbol"]), instant(value["decision_at"]), instant(value["receipt_at"])
+    cost = CostModel(fee_rate=rate(value["fee_rate"]), max_participation=decimal(value["max_participation"], positive=True))
+    if not decision + cost.latency <= receipt <= decision + cost.max_wait:
+        raise ValueError("receipt must be in the modeled execution window")
+    orders = value["orders"]
+    if type(orders) is not list or not 1 <= len(orders) <= 64:
+        raise ValueError("spot receipt replay requires 1..64 immediate orders in priority order")
+    db = _market_db(root)
+    try:
+        db.c.execute("BEGIN")
+        portal = DataPortal(db)
+        inst = portal.instrument(symbol)
+        if inst.kind != "SPOT":
+            raise ValueError("spot receipt replay requires a spot market")
+        tops = list(islice(portal.iter_tops(symbol, receipt, receipt + timedelta(microseconds=1)), 2))
+        if len(tops) != 1:
+            raise ValueError("expected one unambiguous stored book receipt at receipt_at")
+        top, = tops
+        balances = {inst.quote: decimal(value["cash_quote"]), inst.base: decimal(value["inventory_base"])}
+        book = CashBook(dict(balances))
+        batch = SharedMarketReceipt(book, inst, top, cost, portal.spec_at(symbol, receipt), RuleService(db).load(receipt)[1], {})
+        fills = []
+        for order in orders:
+            fields(order, "ref side quantity decision_price")
+            if not isinstance(order["ref"], str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", order["ref"]):
+                raise ValueError("invalid spot receipt replay order reference")
+            fill = batch.execute(order["side"], order["quantity"], decision,
+                                 decimal(order["decision_price"], positive=True), order["ref"])
+            if "costs" in fill:
+                fill["costs"] = {name: str(amount) for name, amount in fill["costs"].items()}
+            fills.append(fill)
+        return {"schema": "spot-receipt-replay/1", "symbol": symbol, "receipt_at": iso(receipt),
+                "receipt_digest": digest([symbol, iso(receipt), top.bid, top.ask, top.bid_qty, top.ask_qty, sorted(top.flags)]),
+                "opening_balances": {asset: str(amount) for asset, amount in balances.items()},
+                "closing_balances": {asset: str(amount) for asset, amount in book.balances.items()},
+                "orders": fills, "postings": book.postings, "funded_authority": False}
+    finally:
+        db.c.close()
+
+
+def _research_action_trend_replay(root, action, value, store, at):
+    from ..domain.trend_replay import trend_replay
+
+    return trend_replay(value, now_utc())
+
+
+def _research_action_factor_ic(root, action, value, store, at):
+    from ..domain.research_prototypes import factor_ic_lab
+
+    fields(value, "observations seed")
+    return factor_ic_lab(value["observations"], now_utc(), seed=value["seed"])
+
+
+def _research_action_verify_release(root, action, value, store, at):
+    from .trial_governance import verify_release_attestation
+
+    fields(value, "bundle signature_hex trusted_public_key_hex expected_digest")
+    if not isinstance(value["bundle"], dict):
+        raise ValueError("release bundle must be an object")
+    for name, length in (("signature_hex", 128), ("trusted_public_key_hex", 64), ("expected_digest", 64)):
+        if not isinstance(value[name], str) or len(value[name]) != length or not re.fullmatch("[0-9a-f]+", value[name]):
+            raise ValueError(f"{name} must contain {length} lowercase hex digits")
+    return verify_release_attestation(value["bundle"], bytes.fromhex(value["signature_hex"]),
+                                      bytes.fromhex(value["trusted_public_key_hex"]), expected_digest=value["expected_digest"])
+
+
 _RESEARCH_HANDLERS = (
+    (frozenset(("raw-replay-audit",)), _research_action_raw_audit),
+    (frozenset(("spot-receipt-replay",)), _research_action_spot_receipt),
+    (frozenset(("trend-replay",)), _research_action_trend_replay),
+    (frozenset(("factor-ic-lab",)), _research_action_factor_ic),
+    (frozenset(("verify-release-attestation",)), _research_action_verify_release),
     (frozenset(('premium-research', 'lead-lag-research')), _research_action_premium_research),
     (frozenset(('twap-preview', 'execution-choice-preview', 'adaptive-twap-preview')), _research_action_twap_preview),
     (frozenset(('stop-preview',)), _research_action_stop_preview),
@@ -624,6 +720,8 @@ _RESEARCH_HANDLERS = (
     (OPERATOR_ACTIONS, _research_action_operator_actions),
     (frozenset(('fractional-sizing',)), _research_action_fractional_sizing),
     (frozenset(('experiment-scorecard',)), _research_action_experiment_scorecard),
+    (frozenset(('universe-manifest',)), _research_action_universe_manifest),
+    (frozenset(("watchlist-save", "watchlist-read")), _research_action_watchlists),
     (frozenset(('market-products',)), _research_action_market_products),
     (frozenset(('execution-model-calibrate',)), _research_action_execution_model_calibrate),
     (frozenset(('execution-calibration',)), _research_action_execution_calibration),
@@ -804,10 +902,3 @@ def convert_series(protocol, request):
     result.pop("report_id")
     result["report_id"] = digest(result)[:16]
     return result
-
-
-def action_catalog() -> list[dict]:
-    """Every research action with where it can be used (CLI, browser) and how it takes input."""
-    return [{"action": action, "cli": True, "browser": action not in CLI_ONLY_ACTIONS,
-             "browser_note": CLI_ONLY_ACTIONS.get(action), "object_input": action in OBJECT_ACTIONS}
-            for action in sorted(CLI_ACTIONS)]

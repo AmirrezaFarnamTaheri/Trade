@@ -1,0 +1,1008 @@
+openapi: 3.0.3
+info:
+  title: API دفتر آدرس نوبیتکس
+  version: "1.1.0"
+  description: |
+    APIهای مربوط به مدیریت دفتر آدرس و حالت برداشت امن در نوبیتکس.
+
+    ## جریان افزودن آدرس (جدید — توصیه‌شده)
+    1. **اعتبارسنجی آدرس** (اختیاری) — `GET /security/validate-address-network`
+    2. **ایجاد آدرس** — `POST /security/address-book-item/create` (نیاز به `tfaCode`)
+    3. **تأیید آدرس** — `POST /security/address-book-item/confirm` (نیاز به `otpCode`)
+
+    آدرس تا قبل از تأیید در لیست `GET /address_book` نمایش داده نمی‌شود.
+
+    ## جریان افزودن آدرس (قدیمی — منسوخ)
+    `POST /address_book` OTP و TFA را در یک مرحله می‌گیرد و آدرس را بلافاصله فعال می‌کند.
+    برای پیاده‌سازی‌های جدید از جریان دو مرحله‌ای بالا استفاده کنید.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: دفتر آدرس
+    description: مدیریت دفتر آدرس و حالت برداشت امن
+
+security:
+  - TokenAuth: []
+  - KeyAuth: []
+    SignatureAuth: []
+    TimestampAuth: []
+
+paths:
+  /security/validate-address-network:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      operationId: validateAddressNetwork
+      tags:
+        - دفتر آدرس
+      summary: اعتبارسنجی آدرس، شبکه و تگ
+      description: |
+        صحت آدرس (و در صورت ارسال، تگ) را برای شبکه مشخص‌شده بررسی می‌کند.
+        قبل از ایجاد آدرس در دفتر آدرس می‌توانید از این API برای اعتبارسنجی سمت کلاینت استفاده کنید.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+        - فقط با توکن کاربر (`Token`) قابل فراخوانی است؛ API Key پشتیبانی نمی‌شود.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: network
+          in: query
+          required: true
+          description: شبکه انتقال (مثلاً `BSC`). لیست شبکه‌ها را می‌توانید از [اینجا](/options/get-system-options) مشاهده کنید.
+          schema:
+            type: string
+          example: BSC
+        - name: address
+          in: query
+          required: true
+          description: آدرس کیف‌پول مقصد
+          schema:
+            type: string
+          example: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+        - name: tag
+          in: query
+          required: false
+          description: تگ انتقال (در شبکه‌هایی که تگ دارند)
+          schema:
+            type: string
+          example: "17280992"
+      responses:
+        "200":
+          description: آدرس (و تگ) معتبر است
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    example: ok
+              examples:
+                success:
+                  summary: اعتبارسنجی موفق
+                  value:
+                    status: ok
+        "400":
+          description: فیلدهای الزامی ارسال نشده یا آدرس/تگ نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateAddressNetworkFailedResponse"
+              examples:
+                missing_fields:
+                  summary: نبودن فیلدهای الزامی
+                  value:
+                    status: failed
+                    code: ValidationError
+                    message: One or more fields are not provided
+                invalid_address:
+                  summary: آدرس نامعتبر
+                  value:
+                    status: failed
+                    code: InvalidAddress
+                    message: The address is not valid for this network
+                invalid_tag:
+                  summary: تگ نامعتبر
+                  value:
+                    status: failed
+                    code: InvalidTag
+                    message: The tag is not valid for this network
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /security/address-book-item/create:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: createAddressBookItem
+      tags:
+        - دفتر آدرس
+      summary: ایجاد آدرس جدید در دفتر آدرس (مرحله اول)
+      description: |
+        یک آدرس جدید غیرفعال در دفتر آدرس ثبت می‌کند.
+        آدرس تا زمان تأیید با
+        [`POST /security/address-book-item/confirm`](#/paths/~1security~1address-book-item~1confirm/post)
+        غیرفعال (`active: false`) باقی می‌ماند و در `GET /address_book` نمایش داده نمی‌شود.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+
+        ### نکات
+        - در این مرحله فقط `tfaCode` لازم است؛ `otpCode` در مرحله تأیید ارسال می‌شود.
+        - اگر همان آدرس قبلاً ثبت شده ولی هنوز تأیید نشده باشد، عنوان به‌روزرسانی می‌شود و همان `address_book_item_id` برگردانده می‌شود.
+        - افزودن آدرس از دستگاه ناشناس برای ۱ ساعت پس از ورود به سیستم مجاز نیست.
+        - در صورت استفاده از API Key، دسترسی `ADDRESS_BOOK` روی کلید الزامی است.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAddressBookItemRequest"
+            examples:
+              without_tag:
+                summary: ایجاد آدرس بدون تگ
+                value:
+                  title: TetherBinance
+                  network: BSC
+                  address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+                  tfaCode: "654321"
+              with_tag:
+                summary: ایجاد آدرس با تگ
+                value:
+                  title: EOSBinance
+                  network: EOS
+                  address: binancecleos
+                  tag: "17280992"
+                  tfaCode: "654321"
+      responses:
+        "200":
+          description: ایجاد موفق — برای فعال‌سازی مرحله تأیید را انجام دهید
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAddressBookItemSuccessResponse"
+              examples:
+                success:
+                  summary: ایجاد موفق
+                  value:
+                    status: ok
+                    address_book_item_id: 123
+        "400":
+          description: فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAddressBookItemFailedResponse"
+              examples:
+                failed_parse:
+                  summary: نبودن یکی از فیلدهای الزامی
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Missing string value
+        "403":
+          description: ورود از دستگاه ناشناس — افزودن آدرس به مدت ۱ ساعت محدود شده
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [failed]
+                    example: failed
+                  code:
+                    type: string
+                    enum: [NewDeviceLoginRestriction]
+                    example: NewDeviceLoginRestriction
+                  message:
+                    type: string
+                    example: Adding address to address book is restricted for 1 hour after logging in from new device.
+        "422":
+          description: خطای اعتبارسنجی آدرس، تگ یا کد دوعاملی
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAddressBookItemFailedResponse"
+              examples:
+                failed_duplicated:
+                  summary: آدرس تکراری (قبلاً تأیید شده)
+                  value:
+                    status: failed
+                    code: DuplicatedAddress
+                    message: Duplicated Address!
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /security/address-book-item/confirm:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: confirmAddressBookItem
+      tags:
+        - دفتر آدرس
+      summary: تأیید آدرس دفتر آدرس (مرحله دوم)
+      description: |
+        آدرسی که در مرحله اول ایجاد شده را فعال می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+
+        ### نکات
+        - برای دریافت `otpCode` باید از `/v2/otp/request` با `usage=address_book` استفاده شود.
+        - اگر حالت `برداشت امن` فعال باشد، پس از تأیید آدرس، برداشت رمزارزی به مدت ۱ ساعت محدود می‌شود.
+        - در صورت استفاده از API Key، دسترسی `ADDRESS_BOOK` روی کلید الزامی است. برای دریافت `otpCode` از `/v2/otp/request` با API Key، دسترسی `OTP` نیز لازم است.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmAddressBookItemRequest"
+            example:
+              id: 123
+              otpCode: "123456"
+      responses:
+        "200":
+          description: تأیید موفق — آدرس در لیست دفتر آدرس نمایش داده می‌شود
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    example: ok
+              examples:
+                success:
+                  summary: تأیید موفق
+                  value:
+                    status: ok
+        "400":
+          description: فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfirmAddressBookItemFailedResponse"
+              examples:
+                failed_parse:
+                  summary: نبودن شناسه آدرس
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Missing integer value
+        "404":
+          description: آدرس یافت نشد
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [failed]
+                    example: failed
+                  code:
+                    type: string
+                    enum: [NotFound]
+                    example: NotFound
+                  message:
+                    type: string
+                    example: address does not exist
+        "422":
+          description: کد یکبارمصرف نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfirmAddressBookItemFailedResponse"
+              examples:
+                failed_invalid_otp:
+                  summary: کد یکبارمصرف نادرست
+                  value:
+                    status: failed
+                    code: InvalidOTP
+                    message: OTP is not valid!
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /address_book:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      operationId: listAddressBook
+      tags:
+        - دفتر آدرس
+      summary: مشاهده لیست آدرس‌های دفتر آدرس
+      description: |
+        لیست آدرس‌های ثبت‌شده در دفتر آدرس کاربر را برمی‌گرداند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۲۰ درخواست در دقیقه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      parameters:
+        - name: network
+          in: query
+          required: false
+          description: فیلتر بر اساس شبکه (مثلاً `BSC`). لیست شبکه‌ها را می‌توانید از [اینجا](/options/get-system-options) مشاهده کنید.
+          schema:
+            type: string
+          example: BSC
+      responses:
+        "200":
+          description: لیست آدرس‌ها
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    example: ok
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AddressBookEntry"
+              examples:
+                success:
+                  summary: دریافت موفق
+                  value:
+                    status: ok
+                    data:
+                      - id: 3
+                        title: TetherBinance
+                        network: BSC
+                        address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+                        createdAt: "2023-08-09T10:12:37+00:00"
+                      - id: 4
+                        title: EOSBinance
+                        network: EOS
+                        address: binancecleos
+                        tag: "17280992"
+                        createdAt: "2023-08-09T10:26:12+00:00"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+    post:
+      operationId: addAddressBook
+      deprecated: true
+      tags:
+        - دفتر آدرس
+      summary: افزودن آدرس به دفتر آدرس یک مرحله‌ای
+      description: |
+        > این endpoint جریان یک‌مرحله‌ای قدیمی افزودن آدرس است.
+        > برای پیاده‌سازی‌های جدید از جریان دو مرحله‌ای استفاده کنید:
+        > 1. [`POST /security/address-book-item/create`](#/paths/~1security~1address-book-item~1create/post)
+        > 2. [`POST /security/address-book-item/confirm`](#/paths/~1security~1address-book-item~1confirm/post)
+
+        یک آدرس جدید به دفتر آدرس کاربر اضافه می‌کند و بلافاصله فعال می‌شود.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+
+        ### نکات
+        - برای دریافت `otpCode` باید ابتدا از `/v2/otp/request` با `usage=address_book` استفاده شود.
+        - اگر حالت `برداشت امن` فعال باشد، پس از افزودن آدرس جدید، برداشت رمزارزی به مدت ۱ ساعت محدود می‌شود.
+        - افزودن آدرس از دستگاه ناشناس برای ۱ ساعت پس از ورود به سیستم مجاز نیست.
+        - در صورت استفاده از API Key، دسترسی `ADDRESS_BOOK` روی کلید الزامی است. برای دریافت `otpCode` از `/v2/otp/request` با API Key، دسترسی `OTP` نیز لازم است.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddAddressRequest"
+            examples:
+              without_tag:
+                summary: افزودن آدرس بدون تگ
+                value:
+                  title: TetherBinance
+                  network: BSC
+                  address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+                  otpCode: "123456"
+                  tfaCode: "654321"
+              with_tag:
+                summary: افزودن آدرس با تگ
+                value:
+                  title: EOSBinance
+                  network: EOS
+                  address: binancecleos
+                  tag: "17280992"
+                  otpCode: "123456"
+                  tfaCode: "654321"
+      responses:
+        "200":
+          description: افزودن موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddAddressSuccessResponse"
+              examples:
+                success:
+                  summary: افزودن موفق
+                  value:
+                    status: ok
+                    data:
+                      id: 5
+                      title: TetherBinance
+                      network: BSC
+                      address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+                      createdAt: "2023-08-09T10:22:37+00:00"
+        "400":
+          description: فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddAddressFailedResponse"
+              examples:
+                failed_parse:
+                  summary: نبودن یکی از فیلدهای الزامی
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Missing string value
+        "422":
+          description: خطای اعتبارسنجی معنایی آدرس، OTP یا کد دوعاملی
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddAddressFailedResponse"
+              examples:
+                failed_duplicated:
+                  summary: آدرس تکراری
+                  value:
+                    status: failed
+                    code: DuplicatedAddress
+                    message: Duplicated Address!
+        "403":
+          description: ورود از دستگاه ناشناس — افزودن آدرس به مدت ۱ ساعت محدود شده
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [failed]
+                    example: failed
+                  code:
+                    type: string
+                    enum: [NewDeviceLoginRestriction]
+                    example: NewDeviceLoginRestriction
+                  message:
+                    type: string
+                    example: Adding address to address book is restricted for 1 hour after logging in from new device.
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /address_book/{address_id}/delete:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    delete:
+      operationId: deleteAddressBook
+      tags:
+        - دفتر آدرس
+      summary: حذف آدرس از دفتر آدرس
+      description: |
+        یک آدرس ثبت‌شده در دفتر آدرس را با استفاده از شناسه آن حذف می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+        - در صورت استفاده از API Key، دسترسی `ADDRESS_BOOK` روی کلید الزامی است.
+      parameters:
+        - name: address_id
+          in: path
+          required: true
+          description: شناسه آدرس در دفتر آدرس
+          schema:
+            type: integer
+          example: 5
+      responses:
+        "200":
+          description: حذف موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    example: ok
+              examples:
+                success:
+                  summary: حذف موفق
+                  value:
+                    status: ok
+        "404":
+          description: آدرس یافت نشد
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [failed]
+                    example: failed
+                  code:
+                    type: string
+                    enum: [NotFound]
+                    example: NotFound
+                  message:
+                    type: string
+                    example: address does not exist
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /address_book/whitelist/activate:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: activateWhitelist
+      tags:
+        - دفتر آدرس
+      summary: فعال کردن برداشت امن
+      description: |
+        حالت برداشت امن (`Whitelist Mode`) را فعال می‌کند.
+        در این حالت برداشت رمزارزی فقط به آدرس‌های موجود در دفتر آدرس مجاز است
+        (به جز برداشت در شبکه لایتنینگ).
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+        - در صورت استفاده از API Key، دسترسی `ADDRESS_BOOK` روی کلید الزامی است.
+
+        ### نکات
+        - اگر حالت برداشت امن از قبل فعال باشد، درخواست موفق می‌شود (بدون تغییر).
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    example: ok
+              examples:
+                success:
+                  summary: فعال‌سازی موفق
+                  value:
+                    status: ok
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /address_book/whitelist/deactivate:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: deactivateWhitelist
+      tags:
+        - دفتر آدرس
+      summary: غیرفعال کردن برداشت امن
+      description: |
+        حالت برداشت امن را غیرفعال می‌کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶ درخواست در دقیقه
+
+        ### نکات
+        - پس از غیرفعال‌سازی، برداشت رمزارزی به مدت ۲۴ ساعت محدود می‌شود.
+        - برای دریافت `otpCode` باید ابتدا از `/v2/otp/request` با `usage=deactivate_whitelist` استفاده شود.
+        - در صورت استفاده از API Key، دسترسی `ADDRESS_BOOK` روی کلید الزامی است. برای دریافت `otpCode` از `/v2/otp/request` با API Key، دسترسی `OTP` نیز لازم است.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeactivateWhitelistRequest"
+            example:
+              otpCode: "123456"
+              tfaCode: "654321"
+      responses:
+        "200":
+          description: غیرفعال‌سازی موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeactivateWhitelistSuccessResponse"
+              examples:
+                success:
+                  summary: غیرفعال‌سازی موفق
+                  value:
+                    status: ok
+        "400":
+          description: فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeactivateWhitelistFailedResponse"
+              examples:
+                failed_parse:
+                  summary: نبودن یکی از فیلدهای الزامی
+                  value:
+                    status: failed
+                    code: ParseError
+                    message: Missing string value
+        "422":
+          description: کد یکبارمصرف یا کد دوعاملی نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeactivateWhitelistFailedResponse"
+              examples:
+                failed_invalid_otp:
+                  summary: کد یکبارمصرف نادرست
+                  value:
+                    status: failed
+                    code: InvalidOTP
+                    message: OTP is not valid!
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        توکن احراز هویت به فرمت `Token <token>`.
+        مثال: `Authorization: Token abc123`
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  responses:
+    RateLimitExceeded:
+      description: محدودیت تعداد درخواست‌ها
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: failed
+              code:
+                type: string
+                example: TooManyRequests
+
+  schemas:
+    AddressBookEntry:
+      type: object
+      description: یک آدرس در دفتر آدرس
+      properties:
+        id:
+          type: integer
+          description: شناسه یکتای آدرس
+          example: 3
+        title:
+          type: string
+          description: عنوان آدرس
+          example: TetherBinance
+        network:
+          type: string
+          description: شبکه انتقال
+          example: BSC
+        address:
+          type: string
+          description: آدرس کیف‌پول
+          example: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+        tag:
+          type: string
+          description: تگ انتقال (در صورت وجود)
+          example: sample_tag
+        createdAt:
+          type: string
+          format: date-time
+          description: زمان ثبت آدرس
+          example: "2023-08-09T10:12:37+00:00"
+
+    AddAddressRequest:
+      type: object
+      required:
+        - title
+        - network
+        - address
+        - otpCode
+        - tfaCode
+      properties:
+        title:
+          type: string
+          description: عنوان آدرس
+          example: TetherBinance
+        network:
+          type: string
+          description: شبکه انتقال
+          example: BSC
+        address:
+          type: string
+          description: آدرس کیف‌پول مقصد
+          example: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+        tag:
+          type: string
+          description: تگ انتقال (در شبکه‌هایی که تگ اجباری است، الزامی است). لیست این شبکه‌ها را از [اینجا](/options/get-system-options) ببینید.
+          example: "1234567890"
+        otpCode:
+          type: string
+          description: کد یکبارمصرف (`OTP`) دریافت‌شده از طریق پیامک یا ایمیل
+          example: "123456"
+        tfaCode:
+          type: string
+          description: کد احراز هویت دوعاملی (`TOTP`)
+          example: "654321"
+
+    DeactivateWhitelistRequest:
+      type: object
+      required:
+        - otpCode
+        - tfaCode
+      properties:
+        otpCode:
+          type: string
+          description: کد یکبارمصرف (`OTP`) دریافت‌شده از طریق پیامک یا ایمیل
+          example: "123456"
+        tfaCode:
+          type: string
+          description: کد احراز هویت دوعاملی (`TOTP`)
+          example: "654321"
+
+    AddAddressSuccessResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        data:
+          $ref: "#/components/schemas/AddressBookEntry"
+
+    AddAddressFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `ParseError` | یکی از فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است |
+            | `Inactive2FA` | احراز هویت دوعاملی فعال نیست |
+            | `InvalidOTP` | کد `OTP` نادرست است |
+            | `Invalid2FA` | کد دوعاملی (`TOTP`) نادرست است |
+            | `InvalidAddress` | آدرس برای این شبکه معتبر نیست |
+            | `InvalidTag` | تگ نامعتبر است |
+            | `DuplicatedAddress` | این آدرس قبلاً در دفتر آدرس ثبت شده است |
+          example: DuplicatedAddress
+        message:
+          type: string
+          description: توضیح خطا
+          example: Duplicated Address!
+
+    DeactivateWhitelistSuccessResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+
+    DeactivateWhitelistFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `ParseError` | یکی از فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است |
+            | `Inactive2FA` | احراز هویت دوعاملی فعال نیست |
+            | `InvalidOTP` | کد `OTP` نادرست است |
+            | `Invalid2FA` | کد دوعاملی (`TOTP`) نادرست است |
+          example: InvalidOTP
+        message:
+          type: string
+          description: توضیح خطا
+          example: OTP is not valid!
+
+    ValidateAddressNetworkFailedResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `ValidationError` | یکی از فیلدهای الزامی (`network` یا `address`) ارسال نشده است |
+            | `InvalidAddress` | آدرس برای این شبکه معتبر نیست |
+            | `InvalidTag` | تگ نامعتبر است |
+          example: InvalidAddress
+        message:
+          type: string
+          description: توضیح خطا
+          example: The address is not valid for this network
+
+    CreateAddressBookItemRequest:
+      type: object
+      required:
+        - title
+        - network
+        - address
+        - tfaCode
+      properties:
+        title:
+          type: string
+          description: عنوان آدرس
+          example: TetherBinance
+        network:
+          type: string
+          description: شبکه انتقال
+          example: BSC
+        address:
+          type: string
+          description: آدرس کیف‌پول مقصد
+          example: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4cc"
+        tag:
+          type: string
+          description: تگ انتقال (در شبکه‌هایی که تگ اجباری است، الزامی است). لیست این شبکه‌ها را از [اینجا](/options/get-system-options) ببینید.
+          example: "1234567890"
+        tfaCode:
+          type: string
+          description: کد احراز هویت دوعاملی (`TOTP`)
+          example: "654321"
+
+    CreateAddressBookItemSuccessResponse:
+      type: object
+      required:
+        - status
+        - address_book_item_id
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        address_book_item_id:
+          type: integer
+          description: شناسه آدرس ایجادشده — برای مرحله تأیید استفاده کنید
+          example: 123
+
+    CreateAddressBookItemFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `ParseError` | یکی از فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است |
+            | `Inactive2FA` | احراز هویت دوعاملی فعال نیست |
+            | `Invalid2FA` | کد دوعاملی (`TOTP`) نادرست است |
+            | `InvalidAddress` | آدرس برای این شبکه معتبر نیست |
+            | `InvalidTag` | تگ نامعتبر است |
+            | `DuplicatedAddress` | این آدرس قبلاً تأیید و در دفتر آدرس ثبت شده است |
+          example: DuplicatedAddress
+        message:
+          type: string
+          description: توضیح خطا
+          example: Duplicated Address!
+
+    ConfirmAddressBookItemRequest:
+      type: object
+      required:
+        - id
+        - otpCode
+      properties:
+        id:
+          type: integer
+          description: شناسه آدرس (`address_book_item_id`) دریافت‌شده از مرحله ایجاد
+          example: 123
+        otpCode:
+          type: string
+          description: کد یکبارمصرف (`OTP`) دریافت‌شده از `/v2/otp/request` با `usage=address_book`
+          example: "123456"
+
+    ConfirmAddressBookItemFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `ParseError` | یکی از فیلدهای الزامی ارسال نشده یا نوع داده نامعتبر است |
+            | `InvalidOTP` | کد `OTP` نادرست است |
+          example: InvalidOTP
+        message:
+          type: string
+          description: توضیح خطا
+          example: OTP is not valid!

@@ -1,0 +1,116 @@
+#Requires -Version 5.1
+<# Schedules the daily S1+S5 Leader Journal (03:55) and 2-hourly Champion Ensemble Forward Shadow Journal.
+   Read-only market.db & multi_venue_quotes.sqlite3 access; never touches v1 mix-journal.jsonl; executor remains DISARMED.
+   Remove with -Uninstall.
+#>
+[CmdletBinding(SupportsShouldProcess = $true)]
+param(
+    [string]$CoreDirectory,
+    [string]$DataDirectory,
+    [string]$EvidenceDirectory,
+    [string]$GoldSymbol = 'XAUTUSDT',
+    [switch]$Uninstall
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$leaderTask = 'TradingGYM S1-S5 Leader Journal'
+$champTask = 'TradingGYM Champion Forward Journal'
+$champV2Task = 'TradingGYM Champion V2 Forward Journal'
+$hourlyRefreshTask = 'TradingGYM Hourly Candle Refresh'
+
+if ($Uninstall) {
+    foreach ($t in @($leaderTask, $champTask, $champV2Task, $hourlyRefreshTask)) {
+        if ($PSCmdlet.ShouldProcess($t, 'Unregister scheduled task')) {
+            Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
+        }
+    }
+    return
+}
+
+if (-not $CoreDirectory) { $CoreDirectory = Join-Path $PSScriptRoot '..\..\gym-core' }
+if (-not $DataDirectory) { $DataDirectory = Join-Path $PSScriptRoot '..\..\data' }
+if (-not $EvidenceDirectory) { $EvidenceDirectory = Join-Path $PSScriptRoot '..\..\evidence' }
+
+$core = (Resolve-Path -LiteralPath $CoreDirectory).Path
+$python = Join-Path $core '.venv\Scripts\pythonw.exe'
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Install the gym-core environment with uv sync first.' }
+
+$data = [IO.Path]::GetFullPath($DataDirectory)
+$evid = [IO.Path]::GetFullPath($EvidenceDirectory)
+$dbPath = Join-Path $data 'live\market.db'
+$mvPath = Join-Path $data 'live\multi_venue_quotes.sqlite3'
+$user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+
+# 1. Daily S1+S5 Leader Journal (03:55 local, right after Mix Journal V2)
+$leaderScript = Join-Path $core 'scripts\record_leader_journal.py'
+$leaderJournal = Join-Path $data 'live\allocation\s1-s5-leader-journal.jsonl'
+$leaderReg = Join-Path $evid 'forward\s1-s5-leader-registration.json'
+$leaderArgs = @('-I', '-B', "`"$leaderScript`"", '--db', "`"$dbPath`"", '--journal', "`"$leaderJournal`"", '--registration', "`"$leaderReg`"")
+$leaderAction = New-ScheduledTaskAction -Execute $python -Argument ($leaderArgs -join ' ') -WorkingDirectory $core
+$leaderTrigger = New-ScheduledTaskTrigger -Daily -At '03:55'
+
+if ($PSCmdlet.ShouldProcess($leaderTask, "Register daily at 03:55 -> $leaderJournal")) {
+    Register-ScheduledTask -TaskName $leaderTask -Action $leaderAction -Trigger $leaderTrigger -Settings $settings -Principal $principal -Force | Out-Null
+    Write-Output "Registered '$leaderTask' daily at 03:55 -> $leaderJournal."
+}
+
+# 2. 2-Hourly Champion Ensemble Forward Journal (1d Slow Core + 2h Frozen GRU-Ignition)
+$champScript = Join-Path $core 'scripts\record_champion_journal.py'
+$champJournal = Join-Path $data 'live\allocation\champion-ensemble-journal.jsonl'
+$champModel = Join-Path $data 'live\models\gru-ignition-v1.json'
+$champReg = Join-Path $evid 'forward\champion-v1-registration.json'
+$champScore = Join-Path $evid 'forward\champion-v1-forward-score.json'
+$champArgs = @(
+    '-I', '-B', "`"$champScript`"",
+    '--db', "`"$dbPath`"",
+    '--multi-venue-db', "`"$mvPath`"",
+    '--journal', "`"$champJournal`"",
+    '--model', "`"$champModel`"",
+    '--registration', "`"$champReg`"",
+    '--score-out', "`"$champScore`"",
+    '--gold-symbol', "$GoldSymbol"
+)
+$champAction = New-ScheduledTaskAction -Execute $python -Argument ($champArgs -join ' ') -WorkingDirectory $core
+$champTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Hours 2)
+
+if ($PSCmdlet.ShouldProcess($champTask, "Register every 2h -> $champJournal")) {
+    Register-ScheduledTask -TaskName $champTask -Action $champAction -Trigger $champTrigger -Settings $settings -Principal $principal -Force | Out-Null
+    Write-Output "Registered '$champTask' every 2 hours (gold=$GoldSymbol) -> $champJournal."
+}
+
+# 3. Hourly Parallel v2 Champion Forward Journal (1d ACCEL+Metals + Joint ADMM + Twin-Phase 11-feat Path-PnL GRU)
+$v2Script = Join-Path $core 'scripts\record_champion_v2_journal.py'
+$v2Journal = Join-Path $data 'live\allocation\champion-v2-journal.jsonl'
+$v2Model = Join-Path $data 'live\models\gru-ignition-v2-pathpnl.json'
+$v2Reg = Join-Path $evid 'forward\champion-v2-registration.json'
+$v2Score = Join-Path $evid 'forward\champion-v2-forward-score.json'
+$v2Args = @(
+    '-I', '-B', "`"$v2Script`"",
+    '--db', "`"$dbPath`"",
+    '--multi-venue-db', "`"$mvPath`"",
+    '--journal', "`"$v2Journal`"",
+    '--model', "`"$v2Model`"",
+    '--registration', "`"$v2Reg`"",
+    '--score-out', "`"$v2Score`""
+)
+$v2Action = New-ScheduledTaskAction -Execute $python -Argument ($v2Args -join ' ') -WorkingDirectory $core
+$v2Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(4) -RepetitionInterval (New-TimeSpan -Hours 1)
+
+if ($PSCmdlet.ShouldProcess($champV2Task, "Register hourly -> $v2Journal")) {
+    Register-ScheduledTask -TaskName $champV2Task -Action $v2Action -Trigger $v2Trigger -Settings $settings -Principal $principal -Force | Out-Null
+    Write-Output "Registered '$champV2Task' hourly (twin 0h+1h phase) -> $v2Journal."
+}
+
+# 4. Hourly 1h Candle Refresh (keeps 21 champion/ignition/metals symbols fresh in market.db ahead of v1/v2 journals)
+$hourlyScript = Join-Path $core 'scripts\refresh_hourly_candles.py'
+$hourlyArgs = @('-I', '-B', "`"$hourlyScript`"", '--data-dir', "`"$data`"", '--lookback-hours', '48', '--max-catchup-days', '14')
+$hourlyAction = New-ScheduledTaskAction -Execute $python -Argument ($hourlyArgs -join ' ') -WorkingDirectory $core
+$hourlyTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Hours 1)
+
+if ($PSCmdlet.ShouldProcess($hourlyRefreshTask, "Register hourly 1h candle refresh -> $dbPath")) {
+    Register-ScheduledTask -TaskName $hourlyRefreshTask -Action $hourlyAction -Trigger $hourlyTrigger -Settings $settings -Principal $principal -Force | Out-Null
+    Write-Output "Registered '$hourlyRefreshTask' hourly -> $dbPath."
+}

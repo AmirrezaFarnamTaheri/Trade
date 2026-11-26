@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TradingGYM — Complete Quantitative Research Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --panel: #131926;
+    --panel-alt: #182032;
+    --border: #253047;
+    --text: #e6edf7;
+    --muted: #8fa1bf;
+    --accent: #38bdf8;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --purple: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #101726 0%, #0b0f17 100%);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--amber);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+  }
+  main {
+    max-width: 1420px;
+    margin: 0 auto;
+    padding: 22px 24px 48px;
+    display: grid;
+    gap: 20px;
+  }
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .kpi .lbl { color: var(--muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi .val { font-size: 1.45rem; font-weight: 700; margin-top: 4px; }
+  .kpi .note { color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .acc { color: var(--accent); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .panel h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+  .panel p.desc { margin: 4px 0 0; color: var(--muted); font-size: 0.84rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; }
+  button.tab {
+    background: var(--panel-alt);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 6px 11px;
+    border-radius: 7px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  button.tab.active {
+    background: rgba(56, 189, 248, 0.16);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+    gap: 20px;
+  }
+  .canvas-wrap { position: relative; width: 100%; height: 320px; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #0a0f1c;
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 8px 11px;
+    border-radius: 8px;
+    font-size: 0.79rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    transition: opacity 0.08s ease;
+    z-index: 999;
+    white-space: pre-line;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.82rem; }
+  th, td { padding: 7px 9px; border-bottom: 1px solid var(--border); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.76rem; text-transform: uppercase; }
+  tr.leader-row { background: rgba(34, 197, 94, 0.08); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>TradingGYM — Complete Quantitative Research Dashboard</h1>
+    <div class="sub">100% Offline Interactive Evidence · 1,638-Day Self-Financing Paper Replay + 5.4h Live Multi-Venue Audit · Generated <span id="gen-ts"></span></div>
+  </div>
+  <div class="badge">PAPER_ONLY · EXECUTOR DISARMED ($0 FUNDED BUDGET)</div>
+</header>
+
+<main>
+  <section class="kpi-row" id="kpi-row"></section>
+
+  <!-- Panel 1: Daily Return Distribution Histogram -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>1. Daily Return Distribution Histogram — Standing Leader (S1+S5) vs. Buy &amp; Hold</h2>
+        <p class="desc">Exact 1,638-day daily returns binned in 0.5% buckets (overflow tails at &lt;-6% and &gt;+6%). Hover any bar for exact day counts and tail risk.</p>
+      </div>
+      <div class="controls">
+        <button class="tab active" id="btn-both" onclick="setHistMode('both')">Overlay Both</button>
+        <button class="tab" id="btn-leader" onclick="setHistMode('leader')">S1+S5 Leader Only</button>
+        <button class="tab" id="btn-bh" onclick="setHistMode('buyhold')">Buy &amp; Hold Only</button>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-hist"></canvas></div>
+    <div class="legend" id="hist-stats"></div>
+  </section>
+
+  <!-- Panel 2: Strategy & Ablation Comparison -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>2. Strategy &amp; Ablation Comparison (1,638 Days, $1,000 Start, 13 bps Fee)</h2>
+        <p class="desc">Compare the standing leader against every tested challenger, baseline, and retired sleeve across all 5 key metrics.</p>
+      </div>
+      <div class="controls" id="strat-tabs">
+        <button class="tab active" onclick="setStratMetric('ann_sharpe', this)">Ann. Sharpe</button>
+        <button class="tab" onclick="setStratMetric('ending_nav', this)">Ending NAV ($)</button>
+        <button class="tab" onclick="setStratMetric('max_dd_pct', this)">Max Drawdown (%)</button>
+        <button class="tab" onclick="setStratMetric('stress_ret_pct', this)">Bear Stress (%)</button>
+        <button class="tab" onclick="setStratMetric('fees_usdt', this)">Total Fees ($)</button>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-strat"></canvas></div>
+  </section>
+
+  <div class="grid-2">
+    <!-- Panel 3: Factor Attribution & 2x2 Entry/Exit -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>3. 2×2 Entry vs. Exit Decomposition &amp; ADMM Uplift</h2>
+          <p class="desc">Proves both entry and exit add value over random, and ADMM nearly doubles Sharpe (0.64 → 1.01).</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-2x2"></canvas></div>
+      <table id="t-factor"></table>
+    </section>
+
+    <!-- Panel 4: Retired Fast Sleeves -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>4. Retired Fast Sleeves (S3 &amp; S4) — +1h UTC Clock-Shift Fragility</h2>
+          <p class="desc">S3 flipped from +9.76% to -2.82% on a 1-hour clock shift; S4 lost across every offset and fee tier.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-fast"></canvas></div>
+    </section>
+  </div>
+
+  <!-- Panel 5: Live Multi-Venue Execution Cost & Causal BUY/SELL -->
+  <div class="grid-2">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>5A. Live Execution Cost: Wallex L1 vs. Nobitex (-30%)</h2>
+          <p class="desc">5.40h matched live quotes (301–307 pairs/symbol). All-in one-way taker cost = ½ spread + fee.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-venue"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>5B. Causal Execution BUY vs. SELL Asymmetry (Wallex)</h2>
+          <p class="desc">Zero-lookahead p35 opportunistic passive savings (bps) vs immediate taker with displayed size limits.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-causal"></canvas></div>
+    </section>
+  </div>
+
+  <!-- Panel 6: Experiments A, B, and C -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>6. Experiments A, B, and C — 33-Market Expansion, ML Tilt &amp; Paper Margin</h2>
+        <p class="desc">Expanding to 33 assets diluted Sharpe (1.011 → 0.748); Wallex 32.85%/yr borrow crushed slow leverage &amp; L1 pairs (-88.1%). Note: once the same-day ts_avail causality leak was fixed, all intraday 2h/3h/6h crash breakers whipsawed below BASE_13_S1_S5.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-abc"></canvas></div>
+    <table id="t-margin"></table>
+  </section>
+
+  <!-- Panel 7: 2h GRU-Ignition & Orthogonal Alpha Audit (3A/3B/3C) -->
+  <div class="grid-2">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>7A. 2h Rare Momentum Ignition + GRU-Ignition Sequence Sizer</h2>
+          <p class="desc">Purged walk-forward 3-seed GRU (AUC 0.558, +12.5pp win-rate spread) dynamically gating 0.5×/1.0×/1.5× leverage with 0 liquidations and ~$11 3-year borrow.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-gru"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>7B. Orthogonal Alpha Audit (3A Flush/Dead-Cat, 3B Cov-Only GRU-Vol, 3C PAXG/Macro)</h2>
+          <p class="desc">All 3A/3B challengers decisively retired; XAUTUSDT beat PAXGUSDT (1.011 vs 0.865); standalone Macro Commodities (+24.4%, corr +0.082) parked for future multi-year history.</p>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="c-orth"></canvas></div>
+    </section>
+  </div>
+
+  <!-- Panel 8: Side-Asymmetric Smart Execution & Live Forward Champion Tracker -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>8. Side-Asymmetric Smart Execution Audit ($250 Walked L2 Depth) &amp; Live Forward Champion Status</h2>
+        <p class="desc">Nobitex (-30%) passive BUY + immediate smart-taker SELL cuts execution drag by +8.1 to +21.9 bps/leg across 4/4 live pairs. Below: live untouched forward tracker for frozen v1 Champion (70% BASE_13_S1_S5 + 30% GRU-Ignition).</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-smart"></canvas></div>
+    <table id="t-fwd"></table>
+  </section>
+
+  <!-- Panel 9: Higher-Order Momentum, Tiered Sparse Expansion, Sleeve Weighting & Structural Bear Shorts -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>9. Higher-Order Momentum, Tiered Sparse 38-Market Check &amp; Structural Bear Shorts</h2>
+        <p class="desc">2nd-order trend acceleration lifted BASE_13 (Sharpe 1.011 → 1.116, Bear -1.84% → +0.99%) and 8-feature GRU-Ignition (NBX16 +33.4% → +45.5%, SR 0.811). Static 50/50 &amp; 60/40 beat dynamic vol risk-parity; 1d structural laggard shorts made +22.4% in bear year (zero-borrow) but lost full-period under Wallex 32.85%/yr borrow.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-ho"></canvas></div>
+  </section>
+
+  <!-- Panel 10: Unified v2 Champion vs. v1 Champion Single Shared-Ledger Verification -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>10. Unified v2 Champion vs. v1 Champion — Single Shared-Ledger Head-to-Head &amp; Parallel Forward Tracks</h2>
+        <p class="desc">Combines strictly the 6 verified ablation winners: 1d ACCEL_BLEND_20 + 11A Metals Reserve + Joint Single-ADMM Cross-Sleeve Netting + 50/50 Twin-Phase 2h GRU (Exact Path-PnL) + Conformal/5% DD Leverage Governor.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-v2"></canvas></div>
+    <table id="t-v2"></table>
+  </section>
+
+  <!-- Panel 11: Live Multi-Venue Observatory (Spreads, Basis, Nobitex Liquidity Pools, Wallex Margin Ratios & Fair Prices) -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>11. Live Multi-Venue Observatory — Spreads, Basis, Nobitex Liquidity Pools &amp; Wallex Margin Ratios</h2>
+        <p class="desc">Live read-only observatory feeds captured by TradingGYM Multi-Venue Recorder (bulk Nobitex /v3/orderbook/all + /liquidity-pools/list, Wallex /margin-trade/v1/public/ratio + Centrifugo all@fairPrice) and v2 Champion shadow telemetry.</p>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="c-live-venue"></canvas></div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div><table id="t-live-pools"></table></div>
+      <div><table id="t-live-ratios"></table></div>
+    </div>
+  </section>
+</main>
+
+<div class="tooltip" id="tip"></div>
+
+<script>
+const DATA = {"generated_at": "2026-11-25T13:19:29.142557+00:00", "histograms": {"leader": {"labels": ["<-6.0%", "-6.0% to -5.5%", "-5.5% to -5.0%", "-5.0% to -4.5%", "-4.5% to -4.0%", "-4.0% to -3.5%", "-3.5% to -3.0%", "-3.0% to -2.5%", "-2.5% to -2.0%", "-2.0% to -1.5%", "-1.5% to -1.0%", "-1.0% to -0.5%", "-0.5% to +0.0%", "+0.0% to +0.5%", "+0.5% to +1.0%", "+1.0% to +1.5%", "+1.5% to +2.0%", "+2.0% to +2.5%", "+2.5% to +3.0%", "+3.0% to +3.5%", "+3.5% to +4.0%", "+4.0% to +4.5%", "+4.5% to +5.0%", "+5.0% to +5.5%", "+5.5% to +6.0%", ">6.0%"], "counts": [1, 1, 2, 6, 1, 5, 6, 15, 22, 36, 71, 124, 475, 539, 164, 61, 35, 21, 14, 10, 7, 4, 7, 2, 4, 5], "stats": {"n": 1638, "mean_bps": 6.53, "median_bps": 0.12, "std_pct": 1.235, "skew": 1.101, "pos_days_pct": 50.5, "flat_days_pct": 2.8, "worst_day_pct": -9.41, "best_day_pct": 12.44}}, "buyhold": {"labels": ["<-6.0%", "-6.0% to -5.5%", "-5.5% to -5.0%", "-5.0% to -4.5%", "-4.5% to -4.0%", "-4.0% to -3.5%", "-3.5% to -3.0%", "-3.0% to -2.5%", "-2.5% to -2.0%", "-2.0% to -1.5%", "-1.5% to -1.0%", "-1.0% to -0.5%", "-0.5% to +0.0%", "+0.0% to +0.5%", "+0.5% to +1.0%", "+1.0% to +1.5%", "+1.5% to +2.0%", "+2.0% to +2.5%", "+2.5% to +3.0%", "+3.0% to +3.5%", "+3.5% to +4.0%", "+4.0% to +4.5%", "+4.5% to +5.0%", "+5.0% to +5.5%", "+5.5% to +6.0%", ">6.0%"], "counts": [37, 11, 5, 15, 20, 32, 40, 50, 66, 90, 108, 153, 179, 160, 150, 110, 103, 69, 65, 42, 30, 22, 18, 15, 12, 36], "stats": {"n": 1638, "mean_bps": 7.93, "median_bps": 4.01, "std_pct": 2.731, "skew": -0.038, "pos_days_pct": 50.8, "flat_days_pct": 0.0, "worst_day_pct": -13.23, "best_day_pct": 15.64}}}, "strategies": [{"name": "S1 + S5 Leader (DROP_S2)", "status": "LEADER", "ending_nav": 2574.92, "ret_pct": 157.52, "ann_sharpe": 1.011, "max_dd_pct": 22.38, "stress_ret_pct": -1.84, "fees_usdt": 72.18}, {"name": "S1 Trend Alone", "status": "BASELINE", "ending_nav": 2533.54, "ret_pct": 153.39, "ann_sharpe": 0.996, "max_dd_pct": 22.38, "stress_ret_pct": -2.88, "fees_usdt": 66.64}, {"name": "S1 + S5 + S2 Hysteresis (25/55)", "status": "RETIRED", "ending_nav": 2827.31, "ret_pct": 182.74, "ann_sharpe": 0.921, "max_dd_pct": 29.95, "stress_ret_pct": -11.23, "fees_usdt": 198.25}, {"name": "Raw S1 + S2 + S5", "status": "RETIRED", "ending_nav": 2783.43, "ret_pct": 178.34, "ann_sharpe": 0.94, "max_dd_pct": 25.79, "stress_ret_pct": -11.47, "fees_usdt": 223.08}, {"name": "Adaptive Vote", "status": "RETIRED", "ending_nav": 2507.88, "ret_pct": 150.79, "ann_sharpe": 0.955, "max_dd_pct": 22.24, "stress_ret_pct": -10.16, "fees_usdt": 159.43}, {"name": "ML Logistic Veto", "status": "RETIRED", "ending_nav": 2072.1, "ret_pct": 107.21, "ann_sharpe": 0.834, "max_dd_pct": 24.74, "stress_ret_pct": -9.35, "fees_usdt": 130.95}, {"name": "Buy & Hold (13 Coins)", "status": "BENCHMARK", "ending_nav": 1999.07, "ret_pct": 100.15, "ann_sharpe": 0.558, "max_dd_pct": 58.24, "stress_ret_pct": -36.44, "fees_usdt": 55.38}, {"name": "Cash (USDT)", "status": "CONTROL", "ending_nav": 1000.0, "ret_pct": 0.0, "ann_sharpe": 0.0, "max_dd_pct": 0.0, "stress_ret_pct": 0.0, "fees_usdt": 0.0}], "factor_attribution": {"DROP_S2_LEADER": {"observations": 839, "ann_alpha_pct": 27.65, "beta_btc": 0.2206, "beta_gold": 0.0992, "r_squared": 0.2132, "residual_ann_sharpe": 1.346, "portfolio_ann_sharpe": 1.416}, "RAW_S1_S2_S5": {"observations": 839, "ann_alpha_pct": 25.34, "beta_btc": 0.2757, "beta_gold": 0.0946, "r_squared": 0.2466, "residual_ann_sharpe": 1.114, "portfolio_ann_sharpe": 1.189}, "S2_HYSTERESIS_25_55": {"observations": 839, "ann_alpha_pct": 26.95, "beta_btc": 0.2937, "beta_gold": 0.0885, "r_squared": 0.2604, "residual_ann_sharpe": 1.166, "portfolio_ann_sharpe": 1.223}, "STATIC_GOLD_AND_CRYPTO": {"observations": 839, "ann_alpha_pct": 5.78, "beta_btc": 0.9743, "beta_gold": 0.0451, "r_squared": 0.7144, "residual_ann_sharpe": 0.211, "portfolio_ann_sharpe": 0.391}}, "entry_exit_2x2": [{"label": "S1+S5 + ADMM Optimizer (Leader)", "ret_pct": 157.52, "ann_sharpe": 1.011, "max_dd_pct": 22.38, "stress_ret_pct": -1.84}, {"label": "Real Entry + Sleeve Exit (EqWt)", "ret_pct": 121.0, "ann_sharpe": 0.64, "max_dd_pct": 42.39, "stress_ret_pct": -3.78}, {"label": "Real Entry + 20d Fixed Exit", "ret_pct": 122.82, "ann_sharpe": 0.647, "max_dd_pct": 41.49, "stress_ret_pct": -12.39}, {"label": "Random Entry + Sleeve Exit (5-Seed)", "ret_pct": 105.63, "ann_sharpe": 0.594, "max_dd_pct": 46.69, "stress_ret_pct": -2.97}, {"label": "Random Entry + 20d Fixed Exit (5-Seed)", "ret_pct": 15.7, "ann_sharpe": 0.306, "max_dd_pct": 59.71, "stress_ret_pct": -30.31}], "fast_sleeves": [{"label": "S3 Panic Reversion (0h UTC)", "ret_pct": 9.76, "ann_sharpe": 0.651, "max_dd_pct": 2.3}, {"label": "S3 Panic Reversion (+1h Shift)", "ret_pct": -2.82, "ann_sharpe": -0.288, "max_dd_pct": 7.26}, {"label": "S3 Nobitex Counterfactual (0h)", "ret_pct": 10.23, "ann_sharpe": 0.678, "max_dd_pct": 2.18}, {"label": "S4 Vol Breakout (0h UTC)", "ret_pct": -7.93, "ann_sharpe": -0.526, "max_dd_pct": 9.78}, {"label": "S4 Vol Breakout (+1h Shift)", "ret_pct": -11.06, "ann_sharpe": -0.895, "max_dd_pct": 15.79}, {"label": "S4 Nobitex Counterfactual (0h)", "ret_pct": -7.21, "ann_sharpe": -0.474, "max_dd_pct": 9.26}], "venue_execution": [{"symbol": "BTCUSDT", "matched_pairs": 306, "elapsed_hours": 5.4, "wallex_median_spread_bps": 16.71, "nobitex_median_spread_bps": 12.03, "spread_ratio_w_over_n": 1.39, "wallex_median_depth_quote": 713.21, "nobitex_median_depth_quote": 1318.93, "wallex_allin_taker_bps": 21.36, "nobitex_allin_taker_bps": 15.12, "oneway_taker_saving_bps": 6.24, "maker_fee_saving_bps": 3.0, "est_annual_s1_s5_drag_saving_pct": 0.77}, {"symbol": "ETHUSDT", "matched_pairs": 305, "elapsed_hours": 5.4, "wallex_median_spread_bps": 24.24, "nobitex_median_spread_bps": 12.52, "spread_ratio_w_over_n": 1.94, "wallex_median_depth_quote": 1869.44, "nobitex_median_depth_quote": 687.43, "wallex_allin_taker_bps": 25.12, "nobitex_allin_taker_bps": 15.36, "oneway_taker_saving_bps": 9.76, "maker_fee_saving_bps": 3.0, "est_annual_s1_s5_drag_saving_pct": 1.21}, {"symbol": "SOLUSDT", "matched_pairs": 301, "elapsed_hours": 5.4, "wallex_median_spread_bps": 32.44, "nobitex_median_spread_bps": 18.89, "spread_ratio_w_over_n": 1.72, "wallex_median_depth_quote": 547.1, "nobitex_median_depth_quote": 380.38, "wallex_allin_taker_bps": 29.22, "nobitex_allin_taker_bps": 18.54, "oneway_taker_saving_bps": 10.67, "maker_fee_saving_bps": 3.0, "est_annual_s1_s5_drag_saving_pct": 1.32}, {"symbol": "USDTTMN", "matched_pairs": 307, "elapsed_hours": 5.4, "wallex_median_spread_bps": 1.03, "nobitex_median_spread_bps": 2.1, "spread_ratio_w_over_n": 0.49, "wallex_median_depth_quote": 318767400.72, "nobitex_median_depth_quote": 324385648.78, "wallex_allin_taker_bps": 30.52, "nobitex_allin_taker_bps": 18.55, "oneway_taker_saving_bps": 11.97, "maker_fee_saving_bps": 11.0, "est_annual_s1_s5_drag_saving_pct": 1.48}, {"symbol": "XRPUSDT", "matched_pairs": 305, "elapsed_hours": 5.4, "wallex_median_spread_bps": 27.01, "nobitex_median_spread_bps": 17.32, "spread_ratio_w_over_n": 1.56, "wallex_median_depth_quote": 1391.1, "nobitex_median_depth_quote": 862.04, "wallex_allin_taker_bps": 26.5, "nobitex_allin_taker_bps": 17.76, "oneway_taker_saving_bps": 8.74, "maker_fee_saving_bps": 3.0, "est_annual_s1_s5_drag_saving_pct": 1.08}], "causal_execution": [{"symbol": "BTCUSDT", "side": "BUY", "samples": 12, "mean_causal_p35_bps": 30.34, "immediate_cost_bps": 26.13, "fixed_passive_cost_bps": 15.99, "opportunistic_cost_bps": 15.99, "fixed_passive_savings_bps": 10.14, "opportunistic_savings_bps": 10.14, "unfilled_counts": {"imm": 8, "fp": 9, "opp": 9}}, {"symbol": "BTCUSDT", "side": "SELL", "samples": 12, "mean_causal_p35_bps": 30.34, "immediate_cost_bps": 26.09, "fixed_passive_cost_bps": 32.09, "opportunistic_cost_bps": 32.09, "fixed_passive_savings_bps": -6.0, "opportunistic_savings_bps": -6.0, "unfilled_counts": {"imm": 5, "fp": 6, "opp": 6}}, {"symbol": "ETHUSDT", "side": "BUY", "samples": 12, "mean_causal_p35_bps": 28.18, "immediate_cost_bps": 26.55, "fixed_passive_cost_bps": 27.05, "opportunistic_cost_bps": 28.06, "fixed_passive_savings_bps": -0.5, "opportunistic_savings_bps": -1.5, "unfilled_counts": {"imm": 7, "fp": 6, "opp": 6}}, {"symbol": "ETHUSDT", "side": "SELL", "samples": 12, "mean_causal_p35_bps": 28.18, "immediate_cost_bps": 26.52, "fixed_passive_cost_bps": 30.26, "opportunistic_cost_bps": 30.2, "fixed_passive_savings_bps": -3.74, "opportunistic_savings_bps": -3.68, "unfilled_counts": {"imm": 4, "fp": 4, "opp": 4}}, {"symbol": "SOLUSDT", "side": "BUY", "samples": 12, "mean_causal_p35_bps": 33.24, "immediate_cost_bps": 28.97, "fixed_passive_cost_bps": 10.35, "opportunistic_cost_bps": 8.8, "fixed_passive_savings_bps": 18.62, "opportunistic_savings_bps": 20.17, "unfilled_counts": {"imm": 6, "fp": 7, "opp": 6}}, {"symbol": "SOLUSDT", "side": "SELL", "samples": 12, "mean_causal_p35_bps": 33.24, "immediate_cost_bps": 28.93, "fixed_passive_cost_bps": 47.45, "opportunistic_cost_bps": 47.45, "fixed_passive_savings_bps": -18.52, "opportunistic_savings_bps": -18.52, "unfilled_counts": {"imm": 5, "fp": 8, "opp": 8}}, {"symbol": "XRPUSDT", "side": "BUY", "samples": 12, "mean_causal_p35_bps": 32.53, "immediate_cost_bps": 26.78, "fixed_passive_cost_bps": 26.81, "opportunistic_cost_bps": 26.81, "fixed_passive_savings_bps": -0.03, "opportunistic_savings_bps": -0.03, "unfilled_counts": {"imm": 5, "fp": 6, "opp": 6}}, {"symbol": "XRPUSDT", "side": "SELL", "samples": 12, "mean_causal_p35_bps": 32.53, "immediate_cost_bps": 26.75, "fixed_passive_cost_bps": 29.94, "opportunistic_cost_bps": 29.86, "fixed_passive_savings_bps": -3.19, "opportunistic_savings_bps": -3.11, "unfilled_counts": {"imm": 8, "fp": 8, "opp": 8}}, {"symbol": "XAUTUSDT", "side": "BUY", "samples": 12, "mean_causal_p35_bps": 39.78, "immediate_cost_bps": 53.32, "fixed_passive_cost_bps": 48.74, "opportunistic_cost_bps": 48.74, "fixed_passive_savings_bps": 4.58, "opportunistic_savings_bps": 4.58, "unfilled_counts": {"imm": 10, "fp": 11, "opp": 11}}, {"symbol": "XAUTUSDT", "side": "SELL", "samples": 12, "mean_causal_p35_bps": 39.78, "immediate_cost_bps": 53.22, "fixed_passive_cost_bps": 57.32, "opportunistic_cost_bps": 57.32, "fixed_passive_savings_bps": -4.1, "opportunistic_savings_bps": -4.1, "unfilled_counts": {"imm": 9, "fp": 8, "opp": 8}}, {"symbol": "PEPEUSDT", "side": "BUY", "samples": 12, "mean_causal_p35_bps": 46.36, "immediate_cost_bps": 36.96, "fixed_passive_cost_bps": 25.89, "opportunistic_cost_bps": 27.19, "fixed_passive_savings_bps": 11.07, "opportunistic_savings_bps": 9.78, "unfilled_counts": {"imm": 7, "fp": 6, "opp": 5}}, {"symbol": "PEPEUSDT", "side": "SELL", "samples": 12, "mean_causal_p35_bps": 46.36, "immediate_cost_bps": 36.9, "fixed_passive_cost_bps": 48.53, "opportunistic_cost_bps": 44.53, "fixed_passive_savings_bps": -11.63, "opportunistic_savings_bps": -7.63, "unfilled_counts": {"imm": 4, "fp": 7, "opp": 7}}], "exp_abc_spot": [{"name": "BASE_13_S1_S5_LEADER", "full": {"days": 1638, "ending_nav": 2574.92, "ret_pct": 157.52, "ann_sharpe": 1.011, "max_dd_pct": 22.38}, "stress": {"days": 366, "ending_nav": 2574.92, "ret_pct": -1.84, "ann_sharpe": -0.088, "max_dd_pct": 10.95}, "fees_usdt": 72.18, "turnover": 55.52, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "BASELINE", "mean_uplift": 0.0, "ci_95": [0.0, 0.0]}}, {"name": "EXP_A1_33_ASSETS_PLAIN", "full": {"days": 1638, "ending_nav": 2145.44, "ret_pct": 114.57, "ann_sharpe": 0.748, "max_dd_pct": 25.49}, "stress": {"days": 366, "ending_nav": 2145.44, "ret_pct": -13.3, "ann_sharpe": -0.588, "max_dd_pct": 24.58}, "fees_usdt": 129.12, "turnover": 99.32, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -8.067662326287275e-05, "ci_95": [-0.00031578868212029195, 0.000152795353085601], "bootstrap_se": 0.00012175404554454501, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_A2_33_ASSETS_DEPTH_L2", "full": {"days": 1638, "ending_nav": 2146.32, "ret_pct": 114.66, "ann_sharpe": 0.75, "max_dd_pct": 25.44}, "stress": {"days": 366, "ending_nav": 2146.32, "ret_pct": -12.73, "ann_sharpe": -0.561, "max_dd_pct": 23.72}, "fees_usdt": 122.0, "turnover": 93.85, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -8.116224840700974e-05, "ci_95": [-0.0003111328544306685, 0.00014711872615986605], "bootstrap_se": 0.00012031903452825252, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_A3_33_ASSETS_DEPTH_L2_SPREAD_L1", "full": {"days": 1638, "ending_nav": 1957.74, "ret_pct": 95.79, "ann_sharpe": 0.695, "max_dd_pct": 23.86}, "stress": {"days": 366, "ending_nav": 1957.74, "ret_pct": -10.44, "ann_sharpe": -0.517, "max_dd_pct": 22.55}, "fees_usdt": 66.24, "turnover": 50.95, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -0.00014653247608641684, "ci_95": [-0.0003863404231237782, 0.00011904319672914082], "bootstrap_se": 0.0001222422518611102, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_A4_33_ASSETS_NOBITEX_FEE", "full": {"days": 1638, "ending_nav": 2253.42, "ret_pct": 125.36, "ann_sharpe": 0.787, "max_dd_pct": 25.22}, "stress": {"days": 366, "ending_nav": 2253.42, "ret_pct": -10.95, "ann_sharpe": -0.455, "max_dd_pct": 23.2}, "fees_usdt": 99.1, "turnover": 108.9, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -5.082574934480142e-05, "ci_95": [-0.0002906513487148579, 0.00018873423212599792], "bootstrap_se": 0.00012344256906888555, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_B1_13_ASSETS_ML_CONTINUOUS_TILT", "full": {"days": 1638, "ending_nav": 2523.79, "ret_pct": 152.41, "ann_sharpe": 1.008, "max_dd_pct": 22.85}, "stress": {"days": 366, "ending_nav": 2523.79, "ret_pct": -1.65, "ann_sharpe": -0.077, "max_dd_pct": 10.5}, "fees_usdt": 70.22, "turnover": 54.02, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -1.5388389651346056e-05, "ci_95": [-4.925517451497194e-05, 1.2790030473649821e-05], "bootstrap_se": 1.6110232792646728e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_B2_13_ASSETS_4H_CRASH_EXIT", "full": {"days": 1638, "ending_nav": 2754.52, "ret_pct": 175.49, "ann_sharpe": 1.089, "max_dd_pct": 22.07}, "stress": {"days": 366, "ending_nav": 2754.52, "ret_pct": 5.76, "ann_sharpe": 0.55, "max_dd_pct": 8.33}, "fees_usdt": 113.54, "turnover": 87.34, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": 3.872577371771773e-05, "ci_95": [-3.997229430139756e-05, 0.00012319165264310995], "bootstrap_se": 4.152824237994747e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_B3_33_ASSETS_DEPTH_ML_4H_COMBO", "full": {"days": 1638, "ending_nav": 2080.29, "ret_pct": 108.05, "ann_sharpe": 0.758, "max_dd_pct": 26.94}, "stress": {"days": 366, "ending_nav": 2080.29, "ret_pct": -0.98, "ann_sharpe": 0.03, "max_dd_pct": 15.53}, "fees_usdt": 146.57, "turnover": 112.75, "extra_borrow_usdt": 0.0, "levered_days": 0, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -0.00011406402990943757, "ci_95": [-0.0003401358884608606, 0.00013270853801107774], "bootstrap_se": 0.00012027337532739536, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, {"name": "EXP_C3_13_ASSETS_TACTICAL_1.35X_BULL", "full": {"days": 1638, "ending_nav": 2587.54, "ret_pct": 158.79, "ann_sharpe": 0.971, "max_dd_pct": 22.07}, "stress": {"days": 366, "ending_nav": 2587.54, "ret_pct": -1.79, "ann_sharpe": -0.053, "max_dd_pct": 11.06}, "fees_usdt": 72.89, "turnover": 56.07, "extra_borrow_usdt": 145.14, "levered_days": 279, "uplift_vs_base13": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": 1.2621360837500931e-05, "ci_95": [-2.049297158176695e-05, 4.164705590984621e-05], "bootstrap_se": 1.5994070491572858e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}], "exp_abc_margin": [{"name": "CRASH_CASCADE_SHORTS_1.5X", "ending_nav": 1034.0, "ret_pct": 3.4, "ann_sharpe": 0.135, "max_dd_pct": 25.29, "trades": 99, "liquidations": 0, "total_borrow_usdt": 116.55, "total_fees_usdt": 144.79}, {"name": "MARKET_NEUTRAL_L1_PAIRS", "ending_nav": 119.14, "ret_pct": -88.09, "ann_sharpe": -1.209, "max_dd_pct": 89.0, "trades": 936, "liquidations": 4, "total_borrow_usdt": 292.01, "total_fees_usdt": 519.2}], "gru_ignition": {"total_breakout_episodes": 877, "oos_scored_episodes": 746, "oos_roc_auc": 0.5578, "oos_base_win_rate_pct": 46.1, "bottom_tercile_win_rate_pct": 38.3, "top_tercile_win_rate_pct": 50.8, "plain_1x_nbx16": {"label": "PLAIN_IGN18_1.0X_NBX16", "side": "LONG", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1043, "ending_nav": 1266.68, "ret_pct": 26.67, "stress_ret_pct": 6.8, "ann_sharpe": 0.64, "max_dd_pct": 13.51, "entries": 175, "win_rate_pct": 37.7, "liquidations": 0, "avg_hold_hours": 20.3, "total_borrow_usdt": 0.0, "total_fees_usdt": 193.08}, "plain_15x_nbx16": {"label": "PLAIN_IGN18_1.5X_NBX16", "side": "LONG", "leverage": 1.5, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1043, "ending_nav": 1365.8, "ret_pct": 36.58, "stress_ret_pct": 8.53, "ann_sharpe": 0.608, "max_dd_pct": 19.87, "entries": 175, "win_rate_pct": 37.7, "liquidations": 0, "avg_hold_hours": 20.3, "total_borrow_usdt": 23.67, "total_fees_usdt": 303.1}, "gru_dynamic_nbx16": {"label": "GRU_SIZED_IGN18_NBX16", "side": "LONG", "leverage": 1.25, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1043, "ending_nav": 1321.41, "ret_pct": 32.14, "stress_ret_pct": 9.9, "ann_sharpe": 0.658, "max_dd_pct": 16.58, "entries": 175, "win_rate_pct": 37.7, "liquidations": 0, "avg_hold_hours": 20.3, "total_borrow_usdt": 11.06, "total_fees_usdt": 218.55}, "gru_dynamic_wlx25": {"label": "GRU_SIZED_IGN18_WLX25", "side": "LONG", "leverage": 1.25, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1043, "ending_nav": 1190.45, "ret_pct": 19.04, "stress_ret_pct": 6.19, "ann_sharpe": 0.442, "max_dd_pct": 18.22, "entries": 175, "win_rate_pct": 37.7, "liquidations": 0, "avg_hold_hours": 20.3, "total_borrow_usdt": 10.51, "total_fees_usdt": 323.89}}, "orthogonal_alpha": {"generated_at": "2026-11-24T21:14:38.131237+00:00", "study_3a_flush_rebound": [{"label": "FLUSH_REBOUND_2H_NBX16_OFF0H", "side": "LONG_REBOUND", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 993.67, "ret_pct": -0.63, "stress_ret_pct": 14.7, "ann_sharpe": 0.066, "max_dd_pct": 19.36, "entries": 325, "win_rate_pct": 46.8, "liquidations": 0, "avg_hold_hours": 16.1, "total_borrow_usdt": 0.0, "total_fees_usdt": 296.4, "corr_vs_base_13": -0.024}, {"label": "FLUSH_REBOUND_2H_WLX25_OFF0H", "side": "LONG_REBOUND", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 833.52, "ret_pct": -16.65, "stress_ret_pct": 5.19, "ann_sharpe": -0.301, "max_dd_pct": 26.64, "entries": 325, "win_rate_pct": 44.9, "liquidations": 0, "avg_hold_hours": 16.1, "total_borrow_usdt": 0.0, "total_fees_usdt": 425.49, "corr_vs_base_13": -0.0154}, {"label": "FLUSH_REBOUND_2H_NBX16_OFF1H", "side": "LONG_REBOUND", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 16.0, "days": 1085, "ending_nav": 610.56, "ret_pct": -38.94, "stress_ret_pct": -18.79, "ann_sharpe": -0.701, "max_dd_pct": 41.05, "entries": 368, "win_rate_pct": 40.2, "liquidations": 0, "avg_hold_hours": 14.8, "total_borrow_usdt": 0.0, "total_fees_usdt": 283.71, "corr_vs_base_13": -0.0148}, {"label": "FLUSH_REBOUND_2H_WLX25_OFF1H", "side": "LONG_REBOUND", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 25.0, "days": 1085, "ending_nav": 500.21, "ret_pct": -49.98, "stress_ret_pct": -26.97, "ann_sharpe": -1.007, "max_dd_pct": 50.73, "entries": 368, "win_rate_pct": 38.6, "liquidations": 0, "avg_hold_hours": 14.8, "total_borrow_usdt": 0.0, "total_fees_usdt": 405.61, "corr_vs_base_13": -0.0074}, {"label": "FLUSH_REBOUND_BEAR45_NBX16_OFF0H", "side": "LONG_REBOUND", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 861.28, "ret_pct": -13.87, "stress_ret_pct": 3.92, "ann_sharpe": -0.281, "max_dd_pct": 27.32, "entries": 238, "win_rate_pct": 45.4, "liquidations": 0, "avg_hold_hours": 19.7, "total_borrow_usdt": 0.0, "total_fees_usdt": 203.46, "corr_vs_base_13": -0.0275}, {"label": "FLUSH_REBOUND_BEAR45_NBX16_OFF1H", "side": "LONG_REBOUND", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 16.0, "days": 1085, "ending_nav": 628.68, "ret_pct": -37.13, "stress_ret_pct": -20.71, "ann_sharpe": -0.932, "max_dd_pct": 41.1, "entries": 267, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 18.3, "total_borrow_usdt": 0.0, "total_fees_usdt": 209.32, "corr_vs_base_13": -0.0214}], "study_3a_deadcat_short": [{"label": "DEADCAT_SHORT_2H_NBX16_OFF0H", "side": "SHORT_DEADCAT", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 503.06, "ret_pct": -49.69, "stress_ret_pct": -21.67, "ann_sharpe": -0.875, "max_dd_pct": 60.6, "entries": 497, "win_rate_pct": 37.6, "liquidations": 0, "avg_hold_hours": 27.0, "total_borrow_usdt": 93.05, "total_fees_usdt": 300.61, "corr_vs_base_13": -0.0093}, {"label": "DEADCAT_SHORT_2H_WLX25_OFF0H", "side": "SHORT_DEADCAT", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 384.63, "ret_pct": -61.54, "stress_ret_pct": -32.3, "ann_sharpe": -1.244, "max_dd_pct": 69.1, "entries": 497, "win_rate_pct": 35.4, "liquidations": 0, "avg_hold_hours": 27.0, "total_borrow_usdt": 82.96, "total_fees_usdt": 420.89, "corr_vs_base_13": -0.0054}, {"label": "DEADCAT_SHORT_2H_NBX16_OFF1H", "side": "SHORT_DEADCAT", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 16.0, "days": 1085, "ending_nav": 421.99, "ret_pct": -57.8, "stress_ret_pct": -28.12, "ann_sharpe": -1.196, "max_dd_pct": 65.41, "entries": 487, "win_rate_pct": 38.2, "liquidations": 0, "avg_hold_hours": 26.7, "total_borrow_usdt": 87.09, "total_fees_usdt": 285.63, "corr_vs_base_13": -0.0146}, {"label": "DEADCAT_SHORT_2H_WLX25_OFF1H", "side": "SHORT_DEADCAT", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 25.0, "days": 1085, "ending_nav": 324.22, "ret_pct": -67.58, "stress_ret_pct": -37.34, "ann_sharpe": -1.572, "max_dd_pct": 72.58, "entries": 487, "win_rate_pct": 36.3, "liquidations": 0, "avg_hold_hours": 26.7, "total_borrow_usdt": 78.02, "total_fees_usdt": 401.86, "corr_vs_base_13": -0.0098}], "study_3a_flush_days": 1085, "study_3b_gru_vol_cov_only": {"baseline_13": {"full": {"days": 1638, "ending_nav": 2574.92, "ret_pct": 157.52, "ann_sharpe": 1.011, "max_dd_pct": 22.38}, "stress": {"days": 366, "ending_nav": 2574.92, "ret_pct": -1.84, "ann_sharpe": -0.088, "max_dd_pct": 10.95}, "fees_usdt": 72.18}, "gru_vol_cov_only": {"full": {"days": 1638, "ending_nav": 1977.9, "ret_pct": 97.8, "ann_sharpe": 0.74, "max_dd_pct": 25.78}, "stress": {"days": 366, "ending_nav": 1977.9, "ret_pct": -3.7, "ann_sharpe": -0.213, "max_dd_pct": 13.37}, "fees_usdt": 80.37, "uplift_vs_base": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -0.000154105118969124, "ci_95": [-0.0003848463038153232, 5.216111569998859e-05], "bootstrap_se": 0.000120644177414537, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, "gru_vol_cov_plus_vt22": {"full": {"days": 1638, "ending_nav": 1663.91, "ret_pct": 66.4, "ann_sharpe": 0.71, "max_dd_pct": 23.75}, "stress": {"days": 366, "ending_nav": 1663.91, "ret_pct": -2.07, "ann_sharpe": -0.11, "max_dd_pct": 11.0}, "fees_usdt": 72.14, "uplift_vs_base": {"status": "BELOW_THRESHOLD", "mean_uplift": -0.0002965383410927306, "ci_95": [-0.000570603847400424, -5.660444177542009e-06], "bootstrap_se": 0.00014821072831033876, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}}, "study_3c_gold_and_macro": {"xaut_base_13": {"full": {"days": 1638, "ending_nav": 2574.92, "ret_pct": 157.52, "ann_sharpe": 1.011, "max_dd_pct": 22.38}, "stress": {"days": 366, "ending_nav": 2574.92, "ret_pct": -1.84, "ann_sharpe": -0.088, "max_dd_pct": 10.95}, "fees_usdt": 72.18}, "paxg_base_13": {"full": {"days": 1638, "ending_nav": 2407.4, "ret_pct": 140.77, "ann_sharpe": 0.865, "max_dd_pct": 23.24}, "stress": {"days": 366, "ending_nav": 2407.4, "ret_pct": -6.38, "ann_sharpe": -0.442, "max_dd_pct": 11.46}, "fees_usdt": 86.95, "uplift_vs_xaut_base": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -1.9616083913984437e-05, "ci_95": [-0.000139057516167808, 0.00014803080389500772], "bootstrap_se": 7.232817108153627e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, "macro_standalone": {"label": "MACRO_COMMODITIES_RP_TREND", "symbols": ["PAXGUSDT", "SLVONUSDT", "USOONUSDT", "COPXONUSDT", "UNGONUSDT"], "days": 1635, "ending_nav": 1243.46, "ret_pct": 24.35, "stress_ret_pct": -9.35, "ann_sharpe": 0.453, "max_dd_pct": 20.98, "total_fees_usdt": 32.75, "avg_gross_exposure_pct": 27.4, "corr_vs_base_13": 0.0816}, "blend_80_paxg13_20_macro": {"name": "BLEND_80_PAXG13_20_MACRO", "full": {"days": 2511, "ending_nav": 2157.83, "ret_pct": 115.78, "ann_sharpe": 0.722, "max_dd_pct": 18.15}, "stress": {"days": 367, "ending_nav": 2157.83, "ret_pct": -6.81, "ann_sharpe": -0.517, "max_dd_pct": 12.87}, "fills": 2267, "fees_usdt": 74.63, "turnover": 57.4, "uplift_vs_paxg_base": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": -9.919143621871055e-05, "ci_95": [-0.0002492551916492175, 2.747576631466235e-05], "bootstrap_se": 7.189293896972415e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, "note_2026_active_commodities": {"PAXGUSDT": 1635, "SLVONUSDT": 295, "USOONUSDT": 258, "COPXONUSDT": 198, "UNGONUSDT": 150}}}, "smart_execution": [{"symbol": "BTCUSDT", "notional_quote": 250.0, "samples": 709, "buy": {"wallex_taker_bps": 20.25, "nobitex_taker_bps": 17.4, "smart_taker_bps": 14.71, "asym_router_bps": 10.32, "saving_smart_vs_wallex_bps": 5.54, "saving_asym_vs_wallex_bps": 9.93, "nobitex_cheaper_pct": 59.8, "wallex_depth_fill_pct": 100.0, "nobitex_depth_fill_pct": 98.8, "passive_buy_fill_pct": 45.7}, "sell": {"wallex_taker_bps": 22.84, "nobitex_taker_bps": 15.72, "smart_taker_bps": 14.72, "asym_router_bps": 14.72, "saving_smart_vs_wallex_bps": 8.12, "saving_asym_vs_wallex_bps": 8.12, "nobitex_cheaper_pct": 77.3, "wallex_depth_fill_pct": 99.5, "nobitex_depth_fill_pct": 99.1, "passive_buy_fill_pct": 0.0}}, {"symbol": "ETHUSDT", "notional_quote": 250.0, "samples": 709, "buy": {"wallex_taker_bps": 24.59, "nobitex_taker_bps": 18.1, "smart_taker_bps": 16.77, "asym_router_bps": 14.09, "saving_smart_vs_wallex_bps": 7.82, "saving_asym_vs_wallex_bps": 10.5, "nobitex_cheaper_pct": 73.1, "wallex_depth_fill_pct": 100.0, "nobitex_depth_fill_pct": 97.9, "passive_buy_fill_pct": 37.1}, "sell": {"wallex_taker_bps": 25.64, "nobitex_taker_bps": 17.48, "smart_taker_bps": 16.61, "asym_router_bps": 16.61, "saving_smart_vs_wallex_bps": 9.03, "saving_asym_vs_wallex_bps": 9.03, "nobitex_cheaper_pct": 83.1, "wallex_depth_fill_pct": 99.5, "nobitex_depth_fill_pct": 98.3, "passive_buy_fill_pct": 0.0}}, {"symbol": "SOLUSDT", "notional_quote": 250.0, "samples": 666, "buy": {"wallex_taker_bps": 38.27, "nobitex_taker_bps": 29.79, "smart_taker_bps": 23.29, "asym_router_bps": 16.57, "saving_smart_vs_wallex_bps": 14.97, "saving_asym_vs_wallex_bps": 21.7, "nobitex_cheaper_pct": 60.2, "wallex_depth_fill_pct": 95.9, "nobitex_depth_fill_pct": 89.8, "passive_buy_fill_pct": 36.6}, "sell": {"wallex_taker_bps": 43.76, "nobitex_taker_bps": 22.04, "smart_taker_bps": 21.84, "asym_router_bps": 21.84, "saving_smart_vs_wallex_bps": 21.92, "saving_asym_vs_wallex_bps": 21.92, "nobitex_cheaper_pct": 95.6, "wallex_depth_fill_pct": 99.3, "nobitex_depth_fill_pct": 98.8, "passive_buy_fill_pct": 0.0}}, {"symbol": "XRPUSDT", "notional_quote": 250.0, "samples": 714, "buy": {"wallex_taker_bps": 27.02, "nobitex_taker_bps": 20.48, "smart_taker_bps": 19.03, "asym_router_bps": 16.78, "saving_smart_vs_wallex_bps": 8.0, "saving_asym_vs_wallex_bps": 10.25, "nobitex_cheaper_pct": 74.9, "wallex_depth_fill_pct": 100.0, "nobitex_depth_fill_pct": 97.5, "passive_buy_fill_pct": 31.1}, "sell": {"wallex_taker_bps": 29.46, "nobitex_taker_bps": 19.35, "smart_taker_bps": 19.08, "asym_router_bps": 19.08, "saving_smart_vs_wallex_bps": 10.39, "saving_asym_vs_wallex_bps": 10.39, "nobitex_cheaper_pct": 87.1, "wallex_depth_fill_pct": 99.9, "nobitex_depth_fill_pct": 97.3, "passive_buy_fill_pct": 0.0}}], "forward_score": {"status": "TRACKING", "observations": 5, "forward_days": 2, "first_day": "2026-11-24", "latest_day": "2026-11-25", "paper_nav": 1000.0, "cum_ret_pct": 0.0, "e_process": 1.0, "latest_cash_weight": 1.0, "latest_blended_weights": {}, "latest_ignition_triggers": [], "median_live_nobitex_spread_bps": 16.04, "median_live_wallex_spread_bps": 16.33, "backtest_assumption_nbx_allin_bps": 16.0, "backtest_assumption_wlx_allin_bps": 25.0}, "operational_health": {"generated_at": "2026-11-25T13:19:10.489032+00:00", "overall_status": "WARN", "executor_state": "DISARMED", "checks": {"market_db": {"status": "WARN", "latest_book_ts": "2026-11-25T13:19:09.770288Z", "book_age_hours": 0.0, "latest_trade_ts": "2026-11-25T13:18:59.982639Z", "trade_age_hours": 0.0, "stale_1d_symbols": [], "stale_1h_symbols_count": 1, "stale_1h_symbols": ["ATOMUSDT (24h)"], "fresh_1min_symbols_count": 15}, "multi_venue_db": {"status": "OK", "total_quote_rows": 7739, "latest_quote_ts": "2026-11-25T13:18:25.157497Z", "nobitex_fresh_symbols": 20, "nobitex_stale_symbols": [], "nobitex_liquidity_pool_rows": 268, "nobitex_latest_usdt_pool_apr_pct": 2.64, "wallex_margin_ratio_rows": 11, "wallex_fair_price_rows": 42}, "s1_s5_leader_journal": {"status": "OK", "rows": 26, "latest_ts": "2026-11-25T10:25:09.675831+00:00", "age_hours": 2.9}, "champion_ensemble_journal": {"status": "OK", "rows": 5, "latest_ts": "2026-11-25T13:18:34.937740+00:00", "age_hours": 0.01}, "champion_v2_journal": {"status": "OK", "rows": 5, "latest_ts": "2026-11-25T12:53:21.093470+00:00", "age_hours": 0.43}, "mix_journal_v2": {"status": "OK", "rows": 10, "latest_ts": "2026-11-25T10:25:09.511998+00:00", "age_hours": 2.9}, "gru_ignition_model": {"status": "OK", "bytes": 82273, "n_models": 3, "sha256": "fed742c13eecf79de3410c7e8a2b594d784b52c5e48be149aad6e6d35d1ddb61"}, "gru_ignition_v2_model": {"status": "OK", "bytes": 103882, "n_models": 3, "sha256": "e6f05aaf64e0479fe768ec3ba1361ae8ce9a5759e4efa64b139f80bc2e5f1b56"}}}, "higher_order": {"generated_at": "2026-11-24T21:52:19.734259+00:00", "part_1a_second_order_1d": {"baseline_13": {"full": {"days": 1638, "ending_nav": 2574.92, "ret_pct": 157.52, "ann_sharpe": 1.011, "max_dd_pct": 22.38}, "stress": {"days": 366, "ending_nav": 2574.92, "ret_pct": -1.84, "ann_sharpe": -0.088, "max_dd_pct": 10.95}, "fees_usdt": 72.18}, "ACCEL_BLEND_20": {"full": {"days": 1638, "ending_nav": 2756.69, "ret_pct": 175.7, "ann_sharpe": 1.116, "max_dd_pct": 22.86}, "stress": {"days": 366, "ending_nav": 2756.69, "ret_pct": 0.99, "ann_sharpe": 0.141, "max_dd_pct": 8.55}, "fees_usdt": 84.83, "uplift_vs_base": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": 3.521857575102294e-05, "ci_95": [-0.0001457224524724282, 0.0002320064533046312], "bootstrap_se": 9.475388094985323e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, "ACCEL_DECEL_BRAKE": {"full": {"days": 1638, "ending_nav": 2583.79, "ret_pct": 158.41, "ann_sharpe": 1.019, "max_dd_pct": 22.28}, "stress": {"days": 366, "ending_nav": 2583.79, "ret_pct": -1.74, "ann_sharpe": -0.08, "max_dd_pct": 10.86}, "fees_usdt": 74.75, "uplift_vs_base": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": 1.248920940899612e-06, "ci_95": [-1.913709379691006e-05, 1.9999277624650678e-05], "bootstrap_se": 9.887800241083109e-06, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}, "ACCEL_EARLY_BOOST": {"full": {"days": 1638, "ending_nav": 2748.0, "ret_pct": 174.83, "ann_sharpe": 1.007, "max_dd_pct": 25.57}, "stress": {"days": 366, "ending_nav": 2748.0, "ret_pct": -2.17, "ann_sharpe": -0.082, "max_dd_pct": 11.99}, "fees_usdt": 108.04, "uplift_vs_base": {"status": "NO_EVIDENCE_NOT_ESTABLISHED", "mean_uplift": 5.357046479542549e-05, "ci_95": [-6.824853723002772e-05, 0.00019358636571397073], "bootstrap_se": 6.65640944888834e-05, "mean_block_length": 12, "min_detectable_effect": 0.0, "lineage": {"formula": "paired-date-stationary-bootstrap/1", "seed": 42, "simulations": 499, "denominator_dates": 1637, "block_length": 12, "digest": "00780ae60ca8fad4"}, "independent_final_evidence": false}}}, "part_1b_gru_ignition_second_order": {"gru_6feat_baseline": {"oos_episodes": 746, "oos_roc_auc": 0.5676, "bottom_tercile_wr_pct": 39.1, "top_tercile_wr_pct": 52.0, "nbx16": {"label": "GRU6_NBX16", "side": "LONG", "leverage": 1.25, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1333.8, "ret_pct": 33.38, "stress_ret_pct": 9.42, "ann_sharpe": 0.668, "max_dd_pct": 16.82, "entries": 176, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 20.5, "total_borrow_usdt": 11.05, "total_fees_usdt": 220.34}, "wlx25": {"label": "GRU6_WLX25", "side": "LONG", "leverage": 1.25, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1201.59, "ret_pct": 20.16, "stress_ret_pct": 5.92, "ann_sharpe": 0.455, "max_dd_pct": 18.45, "entries": 176, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 20.5, "total_borrow_usdt": 10.48, "total_fees_usdt": 326.47}}, "gru_8feat_second_order": {"oos_episodes": 746, "oos_roc_auc": 0.5712, "bottom_tercile_wr_pct": 42.3, "top_tercile_wr_pct": 52.0, "nbx16": {"label": "GRU8_ACCEL_NBX16", "side": "LONG", "leverage": 1.25, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1455.2, "ret_pct": 45.52, "stress_ret_pct": 12.73, "ann_sharpe": 0.811, "max_dd_pct": 14.77, "entries": 176, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 20.5, "total_borrow_usdt": 11.45, "total_fees_usdt": 225.34}, "wlx25": {"label": "GRU8_ACCEL_WLX25", "side": "LONG", "leverage": 1.25, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1312.89, "ret_pct": 31.29, "stress_ret_pct": 9.02, "ann_sharpe": 0.611, "max_dd_pct": 16.43, "entries": 176, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 20.5, "total_borrow_usdt": 10.85, "total_fees_usdt": 333.89}}}, "part_2_tiered_sparse_38": [{"label": "IGN18_2H_NBX16_OFF0H", "side": "LONG", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1263.73, "ret_pct": 26.37, "stress_ret_pct": 6.8, "ann_sharpe": 0.622, "max_dd_pct": 13.51, "entries": 176, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 20.5, "total_borrow_usdt": 0.0, "total_fees_usdt": 193.59, "core_entries": 176, "sat_entries": 0, "corr_vs_base": 0.0539}, {"label": "IGN38_RAW_NBX16_OFF0H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1152.38, "ret_pct": 15.24, "stress_ret_pct": 3.83, "ann_sharpe": 0.353, "max_dd_pct": 17.18, "entries": 257, "win_rate_pct": 37.4, "liquidations": 0, "avg_hold_hours": 18.6, "total_borrow_usdt": 0.0, "total_fees_usdt": 315.69, "core_entries": 157, "sat_entries": 100, "corr_vs_base": 0.0557}, {"label": "IGN38_TIERED_NBX16_OFF0H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1728.11, "ret_pct": 72.81, "stress_ret_pct": 16.06, "ann_sharpe": 1.124, "max_dd_pct": 11.12, "entries": 205, "win_rate_pct": 40.5, "liquidations": 0, "avg_hold_hours": 19.6, "total_borrow_usdt": 0.0, "total_fees_usdt": 287.79, "core_entries": 167, "sat_entries": 38, "corr_vs_base": 0.0879}, {"label": "IGN18_2H_WLX25_OFF0H", "side": "LONG", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1149.73, "ret_pct": 14.97, "stress_ret_pct": 2.69, "ann_sharpe": 0.399, "max_dd_pct": 15.13, "entries": 176, "win_rate_pct": 37.5, "liquidations": 0, "avg_hold_hours": 20.5, "total_borrow_usdt": 0.0, "total_fees_usdt": 288.39, "core_entries": 176, "sat_entries": 0, "corr_vs_base": 0.049}, {"label": "IGN38_RAW_WLX25_OFF0H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1003.76, "ret_pct": 0.38, "stress_ret_pct": -1.82, "ann_sharpe": 0.096, "max_dd_pct": 19.17, "entries": 257, "win_rate_pct": 36.6, "liquidations": 0, "avg_hold_hours": 18.6, "total_borrow_usdt": 0.0, "total_fees_usdt": 427.66, "core_entries": 157, "sat_entries": 100, "corr_vs_base": 0.0507}, {"label": "IGN38_TIERED_WLX25_OFF0H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1548.15, "ret_pct": 54.82, "stress_ret_pct": 11.06, "ann_sharpe": 0.918, "max_dd_pct": 11.6, "entries": 205, "win_rate_pct": 40.0, "liquidations": 0, "avg_hold_hours": 19.6, "total_borrow_usdt": 0.0, "total_fees_usdt": 407.62, "core_entries": 167, "sat_entries": 38, "corr_vs_base": 0.0839}, {"label": "IGN18_2H_NBX16_OFF1H", "side": "LONG", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 16.0, "days": 1085, "ending_nav": 1149.4, "ret_pct": 14.94, "stress_ret_pct": 2.78, "ann_sharpe": 0.416, "max_dd_pct": 9.45, "entries": 173, "win_rate_pct": 36.4, "liquidations": 0, "avg_hold_hours": 19.8, "total_borrow_usdt": 0.0, "total_fees_usdt": 181.69, "core_entries": 173, "sat_entries": 0, "corr_vs_base": 0.0148}, {"label": "IGN38_RAW_NBX16_OFF1H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 1, "cost_bps": 16.0, "days": 1085, "ending_nav": 817.12, "ret_pct": -18.29, "stress_ret_pct": -27.06, "ann_sharpe": -0.23, "max_dd_pct": 30.74, "entries": 256, "win_rate_pct": 34.4, "liquidations": 0, "avg_hold_hours": 17.7, "total_borrow_usdt": 0.0, "total_fees_usdt": 299.76, "core_entries": 148, "sat_entries": 108, "corr_vs_base": 0.0213}, {"label": "IGN38_TIERED_NBX16_OFF1H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 1, "cost_bps": 16.0, "days": 1085, "ending_nav": 1033.46, "ret_pct": 3.35, "stress_ret_pct": -16.65, "ann_sharpe": 0.148, "max_dd_pct": 21.5, "entries": 210, "win_rate_pct": 35.7, "liquidations": 0, "avg_hold_hours": 17.7, "total_borrow_usdt": 0.0, "total_fees_usdt": 247.47, "core_entries": 164, "sat_entries": 46, "corr_vs_base": 0.0134}, {"label": "IGN18_2H_WLX25_OFF1H", "side": "LONG", "leverage": 1.0, "markets": 18, "offset_hours": 1, "cost_bps": 25.0, "days": 1085, "ending_nav": 1047.48, "ret_pct": 4.75, "stress_ret_pct": -0.8, "ann_sharpe": 0.182, "max_dd_pct": 10.33, "entries": 173, "win_rate_pct": 34.7, "liquidations": 0, "avg_hold_hours": 19.8, "total_borrow_usdt": 0.0, "total_fees_usdt": 270.92, "core_entries": 173, "sat_entries": 0, "corr_vs_base": 0.0097}, {"label": "IGN38_RAW_WLX25_OFF1H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 1, "cost_bps": 25.0, "days": 1085, "ending_nav": 712.17, "ret_pct": -28.78, "stress_ret_pct": -31.21, "ann_sharpe": -0.451, "max_dd_pct": 34.97, "entries": 256, "win_rate_pct": 33.6, "liquidations": 0, "avg_hold_hours": 17.7, "total_borrow_usdt": 0.0, "total_fees_usdt": 404.86, "core_entries": 148, "sat_entries": 108, "corr_vs_base": 0.0172}, {"label": "IGN38_TIERED_WLX25_OFF1H", "side": "LONG", "leverage": 1.0, "markets": 38, "offset_hours": 1, "cost_bps": 25.0, "days": 1085, "ending_nav": 923.24, "ret_pct": -7.68, "stress_ret_pct": -20.38, "ann_sharpe": -0.08, "max_dd_pct": 25.21, "entries": 210, "win_rate_pct": 34.8, "liquidations": 0, "avg_hold_hours": 17.7, "total_borrow_usdt": 0.0, "total_fees_usdt": 348.89, "core_entries": 164, "sat_entries": 46, "corr_vs_base": 0.0085}], "part_3_sleeve_weighting": [{"name": "BASE_100_0_NBX16", "avg_slow_weight": 1.0, "full": {"days": 1085, "ending_nav": 1176.04, "ret_pct": 17.6, "ann_sharpe": 0.443, "max_dd_pct": 12.0}, "stress": {"days": 359, "ending_nav": 1176.04, "ret_pct": -3.4, "ann_sharpe": -0.208, "max_dd_pct": 12.0}, "fees_usdt": 24.18, "uplift_vs_base_bps": 0.0, "ci_vs_base_bps": [0.0, 0.0], "uplift_vs_70_30_bps": -0.4, "ci_vs_70_30_bps": [-1.82, 1.07]}, {"name": "STATIC_70_30_NBX16", "avg_slow_weight": 0.7, "full": {"days": 1085, "ending_nav": 1240.45, "ret_pct": 24.04, "ann_sharpe": 0.65, "max_dd_pct": 8.54}, "stress": {"days": 359, "ending_nav": 1240.45, "ret_pct": 2.06, "ann_sharpe": 0.233, "max_dd_pct": 8.54}, "fees_usdt": 74.65, "uplift_vs_base_bps": 0.4, "ci_vs_base_bps": [-1.14, 1.72], "uplift_vs_70_30_bps": 0.0, "ci_vs_70_30_bps": [0.0, 0.0]}, {"name": "STATIC_60_40_NBX16", "avg_slow_weight": 0.6, "full": {"days": 1085, "ending_nav": 1261.67, "ret_pct": 26.17, "ann_sharpe": 0.715, "max_dd_pct": 7.43}, "stress": {"days": 359, "ending_nav": 1261.67, "ret_pct": 3.95, "ann_sharpe": 0.386, "max_dd_pct": 7.43}, "fees_usdt": 91.85, "uplift_vs_base_bps": 0.54, "ci_vs_base_bps": [-1.51, 2.33], "uplift_vs_70_30_bps": 0.14, "ci_vs_70_30_bps": [-0.36, 0.61]}, {"name": "STATIC_50_50_NBX16", "avg_slow_weight": 0.5, "full": {"days": 1085, "ending_nav": 1277.5, "ret_pct": 27.75, "ann_sharpe": 0.756, "max_dd_pct": 6.92}, "stress": {"days": 359, "ending_nav": 1277.5, "ret_pct": 5.67, "ann_sharpe": 0.511, "max_dd_pct": 6.92}, "fees_usdt": 108.94, "uplift_vs_base_bps": 0.66, "ci_vs_base_bps": [-1.88, 2.9], "uplift_vs_70_30_bps": 0.25, "ci_vs_70_30_bps": [-0.75, 1.17]}, {"name": "WF_INV_VOL_RP_NBX16", "avg_slow_weight": 0.385, "full": {"days": 1085, "ending_nav": 1196.55, "ret_pct": 19.66, "ann_sharpe": 0.594, "max_dd_pct": 8.28}, "stress": {"days": 359, "ending_nav": 1196.55, "ret_pct": -0.8, "ann_sharpe": -0.019, "max_dd_pct": 7.64}, "fees_usdt": 106.72, "uplift_vs_base_bps": 0.03, "ci_vs_base_bps": [-2.41, 2.42], "uplift_vs_70_30_bps": -0.37, "ci_vs_70_30_bps": [-1.6, 0.78]}, {"name": "WF_MIN_VAR_SHRUNK_NBX16", "avg_slow_weight": 0.382, "full": {"days": 1085, "ending_nav": 1213.71, "ret_pct": 21.37, "ann_sharpe": 0.61, "max_dd_pct": 9.21}, "stress": {"days": 359, "ending_nav": 1213.71, "ret_pct": -0.79, "ann_sharpe": -0.009, "max_dd_pct": 9.21}, "fees_usdt": 105.34, "uplift_vs_base_bps": 0.18, "ci_vs_base_bps": [-2.62, 2.68], "uplift_vs_70_30_bps": -0.22, "ci_vs_70_30_bps": [-1.91, 1.16]}, {"name": "BASE_100_0_WLX25", "avg_slow_weight": 1.0, "full": {"days": 1085, "ending_nav": 1162.17, "ret_pct": 16.22, "ann_sharpe": 0.416, "max_dd_pct": 12.07}, "stress": {"days": 359, "ending_nav": 1162.17, "ret_pct": -3.8, "ann_sharpe": -0.24, "max_dd_pct": 12.07}, "fees_usdt": 37.56, "uplift_vs_base_bps": 0.0, "ci_vs_base_bps": [0.0, 0.0], "uplift_vs_70_30_bps": -0.18, "ci_vs_70_30_bps": [-1.6, 1.35]}, {"name": "STATIC_70_30_WLX25", "avg_slow_weight": 0.7, "full": {"days": 1085, "ending_nav": 1197.02, "ret_pct": 19.7, "ann_sharpe": 0.554, "max_dd_pct": 8.6}, "stress": {"days": 359, "ending_nav": 1197.02, "ret_pct": 0.74, "ann_sharpe": 0.122, "max_dd_pct": 8.6}, "fees_usdt": 114.34, "uplift_vs_base_bps": 0.18, "ci_vs_base_bps": [-1.36, 1.52], "uplift_vs_70_30_bps": 0.0, "ci_vs_70_30_bps": [0.0, 0.0]}, {"name": "STATIC_60_40_WLX25", "avg_slow_weight": 0.6, "full": {"days": 1085, "ending_nav": 1208.03, "ret_pct": 20.8, "ann_sharpe": 0.593, "max_dd_pct": 7.49}, "stress": {"days": 359, "ending_nav": 1208.03, "ret_pct": 2.19, "ann_sharpe": 0.242, "max_dd_pct": 7.49}, "fees_usdt": 140.26, "uplift_vs_base_bps": 0.25, "ci_vs_base_bps": [-1.8, 2.06], "uplift_vs_70_30_bps": 0.07, "ci_vs_70_30_bps": [-0.42, 0.51]}, {"name": "STATIC_50_50_WLX25", "avg_slow_weight": 0.5, "full": {"days": 1085, "ending_nav": 1213.84, "ret_pct": 21.38, "ann_sharpe": 0.612, "max_dd_pct": 7.52}, "stress": {"days": 359, "ending_nav": 1213.84, "ret_pct": 3.48, "ann_sharpe": 0.341, "max_dd_pct": 7.18}, "fees_usdt": 165.78, "uplift_vs_base_bps": 0.29, "ci_vs_base_bps": [-2.25, 2.55], "uplift_vs_70_30_bps": 0.11, "ci_vs_70_30_bps": [-0.89, 1.0]}, {"name": "WF_INV_VOL_RP_WLX25", "avg_slow_weight": 0.385, "full": {"days": 1085, "ending_nav": 1137.26, "ret_pct": 13.73, "ann_sharpe": 0.442, "max_dd_pct": 9.49}, "stress": {"days": 359, "ending_nav": 1137.26, "ret_pct": -2.3, "ann_sharpe": -0.159, "max_dd_pct": 7.69}, "fees_usdt": 162.23, "uplift_vs_base_bps": -0.33, "ci_vs_base_bps": [-2.89, 2.05], "uplift_vs_70_30_bps": -0.51, "ci_vs_70_30_bps": [-1.75, 0.65]}, {"name": "WF_MIN_VAR_SHRUNK_WLX25", "avg_slow_weight": 0.382, "full": {"days": 1085, "ending_nav": 1154.11, "ret_pct": 15.41, "ann_sharpe": 0.467, "max_dd_pct": 10.1}, "stress": {"days": 359, "ending_nav": 1154.11, "ret_pct": -2.31, "ann_sharpe": -0.141, "max_dd_pct": 9.26}, "fees_usdt": 160.31, "uplift_vs_base_bps": -0.17, "ci_vs_base_bps": [-2.96, 2.37], "uplift_vs_70_30_bps": -0.35, "ci_vs_70_30_bps": [-2.02, 1.04]}], "part_4_structural_breakdown_short": [{"label": "STRUCT_SHORT_1D_WALLEX_MARGIN", "side": "SHORT_STRUCTURAL", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 2511, "ending_nav": 661.4, "ret_pct": -33.86, "stress_ret_pct": 9.3, "ann_sharpe": -0.159, "max_dd_pct": 63.6, "entries": 124, "win_rate_pct": 41.0, "liquidations": 0, "avg_hold_hours": 155.4, "total_borrow_usdt": 174.74, "total_fees_usdt": 151.37, "corr_vs_base": -0.0553}, {"label": "STRUCT_SHORT_1D_NBX16_WLXBORROW", "side": "SHORT_STRUCTURAL", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 2511, "ending_nav": 706.74, "ret_pct": -29.33, "stress_ret_pct": 11.71, "ann_sharpe": -0.116, "max_dd_pct": 62.18, "entries": 124, "win_rate_pct": 41.0, "liquidations": 0, "avg_hold_hours": 155.4, "total_borrow_usdt": 179.93, "total_fees_usdt": 99.68, "corr_vs_base": -0.0557}, {"label": "STRUCT_SHORT_1D_PERP_ZERO_BORROW", "side": "SHORT_STRUCTURAL", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 10.0, "days": 2511, "ending_nav": 911.39, "ret_pct": -8.86, "stress_ret_pct": 22.39, "ann_sharpe": 0.049, "max_dd_pct": 56.83, "entries": 124, "win_rate_pct": 41.0, "liquidations": 0, "avg_hold_hours": 155.4, "total_borrow_usdt": 0.0, "total_fees_usdt": 69.53, "corr_vs_base": -0.0563}]}, "v2_verify": {"generated_at": "2026-11-24T22:52:52.540200+00:00", "oos_aucs": {"v1_gru6_0h": 0.5676, "v2_gru11_pathpnl_0h": 0.5648, "v2_gru11_pathpnl_1h": 0.6051, "v2_gru8_bce_0h": 0.5712, "v2_gru8_bce_1h": 0.588}, "arms": [{"name": "BASE_13_100PCT_NBX16", "full": {"days": 1085, "ending_nav": 1189.79, "ret_pct": 18.98, "ann_sharpe": 0.467, "max_dd_pct": 11.96}, "stress": {"days": 359, "ending_nav": 1189.79, "ret_pct": -2.81, "ann_sharpe": -0.164, "max_dd_pct": 11.96}, "fills": 593, "fees_usdt": 23.54, "turnover": 14.71, "vs_base_bps": 0.0, "ci_base_bps": [0.0, 0.0], "vs_v1_bps": -0.37, "ci_v1_bps": [-2.09, 1.37]}, {"name": "V1_CHAMPION_70_30_NBX16", "full": {"days": 1085, "ending_nav": 1250.47, "ret_pct": 25.05, "ann_sharpe": 0.657, "max_dd_pct": 8.55}, "stress": {"days": 359, "ending_nav": 1250.47, "ret_pct": 2.24, "ann_sharpe": 0.25, "max_dd_pct": 8.55}, "fills": 985, "fees_usdt": 81.13, "turnover": 50.71, "vs_base_bps": 0.37, "ci_base_bps": [-1.41, 2.06], "vs_v1_bps": 0.0, "ci_v1_bps": [0.0, 0.0]}, {"name": "V2_GRU11_PATHPNL_70_30_NBX16", "full": {"days": 1085, "ending_nav": 1287.89, "ret_pct": 28.79, "ann_sharpe": 0.804, "max_dd_pct": 7.03}, "stress": {"days": 359, "ending_nav": 1287.89, "ret_pct": 3.28, "ann_sharpe": 0.345, "max_dd_pct": 7.03}, "fills": 1259, "fees_usdt": 69.96, "turnover": 43.72, "vs_base_bps": 0.6, "ci_base_bps": [-1.12, 2.24], "vs_v1_bps": 0.23, "ci_v1_bps": [-0.63, 1.04]}, {"name": "V2_GRU11_PATHPNL_60_40_NBX16", "full": {"days": 1085, "ending_nav": 1298.33, "ret_pct": 29.83, "ann_sharpe": 0.86, "max_dd_pct": 6.52}, "stress": {"days": 359, "ending_nav": 1298.33, "ret_pct": 4.58, "ann_sharpe": 0.467, "max_dd_pct": 6.52}, "fills": 1231, "fees_usdt": 84.86, "turnover": 53.04, "vs_base_bps": 0.66, "ci_base_bps": [-1.38, 2.59], "vs_v1_bps": 0.29, "ci_v1_bps": [-0.64, 1.14]}, {"name": "V2_GRU8_CONFORMAL_70_30_NBX16", "full": {"days": 1085, "ending_nav": 1293.96, "ret_pct": 29.4, "ann_sharpe": 0.815, "max_dd_pct": 7.01}, "stress": {"days": 359, "ending_nav": 1293.96, "ret_pct": 3.96, "ann_sharpe": 0.405, "max_dd_pct": 7.01}, "fills": 1255, "fees_usdt": 68.67, "turnover": 42.92, "vs_base_bps": 0.65, "ci_base_bps": [-1.15, 2.37], "vs_v1_bps": 0.28, "ci_v1_bps": [-0.6, 1.09]}, {"name": "V2_GRU8_CONFORMAL_60_40_NBX16", "full": {"days": 1085, "ending_nav": 1305.48, "ret_pct": 30.55, "ann_sharpe": 0.874, "max_dd_pct": 6.46}, "stress": {"days": 359, "ending_nav": 1305.48, "ret_pct": 5.56, "ann_sharpe": 0.559, "max_dd_pct": 6.46}, "fills": 1233, "fees_usdt": 83.16, "turnover": 51.98, "vs_base_bps": 0.72, "ci_base_bps": [-1.36, 2.74], "vs_v1_bps": 0.34, "ci_v1_bps": [-0.63, 1.17]}, {"name": "BASE_13_100PCT_WLX25", "full": {"days": 1085, "ending_nav": 1176.2, "ret_pct": 17.62, "ann_sharpe": 0.441, "max_dd_pct": 12.04}, "stress": {"days": 359, "ending_nav": 1176.2, "ret_pct": -3.19, "ann_sharpe": -0.196, "max_dd_pct": 12.04}, "fills": 593, "fees_usdt": 36.57, "turnover": 14.63, "vs_base_bps": 0.0, "ci_base_bps": [0.0, 0.0], "vs_v1_bps": -0.13, "ci_v1_bps": [-1.84, 1.63]}, {"name": "V1_CHAMPION_70_30_WLX25", "full": {"days": 1085, "ending_nav": 1203.5, "ret_pct": 20.35, "ann_sharpe": 0.556, "max_dd_pct": 8.6}, "stress": {"days": 359, "ending_nav": 1203.5, "ret_pct": 1.08, "ann_sharpe": 0.152, "max_dd_pct": 8.6}, "fills": 982, "fees_usdt": 124.16, "turnover": 49.66, "vs_base_bps": 0.13, "ci_base_bps": [-1.66, 1.75], "vs_v1_bps": 0.0, "ci_v1_bps": [0.0, 0.0]}, {"name": "V2_GRU11_PATHPNL_70_30_WLX25", "full": {"days": 1085, "ending_nav": 1220.31, "ret_pct": 22.03, "ann_sharpe": 0.663, "max_dd_pct": 7.6}, "stress": {"days": 359, "ending_nav": 1220.31, "ret_pct": 2.08, "ann_sharpe": 0.244, "max_dd_pct": 7.6}, "fills": 1154, "fees_usdt": 98.78, "turnover": 39.51, "vs_base_bps": 0.2, "ci_base_bps": [-1.67, 1.86], "vs_v1_bps": 0.08, "ci_v1_bps": [-0.75, 0.89]}, {"name": "V2_GRU11_PATHPNL_60_40_WLX25", "full": {"days": 1085, "ending_nav": 1238.97, "ret_pct": 23.9, "ann_sharpe": 0.735, "max_dd_pct": 6.92}, "stress": {"days": 359, "ending_nav": 1238.97, "ret_pct": 3.73, "ann_sharpe": 0.401, "max_dd_pct": 6.92}, "fills": 1139, "fees_usdt": 122.01, "turnover": 48.8, "vs_base_bps": 0.33, "ci_base_bps": [-1.72, 2.26], "vs_v1_bps": 0.2, "ci_v1_bps": [-0.68, 1.09]}, {"name": "V2_GRU8_CONFORMAL_70_30_WLX25", "full": {"days": 1085, "ending_nav": 1226.45, "ret_pct": 22.64, "ann_sharpe": 0.677, "max_dd_pct": 7.54}, "stress": {"days": 359, "ending_nav": 1226.45, "ret_pct": 3.15, "ann_sharpe": 0.342, "max_dd_pct": 7.54}, "fills": 1146, "fees_usdt": 96.94, "turnover": 38.78, "vs_base_bps": 0.25, "ci_base_bps": [-1.63, 1.98], "vs_v1_bps": 0.12, "ci_v1_bps": [-0.65, 0.92]}, {"name": "V2_GRU8_CONFORMAL_60_40_WLX25", "full": {"days": 1085, "ending_nav": 1244.59, "ret_pct": 24.46, "ann_sharpe": 0.747, "max_dd_pct": 6.86}, "stress": {"days": 359, "ending_nav": 1244.59, "ret_pct": 5.19, "ann_sharpe": 0.538, "max_dd_pct": 6.86}, "fills": 1135, "fees_usdt": 119.45, "turnover": 47.78, "vs_base_bps": 0.37, "ci_base_bps": [-1.75, 2.41], "vs_v1_bps": 0.24, "ci_v1_bps": [-0.67, 1.1]}]}, "v2_forward_score": {"status": "TRACKING", "observations": 5, "forward_days": 2, "first_day": "2026-11-24", "latest_day": "2026-11-25", "paper_nav": 1000.0, "cum_ret_pct": 0.0, "e_process": 1.0, "latest_cash_weight": 1.0, "latest_blended_weights": {}, "latest_ignition_triggers": [], "median_live_nobitex_spread_bps": 12.38, "median_live_wallex_spread_bps": 18.29, "backtest_assumption_nbx_allin_bps": 16.0, "backtest_assumption_wlx_allin_bps": 25.0}, "venue_leverage_study": {"generated_at": "2026-11-25T12:31:07.580838+00:00", "authority": "PAPER_ONLY / TradingGYMExecutor DISARMED ($0 funded budget)", "nobitex_live_eligibility": {"base_13_eligible": 13, "base_13_total": 13, "ign_18_eligible": 18, "ign_18_total": 18, "spot_only_exceptions": [], "daily_borrow_rate": 0.0005, "idle_usdt_pool_apr": 0.0264}, "part_1_bull_levered_1d_core": [{"label": "CORE_1.0X_NBX16", "bull_leverage": 1.0, "leg_cost_bps": 16.0, "borrow_apr_pct": 18.25, "idle_pool_apr_pct": 0.0, "days": 1639, "levered_days": 0, "ending_nav": 2706.0, "ret_pct": 170.64, "cagr_pct": 24.82, "stress_ret_pct": 0.83, "ann_sharpe": 1.099, "max_dd_pct": 23.11, "liquidations": 0, "total_borrow_usdt": 0.0, "total_pool_yield_usdt": 0.0, "total_fees_usdt": 104.75, "vs_nbx_1x_bps": 0.0, "vs_nbx_1x_ci": [0.0, 0.0]}, {"label": "CORE_1.0X_NBX16_POOL264", "bull_leverage": 1.0, "leg_cost_bps": 16.0, "borrow_apr_pct": 18.25, "idle_pool_apr_pct": 2.64, "days": 1639, "levered_days": 0, "ending_nav": 2930.99, "ret_pct": 193.12, "cagr_pct": 27.06, "stress_ret_pct": 2.82, "ann_sharpe": 1.179, "max_dd_pct": 21.69, "liquidations": 0, "total_borrow_usdt": 0.0, "total_pool_yield_usdt": 144.3, "total_fees_usdt": 109.94, "vs_nbx_1x_bps": 0.49, "vs_nbx_1x_ci": [0.45, 0.52]}, {"label": "CORE_BULL_1.35X_NBX16", "bull_leverage": 1.35, "leg_cost_bps": 16.0, "borrow_apr_pct": 18.25, "idle_pool_apr_pct": 0.0, "days": 1639, "levered_days": 88, "ending_nav": 3240.0, "ret_pct": 224.05, "cagr_pct": 29.93, "stress_ret_pct": 0.13, "ann_sharpe": 1.052, "max_dd_pct": 30.81, "liquidations": 0, "total_borrow_usdt": 15.11, "total_pool_yield_usdt": 0.0, "total_fees_usdt": 184.07, "vs_nbx_1x_bps": 1.55, "vs_nbx_1x_ci": [-0.48, 3.82]}, {"label": "CORE_BULL_1.50X_NBX16", "bull_leverage": 1.5, "leg_cost_bps": 16.0, "borrow_apr_pct": 18.25, "idle_pool_apr_pct": 0.0, "days": 1639, "levered_days": 125, "ending_nav": 3461.14, "ret_pct": 246.17, "cagr_pct": 31.86, "stress_ret_pct": -0.22, "ann_sharpe": 1.031, "max_dd_pct": 33.96, "liquidations": 0, "total_borrow_usdt": 29.58, "total_pool_yield_usdt": 0.0, "total_fees_usdt": 224.67, "vs_nbx_1x_bps": 2.18, "vs_nbx_1x_ci": [-0.7, 5.43]}, {"label": "CORE_BULL_1.50X_NBX16_POOL264", "bull_leverage": 1.5, "leg_cost_bps": 16.0, "borrow_apr_pct": 18.25, "idle_pool_apr_pct": 2.64, "days": 1639, "levered_days": 125, "ending_nav": 3712.63, "ret_pct": 271.29, "cagr_pct": 33.93, "stress_ret_pct": 1.6, "ann_sharpe": 1.081, "max_dd_pct": 32.87, "liquidations": 0, "total_borrow_usdt": 30.81, "total_pool_yield_usdt": 148.86, "total_fees_usdt": 234.68, "vs_nbx_1x_bps": 2.61, "vs_nbx_1x_ci": [-0.26, 5.85]}, {"label": "CORE_1.0X_WLX25", "bull_leverage": 1.0, "leg_cost_bps": 25.0, "borrow_apr_pct": 32.85, "idle_pool_apr_pct": 0.0, "days": 1639, "levered_days": 0, "ending_nav": 2614.39, "ret_pct": 161.5, "cagr_pct": 23.87, "stress_ret_pct": 0.31, "ann_sharpe": 1.066, "max_dd_pct": 23.6, "liquidations": 0, "total_borrow_usdt": 0.0, "total_pool_yield_usdt": 0.0, "total_fees_usdt": 160.25, "vs_nbx_1x_bps": -0.21, "vs_nbx_1x_ci": [-0.24, -0.18]}, {"label": "CORE_BULL_1.35X_WLX25", "bull_leverage": 1.35, "leg_cost_bps": 25.0, "borrow_apr_pct": 32.85, "idle_pool_apr_pct": 0.0, "days": 1639, "levered_days": 88, "ending_nav": 3049.87, "ret_pct": 205.06, "cagr_pct": 28.2, "stress_ret_pct": -0.62, "ann_sharpe": 1.005, "max_dd_pct": 31.49, "liquidations": 0, "total_borrow_usdt": 26.26, "total_pool_yield_usdt": 0.0, "total_fees_usdt": 276.7, "vs_nbx_1x_bps": 1.18, "vs_nbx_1x_ci": [-0.81, 3.44]}, {"label": "CORE_BULL_1.50X_WLX25", "bull_leverage": 1.5, "leg_cost_bps": 25.0, "borrow_apr_pct": 32.85, "idle_pool_apr_pct": 0.0, "days": 1639, "levered_days": 125, "ending_nav": 3211.18, "ret_pct": 221.2, "cagr_pct": 29.67, "stress_ret_pct": -1.08, "ann_sharpe": 0.979, "max_dd_pct": 34.72, "liquidations": 0, "total_borrow_usdt": 50.92, "total_pool_yield_usdt": 0.0, "total_fees_usdt": 334.44, "vs_nbx_1x_bps": 1.72, "vs_nbx_1x_ci": [-1.1, 4.95]}], "part_2_event_levered_2h_ignition": [{"label": "IGN_GRU8_TWIN_1.0X_NBX16", "side": "LONG_TWIN", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1276.57, "ret_pct": 27.66, "stress_ret_pct": 9.48, "ann_sharpe": 0.8, "max_dd_pct": 8.23, "entries": 349, "win_rate_pct": 37.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 0.0, "total_fees_usdt": 154.09, "top_leverage": 1.0, "borrow_mode": "eod_utc", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 0.0, "fees_usdt_avg": 154.09}, {"label": "IGN_GRU8_TWIN_1.5X_NBX16", "side": "LONG_TWIN", "leverage": 1.5, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1299.64, "ret_pct": 29.96, "stress_ret_pct": 8.9, "ann_sharpe": 0.8, "max_dd_pct": 9.68, "entries": 349, "win_rate_pct": 37.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 1.75, "total_fees_usdt": 168.47, "top_leverage": 1.5, "borrow_mode": "eod_utc", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 1.75, "fees_usdt_avg": 168.47}, {"label": "IGN_GRU8_TWIN_2.0X_NBX16", "side": "LONG_TWIN", "leverage": 2.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1350.46, "ret_pct": 35.05, "stress_ret_pct": 9.38, "ann_sharpe": 0.848, "max_dd_pct": 10.23, "entries": 349, "win_rate_pct": 37.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 3.42, "total_fees_usdt": 183.08, "top_leverage": 2.0, "borrow_mode": "eod_utc", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 3.42, "fees_usdt_avg": 183.08}, {"label": "IGN_GRU11_TWIN_1.5X_NBX16", "side": "LONG_TWIN", "leverage": 1.5, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1255.09, "ret_pct": 25.51, "stress_ret_pct": 4.89, "ann_sharpe": 0.693, "max_dd_pct": 8.83, "entries": 349, "win_rate_pct": 37.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 1.4, "total_fees_usdt": 171.72, "top_leverage": 1.5, "borrow_mode": "eod_utc", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 1.4, "fees_usdt_avg": 171.72}, {"label": "IGN_GRU11_TWIN_2.0X_NBX16", "side": "LONG_TWIN", "leverage": 2.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 1085, "ending_nav": 1266.68, "ret_pct": 26.67, "stress_ret_pct": 3.81, "ann_sharpe": 0.674, "max_dd_pct": 9.67, "entries": 349, "win_rate_pct": 37.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 1.93, "total_fees_usdt": 179.65, "top_leverage": 2.0, "borrow_mode": "eod_utc", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 1.93, "fees_usdt_avg": 179.65}, {"label": "IGN_GRU8_TWIN_1.5X_WLX25", "side": "LONG_TWIN", "leverage": 1.5, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1191.75, "ret_pct": 19.17, "stress_ret_pct": 6.57, "ann_sharpe": 0.561, "max_dd_pct": 10.51, "entries": 349, "win_rate_pct": 36.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 2.63, "total_fees_usdt": 248.5, "top_leverage": 1.5, "borrow_mode": "continuous_4h", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 2.63, "fees_usdt_avg": 248.5}, {"label": "IGN_GRU8_TWIN_2.0X_WLX25", "side": "LONG_TWIN", "leverage": 2.0, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 1085, "ending_nav": 1174.82, "ret_pct": 17.48, "stress_ret_pct": 6.41, "ann_sharpe": 0.505, "max_dd_pct": 11.57, "entries": 349, "win_rate_pct": 36.0, "liquidations": 0, "avg_hold_hours": 20.1, "total_borrow_usdt": 4.46, "total_fees_usdt": 259.92, "top_leverage": 2.0, "borrow_mode": "continuous_4h", "entries_avg": 174.5, "liquidations_sum": 0, "borrow_usdt_avg": 4.46, "fees_usdt_avg": 259.92}], "part_2_gru_aucs": {"gru8_0h": 0.5712, "gru8_1h": 0.588, "gru11_path_0h": 0.5648, "gru11_path_1h": 0.6051}, "part_2b_v2_shared_ledger": [{"name": "V2_60_40_IGN1.5X_NBX16", "full": {"days": 1085, "ending_nav": 1305.48, "ret_pct": 30.55, "ann_sharpe": 0.874, "max_dd_pct": 6.46}, "stress": {"days": 359, "ending_nav": 1305.48, "ret_pct": 5.56, "ann_sharpe": 0.559, "max_dd_pct": 6.46}, "fills": 1233, "fees_usdt": 83.16, "vs_v2_nbx15_bps": 0.0, "vs_v2_nbx15_ci": [0.0, 0.0]}, {"name": "V2_60_40_IGN2.0X_NBX16", "full": {"days": 1085, "ending_nav": 1320.73, "ret_pct": 32.07, "ann_sharpe": 0.894, "max_dd_pct": 6.45}, "stress": {"days": 359, "ending_nav": 1320.73, "ret_pct": 5.81, "ann_sharpe": 0.578, "max_dd_pct": 6.45}, "fills": 1254, "fees_usdt": 88.24, "vs_v2_nbx15_bps": 0.11, "vs_v2_nbx15_ci": [-0.06, 0.33]}, {"name": "V2_60_40_IGN1.5X_WLX25", "full": {"days": 1085, "ending_nav": 1247.86, "ret_pct": 24.79, "ann_sharpe": 0.753, "max_dd_pct": 6.86}, "stress": {"days": 359, "ending_nav": 1247.86, "ret_pct": 4.98, "ann_sharpe": 0.519, "max_dd_pct": 6.86}, "fills": 1141, "fees_usdt": 121.06, "vs_v2_nbx15_bps": -0.43, "vs_v2_nbx15_ci": [-0.74, -0.12]}], "part_3_structural_bear_short": [{"label": "STRUCT_SHORT_1D_NOBITEX_MARGIN", "side": "SHORT_STRUCTURAL", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 16.0, "days": 2510, "ending_nav": 793.7, "ret_pct": -20.63, "stress_ret_pct": 18.22, "ann_sharpe": -0.041, "max_dd_pct": 60.33, "entries": 125, "win_rate_pct": 41.0, "liquidations": 0, "avg_hold_hours": 155.4, "total_borrow_usdt": 104.46, "total_fees_usdt": 104.09, "corr_vs_core": -0.0542}, {"label": "STRUCT_SHORT_1D_WALLEX_MARGIN", "side": "SHORT_STRUCTURAL", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 25.0, "days": 2510, "ending_nav": 676.01, "ret_pct": -32.4, "stress_ret_pct": 11.71, "ann_sharpe": -0.144, "max_dd_pct": 63.6, "entries": 125, "win_rate_pct": 41.0, "liquidations": 0, "avg_hold_hours": 155.4, "total_borrow_usdt": 175.3, "total_fees_usdt": 151.88, "corr_vs_core": -0.0535}, {"label": "STRUCT_SHORT_1D_PERP_ZERO_BORROW", "side": "SHORT_STRUCTURAL", "leverage": 1.0, "markets": 18, "offset_hours": 0, "cost_bps": 10.0, "days": 2510, "ending_nav": 932.63, "ret_pct": -6.74, "stress_ret_pct": 25.25, "ann_sharpe": 0.064, "max_dd_pct": 56.83, "entries": 125, "win_rate_pct": 41.0, "liquidations": 0, "avg_hold_hours": 155.4, "total_borrow_usdt": 0.0, "total_fees_usdt": 69.81, "corr_vs_core": -0.0547}], "part_3b_short_portfolio_overlays": [{"label": "CORE_1D_ACCEL20_NBX16_PLUS_0PCT_NBX_SHORT", "short_weight": 0.0, "full": {"days": 1639, "ending_nav": 2706.0, "ret_pct": 170.64, "ann_sharpe": 1.099, "max_dd_pct": 23.11}, "stress": {"days": 367, "ending_nav": 2706.0, "ret_pct": 0.83, "ann_sharpe": 0.128, "max_dd_pct": 8.55}, "vs_unhedged_bps": 0.0, "vs_unhedged_ci": [0.0, 0.0]}, {"label": "CORE_1D_ACCEL20_NBX16_PLUS_10PCT_NBX_SHORT", "short_weight": 0.1, "full": {"days": 1639, "ending_nav": 2418.82, "ret_pct": 141.88, "ann_sharpe": 1.074, "max_dd_pct": 21.45}, "stress": {"days": 367, "ending_nav": 2418.82, "ret_pct": 2.83, "ann_sharpe": 0.303, "max_dd_pct": 7.72}, "vs_unhedged_bps": -0.82, "vs_unhedged_ci": [-1.69, 0.04]}, {"label": "CORE_1D_ACCEL20_NBX16_PLUS_15PCT_NBX_SHORT", "short_weight": 0.15, "full": {"days": 1639, "ending_nav": 2282.46, "ret_pct": 128.25, "ann_sharpe": 1.052, "max_dd_pct": 20.62}, "stress": {"days": 367, "ending_nav": 2282.46, "ret_pct": 3.8, "ann_sharpe": 0.393, "max_dd_pct": 7.31}, "vs_unhedged_bps": -1.22, "vs_unhedged_ci": [-2.53, 0.06]}, {"label": "V2_CHAMPION_60_40_NBX16_PLUS_0PCT_NBX_SHORT", "short_weight": 0.0, "full": {"days": 1085, "ending_nav": 1305.48, "ret_pct": 30.55, "ann_sharpe": 0.874, "max_dd_pct": 6.46}, "stress": {"days": 359, "ending_nav": 1305.48, "ret_pct": 5.56, "ann_sharpe": 0.559, "max_dd_pct": 6.46}, "vs_unhedged_bps": 0.0, "vs_unhedged_ci": [0.0, 0.0]}, {"label": "V2_CHAMPION_60_40_NBX16_PLUS_10PCT_NBX_SHORT", "short_weight": 0.1, "full": {"days": 1085, "ending_nav": 1255.68, "ret_pct": 25.57, "ann_sharpe": 0.808, "max_dd_pct": 7.37}, "stress": {"days": 359, "ending_nav": 1255.68, "ret_pct": 7.58, "ann_sharpe": 0.782, "max_dd_pct": 5.23}, "vs_unhedged_bps": -0.38, "vs_unhedged_ci": [-1.2, 0.36]}, {"label": "V2_CHAMPION_60_40_NBX16_PLUS_15PCT_NBX_SHORT", "short_weight": 0.15, "full": {"days": 1085, "ending_nav": 1230.51, "ret_pct": 23.05, "ann_sharpe": 0.752, "max_dd_pct": 8.89}, "stress": {"days": 359, "ending_nav": 1230.51, "ret_pct": 8.56, "ann_sharpe": 0.872, "max_dd_pct": 4.95}, "vs_unhedged_bps": -0.57, "vs_unhedged_ci": [-1.8, 0.55]}], "part_4_wallex_5x_trade_credit_stress": [{"label": "WLX_5X_CREDIT_ON_1D_CORE_FULL_1638D", "unit_collateral_usdt": 200.0, "unit_credit_usdt": 1000.0, "leverage_multiple": 5.0, "fixed_fee_per_30d_usdt": 15.0, "stop_out_subacct_dd_pct": 13.0, "total_days": 1639, "total_30d_cycles": 54, "profitable_cycles": 17, "cash_bleed_cycles": 37, "stop_out_cycles": 0, "single_life_survived": false, "first_stop_out_date": null, "single_life_ending_equity_usdt": 17.21, "single_life_return_pct": -91.4, "unlevered_ending_equity_usdt": 523.0, "unlevered_return_pct": 161.5, "total_fixed_interest_paid_usdt": 63.08, "mean_cycle_equity_roi_pct": 5.2, "median_cycle_equity_roi_pct": -7.87, "worst_cycle_equity_roi_pct": -52.53, "best_cycle_equity_roi_pct": 225.02}, {"label": "WLX_5X_CREDIT_ON_1D_CORE_BULL_2023_2024", "unit_collateral_usdt": 200.0, "unit_credit_usdt": 1000.0, "leverage_multiple": 5.0, "fixed_fee_per_30d_usdt": 15.0, "stop_out_subacct_dd_pct": 13.0, "total_days": 458, "total_30d_cycles": 15, "profitable_cycles": 8, "cash_bleed_cycles": 7, "stop_out_cycles": 0, "single_life_survived": true, "first_stop_out_date": null, "single_life_ending_equity_usdt": 3935.01, "single_life_return_pct": 1867.51, "unlevered_ending_equity_usdt": 569.27, "unlevered_return_pct": 184.64, "total_fixed_interest_paid_usdt": 1257.81, "mean_cycle_equity_roi_pct": 42.92, "median_cycle_equity_roi_pct": 2.97, "worst_cycle_equity_roi_pct": -35.8, "best_cycle_equity_roi_pct": 357.23}, {"label": "WLX_5X_CREDIT_ON_1D_CORE_BEAR_2025_2026", "unit_collateral_usdt": 200.0, "unit_credit_usdt": 1000.0, "leverage_multiple": 5.0, "fixed_fee_per_30d_usdt": 15.0, "stop_out_subacct_dd_pct": 13.0, "total_days": 367, "total_30d_cycles": 12, "profitable_cycles": 4, "cash_bleed_cycles": 8, "stop_out_cycles": 0, "single_life_survived": true, "first_stop_out_date": null, "single_life_ending_equity_usdt": 69.44, "single_life_return_pct": -65.28, "unlevered_ending_equity_usdt": 200.63, "unlevered_return_pct": 0.31, "total_fixed_interest_paid_usdt": 136.6, "mean_cycle_equity_roi_pct": -7.15, "median_cycle_equity_roi_pct": -6.73, "worst_cycle_equity_roi_pct": -30.74, "best_cycle_equity_roi_pct": 21.77}, {"label": "WLX_5X_CREDIT_ON_V2_CHAMPION_2024_2026", "unit_collateral_usdt": 200.0, "unit_credit_usdt": 1000.0, "leverage_multiple": 5.0, "fixed_fee_per_30d_usdt": 15.0, "stop_out_subacct_dd_pct": 13.0, "total_days": 1085, "total_30d_cycles": 36, "profitable_cycles": 12, "cash_bleed_cycles": 24, "stop_out_cycles": 0, "single_life_survived": true, "first_stop_out_date": null, "single_life_ending_equity_usdt": 38.27, "single_life_return_pct": -80.86, "unlevered_ending_equity_usdt": 249.57, "unlevered_return_pct": 24.79, "total_fixed_interest_paid_usdt": 262.99, "mean_cycle_equity_roi_pct": -3.65, "median_cycle_equity_roi_pct": -7.65, "worst_cycle_equity_roi_pct": -29.4, "best_cycle_equity_roi_pct": 35.38}, {"label": "WLX_5X_CREDIT_ON_V2_CHAMPION_BEAR_YEAR", "unit_collateral_usdt": 200.0, "unit_credit_usdt": 1000.0, "leverage_multiple": 5.0, "fixed_fee_per_30d_usdt": 15.0, "stop_out_subacct_dd_pct": 13.0, "total_days": 359, "total_30d_cycles": 11, "profitable_cycles": 3, "cash_bleed_cycles": 8, "stop_out_cycles": 0, "single_life_survived": true, "first_stop_out_date": null, "single_life_ending_equity_usdt": 114.5, "single_life_return_pct": -42.75, "unlevered_ending_equity_usdt": 209.96, "unlevered_return_pct": 4.98, "total_fixed_interest_paid_usdt": 122.84, "mean_cycle_equity_roi_pct": -3.78, "median_cycle_equity_roi_pct": -7.49, "worst_cycle_equity_roi_pct": -20.34, "best_cycle_equity_roi_pct": 35.01}]}, "live_venue_telemetry": {"spreads": [{"symbol": "AAVEUSDT", "nbx_spread_bps": 33.94, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "ADAUSDT", "nbx_spread_bps": 21.53, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "ATOMUSDT", "nbx_spread_bps": 32.89, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "AVAXUSDT", "nbx_spread_bps": 14.06, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "BCHUSDT", "nbx_spread_bps": 25.22, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "BNBUSDT", "nbx_spread_bps": 38.61, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "BTCUSDT", "nbx_spread_bps": 16.91, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "DOGEUSDT", "nbx_spread_bps": 15.75, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "DOTUSDT", "nbx_spread_bps": 31.6, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "ETHUSDT", "nbx_spread_bps": 14.52, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "FILUSDT", "nbx_spread_bps": 38.31, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "LINKUSDT", "nbx_spread_bps": 5.81, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "LTCUSDT", "nbx_spread_bps": 19.98, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "NEARUSDT", "nbx_spread_bps": 28.55, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "PAXGUSDT", "nbx_spread_bps": 25.66, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "SOLUSDT", "nbx_spread_bps": 32.8, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "TRXUSDT", "nbx_spread_bps": 1.62, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "UNIUSDT", "nbx_spread_bps": 31.15, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "XAUTUSDT", "nbx_spread_bps": 24.22, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}, {"symbol": "XRPUSDT", "nbx_spread_bps": 0.11, "wlx_spread_bps": null, "nbx_vs_wlx_basis_bps": null}], "pools": [{"currency": "DOT", "apr_pct": 21.11, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "T", "apr_pct": 16.23, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "DEXE", "apr_pct": 9.21, "fill_pct": 86.2, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "PUMP", "apr_pct": 9.12, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "XRP", "apr_pct": 6.87, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "DOGS", "apr_pct": 6.81, "fill_pct": 80.5, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "API3", "apr_pct": 6.8, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "GRAM", "apr_pct": 6.59, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ARB", "apr_pct": 6.52, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "MAGIC", "apr_pct": 6.41, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ATOM", "apr_pct": 5.94, "fill_pct": 94.5, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "S", "apr_pct": 5.52, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ONE", "apr_pct": 5.4, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "1M_PEPE", "apr_pct": 4.99, "fill_pct": 83.5, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "NEAR", "apr_pct": 4.85, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "APT", "apr_pct": 4.56, "fill_pct": 84.3, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "FIL", "apr_pct": 4.51, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "HMSTR", "apr_pct": 4.22, "fill_pct": 63.3, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ETH", "apr_pct": 4.16, "fill_pct": 99.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ZEC", "apr_pct": 3.97, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "HBAR", "apr_pct": 3.95, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "SUI", "apr_pct": 3.92, "fill_pct": 99.9, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ADA", "apr_pct": 3.84, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "BTC", "apr_pct": 3.78, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "XLM", "apr_pct": 3.46, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "AVAX", "apr_pct": 3.35, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "CVX", "apr_pct": 3.29, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "BICO", "apr_pct": 2.94, "fill_pct": 86.5, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "POL", "apr_pct": 2.82, "fill_pct": 98.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "A", "apr_pct": 2.76, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "USDT", "apr_pct": 2.64, "fill_pct": 94.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "BANK", "apr_pct": 2.56, "fill_pct": 81.2, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "UNI", "apr_pct": 2.56, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "CRV", "apr_pct": 2.41, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "AAVE", "apr_pct": 2.36, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "RENDER", "apr_pct": 2.3, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ETC", "apr_pct": 2.29, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "NOT", "apr_pct": 2.29, "fill_pct": 84.3, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "SOL", "apr_pct": 2.28, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "XAUT", "apr_pct": 2.18, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "DOGE", "apr_pct": 2.09, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "WLD", "apr_pct": 2.07, "fill_pct": 82.3, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "DYDX", "apr_pct": 1.98, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "1B_BABYDOGE", "apr_pct": 1.94, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "LDO", "apr_pct": 1.94, "fill_pct": 99.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "HYPE", "apr_pct": 1.9, "fill_pct": 84.4, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "GMT", "apr_pct": 1.75, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "SLP", "apr_pct": 1.71, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "LINK", "apr_pct": 1.58, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "LTC", "apr_pct": 1.34, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "AXS", "apr_pct": 1.25, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "BCH", "apr_pct": 1.24, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ENA", "apr_pct": 1.13, "fill_pct": 88.2, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "CAKE", "apr_pct": 1.06, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "TRX", "apr_pct": 1.04, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "1K_SHIB", "apr_pct": 0.99, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "CHZ", "apr_pct": 0.9, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ENS", "apr_pct": 0.85, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "DASH", "apr_pct": 0.84, "fill_pct": 57.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ZRX", "apr_pct": 0.82, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "W", "apr_pct": 0.71, "fill_pct": 37.1, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "BNB", "apr_pct": 0.46, "fill_pct": 100.0, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ASTER", "apr_pct": 0.41, "fill_pct": 82.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "ONDO", "apr_pct": 0.32, "fill_pct": 95.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "100K_FLOKI", "apr_pct": 0.27, "fill_pct": 91.5, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "SKY", "apr_pct": 0.1, "fill_pct": 80.8, "ts_avail": "2026-11-25T13:08:08.466266Z"}, {"currency": "PENDLE", "apr_pct": 0.03, "fill_pct": 80.4, "ts_avail": "2026-11-25T13:08:08.466266Z"}], "margin_ratios": [{"symbol": "ADAUSDT", "long_pct": 33.0, "short_pct": 67.0, "ts_avail": "2026-11-25T13:08:09.792142Z"}, {"symbol": "BTCUSDT", "long_pct": 47.0, "short_pct": 53.0, "ts_avail": "2026-11-25T13:08:10.097509Z"}, {"symbol": "DOGEUSDT", "long_pct": 57.0, "short_pct": 43.0, "ts_avail": "2026-11-25T12:54:29.938371Z"}, {"symbol": "ETHUSDT", "long_pct": 26.0, "short_pct": 74.0, "ts_avail": "2026-11-25T12:55:14.591801Z"}, {"symbol": "SOLUSDT", "long_pct": 45.0, "short_pct": 55.0, "ts_avail": "2026-11-25T12:55:14.670847Z"}, {"symbol": "USDTTMN", "long_pct": 57.0, "short_pct": 43.0, "ts_avail": "2026-11-25T12:55:14.686422Z"}, {"symbol": "XAUTUSDT", "long_pct": 76.0, "short_pct": 24.0, "ts_avail": "2026-11-25T13:08:09.816761Z"}, {"symbol": "XRPUSDT", "long_pct": 50.0, "short_pct": 50.0, "ts_avail": "2026-11-25T13:08:09.735657Z"}], "fair_prices": [{"symbol": "AAVEUSDT", "fair_price": 91.40914905, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "ADAUSDT", "fair_price": 0.13953714, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "AVAXUSDT", "fair_price": 6.40600547, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "BCHUSDT", "fair_price": 194.40600657, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "BNBUSDT", "fair_price": 539.73991865, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "BTCUSDT", "fair_price": 58657.68650312, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "DOGEUSDT", "fair_price": 0.05355211, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "ETHUSDT", "fair_price": 1646.19030098, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "LINKUSDT", "fair_price": 8.62067165, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "LTCUSDT", "fair_price": 40.12627763, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "SOLUSDT", "fair_price": 67.82441046, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "USDTTMN", "fair_price": 294164.98736013, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "XAUTUSDT", "fair_price": 3508.87405407, "ts_avail": "2026-11-25T13:08:32.279923Z"}, {"symbol": "XRPUSDT", "fair_price": 0.9063269, "ts_avail": "2026-11-25T13:08:32.279923Z"}], "v2_shadow": {"as_of": "2026-11-25T12:53:21.093470+00:00", "nobitex_margin_2x_eligible_triggers": [], "live_idle_usdt_pool_apr_pct": 2.64}}};
+document.getElementById('gen-ts').textContent = DATA.generated_at.slice(0, 19).replace('T', ' ') + ' UTC';
+
+const tip = document.getElementById('tip');
+function showTip(ev, text) {
+  tip.textContent = text;
+  tip.style.opacity = '1';
+  tip.style.left = Math.min(window.innerWidth - 280, ev.clientX + 14) + 'px';
+  tip.style.top = Math.max(12, ev.clientY - 12) + 'px';
+}
+function hideTip() { tip.style.opacity = '0'; }
+
+function setupCanvas(id) {
+  const c = document.getElementById(id);
+  const dpr = window.devicePixelRatio || 1;
+  const rect = c.getBoundingClientRect();
+  c.width = Math.max(300, Math.floor(rect.width * dpr));
+  c.height = Math.max(200, Math.floor(rect.height * dpr));
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { c, ctx, w: rect.width, h: rect.height };
+}
+
+function bindHover(canvas, rects) {
+  canvas.onmousemove = (ev) => {
+    const r = canvas.getBoundingClientRect();
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    const hit = rects.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+    if (hit) showTip(ev, hit.tip); else hideTip();
+  };
+  canvas.onmouseleave = hideTip;
+}
+
+// KPI Cards
+(function renderKpis() {
+  const leader = DATA.strategies.find(s => s.status === 'LEADER') || {};
+  const fa = (DATA.factor_attribution || {}).DROP_S2_LEADER || {};
+  const vAvg = DATA.venue_execution.length
+    ? (DATA.venue_execution.reduce((a, b) => a + b.oneway_taker_saving_bps, 0) / DATA.venue_execution.length).toFixed(1)
+    : '0.0';
+  const cards = [
+    { lbl: 'Standing Leader (S1+S5)', val: '$' + (leader.ending_nav || 0).toFixed(2), cls: 'pos', note: '+' + (leader.ret_pct || 0) + '% vs +100.2% B&H' },
+    { lbl: 'Annualized Sharpe', val: (leader.ann_sharpe || 0).toFixed(3), cls: 'acc', note: 'MaxDD ' + (leader.max_dd_pct || 0) + '% (vs 58.2% B&H)' },
+    { lbl: 'Bear-Year Stress (Seen)', val: (leader.stress_ret_pct || 0).toFixed(2) + '%', cls: 'pos', note: 'vs -36.44% Buy & Hold' },
+    { lbl: 'Orthogonal Alpha (OLS)', val: '+' + (fa.ann_alpha_pct || 0).toFixed(2) + '%/yr', cls: 'pos', note: 'Residual Sharpe ' + (fa.residual_ann_sharpe || 0) + ' · R² ' + (fa.r_squared || 0) },
+    { lbl: 'Nobitex Execution Edge', val: '+' + vAvg + ' bps/leg', cls: 'acc', note: '5/5 live pairs cheaper (~1.1%/yr)' },
+  ];
+  document.getElementById('kpi-row').innerHTML = cards.map(k =>
+    `<div class="kpi"><div class="lbl">${k.lbl}</div><div class="val ${k.cls}">${k.val}</div><div class="note">${k.note}</div></div>`
+  ).join('');
+})();
+
+// Panel 1: Histogram
+let histMode = 'both';
+function setHistMode(mode) {
+  histMode = mode;
+  ['both', 'leader', 'bh'].forEach(m => document.getElementById('btn-' + m).classList.remove('active'));
+  document.getElementById('btn-' + (mode === 'buyhold' ? 'bh' : mode)).classList.add('active');
+  drawHistogram();
+}
+
+function drawHistogram() {
+  const { c, ctx, w, h } = setupCanvas('c-hist');
+  const L = DATA.histograms.leader, B = DATA.histograms.buyhold;
+  const labels = L.labels || [];
+  const pad = { l: 48, r: 16, t: 18, b: 56 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const maxC = Math.max(1, ...(histMode === 'leader' ? L.counts : histMode === 'buyhold' ? B.counts : [...L.counts, ...B.counts]));
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = '#253047'; ctx.fillStyle = '#8fa1bf'; ctx.font = '11px Inter, sans-serif';
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ph * (1 - i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillText(Math.round(maxC * i / 4), 6, y + 4);
+  }
+
+  const step = pw / Math.max(1, labels.length);
+  const rects = [];
+  labels.forEach((lbl, i) => {
+    const x0 = pad.l + i * step + 1;
+    const bw = Math.max(2, step - 2);
+    if (histMode === 'both' || histMode === 'buyhold') {
+      const bh = (B.counts[i] / maxC) * ph;
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.42)';
+      ctx.fillRect(x0, pad.t + ph - bh, bw, bh);
+    }
+    if (histMode === 'both' || histMode === 'leader') {
+      const lh = (L.counts[i] / maxC) * ph;
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.72)';
+      ctx.fillRect(x0 + bw * 0.14, pad.t + ph - lh, bw * 0.72, lh);
+    }
+    rects.push({
+      x: x0, y: pad.t, w: bw, h: ph,
+      tip: `Bucket: ${lbl}
+S1+S5 Leader: ${L.counts[i]} days
+Buy & Hold: ${B.counts[i]} days`
+    });
+    if (i % 3 === 0 || i === labels.length - 1) {
+      ctx.save();
+      ctx.translate(x0 + bw / 2, pad.t + ph + 10);
+      ctx.rotate(-0.45);
+      ctx.fillStyle = '#8fa1bf';
+      ctx.textAlign = 'right';
+      ctx.fillText(lbl.split(' to ')[0], 0, 0);
+      ctx.restore();
+    }
+  });
+  bindHover(c, rects);
+
+  const ls = L.stats || {}, bs = B.stats || {};
+  document.getElementById('hist-stats').innerHTML = `
+    <span><i class="swatch" style="background:#38bdf8"></i><b>S1+S5 Leader:</b> std ${ls.std_pct}% · skew ${ls.skew} · worst ${ls.worst_day_pct}% · best +${ls.best_day_pct}% · flat-cash ${ls.flat_days_pct}% days</span>
+    <span><i class="swatch" style="background:#f59e0b"></i><b>Buy &amp; Hold:</b> std ${bs.std_pct}% · skew ${bs.skew} · worst ${bs.worst_day_pct}% · best +${bs.best_day_pct}%</span>
+  `;
+}
+
+// Generic Horizontal/Vertical Bar Helper
+function drawBarChart(canvasId, items, opts) {
+  const { c, ctx, w, h } = setupCanvas(canvasId);
+  const pad = { l: opts.leftPad || 52, r: 18, t: 20, b: opts.bottomPad || 64 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const vals = items.map(it => it.val);
+  const minV = Math.min(0, ...vals), maxV = Math.max(0.0001, ...vals);
+  const span = (maxV - minV) || 1;
+  const zeroY = pad.t + (maxV / span) * ph;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = '#253047'; ctx.fillStyle = '#8fa1bf'; ctx.font = '11px Inter, sans-serif';
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + (span * i / 4);
+    const y = pad.t + ((maxV - v) / span) * ph;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillText(opts.fmt ? opts.fmt(v) : v.toFixed(1), 6, y + 4);
+  }
+  ctx.strokeStyle = '#475569';
+  ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(w - pad.r, zeroY); ctx.stroke();
+
+  const step = pw / Math.max(1, items.length);
+  const bw = Math.min(54, step * 0.62);
+  const rects = [];
+  items.forEach((it, i) => {
+    const cx = pad.l + i * step + step / 2;
+    const yVal = pad.t + ((maxV - it.val) / span) * ph;
+    const top = Math.min(zeroY, yVal);
+    const bh = Math.max(2, Math.abs(zeroY - yVal));
+    ctx.fillStyle = it.color;
+    ctx.fillRect(cx - bw / 2, top, bw, bh);
+    ctx.fillStyle = '#e6edf7';
+    ctx.textAlign = 'center';
+    ctx.fillText(opts.fmt ? opts.fmt(it.val) : it.val.toFixed(2), cx, it.val >= 0 ? top - 5 : top + bh + 12);
+    ctx.fillStyle = '#8fa1bf';
+    ctx.save();
+    ctx.translate(cx, pad.t + ph + 12);
+    ctx.rotate(-0.28);
+    ctx.textAlign = 'right';
+    ctx.fillText(it.label, 4, 0);
+    ctx.restore();
+    rects.push({ x: cx - bw / 2, y: top, w: bw, h: bh, tip: it.tip });
+  });
+  bindHover(c, rects);
+}
+
+function drawGroupedBars(canvasId, groups, s1Name, s2Name, c1, c2, fmt) {
+  const { c, ctx, w, h } = setupCanvas(canvasId);
+  const pad = { l: 50, r: 16, t: 22, b: 52 };
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const allV = groups.flatMap(g => [g.v1, g.v2]);
+  const minV = Math.min(0, ...allV), maxV = Math.max(0.0001, ...allV);
+  const span = (maxV - minV) || 1;
+  const zeroY = pad.t + (maxV / span) * ph;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = '#253047'; ctx.fillStyle = '#8fa1bf'; ctx.font = '11px Inter, sans-serif';
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + (span * i / 4);
+    const y = pad.t + ((maxV - v) / span) * ph;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.fillText(fmt(v), 6, y + 4);
+  }
+  ctx.strokeStyle = '#475569';
+  ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(w - pad.r, zeroY); ctx.stroke();
+
+  const step = pw / Math.max(1, groups.length);
+  const bw = Math.min(24, step * 0.32);
+  const rects = [];
+  groups.forEach((g, i) => {
+    const cx = pad.l + i * step + step / 2;
+    [{ v: g.v1, col: c1, dx: -bw - 2, nm: s1Name }, { v: g.v2, col: c2, dx: 2, nm: s2Name }].forEach(b => {
+      const yv = pad.t + ((maxV - b.v) / span) * ph;
+      const top = Math.min(zeroY, yv);
+      const bh = Math.max(2, Math.abs(zeroY - yv));
+      ctx.fillStyle = b.col;
+      ctx.fillRect(cx + b.dx, top, bw, bh);
+      rects.push({ x: cx + b.dx, y: top, w: bw, h: bh, tip: `${g.label} · ${b.nm}: ${fmt(b.v)}
+${g.extra || ''}` });
+    });
+    ctx.fillStyle = '#8fa1bf'; ctx.textAlign = 'center';
+    ctx.fillText(g.label, cx, pad.t + ph + 18);
+  });
+  // Mini legend top-right
+  ctx.fillStyle = c1; ctx.fillRect(w - 190, 4, 10, 10);
+  ctx.fillStyle = '#e6edf7'; ctx.textAlign = 'left'; ctx.fillText(s1Name, w - 176, 13);
+  ctx.fillStyle = c2; ctx.fillRect(w - 95, 4, 10, 10);
+  ctx.fillStyle = '#e6edf7'; ctx.fillText(s2Name, w - 81, 13);
+  bindHover(c, rects);
+}
+
+// Panel 2: Strategy Comparison
+let stratMetric = 'ann_sharpe';
+function setStratMetric(metric, btn) {
+  stratMetric = metric;
+  document.querySelectorAll('#strat-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  drawStrategies();
+}
+
+function drawStrategies() {
+  const fmts = {
+    ann_sharpe: v => v.toFixed(2),
+    ending_nav: v => '$' + Math.round(v),
+    max_dd_pct: v => v.toFixed(1) + '%',
+    stress_ret_pct: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+    fees_usdt: v => '$' + Math.round(v),
+  };
+  const items = DATA.strategies.map(s => ({
+    label: s.name,
+    val: s[stratMetric],
+    color: s.status === 'LEADER' ? '#22c55e' : s.status === 'BENCHMARK' ? '#f59e0b' : s.status === 'BASELINE' ? '#38bdf8' : '#64748b',
+    tip: `${s.name} [${s.status}]
+NAV: $${s.ending_nav} (${s.ret_pct >= 0 ? '+' : ''}${s.ret_pct}%)
+Sharpe: ${s.ann_sharpe} · MaxDD: ${s.max_dd_pct}%
+Bear Stress: ${s.stress_ret_pct}% · Fees: $${s.fees_usdt}`,
+  }));
+  drawBarChart('c-strat', items, { fmt: fmts[stratMetric], bottomPad: 76 });
+}
+
+// Panel 3: 2x2 Entry/Exit + OLS Factor Table
+function draw2x2AndFactor() {
+  const items = DATA.entry_exit_2x2.map((c, idx) => ({
+    label: c.label.replace(' (5-Seed)', ''),
+    val: c.ann_sharpe,
+    color: idx === 0 ? '#22c55e' : idx < 3 ? '#38bdf8' : '#64748b',
+    tip: `${c.label}
+Ann. Sharpe: ${c.ann_sharpe}
+Full Return: +${c.ret_pct}%
+MaxDD: ${c.max_dd_pct}% · Bear Stress: ${c.stress_ret_pct}%`,
+  }));
+  drawBarChart('c-2x2', items, { fmt: v => v.toFixed(2), bottomPad: 74 });
+
+  const fa = DATA.factor_attribution || {};
+  const rows = Object.entries(fa).map(([k, v]) => `
+    <tr class="${k === 'DROP_S2_LEADER' ? 'leader-row' : ''}">
+      <td>${k}</td>
+      <td class="pos">+${v.ann_alpha_pct.toFixed(2)}%</td>
+      <td>${v.beta_btc.toFixed(3)}</td>
+      <td>${v.beta_gold.toFixed(3)}</td>
+      <td>${v.r_squared.toFixed(3)}</td>
+      <td class="acc">${v.residual_ann_sharpe.toFixed(3)}</td>
+    </tr>
+  `).join('');
+  document.getElementById('t-factor').innerHTML = `
+    <thead><tr><th>Arm (OLS, N=839)</th><th>Ann. Alpha</th><th>β BTC</th><th>β Gold</th><th>R²</th><th>Resid. Sharpe</th></tr></thead>
+    <tbody>${rows}</tbody>
+  `;
+}
+
+// Panel 4: Fast Sleeves S3/S4
+function drawFastSleeves() {
+  const items = DATA.fast_sleeves.map(f => ({
+    label: f.label,
+    val: f.ret_pct,
+    color: f.ret_pct >= 0 ? '#f59e0b' : '#ef4444',
+    tip: `${f.label}
+Return: ${f.ret_pct >= 0 ? '+' : ''}${f.ret_pct}%
+Ann. Sharpe: ${f.ann_sharpe}
+MaxDD: ${f.max_dd_pct}%`,
+  }));
+  drawBarChart('c-fast', items, { fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', bottomPad: 76 });
+}
+
+// Panel 5A: Venue Execution
+function drawVenue() {
+  const groups = DATA.venue_execution.map(r => ({
+    label: r.symbol,
+    v1: r.wallex_allin_taker_bps,
+    v2: r.nobitex_allin_taker_bps,
+    extra: `One-way saving: +${r.oneway_taker_saving_bps} bps · Annual S1+S5 saving: +${r.est_annual_s1_s5_drag_saving_pct}%/yr`,
+  }));
+  drawGroupedBars('c-venue', groups, 'Wallex L1', 'Nobitex -30%', '#ef4444', '#22c55e', v => v.toFixed(1) + 'bp');
+}
+
+// Panel 5B: Causal BUY vs SELL
+function drawCausal() {
+  const bySym = {};
+  DATA.causal_execution.forEach(r => {
+    bySym[r.symbol] = bySym[r.symbol] || { label: r.symbol, v1: 0, v2: 0 };
+    if (r.side === 'BUY') bySym[r.symbol].v1 = r.opportunistic_savings_bps;
+    else bySym[r.symbol].v2 = r.opportunistic_savings_bps;
+  });
+  drawGroupedBars('c-causal', Object.values(bySym), 'BUY Savings', 'SELL Savings', '#22c55e', '#ef4444', v => (v >= 0 ? '+' : '') + v.toFixed(1));
+}
+
+// Panel 6: Experiments A, B, C
+function drawExpAbc() {
+  const items = (DATA.exp_abc_spot || []).map(a => ({
+    label: a.name.replace('EXP_', '').replace('_ASSETS', '').replace('_LEADER', ''),
+    val: a.full.ann_sharpe,
+    color: a.name.includes('4H_CRASH_EXIT') ? '#22c55e' : a.name.includes('BASE_13') ? '#38bdf8' : a.name.includes('33_') ? '#f59e0b' : '#a78bfa',
+    tip: `${a.name}
+NAV: $${a.full.ending_nav} (${a.full.ret_pct >= 0 ? '+' : ''}${a.full.ret_pct}%)
+Sharpe: ${a.full.ann_sharpe} · MaxDD: ${a.full.max_dd_pct}%
+Bear Stress: ${a.stress.ret_pct}% · Fees: $${a.fees_usdt} · Borrow: $${a.extra_borrow_usdt}`,
+  }));
+  if (items.length) drawBarChart('c-abc', items, { fmt: v => v.toFixed(2), bottomPad: 84 });
+
+  const mRows = (DATA.exp_abc_margin || []).map(m => `
+    <tr>
+      <td>${m.name}</td>
+      <td class="${m.ret_pct >= 0 ? 'pos' : 'neg'}">$${m.ending_nav.toFixed(2)} (${m.ret_pct >= 0 ? '+' : ''}${m.ret_pct}%)</td>
+      <td>${m.ann_sharpe.toFixed(3)}</td>
+      <td>${m.max_dd_pct.toFixed(2)}%</td>
+      <td>${m.trades}</td>
+      <td class="${m.liquidations > 0 ? 'neg' : 'pos'}">${m.liquidations}</td>
+      <td>$${m.total_borrow_usdt.toFixed(2)}</td>
+      <td>$${m.total_fees_usdt.toFixed(2)}</td>
+    </tr>
+  `).join('');
+  if (mRows) {
+    document.getElementById('t-margin').innerHTML = `
+      <thead><tr><th>Standalone Paper Margin (Wallex 32.85%/yr Borrow)</th><th>Ending NAV</th><th>Sharpe</th><th>MaxDD</th><th>Trades</th><th>Liquidations</th><th>Borrow ($)</th><th>Fees+Slip ($)</th></tr></thead>
+      <tbody>${mRows}</tbody>
+    `;
+  }
+}
+
+// Panel 7A: GRU-Ignition
+function drawGruIgnition() {
+  const g = DATA.gru_ignition || {};
+  const arms = [
+    ['Plain 1.0x (NBX16)', g.plain_1x_nbx16, '#38bdf8'],
+    ['Plain 1.5x (NBX16)', g.plain_15x_nbx16, '#f59e0b'],
+    ['GRU Dynamic (NBX16)', g.gru_dynamic_nbx16, '#22c55e'],
+    ['GRU Dynamic (WLX25)', g.gru_dynamic_wlx25, '#a78bfa'],
+  ].filter(x => x[1]).map(([label, a, color]) => ({
+    label,
+    val: a.ann_sharpe,
+    color,
+    tip: `${label}
+NAV: $${a.ending_nav} (${a.ret_pct >= 0 ? '+' : ''}${a.ret_pct}%)
+Bear Stress: ${a.stress_ret_pct >= 0 ? '+' : ''}${a.stress_ret_pct}%
+Sharpe: ${a.ann_sharpe} · MaxDD: ${a.max_dd_pct}%
+Liqs: ${a.liquidations} · Borrow: $${a.total_borrow_usdt}`,
+  }));
+  if (arms.length) drawBarChart('c-gru', arms, { fmt: v => v.toFixed(2), bottomPad: 72 });
+}
+
+// Panel 7B: Orthogonal Alpha Audit (3A/3B/3C)
+function drawOrthogonal() {
+  const o = DATA.orthogonal_alpha || {};
+  const b3 = o.study_3b_gru_vol_cov_only || {};
+  const c3 = o.study_3c_gold_and_macro || {};
+  const fl = (o.study_3a_flush_rebound || [])[0];
+  const dc = (o.study_3a_deadcat_short || [])[0];
+  const items = [];
+  if (b3.baseline_13) items.push({ label: 'BASE_13 XAUT', val: b3.baseline_13.full.ann_sharpe, color: '#22c55e', tip: `BASE_13 XAUT (Champion)
+Sharpe: ${b3.baseline_13.full.ann_sharpe} · Return: +${b3.baseline_13.full.ret_pct}%` });
+  if (c3.paxg_base_13) items.push({ label: 'BASE_13 PAXG', val: c3.paxg_base_13.full.ann_sharpe, color: '#38bdf8', tip: `BASE_13 PAXG
+Sharpe: ${c3.paxg_base_13.full.ann_sharpe} · Return: +${c3.paxg_base_13.full.ret_pct}%` });
+  if (b3.gru_vol_cov_only) items.push({ label: 'GRU-Vol Cov', val: b3.gru_vol_cov_only.full.ann_sharpe, color: '#f59e0b', tip: `GRU-Vol Cov Only
+Sharpe: ${b3.gru_vol_cov_only.full.ann_sharpe} · Return: +${b3.gru_vol_cov_only.full.ret_pct}%` });
+  if (c3.macro_standalone) items.push({ label: 'Macro RP', val: c3.macro_standalone.ann_sharpe, color: '#a78bfa', tip: `Macro Commodities RP
+Sharpe: ${c3.macro_standalone.ann_sharpe} · Return: +${c3.macro_standalone.ret_pct}% · Corr: ${c3.macro_standalone.corr_vs_base_13}` });
+  if (fl) items.push({ label: 'Flush Long 0h', val: fl.ann_sharpe, color: '#ef4444', tip: `Flush Rebound 2h 0h
+Sharpe: ${fl.ann_sharpe} · Return: ${fl.ret_pct}%` });
+  if (dc) items.push({ label: 'DeadCat Short', val: dc.ann_sharpe, color: '#ef4444', tip: `DeadCat Short 2h 0h
+Sharpe: ${dc.ann_sharpe} · Return: ${dc.ret_pct}%` });
+  if (items.length) drawBarChart('c-orth', items, { fmt: v => v.toFixed(2), bottomPad: 72 });
+}
+
+// Panel 8: Side-Asymmetric Smart Execution & Live Forward Champion Tracker
+function drawSmartAndForward() {
+  const groups = [];
+  (DATA.smart_execution || []).forEach(r => {
+    groups.push({ label: r.symbol.replace('USDT', '') + ' BUY', v1: r.buy.wallex_taker_bps, v2: r.buy.asym_router_bps, extra: `Saving: +${r.buy.saving_asym_vs_wallex_bps} bps · Passive Fill: ${r.buy.passive_buy_fill_pct}%` });
+    groups.push({ label: r.symbol.replace('USDT', '') + ' SELL', v1: r.sell.wallex_taker_bps, v2: r.sell.asym_router_bps, extra: `Saving: +${r.sell.saving_asym_vs_wallex_bps} bps · Nobitex Cheaper: ${r.sell.nobitex_cheaper_pct}%` });
+  });
+  if (groups.length) drawGroupedBars('c-smart', groups, 'Wallex Taker', 'Asym Router', '#ef4444', '#22c55e', v => v.toFixed(1) + 'bp');
+
+  const f = DATA.forward_score || {};
+  const h = DATA.operational_health || {};
+  document.getElementById('t-fwd').innerHTML = `
+    <thead><tr><th>Live Champion Forward Tracker</th><th>Status</th><th>Forward Days</th><th>Paper NAV</th><th>e-Process</th><th>Cash Weight</th><th>Live NBX / WLX Spread</th><th>Watchdog Health</th></tr></thead>
+    <tbody><tr class="leader-row">
+      <td>70% BASE_13_S1_S5 (XAUT) + 30% Frozen GRU-Ignition</td>
+      <td class="pos">${f.status || 'PENDING'}</td>
+      <td>${f.forward_days || 0} (${f.observations || 0} snaps)</td>
+      <td>$${(f.paper_nav || 1000).toFixed(2)} (${(f.cum_ret_pct || 0) >= 0 ? '+' : ''}${(f.cum_ret_pct || 0).toFixed(2)}%)</td>
+      <td>${(f.e_process || 1).toFixed(4)}</td>
+      <td>${((f.latest_cash_weight ?? 1) * 100).toFixed(1)}%</td>
+      <td>${f.median_live_nobitex_spread_bps ?? '—'} / ${f.median_live_wallex_spread_bps ?? '—'} bps</td>
+      <td class="${h.overall_status === 'OK' ? 'pos' : 'acc'}">${h.overall_status || '—'} (DISARMED)</td>
+    </tr></tbody>
+  `;
+}
+
+// Panel 9: Higher-Order Momentum & 4-Part Quantitative Study
+function drawHigherOrder() {
+  const h = DATA.higher_order || {};
+  const p1a = h.part_1a_second_order_1d || {};
+  const p1b = h.part_1b_gru_ignition_second_order || {};
+  const p3 = (h.part_3_sleeve_weighting || []).filter(x => x.name.endsWith('NBX16'));
+  const p4 = h.part_4_structural_breakdown_short || [];
+  const items = [];
+  if (p1a.baseline_13) items.push({ label: '1d BASE_13', val: p1a.baseline_13.full.ann_sharpe, color: '#38bdf8', tip: `BASE_13_S1_S5
+Sharpe: ${p1a.baseline_13.full.ann_sharpe} · Bear: ${p1a.baseline_13.stress.ret_pct}%` });
+  if (p1a.ACCEL_BLEND_20) items.push({ label: '1d + 2nd-Order', val: p1a.ACCEL_BLEND_20.full.ann_sharpe, color: '#22c55e', tip: `ACCEL_BLEND_20 (v2 Candidate)
+Sharpe: ${p1a.ACCEL_BLEND_20.full.ann_sharpe} · Return: +${p1a.ACCEL_BLEND_20.full.ret_pct}% · Bear: +${p1a.ACCEL_BLEND_20.stress.ret_pct}%` });
+  if (p1b.gru_6feat_baseline) items.push({ label: 'GRU6 NBX16', val: p1b.gru_6feat_baseline.nbx16.ann_sharpe, color: '#38bdf8', tip: `GRU-Ignition 6-feat
+Sharpe: ${p1b.gru_6feat_baseline.nbx16.ann_sharpe} · Return: +${p1b.gru_6feat_baseline.nbx16.ret_pct}%` });
+  if (p1b.gru_8feat_second_order) items.push({ label: 'GRU8 + Accel', val: p1b.gru_8feat_second_order.nbx16.ann_sharpe, color: '#22c55e', tip: `GRU-Ignition 8-feat (v2 Candidate)
+Sharpe: ${p1b.gru_8feat_second_order.nbx16.ann_sharpe} · Return: +${p1b.gru_8feat_second_order.nbx16.ret_pct}% · Bear: +${p1b.gru_8feat_second_order.nbx16.stress_ret_pct}%` });
+  const st50 = p3.find(x => x.name === 'STATIC_50_50_NBX16');
+  const wfrp = p3.find(x => x.name === 'WF_INV_VOL_RP_NBX16');
+  if (st50) items.push({ label: 'Static 50/50', val: st50.full.ann_sharpe, color: '#a78bfa', tip: `Static 50/50 Shared Ledger (NBX16)
+Sharpe: ${st50.full.ann_sharpe} · MaxDD: ${st50.full.max_dd_pct}% · Bear: +${st50.stress.ret_pct}%` });
+  if (wfrp) items.push({ label: 'WF Risk-Parity', val: wfrp.full.ann_sharpe, color: '#f59e0b', tip: `Walk-Forward Inv-Vol RP (NBX16)
+Sharpe: ${wfrp.full.ann_sharpe} · Avg Slow Wt: ${(wfrp.avg_slow_weight*100).toFixed(1)}%` });
+  if (p4[0]) items.push({ label: '1d Short WLX', val: p4[0].ann_sharpe, color: '#ef4444', tip: `Structural Short 1d (Wallex Margin)
+Full: ${p4[0].ret_pct}% · Bear Stress: +${p4[0].stress_ret_pct}% · Borrow: $${p4[0].total_borrow_usdt}` });
+  if (p4[2]) items.push({ label: '1d Short Perp', val: p4[2].ann_sharpe, color: '#f59e0b', tip: `Structural Short 1d (Zero-Borrow Perp CF)
+Full: ${p4[2].ret_pct}% · Bear Stress: +${p4[2].stress_ret_pct}%` });
+  if (items.length) drawBarChart('c-ho', items, { fmt: v => v.toFixed(2), bottomPad: 74 });
+}
+
+// Panel 10: Unified v2 Champion vs v1 Champion
+function drawV2Champion() {
+  const v2 = DATA.v2_verify || {};
+  const arms = (v2.arms || []).filter(a => a.name.endsWith('NBX16'));
+  const items = arms.map(a => ({
+    label: a.name.replace('_NBX16', '').replace('V2_', ''),
+    val: a.full.ann_sharpe,
+    color: a.name.startsWith('V2_') ? '#22c55e' : a.name.startsWith('V1_') ? '#38bdf8' : '#64748b',
+    tip: `${a.name}
+NAV: $${a.full.ending_nav} (${a.full.ret_pct >= 0 ? '+' : ''}${a.full.ret_pct}%)
+Bear Stress: ${a.stress.ret_pct >= 0 ? '+' : ''}${a.stress.ret_pct}%
+Sharpe: ${a.full.ann_sharpe} · MaxDD: ${a.full.max_dd_pct}%
+Fills: ${a.fills} · Fees: $${a.fees_usdt} · vs v1: ${a.vs_v1_bps >= 0 ? '+' : ''}${a.vs_v1_bps} bps/d`,
+  }));
+  if (items.length) drawBarChart('c-v2', items, { fmt: v => v.toFixed(2), bottomPad: 82 });
+
+  const f1 = DATA.forward_score || {};
+  const f2 = DATA.v2_forward_score || {};
+  document.getElementById('t-v2').innerHTML = `
+    <thead><tr><th>Parallel Live Forward Track (DISARMED)</th><th>Status</th><th>Days (Snaps)</th><th>Paper NAV</th><th>e-Process</th><th>Cash Weight</th><th>Live NBX / WLX Spread</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>v1 Champion: 70% BASE_13 (XAUT) + 30% 2h GRU6</td>
+        <td class="acc">${f1.status || 'PENDING'}</td>
+        <td>${f1.forward_days || 0} (${f1.observations || 0})</td>
+        <td>$${(f1.paper_nav || 1000).toFixed(2)}</td>
+        <td>${(f1.e_process || 1).toFixed(4)}</td>
+        <td>${((f1.latest_cash_weight ?? 1) * 100).toFixed(1)}%</td>
+        <td>${f1.median_live_nobitex_spread_bps ?? '—'} / ${f1.median_live_wallex_spread_bps ?? '—'} bps</td>
+      </tr>
+      <tr class="leader-row">
+        <td>v2 Champion: 70% ACCEL+Metals + Joint ADMM + 30% Twin GRU11 Path-PnL (Conformal/DD)</td>
+        <td class="pos">${f2.status || 'PENDING'}</td>
+        <td>${f2.forward_days || 0} (${f2.observations || 0})</td>
+        <td>$${(f2.paper_nav || 1000).toFixed(2)}</td>
+        <td>${(f2.e_process || 1).toFixed(4)}</td>
+        <td>${((f2.latest_cash_weight ?? 1) * 100).toFixed(1)}%</td>
+        <td>${f2.median_live_nobitex_spread_bps ?? '—'} / ${f2.median_live_wallex_spread_bps ?? '—'} bps</td>
+      </tr>
+    </tbody>
+  `;
+}
+
+// Panel 11: Live Multi-Venue Observatory
+function drawLiveVenue() {
+  const lv = DATA.live_venue_telemetry || {};
+  const spreads = (lv.spreads || []).filter(r => r.nbx_spread_bps != null && r.wlx_spread_bps != null).slice(0, 12);
+  const groups = spreads.map(r => ({
+    label: r.symbol.replace('USDT', ''),
+    v1: r.wlx_spread_bps,
+    v2: r.nbx_spread_bps,
+    extra: `NBX vs WLX Basis: ${r.nbx_vs_wlx_basis_bps != null ? (r.nbx_vs_wlx_basis_bps >= 0 ? '+' : '') + r.nbx_vs_wlx_basis_bps + ' bps' : '—'}`,
+  }));
+  if (groups.length) {
+    drawGroupedBars('c-live-venue', groups, 'Wallex Spread', 'Nobitex Spread', '#f59e0b', '#22c55e', v => v.toFixed(1) + 'bp');
+  }
+
+  const priority = ['USDT', 'BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', 'LTC'];
+  const allPools = lv.pools || [];
+  const topPools = [
+    ...priority.map(c => allPools.find(p => p.currency === c)).filter(Boolean),
+    ...allPools.filter(p => !priority.includes(p.currency)).slice(0, 4),
+  ].slice(0, 10);
+  const pRows = topPools.map(p => `
+    <tr class="${p.currency === 'USDT' ? 'leader-row' : ''}">
+      <td>${p.currency}</td>
+      <td class="pos">+${p.apr_pct.toFixed(2)}%</td>
+      <td>${p.fill_pct.toFixed(1)}%</td>
+    </tr>
+  `).join('');
+  document.getElementById('t-live-pools').innerHTML = `
+    <thead><tr><th>Nobitex Liquidity Pool</th><th>Live APR</th><th>Filled</th></tr></thead>
+    <tbody>${pRows || '<tr><td colspan="3" style="color:var(--muted)">No live pool snapshots yet</td></tr>'}</tbody>
+  `;
+
+  const sh = lv.v2_shadow || {};
+  const trigCount = (sh.nobitex_margin_2x_eligible_triggers || []).length;
+  const rRows = (lv.margin_ratios || []).map(r => `
+    <tr>
+      <td>${r.symbol}</td>
+      <td class="pos">${r.long_pct.toFixed(1)}%</td>
+      <td class="neg">${r.short_pct.toFixed(1)}%</td>
+    </tr>
+  `).join('');
+  const fairCount = (lv.fair_prices || []).length;
+  document.getElementById('t-live-ratios').innerHTML = `
+    <thead><tr><th>Wallex Public Margin Ratios &amp; v2 Shadow</th><th>Long / Value</th><th>Short / Meta</th></tr></thead>
+    <tbody>
+      ${rRows || '<tr><td colspan="3" style="color:var(--muted)">Waiting for next Wallex ratio poll</td></tr>'}
+      <tr class="leader-row">
+        <td>v2 Shadow: Nobitex 2.0x Eligible Triggers</td>
+        <td class="acc">${trigCount}</td>
+        <td>Idle USDT APR: ${sh.live_idle_usdt_pool_apr_pct != null ? '+' + sh.live_idle_usdt_pool_apr_pct + '%' : '—'}</td>
+      </tr>
+      <tr>
+        <td>Wallex Centrifugo all@fairPrice Feed</td>
+        <td class="pos">${fairCount} pairs</td>
+        <td>DISARMED Observatory</td>
+      </tr>
+    </tbody>
+  `;
+}
+
+function drawAll() {
+  drawHistogram();
+  drawStrategies();
+  draw2x2AndFactor();
+  drawFastSleeves();
+  drawVenue();
+  drawCausal();
+  drawExpAbc();
+  drawGruIgnition();
+  drawOrthogonal();
+  drawSmartAndForward();
+  drawHigherOrder();
+  drawV2Champion();
+  drawLiveVenue();
+}
+window.addEventListener('resize', drawAll);
+drawAll();
+</script>
+</body>
+</html>

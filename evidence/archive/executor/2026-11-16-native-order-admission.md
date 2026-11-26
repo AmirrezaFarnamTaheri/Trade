@@ -19,6 +19,6 @@ These tests place no real orders and do not qualify an installed host. The next
 branch connects a separate elevated command and fixed-origin venue transport.
 
 The native request uses the documented `client_id` field. The local
-[Wallex reference](../gym-core/docs/wallex-reference.md) records the newer Swagger
+[Wallex reference](../../../gym-core/docs/wallex-reference.md) records the newer Swagger
 contract; the [official older reference](https://api-docs.wallex.ir/) independently
 documents that field and the LIMIT endpoint. No private venue call was made.

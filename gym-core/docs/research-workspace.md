@@ -33,6 +33,12 @@ JSON workbench for the full schema. After uncertain delivery, inspect the saved 
 before another mutation. A completed calculation does not establish transferability,
 settlement, real fills, independent evaluation custody or prospective profitability.
 
+The guided prospective form freezes a one-line hypothesis and minimum net uplift in bps against the same quote-cash position. A completed comparison reports whether each candidate met that modeled threshold only if its terminal valuation is current. Earlier registrations without a threshold keep their original report format.
+
+### Offline factor diagnostics
+
+Run `gymctl research factor-ic-lab packet.json`. The packet has a `seed` and an `observations` array. Each row supplies `at` and `label_end` as ISO timestamps, with symbol-keyed numeric `factors` and `forward_returns`. The command rejects unfinished labels, retains disjoint intervals in snapshot order, and reports the retained intervals and seeded shuffle result. The result does not register a trial.
+
 ## Compare a saved run with holding USDT
 
 Open a saved run to see its net result next to holding USDT over the same window.
@@ -233,3 +239,15 @@ Backups page. They omit paths, passphrases and credentials, retain hashes and
 report past operations only. A failed receipt after a successful operation reports
 `status_recorded=false`; it does not imply rollback or justify repeating it.
 Off-machine backup scheduling and second-machine restore were canceled by the owner.
+
+### Daily spot trend replay
+
+Run `gymctl research trend-replay packet.json` to compare a long-only paper account with holding the same initial quote cash at zero interest. Supply `symbol`, `quote_currency` (USDT or TMN), `cash`, `quantity_step`, `minimum_quote`, `fee_rate`, `band`, and `observations`. Use plain decimal strings for amounts, rates and prices. Each observation contains a zoned `at`, `bid` and `ask`. Supply 258–4096 consecutive daily observations. The first 256 are warmup.
+
+The three equally weighted 16/64, 32/128 and 64/256 forecasts use a fixed scalar of ten and a cap of twenty. Sizing uses 36 daily returns ending before the signal day, a 15% annual volatility target and a 100% spot allocation cap. The cost gate assumes six round trips per year and a budget of 10% of target volatility. The following day's supplied quote sets modeled fill prices. A zero target requests exit down to the executable lot. Buy fees reduce base received. Sell fees reduce quote proceeds. Terminal inventory is marked to bid. The output assumes sufficient displayed liquidity for planned lots. It includes modeled fees, turnover, daily decisions and excess terminal quote value. The command consumes no registration slot.
+
+### Verify a replay input window
+
+Run `gymctl --data DATA research raw-replay-audit packet.json` with fields `symbol`, `from` and `to` (zoned ISO timestamps). The read-only verifier examines every stored trade and book top received in the half-open interval. It refuses windows over 10,000 rows per source. Split larger intervals at receipt timestamps. It reads closed segments from the store's raw directory and checks the archive digest, frame sequence and raw payload hash before comparing the normalized trade or each side of the published book. Separate bid and ask frames are supported. The process returns nonzero for unsupported legacy references, modified rows, empty windows or missing archives.
+
+Schema 7 records both side references on newly published book tops. Schema 6 remains readable and its historical rows retain unknown side references. A successful result establishes correspondence for stored rows in the named window. Feed completeness, market rules, fee vintages, forward outcomes and venue execution require their own evidence.

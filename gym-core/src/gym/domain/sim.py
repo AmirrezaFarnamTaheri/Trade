@@ -281,13 +281,25 @@ def sellable_quantity(quantity: Decimal, bid: Decimal, spec: Spec) -> Decimal:
     return quantity if quantity>0 and (spec.min_qty is None or quantity>=spec.min_qty) and (spec.min_notional is None or quantity*bid>=spec.min_notional) else Decimal(0)
 
 
+def _fixed_size_funded(amount, book, inst, side, cost):
+    if amount is None:
+        return True
+    if (not amount.is_finite() or amount <= 0 or cost.impact_models is not None
+            or cost.hourly_costs is not None or cost.postfill_costs is not None):
+        raise ValueError("fixed size requires a positive finite amount and unmodeled execution costs")
+    return amount <= book.get(inst.quote if side == "BUY" else inst.base)
+
+
 def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decimal, decision_time: datetime,
                  decision_quote: Decimal, tops: list[BookTop], start: int, cost: CostModel, spec: Spec,
                  rules: list[Rule], quota_used: dict, ref: str, day_open: Decimal | None = None,
-                 *, execution_limits=None, max_qty: Decimal | None = None, limit_price: Decimal | None = None) -> dict:
+                 *, execution_limits=None, max_qty: Decimal | None = None, limit_price: Decimal | None = None,
+                 fixed_amount: Decimal | None = None) -> dict:
     """Fill at the first qualified quote at or after decision + latency, or record a nonfill with its reason."""
     out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL"}
     _check_execution_limits(execution_limits)
+    if not _fixed_size_funded(fixed_amount, book, inst, side, cost):
+        return {**out, "reason": "INSUFFICIENT_SETTLED_BALANCE"}
     earliest, deadline = decision_time + cost.latency, decision_time + cost.max_wait
     top = next((x for x in tops[start:] if x.ts_avail >= earliest and qualified(x)), None)
     if top is None or top.ts_avail > deadline:
@@ -313,7 +325,8 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
         levels = top.depth[1] if side == "BUY" else top.depth[0]
     if execution_limits is not None and side == "BUY" and top.spread_bps > execution_limits["max_spread_bps"]:
         return {**out,"fill_time":iso(t),"reason":"ENTRY_SPREAD_LIMIT"}
-    qty = _order_size(book, inst, side, fraction, price, levels, top, cost, spec, v.quota_remaining, max_qty, out)
+    qty = _order_size(book, inst, side, fraction, price, levels, top, cost, spec, v.quota_remaining, max_qty, out,
+                      fixed_amount=fixed_amount)
     if qty is None:
         return {**out, "fill_time": iso(t), "reason": "DISPLAYED_CAPACITY_UNAVAILABLE"}
     if levels and qty > 0 and _trips_price_guard(levels, qty):
@@ -347,6 +360,60 @@ def market_order(book: CashBook, inst: InstrumentId, side: str, fraction: Decima
                    mid=mid, best=best, decision_quote=decision_quote, rules=rules, quota_used=quota_used, day=day)
 
 
+@dataclass(frozen=True)
+class SharedMarketReceipt:
+    """Allocate one observed best bid and ask, in caller-defined order priority, to one account."""
+
+    book: CashBook
+    instrument: InstrumentId
+    top: BookTop
+    cost: CostModel
+    spec: Spec
+    rules: list[Rule]
+    quota_used: dict
+    used: dict[str, Decimal] = field(default_factory=dict, init=False)
+    filled_refs: set[str] = field(default_factory=set, init=False)
+
+    def __post_init__(self):
+        cost = self.cost
+        if self.top.symbol != self.instrument.symbol:
+            raise ValueError("shared receipt must belong to the order instrument")
+        if (cost.max_participation is None or cost.order_type != "market" or cost.walk_depth
+                or cost.impact_models or cost.hourly_costs or cost.postfill_costs):
+            raise ValueError("shared receipt requires capped best-level market execution")
+
+    def execute(self, side, base_quantity, decision_time, decision_quote, ref, *, day_open=None):
+        """Cancel the remainder of this immediate order, without reusing a previous fill reference."""
+        if side not in ("BUY", "SELL") or not ref:
+            raise ValueError("shared receipt order requires a valid side and reference")
+        requested = decimal(base_quantity, "base_quantity", positive=True)
+        out = {"ref": ref, "side": side, "decision_time": iso(decision_time), "status": "NONFILL",
+               "requested_qty": str(requested), "cancelled_qty": str(requested)}
+        if ref in self.filled_refs:
+            return {**out, "reason": "DUPLICATE_RECEIPT_FILL"}
+        if "CLOSED" in self.top.flags:
+            return {**out, "reason": "CLOSED_RECEIPT"}
+        shown = self.top.ask_qty if side == "BUY" else self.top.bid_qty
+        if shown is None or not shown.is_finite() or shown <= 0:
+            return {**out, "reason": "DISPLAYED_CAPACITY_UNAVAILABLE"}
+        used = self.used.get(side, Decimal(0))
+        with localcontext() as ctx:
+            ctx.prec = 160
+            remaining = _floor(shown * self.cost.max_participation - used, self.spec.qty_decimals)
+        if remaining <= 0:
+            return {**out, "reason": "SHARED_DISPLAYED_CAPACITY_EXHAUSTED"}
+        result = market_order(self.book, self.instrument, side, Decimal(1), decision_time, decision_quote,
+                              [self.top], 0, self.cost, self.spec, self.rules, self.quota_used, ref, day_open,
+                              max_qty=min(requested, remaining))
+        filled = Decimal(result.get("qty", "0"))
+        if result["status"] == "FILLED":
+            with localcontext() as ctx:
+                ctx.prec = 160
+                self.used[side] = used + filled
+            self.filled_refs.add(ref)
+        return {**result, "requested_qty": str(requested), "cancelled_qty": str(requested - filled)}
+
+
 def _trips_price_guard(levels, qty: Decimal) -> bool:
     """Wallex cancels a market order that would move the price 2% (developers.wallex.ir spot-types, 2026-11-08);
     the best observed level stands in for the venue's last-trade reference."""
@@ -362,7 +429,8 @@ def _trips_price_guard(levels, qty: Decimal) -> bool:
     return abs(worst / levels[0][0] - 1) > MARKET_PRICE_GUARD
 
 
-def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quota_remaining, max_qty, out):
+def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quota_remaining, max_qty, out,
+                *, fixed_amount=None):
     """Quantity after cash or holdings, venue quota, observed depth, displayed capacity and any remainder cap.
 
     Records the binding resize in `out`; returns None when displayed capacity is required but unknown.
@@ -370,13 +438,13 @@ def _order_size(book, inst, side, fraction, price, levels, top, cost, spec, quot
     if side == "BUY":
         with localcontext() as ctx:
             ctx.rounding = ROUND_DOWN  # 28-digit division must never round the quantity up past the cash
-            budget = book.get(inst.quote) * fraction
+            budget = book.get(inst.quote) * fraction if fixed_amount is None else fixed_amount
             qty = _floor(_budget_qty(levels, budget) if levels else budget / price, spec.qty_decimals)
         if quota_remaining is not None and qty > quota_remaining:
             qty = _floor(quota_remaining, spec.qty_decimals)  # resize the excess, never exceed the cap
             out["resized"] = "VenueQuota"
     else:
-        qty = _floor(book.get(inst.base) * fraction, spec.qty_decimals)
+        qty = _floor(book.get(inst.base) * fraction if fixed_amount is None else fixed_amount, spec.qty_decimals)
     requested = qty
     if levels is not None:
         depth_total = sum((size for _, size in levels), Decimal(0))

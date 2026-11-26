@@ -1,7 +1,7 @@
 """Wallex credit-ratio rules and observed-quote paper positions; no order authority."""
 import itertools
 import re
-from collections import Counter
+from collections import Counter, deque
 from datetime import timedelta
 from decimal import Decimal, localcontext
 
@@ -149,7 +149,38 @@ def _depth_liquidation_mark(top, quantity, long, cash, debt_quote, fee_rate):
             "modeled_exit_fee_quote": str(+(notional * fee_rate))}
 
 
-def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds, *, depth_valuation=False):
+def protection_edits(value):
+    if type(value) is not list or not 1 <= len(value) <= 32:
+        raise ValueError("protection_edits requires 1..32 scheduled edits")
+    previous = 0
+    for edit in value:
+        if type(edit) is not dict or set(edit) - {"after_open_seconds"} not in ({"stop_loss"}, {"take_profit"}, OPTIONAL_FIELDS):
+            raise ValueError("a protection edit requires a stop_loss or take_profit")
+        delay = seconds(edit.get("after_open_seconds"), "after_open_seconds")
+        if delay <= previous:
+            raise ValueError("protection edit times must increase")
+        previous = delay
+        for key in OPTIONAL_FIELDS & edit.keys():
+            decimal(edit[key], key, positive=True)
+    return deque(value)
+
+
+def _apply_edits(pending, terms, events, state, top, closed, entry_time, mark):
+    if not pending or closed or state != "OPEN":
+        return
+    while pending and (top.ts_avail - entry_time).total_seconds() >= pending[0]["after_open_seconds"]:
+        edit = pending.popleft()
+        changes = {key: edit[key] for key in sorted(OPTIONAL_FIELDS & edit.keys())}
+        invalid = any(_crossed(level, (terms["side"] == "long") == (key == "stop_loss"), mark)
+                      for key, level in changes.items())
+        if not invalid:
+            terms.update(changes)
+        events.append({"at": iso(top.ts_avail), "action": "PAPER_EDIT_REFUSED" if invalid else "PAPER_EDIT",
+                       "requested_levels": changes, "mark": str(mark)})
+
+
+def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds, *, depth_valuation=False, observe=None,
+                  entry_until=None, edits=None):
     """Conservative limit entry, bid/ask exits and initial venue-preview trigger levels."""
     if type(depth_valuation) is not bool:
         raise ValueError("depth_valuation requires a boolean flag")
@@ -168,10 +199,33 @@ def replay_margin(terms, rule, points, end, exit_fee_rate, holding_seconds, *, d
         raise ValueError("invalid margin quote identity, cutoff or market state")
     with localcontext() as context:
         context.prec = 160
-        return _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation)
+        pending = protection_edits(edits) if edits is not None else ()
+        return _replay(dict(terms), rule, points, end, fee_rate, holding_seconds, depth_valuation, observe, entry_until, pending)
 
 
-def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation):
+def _publish_position(observe, at, state, cash, units, quote_debt, base_debt, top, closed):
+    if observe is None:
+        return
+    mark = None
+    if state.startswith("CLOSED") or state == "ENTRY_PENDING":
+        mark = cash - quote_debt
+    elif not closed and qualified(top):
+        mark = cash + units * top.bid - quote_debt - base_debt * top.ask
+    observe(at, state, cash, units, quote_debt, base_debt, mark)
+
+
+def _crossed(level, below, mark):
+    return mark <= decimal(level) if below else mark >= decimal(level)
+
+
+def _finished(state, entry_until, at, nonfills):
+    if state == "ENTRY_PENDING" and entry_until is not None and at > entry_until:
+        nonfills["SIGNAL_ORDER_EXPIRED"] += 1
+        return True
+    return state.startswith("CLOSED")
+
+
+def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation, observe, entry_until, pending):
     """Simulate a causal margin position through qualified historical quote updates."""
     long = terms["side"] == "long"
     price = decimal(terms["open_price"])
@@ -203,14 +257,18 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             charge(terms["extend_fee"], elapsed - periods)
             periods = elapsed
 
+    def publish(at, top, closed):
+        _publish_position(observe, at, state, cash, units, debt_quote, debt_base, top, closed)
+
     for top, closed in points:
-        if state.startswith("CLOSED"):
+        if _finished(state, entry_until, top.ts_avail, nonfills):
             break
         last_seen, last_closed = top, closed
         if entry is not None:
             accrue(top.ts_avail)
         if not qualified(top):
             nonfills["UNQUALIFIED_QUOTE"] += 1
+            publish(top.ts_avail, top, closed)
             continue
         last = top
         if entry is None:
@@ -218,6 +276,7 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             if closed or available is None or available < quantity or (top.ask > price if long else top.bid < price):
                 reason = "CLOSED_MARKET" if closed else "INSUFFICIENT_TOP_DEPTH" if available is None or available < quantity else "LIMIT_NOT_REACHED"
                 nonfills[reason] += 1
+                publish(top.ts_avail, top, closed)
                 continue
             units, debt_quote, debt_base = (quantity, loan, Decimal(0)) if long else (Decimal(0), Decimal(0), loan)
             if not long:
@@ -230,15 +289,12 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             events.append({"at": iso(top.ts_avail), "action": "PAPER_OPEN", "price": str(price)})
             state = "OPEN"
         mark = top.bid if long else top.ask
-        def crossed(level, below, mark=mark):
-            """Evaluate a level against the currently observed executable quote side."""
-            return mark <= decimal(level) if below else mark >= decimal(level)
-        liquidation = crossed(terms["liquidity_price"], long)
-        warning = crossed(terms["call_price"], long)
+        liquidation = _crossed(terms["liquidity_price"], long, mark)
+        warning = _crossed(terms["call_price"], long, mark)
         age = (top.ts_avail - entry["clock"]).total_seconds()
         reason = ("PAPER_LIQUIDATION" if liquidation else
-                  "PAPER_STOP" if "stop_loss" in terms and crossed(terms["stop_loss"], long) else
-                  "PAPER_TARGET" if "take_profit" in terms and crossed(terms["take_profit"], not long) else
+                  "PAPER_STOP" if "stop_loss" in terms and _crossed(terms["stop_loss"], long, mark) else
+                  "PAPER_TARGET" if "take_profit" in terms and _crossed(terms["take_profit"], not long, mark) else
                   "PAPER_EXPIRY" if age >= terms["max_age"] else
                   "PAPER_TIME_EXIT" if holding_seconds is not None and age >= holding_seconds else close_reason)
         if reason:
@@ -262,6 +318,8 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             events.append({"at": iso(top.ts_avail), "action": action, "price": str(mark)})
         elif warning:
             events.append({"at": iso(top.ts_avail), "action": "MARGIN_CALL_WARNING", "price": str(mark)})
+        _apply_edits(pending, terms, events, state, top, closed, entry["clock"], mark)
+        publish(top.ts_avail, top, closed)
     if entry and not state.startswith("CLOSED"):
         accrue(end)
         age = (end - entry["clock"]).total_seconds()
@@ -269,6 +327,7 @@ def _replay(terms, rule, points, end, fee_rate, holding_seconds, depth_valuation
             state = "CLOSE_PENDING"
     fresh = last is not None and last is last_seen and not last_closed and 0 <= (end - last.ts_avail).total_seconds() <= 30
     equity = cash - debt_quote if state.startswith("CLOSED") else cash + units * last.bid - debt_quote - debt_base * last.ask if fresh and entry else None
+    publish(end, last, not fresh)
     liquidation = None
     if depth_valuation:
         if state.startswith("CLOSED"):

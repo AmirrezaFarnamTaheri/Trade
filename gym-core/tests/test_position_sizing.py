@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from gym.cli import main
-from gym.domain.market_models import evaluate_artifact
+from gym.domain.artifact_evaluation import evaluate_artifact
 
 
 def parameters(**changes):

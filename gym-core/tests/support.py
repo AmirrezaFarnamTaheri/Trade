@@ -22,6 +22,29 @@ def quote_history(n=2000, step=10, sym="BTCUSDT", turn=0.5):
     return out
 
 
+def supplied_otc_quote(*, price="98", expiry_seconds=180):
+    return {"quote": {"symbol": "USDTTMN", "side": "BUY",
+                      "received_at": (START + timedelta(seconds=5)).isoformat(),
+                      "price": price, "price_expires_at": (START + timedelta(seconds=expiry_seconds)).isoformat()},
+            "market": {"symbol": "USDTTMN", "received_at": START.isoformat(), "buyStatus": "ENABLE",
+                       "sellStatus": "ENABLE", "minQty": "1", "minNotional": "1", "maxNotional": "100000"},
+            "max_base_quantity": "10", "fee_rate": "0.001", "settlement_seconds": 5}
+
+
+def supplied_otc_route(*, expiry_seconds=180):
+    legs = []
+    for symbol, quote_asset, side, price, fee in (
+            ("XTMN", "TMN", "BUY", "9", "0.1"),
+            ("XUSDT", "USDT", "SELL", "1", "0.01")):
+        leg = supplied_otc_quote(price=price, expiry_seconds=expiry_seconds)
+        leg["quote"].update(symbol=symbol, side=side)
+        leg["market"]["symbol"] = symbol
+        leg.pop("max_base_quantity")
+        leg.update(base="X", quote_asset=quote_asset, fee_rate=fee, base_quantity="10" if side == "BUY" else "9")
+        legs.append(leg)
+    return legs
+
+
 def market_db(tmp_path, rows, preset_at=START - timedelta(days=30)):
     db = MarketDB(tmp_path / "market.db")
     for x in rows:

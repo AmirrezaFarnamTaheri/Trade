@@ -27,13 +27,10 @@ $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $data = [IO.Path]::GetFullPath($DataDirectory)
 $uv = (Get-Command uv -ErrorAction Stop).Source
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$markets = $Symbols -join ' '
+$markets = $Symbols -join ','
 # The btc-daily-trend rule is all-in or all-out: a volatility target of 5 never binds and the band is off.
-$command = "`$from = (Get-Date).ToUniversalTime().AddDays(-5).ToString('yyyy-MM-ddT00:00:00Z'); " +
-    "& '$uv' run --no-sync gymctl --data '$data' history $markets --resolution 1d --from `$from | Out-Null; " +
-    "& '$uv' run --no-sync gymctl --data '$data' allocate $markets --vol-target 5 --band 0 | Out-Null; " +
-    "& '$uv' run --no-sync gymctl --data '$data' history XAUTUSDT SLVONUSDT USOONUSDT COPXONUSDT AAPLXUSDT --resolution 1d --from `$from | Out-Null; " +
-    "& '$uv' run --no-sync gymctl --data '$data' mix-journal | Out-Null"
+$runner = Join-Path $PSScriptRoot 'Invoke-AllocationJournal.ps1'
+$command = "& '$($runner.Replace("'", "''"))' -DataDirectory '$($data.Replace("'", "''"))' -UvPath '$($uv.Replace("'", "''"))' -Symbols $markets; exit `$LASTEXITCODE"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -Command `"$command`"" -WorkingDirectory $core
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries

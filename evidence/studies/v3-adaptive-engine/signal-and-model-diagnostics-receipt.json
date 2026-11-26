@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-11-25T20:54:00.712471+00:00",
+  "executor_state": "DISARMED",
+  "idea_2_sleeve_disagreement": {
+    "disagreement_events": 5,
+    "total_netted_notional_usdt": 67.5,
+    "fees_saved_immediate_netting_usdt": 0.22,
+    "mean_1bar_residual_delay_saving_bps": -254.62,
+    "mean_24h_relinquish_opp_cost_bps": -261.51
+  },
+  "idea_3_cheap_replica": {
+    "fitted_dev_weights": {
+      "BTCUSDT": 0.3068,
+      "XAUTUSDT": 0.1057,
+      "USDT_CASH": 0.5875
+    },
+    "strategy_oos": {
+      "days": 367,
+      "ending_nav": 977.32,
+      "ret_pct": -2.27,
+      "ann_sharpe": -0.122,
+      "max_dd_pct": 11.0
+    },
+    "cheap_replica_oos": {
+      "days": 367,
+      "ending_nav": 905.37,
+      "ret_pct": -9.46,
+      "ann_sharpe": -0.636,
+      "max_dd_pct": 14.36
+    },
+    "oos_residual_ret_pct": 7.19,
+    "oos_maxdd_diff_pct": -3.36
+  },
+  "idea_4_episode_concentration": {
+    "total_raw_entries": 921,
+    "clustered_episodes": 352,
+    "independent_entry_days": 311,
+    "total_net_pnl_pct_pts": 130.15,
+    "top1_episode_pnl_pct_pts": 95.74,
+    "top3_episodes_pnl_pct_pts": 262.01,
+    "top3_share_of_total_pct": 201.3,
+    "pnl_without_top3_pct_pts": -131.85
+  },
+  "idea_5_narrow_ml_wait": {
+    "oos_orders": 414,
+    "always_now_mean_saving_bps": 0.0,
+    "always_wait_1b_mean_saving_bps": 2.63,
+    "simple_range_threshold_mean_saving_bps": 3.82,
+    "ml_wait_gate_mean_saving_bps": 2.22,
+    "ml_wait_rate_pct": 3.4
+  },
+  "idea_15_gru_distillation": {
+    "oos_total": 782,
+    "agreement_rate_pct": 73.7,
+    "disagreement_count": 206,
+    "both_top_tercile_mean_bps": 174.19,
+    "gru_only_top_count": 111,
+    "gru_only_mean_bps": 19.6,
+    "shallow_tree_only_count": 95,
+    "shallow_tree_only_mean_bps": 16.51,
+    "gru_minus_tree_disagreement_bps": 3.09
+  }
+}

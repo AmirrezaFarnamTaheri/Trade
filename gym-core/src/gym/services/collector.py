@@ -5,6 +5,7 @@ import asyncio
 import copy
 import json
 import random
+import sqlite3
 import time
 from collections import Counter, deque
 from datetime import datetime, timedelta
@@ -37,6 +38,7 @@ CATALOG_PATH = "/hector/web/v1/markets"
 # The catalogue above carries listing facts but no order limits; those live here (minNotional refused a live
 # order with error 1003 on 2026-11-14). Merged into each stored spec so the simulator enforces them.
 RULES_PATH = "/v1/markets"
+STRUCTURED_FEE_PATH = "/v2/structured-fee"
 RULE_KEYS = ("stepSize", "tickSize", "minQty", "minNotional")
 CANDLE_REFRESH_S = 60
 CATALOG_REFRESH_S = 6 * 3600  # each refresh stores a new version of every market: its row carries price and volume
@@ -172,9 +174,11 @@ class Collector:
         self.names: dict[str, dict] = {}
         self.catalog: dict[str, dict] = {}
         self.catalog_received_at = None
+        self.rules_received_at = None
         self.catalog_source = "SYNTHETIC" if demo else "UNAVAILABLE"
         self.books: dict[str, dict[str, BookSide | None]] = {}
         self.depth_ref: dict[str, str] = {}
+        self.side_refs = {}
         self.tops = {}
         self.written: dict[str, tuple] = {}
         self.trades: dict[str, deque] = {}
@@ -198,6 +202,7 @@ class Collector:
         self.names = {}
         self.books = {s: {"bid": None, "ask": None} for s in symbols}
         self.depth_ref = {}
+        self.side_refs = {}
         self.tops = {}
         self.written = {}
         self.trades = {s: deque(maxlen=30) for s in symbols}
@@ -252,6 +257,7 @@ class Collector:
     def on_depth(self, sym, side, lv, now, ref):
         self.books[sym][side] = BookSide(lv, now)  # each message is a full side snapshot: replace
         self.depth_ref[sym] = ref
+        self.side_refs[sym, side] = ref
 
     def on_trade(self, sym, d, now, ref):
         self._record_trade(TradeTick.wallex(sym, d, now), ref)
@@ -298,6 +304,8 @@ class Collector:
         old_tops, old_written, old_units = self.tops.copy(), self.written.copy(), copy.deepcopy(self.units)
         self.db.c.execute("SAVEPOINT collector_tick")
         try:
+            if self.status.get("publication_delayed_since"):
+                self.quality(now, None, "GAP", f"SQLite writer delayed publication since {self.status['publication_delayed_since']}")
             self._publish_tick(now)
             self.db.c.execute("INSERT OR REPLACE INTO collector_publication VALUES(1,?)", (iso(now),))
             self.db.c.execute("RELEASE collector_tick")
@@ -306,6 +314,20 @@ class Collector:
             self.db.c.execute("RELEASE collector_tick")
             self.tops, self.written, self.units = old_tops, old_written, old_units
             raise
+        self.status.pop("publication_delayed_since", None)
+
+    def _try_publication_tick(self, now: datetime):
+        # Give the socket loop its turn when another connection already owns the writer lock.
+        timeout = self.db.c.execute("PRAGMA busy_timeout").fetchone()[0]
+        self.db.c.execute("PRAGMA busy_timeout=0")
+        try:
+            self.tick(now)
+        except sqlite3.OperationalError as error:
+            if getattr(error, "sqlite_errorcode", 0) & 0xFF != sqlite3.SQLITE_BUSY:
+                raise
+            self.status.setdefault("publication_delayed_since", iso(now))
+        finally:
+            self.db.c.execute(f"PRAGMA busy_timeout={timeout}")
 
     def _publish_tick(self, now: datetime):
         for sym, b in self.books.items():
@@ -316,7 +338,8 @@ class Collector:
             self.tops[sym] = top
             last = self.written.get(sym)
             if not last or last[0] != top.key() or (now - last[1]).total_seconds() >= HEARTBEAT_S:
-                self.db.add_book_top(top, self.depth_ref.get(sym), self.depth_text(b))
+                self.db.add_book_top(top, self.depth_ref.get(sym), self.depth_text(b),
+                                     side_refs=(self.side_refs.get((sym, "bid")), self.side_refs.get((sym, "ask"))))
                 self.written[sym] = (top.key(), now)
         self.watch_units(now)
 
@@ -438,9 +461,12 @@ class Collector:
         """Order limits per market, or {} when unreadable (stored specs then keep the limits they had)."""
         try:
             raw = await self.rest_text(session, RULES_PATH)
-            self.seg.write("rest:" + RULES_PATH, raw, now_utc())
-            return {s.upper(): {k: m[k] for k in RULE_KEYS if m.get(k) not in (None, "")}
-                    for s, m in loads(raw)["result"]["symbols"].items() if isinstance(m, dict)}
+            received_at = now_utc()
+            self.seg.write("rest:" + RULES_PATH, raw, received_at)
+            parsed = {s.upper(): {k: m[k] for k in RULE_KEYS if m.get(k) not in (None, "")}
+                      for s, m in loads(raw)["result"]["symbols"].items() if isinstance(m, dict)}
+            self.rules_received_at = received_at
+            return parsed
         except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, AttributeError) as e:
             self.quality(now_utc(), None, "SOURCE_ERROR", f"trade rules: {type(e).__name__}: {e}")
             return {}
@@ -468,6 +494,27 @@ class Collector:
             if received:
                 self.db.upsert_instrument(inst, names, m, "rest:" + CATALOG_PATH, now)
 
+    async def structured_fees(self, session) -> dict | None:
+        """Fetch and persist Wallex /v2/structured-fee maker/taker tiers; non-fatal when unreachable."""
+        from .market_quality import parse_structured_fee
+
+        try:
+            raw = await self.rest_text(session, STRUCTURED_FEE_PATH)
+            received_at = now_utc()
+            self.seg.write("rest:" + STRUCTURED_FEE_PATH, raw, received_at)
+            vintage = parse_structured_fee(loads(raw), fetched_at=received_at)
+        except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, AttributeError) as e:
+            self.quality(now_utc(), None, "SOURCE_ERROR", f"structured fees: {type(e).__name__}: {e}")
+            return None
+        try:
+            target = self.db_path.parent / "structured_fees.json"
+            tmp = target.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(vintage, sort_keys=True), encoding="utf-8")
+            tmp.replace(target)
+        except OSError as e:
+            self.quality(now_utc(), None, "SOURCE_ERROR", f"structured fees write: {type(e).__name__}: {e}")
+        return vintage
+
     async def refresh_catalog(self, session):
         """Store the venue's current listing facts. The observed markets stay as chosen at start."""
         try:
@@ -481,6 +528,7 @@ class Collector:
             return
         rules = await self.trade_rules(session)
         self._store_catalog(catalog, max(now, now_utc()), True, rules)
+        await self.structured_fees(session)
         self.catalog, self.catalog_received_at, self.catalog_source = catalog, now, "PUBLIC_REST"
 
     async def seed(self, session, symbols=None, trades=True):
@@ -493,7 +541,7 @@ class Collector:
             try:
                 raw = await self.rest_text(session, "/v1/depth", symbol=s)
                 now = now_utc()
-                ref = self.seg.write("rest:/v1/depth", raw, now)
+                ref = self.seg.write(f"rest:/v1/depth?symbol={s}", raw, now)
                 res = loads(raw)["result"]
                 self.on_depth(s, "bid", levels(res["bid"]), now, ref)
                 self.on_depth(s, "ask", levels(res["ask"]), now, ref)
@@ -501,7 +549,7 @@ class Collector:
                     prev = self.last_trade_ts.get(s)
                     raw = await self.rest_text(session, "/v1/trades", symbol=s)
                     now = now_utc()
-                    ref = self.seg.write("rest:/v1/trades", raw, now)
+                    ref = self.seg.write(f"rest:/v1/trades?symbol={s}", raw, now)
                     rows = loads(raw)["result"]["latestTrades"]
                     self._seed_trades(s, rows, now, ref, prev)
             except (TimeoutError, aiohttp.ClientError, ValueError, KeyError, TypeError, ArithmeticError) as e:
@@ -595,7 +643,7 @@ class Collector:
         while True:
             await asyncio.sleep(2)
             now = now_utc()
-            self.tick(now)
+            self._try_publication_tick(now)
             if background:
                 continue
             if time.monotonic() - last_quality > 600:
@@ -696,6 +744,7 @@ class Collector:
                 self.quality(now_utc(), None, "SOURCE_ERROR", "catalog produced no observable markets; retrying")
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
+            await self.structured_fees(session)
             symbols = list(self.insts)
             batch_size = wallex.MAX_CHANNELS // 3
             shards = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]

@@ -278,10 +278,12 @@ def history_cmd(args) -> int:
     symbols = [s.upper() for s in args.symbols]
     db = MarketDB(store_root(args) / "market.db")
 
+    best_effort = bool(getattr(args, "best_effort", False))
+
     async def fetch():
         """Page backwards from --to; stop at --from or after three empty pages (before the market listed)."""
         seg = SegmentWriter(store_root(args) / "raw", db)
-        totals = {}
+        totals, failed_symbols = {}, {}
         try:
             async with wallex.public_session() as session:
                 collector = Collector(db, seg, symbols)
@@ -296,34 +298,49 @@ def history_cmd(args) -> int:
                                 break
                             await asyncio.sleep(2 * attempt)
                         else:
-                            raise ValueError(f"venue history unreadable for {symbol} at {iso(lo)}; stopped after {total} candles")
+                            msg = f"venue history unreadable for {symbol} at {iso(lo)}; stopped after {total} candles"
+                            if not best_effort:
+                                raise ValueError(msg)
+                            failed_symbols[symbol] = iso(lo)
+                            print(f"skipping failed symbol during best-effort refresh: {msg}", file=sys.stderr)
+                            break
                         total, empty, hi = total + got, 0 if got else empty + 1, lo
                     totals[symbol] = total
                     print(f"{symbol} {args.resolution}: {total} candles", file=sys.stderr)
         finally:
             seg.close()
-        return totals
+        return totals, failed_symbols
 
     try:
-        totals = asyncio.run(fetch())
+        totals, failed_symbols = asyncio.run(fetch())
     finally:
         db.c.close()
-    print(json.dumps({"resolution": args.resolution, "from": iso(start), "to": iso(end), "candles": totals}))
-    return 0
+    payload = {"resolution": args.resolution, "from": iso(start), "to": iso(end), "candles": totals}
+    if failed_symbols:
+        payload["failed_symbols"] = failed_symbols
+    print(json.dumps(payload))
+    return 3 if failed_symbols else 0
+
+
+def _scheduled_day(args, now):
+    return now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1) if args.require_completed_day else None
 
 
 def allocate_cmd(args) -> int:
     """Append today's daily-trend allocation decisions and paper fills to the allocation journal."""
     from ..services.allocation import run_day
 
+    now = now_utc()
+    day = _scheduled_day(args, now)
     db = open_db(args)
     try:
-        entries = run_day(db, store_root(args), [s.upper() for s in args.symbols], now_utc(),
-                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band)
+        entries = run_day(db, store_root(args), [s.upper() for s in args.symbols], now,
+                          cash=Decimal(args.cash), lookback=args.lookback, vol_target=args.vol_target, band=args.band,
+                          required_day=day)
     finally:
         db.c.close()
     print(json.dumps(entries, indent=2))
-    return 0
+    return int(day is not None and any(entry.get("day") != iso(day) for entry in entries))
 
 
 def convert_route_cmd(args) -> int:
@@ -343,12 +360,15 @@ def mix_journal_cmd(args) -> int:
     """Append today's passive-mix decision and paper fills to its forward journal."""
     from ..services.mix_journal import run_mix_day
 
+    now = now_utc()
+    day = _scheduled_day(args, now)
     db = open_db(args)
     try:
-        print(json.dumps(run_mix_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
+        entry = run_mix_day(db, store_root(args), now, cash=Decimal(args.cash), required_day=day)
     finally:
         db.c.close()
-    return 0
+    print(json.dumps(entry, indent=2))
+    return int(day is not None and entry["status"] not in {"READY", "ALREADY_DECIDED"})
 
 
 def breadth_journal_cmd(args) -> int:
@@ -357,23 +377,27 @@ def breadth_journal_cmd(args) -> int:
 
     from ..services.breadth_journal import run_breadth_day
 
+    scheduled_at = now_utc()
     if args.refresh:  # the decision needs yesterday's daily candle for every USDT market
         reader = open_db(args)
         try:
             symbols = [r[0] for r in reader.c.execute("SELECT symbol FROM instruments WHERE quote='USDT' ORDER BY symbol")]
         finally:
             reader.c.close()
-        since = (now_utc() - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
+        since = (scheduled_at - timedelta(days=5)).strftime("%Y-%m-%dT00:00:00Z")
         try:
-            history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None))
+            history_cmd(SimpleNamespace(data=args.data, demo=False, symbols=symbols, resolution="1d", start=since, end=None, best_effort=True))
         except (ValueError, OSError, sqlite3.Error) as error:  # the venue is often unreachable here: decide on stored candles
             print(f"refresh failed, deciding on stored candles: {error}", file=sys.stderr)
     db = open_db(args)
     try:
-        print(json.dumps(run_breadth_day(db, store_root(args), now_utc(), cash=Decimal(args.cash)), indent=2))
+        now = now_utc()
+        required_day = scheduled_at.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        result = run_breadth_day(db, store_root(args), now, cash=Decimal(args.cash), required_day=required_day)
+        print(json.dumps(result, indent=2))
     finally:
         db.c.close()
-    return 0
+    return 0 if result["status"] in {"READY", "ALREADY_DECIDED"} else 1
 
 
 def calibrate_cmd(args) -> int:
@@ -466,7 +490,7 @@ def session_cmd(args):
 
 def paper_research_cmd(args) -> int:
     """Evaluate a bounded offline artifact without opening a store or venue."""
-    from ..domain.market_models import evaluate_artifact
+    from ..domain.artifact_evaluation import evaluate_artifact
 
     report = evaluate_artifact(_strict_offline_json(args.path, max_bytes=2_000_000))
     text = json.dumps(report, ensure_ascii=False, indent=2, default=str)
@@ -494,7 +518,7 @@ def research_cmd(args):
         if args.action in OBJECT_ACTIONS:
             if not value:
                 raise ValueError("this research action requires an input JSON file")
-            value = _strict_offline_json(value, max_bytes=65536)
+            value = _strict_offline_json(value, max_bytes=2 * 1024 * 1024 if args.action == "trend-replay" else 65536)
         from ..services.research_process import (
             HEAVY_ACTIONS,
             ResearchProcessFailure,
@@ -508,7 +532,9 @@ def research_cmd(args):
             print(json.dumps(error.report, ensure_ascii=False))
             return 3
     print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-    return 3 if "error" in result or (args.action == "claim-check" and not result["all_matched"]) else 0
+    result_gate = {"claim-check": "all_matched", "verify-release-attestation": "authenticated_signature",
+                   "raw-replay-audit": "verified"}.get(args.action)
+    return 3 if "error" in result or (result_gate and not result[result_gate]) else 0
 
 
 # The foreground scheduler is owned by the CLI; no separate pass-through module.

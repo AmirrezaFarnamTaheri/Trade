@@ -1,6 +1,10 @@
 """A transport connection is not a completed Centrifugo handshake."""
 import asyncio
 import json
+import sqlite3
+import time
+from contextlib import closing
+from threading import Event, Thread, Timer
 from types import SimpleNamespace
 
 import aiohttp
@@ -9,6 +13,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from gym.adapters.store import MarketDB, SegmentWriter, read_segment
+from gym.domain.model import now_utc
 from gym.services import collector
 from gym.services.collector import Collector
 
@@ -160,3 +165,66 @@ def test_handshake_order_against_local_websocket_server(col, monkeypatch):
     assert seeded == [True]
     assert col.status["reconnects"] == 0 and "3502" in col.status["fatal"]
     assert not col.status["connected"]
+
+
+def test_local_websocket_reconnects_after_publication_lock_delay(col, monkeypatch):
+    lock_ready, release_lock = Event(), Event()
+
+    def hold_write_lock():
+        with closing(sqlite3.connect(col.db_path)) as database:
+            database.execute("BEGIN IMMEDIATE")
+            lock_ready.set()
+            release_lock.wait(5)
+
+    async def scenario():
+        first = asyncio.Event()
+        publishing = asyncio.Event()
+        delays = []
+        connections = 0
+
+        async def endpoint(request):
+            nonlocal connections
+            connections += 1
+            attempt = connections
+            socket = web.WebSocketResponse()
+            await socket.prepare(request)
+            await socket.receive_json()
+            if attempt == 1:
+                first.set()
+                await publishing.wait()
+                delays.append(time.perf_counter() - started)
+            await socket.close(code=3012 if attempt == 1 else 3502)
+            return socket
+
+        app = web.Application()
+        app.router.add_get("/connection/websocket", endpoint)
+        async with TestServer(app, host="127.0.0.1") as server, aiohttp.ClientSession() as session:
+            monkeypatch.setattr(collector.wallex, "WS", str(server.make_url("/connection/websocket")))
+            task = asyncio.create_task(col._ws_loop(session, ["BTCUSDT"], 1))
+            try:
+                await asyncio.wait_for(first.wait(), 3)
+                lock_thread = Thread(target=hold_write_lock)
+                lock_thread.start()
+                try:
+                    assert lock_ready.wait(2)
+                    timer = Timer(0.2, release_lock.set)
+                    started = time.perf_counter()
+                    publishing.set()
+                    timer.start()
+                    try:
+                        col.tick(now_utc())
+                    finally:
+                        timer.cancel()
+                        timer.join()
+                finally:
+                    release_lock.set()
+                    lock_thread.join()
+                await asyncio.wait_for(task, 5)
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        assert delays[0] >= 0.15
+        assert connections == 2
+        assert col.status["reconnects"] == 1 and "3502" in col.status["fatal"]
+
+    asyncio.run(scenario())

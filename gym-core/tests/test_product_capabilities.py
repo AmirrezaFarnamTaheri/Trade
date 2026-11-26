@@ -41,3 +41,20 @@ def test_product_matrix_reports_the_venue_catalogue_flags_or_unknown(tmp_path, m
         "max_leverage": "10", "leverage_step": "0.5", "otc_buy": True, "otc_sell": False,
         "otc_min_notional": "90000", "otc_max_notional": "500000000"}
     assert rows["ADAUSDT"]["venue"] is None
+
+
+def test_product_matrix_uses_effective_vintage_and_returns_stable_order(tmp_path, monkeypatch):
+    db = market_db(tmp_path, quote_history(n=3) + quote_history(n=3, sym="ADAUSDT"))
+    cutoff = START + timedelta(seconds=1)
+    instrument = InstrumentId.wallex("BTCUSDT")
+    db.upsert_instrument(instrument, {}, {"is_spot": False}, "initial", START)
+    db.upsert_instrument(instrument, {}, {"is_spot": True}, "effective", cutoff)
+    db.upsert_instrument(instrument, {}, {"is_spot": False}, "future", cutoff + timedelta(seconds=1))
+    db.c.close()
+    monkeypatch.setattr("gym.services.capabilities.now_utc", lambda: cutoff)
+    report = research_action(tmp_path, "market-products", {"margin_catalogue_id": None})
+    ada, btc = report["markets"]
+    assert (ada["symbol"], btc["symbol"]) == ("ADAUSDT", "BTCUSDT")
+    assert ada["venue"] is None
+    assert btc["venue"]["valid_from"] == iso(cutoff)
+    assert btc["venue"]["spot"] is True

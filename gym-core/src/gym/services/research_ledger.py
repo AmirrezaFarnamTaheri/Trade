@@ -22,6 +22,8 @@ from .session import ENGINE_VERSION
 # A claim older than the longest worker deadline belongs to a worker that was stopped; its claim ID no longer
 # matches once reclaimed, so it can never publish.
 ABANDONED_AFTER, MAX_ABANDONED = timedelta(minutes=15), 3
+MULTICURRENCY_WORKER_SECONDS = 1800
+MULTICURRENCY_ABANDONED_AFTER = timedelta(seconds=MULTICURRENCY_WORKER_SECONDS) + timedelta(minutes=5)
 
 _SCHEMA = """
 CREATE TABLE hypotheses(id TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -45,6 +47,77 @@ def _id(value):
 
 def _result(**values):
     return {**values, "authority": "PAPER_ONLY"}
+
+
+_SCHEDULE_LIMITS = ("max_fraction", "max_participation")
+_PORTFOLIO_SELECTORS = {"portfolio_symbols", "watchlist_id", "cash_by_currency", "venue"}
+
+
+def _scheduled_cost(job):
+    limits = {key: decimal(job[key], key, positive=True) for key in _SCHEDULE_LIMITS if key in job}
+    return CostModel(fee_rate=rate(job["fee_rate"], "fee_rate"), **limits)
+
+
+def _normalize_schedule_selection(root, body):
+    from .data_portal import validate_venue
+    from .portfolio import portfolio_currency_inputs
+
+    venue = validate_venue(body.get("venue", "wallex"))
+    opening = portfolio_currency_inputs(venue, body.get("cash_by_currency"), body.get("valuation_symbol"))
+    if opening is None and "cash_by_currency" in body:
+        raise ValueError("cash_by_currency requires two opening cash balances")
+    if "watchlist_id" in body:
+        from .market_watchlists import load_watchlist
+
+        if "portfolio_symbols" in body:
+            raise ValueError("watchlist_id and portfolio_symbols are mutually exclusive")
+        start = parse_ts(body["first_at"]) - timedelta(seconds=body["lookback_seconds"])
+        watchlist = load_watchlist(root, body["watchlist_id"], start)
+        if len(watchlist["symbols"]) < 2:
+            raise ValueError("portfolio requires at least two supported markets")
+        body["watchlist_revision"] = watchlist
+    if "portfolio_symbols" in body:
+        from .portfolio import MAX_MARKETS
+
+        symbols = body["portfolio_symbols"]
+        if (type(symbols) is not list or not 2 <= len(symbols) <= MAX_MARKETS
+                or any(type(s) is not str or not re.fullmatch(r"[A-Z0-9]{2,24}", s) for s in symbols)
+                or len(set(symbols)) != len(symbols)):
+            raise ValueError("portfolio_symbols must contain distinct valid market symbols")
+        body["portfolio_symbols"] = sorted(symbols)
+
+
+def _scheduled_replay(db, job, hypothesis, end, store, root, *, intent_sink=None):
+    start = end - timedelta(seconds=job["lookback_seconds"])
+    options = {"strategy_id": hypothesis["strategy"], "params": hypothesis["params"],
+               "resolution": job["resolution"], "cash": decimal(job["cash"], "cash", positive=True),
+               "cost": _scheduled_cost(job), "store": store}
+    if _PORTFOLIO_SELECTORS & job.keys():
+        from .historical_universe import whole_window_spot_selection
+        from .portfolio import portfolio
+        from .portfolio_margin import load_margin_plans
+
+        watchlist = job["watchlist_revision"] if "watchlist_id" in job else None
+        venue = job.get("venue", "wallex")
+        selection = None if "portfolio_symbols" in job else whole_window_spot_selection(
+            db, start, end, store=store, watchlist=watchlist, venue=venue)
+        symbols = job["portfolio_symbols"] if selection is None else selection["symbols"]
+        return portfolio(db, symbols, start, end, **options, cash_by_currency=job.get("cash_by_currency"),
+                         universe_selection=selection, policy=job.get("policy"), dynamic_routes=job.get("dynamic_routes", False),
+                         fx_rebalance=job.get("fx_rebalance"),
+                         margin_plans=load_margin_plans(root, job.get("margin_positions")),
+                         rank_gate=job.get("rank_gate"), venue=venue,
+                         valuation_symbol=job.get("valuation_symbol"), intent_sink=intent_sink), "portfolios"
+    if intent_sink is not None:
+        raise ValueError("intent capture requires a scheduled shared portfolio")
+    strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
+    db.c.execute("BEGIN")
+    try:
+        return paper(db, hypothesis["symbol"], start, end, **options,
+                     subscriptions=getattr(strategy, "required_resolutions", ()),
+                     reference_symbol=getattr(strategy, "reference_symbol", None)), ""
+    finally:
+        db.c.rollback()
 
 
 class HypothesisUnavailable(ValueError):
@@ -193,7 +266,12 @@ class ResearchLedger:
         return self.shadow(key)
 
     def schedule(self, request):
-        fields(request, "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate")
+        required = "hypothesis_id every_seconds lookback_seconds first_at resolution cash fee_rate"
+        optional = [key for key in (*_SCHEDULE_LIMITS, "portfolio_symbols", "cash_by_currency", "dynamic_routes",
+                                    "fx_rebalance", "margin_positions", "rank_gate", "watchlist_id", "venue", "valuation_symbol",
+                                    "policy")
+                    if isinstance(request, dict) and key in request]
+        fields(request, " ".join([required, *optional]))
         self._hypothesis(request["hypothesis_id"])
         for name, maximum in (("every_seconds", 86400), ("lookback_seconds", 2678400)):
             if type(request[name]) is not int or not 60 <= request[name] <= maximum:
@@ -202,8 +280,45 @@ class ResearchLedger:
             raise ValueError("resolution and first_at must be strings")
         BarSpec(request["resolution"])
         decimal(request["cash"], "cash", positive=True)
-        rate(request["fee_rate"], "fee_rate")
+        _scheduled_cost(request)
         body = {**request, "first_at": iso(parse_ts(request["first_at"]))}
+        _normalize_schedule_selection(self.path.parent, body)
+        if "policy" in body:
+            from ..domain.portfolio_policy import PortfolioPolicy
+
+            symbols = body.get("portfolio_symbols", body.get("watchlist_revision", {}).get("symbols"))
+            if "cash_by_currency" in body:
+                from .portfolio import validate_mixed_exposure_policy
+
+                validate_mixed_exposure_policy(body["policy"])
+            elif symbols is None:
+                raise ValueError("policy requires a portfolio symbol list, watchlist or mixed-currency balances")
+            else:
+                PortfolioPolicy(body["policy"], symbols)
+        if "dynamic_routes" in body and (type(body["dynamic_routes"]) is not bool
+                                         or (body["dynamic_routes"] and "cash_by_currency" not in body)):
+            raise ValueError("dynamic_routes requires a boolean and multi-currency funding")
+        if "fx_rebalance" in body and ("cash_by_currency" not in body or "max_participation" not in body
+                                       or type(body["fx_rebalance"]) is not dict):
+            raise ValueError("fx_rebalance requires mixed-currency funding and a displayed-size cap")
+        if "fx_rebalance" in body:
+            from .portfolio import fx_rebalance_limits
+            from .portfolio_otc import PortfolioOTC
+
+            fx_rebalance_limits(body["fx_rebalance"], explicit_pair=body.get("valuation_symbol") is not None)
+            PortfolioOTC.from_policy(body["fx_rebalance"])
+        if "margin_positions" in body:
+            from .portfolio_margin import load_margin_plans
+
+            if "cash_by_currency" not in body or body["margin_positions"] is None or body.get("valuation_symbol") is not None:
+                raise ValueError("margin_positions requires mixed-currency funding and preview-backed positions")
+            load_margin_plans(self.path.parent, body["margin_positions"])
+        if "rank_gate" in body:
+            from .portfolio_rank import PortfolioRank
+
+            if _PORTFOLIO_SELECTORS.isdisjoint(body) or body["resolution"] == "session":
+                raise ValueError("rank_gate requires a portfolio with fixed-duration bars")
+            PortfolioRank(body["rank_gate"], BarSpec(body["resolution"]).step)
         key, encoded = digest(body), _json(body)
         with self._write():
             self.conn.execute("INSERT OR IGNORE INTO jobs VALUES(?,?,?,1)", (key, encoded, body["first_at"]))
@@ -272,8 +387,13 @@ class ResearchLedger:
                     (r.body IS NULL OR (json_extract(r.body,'$.status')='FAILED'
                     AND COALESCE(json_extract(r.body,'$.retryable'),1)=1
                     AND COALESCE(json_extract(r.body,'$.retry_at'),'')<=?)
-                    OR (json_extract(r.body,'$.status')='RUNNING' AND json_extract(r.body,'$.started_at')<=?))
-                    ORDER BY j.next_at,j.id LIMIT 1""", (iso(now), job_id, job_id, iso(now), iso(now - ABANDONED_AFTER))).fetchone()
+                    OR (json_extract(r.body,'$.status')='RUNNING' AND
+                    ((json_extract(r.body,'$.reclaim_at')<=?) OR
+                     (json_extract(r.body,'$.reclaim_at') IS NULL AND json_extract(r.body,'$.started_at')<=
+                      CASE WHEN json_type(j.body,'$.cash_by_currency') IS NULL THEN ? ELSE ? END))))
+                    ORDER BY j.next_at,j.id LIMIT 1""",
+                    (iso(now), job_id, job_id, iso(now), iso(now), iso(now - ABANDONED_AFTER),
+                     iso(now - MULTICURRENCY_ABANDONED_AFTER))).fetchone()
                 if row is None:
                     break
                 key, encoded, due, previous = row
@@ -296,22 +416,14 @@ class ResearchLedger:
                 attempt = 1 + (previous["attempts"] if previous else 0)
                 claim = _result(status="RUNNING", claim_id=uuid4().hex, attempts=attempt,
                                 started_at=iso(now), progress="REPLAY_STARTED", liveness="UNKNOWN")
+                if "cash_by_currency" in job:
+                    claim["reclaim_at"] = iso(now + MULTICURRENCY_ABANDONED_AFTER)
                 self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(claim)))
                 started = _result(kind="RESEARCH_STARTED", job_id=key, due_at=due, **claim)
                 self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(started), _json(started)))
             try:
                 hypothesis = self._hypothesis(job["hypothesis_id"])
-                strategy = create_strategy(hypothesis["strategy"], hypothesis["params"])
-                db.c.execute("BEGIN")
-                try:
-                    result = paper(db, hypothesis["symbol"], end - timedelta(seconds=job["lookback_seconds"]), end,
-                                   strategy_id=hypothesis["strategy"], params=hypothesis["params"],
-                                   resolution=job["resolution"], cash=decimal(job["cash"], "cash", positive=True),
-                                   cost=CostModel(fee_rate=rate(job["fee_rate"])), store=store,
-                                   subscriptions=getattr(strategy, "required_resolutions", ()),
-                                   reference_symbol=getattr(strategy, "reference_symbol", None))
-                finally:
-                    db.c.rollback()
+                result, run_group = _scheduled_replay(db, job, hypothesis, end, store, self.path.parent)
             except ValueError as error:
                 unavailable = isinstance(error, HypothesisUnavailable)
                 with self._write():
@@ -334,10 +446,15 @@ class ResearchLedger:
                     superseded.append({"job_id": key, "due_at": due, "claim_id": claim["claim_id"]})
                     continue
                 # Ownership check and publication share the final write transaction.
-                save_run(result, self.path.parent / "runs")
-                self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(result)))
+                save_run(result, self.path.parent / "runs" / run_group)
+                report = result if not run_group else {
+                    name: result[name] for name in ("mode", "run_id", "outputs_digest")
+                }
+                self.conn.execute("INSERT INTO reports VALUES(?,?,?) ON CONFLICT(job_id,due_at) DO UPDATE SET body=excluded.body", (key, due, _json(report)))
+                message = ("Paper portfolio replay completed. Review saved balances, coverage and valuation."
+                           if run_group else "Paper replay completed. Review matched baselines and warnings.")
                 alert = _result(kind="RESEARCH_COMPLETED", job_id=key, due_at=due, run_id=result["run_id"],
-                                message="Paper replay completed; review matched baselines and warnings. This is not an execution proposal.")
+                                message=message)
                 self.conn.execute("INSERT INTO alerts VALUES(?,?)", (digest(alert), _json(alert)))
                 self.conn.execute("UPDATE jobs SET next_at=? WHERE id=?", (iso(end + timedelta(seconds=job["every_seconds"])), key))
                 completed.append(alert)

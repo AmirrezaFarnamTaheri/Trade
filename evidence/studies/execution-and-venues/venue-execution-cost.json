@@ -1,0 +1,82 @@
+{
+  "generated_at": "2026-11-24T13:51:53.225578+00:00",
+  "max_skew_s": 15.0,
+  "annual_turnover_multiple": 12.4,
+  "symbols": [
+    {
+      "symbol": "BTCUSDT",
+      "matched_pairs": 306,
+      "elapsed_hours": 5.4,
+      "wallex_median_spread_bps": 16.71,
+      "nobitex_median_spread_bps": 12.03,
+      "spread_ratio_w_over_n": 1.39,
+      "wallex_median_depth_quote": 713.21,
+      "nobitex_median_depth_quote": 1318.93,
+      "wallex_allin_taker_bps": 21.36,
+      "nobitex_allin_taker_bps": 15.12,
+      "oneway_taker_saving_bps": 6.24,
+      "maker_fee_saving_bps": 3.0,
+      "est_annual_s1_s5_drag_saving_pct": 0.77
+    },
+    {
+      "symbol": "ETHUSDT",
+      "matched_pairs": 305,
+      "elapsed_hours": 5.4,
+      "wallex_median_spread_bps": 24.24,
+      "nobitex_median_spread_bps": 12.52,
+      "spread_ratio_w_over_n": 1.94,
+      "wallex_median_depth_quote": 1869.44,
+      "nobitex_median_depth_quote": 687.43,
+      "wallex_allin_taker_bps": 25.12,
+      "nobitex_allin_taker_bps": 15.36,
+      "oneway_taker_saving_bps": 9.76,
+      "maker_fee_saving_bps": 3.0,
+      "est_annual_s1_s5_drag_saving_pct": 1.21
+    },
+    {
+      "symbol": "SOLUSDT",
+      "matched_pairs": 301,
+      "elapsed_hours": 5.4,
+      "wallex_median_spread_bps": 32.44,
+      "nobitex_median_spread_bps": 18.89,
+      "spread_ratio_w_over_n": 1.72,
+      "wallex_median_depth_quote": 547.1,
+      "nobitex_median_depth_quote": 380.38,
+      "wallex_allin_taker_bps": 29.22,
+      "nobitex_allin_taker_bps": 18.54,
+      "oneway_taker_saving_bps": 10.67,
+      "maker_fee_saving_bps": 3.0,
+      "est_annual_s1_s5_drag_saving_pct": 1.32
+    },
+    {
+      "symbol": "USDTTMN",
+      "matched_pairs": 307,
+      "elapsed_hours": 5.4,
+      "wallex_median_spread_bps": 1.03,
+      "nobitex_median_spread_bps": 2.1,
+      "spread_ratio_w_over_n": 0.49,
+      "wallex_median_depth_quote": 318767400.72,
+      "nobitex_median_depth_quote": 324385648.78,
+      "wallex_allin_taker_bps": 30.52,
+      "nobitex_allin_taker_bps": 18.55,
+      "oneway_taker_saving_bps": 11.97,
+      "maker_fee_saving_bps": 11.0,
+      "est_annual_s1_s5_drag_saving_pct": 1.48
+    },
+    {
+      "symbol": "XRPUSDT",
+      "matched_pairs": 305,
+      "elapsed_hours": 5.4,
+      "wallex_median_spread_bps": 27.01,
+      "nobitex_median_spread_bps": 17.32,
+      "spread_ratio_w_over_n": 1.56,
+      "wallex_median_depth_quote": 1391.1,
+      "nobitex_median_depth_quote": 862.04,
+      "wallex_allin_taker_bps": 26.5,
+      "nobitex_allin_taker_bps": 17.76,
+      "oneway_taker_saving_bps": 8.74,
+      "maker_fee_saving_bps": 3.0,
+      "est_annual_s1_s5_drag_saving_pct": 1.08
+    }
+  ]
+}

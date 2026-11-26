@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import subprocess
 import urllib.request
 from pathlib import Path
@@ -30,8 +31,45 @@ $app = '{{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}}\WindowsPowerShell\v1.0\powershe
 """
 
 
+_AGE_MINUTES = re.compile(r"(\d+(?:\.\d+)?)\s*min\b")
+_AGE_HOURS = re.compile(r"(\d+(?:\.\d+)?)\s*h\b")
+_FREE_GIB = re.compile(r"(\d+(?:\.\d+)?)\s*GiB\s+free\b")
+
+
+def _escalation_tier(check: str, detail: str) -> str:
+    """Bucket worsening outage duration or shrinking disk runway so stale alerts escalate (M020, O022)."""
+    if check in ("collector_feed", "collection_gaps"):
+        match = _AGE_MINUTES.search(detail)
+        if match:
+            mins = float(match.group(1))
+            for threshold, label in ((1440, "24h+"), (720, "12h+"), (360, "6h+"), (60, "1h+")):
+                if mins >= threshold:
+                    return label
+    if check in ("backup_receipts", "research_backup"):
+        match = _AGE_HOURS.search(detail)
+        if match:
+            hours = float(match.group(1))
+            for threshold, label in ((168, "7d+"), (72, "3d+")):
+                if hours >= threshold:
+                    return label
+    if check == "free_space":
+        match = _FREE_GIB.search(detail)
+        if match:
+            gib = float(match.group(1))
+            for threshold, label in ((5.0, "<5GiB"), (10.0, "<10GiB"), (15.0, "<15GiB")):
+                if gib < threshold:
+                    return label
+    return ""
+
+
 def _signature(report: dict) -> list[list[str]]:
-    return sorted([c["check"], c["status"]] for c in report["checks"] if c["status"] in ("WARN", "FAIL"))
+    items = []
+    for c in report["checks"]:
+        if c["status"] not in ("WARN", "FAIL"):
+            continue
+        tier = _escalation_tier(c["check"], str(c.get("detail", "")))
+        items.append([c["check"], c["status"], tier] if tier else [c["check"], c["status"]])
+    return sorted(items)
 
 
 def message(report: dict, previous: list | None) -> tuple[str, str] | None:

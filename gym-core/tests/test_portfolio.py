@@ -6,10 +6,33 @@ from decimal import Decimal
 
 import pytest
 
-from gym.domain.model import TradeTick, iso
+from gym.domain.model import TradeTick, iso, parse_ts
 from gym.domain.sim import CostModel
+from gym.domain.strategy import digest
+from gym.services.data_portal import DataPortal
 from gym.services.portfolio import portfolio
 from tests.support import START, market_db, quote_history
+
+
+def test_changed_checkpoint_prefix_stops_before_following_receipts(tmp_path, monkeypatch):
+    from gym.services.portfolio import _Replay
+
+    db = market_db(tmp_path, quote_history(n=20) + quote_history(n=20, sym="ETHUSDT"))
+    fed = []
+    feed = _Replay._feed
+
+    def record_feed(self, symbol, top):
+        fed.append(symbol)
+        return feed(self, symbol, top)
+
+    monkeypatch.setattr(_Replay, "_feed", record_feed)
+    try:
+        with pytest.raises(ValueError, match="checkpoint prefix"):
+            portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=5),
+                      checkpoint={"quote_count": 2, "expected_prefix": {"prefix_digest": "changed"}})
+        assert len(fed) == 2
+    finally:
+        db.c.close()
 
 
 def test_markets_share_one_cash_balance_and_equal_target_weights(tmp_path):
@@ -35,6 +58,33 @@ def test_markets_share_one_cash_balance_and_equal_target_weights(tmp_path):
     assert out["performance"]["trade_statistics_status"] == "NOT_APPLICABLE"
     assert out["run_id"] == portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1), resolution="1min",
                                       cash=Decimal(1000), params={"fast": 2, "slow": 3})["run_id"]
+
+
+def test_frozen_spot_intents_keep_decision_bounds_and_replay_identity(tmp_path):
+    db = market_db(tmp_path, quote_history(n=360) + quote_history(n=360, sym="ETHUSDT"))
+    intents = []
+    options = {"resolution": "1min", "params": {"fast": 2, "slow": 3},
+               "cost": CostModel(latency=timedelta(seconds=2), max_wait=timedelta(seconds=12))}
+    args = (db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(hours=1))
+    try:
+        out = portfolio(*args, **options, intent_sink=intents.append)
+        assert out == portfolio(*args, **options)
+        orders = {row["ref"]: row for market in out["result"]["markets"].values() for row in market["orders"]}
+        assert len(intents) == len(orders)
+        assert {row["side"] for row in intents} == {"BUY", "SELL"}
+        for row in intents:
+            at = parse_ts(row["decision_at"])
+            assert parse_ts(row["quote_at"]) <= at
+            assert parse_ts(row["arrival_at"]) == at + options["cost"].latency
+            assert parse_ts(row["deadline"]) == at + options["cost"].max_wait
+            assert row["amount_asset"] == ("USDT" if row["side"] == "BUY" else row["symbol"][:-4])
+            assert Decimal(row["amount"]) > 0 and row["snapshot"]
+            assert orders[row["ref"]]["decision_time"] == row["decision_at"]
+        assert Decimal(intents[0]["amount"]) == 500
+        with pytest.raises(ValueError, match="intent capture requires"):
+            portfolio(*args, intent_sink=intents.append, cost=CostModel(carry_remainder=True))
+    finally:
+        db.c.close()
 
 
 def test_portfolio_rejects_mixed_quote_currencies_and_single_markets(tmp_path):
@@ -84,6 +134,30 @@ def test_depth_changes_change_portfolio_identity(tmp_path):
         db.c.close()
 
 
+@pytest.mark.parametrize("walk_depth", [False, True])
+def test_batched_digest_keeps_legacy_decimal_flags_and_receipt_order(tmp_path, walk_depth):
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    rows = [top for symbol in symbols for top in quote_history(n=257, step=1, sym=symbol)]
+    db = market_db(tmp_path, rows)
+    end = START + timedelta(minutes=5)
+    try:
+        repeated = replace(rows[1], bid=Decimal("6.25E+4"))
+        db.add_book_top(repeated, None, '[[["2.0", "3"]], []]')
+        db.c.execute("UPDATE book_top SET flags='CROSSED,,STALE,CROSSED', bid='+00062500.00', bid_qty=NULL,"
+                     " ask_qty='-0.000', ts_avail=? WHERE rowid=(SELECT max(rowid) FROM book_top)",
+                     (repeated.ts_avail.strftime("%Y-%m-%dT%H:%M:%SZ"),))
+        portal = DataPortal(db)
+        decoded = {symbol: {"limit_trades": [],
+                            "quotes": [(iso(q.ts_avail), q.bid, q.ask, q.bid_qty, q.ask_qty, sorted(q.flags),
+                                        *((q.depth,) if walk_depth else ()))
+                                       for q in portal.iter_tops(symbol, START, end)]}
+                   for symbol in symbols}
+        archived = portfolio(db, symbols, START, end, resolution="1min", cost=CostModel(walk_depth=walk_depth))
+        assert archived["inputs"]["data"] == digest(decoded)
+    finally:
+        db.c.close()
+
+
 def test_limit_print_changes_change_portfolio_identity(tmp_path):
     rows = quote_history(n=100) + quote_history(n=100, sym="ETHUSDT")
     db = market_db(tmp_path, rows)
@@ -100,11 +174,12 @@ def test_limit_print_changes_change_portfolio_identity(tmp_path):
         db.c.close()
 
 
-def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path):
+@pytest.mark.parametrize("mode", (1, 2))
+def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path, mode):
     rows = quote_history(n=100) + quote_history(n=100, sym="ETHUSDT")
     db = market_db(tmp_path, rows)
     try:
-        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3, "exit_stop_bps": 500, "exit_venue_stop": 1}}
+        options = {"resolution": "1min", "params": {"fast": 2, "slow": 3, "exit_stop_bps": 500, "exit_venue_stop": mode}}
         before = portfolio(db, ["BTCUSDT", "ETHUSDT"], START, START + timedelta(minutes=17), **options)
         for q in rows:
             db.add_trade(TradeTick(q.symbol, q.ts_avail, q.ts_avail, q.bid * Decimal("0.9"), Decimal(1), "SELL"), "stop-print")
@@ -112,7 +187,66 @@ def test_stop_trade_receipts_change_shared_cash_portfolio_identity(tmp_path):
         assert before["inputs"]["stop_trades"] != after["inputs"]["stop_trades"]
         assert before["run_id"] != after["run_id"]
         assert Decimal(after["result"]["balances"]["USDT"]) >= 0
-        assert any(o.get("kind") == "VENUE_STOP_MARKET" for market in after["result"]["markets"].values() for o in market["orders"])
+        kind = "VENUE_TRAILING_STOP_MARKET" if mode == 2 else "VENUE_STOP_MARKET"
+        assert any(o.get("kind") == kind for market in after["result"]["markets"].values() for o in market["orders"])
+    finally:
+        db.c.close()
+
+
+def test_dynamic_route_retains_ownership_through_partial_stop_limit(tmp_path):
+    import asyncio
+
+    from gym.adapters.run_store import save_run
+    from gym.services.research_actions import research_action
+    from gym.services.research_ledger import ResearchLedger
+    from gym.services.research_process import calculate
+
+    def at(seconds):
+        return START + timedelta(seconds=seconds)
+
+    usdt = quote_history(n=33, turn=1)
+    usdt[20:] = [replace(q, bid=Decimal(63000), ask=Decimal(63100)) if q.ts_avail < at(240) else
+                 replace(q, bid=Decimal(67000), ask=Decimal(67100), bid_qty=Decimal("0.01") if q.ts_avail == at(240) else Decimal(1))
+                 for q in usdt[20:]]
+    tmn = [replace(q, symbol="BTCTMN", bid=q.bid * 120, ask=q.ask * 120) for q in quote_history(n=33, turn=1)]
+    # After activation the alternate becomes cheaper, but the first fill leaves inventory on the original route.
+    fx = [replace(usdt[0], symbol="USDTTMN", ts_avail=at(seconds), bid=Decimal(bid), ask=Decimal(bid + 2))
+          for seconds, bid in ((-1, 99), (100, 99), (190, 99), (230, 139))]
+    db = market_db(tmp_path, usdt + tmn + fx)
+    params = {"fast": 2, "slow": 3, "exit_stop_bps": 500, "exit_venue_stop": 3}
+    opening = {"USDT": "1000", "TMN": "100000"}
+    symbols = ["BTCUSDT", "BTCTMN"]
+    try:
+        db.add_trade(TradeTick("BTCUSDT", at(185), at(185), Decimal(70050), Decimal(1), "BUY"), None)
+        db.add_trade(TradeTick("BTCUSDT", at(195), at(200), Decimal(63000), Decimal(1), "SELL"), None)
+        out = portfolio(db, symbols, START, at(330), resolution="1min", dynamic_routes=True,
+                        cash_by_currency=opening, params=params,
+                        cost=CostModel(fee_rate=Decimal(0), max_participation=Decimal("0.25")))
+        result = out["result"]
+        stops = [o for o in result["markets"]["BTCUSDT"]["orders"] if o.get("kind") == "VENUE_STOP_LIMIT"]
+        assert [o["status"] for o in stops] == ["NONFILL", "FILLED", "FILLED"]
+        assert Decimal(stops[1]["residual_base"]) > 0 and Decimal(stops[2]["residual_base"]) == 0
+        assert all(row["decision_time"] > stops[2]["fill_time"] for row in result["markets"]["BTCTMN"]["orders"])
+        switch, = [row for row in result["route_changes"] if row["selected"] == "BTCTMN"]
+        assert switch["at"] > stops[2]["fill_time"]
+        direct_path = save_run(out, tmp_path / "runs" / "portfolios")
+        direct_bytes = direct_path.read_bytes()
+        count = sum(START <= q.ts_avail <= at(240) for q in usdt + tmn + fx)
+        checkpoint = research_action(tmp_path, "replay-checkpoint", {"run_id": out["run_id"], "quote_count": count})["record"]
+        resumed = research_action(tmp_path, "replay-resume", {"checkpoint_id": checkpoint["id"]})
+        assert resumed["result_digest"] == out["outputs_digest"]
+        due = iso(at(330))
+        with ResearchLedger(tmp_path / "research.sqlite3") as ledger:
+            hypothesis = ledger.register({"symbol": "BTCUSDT", "strategy": "ema-trend", "params": params})
+            ledger.schedule({"hypothesis_id": hypothesis["hypothesis_id"], "first_at": due, "every_seconds": 3600,
+                             "lookback_seconds": 330, "resolution": "1min", "cash": "1000", "fee_rate": "0",
+                             "max_participation": "0.25", "dynamic_routes": True,
+                             "cash_by_currency": opening, "portfolio_symbols": symbols})
+        completed, = asyncio.run(calculate(tmp_path, "tick", at=due))["completed"]
+        assert completed["run_id"] == out["run_id"]
+        scheduled = research_action(tmp_path, "portfolio-read", {"run_id": completed["run_id"]})
+        assert scheduled["outputs_digest"] == out["outputs_digest"]
+        assert direct_path.read_bytes() == direct_bytes
     finally:
         db.c.close()
 

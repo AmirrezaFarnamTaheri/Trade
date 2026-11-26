@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 import re
 from datetime import UTC, datetime
-from decimal import ROUND_FLOOR, Decimal, localcontext
+from decimal import ROUND_FLOOR, Decimal
 from statistics import median
 
 D = Decimal
@@ -364,26 +364,3 @@ def trade_economics(quote_currency, entry_price, stop_price, target_price, gross
             **result, "inputs_verified": False, "stop_execution_verified": False,
             "assumptions": "long-only two-outcome arithmetic; adverse slippage and received-asset fees on both legs; "
                            "supplied round-trip inference cost is in quote currency; no probability forecast or fill guarantee"}
-
-
-def evaluate_artifact(artifact):
-    from .forecast_evaluation import forecast_calibration
-    from .portfolio import cashflow_returns, portfolio_sizing
-
-    fields(artifact, "model parameters")
-    models = {"liquidity": liquidity, "spacing": roundtrip_spacing, "fx": implied_fx, "financing": financing,
-              "position-sizing": position_sizing, "trade-economics": trade_economics,
-              "portfolio-sizing": portfolio_sizing, "cashflow-returns": cashflow_returns,
-              "forecast-calibration": forecast_calibration}
-    name = artifact["model"]
-    if not isinstance(name, str) or name not in models:
-        raise ValueError("unknown paper market model")
-    import inspect
-    function = models[name]
-    fields(artifact["parameters"], " ".join(inspect.signature(function).parameters))
-    # Money remains Decimal throughout; transcendental diagnostics alone are rounded by Decimal.
-    with localcontext() as context:
-        context.prec = 160
-        result = function(**artifact["parameters"])
-    return {"mode": "PAPER_ONLY", "funded_authority": False, "order_submitted": False,
-            "model": name, "result": result}

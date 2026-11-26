@@ -46,11 +46,64 @@ function stop(child) {
   else try { process.kill(-child.pid, 'SIGKILL'); } catch {}
 }
 
+function assertPortfolioEntryPoints(receipt) {
+  const {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate, policy,
+    universe_selection: selection} = receipt.inputs;
+  const request = {from, to, resolution, cash, strategy, params, rules_mode, cost, cash_by_currency, rank_gate, policy};
+  if (selection.watchlist) request.watchlist_id = selection.watchlist.watchlist_id;
+  const requestPath = path.join(temporary, 'portfolio-cli-request.json');
+  fs.writeFileSync(requestPath, JSON.stringify(request));
+  const cli = spawnSync(python, ['-m', 'gym.cli', '--data', temporary, 'research', 'portfolio-replay', requestPath, '--demo'],
+    {cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true});
+  assert.equal(cli.status, 0, cli.stderr || cli.stdout || String(cli.error));
+  const result = JSON.parse(cli.stdout);
+  assert.deepEqual([result.run_id, result.outputs_digest, result.universe_selection.manifest_id],
+    [receipt.run_id, receipt.outputs_digest, selection.manifest_id]);
+  const source = [
+    'import asyncio, json, sys',
+    'from datetime import datetime',
+    'from pathlib import Path',
+    'from gym.services.research_ledger import ResearchLedger',
+    'from gym.services.research_process import calculate',
+    'root = Path(sys.argv[1]) / "demo"',
+    'receipt = json.loads(sys.argv[2])',
+    'inputs = receipt["inputs"]',
+    'length = datetime.fromisoformat(inputs["to"]) - datetime.fromisoformat(inputs["from"])',
+    'selector = {"watchlist_id": inputs["universe_selection"]["watchlist"]["watchlist_id"]} if inputs["universe_selection"].get("watchlist") else {}',
+    'options = {key: inputs[key] for key in ("cash_by_currency", "rank_gate", "policy") if key in inputs}',
+    'options.update({key: inputs["cost"][key] for key in ("max_participation",) if key in inputs["cost"]})',
+    'with ResearchLedger(root / "research.sqlite3") as ledger:',
+    '    hyp = ledger.register({"symbol": inputs["symbols"][0], "strategy": inputs["strategy"], "params": inputs["params"]})',
+    '    ledger.schedule({"hypothesis_id": hyp["hypothesis_id"], "first_at": inputs["to"], "every_seconds": 86400,',
+    '        "lookback_seconds": int(length.total_seconds()), "resolution": inputs["resolution"], "cash": inputs["cash"],',
+    '        "fee_rate": inputs["cost"]["fee_rate"], **options, **selector})',
+    'tick = asyncio.run(calculate(root, "tick", store="demo", at=inputs["to"]))',
+    'with ResearchLedger(root / "research.sqlite3") as ledger:',
+    '    reports = [json.loads(ledger.conn.execute("SELECT body FROM reports WHERE job_id=? AND due_at=?",',
+    '        (item["job_id"], item["due_at"])).fetchone()[0]) for item in tick["completed"]]',
+    'print(json.dumps({"tick": tick, "reports": reports}))',
+  ].join('\n');
+  const envelope = {run_id: receipt.run_id, inputs: receipt.inputs};
+  const run = spawnSync(python, ['-c', source, temporary, JSON.stringify(envelope)],
+    {cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true});
+  assert.equal(run.status, 0, run.stderr || String(run.error));
+  assert.deepEqual(JSON.parse(run.stdout).reports.map(item => [item.run_id, item.outputs_digest]),
+    [[receipt.run_id, receipt.outputs_digest]], run.stdout);
+}
+
 (async () => {
   assert(browserPath, 'Edge, Chrome or Chromium is required (or set GYM_BROWSER)');
   assert(fs.existsSync(python), 'gym-core .venv is required');
   fs.mkdirSync(artifacts, { recursive: true });
-  const seeded = spawnSync(python, ['-m', 'gym.cli', '--data', temporary, 'demo-seed', '--hours', '4'], { cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true });
+  // Give the fixture an open USDTTMN session regardless of the runner's wall clock.
+  const fixtureEnd = new Date();
+  fixtureEnd.setUTCDate(fixtureEnd.getUTCDate() - 1);
+  fixtureEnd.setUTCHours(14, 0, 0, 0);
+  const fixtureStart = new Date(fixtureEnd.getTime() - (4 * 60 - 1) * 60000);
+  const seed = 'import sys; from datetime import datetime; from gym.commands import daemon; from gym.cli import main; '
+    + 'clock = datetime.fromisoformat(sys.argv.pop(1)); daemon.now_utc = lambda: clock; raise SystemExit(main())';
+  const seeded = spawnSync(python, ['-c', seed, fixtureEnd.toISOString(), '--data', temporary, 'demo-seed', '--hours', '4'],
+    { cwd: core, encoding: 'utf8', timeout: 60000, windowsHide: true });
   assert.equal(seeded.status, 0, seeded.stderr || 'synthetic seeding failed');
   const listener = net.createServer();
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve));
@@ -84,7 +137,7 @@ function stop(child) {
   });
   const evaluate = async expression => {
     const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
     return result.result.value;
   };
   diagnostic = async () => ({ errors, page: await evaluate(`({
@@ -95,6 +148,10 @@ function stop(child) {
     formValid:document.querySelector('#compare-form')?.checkValidity(),
     button:document.querySelector('#compare-submit')?.outerHTML,
     fieldsDisabled:document.querySelector('#comparison-fields')?.disabled,
+    portfolioStatus:document.querySelector('#portfolio-status')?.textContent,
+    portfolioError:window.__portfolioError,
+    portfolioFormValid:document.querySelector('#portfolio-form')?.checkValidity(),
+    invalidPortfolioControls:[...document.querySelectorAll('#portfolio-form :invalid')].map(node => node.id),
     values:[...document.querySelectorAll('#compare-form input,#compare-form select')].map(n=>({id:n.id,value:n.value})),
     result:document.querySelector('#compare-result')?.textContent.slice(0,3000),
     requests:performance.getEntriesByType('resource').filter(n=>n.name.includes('/api/compare')).map(n=>({url:n.name,duration:n.duration})),
@@ -124,6 +181,23 @@ function stop(child) {
     }
   }
   const critical = Object.entries(accessibility).flatMap(([route, found]) => found.filter(v => v.impact === 'critical').map(v => `${route}: ${v.id} (${v.nodes}) ${v.help}`));
+  assert.equal(await evaluate("performance.getEntriesByType('resource').some(({name}) => name.includes('/operator-timeline.mjs'))"), false,
+    'evidence module stays off the startup path');
+  await evaluate(`(() => {
+    document.querySelector('nav [data-view="health"]').click();
+    document.querySelector('#operator-timeline-source').value = 'feed-quality';
+    document.querySelector('#operator-timeline-form').requestSubmit();
+  })()`);
+  await until(() => evaluate(`performance.getEntriesByType('resource').some(({name}) =>
+    name.includes('/api/timeline?') && new URL(name).searchParams.get('source') === 'feed-quality')
+    && document.querySelector('#operator-timeline-results').textContent.trim()
+    && !document.querySelector('#operator-timeline-form button').disabled
+    && !document.querySelector('#operator-timeline-results').textContent.includes(t('requestError'))`),
+  'filtered evidence timeline');
+  assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(({name}) => {
+    const url = new URL(name);
+    return url.pathname === '/operator-timeline.mjs' && /^[a-f0-9]{16}$/.test(url.searchParams.get('v'));
+  }).length`), 1, 'versioned evidence module loads on demand');
   for (const [route, found] of Object.entries(accessibility))
     for (const v of found.filter(v => v.impact === 'serious')) console.log(`a11y serious · ${route}: ${v.id} (${v.nodes}) ${v.help}`);
   assert.deepEqual(critical, [], 'critical accessibility violations');
@@ -137,6 +211,29 @@ function stop(child) {
     screenshots.push(name);
   }
   await screenshot('markets-desktop.png');
+  await evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.__restoreFxFetch = () => { window.fetch = original; };
+    window.fetch = (url, init) => String(url).includes('/api/fx-route?')
+      ? Promise.resolve(Response.json({
+        direction: 'TMN_TO_USDT', fee_per_leg: '0.001', depth_scope: 'TOP_OF_BOOK_ONLY', max_quote_age_seconds: 120,
+        routes: [{route: 'BTCTMN > BTCUSDT', legs: 2, received: '100.500000', capacity: '10000000',
+          fits_displayed_size: true, leg_details: [{symbol: 'BTCTMN', side: 'BUY', bid: '9000000', ask: '9001000',
+            displayed_base_quantity: '2', spread_bps: '1.11', quote_at: '2026-11-21T10:00:00.000000Z'}]}],
+        direct_available: true,
+        direct_route: {route: 'USDTTMN', legs: 1, received: '100.000000'},
+        saving_vs_direct_bps: 50,
+        order_submitted: false
+      })) : original(url, init);
+    document.querySelector('#fx-route-form').closest('details').open = true;
+    document.querySelector('#fx-route-submit').click();
+  })()`);
+  await until(() => evaluate(`(() => {
+    const text = document.querySelector('#fx-route-output').textContent;
+    return text.includes('BTCTMN > BTCUSDT') && text.includes('100') && text.includes('50')
+      && text.includes('2026-11-21T10:00:00.000000Z') && text.includes('120');
+  })()`), 'successful FX route, direct proceeds and quote evidence');
+  await evaluate("window.__restoreFxFetch(); document.querySelector('#fx-route-form').closest('details').open = false");
   async function openMarketDepth() {
     await until(() => evaluate(`document.querySelector('[data-market="BTCUSDT"]')`), 'BTCUSDT row');
     await evaluate(`(() => {
@@ -183,6 +280,27 @@ function stop(child) {
     }
   }
   await evaluate('document.querySelector("nav [data-view=research]").click()');
+  await evaluate(`(() => {
+    const form = document.querySelector("#run-filter-form");
+    form.elements.symbol.value = "btcusdt";
+    form.elements.strategy.value = "ema-trend";
+    form.elements.date_from.value = "2026-11-01";
+    form.elements.fee_rate.value = "0.001";
+    form.elements.evidence_stage.value = "UNKNOWN";
+    form.requestSubmit();
+  })()`);
+  await until(() => evaluate(`performance.getEntriesByType('resource').some(({name}) => {
+    if (!name.includes('/api/runs?')) return false;
+    const {searchParams: q} = new URL(name);
+    return q.get('symbol') === 'BTCUSDT' && q.get('strategy') === 'ema-trend'
+      && q.get('date_from') === '2026-11-01' && q.get('fee_rate') === '0.001'
+      && q.get('evidence_stage') === 'UNKNOWN' && q.get('offset') === '0';
+  })`), 'saved run filters submit to the real catalog endpoint');
+  await evaluate(`(() => {
+    const form = document.querySelector("#run-filter-form");
+    form.reset();
+    form.requestSubmit();
+  })()`);
   await evaluate('document.querySelector("#tab-compare").click()');
   await until(() => evaluate('!document.querySelector("#comparison-fields").disabled'), 'research catalog');
   await evaluate(`(() => {
@@ -212,6 +330,127 @@ function stop(child) {
   assert.equal(comparison.runs[0].inputs.snapshots, comparison.runs[1].inputs.snapshots);
   await until(() => evaluate('document.querySelector("#compare-result").textContent.includes("ema-trend")'), 'rendered paper result');
   await screenshot('research-desktop.png');
+  await evaluate('document.querySelector("#tab-workbench").click()');
+  await until(() => evaluate(`!document.querySelector('#panel-workbench').hidden &&
+    document.querySelector('#portfolio-load')?.disabled === false`), 'mounted portfolio workbench');
+  await evaluate('document.querySelector("#portfolio-load").click()');
+  await until(() => evaluate('!document.querySelector("#portfolio-fields").disabled'), 'whole-market workbench setup');
+  assert(await evaluate(`document.querySelector('#portfolio-universe').value === 'whole' &&
+    document.querySelector('#portfolio-symbol-options').hidden && !document.querySelector('#portfolio-mixed-cash').hidden`));
+  assert(await evaluate(`document.querySelector('#portfolio-parameter-exit_venue_stop')?.max === '3' &&
+    document.querySelector('#portfolio-parameter-exit_stop_limit_offset_bps')?.labels[0].textContent.includes('Stop-limit offset')`));
+  await evaluate(`(() => {
+    document.querySelector('#portfolio-from').value = '${fixtureStart.toISOString().slice(0, 19)}';
+    document.querySelector('#portfolio-to').value = '${fixtureEnd.toISOString().slice(0, 19)}';
+    document.querySelector('#portfolio-resolution').value = '1min';
+    document.querySelector('#portfolio-rank-method').value = 'momentum';
+    document.querySelector('#portfolio-mixed-cap').value = '0.125';
+    document.querySelector('#portfolio-mixed-buffer').value = '0.2';
+    const fetchComparison = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await fetchComparison(...args);
+      if (String(args[0]).includes('/api/research/action') && !response.ok)
+        window.__portfolioError = (await response.clone().json()).error;
+      return response;
+    };
+    document.querySelector('#portfolio-submit').click();
+  })()`);
+  const portfolioDisplay = await until(() => evaluate(`window.__portfolioError ||
+    document.querySelector('#portfolio-result').textContent.includes('Historical catalogue coverage')`),
+  'rendered whole-market portfolio', 60000);
+  assert.equal(portfolioDisplay, true, String(portfolioDisplay));
+  assert.equal(await evaluate('document.querySelector("#portfolio-receipt-json").textContent'), '');
+  await evaluate('document.querySelector("#portfolio-receipt").open = true');
+  const portfolioReceipt = await until(() => evaluate(`(() => {
+    const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
+    return raw ? JSON.parse(raw) : null;
+  })()`), 'verified whole-market receipt');
+  const portfolioInputs = portfolioReceipt.inputs;
+  assert.equal(portfolioInputs.universe_selection.schema, 'whole-spot-universe/1');
+  assert.equal(portfolioInputs.rank_gate.method, 'momentum');
+  assert.deepEqual(portfolioInputs.policy, {max_weight: '0.125', cash_buffer: '0.2'});
+  assert.equal(portfolioInputs.symbols.length, 5);
+  assertPortfolioEntryPoints(portfolioReceipt);
+  await evaluate(`(() => {
+    const action = document.querySelector('#research-action');
+    action.value = 'watchlist-save';
+    action.dispatchEvent(new Event('change'));
+    document.querySelector('#research-action-input').value = JSON.stringify({
+      name: 'Browser watchlist', effective_from: '${fixtureStart.toISOString()}', symbols: ['BTCUSDT', 'ETHTMN']
+    });
+    document.querySelector('#research-action-form button').click();
+  })()`);
+  const watchlistId = await until(() => evaluate(`
+    JSON.parse(document.querySelector('#research-action-result').textContent || '{}').watchlist?.watchlist_id
+  `), 'saved watchlist revision');
+  await evaluate(`
+    document.querySelector('#portfolio-receipt').open = false;
+    document.querySelector('#portfolio-universe').value = 'watchlist';
+    document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
+    document.querySelector('#portfolio-watchlist').value = '${watchlistId}';
+    document.querySelector('#portfolio-submit').click();
+  `);
+  await until(() => evaluate(`document.querySelector('#portfolio-result').textContent.includes('${watchlistId}')`), 'rendered watchlist replay', 60000);
+  await evaluate('document.querySelector("#portfolio-receipt").open = true');
+  const watchedReceipt = await until(() => evaluate(`(() => {
+    const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
+    if (!raw) return null;
+    const receipt = JSON.parse(raw);
+    return receipt.inputs.universe_selection.watchlist?.watchlist_id === '${watchlistId}' ? receipt : null;
+  })()`), 'verified watchlist receipt');
+  assertPortfolioEntryPoints(watchedReceipt);
+  await evaluate(`(() => {
+    const action = document.querySelector('#research-action');
+    action.value = 'watchlist-save';
+    action.dispatchEvent(new Event('change'));
+    document.querySelector('#research-action-input').value = JSON.stringify({
+      name: 'Exposure fixture', effective_from: '${fixtureStart.toISOString()}', symbols: ['BTCUSDT', 'ETHUSDT']
+    });
+    document.querySelector('#research-action-form button').click();
+  })()`);
+  const exposureWatchlist = await until(() => evaluate(`(() => {
+    const watchlist = JSON.parse(document.querySelector('#research-action-result').textContent || '{}').watchlist;
+    return watchlist?.name === 'Exposure fixture' ? watchlist.watchlist_id : null;
+  })()`), 'saved exposure watchlist');
+  await evaluate(`
+    document.querySelector('#portfolio-receipt').open = false;
+    document.querySelector('#portfolio-universe').value = 'watchlist-single';
+    document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
+    document.querySelector('#portfolio-watchlist').value = '${exposureWatchlist}';
+    document.querySelector('#portfolio-rank-method').value = 'off';
+    document.querySelector('#portfolio-cap').value = '0.125';
+    document.querySelector('#portfolio-buffer').value = '0.2';
+    document.querySelector('#portfolio-submit').click();
+  `);
+  await until(() => evaluate(`document.querySelector('#portfolio-result').textContent.includes('${exposureWatchlist}')`),
+    'rendered exposure watchlist replay', 60000);
+  await evaluate('document.querySelector("#portfolio-receipt").open = true');
+  const exposureReceipt = await until(() => evaluate(`(() => {
+    const raw = document.querySelector('#portfolio-receipt-json')?.textContent;
+    if (!raw) return null;
+    const receipt = JSON.parse(raw);
+    return receipt.inputs.universe_selection.watchlist?.watchlist_id === '${exposureWatchlist}' ? receipt : null;
+  })()`), 'verified exposure receipt');
+  assert.equal(exposureReceipt.inputs.policy.max_weight, '0.125');
+  assert.equal(exposureReceipt.inputs.policy.cash_buffer, '0.2');
+  assertPortfolioEntryPoints(exposureReceipt);
+  await evaluate(`document.querySelector("#portfolio-receipt").open = false;
+    document.querySelector('#portfolio-universe').value = 'curated';
+    document.querySelector('#portfolio-universe').dispatchEvent(new Event('change'));
+    document.querySelector('#language-toggle').click();`);
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert(await evaluate(`document.documentElement.dir === 'rtl' &&
+    document.querySelector('#portfolio-universe').value === 'curated' &&
+    document.querySelector('#portfolio-symbols').required &&
+    document.querySelector('#portfolio-parameter-exit_stop_limit_offset_bps')?.labels[0].textContent.includes('سفارش محدود') &&
+    document.querySelector('.nav a[aria-current="page"]').getBoundingClientRect().height <= 64 &&
+    document.documentElement.scrollWidth <= innerWidth + 1`));
+  if (process.env.GYM_SCREENSHOTS === '1') {
+    await evaluate('document.querySelector("#portfolio-workbench").scrollIntoView()');
+    await screenshot('portfolio-whole-mobile-fa.png');
+  }
+  await send('Emulation.clearDeviceMetricsOverride');
+  await evaluate('document.querySelector("#language-toggle").click()');
   await evaluate(`location.hash = '#research/runs/${comparison.runs[0].run_id}'`);
   const benchmark = await until(() => evaluate(`(() => {
     const chart = document.querySelector('#run-detail .run-benchmark');
@@ -223,6 +462,24 @@ function stop(child) {
   })()`), 'saved demo run benchmark');
   assert.deepEqual(benchmark.zeros, ['50', '50']);
   assert.equal(Number(benchmark.cash), 0);
+  assert.ok(await evaluate(`(() => {
+    const placed = '2026-11-21T10:00:00.000000Z';
+    const receipt = {ref: 'BTCUSDT#1', maker: true, placed_at: placed, status: 'FILLED', queue_ahead: '3',
+      limit_prints_considered: 2, suspected_identical_prints: 1, identical_print_capacity_qty: '0.2', qty: '0.5'};
+    renderRun({...state.record, result: {...state.record.result, orders: [receipt,
+      {ref: 'BTCUSDT#1.1', parent: 'BTCUSDT#1', placed_at: placed, status: 'CANCELLED', remaining_qty: '0.8'}]}});
+    const timeline = document.querySelector('[data-key="maker-timeline"]');
+    const passed = timeline.querySelectorAll('tbody tr').length === 2
+      && timeline.textContent.includes('BTCUSDT#1 → BTCUSDT#1.1')
+      && timeline.textContent.includes('0.2') && timeline.textContent.includes(t('unknown'));
+    const filter = timeline.querySelector('[data-maker-status]');
+    filter.value = 'CANCELLED';
+    filter.dispatchEvent(new Event('change', {bubbles: true}));
+    const filtered = document.querySelectorAll('[data-key="maker-timeline"] tbody tr');
+    const matched = filtered.length === 1 && filtered[0].textContent.includes('BTCUSDT#1.1');
+    renderRun(state.record);
+    return passed && matched;
+  })()`), 'maker timeline retains partial, duplicate and unknown evidence');
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-desktop-en.png');
   await evaluate(`(() => {
     const summary = document.querySelector('[data-key="run-benchmarks"] summary');
@@ -238,8 +495,11 @@ function stop(child) {
   assert.ok(await evaluate(`document.documentElement.dir === 'rtl' && document.documentElement.scrollWidth <= innerWidth + 1 &&
     document.querySelector('[data-key="run-benchmarks"] summary').getBoundingClientRect().height >= 44`));
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-mobile-fa-dark.png');
-  await evaluate(`renderRun({ ...state.record, baselines: {} }); document.querySelector('[data-key="run-benchmarks"]').closest('section').scrollIntoView()`);
-  assert.ok(await evaluate(`!document.querySelector('.run-benchmark') && document.querySelector('#run-detail').textContent.includes(t('baselineMissing'))`));
+  assert.ok(await evaluate(`(() => {
+    renderRun({ ...state.record, baselines: {} });
+    document.querySelector('[data-key="run-benchmarks"]').closest('section').scrollIntoView();
+    return !document.querySelector('.run-benchmark') && document.querySelector('#run-detail').textContent.includes(t('baselineMissing'));
+  })()`));
   if (process.env.GYM_SCREENSHOTS === '1') await screenshot('run-benchmark-unavailable-fa.png');
   await send('Emulation.clearDeviceMetricsOverride');
   await evaluate(`document.querySelector('#language-toggle').click(); document.querySelector('#theme-toggle').click();

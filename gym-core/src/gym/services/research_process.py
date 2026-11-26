@@ -8,10 +8,15 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import closing
 from pathlib import Path
 
+from ..adapters.run_store import load_verified_run, run_path
 from ..adapters.wallex_account_read import ReadUncertain, parse_account_json
 from ..domain.market_models import fields
+from ..domain.model import iso, now_utc, parse_ts
+from .actions.catalog import HEAVY_ACTIONS
+from .research_ledger import MULTICURRENCY_WORKER_SECONDS
 
 DEADLINE_SECONDS = 120
 MAX_DEADLINE_SECONDS = 600
@@ -20,10 +25,6 @@ SECONDS_PER_OBSERVATION = 0.0004
 DEADLINE_HEADROOM = 2.5
 DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing
 MAX_OUTPUT = 2 * 1024 * 1024
-HEAVY_ACTIONS = frozenset(("premium-research", "lead-lag-research", "twap-preview", "stop-preview", "credit-packages", "credit-replay", "execution-choice-preview", "adaptive-twap-preview", "postfill-check", "shadow-drift-screen", "prospective-evaluate", "experiment-scorecard", "fractional-sizing", "campaign-status", "tick", "job-catch-up", "experiment-run", "walk-forward", "execution-calibration", "robustness", "strategy-audit", "return-bootstrap",
-                           "replay-checkpoint", "replay-resume", "final-run", "comparison", "validation",
-                           "margin-markets", "margin-preview", "margin-replay", "margin-pairs-replay", "combine-oos", "strategy-retirement-screen", "portfolio-replay",
-                           "execution-model-calibrate"))
 
 
 class ResearchProcessFailure(RuntimeError):
@@ -42,8 +43,9 @@ def work_estimate(root, value) -> int | None:
         return None
     symbols = value.get("symbols") or ([value["symbol"]] if isinstance(value.get("symbol"), str) else None)
     start, end = value.get("from"), value.get("to")
+    venue = value.get("venue", "wallex")
     if not (isinstance(symbols, list) and 0 < len(symbols) <= 2000 and all(isinstance(s, str) for s in symbols)
-            and isinstance(start, str) and isinstance(end, str)):
+            and isinstance(start, str) and isinstance(end, str) and isinstance(venue, str) and len(venue) <= 32):
         return None
     path = Path(root) / "market.db"
     if not path.is_file():
@@ -54,7 +56,7 @@ def work_estimate(root, value) -> int | None:
             marks = ",".join("?" for _ in symbols)
             return conn.execute(f"SELECT count(*) FROM (SELECT 1 FROM book_top WHERE instrument_id IN ({marks}) "
                                 "AND ts_avail>=? AND ts_avail<? LIMIT 5000000)",
-                                (*(f"wallex:{s}" for s in symbols), start, end)).fetchone()[0]
+                                (*(f"{venue}:{s}" for s in symbols), start, end)).fetchone()[0]
         finally:
             conn.close()
     except sqlite3.Error:
@@ -67,6 +69,49 @@ def deadline_for(observations: int | None) -> float:
         return DEADLINE_SECONDS
     return float(min(MAX_DEADLINE_SECONDS,
                      max(DEADLINE_SECONDS, observations * SECONDS_PER_OBSERVATION * DEADLINE_HEADROOM)))
+
+
+def _tick_deadline(root, at):
+    path = Path(root) / "research.sqlite3"
+    if not path.is_file():
+        return MAX_DEADLINE_SECONDS
+    cutoff = iso(parse_ts(at) if at is not None else now_utc())
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+            mixed = db.execute("SELECT 1 FROM jobs WHERE enabled=1 AND next_at<=? "
+                               "AND json_type(body,'$.cash_by_currency')='object' LIMIT 1", (cutoff,)).fetchone()
+    except sqlite3.Error:
+        return MAX_DEADLINE_SECONDS
+    return MULTICURRENCY_WORKER_SECONDS if mixed else MAX_DEADLINE_SECONDS
+
+
+def _long_portfolio_request(root, action, value, store):
+    if type(value) is not dict:
+        return False
+    if action == "portfolio-replay":
+        return type(value.get("cash_by_currency")) is dict
+    root = Path(root)
+    try:
+        if action == "replay-checkpoint":
+            run_id = value.get("run_id")
+            if run_path(root / "runs", run_id).exists():
+                return False
+        elif action == "replay-resume" and type(value.get("checkpoint_id")) is str and len(value["checkpoint_id"]) == 64:
+            uri = (root / "experiments.sqlite3").resolve().as_uri()
+            with closing(sqlite3.connect(uri + "?mode=ro", uri=True, timeout=5)) as db:
+                row = db.execute("SELECT json_extract(body,'$.run_id') FROM events WHERE id=? "
+                                 "AND kind='PORTFOLIO_CHECKPOINT' AND json_extract(body,'$.store')=?",
+                                 (value["checkpoint_id"], store)).fetchone()
+            if not row:
+                return False
+            run_id = row[0]
+        else:
+            return False
+        run = load_verified_run(root / "runs" / "portfolios", run_id, store=store)
+        return type(run["inputs"].get("cash_by_currency")) is dict
+    except (ValueError, OSError, sqlite3.Error, TypeError):
+        # Let the worker report the actual validation failure under the ordinary bound.
+        return False
 
 
 def _checked_result(raw):
@@ -92,12 +137,17 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
     """Execute an allowlisted bounded research request in an isolated child."""
     if action not in HEAVY_ACTIONS or store not in ("live", "demo"):
         raise ValueError("unsupported supervised paper calculation")
+    mixed_portfolio = (action in ("portfolio-replay", "replay-checkpoint", "replay-resume")
+                       and await asyncio.to_thread(_long_portfolio_request, root, action, value, store))
+    maximum = (await asyncio.to_thread(_tick_deadline, root, at) if action == "tick"
+               else MULTICURRENCY_WORKER_SECONDS if mixed_portfolio else MAX_DEADLINE_SECONDS)
     if timeout_seconds is None:
-        # A tick replays one scheduled job; its window is in the ledger, so allow the longest deadline.
-        timeout_seconds = MAX_DEADLINE_SECONDS if action == "tick" else deadline_for(await asyncio.to_thread(work_estimate, root, value))
+        # Whole-universe portfolios may omit symbols, so the symbol-based estimate can't size their deadline.
+        timeout_seconds = (maximum if action == "tick" or mixed_portfolio
+                           else deadline_for(await asyncio.to_thread(work_estimate, root, value)))
     if at is not None and action != "tick":
         raise ValueError("only scheduled ticks accept an explicit clock")
-    if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= 600:
+    if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or not 0 < timeout_seconds <= maximum:
         raise ValueError("invalid calculation deadline")
     payload = json.dumps({"root": str(Path(root).resolve()), "action": action, "value": value,
                           "store": store, "at": at}, allow_nan=False).encode()

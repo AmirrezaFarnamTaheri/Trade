@@ -4,7 +4,12 @@ for (const id of ["market-quality", "market-sort"]) {
   select.value = saved(id, select.value, [...select.options].map(option => option.value));
   select.addEventListener("change", () => { remember(id, select.value); renderMarkets(); });
 }
-const venueProducts = venue => venue ? [venue.spot && 'SPOT', venue.margin && `MARGIN ≤${venue.max_leverage}×`, venue.otc && 'OTC', venue.zero_fee && 'ZERO_FEE'].filter(Boolean).map(code).join(' · ') : code('UNKNOWN');
+const venueProducts = venue => {
+  if (!venue) return code('UNKNOWN');
+  const margin = venue.max_leverage == null ? 'MARGIN' : `MARGIN ≤${venue.max_leverage}×`;
+  return [venue.spot === true && 'SPOT', venue.margin === true && margin,
+    venue.otc === true && 'OTC', venue.zero_fee === true && 'ZERO_FEE'].filter(Boolean).map(code).join(' · ') || code('UNKNOWN');
+};
 $("products-refresh").onclick = async event => {
   const button = event.target; button.disabled = true;
   setHTML("product-capabilities", empty(t("loading")));
@@ -28,9 +33,96 @@ $("quote-filter").addEventListener("click", event => {
   const button = event.target.closest?.("[data-quote]") || event.target;
   if (button.dataset.quote !== undefined) { state.quote = button.dataset.quote; renderMarkets(); }
 });
-$("market-rows").addEventListener("click", event => {
+$("market-rows").addEventListener("click", async event => {
+  const qualBtn = event.target.closest?.("[data-quality-symbol]");
+  if (qualBtn?.dataset.qualitySymbol) {
+    const sym = qualBtn.dataset.qualitySymbol;
+    const targetId = `quality-calendar-${sym}`;
+    qualBtn.disabled = true;
+    setHTML(targetId, empty(t("loading")));
+    try {
+      const [data, preflight, liq] = await Promise.all([
+        api(`/api/quality-calendar?symbol=${encodeURIComponent(sym)}&days=14`),
+        api(`/api/preflight?symbol=${encodeURIComponent(sym)}&days=14`),
+        api(`/api/liquidity-profile?symbol=${encodeURIComponent(sym)}&days=14`),
+      ]);
+      const cal = data.calendar || {}, vintages = data.rule_vintages || {};
+      const activeHours = list(liq.hours).filter(h => h.samples > 0);
+      setHTML(targetId, `<h4>${esc(t("qualityCalendarTitle"))}</h4>${keyValues([
+        [t("freshnessState"), label(cal.freshness_status || "UNKNOWN")],
+        [t("ruleVintages"), num(vintages.vintage_count ?? 0)],
+        [t("preflightStatus"), label(preflight.status || "UNKNOWN")],
+      ])}${table([t("time"), t("completenessCol"), t("observedPairs"), t("attributionTrades")], list(cal.calendar).slice(-7).reverse().map(row => [
+        code(row.date), label(row.completeness_status), num(row.quotes), num(row.trades),
+      ]), t("nothing"))}<h4>${esc(t("liquidityTodTitle"))}</h4>${table([t("tehranHour"), t("sampleCount"), t("medianSpreadBps"), t("status")], activeHours.slice(0, 8).map(h => [
+        code(String(h.tehran_hour).padStart(2, "0") + ":00"), num(h.samples), h.median_spread_bps == null ? esc(t("unknown")) : num(h.median_spread_bps), label(h.status),
+      ]), t("nothing"))}`);
+    } catch (_) { setHTML(targetId, empty(t("requestError"))); }
+    finally { qualBtn.disabled = false; }
+    return;
+  }
   const button = event.target.closest?.("[data-market]") || event.target;
   if (!button.dataset.market) return;
   state.expanded = state.expanded === button.dataset.market ? "" : button.dataset.market;
   renderMarkets();
+});
+$("fx-route-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const btn = $("fx-route-submit");
+  const direction = $("fx-route-direction").value;
+  const amountText = $("fx-route-amount").value.trim();
+  btn.disabled = true;
+  setHTML("fx-route-output", empty(t("loading")));
+  try {
+    const data = await api(`/api/fx-route?direction=${encodeURIComponent(direction)}&amount=${encodeURIComponent(amountText)}`);
+    const routes = list(data.routes);
+    const best = routes[0], direct = data.direct_route ?? routes.find(row => row.legs === 1);
+    const output = data.direction === "USDT_TO_TMN" ? "TMN" : "USDT";
+    const input = output === "TMN" ? "USDT" : "TMN";
+    const withUnit = (value, unit) => `${amount(value)} ${code(unit)}`;
+    const priced = row => row && row.fits_displayed_size !== false;
+    const displayed = direct && !routes.some(row => row.route === direct.route) ? [...routes, direct] : routes;
+    setHTML("fx-route-output", keyValues([
+      [t("status"), label(priced(best) ? "AVAILABLE" : "UNAVAILABLE")],
+      [t("fxCheapestRoute"), priced(best) ? code(best.route) : esc(t("unavailable"))],
+      [t("fxDirectRoute"), priced(direct) ? withUnit(direct.received, output) : esc(t("unavailable"))],
+      [t("fxSavingBps"), data.saving_vs_direct_bps != null ? num(data.saving_vs_direct_bps) : esc(t("none"))],
+      [t("fxFeePerLeg"), data.fee_per_leg != null ? num(Number(data.fee_per_leg) * 100) + "%" : esc(t("unknown"))],
+      [t("depthScope"), label(data.depth_scope || "UNKNOWN")],
+      [t("fxMaxQuoteAge"), data.max_quote_age_seconds != null ? num(data.max_quote_age_seconds) : esc(t("unknown"))],
+    ]) + table([t("fxConversionRoute"), t("fxRouteCapacity"), t("fxRouteProceeds"), t("fxLegEvidence")],
+      displayed.map(row => [
+        code(row.route),
+        row.capacity == null ? esc(t("unknown")) : withUnit(row.capacity, input),
+        priced(row) ? withUnit(row.received, output) : esc(t("unavailable")),
+        list(row.leg_details).map(leg => keyValues([
+          [leg.symbol, label(leg.side)],
+          [t("fxBidAsk"), `${amount(leg.bid)} / ${withUnit(leg.ask, leg.symbol.endsWith("TMN") ? "TMN" : "USDT")}`],
+          [t("fxDisplayedBase"), withUnit(leg.displayed_base_quantity, leg.symbol.replace(/(?:TMN|USDT)$/, ""))],
+          [t("spreadBps"), num(leg.spread_bps)],
+          [t("fxQuoteReceived"), code(leg.quote_at)],
+        ])).join("") || esc(t("unknown")),
+      ]), t("nothing")));
+  } catch (_) { setHTML("fx-route-output", empty(t("requestError"))); }
+  finally { btn.disabled = false; }
+});
+$("size-preview-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const btn = $("size-preview-submit");
+  const sym = $("size-preview-symbol").value.trim().toUpperCase();
+  const side = $("size-preview-side").value;
+  const qty = $("size-preview-qty").value.trim();
+  btn.disabled = true;
+  setHTML("size-preview-output", empty(t("loading")));
+  try {
+    const data = await api(`/api/size-preview?symbol=${encodeURIComponent(sym)}&side=${encodeURIComponent(side)}&qty=${encodeURIComponent(qty)}`);
+    setHTML("size-preview-output", keyValues([
+      [t("status"), label(data.status || "UNKNOWN")],
+      [t("depthScope"), label(data.depth_scope || "UNKNOWN")],
+      [t("filledQty"), amount(data.filled_qty)],
+      [t("residualQty"), amount(data.residual_qty)],
+      [t("vwapPrice"), data.vwap ? amount(data.vwap) : esc(t("unavailable"))],
+    ]));
+  } catch (_) { setHTML("size-preview-output", empty(t("requestError"))); }
+  finally { btn.disabled = false; }
 });

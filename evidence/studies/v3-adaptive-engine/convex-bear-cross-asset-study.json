@@ -1,0 +1,464 @@
+{
+  "generated_at": "2026-11-25T17:09:24.252765+00:00",
+  "executor_state": "DISARMED",
+  "northstar_targets_pct": {
+    "1d": 3.0,
+    "3d": 5.0,
+    "7d": 15.0
+  },
+  "standalone_cta_bear_benchmarks": [
+    {
+      "label": "CTA_VOLTGT65_M4_XAUT_TAKER",
+      "ret_24h_pct": 4.53,
+      "ret_72h_pct": 6.09,
+      "ret_7d_pct": 15.22,
+      "hit_3_5_15": true,
+      "ending_nav": 1787.15,
+      "full_ret_pct": 78.7,
+      "stress_ret_pct": 56.43,
+      "ann_sharpe": 0.809,
+      "max_dd_pct": 27.44,
+      "liqs": 0,
+      "stops": 8,
+      "fills": 272,
+      "fees_usdt": 147.06,
+      "borrow_usdt": 189.59,
+      "pool_yield_usdt": 73.52,
+      "year_rets": {
+        "2024": -0.25,
+        "2025": 8.63,
+        "2026": 65.69
+      }
+    },
+    {
+      "label": "CTA_VOLTGT80_M4_XAUT_TAKER",
+      "ret_24h_pct": 5.65,
+      "ret_72h_pct": 7.56,
+      "ret_7d_pct": 18.9,
+      "hit_3_5_15": true,
+      "ending_nav": 1909.79,
+      "full_ret_pct": 90.96,
+      "stress_ret_pct": 65.88,
+      "ann_sharpe": 0.78,
+      "max_dd_pct": 33.49,
+      "liqs": 0,
+      "stops": 10,
+      "fills": 295,
+      "fees_usdt": 187.85,
+      "borrow_usdt": 231.24,
+      "pool_yield_usdt": 70.97,
+      "year_rets": {
+        "2024": -0.92,
+        "2025": 8.43,
+        "2026": 78.82
+      }
+    },
+    {
+      "label": "CTA_VOLTGT80_M4_XAUT_MAKER",
+      "ret_24h_pct": 5.64,
+      "ret_72h_pct": 7.54,
+      "ret_7d_pct": 18.9,
+      "hit_3_5_15": true,
+      "ending_nav": 2046.24,
+      "full_ret_pct": 104.61,
+      "stress_ret_pct": 74.37,
+      "ann_sharpe": 0.845,
+      "max_dd_pct": 32.63,
+      "liqs": 0,
+      "stops": 10,
+      "fills": 293,
+      "fees_usdt": 104.69,
+      "borrow_usdt": 240.59,
+      "pool_yield_usdt": 72.27,
+      "year_rets": {
+        "2024": -0.83,
+        "2025": 11.24,
+        "2026": 86.55
+      }
+    },
+    {
+      "label": "CTA_VOLTGT80_KAUFMAN_DAILY_TAKER",
+      "ret_24h_pct": 5.86,
+      "ret_72h_pct": 7.92,
+      "ret_7d_pct": 20.16,
+      "hit_3_5_15": true,
+      "ending_nav": 1909.21,
+      "full_ret_pct": 90.91,
+      "stress_ret_pct": 82.06,
+      "ann_sharpe": 0.769,
+      "max_dd_pct": 28.99,
+      "liqs": 0,
+      "stops": 11,
+      "fills": 369,
+      "fees_usdt": 195.5,
+      "borrow_usdt": 201.53,
+      "pool_yield_usdt": 69.3,
+      "year_rets": {
+        "2024": -0.62,
+        "2025": -3.96,
+        "2026": 101.44
+      }
+    },
+    {
+      "label": "CTA_VOLTGT80_KAUFMAN_DAILY_MAKER",
+      "ret_24h_pct": 5.85,
+      "ret_72h_pct": 7.9,
+      "ret_7d_pct": 20.17,
+      "hit_3_5_15": true,
+      "ending_nav": 2068.46,
+      "full_ret_pct": 106.83,
+      "stress_ret_pct": 92.89,
+      "ann_sharpe": 0.842,
+      "max_dd_pct": 28.0,
+      "liqs": 0,
+      "stops": 11,
+      "fills": 368,
+      "fees_usdt": 109.1,
+      "borrow_usdt": 211.88,
+      "pool_yield_usdt": 70.81,
+      "year_rets": {
+        "2024": -0.46,
+        "2025": -1.02,
+        "2026": 111.44
+      }
+    },
+    {
+      "label": "SYNTHESIS_VOL_ER_4H_BR35_TAKER",
+      "ret_24h_pct": 5.96,
+      "ret_72h_pct": 6.33,
+      "ret_7d_pct": 20.95,
+      "hit_3_5_15": true,
+      "ending_nav": 1869.42,
+      "full_ret_pct": 86.93,
+      "stress_ret_pct": 98.06,
+      "ann_sharpe": 0.784,
+      "max_dd_pct": 36.8,
+      "liqs": 0,
+      "stops": 16,
+      "fills": 674,
+      "fees_usdt": 271.31,
+      "borrow_usdt": 161.73,
+      "pool_yield_usdt": 68.99,
+      "year_rets": {
+        "2024": -1.06,
+        "2025": -14.4,
+        "2026": 122.36
+      }
+    },
+    {
+      "label": "SYNTHESIS_VOL_ER_4H_BR35_MAKER",
+      "ret_24h_pct": 5.95,
+      "ret_72h_pct": 6.55,
+      "ret_7d_pct": 21.47,
+      "hit_3_5_15": true,
+      "ending_nav": 2085.31,
+      "full_ret_pct": 108.52,
+      "stress_ret_pct": 114.03,
+      "ann_sharpe": 0.894,
+      "max_dd_pct": 33.96,
+      "liqs": 0,
+      "stops": 16,
+      "fills": 678,
+      "fees_usdt": 154.56,
+      "borrow_usdt": 173.32,
+      "pool_yield_usdt": 71.02,
+      "year_rets": {
+        "2024": -0.89,
+        "2025": -11.07,
+        "2026": 138.19
+      }
+    }
+  ],
+  "unified_main_engine_absorption": [
+    {
+      "label": "MAIN_E3_V2_STANDALONE",
+      "ret_24h_pct": 0.01,
+      "ret_72h_pct": -0.27,
+      "ret_7d_pct": -0.25,
+      "hit_3_5_15": false,
+      "ending_nav": 1553.5,
+      "full_ret_pct": 55.34,
+      "stress_ret_pct": 4.15,
+      "ann_sharpe": 0.937,
+      "max_dd_pct": 10.97,
+      "liqs": 0,
+      "stops": 61.5,
+      "bear_fills": 0.0,
+      "fees_usdt": 201.68,
+      "borrow_usdt": 6.09,
+      "pool_yield_usdt": 70.53,
+      "year_rets": {
+        "2024": 9.64,
+        "2025": 35.44,
+        "2026": 3.02
+      },
+      "vs_e3v2_bps": 0.0,
+      "vs_e3v2_ci95_bps": [
+        0.0,
+        0.0
+      ],
+      "vs_v2_bps": 1.94
+    },
+    {
+      "label": "E3_V2_PLUS_BEAR50_PREV_CHAMP",
+      "ret_24h_pct": 0.88,
+      "ret_72h_pct": 1.37,
+      "ret_7d_pct": 2.88,
+      "hit_3_5_15": false,
+      "ending_nav": 1853.71,
+      "full_ret_pct": 85.36,
+      "stress_ret_pct": 20.6,
+      "ann_sharpe": 1.106,
+      "max_dd_pct": 15.11,
+      "liqs": 0,
+      "stops": 61.5,
+      "bear_fills": 116.0,
+      "fees_usdt": 234.84,
+      "borrow_usdt": 92.0,
+      "pool_yield_usdt": 65.56,
+      "year_rets": {
+        "2024": 7.87,
+        "2025": 41.1,
+        "2026": 20.3
+      },
+      "vs_e3v2_bps": 1.8,
+      "vs_e3v2_ci95_bps": [
+        -1.2,
+        5.66
+      ],
+      "vs_v2_bps": 3.75
+    },
+    {
+      "label": "E3_V2_PLUS_CTA_VOLTGT65_M4_XAUT",
+      "ret_24h_pct": 3.97,
+      "ret_72h_pct": 6.04,
+      "ret_7d_pct": 14.44,
+      "hit_3_5_15": false,
+      "ending_nav": 2178.26,
+      "full_ret_pct": 117.81,
+      "stress_ret_pct": 50.52,
+      "ann_sharpe": 0.966,
+      "max_dd_pct": 27.89,
+      "liqs": 1,
+      "stops": 71.0,
+      "bear_fills": 268.0,
+      "fees_usdt": 324.64,
+      "borrow_usdt": 228.56,
+      "pool_yield_usdt": 58.1,
+      "year_rets": {
+        "2024": 6.63,
+        "2025": 29.67,
+        "2026": 56.24
+      },
+      "vs_e3v2_bps": 4.16,
+      "vs_e3v2_ci95_bps": [
+        -4.08,
+        13.66
+      ],
+      "vs_v2_bps": 6.1
+    },
+    {
+      "label": "E3_V2_PLUS_CTA_VOLTGT80_M4_XAUT",
+      "ret_24h_pct": 4.91,
+      "ret_72h_pct": 7.83,
+      "ret_7d_pct": 18.12,
+      "hit_3_5_15": true,
+      "ending_nav": 2424.64,
+      "full_ret_pct": 142.45,
+      "stress_ret_pct": 54.15,
+      "ann_sharpe": 0.996,
+      "max_dd_pct": 30.79,
+      "liqs": 0,
+      "stops": 65.5,
+      "bear_fills": 287.0,
+      "fees_usdt": 370.99,
+      "borrow_usdt": 289.01,
+      "pool_yield_usdt": 57.04,
+      "year_rets": {
+        "2024": 5.94,
+        "2025": 41.48,
+        "2026": 60.7
+      },
+      "vs_e3v2_bps": 5.51,
+      "vs_e3v2_ci95_bps": [
+        -4.29,
+        16.79
+      ],
+      "vs_v2_bps": 7.46
+    },
+    {
+      "label": "E3_V2_PLUS_CTA_VOLTGT80_KAUFMAN",
+      "ret_24h_pct": 5.05,
+      "ret_72h_pct": 8.08,
+      "ret_7d_pct": 18.98,
+      "hit_3_5_15": true,
+      "ending_nav": 2015.03,
+      "full_ret_pct": 101.49,
+      "stress_ret_pct": 54.68,
+      "ann_sharpe": 0.831,
+      "max_dd_pct": 26.74,
+      "liqs": 1,
+      "stops": 69.0,
+      "bear_fills": 344.5,
+      "fees_usdt": 311.18,
+      "borrow_usdt": 213.91,
+      "pool_yield_usdt": 53.27,
+      "year_rets": {
+        "2024": 6.36,
+        "2025": 11.12,
+        "2026": 69.47
+      },
+      "vs_e3v2_bps": 3.78,
+      "vs_e3v2_ci95_bps": [
+        -6.87,
+        15.26
+      ],
+      "vs_v2_bps": 5.72
+    },
+    {
+      "label": "E3_V2_PLUS_CTA_VOLTGT80_KAUFMAN_MK",
+      "ret_24h_pct": 5.04,
+      "ret_72h_pct": 8.07,
+      "ret_7d_pct": 18.98,
+      "hit_3_5_15": true,
+      "ending_nav": 2157.4,
+      "full_ret_pct": 115.72,
+      "stress_ret_pct": 63.44,
+      "ann_sharpe": 0.895,
+      "max_dd_pct": 25.49,
+      "liqs": 1,
+      "stops": 69.5,
+      "bear_fills": 344.5,
+      "fees_usdt": 227.53,
+      "borrow_usdt": 222.22,
+      "pool_yield_usdt": 54.02,
+      "year_rets": {
+        "2024": 6.52,
+        "2025": 13.13,
+        "2026": 77.85
+      },
+      "vs_e3v2_bps": 4.4,
+      "vs_e3v2_ci95_bps": [
+        -6.06,
+        15.82
+      ],
+      "vs_v2_bps": 6.35
+    },
+    {
+      "label": "E3_V2_PLUS_SYNTHESIS_VOL_ER_4H_TK",
+      "ret_24h_pct": 5.21,
+      "ret_72h_pct": 7.54,
+      "ret_7d_pct": 20.21,
+      "hit_3_5_15": true,
+      "ending_nav": 2018.9,
+      "full_ret_pct": 101.88,
+      "stress_ret_pct": 64.13,
+      "ann_sharpe": 0.858,
+      "max_dd_pct": 24.69,
+      "liqs": 1,
+      "stops": 71.5,
+      "bear_fills": 797.5,
+      "fees_usdt": 483.46,
+      "borrow_usdt": 182.69,
+      "pool_yield_usdt": 54.78,
+      "year_rets": {
+        "2024": 5.7,
+        "2025": 8.23,
+        "2026": 75.4
+      },
+      "vs_e3v2_bps": 3.62,
+      "vs_e3v2_ci95_bps": [
+        -6.74,
+        14.75
+      ],
+      "vs_v2_bps": 5.56
+    },
+    {
+      "label": "E3_V2_PLUS_SYNTHESIS_VOL_ER_4H_MK",
+      "ret_24h_pct": 5.2,
+      "ret_72h_pct": 7.92,
+      "ret_7d_pct": 21.05,
+      "hit_3_5_15": true,
+      "ending_nav": 2296.27,
+      "full_ret_pct": 129.61,
+      "stress_ret_pct": 81.82,
+      "ann_sharpe": 0.988,
+      "max_dd_pct": 23.6,
+      "liqs": 1,
+      "stops": 71.5,
+      "bear_fills": 795.0,
+      "fees_usdt": 333.44,
+      "borrow_usdt": 195.68,
+      "pool_yield_usdt": 56.2,
+      "year_rets": {
+        "2024": 5.91,
+        "2025": 11.61,
+        "2026": 92.96
+      },
+      "vs_e3v2_bps": 4.78,
+      "vs_e3v2_ci95_bps": [
+        -5.79,
+        15.98
+      ],
+      "vs_v2_bps": 6.73
+    }
+  ],
+  "best_sharpe_unified_arm": {
+    "label": "E3_V2_PLUS_BEAR50_PREV_CHAMP",
+    "ret_24h_pct": 0.88,
+    "ret_72h_pct": 1.37,
+    "ret_7d_pct": 2.88,
+    "hit_3_5_15": false,
+    "ending_nav": 1853.71,
+    "full_ret_pct": 85.36,
+    "stress_ret_pct": 20.6,
+    "ann_sharpe": 1.106,
+    "max_dd_pct": 15.11,
+    "liqs": 0,
+    "stops": 61.5,
+    "bear_fills": 116.0,
+    "fees_usdt": 234.84,
+    "borrow_usdt": 92.0,
+    "pool_yield_usdt": 65.56,
+    "year_rets": {
+      "2024": 7.87,
+      "2025": 41.1,
+      "2026": 20.3
+    },
+    "vs_e3v2_bps": 1.8,
+    "vs_e3v2_ci95_bps": [
+      -1.2,
+      5.66
+    ],
+    "vs_v2_bps": 3.75
+  },
+  "best_northstar_hit_unified_arm": {
+    "label": "E3_V2_PLUS_CTA_VOLTGT80_M4_XAUT",
+    "ret_24h_pct": 4.91,
+    "ret_72h_pct": 7.83,
+    "ret_7d_pct": 18.12,
+    "hit_3_5_15": true,
+    "ending_nav": 2424.64,
+    "full_ret_pct": 142.45,
+    "stress_ret_pct": 54.15,
+    "ann_sharpe": 0.996,
+    "max_dd_pct": 30.79,
+    "liqs": 0,
+    "stops": 65.5,
+    "bear_fills": 287.0,
+    "fees_usdt": 370.99,
+    "borrow_usdt": 289.01,
+    "pool_yield_usdt": 57.04,
+    "year_rets": {
+      "2024": 5.94,
+      "2025": 41.48,
+      "2026": 60.7
+    },
+    "vs_e3v2_bps": 5.51,
+    "vs_e3v2_ci95_bps": [
+      -4.29,
+      16.79
+    ],
+    "vs_v2_bps": 7.46
+  }
+}

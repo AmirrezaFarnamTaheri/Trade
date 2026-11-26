@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 
+from gym.services import conversion_route
 from gym.services.conversion_route import Touch, routes
 
 AT = "2026-11-18T10:00:00.000000Z"
@@ -34,3 +35,17 @@ def test_usdt_to_toman_reverses_the_legs_and_bad_requests_are_refused():
     assert direct["received"] == Decimal("990000")
     with pytest.raises(ValueError):
         routes(touches, Decimal("-1"), "USDT_TO_TMN", Decimal("0"))
+
+
+def test_preview_exposes_ordered_quote_evidence_and_refuses_savings_against_a_too_small_route(monkeypatch):
+    touches = {"USDTTMN": touch("99000", "100000", bid_qty="1"),
+               "BTCTMN": touch("9000000000", "9010000000"), "BTCUSDT": touch("91000", "91100")}
+    monkeypatch.setattr(conversion_route, "latest_touches", lambda *_: touches)
+    report = conversion_route.recommend(None, Decimal("10"), "USDT_TO_TMN", AT)
+    assert report["depth_scope"] == "TOP_OF_BOOK_ONLY"
+    assert report["max_quote_age_seconds"] == 120
+    assert report["saving_vs_direct_bps"] is None
+    assert not report["direct_route"]["fits_displayed_size"]
+    first, second = report["routes"][0]["leg_details"]
+    assert (first["symbol"], first["side"], second["symbol"], second["side"]) == ("BTCUSDT", "BUY", "BTCTMN", "SELL")
+    assert first["quote_at"] == AT and first["displayed_base_quantity"] == "1000000"

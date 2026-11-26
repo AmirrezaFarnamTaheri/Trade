@@ -1,0 +1,305 @@
+{
+  "generated_at": "2026-11-24T22:36:53.975074+00:00",
+  "arms": [
+    {
+      "label": "BASE_13_S1_S5_BENCHMARK",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2574.92,
+        "ret_pct": 157.52,
+        "ann_sharpe": 1.011,
+        "max_dd_pct": 22.38
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2574.92,
+        "ret_pct": -1.84,
+        "ann_sharpe": -0.088,
+        "max_dd_pct": 10.95
+      },
+      "fees_usdt": 72.18,
+      "turnover": 55.52,
+      "avg_exposure_pct": 0.0,
+      "uplift_vs_base_bps": 0.0,
+      "ci_vs_base_bps": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "label": "BENCH_ACCEL_BLEND_20",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2756.69,
+        "ret_pct": 175.7,
+        "ann_sharpe": 1.116,
+        "max_dd_pct": 22.86
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2756.69,
+        "ret_pct": 0.99,
+        "ann_sharpe": 0.141,
+        "max_dd_pct": 8.55
+      },
+      "fees_usdt": 84.83,
+      "turnover": 65.25,
+      "avg_exposure_pct": 32.6,
+      "uplift_vs_base_bps": 0.35,
+      "ci_vs_base_bps": [
+        -1.46,
+        2.32
+      ]
+    },
+    {
+      "label": "IDEA_1_PATH_EFF_IC",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2271.89,
+        "ret_pct": 127.19,
+        "ann_sharpe": 0.94,
+        "max_dd_pct": 24.06
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2271.89,
+        "ret_pct": -5.57,
+        "ann_sharpe": -0.423,
+        "max_dd_pct": 11.67
+      },
+      "fees_usdt": 162.01,
+      "turnover": 124.62,
+      "avg_exposure_pct": 27.1,
+      "uplift_vs_base_bps": -0.86,
+      "ci_vs_base_bps": [
+        -2.87,
+        1.03
+      ]
+    },
+    {
+      "label": "IDEA_7A_S1_PLUS_SAVGOL_CURV",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2389.3,
+        "ret_pct": 138.97,
+        "ann_sharpe": 0.957,
+        "max_dd_pct": 23.89
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2389.3,
+        "ret_pct": -3.25,
+        "ann_sharpe": -0.218,
+        "max_dd_pct": 9.67
+      },
+      "fees_usdt": 148.7,
+      "turnover": 114.38,
+      "avg_exposure_pct": 32.3,
+      "uplift_vs_base_bps": -0.49,
+      "ci_vs_base_bps": [
+        -3.05,
+        2.13
+      ]
+    },
+    {
+      "label": "IDEA_7B_FULL_SAVGOL_VEL_CURV",
+      "full": {
+        "days": 1638,
+        "ending_nav": 3421.42,
+        "ret_pct": 242.28,
+        "ann_sharpe": 0.962,
+        "max_dd_pct": 38.18
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 3421.42,
+        "ret_pct": -23.46,
+        "ann_sharpe": -1.178,
+        "max_dd_pct": 24.05
+      },
+      "fees_usdt": 678.92,
+      "turnover": 522.24,
+      "avg_exposure_pct": 44.5,
+      "uplift_vs_base_bps": 2.61,
+      "ci_vs_base_bps": [
+        -4.34,
+        9.74
+      ]
+    },
+    {
+      "label": "IDEA_8A_HRP_ANCHOR_13",
+      "full": {
+        "days": 1638,
+        "ending_nav": 1934.93,
+        "ret_pct": 93.55,
+        "ann_sharpe": 0.66,
+        "max_dd_pct": 31.56
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 1934.93,
+        "ret_pct": -10.03,
+        "ann_sharpe": -0.605,
+        "max_dd_pct": 16.91
+      },
+      "fees_usdt": 108.73,
+      "turnover": 83.64,
+      "avg_exposure_pct": 52.3,
+      "uplift_vs_base_bps": -1.4,
+      "ci_vs_base_bps": [
+        -4.37,
+        1.59
+      ]
+    },
+    {
+      "label": "IDEA_8B_ADMM_FLAT_22",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2431.4,
+        "ret_pct": 143.17,
+        "ann_sharpe": 0.928,
+        "max_dd_pct": 24.88
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2431.4,
+        "ret_pct": -3.51,
+        "ann_sharpe": -0.103,
+        "max_dd_pct": 12.84
+      },
+      "fees_usdt": 74.27,
+      "turnover": 57.13,
+      "avg_exposure_pct": 35.1,
+      "uplift_vs_base_bps": -0.28,
+      "ci_vs_base_bps": [
+        -2.04,
+        1.44
+      ]
+    },
+    {
+      "label": "IDEA_8C_HRP_ANCHOR_22",
+      "full": {
+        "days": 1638,
+        "ending_nav": 1783.79,
+        "ret_pct": 78.43,
+        "ann_sharpe": 0.591,
+        "max_dd_pct": 30.21
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 1783.79,
+        "ret_pct": -8.07,
+        "ann_sharpe": -0.374,
+        "max_dd_pct": 19.21
+      },
+      "fees_usdt": 88.85,
+      "turnover": 68.35,
+      "avg_exposure_pct": 47.5,
+      "uplift_vs_base_bps": -1.85,
+      "ci_vs_base_bps": [
+        -5.5,
+        1.79
+      ]
+    },
+    {
+      "label": "IDEA_8D_HRP_22_PLUS_ACCEL",
+      "full": {
+        "days": 1638,
+        "ending_nav": 1960.86,
+        "ret_pct": 96.14,
+        "ann_sharpe": 0.651,
+        "max_dd_pct": 29.63
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 1960.86,
+        "ret_pct": -2.79,
+        "ann_sharpe": -0.063,
+        "max_dd_pct": 16.69
+      },
+      "fees_usdt": 107.02,
+      "turnover": 82.32,
+      "avg_exposure_pct": 46.7,
+      "uplift_vs_base_bps": -1.19,
+      "ci_vs_base_bps": [
+        -5.06,
+        2.95
+      ]
+    },
+    {
+      "label": "IDEA_11A_METALS_RESERVE",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2629.01,
+        "ret_pct": 162.93,
+        "ann_sharpe": 1.023,
+        "max_dd_pct": 22.33
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2629.01,
+        "ret_pct": -2.22,
+        "ann_sharpe": -0.105,
+        "max_dd_pct": 10.95
+      },
+      "fees_usdt": 93.55,
+      "turnover": 71.96,
+      "avg_exposure_pct": 37.9,
+      "uplift_vs_base_bps": 0.14,
+      "ci_vs_base_bps": [
+        -0.13,
+        0.41
+      ]
+    },
+    {
+      "label": "COMBO_1_7A_11A",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2526.34,
+        "ret_pct": 152.64,
+        "ann_sharpe": 1.004,
+        "max_dd_pct": 27.73
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2526.34,
+        "ret_pct": -2.04,
+        "ann_sharpe": -0.094,
+        "max_dd_pct": 9.25
+      },
+      "fees_usdt": 222.9,
+      "turnover": 171.46,
+      "avg_exposure_pct": 28.9,
+      "uplift_vs_base_bps": -0.14,
+      "ci_vs_base_bps": [
+        -3.67,
+        3.15
+      ]
+    },
+    {
+      "label": "COMBO_ACCEL_1_11A",
+      "full": {
+        "days": 1638,
+        "ending_nav": 2727.68,
+        "ret_pct": 172.77,
+        "ann_sharpe": 1.073,
+        "max_dd_pct": 22.27
+      },
+      "stress": {
+        "days": 366,
+        "ending_nav": 2727.68,
+        "ret_pct": -2.04,
+        "ann_sharpe": -0.083,
+        "max_dd_pct": 9.08
+      },
+      "fees_usdt": 193.91,
+      "turnover": 149.16,
+      "avg_exposure_pct": 28.9,
+      "uplift_vs_base_bps": 0.34,
+      "ci_vs_base_bps": [
+        -2.81,
+        3.66
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5081 @@
+{
+  "generated_at": "2026-11-25T20:39:01.827798+00:00",
+  "executor_state": "DISARMED",
+  "window_selection": {
+    "count": 20,
+    "mean_abs_corr": 0.1427,
+    "max_abs_corr": 0.373
+  },
+  "windows_20": [
+    {
+      "start": "2025-01-29T21:00:00+00:00",
+      "end": "2025-02-05T21:00:00+00:00",
+      "regime": "BEAR_CASCADE",
+      "btc_7d": -6.7,
+      "med_alt_7d": -19.66,
+      "gold_7d": 5.38,
+      "breadth_start": 0.25,
+      "breadth_end": 0.0,
+      "vol_h_bps": 64.1,
+      "path_eff": 0.47,
+      "spread_top_bot": 35.4,
+      "top2": [
+        [
+          "XAUTUSDT",
+          5.4
+        ],
+        [
+          "BTCUSDT",
+          -6.7
+        ]
+      ],
+      "bot2": [
+        [
+          "FILUSDT",
+          -30.0
+        ],
+        [
+          "NEARUSDT",
+          -26.3
+        ]
+      ],
+      "wid": "W01"
+    },
+    {
+      "start": "2025-02-12T21:00:00+00:00",
+      "end": "2025-02-19T21:00:00+00:00",
+      "regime": "LOW_VOL_COIL_FLAT",
+      "btc_7d": -0.87,
+      "med_alt_7d": -4.08,
+      "gold_7d": 1.01,
+      "breadth_start": 0.17,
+      "breadth_end": 0.08,
+      "vol_h_bps": 30.4,
+      "path_eff": 0.11,
+      "spread_top_bot": 24.6,
+      "top2": [
+        [
+          "LTCUSDT",
+          10.4
+        ],
+        [
+          "XRPUSDT",
+          8.9
+        ]
+      ],
+      "bot2": [
+        [
+          "SOLUSDT",
+          -14.2
+        ],
+        [
+          "AVAXUSDT",
+          -9.5
+        ]
+      ],
+      "wid": "W02"
+    },
+    {
+      "start": "2025-03-19T21:00:00+00:00",
+      "end": "2025-03-26T21:00:00+00:00",
+      "regime": "LOW_VOL_COIL_FLAT",
+      "btc_7d": 2.29,
+      "med_alt_7d": 0.81,
+      "gold_7d": -0.16,
+      "breadth_start": 0.17,
+      "breadth_end": 0.17,
+      "vol_h_bps": 38.8,
+      "path_eff": 0.35,
+      "spread_top_bot": 17.3,
+      "top2": [
+        [
+          "DOGEUSDT",
+          13.4
+        ],
+        [
+          "AVAXUSDT",
+          13.2
+        ]
+      ],
+      "bot2": [
+        [
+          "UNIUSDT",
+          -3.8
+        ],
+        [
+          "XRPUSDT",
+          -3.8
+        ]
+      ],
+      "wid": "W03"
+    },
+    {
+      "start": "2025-04-30T21:00:00+00:00",
+      "end": "2025-05-07T21:00:00+00:00",
+      "regime": "BTC_DOMINANCE_BLEED",
+      "btc_7d": 2.24,
+      "med_alt_7d": -3.5,
+      "gold_7d": 1.4,
+      "breadth_start": 0.58,
+      "breadth_end": 0.58,
+      "vol_h_bps": 32.6,
+      "path_eff": 0.28,
+      "spread_top_bot": 14.6,
+      "top2": [
+        [
+          "LTCUSDT",
+          5.1
+        ],
+        [
+          "AAVEUSDT",
+          2.5
+        ]
+      ],
+      "bot2": [
+        [
+          "NEARUSDT",
+          -9.5
+        ],
+        [
+          "AVAXUSDT",
+          -9.1
+        ]
+      ],
+      "wid": "W04"
+    },
+    {
+      "start": "2025-05-28T21:00:00+00:00",
+      "end": "2025-06-04T21:00:00+00:00",
+      "regime": "LOW_VOL_COIL_FLAT",
+      "btc_7d": -2.8,
+      "med_alt_7d": -7.01,
+      "gold_7d": 2.25,
+      "breadth_start": 1.0,
+      "breadth_end": 0.5,
+      "vol_h_bps": 35.1,
+      "path_eff": 0.5,
+      "spread_top_bot": 16.0,
+      "top2": [
+        [
+          "XAUTUSDT",
+          2.3
+        ],
+        [
+          "AAVEUSDT",
+          1.2
+        ]
+      ],
+      "bot2": [
+        [
+          "DOGEUSDT",
+          -13.8
+        ],
+        [
+          "AVAXUSDT",
+          -11.9
+        ]
+      ],
+      "wid": "W05"
+    },
+    {
+      "start": "2025-06-18T21:00:00+00:00",
+      "end": "2025-06-25T21:00:00+00:00",
+      "regime": "STEADY_BULL_GRIND",
+      "btc_7d": 4.96,
+      "med_alt_7d": 3.08,
+      "gold_7d": 4.21,
+      "breadth_start": 0.42,
+      "breadth_end": 0.42,
+      "vol_h_bps": 55.8,
+      "path_eff": 0.49,
+      "spread_top_bot": 22.7,
+      "top2": [
+        [
+          "LINKUSDT",
+          15.8
+        ],
+        [
+          "BCHUSDT",
+          14.3
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -6.9
+        ],
+        [
+          "AVAXUSDT",
+          -4.5
+        ]
+      ],
+      "wid": "W06"
+    },
+    {
+      "start": "2025-08-06T21:00:00+00:00",
+      "end": "2025-08-13T21:00:00+00:00",
+      "regime": "ALT_SEASON_ROTATION",
+      "btc_7d": 6.8,
+      "med_alt_7d": 16.1,
+      "gold_7d": 1.29,
+      "breadth_start": 0.75,
+      "breadth_end": 1.0,
+      "vol_h_bps": 33.7,
+      "path_eff": 0.83,
+      "spread_top_bot": 40.6,
+      "top2": [
+        [
+          "LINKUSDT",
+          41.9
+        ],
+        [
+          "ETHUSDT",
+          28.6
+        ]
+      ],
+      "bot2": [
+        [
+          "XAUTUSDT",
+          1.3
+        ],
+        [
+          "BTCUSDT",
+          6.8
+        ]
+      ],
+      "wid": "W07"
+    },
+    {
+      "start": "2025-10-08T21:00:00+00:00",
+      "end": "2025-10-15T21:00:00+00:00",
+      "regime": "BEAR_CASCADE",
+      "btc_7d": -9.6,
+      "med_alt_7d": -18.42,
+      "gold_7d": 3.31,
+      "breadth_start": 0.58,
+      "breadth_end": 0.08,
+      "vol_h_bps": 59.4,
+      "path_eff": 0.48,
+      "spread_top_bot": 36.9,
+      "top2": [
+        [
+          "XAUTUSDT",
+          3.3
+        ],
+        [
+          "TRXUSDT",
+          -6.6
+        ]
+      ],
+      "bot2": [
+        [
+          "FILUSDT",
+          -33.6
+        ],
+        [
+          "DOTUSDT",
+          -25.1
+        ]
+      ],
+      "wid": "W08"
+    },
+    {
+      "start": "2025-11-05T21:00:00+00:00",
+      "end": "2025-11-12T21:00:00+00:00",
+      "regime": "GOLD_FLIGHT_TO_SAFETY",
+      "btc_7d": -2.05,
+      "med_alt_7d": 1.39,
+      "gold_7d": 5.11,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 48.2,
+      "path_eff": 0.14,
+      "spread_top_bot": 61.8,
+      "top2": [
+        [
+          "FILUSDT",
+          56.2
+        ],
+        [
+          "UNIUSDT",
+          46.0
+        ]
+      ],
+      "bot2": [
+        [
+          "SOLUSDT",
+          -5.6
+        ],
+        [
+          "BTCUSDT",
+          -2.1
+        ]
+      ],
+      "wid": "W09"
+    },
+    {
+      "start": "2025-11-26T21:00:00+00:00",
+      "end": "2025-12-03T21:00:00+00:00",
+      "regime": "HIGH_VOL_WHIPSAW_CHOP",
+      "btc_7d": 3.89,
+      "med_alt_7d": -0.52,
+      "gold_7d": 1.02,
+      "breadth_start": 0.08,
+      "breadth_end": 0.08,
+      "vol_h_bps": 52.7,
+      "path_eff": 0.23,
+      "spread_top_bot": 17.1,
+      "top2": [
+        [
+          "BCHUSDT",
+          10.0
+        ],
+        [
+          "LINKUSDT",
+          7.3
+        ]
+      ],
+      "bot2": [
+        [
+          "ATOMUSDT",
+          -7.1
+        ],
+        [
+          "NEARUSDT",
+          -6.1
+        ]
+      ],
+      "wid": "W10"
+    },
+    {
+      "start": "2026-01-14T21:00:00+00:00",
+      "end": "2026-01-21T21:00:00+00:00",
+      "regime": "GOLD_FLIGHT_TO_SAFETY",
+      "btc_7d": -5.77,
+      "med_alt_7d": -9.23,
+      "gold_7d": 5.31,
+      "breadth_start": 0.27,
+      "breadth_end": 0.08,
+      "vol_h_bps": 40.7,
+      "path_eff": 0.77,
+      "spread_top_bot": 20.9,
+      "top2": [
+        [
+          "AAVEUSDT",
+          7.8
+        ],
+        [
+          "XAUTUSDT",
+          5.3
+        ]
+      ],
+      "bot2": [
+        [
+          "ADAUSDT",
+          -13.2
+        ],
+        [
+          "LTCUSDT",
+          -13.0
+        ]
+      ],
+      "wid": "W11"
+    },
+    {
+      "start": "2026-02-11T21:00:00+00:00",
+      "end": "2026-02-18T21:00:00+00:00",
+      "regime": "INVERTED_V_BLOWOFF",
+      "btc_7d": -1.99,
+      "med_alt_7d": 3.11,
+      "gold_7d": -1.85,
+      "breadth_start": 0.0,
+      "breadth_end": 0.08,
+      "vol_h_bps": 60.1,
+      "path_eff": 0.12,
+      "spread_top_bot": 25.9,
+      "top2": [
+        [
+          "ATOMUSDT",
+          24.0
+        ],
+        [
+          "AAVEUSDT",
+          14.3
+        ]
+      ],
+      "bot2": [
+        [
+          "BTCUSDT",
+          -2.0
+        ],
+        [
+          "XAUTUSDT",
+          -1.9
+        ]
+      ],
+      "wid": "W12"
+    },
+    {
+      "start": "2026-03-04T21:00:00+00:00",
+      "end": "2026-03-11T21:00:00+00:00",
+      "regime": "V_BOTTOM_REVERSAL",
+      "btc_7d": -3.84,
+      "med_alt_7d": -1.62,
+      "gold_7d": -0.38,
+      "breadth_start": 0.0,
+      "breadth_end": 0.08,
+      "vol_h_bps": 62.2,
+      "path_eff": 0.31,
+      "spread_top_bot": 16.2,
+      "top2": [
+        [
+          "NEARUSDT",
+          5.2
+        ],
+        [
+          "TRXUSDT",
+          2.9
+        ]
+      ],
+      "bot2": [
+        [
+          "FILUSDT",
+          -11.0
+        ],
+        [
+          "DOGEUSDT",
+          -6.7
+        ]
+      ],
+      "wid": "W13"
+    },
+    {
+      "start": "2026-03-25T21:00:00+00:00",
+      "end": "2026-04-01T21:00:00+00:00",
+      "regime": "GOLD_FLIGHT_TO_SAFETY",
+      "btc_7d": -3.41,
+      "med_alt_7d": -3.89,
+      "gold_7d": 6.0,
+      "breadth_start": 0.08,
+      "breadth_end": 0.08,
+      "vol_h_bps": 47.6,
+      "path_eff": 0.37,
+      "spread_top_bot": 17.2,
+      "top2": [
+        [
+          "XAUTUSDT",
+          6.0
+        ],
+        [
+          "BCHUSDT",
+          0.2
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -11.2
+        ],
+        [
+          "FILUSDT",
+          -9.4
+        ]
+      ],
+      "wid": "W14"
+    },
+    {
+      "start": "2026-05-20T21:00:00+00:00",
+      "end": "2026-05-27T21:00:00+00:00",
+      "regime": "STEADY_BEAR_GRIND",
+      "btc_7d": -3.1,
+      "med_alt_7d": -2.71,
+      "gold_7d": -2.02,
+      "breadth_start": 0.17,
+      "breadth_end": 0.17,
+      "vol_h_bps": 36.8,
+      "path_eff": 0.39,
+      "spread_top_bot": 65.5,
+      "top2": [
+        [
+          "NEARUSDT",
+          55.1
+        ],
+        [
+          "FILUSDT",
+          9.7
+        ]
+      ],
+      "bot2": [
+        [
+          "UNIUSDT",
+          -10.4
+        ],
+        [
+          "BCHUSDT",
+          -8.9
+        ]
+      ],
+      "wid": "W15"
+    },
+    {
+      "start": "2026-06-17T21:00:00+00:00",
+      "end": "2026-06-24T21:00:00+00:00",
+      "regime": "STEADY_BEAR_GRIND",
+      "btc_7d": -5.06,
+      "med_alt_7d": -9.52,
+      "gold_7d": -5.98,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 44.0,
+      "path_eff": 0.52,
+      "spread_top_bot": 21.7,
+      "top2": [
+        [
+          "AAVEUSDT",
+          5.2
+        ],
+        [
+          "TRXUSDT",
+          1.7
+        ]
+      ],
+      "bot2": [
+        [
+          "ATOMUSDT",
+          -16.5
+        ],
+        [
+          "ADAUSDT",
+          -14.7
+        ]
+      ],
+      "wid": "W16"
+    },
+    {
+      "start": "2026-07-22T21:00:00+00:00",
+      "end": "2026-07-29T21:00:00+00:00",
+      "regime": "STEADY_BEAR_GRIND",
+      "btc_7d": -3.06,
+      "med_alt_7d": -4.42,
+      "gold_7d": -2.15,
+      "breadth_start": 0.58,
+      "breadth_end": 0.25,
+      "vol_h_bps": 34.4,
+      "path_eff": 0.56,
+      "spread_top_bot": 19.7,
+      "top2": [
+        [
+          "UNIUSDT",
+          5.4
+        ],
+        [
+          "AAVEUSDT",
+          0.2
+        ]
+      ],
+      "bot2": [
+        [
+          "NEARUSDT",
+          -14.4
+        ],
+        [
+          "ATOMUSDT",
+          -13.5
+        ]
+      ],
+      "wid": "W17"
+    },
+    {
+      "start": "2026-08-12T21:00:00+00:00",
+      "end": "2026-08-19T21:00:00+00:00",
+      "regime": "STEADY_BULL_GRIND",
+      "btc_7d": 8.24,
+      "med_alt_7d": 4.26,
+      "gold_7d": 2.76,
+      "breadth_start": 0.5,
+      "breadth_end": 0.5,
+      "vol_h_bps": 38.0,
+      "path_eff": 0.81,
+      "spread_top_bot": 32.1,
+      "top2": [
+        [
+          "LINKUSDT",
+          21.8
+        ],
+        [
+          "ETHUSDT",
+          16.4
+        ]
+      ],
+      "bot2": [
+        [
+          "FILUSDT",
+          -10.3
+        ],
+        [
+          "BCHUSDT",
+          -2.5
+        ]
+      ],
+      "wid": "W18"
+    },
+    {
+      "start": "2026-09-02T21:00:00+00:00",
+      "end": "2026-09-09T21:00:00+00:00",
+      "regime": "LOW_VOL_COIL_FLAT",
+      "btc_7d": 1.13,
+      "med_alt_7d": 6.89,
+      "gold_7d": -0.13,
+      "breadth_start": 0.92,
+      "breadth_end": 1.0,
+      "vol_h_bps": 40.4,
+      "path_eff": 0.13,
+      "spread_top_bot": 37.3,
+      "top2": [
+        [
+          "NEARUSDT",
+          36.9
+        ],
+        [
+          "ATOMUSDT",
+          29.2
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -0.3
+        ],
+        [
+          "XAUTUSDT",
+          -0.1
+        ]
+      ],
+      "wid": "W19"
+    },
+    {
+      "start": "2026-11-18T21:00:00+00:00",
+      "end": "2026-11-25T21:00:00+00:00",
+      "regime": "STEADY_BEAR_GRIND",
+      "btc_7d": -4.17,
+      "med_alt_7d": -4.34,
+      "gold_7d": -4.53,
+      "breadth_start": 0.0,
+      "breadth_end": 0.0,
+      "vol_h_bps": 106.2,
+      "path_eff": 0.26,
+      "spread_top_bot": 12.7,
+      "top2": [
+        [
+          "LINKUSDT",
+          0.3
+        ],
+        [
+          "BCHUSDT",
+          -0.6
+        ]
+      ],
+      "bot2": [
+        [
+          "AAVEUSDT",
+          -12.4
+        ],
+        [
+          "DOTUSDT",
+          -10.8
+        ]
+      ],
+      "wid": "W20"
+    }
+  ],
+  "standalone_4quad_benchmarks": [
+    {
+      "label": "M06_4QUAD_DAILY_TAKER",
+      "w20": {
+        "mean_7d": 1.94,
+        "med_7d": 0.29,
+        "pos_wins": 12,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 11,
+        "c2_2pct_2d": 9,
+        "c3_1pct_3d": 10,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.76,
+            "max_1d": 4.98,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.58,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.95,
+            "max_1d": 2.23,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 4.46,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.67,
+            "max_1d": 1.63,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.56,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 1.04,
+            "max_1d": 3.34,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 2.46,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.1,
+            "max_1d": 2.37,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 5.45,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -4.06,
+            "max_1d": 0.78,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.79,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 25.88,
+            "max_1d": 5.68,
+            "d_ge_2": 5,
+            "d_ge_1": 5,
+            "max_3d": 12.43,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 3.79,
+            "max_1d": 5.9,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 12.39,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.53,
+            "max_1d": 3.15,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 5.78,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -6.59,
+            "max_1d": 15.17,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 13.64,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.97,
+            "max_1d": 3.02,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 2.46,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -1.44,
+            "max_1d": 3.39,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 2.62,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.14,
+            "max_1d": 0.64,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.57,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -3.54,
+            "max_1d": 2.63,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.16,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 13.76,
+            "max_1d": 7.83,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 13.41,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.96,
+            "max_1d": 2.58,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.28,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 4.85,
+            "max_1d": 11.5,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.54,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 6.68,
+            "max_1d": 15.21,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 9.26,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3343.39,
+      "full_ret_pct": 230.63,
+      "stress_ret_pct": 42.55,
+      "ann_sharpe": 1.024,
+      "max_dd_pct": 42.85,
+      "liqs": 0,
+      "fills": 520,
+      "fees_usdt": 838.29,
+      "borrow_usdt": 1042.6,
+      "pool_yield_usdt": 62.66,
+      "year_rets": {
+        "2024": 17.4,
+        "2025": 94.33,
+        "2026": 43.2
+      }
+    },
+    {
+      "label": "M06_4QUAD_DAILY_MAKER",
+      "w20": {
+        "mean_7d": 2.11,
+        "med_7d": 0.4,
+        "pos_wins": 12,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 11,
+        "c2_2pct_2d": 9,
+        "c3_1pct_3d": 10,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 3.3,
+            "max_1d": 4.98,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 7.58,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 1.01,
+            "max_1d": 2.24,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 4.51,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.67,
+            "max_1d": 1.63,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.56,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 1.35,
+            "max_1d": 3.36,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 2.51,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.06,
+            "max_1d": 2.37,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 5.44,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -3.91,
+            "max_1d": 0.81,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.82,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 25.84,
+            "max_1d": 5.67,
+            "d_ge_2": 5,
+            "d_ge_1": 5,
+            "max_3d": 12.41,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 3.83,
+            "max_1d": 5.9,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 12.39,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.75,
+            "max_1d": 3.2,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 5.82,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -6.28,
+            "max_1d": 15.15,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 13.78,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.94,
+            "max_1d": 3.01,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 2.45,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -1.1,
+            "max_1d": 3.41,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 2.66,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.03,
+            "max_1d": 0.66,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.64,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -3.03,
+            "max_1d": 2.63,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.37,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 13.91,
+            "max_1d": 7.84,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 13.5,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 2.17,
+            "max_1d": 2.58,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 5.0,
+            "max_1d": 11.49,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.53,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 6.96,
+            "max_1d": 14.83,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 9.23,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 4110.99,
+      "full_ret_pct": 306.36,
+      "stress_ret_pct": 55.3,
+      "ann_sharpe": 1.154,
+      "max_dd_pct": 41.18,
+      "liqs": 0,
+      "fills": 519,
+      "fees_usdt": 491.55,
+      "borrow_usdt": 1188.43,
+      "pool_yield_usdt": 68.4,
+      "year_rets": {
+        "2024": 20.83,
+        "2025": 114.22,
+        "2026": 54.87
+      }
+    },
+    {
+      "label": "U1_4QUAD_4H_AGREE_TAKER",
+      "w20": {
+        "mean_7d": 0.84,
+        "med_7d": -0.07,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 6,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 4,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 3.66,
+            "max_1d": 5.07,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 3.66,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.07,
+            "max_1d": 1.32,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 2.47,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.76,
+            "max_1d": 1.24,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 0.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.97,
+            "max_1d": 2.77,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.07,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -3.47,
+            "max_1d": 1.21,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.48,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.08,
+            "max_1d": 2.83,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.84,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 22.39,
+            "max_1d": 4.88,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 12.17,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -4.53,
+            "max_1d": 3.4,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 9.3,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.94,
+            "max_1d": 2.03,
+            "d_ge_2": 1,
+            "d_ge_1": 4,
+            "max_3d": 3.2,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.87,
+            "max_1d": 8.9,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 6.46,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.04,
+            "max_1d": 1.96,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.48,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": 0.11,
+            "max_1d": 1.15,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.81,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.0,
+            "max_1d": 1.22,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.32,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -2.19,
+            "max_1d": 2.08,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.58,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 9.88,
+            "max_1d": 8.92,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 9.88,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.01,
+            "max_1d": 1.05,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.59,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 3.22,
+            "max_1d": 8.41,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 7.23,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.45,
+            "max_1d": 13.77,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 8.02,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3138.17,
+      "full_ret_pct": 212.17,
+      "stress_ret_pct": 66.64,
+      "ann_sharpe": 1.026,
+      "max_dd_pct": 40.91,
+      "liqs": 0,
+      "fills": 1053,
+      "fees_usdt": 1095.17,
+      "borrow_usdt": 793.09,
+      "pool_yield_usdt": 74.21,
+      "year_rets": {
+        "2024": 29.94,
+        "2025": 33.85,
+        "2026": 78.63
+      }
+    },
+    {
+      "label": "U1_4QUAD_4H_AGREE_MAKER",
+      "w20": {
+        "mean_7d": 1.08,
+        "med_7d": 0.05,
+        "pos_wins": 11,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 6,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 4,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 4.19,
+            "max_1d": 5.07,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 3.91,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.23,
+            "max_1d": 1.35,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 2.63,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.71,
+            "max_1d": 1.23,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 0.67,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.26,
+            "max_1d": 2.82,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.22,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.97,
+            "max_1d": 1.32,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.9,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.07,
+            "max_1d": 2.86,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.88,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 22.34,
+            "max_1d": 4.87,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 12.14,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -4.19,
+            "max_1d": 3.4,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 9.42,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.67,
+            "max_1d": 2.11,
+            "d_ge_2": 1,
+            "d_ge_1": 4,
+            "max_3d": 3.28,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.55,
+            "max_1d": 8.92,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 6.69,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.08,
+            "max_1d": 1.96,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 1.48,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": 0.19,
+            "max_1d": 1.14,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.82,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.88,
+            "max_1d": 1.25,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.35,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -1.71,
+            "max_1d": 2.19,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.76,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 10.21,
+            "max_1d": 8.97,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.16,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 0.28,
+            "max_1d": 1.14,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.67,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 3.51,
+            "max_1d": 8.5,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 7.43,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.58,
+            "max_1d": 13.75,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 8.03,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 4235.99,
+      "full_ret_pct": 321.2,
+      "stress_ret_pct": 88.47,
+      "ann_sharpe": 1.234,
+      "max_dd_pct": 39.43,
+      "liqs": 0,
+      "fills": 1051,
+      "fees_usdt": 697.13,
+      "borrow_usdt": 957.81,
+      "pool_yield_usdt": 84.96,
+      "year_rets": {
+        "2024": 33.55,
+        "2025": 57.46,
+        "2026": 99.05
+      }
+    },
+    {
+      "label": "U3_4QUAD_CONSERVATIVE_MAKER",
+      "w20": {
+        "mean_7d": 0.8,
+        "med_7d": -0.25,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 6,
+        "c3_1pct_3d": 4,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 3.39,
+            "max_1d": 3.6,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 3.03,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.19,
+            "max_1d": 1.0,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.93,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.54,
+            "max_1d": 1.26,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.53,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -0.96,
+            "max_1d": 1.97,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 0.75,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.17,
+            "max_1d": 1.02,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.06,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.07,
+            "max_1d": 2.02,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.04,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 18.98,
+            "max_1d": 4.57,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 9.44,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -6.29,
+            "max_1d": 2.48,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 6.74,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.71,
+            "max_1d": 1.92,
+            "d_ge_2": 0,
+            "d_ge_1": 4,
+            "max_3d": 2.93,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -6.87,
+            "max_1d": 7.82,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 6.15,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -0.54,
+            "max_1d": 1.91,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 1.61,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.42,
+            "max_1d": 0.69,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.48,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.31,
+            "max_1d": 0.89,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.96,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -1.13,
+            "max_1d": 1.59,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.0,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 8.12,
+            "max_1d": 6.4,
+            "d_ge_2": 3,
+            "d_ge_1": 3,
+            "max_3d": 7.37,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 0.23,
+            "max_1d": 0.81,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.53,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 0.05,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 3.74,
+            "max_1d": 7.07,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 6.47,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.25,
+            "max_1d": 11.27,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 6.89,
+            "criteria_met": 2,
+            "hit_all": false
+          }
+        ]
+      },
+      "ending_nav": 3990.29,
+      "full_ret_pct": 297.42,
+      "stress_ret_pct": 85.75,
+      "ann_sharpe": 1.417,
+      "max_dd_pct": 29.21,
+      "liqs": 0,
+      "fills": 913,
+      "fees_usdt": 475.64,
+      "borrow_usdt": 699.27,
+      "pool_yield_usdt": 92.45,
+      "year_rets": {
+        "2024": 22.08,
+        "2025": 68.8,
+        "2026": 91.91
+      }
+    }
+  ],
+  "unified_e3v2_enhanced": [
+    {
+      "label": "MAIN_E3_V2_STANDALONE",
+      "w20": {
+        "mean_7d": 0.59,
+        "med_7d": -0.05,
+        "pos_wins": 10,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 4,
+        "c2_2pct_2d": 0,
+        "c3_1pct_3d": 1,
+        "c4_8pct_3d": 0,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -3.2,
+            "max_1d": 0.92,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.16,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.51,
+            "max_1d": 0.74,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.01,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.15,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.03,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.52,
+            "max_1d": 0.37,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.58,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.15,
+            "max_1d": 1.05,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.18,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.41,
+            "max_1d": 1.05,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.61,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 11.1,
+            "max_1d": 5.51,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 7.17,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -1.66,
+            "max_1d": 4.47,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.2,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 1.76,
+            "max_1d": 0.88,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": 0.75,
+            "max_1d": 0.54,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.93,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.24,
+            "max_1d": 0.06,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.45,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": 0.22,
+            "max_1d": 0.88,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.09,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.19,
+            "max_1d": 0.48,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.76,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 0.71,
+            "max_1d": 0.6,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.97,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.04,
+            "max_1d": 0.51,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.07,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 0.04,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.48,
+            "max_1d": 0.08,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.03,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 5.49,
+            "max_1d": 5.03,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.87,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.32,
+            "max_1d": 4.2,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.19,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.58,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.02,
+            "criteria_met": 0,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 0.66,
+        "med_7d": -0.1,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 4,
+        "c2_2pct_2d": 1,
+        "c3_1pct_3d": 1,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "w20_phase1": {
+        "mean_7d": 0.54,
+        "med_7d": -0.06,
+        "pos_wins": 10,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 4,
+        "c2_2pct_2d": 0,
+        "c3_1pct_3d": 1,
+        "c4_8pct_3d": 0,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "ending_nav": 1388.6,
+      "full_ret_pct": 38.85,
+      "stress_ret_pct": -2.03,
+      "ann_sharpe": 0.735,
+      "max_dd_pct": 12.99,
+      "liqs": 0,
+      "fees_usdt": 211.75,
+      "borrow_usdt": 6.55,
+      "pool_yield_usdt": 68.25,
+      "year_rets": {
+        "2024": 9.64,
+        "2025": 27.6,
+        "2026": -2.26
+      },
+      "vs_e3v2_bps": 0.0,
+      "vs_e3v2_ci95_bps": null,
+      "vs_v2_bps": 1.1
+    },
+    {
+      "label": "E3_V2_PLUS_BEAR50_PREV",
+      "w20": {
+        "mean_7d": 0.6,
+        "med_7d": -0.07,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 0,
+        "c3_1pct_3d": 2,
+        "c4_8pct_3d": 0,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -3.2,
+            "max_1d": 0.92,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.16,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.11,
+            "max_1d": 0.93,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.43,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.88,
+            "max_1d": 1.15,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.65,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.51,
+            "max_1d": 0.37,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.58,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.15,
+            "max_1d": 1.05,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.18,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -3.56,
+            "max_1d": 0.43,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.18,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 10.33,
+            "max_1d": 4.85,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 6.47,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -1.65,
+            "max_1d": 4.47,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.2,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 2.09,
+            "max_1d": 1.95,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 3.75,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -0.56,
+            "max_1d": 3.71,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.02,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.15,
+            "max_1d": 0.06,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.45,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": 1.77,
+            "max_1d": 2.73,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.3,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.03,
+            "max_1d": 0.48,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.8,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.04,
+            "max_1d": 0.56,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.08,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.11,
+            "max_1d": 0.84,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.54,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 2.24,
+            "max_1d": 1.34,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 2.37,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.2,
+            "max_1d": 0.15,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.03,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 5.55,
+            "max_1d": 5.07,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.92,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 1.05,
+            "max_1d": 4.2,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.98,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.16,
+            "max_1d": 3.34,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.81,
+            "criteria_met": 1,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 0.52,
+        "med_7d": -0.02,
+        "pos_wins": 10,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 1,
+        "c3_1pct_3d": 2,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "w20_phase1": {
+        "mean_7d": 0.68,
+        "med_7d": -0.12,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 0,
+        "c3_1pct_3d": 1,
+        "c4_8pct_3d": 0,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "ending_nav": 1683.19,
+      "full_ret_pct": 68.31,
+      "stress_ret_pct": 15.84,
+      "ann_sharpe": 0.969,
+      "max_dd_pct": 17.42,
+      "liqs": 0,
+      "fees_usdt": 251.99,
+      "borrow_usdt": 88.83,
+      "pool_yield_usdt": 63.69,
+      "year_rets": {
+        "2024": 7.87,
+        "2025": 33.03,
+        "2026": 15.87
+      },
+      "vs_e3v2_bps": 1.94,
+      "vs_e3v2_ci95_bps": [
+        -1.18,
+        5.86
+      ],
+      "vs_v2_bps": 3.04
+    },
+    {
+      "label": "E3_V2_PLUS_CTA_BEAR80_PREV",
+      "w20": {
+        "mean_7d": 1.1,
+        "med_7d": -0.46,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 3,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -3.2,
+            "max_1d": 0.92,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.16,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.74,
+            "max_1d": 1.24,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": -0.14,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.9,
+            "max_1d": 2.38,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 0.96,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.52,
+            "max_1d": 0.37,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.58,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.18,
+            "max_1d": 1.06,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.18,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -6.19,
+            "max_1d": 0.43,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -1.19,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 10.37,
+            "max_1d": 4.44,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 5.98,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -1.68,
+            "max_1d": 4.44,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.17,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 3.82,
+            "max_1d": 3.67,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 6.61,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -3.3,
+            "max_1d": 13.09,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 12.65,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -2.15,
+            "max_1d": 0.06,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.45,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -0.77,
+            "max_1d": 3.09,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 2.14,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": 0.3,
+            "max_1d": 0.48,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.89,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.06,
+            "max_1d": 0.5,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.34,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -2.97,
+            "max_1d": 2.33,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 3.2,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 12.0,
+            "max_1d": 6.27,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.75,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.21,
+            "max_1d": 2.02,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.83,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 5.5,
+            "max_1d": 5.04,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.89,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 1.09,
+            "max_1d": 4.2,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.97,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 10.3,
+            "max_1d": 15.49,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 10.09,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 1.01,
+        "med_7d": -0.69,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 5,
+        "c3_1pct_3d": 4,
+        "c4_8pct_3d": 3,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "w20_phase1": {
+        "mean_7d": 1.18,
+        "med_7d": -0.29,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 7,
+        "c4_8pct_3d": 3,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "ending_nav": 2167.68,
+      "full_ret_pct": 116.76,
+      "stress_ret_pct": 40.9,
+      "ann_sharpe": 0.895,
+      "max_dd_pct": 32.6,
+      "liqs": 0,
+      "fees_usdt": 380.15,
+      "borrow_usdt": 279.51,
+      "pool_yield_usdt": 56.17,
+      "year_rets": {
+        "2024": 5.94,
+        "2025": 38.14,
+        "2026": 47.04
+      },
+      "vs_e3v2_bps": 5.52,
+      "vs_e3v2_ci95_bps": [
+        -3.8,
+        16.82
+      ],
+      "vs_v2_bps": 6.62
+    },
+    {
+      "label": "E3_V2_4QUAD_CONSERVATIVE_TK",
+      "w20": {
+        "mean_7d": 0.63,
+        "med_7d": -0.47,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.45,
+            "max_1d": 2.75,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.17,
+            "max_1d": 1.22,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.83,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.52,
+            "max_1d": 0.57,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.54,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.04,
+            "max_1d": 1.89,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 0.49,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.51,
+            "max_1d": 1.08,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.61,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.13,
+            "max_1d": 1.3,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.93,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 16.48,
+            "max_1d": 3.81,
+            "d_ge_2": 4,
+            "d_ge_1": 6,
+            "max_3d": 8.49,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -6.63,
+            "max_1d": 1.98,
+            "d_ge_2": 0,
+            "d_ge_1": 4,
+            "max_3d": 5.07,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.62,
+            "max_1d": 1.34,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 2.42,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -4.91,
+            "max_1d": 4.95,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.5,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.26,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.43,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": 0.46,
+            "max_1d": 1.95,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 1.63,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.24,
+            "max_1d": 0.75,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.79,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.41,
+            "max_1d": 0.7,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.03,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.52,
+            "max_1d": 0.93,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.51,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 6.35,
+            "max_1d": 4.47,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 4.95,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.63,
+            "max_1d": 0.45,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 4.53,
+            "max_1d": 4.02,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 3.92,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.38,
+            "max_1d": 6.82,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 4.8,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.31,
+            "max_1d": 9.39,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 6.22,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 0.56,
+        "med_7d": -0.58,
+        "pos_wins": 6,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 5,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 4,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "w20_phase1": {
+        "mean_7d": 0.69,
+        "med_7d": -0.4,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "ending_nav": 2672.46,
+      "full_ret_pct": 164.47,
+      "stress_ret_pct": 58.27,
+      "ann_sharpe": 1.121,
+      "max_dd_pct": 25.93,
+      "liqs": 1,
+      "fees_usdt": 707.82,
+      "borrow_usdt": 458.45,
+      "pool_yield_usdt": 71.42,
+      "year_rets": {
+        "2024": 19.17,
+        "2025": 40.78,
+        "2026": 64.24
+      },
+      "vs_e3v2_bps": 7.17,
+      "vs_e3v2_ci95_bps": [
+        -1.53,
+        16.98
+      ],
+      "vs_v2_bps": 8.27
+    },
+    {
+      "label": "E3_V2_4QUAD_CONSERVATIVE_MK",
+      "w20": {
+        "mean_7d": 0.75,
+        "med_7d": -0.29,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.75,
+            "max_1d": 2.75,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 2.42,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.35,
+            "max_1d": 1.22,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.93,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.51,
+            "max_1d": 0.57,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.55,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -0.61,
+            "max_1d": 1.9,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 0.59,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.4,
+            "max_1d": 1.16,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.05,
+            "max_1d": 1.32,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 0.94,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 16.38,
+            "max_1d": 3.79,
+            "d_ge_2": 4,
+            "d_ge_1": 6,
+            "max_3d": 8.44,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -6.6,
+            "max_1d": 1.92,
+            "d_ge_2": 0,
+            "d_ge_1": 4,
+            "max_3d": 4.99,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.51,
+            "max_1d": 1.34,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 2.44,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -4.88,
+            "max_1d": 4.94,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.59,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.25,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.43,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": 0.6,
+            "max_1d": 2.08,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.76,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.18,
+            "max_1d": 0.74,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.79,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.34,
+            "max_1d": 0.72,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.07,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.25,
+            "max_1d": 0.99,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 1.61,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 6.49,
+            "max_1d": 4.49,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 5.11,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.47,
+            "max_1d": 0.5,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.31,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 4.59,
+            "max_1d": 4.07,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 3.97,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.5,
+            "max_1d": 6.8,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 4.91,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.3,
+            "max_1d": 9.08,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 5.95,
+            "criteria_met": 3,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 0.64,
+        "med_7d": -0.41,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 5,
+        "c2_2pct_2d": 3,
+        "c3_1pct_3d": 4,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "w20_phase1": {
+        "mean_7d": 0.82,
+        "med_7d": -0.29,
+        "pos_wins": 10,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 6,
+        "c2_2pct_2d": 4,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 1,
+        "c5_18pct_7d": 0,
+        "full_5of5_hits": 0
+      },
+      "ending_nav": 3163.02,
+      "full_ret_pct": 212.91,
+      "stress_ret_pct": 69.64,
+      "ann_sharpe": 1.287,
+      "max_dd_pct": 24.98,
+      "liqs": 1,
+      "fees_usdt": 529.23,
+      "borrow_usdt": 508.97,
+      "pool_yield_usdt": 76.95,
+      "year_rets": {
+        "2024": 20.64,
+        "2025": 54.12,
+        "2026": 74.83
+      },
+      "vs_e3v2_bps": 8.72,
+      "vs_e3v2_ci95_bps": [
+        -0.01,
+        18.61
+      ],
+      "vs_v2_bps": 9.82
+    },
+    {
+      "label": "E3_V2_4QUAD_BALANCED_DAILY_TK",
+      "w20": {
+        "mean_7d": 1.87,
+        "med_7d": 0.21,
+        "pos_wins": 10,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 8,
+        "c2_2pct_2d": 9,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 0.72,
+            "max_1d": 3.88,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 6.18,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 1.07,
+            "max_1d": 2.46,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 4.2,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.95,
+            "max_1d": 0.79,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.79,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -0.31,
+            "max_1d": 2.66,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 1.77,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.65,
+            "max_1d": 2.38,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.27,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -4.96,
+            "max_1d": 0.13,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.23,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 25.45,
+            "max_1d": 5.75,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 12.06,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.66,
+            "max_1d": 5.02,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 9.43,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 1.01,
+            "max_1d": 2.96,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 5.63,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.48,
+            "max_1d": 11.14,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 10.62,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.26,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.44,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.61,
+            "max_1d": 2.46,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 2.02,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.47,
+            "max_1d": 2.82,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 2.81,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.45,
+            "max_1d": 0.45,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.73,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -2.88,
+            "max_1d": 2.13,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.13,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 11.04,
+            "max_1d": 5.94,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.09,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.34,
+            "max_1d": 2.3,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.03,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 4.42,
+            "max_1d": 3.92,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 3.83,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 4.9,
+            "max_1d": 10.24,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.37,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 8.8,
+            "max_1d": 13.15,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 9.09,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 1.96,
+        "med_7d": 0.58,
+        "pos_wins": 11,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 11,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "w20_phase1": {
+        "mean_7d": 1.78,
+        "med_7d": 0.22,
+        "pos_wins": 11,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 10,
+        "c2_2pct_2d": 10,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "ending_nav": 2496.12,
+      "full_ret_pct": 145.45,
+      "stress_ret_pct": 37.07,
+      "ann_sharpe": 0.857,
+      "max_dd_pct": 38.23,
+      "liqs": 1,
+      "fees_usdt": 678.52,
+      "borrow_usdt": 723.07,
+      "pool_yield_usdt": 52.17,
+      "year_rets": {
+        "2024": 15.91,
+        "2025": 55.54,
+        "2026": 38.55
+      },
+      "vs_e3v2_bps": 8.19,
+      "vs_e3v2_ci95_bps": [
+        -4.14,
+        20.94
+      ],
+      "vs_v2_bps": 9.29
+    },
+    {
+      "label": "E3_V2_4QUAD_BALANCED_DAILY_MK",
+      "w20": {
+        "mean_7d": 1.97,
+        "med_7d": 0.66,
+        "pos_wins": 11,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 8,
+        "c2_2pct_2d": 9,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.15,
+            "max_1d": 3.88,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 6.16,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 1.13,
+            "max_1d": 2.48,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 4.25,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -1.91,
+            "max_1d": 0.8,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.75,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": 0.19,
+            "max_1d": 2.63,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 1.82,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.57,
+            "max_1d": 2.4,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 4.3,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -4.83,
+            "max_1d": 0.16,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.19,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 24.58,
+            "max_1d": 5.58,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 11.59,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.64,
+            "max_1d": 5.02,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 9.42,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": 1.19,
+            "max_1d": 2.96,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 5.66,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -5.23,
+            "max_1d": 11.12,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 10.72,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.27,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.44,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -1.56,
+            "max_1d": 2.46,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 2.02,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.23,
+            "max_1d": 2.83,
+            "d_ge_2": 1,
+            "d_ge_1": 3,
+            "max_3d": 2.84,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.34,
+            "max_1d": 0.48,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.79,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -2.46,
+            "max_1d": 2.13,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 3.3,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 11.11,
+            "max_1d": 5.96,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 10.11,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 1.52,
+            "max_1d": 2.29,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 2.02,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 4.41,
+            "max_1d": 3.92,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 3.82,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 5.02,
+            "max_1d": 10.22,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 10.36,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 8.8,
+            "max_1d": 13.13,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 9.09,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 2.01,
+        "med_7d": 0.84,
+        "pos_wins": 11,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 10,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "w20_phase1": {
+        "mean_7d": 1.92,
+        "med_7d": 0.57,
+        "pos_wins": 11,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 10,
+        "c2_2pct_2d": 10,
+        "c3_1pct_3d": 9,
+        "c4_8pct_3d": 6,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "ending_nav": 2973.26,
+      "full_ret_pct": 192.21,
+      "stress_ret_pct": 47.33,
+      "ann_sharpe": 0.978,
+      "max_dd_pct": 37.15,
+      "liqs": 1,
+      "fees_usdt": 455.33,
+      "borrow_usdt": 805.29,
+      "pool_yield_usdt": 55.66,
+      "year_rets": {
+        "2024": 18.67,
+        "2025": 68.85,
+        "2026": 47.98
+      },
+      "vs_e3v2_bps": 9.78,
+      "vs_e3v2_ci95_bps": [
+        -2.48,
+        22.53
+      ],
+      "vs_v2_bps": 10.88
+    },
+    {
+      "label": "E3_V2_4QUAD_4H_AGREE_TK",
+      "w20": {
+        "mean_7d": 0.82,
+        "med_7d": -0.76,
+        "pos_wins": 6,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 8,
+        "c2_2pct_2d": 7,
+        "c3_1pct_3d": 5,
+        "c4_8pct_3d": 2,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 1.9,
+            "max_1d": 4.15,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 3.24,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -0.01,
+            "max_1d": 1.72,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 2.6,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.47,
+            "max_1d": 0.82,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.72,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -2.08,
+            "max_1d": 2.7,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 0.65,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -3.09,
+            "max_1d": 1.72,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.68,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -1.1,
+            "max_1d": 2.24,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.86,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 21.87,
+            "max_1d": 5.07,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 11.52,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -5.46,
+            "max_1d": 3.02,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 7.96,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.77,
+            "max_1d": 2.04,
+            "d_ge_2": 1,
+            "d_ge_1": 4,
+            "max_3d": 2.64,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -4.69,
+            "max_1d": 7.82,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 6.65,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.24,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.42,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -0.48,
+            "max_1d": 2.45,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.93,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.21,
+            "max_1d": 1.13,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.12,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.87,
+            "max_1d": 1.11,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.44,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -1.35,
+            "max_1d": 1.48,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.22,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 7.43,
+            "max_1d": 6.76,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 6.74,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.64,
+            "max_1d": 0.8,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.5,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 4.63,
+            "max_1d": 4.1,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.0,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 2.52,
+            "max_1d": 7.48,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 7.55,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.61,
+            "max_1d": 13.78,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 8.58,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 0.82,
+        "med_7d": -0.88,
+        "pos_wins": 6,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 7,
+        "c3_1pct_3d": 4,
+        "c4_8pct_3d": 4,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "w20_phase1": {
+        "mean_7d": 0.82,
+        "med_7d": -0.52,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 6,
+        "c3_1pct_3d": 7,
+        "c4_8pct_3d": 2,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "ending_nav": 2714.36,
+      "full_ret_pct": 166.98,
+      "stress_ret_pct": 61.04,
+      "ann_sharpe": 0.937,
+      "max_dd_pct": 37.62,
+      "liqs": 1,
+      "fees_usdt": 979.14,
+      "borrow_usdt": 643.65,
+      "pool_yield_usdt": 60.89,
+      "year_rets": {
+        "2024": 24.26,
+        "2025": 36.55,
+        "2026": 69.58
+      },
+      "vs_e3v2_bps": 8.62,
+      "vs_e3v2_ci95_bps": [
+        -4.36,
+        22.32
+      ],
+      "vs_v2_bps": 9.72
+    },
+    {
+      "label": "E3_V2_4QUAD_4H_AGREE_MK",
+      "w20": {
+        "mean_7d": 1.03,
+        "med_7d": -0.59,
+        "pos_wins": 7,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 8,
+        "c2_2pct_2d": 8,
+        "c3_1pct_3d": 6,
+        "c4_8pct_3d": 3,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1,
+        "per_window": [
+          {
+            "wid": "W01",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": 2.36,
+            "max_1d": 4.14,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 3.47,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W02",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 0.27,
+            "max_1d": 1.72,
+            "d_ge_2": 0,
+            "d_ge_1": 3,
+            "max_3d": 2.75,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W03",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -2.43,
+            "max_1d": 0.82,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.74,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W04",
+            "regime": "BTC_DOMINANCE_BLEED",
+            "ret_7d": -1.44,
+            "max_1d": 2.7,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 0.79,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W05",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": -3.01,
+            "max_1d": 1.78,
+            "d_ge_2": 0,
+            "d_ge_1": 2,
+            "max_3d": 2.84,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W06",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": -0.97,
+            "max_1d": 2.27,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 1.89,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W07",
+            "regime": "ALT_SEASON_ROTATION",
+            "ret_7d": 21.81,
+            "max_1d": 5.07,
+            "d_ge_2": 5,
+            "d_ge_1": 6,
+            "max_3d": 11.49,
+            "criteria_met": 5,
+            "hit_all": true
+          },
+          {
+            "wid": "W08",
+            "regime": "BEAR_CASCADE",
+            "ret_7d": -5.15,
+            "max_1d": 3.13,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 8.05,
+            "criteria_met": 4,
+            "hit_all": false
+          },
+          {
+            "wid": "W09",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.52,
+            "max_1d": 2.04,
+            "d_ge_2": 2,
+            "d_ge_1": 4,
+            "max_3d": 2.72,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W10",
+            "regime": "HIGH_VOL_WHIPSAW_CHOP",
+            "ret_7d": -4.37,
+            "max_1d": 7.82,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 6.83,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W11",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -1.24,
+            "max_1d": 0.01,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": -0.42,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W12",
+            "regime": "INVERTED_V_BLOWOFF",
+            "ret_7d": -0.43,
+            "max_1d": 2.44,
+            "d_ge_2": 1,
+            "d_ge_1": 2,
+            "max_3d": 1.94,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W13",
+            "regime": "V_BOTTOM_REVERSAL",
+            "ret_7d": -0.12,
+            "max_1d": 1.14,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.14,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W14",
+            "regime": "GOLD_FLIGHT_TO_SAFETY",
+            "ret_7d": -0.75,
+            "max_1d": 1.13,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 1.5,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W15",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.93,
+            "max_1d": 1.58,
+            "d_ge_2": 0,
+            "d_ge_1": 1,
+            "max_3d": 2.38,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W16",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 7.69,
+            "max_1d": 6.79,
+            "d_ge_2": 3,
+            "d_ge_1": 4,
+            "max_3d": 6.94,
+            "criteria_met": 3,
+            "hit_all": false
+          },
+          {
+            "wid": "W17",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": -0.41,
+            "max_1d": 0.86,
+            "d_ge_2": 0,
+            "d_ge_1": 0,
+            "max_3d": 0.56,
+            "criteria_met": 0,
+            "hit_all": false
+          },
+          {
+            "wid": "W18",
+            "regime": "STEADY_BULL_GRIND",
+            "ret_7d": 4.65,
+            "max_1d": 4.12,
+            "d_ge_2": 1,
+            "d_ge_1": 1,
+            "max_3d": 4.01,
+            "criteria_met": 1,
+            "hit_all": false
+          },
+          {
+            "wid": "W19",
+            "regime": "LOW_VOL_COIL_FLAT",
+            "ret_7d": 2.69,
+            "max_1d": 7.5,
+            "d_ge_2": 2,
+            "d_ge_1": 2,
+            "max_3d": 7.54,
+            "criteria_met": 2,
+            "hit_all": false
+          },
+          {
+            "wid": "W20",
+            "regime": "STEADY_BEAR_GRIND",
+            "ret_7d": 3.8,
+            "max_1d": 13.76,
+            "d_ge_2": 2,
+            "d_ge_1": 3,
+            "max_3d": 8.59,
+            "criteria_met": 4,
+            "hit_all": false
+          }
+        ]
+      },
+      "w20_phase0": {
+        "mean_7d": 1.02,
+        "med_7d": -0.64,
+        "pos_wins": 8,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 7,
+        "c2_2pct_2d": 7,
+        "c3_1pct_3d": 4,
+        "c4_8pct_3d": 4,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "w20_phase1": {
+        "mean_7d": 1.02,
+        "med_7d": -0.47,
+        "pos_wins": 9,
+        "scored_windows": 20,
+        "unscored_windows": 0,
+        "c1_3pct_1d": 9,
+        "c2_2pct_2d": 6,
+        "c3_1pct_3d": 7,
+        "c4_8pct_3d": 2,
+        "c5_18pct_7d": 1,
+        "full_5of5_hits": 1
+      },
+      "ending_nav": 3418.02,
+      "full_ret_pct": 236.0,
+      "stress_ret_pct": 77.69,
+      "ann_sharpe": 1.104,
+      "max_dd_pct": 36.29,
+      "liqs": 1,
+      "fees_usdt": 669.43,
+      "borrow_usdt": 741.32,
+      "pool_yield_usdt": 66.95,
+      "year_rets": {
+        "2024": 26.94,
+        "2025": 53.71,
+        "2026": 84.82
+      },
+      "vs_e3v2_bps": 10.72,
+      "vs_e3v2_ci95_bps": [
+        -2.42,
+        24.63
+      ],
+      "vs_v2_bps": 11.82
+    }
+  ],
+  "best_sharpe_unified": {
+    "label": "E3_V2_PLUS_BEAR50_PREV",
+    "w20": {
+      "mean_7d": 0.6,
+      "med_7d": -0.07,
+      "pos_wins": 8,
+      "scored_windows": 20,
+      "unscored_windows": 0,
+      "c1_3pct_1d": 6,
+      "c2_2pct_2d": 0,
+      "c3_1pct_3d": 2,
+      "c4_8pct_3d": 0,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0,
+      "per_window": [
+        {
+          "wid": "W01",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": -3.2,
+          "max_1d": 0.92,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -0.16,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W02",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": -0.11,
+          "max_1d": 0.93,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.43,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W03",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": -0.88,
+          "max_1d": 1.15,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 0.65,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W04",
+          "regime": "BTC_DOMINANCE_BLEED",
+          "ret_7d": 0.51,
+          "max_1d": 0.37,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.58,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W05",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": -0.15,
+          "max_1d": 1.05,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 1.18,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W06",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": -3.56,
+          "max_1d": 0.43,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -1.18,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W07",
+          "regime": "ALT_SEASON_ROTATION",
+          "ret_7d": 10.33,
+          "max_1d": 4.85,
+          "d_ge_2": 1,
+          "d_ge_1": 3,
+          "max_3d": 6.47,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W08",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": -1.65,
+          "max_1d": 4.47,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 4.2,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W09",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": 2.09,
+          "max_1d": 1.95,
+          "d_ge_2": 0,
+          "d_ge_1": 2,
+          "max_3d": 3.75,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W10",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": -0.56,
+          "max_1d": 3.71,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 4.02,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W11",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": -2.15,
+          "max_1d": 0.06,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -0.45,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W12",
+          "regime": "INVERTED_V_BLOWOFF",
+          "ret_7d": 1.77,
+          "max_1d": 2.73,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 2.3,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W13",
+          "regime": "V_BOTTOM_REVERSAL",
+          "ret_7d": -0.03,
+          "max_1d": 0.48,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.8,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W14",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": -0.04,
+          "max_1d": 0.56,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.08,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W15",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": -0.11,
+          "max_1d": 0.84,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.54,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W16",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 2.24,
+          "max_1d": 1.34,
+          "d_ge_2": 0,
+          "d_ge_1": 3,
+          "max_3d": 2.37,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W17",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": -0.2,
+          "max_1d": 0.15,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.03,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W18",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": 5.55,
+          "max_1d": 5.07,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 4.92,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W19",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": 1.05,
+          "max_1d": 4.2,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 3.98,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W20",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 1.16,
+          "max_1d": 3.34,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 1.81,
+          "criteria_met": 1,
+          "hit_all": false
+        }
+      ]
+    },
+    "w20_phase0": {
+      "mean_7d": 0.52,
+      "med_7d": -0.02,
+      "pos_wins": 10,
+      "scored_windows": 20,
+      "unscored_windows": 0,
+      "c1_3pct_1d": 6,
+      "c2_2pct_2d": 1,
+      "c3_1pct_3d": 2,
+      "c4_8pct_3d": 1,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0
+    },
+    "w20_phase1": {
+      "mean_7d": 0.68,
+      "med_7d": -0.12,
+      "pos_wins": 9,
+      "scored_windows": 20,
+      "unscored_windows": 0,
+      "c1_3pct_1d": 7,
+      "c2_2pct_2d": 0,
+      "c3_1pct_3d": 1,
+      "c4_8pct_3d": 0,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0
+    },
+    "ending_nav": 1683.19,
+    "full_ret_pct": 68.31,
+    "stress_ret_pct": 15.84,
+    "ann_sharpe": 0.969,
+    "max_dd_pct": 17.42,
+    "liqs": 0,
+    "fees_usdt": 251.99,
+    "borrow_usdt": 88.83,
+    "pool_yield_usdt": 63.69,
+    "year_rets": {
+      "2024": 7.87,
+      "2025": 33.03,
+      "2026": 15.87
+    },
+    "vs_e3v2_bps": 1.94,
+    "vs_e3v2_ci95_bps": [
+      -1.18,
+      5.86
+    ],
+    "vs_v2_bps": 3.04
+  },
+  "best_return_unified": {
+    "label": "E3_V2_PLUS_CTA_BEAR80_PREV",
+    "w20": {
+      "mean_7d": 1.1,
+      "med_7d": -0.46,
+      "pos_wins": 9,
+      "scored_windows": 20,
+      "unscored_windows": 0,
+      "c1_3pct_1d": 9,
+      "c2_2pct_2d": 4,
+      "c3_1pct_3d": 5,
+      "c4_8pct_3d": 3,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0,
+      "per_window": [
+        {
+          "wid": "W01",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": -3.2,
+          "max_1d": 0.92,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -0.16,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W02",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": -0.74,
+          "max_1d": 1.24,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": -0.14,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W03",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": -0.9,
+          "max_1d": 2.38,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 0.96,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W04",
+          "regime": "BTC_DOMINANCE_BLEED",
+          "ret_7d": 0.52,
+          "max_1d": 0.37,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.58,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W05",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": -0.18,
+          "max_1d": 1.06,
+          "d_ge_2": 0,
+          "d_ge_1": 1,
+          "max_3d": 1.18,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W06",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": -6.19,
+          "max_1d": 0.43,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -1.19,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W07",
+          "regime": "ALT_SEASON_ROTATION",
+          "ret_7d": 10.37,
+          "max_1d": 4.44,
+          "d_ge_2": 1,
+          "d_ge_1": 3,
+          "max_3d": 5.98,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W08",
+          "regime": "BEAR_CASCADE",
+          "ret_7d": -1.68,
+          "max_1d": 4.44,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 4.17,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W09",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": 3.82,
+          "max_1d": 3.67,
+          "d_ge_2": 3,
+          "d_ge_1": 4,
+          "max_3d": 6.61,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W10",
+          "regime": "HIGH_VOL_WHIPSAW_CHOP",
+          "ret_7d": -3.3,
+          "max_1d": 13.09,
+          "d_ge_2": 1,
+          "d_ge_1": 3,
+          "max_3d": 12.65,
+          "criteria_met": 3,
+          "hit_all": false
+        },
+        {
+          "wid": "W11",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": -2.15,
+          "max_1d": 0.06,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": -0.45,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W12",
+          "regime": "INVERTED_V_BLOWOFF",
+          "ret_7d": -0.77,
+          "max_1d": 3.09,
+          "d_ge_2": 2,
+          "d_ge_1": 2,
+          "max_3d": 2.14,
+          "criteria_met": 2,
+          "hit_all": false
+        },
+        {
+          "wid": "W13",
+          "regime": "V_BOTTOM_REVERSAL",
+          "ret_7d": 0.3,
+          "max_1d": 0.48,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 0.89,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W14",
+          "regime": "GOLD_FLIGHT_TO_SAFETY",
+          "ret_7d": -1.06,
+          "max_1d": 0.5,
+          "d_ge_2": 0,
+          "d_ge_1": 0,
+          "max_3d": 1.34,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W15",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": -2.97,
+          "max_1d": 2.33,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 3.2,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W16",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 12.0,
+          "max_1d": 6.27,
+          "d_ge_2": 3,
+          "d_ge_1": 4,
+          "max_3d": 10.75,
+          "criteria_met": 4,
+          "hit_all": false
+        },
+        {
+          "wid": "W17",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 1.21,
+          "max_1d": 2.02,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 1.83,
+          "criteria_met": 0,
+          "hit_all": false
+        },
+        {
+          "wid": "W18",
+          "regime": "STEADY_BULL_GRIND",
+          "ret_7d": 5.5,
+          "max_1d": 5.04,
+          "d_ge_2": 1,
+          "d_ge_1": 1,
+          "max_3d": 4.89,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W19",
+          "regime": "LOW_VOL_COIL_FLAT",
+          "ret_7d": 1.09,
+          "max_1d": 4.2,
+          "d_ge_2": 1,
+          "d_ge_1": 2,
+          "max_3d": 3.97,
+          "criteria_met": 1,
+          "hit_all": false
+        },
+        {
+          "wid": "W20",
+          "regime": "STEADY_BEAR_GRIND",
+          "ret_7d": 10.3,
+          "max_1d": 15.49,
+          "d_ge_2": 2,
+          "d_ge_1": 3,
+          "max_3d": 10.09,
+          "criteria_met": 4,
+          "hit_all": false
+        }
+      ]
+    },
+    "w20_phase0": {
+      "mean_7d": 1.01,
+      "med_7d": -0.69,
+      "pos_wins": 8,
+      "scored_windows": 20,
+      "unscored_windows": 0,
+      "c1_3pct_1d": 9,
+      "c2_2pct_2d": 5,
+      "c3_1pct_3d": 4,
+      "c4_8pct_3d": 3,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0
+    },
+    "w20_phase1": {
+      "mean_7d": 1.18,
+      "med_7d": -0.29,
+      "pos_wins": 9,
+      "scored_windows": 20,
+      "unscored_windows": 0,
+      "c1_3pct_1d": 9,
+      "c2_2pct_2d": 4,
+      "c3_1pct_3d": 7,
+      "c4_8pct_3d": 3,
+      "c5_18pct_7d": 0,
+      "full_5of5_hits": 0
+    },
+    "ending_nav": 2167.68,
+    "full_ret_pct": 116.76,
+    "stress_ret_pct": 40.9,
+    "ann_sharpe": 0.895,
+    "max_dd_pct": 32.6,
+    "liqs": 0,
+    "fees_usdt": 380.15,
+    "borrow_usdt": 279.51,
+    "pool_yield_usdt": 56.17,
+    "year_rets": {
+      "2024": 5.94,
+      "2025": 38.14,
+      "2026": 47.04
+    },
+    "vs_e3v2_bps": 5.52,
+    "vs_e3v2_ci95_bps": [
+      -3.8,
+      16.82
+    ],
+    "vs_v2_bps": 6.62
+  }
+}

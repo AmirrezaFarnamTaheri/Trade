@@ -1,0 +1,349 @@
+openapi: 3.0.3
+info:
+  title: API امنیت نوبیتکس
+  version: "1.1.0"
+  description: |
+    APIهای امنیتی شامل سابقه ورود، لغو اضطراری برداشت و کد آنتی‌فیشینگ.
+
+    برخی مسیرهای قدیمی این بخش برای سازگاری ممکن است `GET` را نیز بپذیرند؛
+    برای مسیرهایی که با `POST` مستند شده‌اند، `POST` روش توصیه‌شده است.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: امنیت
+    description: سابقه ورود، لغو اضطراری برداشت و آنتی‌فیشینگ
+
+paths:
+  /users/login-attempts:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - امنیت
+      summary: سابقه تلاش‌های ورود
+      description: |
+        لیست تلاش‌های ورود اخیر کاربر را برمی‌گرداند.
+
+        - روش توصیه‌شده برای فراخوانی این API متد `POST` است.
+        - نتیجه شامل تلاش‌های موفق و ناموفق است.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  attempts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LoginAttempt"
+
+  /security/emergency-cancel/get-code:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - امنیت
+      summary: دریافت کد لغو اضطراری برداشت
+      description: |
+        کد لغو اضطراری برداشت کاربر را برمی‌گرداند.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۲۵ درخواست در هر ۵ دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        - در صورتی که قبلا این قابلیت فعال نشده باشد، مقدار `code` می‌تواند تهی باشد.
+        - نیازمند دسترسی برداشت است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyCancelCodeResponse"
+        "400":
+          description: درخواست نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityFailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /security/emergency-cancel/activate:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      tags:
+        - امنیت
+      summary: فعال‌سازی لغو اضطراری برداشت
+      description: |
+        قابلیت لغو اضطراری برداشت را فعال می‌کند و کد مربوطه را برمی‌گرداند.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۲ درخواست در ساعت
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        - در صورت فعال بودن قبلی، همان کد قبلی برگردانده می‌شود.
+        - در صورت استفاده از این کد برای لغو برداشت‌ها، محدودیت ۷۲ ساعته برداشت روی حساب اعمال می‌شود.
+        - نیازمند دسترسی برداشت است.
+      security:
+        - TokenAuth: []
+        - KeyAuth: []
+          SignatureAuth: []
+          TimestampAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyCancelCodeResponse"
+        "400":
+          description: درخواست نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityFailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /security/anti-phishing:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - امنیت
+      summary: دریافت کد آنتی‌فیشینگ
+      description: |
+        کد آنتی‌فیشینگ کاربر را به‌صورت ماسک‌شده برمی‌گرداند.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۰ درخواست در دقیقه
+        </div>
+        <br/>
+
+        - مقدار `antiPhishingCode` همیشه ماسک‌شده برگردانده می‌شود (مثلاً `s****g`).
+        - اگر برای کاربر کدی ثبت نشده باشد، پاسخ `404` با `code=NotFound` برمی‌گردد.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  antiPhishingCode:
+                    type: string
+                    example: s****g
+        "404":
+          description: کد تنظیم نشده است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityFailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+    post:
+      tags:
+        - امنیت
+      summary: ایجاد یا تغییر کد آنتی‌فیشینگ
+      description: |
+        ایجاد یا تغییر کد آنتی‌فیشینگ کاربر.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۱۰ درخواست در دقیقه
+        </div>
+        <br/>
+        <div class="alert alert--secondary">
+          #### API Key
+          برای دریافت `otpCode` از `/v2/otp/request` با API Key، دسترسی `OTP` روی کلید الزامی است.
+        </div>
+        <br/>
+
+        - کاربر باید ایمیل تاییدشده داشته باشد.
+        - برای دریافت `otpCode`، ابتدا `/v2/otp/request` را با `usage=anti_phishing_code` و `type=email` فراخوانی کنید.
+        - طول `code` باید بین ۴ تا ۱۵ کاراکتر باشد.
+      security:
+        - TokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - otpCode
+              properties:
+                code:
+                  type: string
+                  description: کد آنتی‌فیشینگ انتخابی کاربر
+                  minLength: 4
+                  maxLength: 15
+                otpCode:
+                  type: string
+                  description: کد یکبارمصرف ارسالی
+                  example: "123456"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        "400":
+          description: درخواست نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityFailedResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  responses:
+    RateLimitExceeded:
+      description: محدودیت تعداد درخواست‌ها
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - status
+              - code
+            properties:
+              status:
+                type: string
+                enum: [failed]
+                example: failed
+              code:
+                type: string
+                example: TooManyRequests
+
+  schemas:
+    LoginAttempt:
+      type: object
+      properties:
+        ip:
+          type: string
+          nullable: true
+          example: "46.209.130.106"
+        username:
+          type: string
+          example: "name@example.com"
+        ipCountry:
+          type: string
+          nullable: true
+          example: IR
+        userAgent:
+          type: string
+          nullable: true
+        isKnown:
+          type: boolean
+        deviceId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          example: Successful
+        createdAt:
+          type: string
+          format: date-time
+
+    EmergencyCancelCodeResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        cancelCode:
+          type: object
+          properties:
+            code:
+              type: string
+              nullable: true
+              example: seJlef35L3
+
+    SecurityFailedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: failed
+        code:
+          type: string
+          example: InvalidOTPCode
+        message:
+          type: string
+          example: Please use otp/request endpoint

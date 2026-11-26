@@ -1,0 +1,21 @@
+{
+  "components": [
+    "1d BASE_13_S1_S5 (XAUT) + ACCEL_BLEND_20",
+    "1d 11A Multi-Issuer Metals Reserve (XAUT<=25%, PAXG<=15%, SLVON<=10%)",
+    "2h 50/50 Twin-Phase (0h + 1h) IGN18 + 11-feat Coiled-Spring GRU (Exact Path-PnL)",
+    "Conformal Top-33% Rank Gate + 5% Equity-Curve DD Leverage Governor",
+    "Joint Single-ADMM Cross-Sleeve Netting & 40% Sector Cluster Caps",
+    "Live Nobitex<->Wallex Fair-Value Entry Guard & Exit Rebate Telemetry"
+  ],
+  "engine_digest": "55016f8eb3fab6016bab9a903d961f914d7cd0093e57ffca56668ec54595672c",
+  "executor_state": "DISARMED",
+  "funded_authority": false,
+  "gru_model_path": "..\\data\\live\\models\\gru-ignition-v2-pathpnl.json",
+  "gru_model_sha256": "e6f05aaf64e0479fe768ec3ba1361ae8ce9a5759e4efa64b139f80bc2e5f1b56",
+  "ignition_weight": 0.3,
+  "registered_at": "2026-11-24T22:53:02.157553+00:00",
+  "schema": "prospective-champion-v2-registration/1",
+  "selection_end": "2026-11-24T00:00:00+00:00",
+  "slow_weight": 0.7,
+  "strategy_id": "CHAMPION_V2_70_ACCEL_METALS_30_TWIN_GRU11_PATHPNL_CONFORMAL_JOINT_ADMM"
+}

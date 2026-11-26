@@ -43,6 +43,65 @@ def test_frozen_consume_once_protocol_persists_success_and_rejects_overlap(tmp_p
         db.c.close()
 
 
+def test_registration_budget_serializes_concurrent_writers_and_retains_supersession(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    def clock():
+        return START - timedelta(minutes=5)
+
+    with ResearchProtocol(tmp_path, clock=clock) as ledger:
+        original = ledger.register(request())["evaluation_id"]
+    ready = Barrier(2, timeout=10)
+
+    def register(symbol):
+        with ResearchProtocol(tmp_path, clock=clock) as ledger:
+            ready.wait()
+            try:
+                return ledger.register({**request(), "symbol": symbol})["evaluation_id"]
+            except ValueError as error:
+                assert "trial budget full" in str(error)
+                return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sum(key is not None for key in pool.map(register, ("ETHUSDT", "SOLUSDT"))) == 1
+    with ResearchProtocol(tmp_path, clock=clock) as ledger:
+        replacement = ledger.register({**request(), "symbol": "ADAUSDT", "supersedes": original})
+        assert ledger.evaluation(original)["result"]["superseded_by"] == replacement["evaluation_id"]
+        assert ledger.evaluation(original)["result"]["verdict"] == "ABORTED"
+        assert ledger.register({**request(), "symbol": "ADAUSDT", "supersedes": original}) == replacement
+
+
+def test_protocol_and_comparison_share_forward_budget(tmp_path):
+    from gym.services.evidence import trials
+    from gym.services.experiment_registry import ExperimentRegistry
+    from gym.services.prospective_comparisons import register_comparison
+    from gym.services.trial_governance import PACKAGED_OPEN_FORWARD
+
+    assert sorted(PACKAGED_OPEN_FORWARD) == sorted((r["id"], r["registered"]) for r in trials() if r["verdict"] == "OPEN")
+    now = START - timedelta(minutes=5)
+    comparison = {k: v for k, v in request().items() if k not in ("strategy", "params")}
+    comparison["candidates"] = [{"strategy": "ema-trend", "params": {"fast": f, "slow": 5}} for f in (2, 3)]
+    with ExperimentRegistry(tmp_path, store="demo") as registry, ResearchProtocol(tmp_path, store="demo", clock=lambda: now) as protocol:
+        register_comparison(registry, comparison, now=now)
+        protocol.register(request())
+        with pytest.raises(ValueError, match="trial budget full"):
+            register_comparison(registry, {**comparison, "symbol": "ETHUSDT"}, now=now)
+        with pytest.raises(ValueError, match="trial budget full"):
+            protocol.register({**request(), "symbol": "ETHUSDT"})
+
+    # Long-horizon background forward monitors are tracked separately so they do not lock out the two active live seats,
+    # while a third active live hypothesis still fails closed against the 2-trial active cap.
+    later = now + timedelta(days=30)
+    future = {name: (later + timedelta(minutes=n)).isoformat() for name, n in
+              (("selection_end", -5), ("test_from", 5), ("test_to", 30))}
+    with ExperimentRegistry(tmp_path, store="live") as registry, ResearchProtocol(tmp_path, clock=lambda: later) as protocol:
+        register_comparison(registry, {**comparison, **future}, now=later)
+        protocol.register({**request(), **future})
+        with pytest.raises(ValueError, match="trial budget full"):
+            protocol.register({**request(), **future, "symbol": "ETHUSDT"})
+
+
 def test_failed_and_interrupted_evaluations_remain_consumed(tmp_path, monkeypatch):
     import gym.services.research_protocol as protocol
     db = market_db(tmp_path, [])

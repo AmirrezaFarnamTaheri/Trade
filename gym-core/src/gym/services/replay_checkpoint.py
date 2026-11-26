@@ -113,28 +113,37 @@ def checkpoint_replay(registry, db, request, *, resume=False):
 
 def portfolio_checkpoint(registry, db, request, *, saved):
     """Rebuild a shared-cash portfolio snapshot without deserializing mutable objects."""
-    from .portfolio import portfolio
+    from .portfolio import MAX_MULTICURRENCY_BOOK_OBSERVATIONS, portfolio
+    from .portfolio_margin import load_margin_plans
 
     out = load_verified_run(registry.root / "runs" / "portfolios", saved["run_id"] if saved else request["run_id"], store=registry.store)
     inputs = out["inputs"]
-    # Versions 5..13 are the "newest input wins" identity ladder from portfolio._portfolio_version;
-    # every rung replays through the same engine, so each one can be checkpointed.
-    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in range(5, 14) or inputs["rules_mode"] != "point-in-time":
+    # Preserve historical variants that can be replayed by the current engine.
+    if inputs.get("kind") != "portfolio" or inputs.get("portfolio_version") not in range(5, 28) or inputs["rules_mode"] != "point-in-time":
         raise ValueError("checkpoint requires a current point-in-time portfolio")
     if saved and (saved["outputs_digest"] != out["outputs_digest"] or saved["inputs_digest"] != digest(inputs)):
         raise ValueError("checkpoint saved portfolio evidence changed")
     count = saved["quote_count"] if saved else request["quote_count"]
-    if type(count) is not int or not 1 <= count <= 100000:
-        raise ValueError("portfolio checkpoint needs 1..100000 quotes")
+    maximum = MAX_MULTICURRENCY_BOOK_OBSERVATIONS if inputs.get("cash_by_currency") else 100_000
+    if type(count) is not int or not 1 <= count <= maximum:
+        raise ValueError(f"portfolio checkpoint needs 1..{maximum} quotes")
     options = {"resolution": inputs["resolution"], "cash": Decimal(inputs["cash"]), "cost": CostModel.from_description(inputs["cost"]),
         "strategy_id": inputs["strategy"], "params": inputs["params"], "rules_mode": inputs["rules_mode"],
         "store": registry.store, "policy": inputs.get("policy"),
-        "universe_selection": inputs.get("universe_selection"),
-        "booked_accounting": inputs.get("trade_accounting") == "booked-notional/1"}
+        "universe_selection": inputs.get("universe_selection"), "cash_by_currency": inputs.get("cash_by_currency"),
+        "dynamic_routes": inputs.get("dynamic_routes", False),
+        "funding_legs": inputs.get("funding_legs"),
+        "fx_rebalance": inputs.get("fx_rebalance"),
+        "margin_plans": load_margin_plans(registry.root, inputs.get("margin_positions")),
+        "booked_accounting": inputs.get("trade_accounting") == "booked-notional/1",
+        "venue": inputs.get("venue", "wallex"), "rank_gate": inputs.get("rank_gate"),
+        "valuation_symbol": inputs.get("valuation_symbol")}
     checkpoint = {"quote_count": count}
+    if saved:
+        checkpoint["expected_prefix"] = {
+            key: saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")
+        }
     rebuilt = portfolio(db, inputs["symbols"], instant(inputs["from"]), instant(inputs["to"]), **options, checkpoint=checkpoint)
-    if saved and any(checkpoint[key] != saved[key] for key in ("cursor", "prefix_digest", "state_digest", "pending_orders")):
-        raise ValueError("portfolio checkpoint prefix, rules, risk or reservations changed")
     if rebuilt["run_id"] != out["run_id"] or rebuilt["outputs_digest"] != out["outputs_digest"]:
         raise ValueError("portfolio replay differs from saved evidence")
     if saved:

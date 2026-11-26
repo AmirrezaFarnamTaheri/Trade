@@ -1,0 +1,5134 @@
+[
+  {
+    "path": "gym-core/src/gym/__init__.py",
+    "lines": 9,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": [
+      "domain",
+      "os",
+      "exec_kernel"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/__init__.py",
+    "lines": 0,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/adapters/abantether.py",
+    "lines": 139,
+    "functions": 6,
+    "max_function_lines": 38,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "domain.quoting_policy",
+      "domain.venue_contracts"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/atomic_text.py",
+    "lines": 18,
+    "functions": 1,
+    "max_function_lines": 12,
+    "imports": [
+      "pathlib",
+      "tempfile",
+      "os"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/candle_reader.py",
+    "lines": 131,
+    "functions": 4,
+    "max_function_lines": 66,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "domain.model",
+      "domain.timeframe_panel",
+      "domain.timeframe_panel",
+      "json",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/mix_journal_store.py",
+    "lines": 43,
+    "functions": 2,
+    "max_function_lines": 16,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "pathlib",
+      "domain.signal_gatekeeper",
+      "json",
+      "os"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/nobitex.py",
+    "lines": 347,
+    "functions": 7,
+    "max_function_lines": 61,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "domain.model",
+      "domain.venue_contracts",
+      "json",
+      "asyncio",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/nobitex_testnet.py",
+    "lines": 464,
+    "functions": 21,
+    "max_function_lines": 36,
+    "imports": [
+      "__future__",
+      "collections.abc",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "typing",
+      "urllib.parse",
+      "cryptography.exceptions",
+      "cryptography.hazmat.primitives.asymmetric.ed25519",
+      "nobitex",
+      "base64",
+      "json",
+      "re",
+      "time",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/run_store.py",
+    "lines": 203,
+    "functions": 9,
+    "max_function_lines": 35,
+    "imports": [
+      "decimal",
+      "pathlib",
+      "domain.model",
+      "domain.strategy",
+      "domain.performance",
+      "json",
+      "os",
+      "re",
+      "tempfile",
+      "threading"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/secret_store.py",
+    "lines": 233,
+    "functions": 20,
+    "max_function_lines": 20,
+    "imports": [
+      "__future__",
+      "ctypes",
+      "datetime",
+      "pathlib",
+      "ctypes",
+      "os",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/service_account_read.py",
+    "lines": 208,
+    "functions": 9,
+    "max_function_lines": 43,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "contracts.account_receipt",
+      "domain.account_observations",
+      "wallex_account_read",
+      "wallex_order_evidence",
+      "uuid",
+      "asyncio",
+      "hashlib",
+      "os",
+      "re",
+      "subprocess",
+      "ctypes",
+      "hashlib",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/service_review.py",
+    "lines": 73,
+    "functions": 1,
+    "max_function_lines": 61,
+    "imports": [
+      "contracts.review_wire",
+      "service_account_read",
+      "wallex_account_read",
+      "asyncio",
+      "re",
+      "secrets",
+      "subprocess"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/sqlite_migrations.py",
+    "lines": 28,
+    "functions": 2,
+    "max_function_lines": 11,
+    "imports": [
+      "time",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/store.py",
+    "lines": 427,
+    "functions": 27,
+    "max_function_lines": 28,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "domain.model",
+      "sqlite_migrations",
+      "hashlib",
+      "io",
+      "json",
+      "shutil",
+      "sqlite3",
+      "time",
+      "zstandard",
+      "re",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/wallex.py",
+    "lines": 101,
+    "functions": 7,
+    "max_function_lines": 19,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "json",
+      "os",
+      "ssl",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/wallex_account_read.py",
+    "lines": 201,
+    "functions": 13,
+    "max_function_lines": 30,
+    "imports": [
+      "__future__",
+      "decimal",
+      "domain.account_observations",
+      "wallex_order_evidence",
+      "wallex_order_evidence",
+      "json",
+      "math",
+      "re",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/wallex_margin.py",
+    "lines": 59,
+    "functions": 2,
+    "max_function_lines": 36,
+    "imports": [
+      "urllib.error",
+      "urllib.request",
+      "domain.margin",
+      "domain.market_models",
+      "wallex_account_read",
+      "hashlib",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/wallex_order_evidence.py",
+    "lines": 248,
+    "functions": 7,
+    "max_function_lines": 93,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/adapters/wallex_public_feeds.py",
+    "lines": 165,
+    "functions": 4,
+    "max_function_lines": 37,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "domain.model",
+      "json",
+      "asyncio",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/api/__init__.py",
+    "lines": 97,
+    "functions": 7,
+    "max_function_lines": 37,
+    "imports": [
+      "aiohttp",
+      "asyncio",
+      "hmac",
+      "logging",
+      "secrets"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/api/diagnostics.py",
+    "lines": 260,
+    "functions": 16,
+    "max_function_lines": 131,
+    "imports": [
+      "__future__",
+      "decimal",
+      "aiohttp",
+      "adapters.run_store",
+      "adapters.store",
+      "domain.execution_qualification",
+      "domain.model",
+      "services.backup_status",
+      "services.conversion_route",
+      "services.data_portal",
+      "services.market_quality",
+      "services.research_process",
+      "services.trial_governance",
+      "services.research_actions",
+      "asyncio",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/api/offline_reviews.py",
+    "lines": 62,
+    "functions": 4,
+    "max_function_lines": 49,
+    "imports": [
+      "aiohttp",
+      "domain.market_models",
+      "domain.model",
+      "services.offline_review_journal",
+      "",
+      "asyncio",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/api/operator_reviews.py",
+    "lines": 68,
+    "functions": 2,
+    "max_function_lines": 56,
+    "imports": [
+      "aiohttp",
+      "adapters.service_review",
+      "adapters.wallex_account_read",
+      "contracts.review_wire",
+      "",
+      "asyncio"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/api/research.py",
+    "lines": 71,
+    "functions": 3,
+    "max_function_lines": 49,
+    "imports": [
+      "contextlib",
+      "aiohttp",
+      "domain.market_models",
+      "domain.model",
+      "services.research_actions",
+      "services.research_process",
+      "",
+      "asyncio",
+      "json",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/api/server.py",
+    "lines": 550,
+    "functions": 42,
+    "max_function_lines": 79,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "hashlib",
+      "pathlib",
+      "aiohttp",
+      "adapters.run_store",
+      "adapters.store",
+      "domain.account_observations",
+      "domain.assisted_ticket",
+      "domain.bars",
+      "domain.model",
+      "domain.registry",
+      "domain.rules",
+      "domain.sim",
+      "services.backup_status",
+      "services.capabilities",
+      "services.collector",
+      "services.evidence",
+      "services.external_journal",
+      "services.liquidity",
+      "services.offline_review_journal",
+      "services.operator_timeline",
+      "services.portable_report",
+      "services.readiness",
+      "services.reports",
+      "services.research",
+      "services.research_ledger",
+      "services.research_process",
+      "services.rules",
+      "services.venue_facts",
+      "",
+      "diagnostics",
+      "offline_reviews",
+      "operator_reviews",
+      "research",
+      "datetime",
+      "services.event_log",
+      "asyncio",
+      "json",
+      "os",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/cli.py",
+    "lines": 472,
+    "functions": 4,
+    "max_function_lines": 361,
+    "imports": [
+      "__future__",
+      "decimal",
+      "pathlib",
+      "commands.account",
+      "commands.common",
+      "commands.daemon",
+      "commands.maintenance",
+      "commands.research",
+      "domain.bars",
+      "domain.model",
+      "services.collector",
+      "services.rules",
+      "domain.model",
+      "adapters.store",
+      "services.research_actions",
+      "domain.registry",
+      "argparse",
+      "asyncio",
+      "json",
+      "os",
+      "sqlite3",
+      "sys",
+      "traceback"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/commands/__init__.py",
+    "lines": 1,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/commands/account.py",
+    "lines": 220,
+    "functions": 13,
+    "max_function_lines": 76,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "domain.model",
+      "common",
+      "adapters",
+      "adapters.wallex_account_read",
+      "domain.account_observations",
+      "services.external_journal",
+      "services.operator_actions",
+      "services.offline_review_journal",
+      "services.offline_review_journal",
+      "services.operator_actions",
+      "services.operator_actions",
+      "domain.assisted_ticket",
+      "services.operator_actions",
+      "adapters.service_review",
+      "adapters.wallex_account_read",
+      "adapters",
+      "adapters.wallex_account_read",
+      "adapters.service_account_read",
+      "asyncio",
+      "json",
+      "os",
+      "sys",
+      "getpass",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/commands/common.py",
+    "lines": 57,
+    "functions": 5,
+    "max_function_lines": 9,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "adapters.store",
+      "domain.model",
+      "services.rules",
+      "datetime",
+      "os"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/commands/daemon.py",
+    "lines": 96,
+    "functions": 3,
+    "max_function_lines": 52,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "adapters.store",
+      "domain.model",
+      "services.collector",
+      "services.rules",
+      "common",
+      "datetime",
+      "domain.rules",
+      "aiohttp",
+      "api.server",
+      "services.external_journal",
+      "services.offline_review_journal",
+      "services.venue_facts",
+      "services.event_log",
+      "secrets",
+      "sys",
+      "webbrowser"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/commands/maintenance.py",
+    "lines": 468,
+    "functions": 25,
+    "max_function_lines": 30,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "domain.model",
+      "common",
+      "adapters.store",
+      "adapters.store",
+      "services.research_backup",
+      "services.research_backup",
+      "services.research_backup",
+      "services",
+      "datetime",
+      "adapters.store",
+      "services.data_portal",
+      "services.drift",
+      "adapters.store",
+      "services.arm_preflight",
+      "services.arm_preflight",
+      "services.doctor",
+      "adapters.store",
+      "services.backup_rotation",
+      "services.encrypted_backup",
+      "datetime",
+      "services.encrypted_backup",
+      "services.backup_status",
+      "services.restore_gate",
+      "services.update_gate",
+      "services",
+      "services.operator_timeline",
+      "services.research_actions",
+      "decimal",
+      "domain.market_models",
+      "services.paper_sweep",
+      "services.paper_sweep",
+      "adapters.secret_store",
+      "services.alerts",
+      "adapters.secret_store",
+      "adapters.secret_store",
+      "services.ledger_anchors",
+      "json",
+      "sqlite3",
+      "sys",
+      "getpass",
+      "getpass",
+      "hashlib",
+      "getpass",
+      "getpass",
+      "platform",
+      "getpass",
+      "tempfile",
+      "json",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/commands/research.py",
+    "lines": 584,
+    "functions": 20,
+    "max_function_lines": 119,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters",
+      "adapters.store",
+      "domain.model",
+      "services.collector",
+      "services.process_owner",
+      "services.research_process",
+      "common",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.strategy",
+      "services.attribution",
+      "services.cost_defaults",
+      "services.data_quality_gate",
+      "services.paper",
+      "services.reports",
+      "services.research",
+      "services.trial_ledger",
+      "datetime",
+      "services.market_statistics",
+      "services.technical_analysis",
+      "datetime",
+      "services.data_portal",
+      "services.feed_crosscheck",
+      "datetime",
+      "services.allocation",
+      "services.conversion_route",
+      "services.mix_journal",
+      "types",
+      "services.breadth_journal",
+      "datetime",
+      "services.cost_defaults",
+      "services.execution_calibration",
+      "adapters.run_store",
+      "services.portable_report",
+      "services.reports",
+      "adapters.run_store",
+      "services.diagnostics",
+      "services.reports",
+      "services.cost_defaults",
+      "services.live_paper",
+      "domain.artifact_evaluation",
+      "services.research_actions",
+      "services.research_process",
+      "services.portfolio",
+      "services.temporal_validation",
+      "services.data_portal",
+      "asyncio",
+      "json",
+      "math",
+      "sqlite3",
+      "sys"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/contracts/__init__.py",
+    "lines": 0,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/contracts/account_receipt.py",
+    "lines": 55,
+    "functions": 1,
+    "max_function_lines": 47,
+    "imports": [
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/contracts/review_wire.py",
+    "lines": 309,
+    "functions": 12,
+    "max_function_lines": 73,
+    "imports": [
+      "domain.market_models",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/contracts/stop_wire.py",
+    "lines": 113,
+    "functions": 8,
+    "max_function_lines": 19,
+    "imports": [
+      "enum",
+      "struct"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/__init__.py",
+    "lines": 0,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/domain/account_observations.py",
+    "lines": 164,
+    "functions": 6,
+    "max_function_lines": 71,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/allocation.py",
+    "lines": 36,
+    "functions": 1,
+    "max_function_lines": 23,
+    "imports": [
+      "itertools",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/artifact_evaluation.py",
+    "lines": 47,
+    "functions": 1,
+    "max_function_lines": 28,
+    "imports": [
+      "__future__",
+      "decimal",
+      "forecast_evaluation",
+      "market_models",
+      "portfolio",
+      "inspect"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/assisted_ticket.py",
+    "lines": 185,
+    "functions": 9,
+    "max_function_lines": 79,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "copy",
+      "hashlib",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/async_covariance.py",
+    "lines": 212,
+    "functions": 8,
+    "max_function_lines": 40,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/bars.py",
+    "lines": 346,
+    "functions": 30,
+    "max_function_lines": 46,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "functools",
+      "model",
+      "periods"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/bear_majors_sleeve.py",
+    "lines": 291,
+    "functions": 5,
+    "max_function_lines": 90,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "instrument_resolver",
+      "multi_horizon_book",
+      "optimal_exits",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/bellman_stopping.py",
+    "lines": 295,
+    "functions": 12,
+    "max_function_lines": 53,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "statistics",
+      "optimal_exits",
+      "timeframe_panel",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/blend_strategies.py",
+    "lines": 152,
+    "functions": 7,
+    "max_function_lines": 27,
+    "imports": [
+      "collections",
+      "decimal",
+      "signals",
+      "strategy",
+      "registry"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/breadth.py",
+    "lines": 30,
+    "functions": 2,
+    "max_function_lines": 15,
+    "imports": [
+      "statistics",
+      "signals"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/channel_strategies.py",
+    "lines": 55,
+    "functions": 3,
+    "max_function_lines": 26,
+    "imports": [
+      "collections",
+      "decimal",
+      "regime",
+      "strategy",
+      "technical_features"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/compound_strategies.py",
+    "lines": 183,
+    "functions": 6,
+    "max_function_lines": 101,
+    "imports": [
+      "datetime",
+      "decimal",
+      "market_models",
+      "model",
+      "regime",
+      "strategy",
+      "technical_features"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/conversion.py",
+    "lines": 200,
+    "functions": 8,
+    "max_function_lines": 44,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "assisted_ticket",
+      "assisted_ticket",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/convex_optimizer.py",
+    "lines": 249,
+    "functions": 9,
+    "max_function_lines": 47,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "decimal",
+      "venue_contracts"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/core_signal_geometry.py",
+    "lines": 190,
+    "functions": 5,
+    "max_function_lines": 57,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "hrp",
+      "strategy_sleeves",
+      "timeframe_panel",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/cost_gate.py",
+    "lines": 29,
+    "functions": 1,
+    "max_function_lines": 16,
+    "imports": [
+      "__future__",
+      "decimal",
+      "market_models"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/covariance_models.py",
+    "lines": 57,
+    "functions": 1,
+    "max_function_lines": 52,
+    "imports": [
+      "decimal",
+      "operator"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/credit.py",
+    "lines": 115,
+    "functions": 5,
+    "max_function_lines": 61,
+    "imports": [
+      "datetime",
+      "decimal",
+      "bars",
+      "market_models",
+      "model",
+      "itertools",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/cross_market_models.py",
+    "lines": 76,
+    "functions": 5,
+    "max_function_lines": 26,
+    "imports": [
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/cross_market_strategies.py",
+    "lines": 159,
+    "functions": 6,
+    "max_function_lines": 63,
+    "imports": [
+      "collections",
+      "datetime",
+      "decimal",
+      "cross_market_models",
+      "strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/diffusion_and_netting.py",
+    "lines": 353,
+    "functions": 7,
+    "max_function_lines": 101,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "statistics",
+      "convex_optimizer",
+      "paper_ledger",
+      "short_and_levered_ignition",
+      "strategy_sleeves",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/dual_numeraire.py",
+    "lines": 94,
+    "functions": 5,
+    "max_function_lines": 24,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/dynamic_resolver_ledger.py",
+    "lines": 441,
+    "functions": 12,
+    "max_function_lines": 91,
+    "imports": [
+      "__future__",
+      "collections.abc",
+      "dataclasses",
+      "datetime",
+      "instrument_resolver",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/execution_costs.py",
+    "lines": 243,
+    "functions": 11,
+    "max_function_lines": 54,
+    "imports": [
+      "datetime",
+      "decimal",
+      "statistics",
+      "model",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/execution_qualification.py",
+    "lines": 558,
+    "functions": 10,
+    "max_function_lines": 150,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "bars",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/execution_schedule.py",
+    "lines": 231,
+    "functions": 7,
+    "max_function_lines": 80,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model",
+      "passive_execution",
+      "venue_contracts"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/exit_policy.py",
+    "lines": 90,
+    "functions": 5,
+    "max_function_lines": 40,
+    "imports": [
+      "decimal",
+      "model",
+      "strategy",
+      "technical_features",
+      "volatility"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/family_and_ignition.py",
+    "lines": 525,
+    "functions": 7,
+    "max_function_lines": 129,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "statistics",
+      "multi_asset_research",
+      "paper_ledger",
+      "strategy_sleeves",
+      "timeframe_panel",
+      "volatility_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/fast_sleeves.py",
+    "lines": 152,
+    "functions": 2,
+    "max_function_lines": 111,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "timeframe_panel",
+      "volatility_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/forecast_evaluation.py",
+    "lines": 61,
+    "functions": 1,
+    "max_function_lines": 55,
+    "imports": [
+      "decimal",
+      "market_models"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/forecast_graph.py",
+    "lines": 146,
+    "functions": 10,
+    "max_function_lines": 23,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "decimal",
+      "kalman_models",
+      "microstructure"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/higher_order_and_sparse.py",
+    "lines": 506,
+    "functions": 7,
+    "max_function_lines": 131,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "statistics",
+      "paper_ledger",
+      "short_and_levered_ignition",
+      "strategy_sleeves",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/hrp.py",
+    "lines": 81,
+    "functions": 3,
+    "max_function_lines": 77,
+    "imports": [
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/ignition_and_intraday_exit.py",
+    "lines": 391,
+    "functions": 6,
+    "max_function_lines": 99,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "family_and_ignition",
+      "paper_ledger",
+      "timeframe_panel",
+      "volatility_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/ignition_upgrades.py",
+    "lines": 413,
+    "functions": 8,
+    "max_function_lines": 144,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "statistics",
+      "short_and_levered_ignition",
+      "timeframe_panel",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/in_position_and_execution.py",
+    "lines": 221,
+    "functions": 8,
+    "max_function_lines": 39,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/indicators.py",
+    "lines": 75,
+    "functions": 2,
+    "max_function_lines": 39,
+    "imports": [
+      "decimal",
+      "market_models",
+      "strategy",
+      "technical_features",
+      "itertools"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/instrument_resolver.py",
+    "lines": 773,
+    "functions": 18,
+    "max_function_lines": 81,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "diffusion_and_netting",
+      "venue_leverage_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/intraday.py",
+    "lines": 168,
+    "functions": 9,
+    "max_function_lines": 44,
+    "imports": [
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "bars",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/kalman_models.py",
+    "lines": 195,
+    "functions": 5,
+    "max_function_lines": 56,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "statistics",
+      "model",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/leader_attribution.py",
+    "lines": 161,
+    "functions": 3,
+    "max_function_lines": 60,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "strategy_sleeves",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/macro_quadrant_overlay.py",
+    "lines": 334,
+    "functions": 5,
+    "max_function_lines": 95,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "statistics",
+      "bear_majors_sleeve",
+      "instrument_resolver",
+      "multi_horizon_book",
+      "optimal_exits",
+      "timeframe_panel",
+      "bisect"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/margin.py",
+    "lines": 353,
+    "functions": 15,
+    "max_function_lines": 126,
+    "imports": [
+      "collections",
+      "datetime",
+      "decimal",
+      "bars",
+      "market_models",
+      "model",
+      "itertools",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/market_models.py",
+    "lines": 366,
+    "functions": 17,
+    "max_function_lines": 75,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "statistics",
+      "itertools",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/meta_gateway.py",
+    "lines": 330,
+    "functions": 13,
+    "max_function_lines": 65,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "strategy_sleeves",
+      "datetime",
+      "sklearn.impute",
+      "sklearn.linear_model",
+      "sklearn.pipeline",
+      "sklearn.preprocessing",
+      "math",
+      "random",
+      "numpy",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/microstructure.py",
+    "lines": 266,
+    "functions": 8,
+    "max_function_lines": 51,
+    "imports": [
+      "__future__",
+      "collections",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/mix.py",
+    "lines": 26,
+    "functions": 2,
+    "max_function_lines": 13,
+    "imports": [
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/model.py",
+    "lines": 187,
+    "functions": 15,
+    "max_function_lines": 29,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "zoneinfo",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/multi_asset_research.py",
+    "lines": 523,
+    "functions": 7,
+    "max_function_lines": 117,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "strategy_sleeves",
+      "timeframe_panel",
+      "volatility_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/multi_horizon_book.py",
+    "lines": 442,
+    "functions": 14,
+    "max_function_lines": 83,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "diffusion_and_netting",
+      "instrument_resolver",
+      "strategy_sleeves",
+      "timeframe_panel",
+      "venue_leverage_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/multiple_testing.py",
+    "lines": 20,
+    "functions": 2,
+    "max_function_lines": 9,
+    "imports": [
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/optimal_exits.py",
+    "lines": 305,
+    "functions": 11,
+    "max_function_lines": 30,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "multi_horizon_book",
+      "timeframe_panel",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/orthogonal_sleeves.py",
+    "lines": 482,
+    "functions": 7,
+    "max_function_lines": 114,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "statistics",
+      "paper_ledger",
+      "short_and_levered_ignition",
+      "timeframe_panel",
+      "volatility_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/otc.py",
+    "lines": 124,
+    "functions": 5,
+    "max_function_lines": 49,
+    "imports": [
+      "decimal",
+      "market_models",
+      "strategy",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/paper_ledger.py",
+    "lines": 157,
+    "functions": 4,
+    "max_function_lines": 89,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/passive_execution.py",
+    "lines": 360,
+    "functions": 12,
+    "max_function_lines": 116,
+    "imports": [
+      "__future__",
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model",
+      "venue_contracts"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/performance.py",
+    "lines": 601,
+    "functions": 26,
+    "max_function_lines": 113,
+    "imports": [
+      "__future__",
+      "collections",
+      "datetime",
+      "decimal",
+      "itertools",
+      "operator",
+      "random",
+      "statistics",
+      "model",
+      "model",
+      "portfolio_diagnostics",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/periods.py",
+    "lines": 89,
+    "functions": 9,
+    "max_function_lines": 6,
+    "imports": [
+      "collections.abc",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/portfolio.py",
+    "lines": 185,
+    "functions": 3,
+    "max_function_lines": 77,
+    "imports": [
+      "decimal",
+      "market_models",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/portfolio_diagnostics.py",
+    "lines": 227,
+    "functions": 6,
+    "max_function_lines": 77,
+    "imports": [
+      "__future__",
+      "decimal",
+      "random",
+      "statistics",
+      "performance",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/portfolio_policy.py",
+    "lines": 307,
+    "functions": 11,
+    "max_function_lines": 56,
+    "imports": [
+      "decimal",
+      "operator",
+      "covariance_models",
+      "hrp",
+      "market_models",
+      "model",
+      "volatility",
+      "itertools"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/quote_hazard.py",
+    "lines": 180,
+    "functions": 3,
+    "max_function_lines": 71,
+    "imports": [
+      "__future__",
+      "collections",
+      "dataclasses",
+      "decimal",
+      "model",
+      "venue_contracts"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/quoting_policy.py",
+    "lines": 162,
+    "functions": 7,
+    "max_function_lines": 26,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "zoneinfo",
+      "venue_contracts"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/rare_micro_signals.py",
+    "lines": 185,
+    "functions": 3,
+    "max_function_lines": 71,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "statistics",
+      "short_and_levered_ignition",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/regime.py",
+    "lines": 71,
+    "functions": 6,
+    "max_function_lines": 22,
+    "imports": [
+      "decimal",
+      "strategy",
+      "technical_features",
+      "volatility"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/registry.py",
+    "lines": 158,
+    "functions": 2,
+    "max_function_lines": 54,
+    "imports": [
+      "bars",
+      "blend_strategies",
+      "blend_strategies",
+      "channel_strategies",
+      "compound_strategies",
+      "compound_strategies",
+      "cross_market_strategies",
+      "exit_policy",
+      "regime",
+      "strategy",
+      "technical_strategies",
+      "technical_strategies",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/research_prototypes.py",
+    "lines": 227,
+    "functions": 8,
+    "max_function_lines": 61,
+    "imports": [
+      "__future__",
+      "decimal",
+      "random",
+      "statistics",
+      "model",
+      "itertools",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/rules.py",
+    "lines": 297,
+    "functions": 14,
+    "max_function_lines": 59,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/short_and_levered_ignition.py",
+    "lines": 345,
+    "functions": 4,
+    "max_function_lines": 176,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "statistics",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/signal_gatekeeper.py",
+    "lines": 214,
+    "functions": 6,
+    "max_function_lines": 40,
+    "imports": [
+      "__future__",
+      "collections.abc",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "statistics",
+      "statistical_inference",
+      "math",
+      "random"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/signals.py",
+    "lines": 183,
+    "functions": 11,
+    "max_function_lines": 48,
+    "imports": [
+      "collections",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/sim.py",
+    "lines": 533,
+    "functions": 27,
+    "max_function_lines": 68,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "bars",
+      "execution_costs",
+      "market_models",
+      "model",
+      "rules",
+      "volatility",
+      "itertools"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/statistical_inference.py",
+    "lines": 261,
+    "functions": 6,
+    "max_function_lines": 65,
+    "imports": [
+      "__future__",
+      "operator",
+      "random",
+      "statistics",
+      "strategy",
+      "itertools",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/strategy.py",
+    "lines": 260,
+    "functions": 24,
+    "max_function_lines": 14,
+    "imports": [
+      "__future__",
+      "collections",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "typing",
+      "bars",
+      "model",
+      "hashlib",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/strategy_sleeves.py",
+    "lines": 193,
+    "functions": 5,
+    "max_function_lines": 119,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "timeframe_panel",
+      "volatility_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/sub_2h_signals.py",
+    "lines": 468,
+    "functions": 11,
+    "max_function_lines": 84,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "statistics",
+      "bellman_stopping",
+      "in_position_and_execution",
+      "instrument_resolver",
+      "multi_horizon_book",
+      "optimal_exits",
+      "timeframe_panel",
+      "venue_leverage_models",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/target_protocol.py",
+    "lines": 126,
+    "functions": 4,
+    "max_function_lines": 75,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/tca_markout.py",
+    "lines": 230,
+    "functions": 6,
+    "max_function_lines": 75,
+    "imports": [
+      "__future__",
+      "collections",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/technical_features.py",
+    "lines": 158,
+    "functions": 3,
+    "max_function_lines": 106,
+    "imports": [
+      "collections",
+      "decimal",
+      "market_models",
+      "strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/technical_strategies.py",
+    "lines": 94,
+    "functions": 2,
+    "max_function_lines": 40,
+    "imports": [
+      "decimal",
+      "strategy",
+      "technical_features"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/timeframe_panel.py",
+    "lines": 179,
+    "functions": 4,
+    "max_function_lines": 52,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/tmn_carry.py",
+    "lines": 187,
+    "functions": 4,
+    "max_function_lines": 86,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/token_and_margin_audit.py",
+    "lines": 86,
+    "functions": 2,
+    "max_function_lines": 55,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "bars",
+      "execution_qualification",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/trend_replay.py",
+    "lines": 70,
+    "functions": 1,
+    "max_function_lines": 55,
+    "imports": [
+      "datetime",
+      "decimal",
+      "math",
+      "statistics",
+      "market_models",
+      "portfolio",
+      "research_prototypes"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/triggers.py",
+    "lines": 83,
+    "functions": 2,
+    "max_function_lines": 43,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "quoting_policy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/units.py",
+    "lines": 73,
+    "functions": 5,
+    "max_function_lines": 19,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/venue_contracts.py",
+    "lines": 208,
+    "functions": 10,
+    "max_function_lines": 34,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/venue_leverage_models.py",
+    "lines": 573,
+    "functions": 6,
+    "max_function_lines": 138,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "ignition_upgrades",
+      "short_and_levered_ignition",
+      "timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/volatility.py",
+    "lines": 40,
+    "functions": 3,
+    "max_function_lines": 11,
+    "imports": [
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/domain/volatility_models.py",
+    "lines": 67,
+    "functions": 2,
+    "max_function_lines": 33,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/__init__.py",
+    "lines": 0,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/services/_journal_lock.py",
+    "lines": 61,
+    "functions": 4,
+    "max_function_lines": 15,
+    "imports": [
+      "__future__",
+      "contextlib",
+      "pathlib",
+      "os",
+      "time",
+      "msvcrt",
+      "fcntl"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/actions/__init__.py",
+    "lines": 1,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/services/actions/catalog.py",
+    "lines": 138,
+    "functions": 2,
+    "max_function_lines": 13,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "operator_actions"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/actions/market_reports.py",
+    "lines": 73,
+    "functions": 2,
+    "max_function_lines": 54,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "adapters.store",
+      "domain.market_models",
+      "domain.model",
+      "data_portal",
+      "feed_crosscheck",
+      "market_statistics",
+      "technical_analysis",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/actions/portfolio_handlers.py",
+    "lines": 32,
+    "functions": 5,
+    "max_function_lines": 4,
+    "imports": [
+      "__future__",
+      "portfolio_research",
+      "oos_combination",
+      "strategy_retirement",
+      "margin_pairs",
+      "margin"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/actions/protocol_handlers.py",
+    "lines": 38,
+    "functions": 1,
+    "max_function_lines": 31,
+    "imports": [
+      "__future__",
+      "domain.model",
+      "research_protocol"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/adaptive_twap.py",
+    "lines": 164,
+    "functions": 2,
+    "max_function_lines": 138,
+    "imports": [
+      "bisect",
+      "datetime",
+      "decimal",
+      "itertools",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "paper_twap"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/alerts.py",
+    "lines": 140,
+    "functions": 7,
+    "max_function_lines": 24,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "urllib.parse",
+      "adapters.atomic_text",
+      "base64",
+      "json",
+      "os",
+      "re",
+      "subprocess",
+      "urllib.request"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/allocation.py",
+    "lines": 96,
+    "functions": 2,
+    "max_function_lines": 66,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.allocation",
+      "domain.bars",
+      "domain.model",
+      "domain.sim",
+      "_journal_lock",
+      "data_portal",
+      "rules",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/arm_preflight.py",
+    "lines": 186,
+    "functions": 10,
+    "max_function_lines": 38,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "external_journal",
+      "doctor",
+      "hashlib",
+      "json",
+      "os",
+      "re",
+      "subprocess"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/attribution.py",
+    "lines": 42,
+    "functions": 1,
+    "max_function_lines": 38,
+    "imports": [
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/backup_manifest.py",
+    "lines": 208,
+    "functions": 10,
+    "max_function_lines": 38,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "cryptography.exceptions",
+      "cryptography.hazmat.primitives.asymmetric.ed25519",
+      "encrypted_backup",
+      "hashlib",
+      "json",
+      "os",
+      "re",
+      "stat"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/backup_rotation.py",
+    "lines": 93,
+    "functions": 2,
+    "max_function_lines": 66,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "",
+      "encrypted_backup",
+      "re",
+      "secrets",
+      "tempfile"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/backup_status.py",
+    "lines": 105,
+    "functions": 7,
+    "max_function_lines": 25,
+    "imports": [
+      "pathlib",
+      "adapters.wallex_account_read",
+      "domain.market_models",
+      "domain.model",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/breadth_journal.py",
+    "lines": 121,
+    "functions": 5,
+    "max_function_lines": 56,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.breadth",
+      "domain.model",
+      "_journal_lock",
+      "data_portal",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/capabilities.py",
+    "lines": 116,
+    "functions": 4,
+    "max_function_lines": 40,
+    "imports": [
+      "datetime",
+      "adapters.wallex",
+      "domain.bars",
+      "domain.margin",
+      "domain.market_models",
+      "domain.model",
+      "collector",
+      "margin",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/collector.py",
+    "lines": 803,
+    "functions": 46,
+    "max_function_lines": 46,
+    "imports": [
+      "__future__",
+      "collections",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters",
+      "adapters.store",
+      "domain.bars",
+      "domain.model",
+      "domain.units",
+      "event_log",
+      "rules",
+      "loop_lag",
+      "market_quality",
+      "adapters.store",
+      "data_portal",
+      "adapters.store",
+      "asyncio",
+      "copy",
+      "json",
+      "random",
+      "sqlite3",
+      "time",
+      "aiohttp"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/conversion_replay.py",
+    "lines": 65,
+    "functions": 3,
+    "max_function_lines": 46,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.otc",
+      "domain.rules",
+      "domain.sim",
+      "data_portal",
+      "rules",
+      "domain.otc"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/conversion_route.py",
+    "lines": 106,
+    "functions": 4,
+    "max_function_lines": 35,
+    "imports": [
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "domain.model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/cost_defaults.py",
+    "lines": 208,
+    "functions": 8,
+    "max_function_lines": 41,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "domain.model",
+      "domain.sim",
+      "domain.strategy",
+      "external_journal",
+      "json",
+      "os",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/credit.py",
+    "lines": 73,
+    "functions": 1,
+    "max_function_lines": 48,
+    "imports": [
+      "datetime",
+      "pathlib",
+      "adapters.store",
+      "adapters.wallex_margin",
+      "domain.credit",
+      "domain.market_models",
+      "domain.model",
+      "domain.rules",
+      "domain.strategy",
+      "data_portal",
+      "margin",
+      "rules"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/csv_export.py",
+    "lines": 57,
+    "functions": 3,
+    "max_function_lines": 22,
+    "imports": [
+      "__future__",
+      "decimal",
+      "csv",
+      "io",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/data_portal.py",
+    "lines": 262,
+    "functions": 28,
+    "max_function_lines": 23,
+    "imports": [
+      "bisect",
+      "datetime",
+      "decimal",
+      "functools",
+      "adapters.store",
+      "domain.bars",
+      "domain.model",
+      "domain.rules",
+      "domain.sim",
+      "hashlib",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/data_quality_gate.py",
+    "lines": 127,
+    "functions": 3,
+    "max_function_lines": 73,
+    "imports": [
+      "bisect",
+      "collections",
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.rules",
+      "data_portal",
+      "rules",
+      "domain.model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/diagnostics.py",
+    "lines": 95,
+    "functions": 4,
+    "max_function_lines": 69,
+    "imports": [
+      "decimal",
+      "domain.bars",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "data_portal",
+      "paper",
+      "rules",
+      "session"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/doctor.py",
+    "lines": 220,
+    "functions": 14,
+    "max_function_lines": 29,
+    "imports": [
+      "__future__",
+      "datetime",
+      "itertools",
+      "pathlib",
+      "adapters.store",
+      "adapters.store",
+      "backup_status",
+      "research_backup",
+      "research_ledger",
+      "session",
+      "adapters",
+      "offline_review_journal",
+      "venue_facts",
+      "json",
+      "shutil",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/drift.py",
+    "lines": 73,
+    "functions": 5,
+    "max_function_lines": 13,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "itertools",
+      "domain.model",
+      "data_portal",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/encrypted_backup.py",
+    "lines": 315,
+    "functions": 8,
+    "max_function_lines": 90,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "urllib.parse",
+      "cryptography.exceptions",
+      "cryptography.hazmat.primitives.ciphers",
+      "restore_gate",
+      "hashlib",
+      "json",
+      "os",
+      "secrets",
+      "sqlite3",
+      "struct",
+      "tempfile"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/entry_locks.py",
+    "lines": 48,
+    "functions": 1,
+    "max_function_lines": 37,
+    "imports": [
+      "datetime",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "research_grounding",
+      "rules"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/event_log.py",
+    "lines": 29,
+    "functions": 3,
+    "max_function_lines": 9,
+    "imports": [
+      "logging.handlers",
+      "pathlib",
+      "json",
+      "logging"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/evidence.py",
+    "lines": 188,
+    "functions": 9,
+    "max_function_lines": 50,
+    "imports": [
+      "datetime",
+      "decimal",
+      "pathlib",
+      "allocation",
+      "domain.multiple_testing",
+      "domain.statistical_inference",
+      "mix_journal",
+      "breadth_journal",
+      "trial_governance",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/execution_calibration.py",
+    "lines": 105,
+    "functions": 4,
+    "max_function_lines": 34,
+    "imports": [
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.run_store",
+      "adapters.store",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/execution_choice.py",
+    "lines": 186,
+    "functions": 3,
+    "max_function_lines": 78,
+    "imports": [
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/execution_market_models.py",
+    "lines": 208,
+    "functions": 5,
+    "max_function_lines": 94,
+    "imports": [
+      "collections",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "domain.bars",
+      "domain.execution_costs",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "domain.volatility",
+      "data_portal",
+      "market_statistics",
+      "domain.model",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiment_registry.py",
+    "lines": 281,
+    "functions": 10,
+    "max_function_lines": 107,
+    "imports": [
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.run_store",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "paper",
+      "process_owner",
+      "research_protocol",
+      "trial_ledger",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiment_scorecard.py",
+    "lines": 97,
+    "functions": 2,
+    "max_function_lines": 62,
+    "imports": [
+      "collections",
+      "math",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.model",
+      "domain.performance",
+      "domain.strategy",
+      "reports",
+      "strategy_capacity",
+      "parameter_plateau",
+      "spa"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/__init__.py",
+    "lines": 1,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/admm_helpers.py",
+    "lines": 102,
+    "functions": 4,
+    "max_function_lines": 36,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/bar_parity.py",
+    "lines": 51,
+    "functions": 1,
+    "max_function_lines": 41,
+    "imports": [
+      "__future__",
+      "datetime",
+      "adapters.candle_reader",
+      "domain.timeframe_panel",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/bear_regime_and_timeframe_study.py",
+    "lines": 893,
+    "functions": 13,
+    "max_function_lines": 125,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.bear_majors_sleeve",
+      "domain.bellman_stopping",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_upgrades",
+      "domain.in_position_and_execution",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.optimal_exits",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.sub_2h_signals",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "bellman_resurrection_study",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "multi_horizon_adaptive_study",
+      "optimal_exit_study",
+      "unified_book_helpers",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/bellman_resurrection_study.py",
+    "lines": 813,
+    "functions": 11,
+    "max_function_lines": 143,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.bellman_stopping",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.in_position_and_execution",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.optimal_exits",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "multi_horizon_adaptive_study",
+      "optimal_exit_study",
+      "unified_book_helpers",
+      "unified_book_helpers",
+      "json",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/champion_forward_journal.py",
+    "lines": 654,
+    "functions": 13,
+    "max_function_lines": 114,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.model",
+      "domain.multi_asset_research",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "gru_engine",
+      "gru_prototypes_study",
+      "ignition_expansion_study",
+      "leader_forward_journal",
+      "bisect",
+      "hashlib",
+      "json",
+      "math",
+      "os",
+      "numpy",
+      "time"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/champion_v2_journal.py",
+    "lines": 393,
+    "functions": 6,
+    "max_function_lines": 173,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.convex_optimizer",
+      "domain.core_signal_geometry",
+      "domain.diffusion_and_netting",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_upgrades",
+      "domain.multi_asset_research",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "champion_forward_journal",
+      "gru_engine",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "leader_forward_journal",
+      "hashlib",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/champion_v2_verification.py",
+    "lines": 418,
+    "functions": 5,
+    "max_function_lines": 110,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.convex_optimizer",
+      "domain.core_signal_geometry",
+      "domain.diffusion_and_netting",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_and_intraday_exit",
+      "domain.ignition_upgrades",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.short_and_levered_ignition",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "ignition_validation_study",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/convex_bear_cross_asset_study.py",
+    "lines": 523,
+    "functions": 8,
+    "max_function_lines": 141,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.bear_majors_sleeve",
+      "domain.bellman_stopping",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.in_position_and_execution",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.optimal_exits",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.sub_2h_signals",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "bellman_resurrection_study",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "multi_horizon_adaptive_study",
+      "optimal_exit_study",
+      "unified_book_helpers",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/core_engine_ablation_study.py",
+    "lines": 284,
+    "functions": 4,
+    "max_function_lines": 112,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/cross_layer_diagnostic_study.py",
+    "lines": 529,
+    "functions": 11,
+    "max_function_lines": 94,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.rare_micro_signals",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "unified_book_helpers",
+      "json",
+      "math",
+      "random"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/diffusion_and_netting_study.py",
+    "lines": 265,
+    "functions": 3,
+    "max_function_lines": 100,
+    "imports": [
+      "__future__",
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.diffusion_and_netting",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_and_intraday_exit",
+      "domain.model",
+      "domain.multi_asset_research",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_validation_study",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/dynamic_resolver_study.py",
+    "lines": 500,
+    "functions": 9,
+    "max_function_lines": 176,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.core_signal_geometry",
+      "domain.dynamic_resolver_ledger",
+      "domain.higher_order_and_sparse",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "domain.venue_leverage_models",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/ensemble_study.py",
+    "lines": 526,
+    "functions": 12,
+    "max_function_lines": 107,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.meta_gateway",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "bar_parity",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/expansion_and_margin_study.py",
+    "lines": 441,
+    "functions": 7,
+    "max_function_lines": 148,
+    "imports": [
+      "__future__",
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.meta_gateway",
+      "domain.model",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "ensemble_study",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/family_and_timeframe_study.py",
+    "lines": 375,
+    "functions": 6,
+    "max_function_lines": 106,
+    "imports": [
+      "__future__",
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.family_and_ignition",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "ensemble_study",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/gru_engine.py",
+    "lines": 273,
+    "functions": 17,
+    "max_function_lines": 57,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "json",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/gru_prototypes_study.py",
+    "lines": 717,
+    "functions": 10,
+    "max_function_lines": 148,
+    "imports": [
+      "__future__",
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.execution_schedule",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.short_and_levered_ignition",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_contracts",
+      "domain.volatility_models",
+      "ensemble_study",
+      "gru_engine",
+      "ignition_expansion_study",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/higher_order_and_sparse_study.py",
+    "lines": 486,
+    "functions": 9,
+    "max_function_lines": 79,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_and_intraday_exit",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "gru_engine",
+      "gru_prototypes_study",
+      "ignition_expansion_study",
+      "ignition_validation_study",
+      "json",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/ignition_expansion_study.py",
+    "lines": 390,
+    "functions": 4,
+    "max_function_lines": 131,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.family_and_ignition",
+      "domain.ignition_and_intraday_exit",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "ensemble_study",
+      "ignition_validation_study",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/ignition_upgrade_ablation_study.py",
+    "lines": 275,
+    "functions": 4,
+    "max_function_lines": 84,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_upgrades",
+      "domain.multi_asset_research",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "gru_engine",
+      "gru_prototypes_study",
+      "higher_order_and_sparse_study",
+      "ignition_expansion_study",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/ignition_validation_study.py",
+    "lines": 283,
+    "functions": 4,
+    "max_function_lines": 118,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.ignition_and_intraday_exit",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/leader_deep_dive.py",
+    "lines": 388,
+    "functions": 6,
+    "max_function_lines": 97,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.execution_schedule",
+      "domain.leader_attribution",
+      "domain.model",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_contracts",
+      "ensemble_study",
+      "json",
+      "random"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/leader_forward_journal.py",
+    "lines": 185,
+    "functions": 4,
+    "max_function_lines": 103,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "adapters.mix_journal_store",
+      "domain.model",
+      "domain.signal_gatekeeper",
+      "domain.strategy_sleeves",
+      "admm_helpers",
+      "ensemble_study",
+      "hashlib",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/multi_horizon_adaptive_study.py",
+    "lines": 835,
+    "functions": 11,
+    "max_function_lines": 138,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.convex_optimizer",
+      "domain.core_signal_geometry",
+      "domain.diffusion_and_netting",
+      "domain.higher_order_and_sparse",
+      "domain.in_position_and_execution",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/operational_health.py",
+    "lines": 214,
+    "functions": 6,
+    "max_function_lines": 51,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.model",
+      "domain.multi_asset_research",
+      "ignition_expansion_study",
+      "champion_forward_journal",
+      "hashlib",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/optimal_exit_study.py",
+    "lines": 687,
+    "functions": 11,
+    "max_function_lines": 145,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.in_position_and_execution",
+      "domain.instrument_resolver",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.optimal_exits",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "multi_horizon_adaptive_study",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/orthogonal_alpha_study.py",
+    "lines": 422,
+    "functions": 6,
+    "max_function_lines": 132,
+    "imports": [
+      "__future__",
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.async_covariance",
+      "domain.convex_optimizer",
+      "domain.ignition_and_intraday_exit",
+      "domain.multi_asset_research",
+      "domain.orthogonal_sleeves",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "gru_engine",
+      "gru_prototypes_study",
+      "ignition_expansion_study",
+      "ignition_validation_study",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/rare_micro_signal_portfolio_study.py",
+    "lines": 300,
+    "functions": 5,
+    "max_function_lines": 114,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.model",
+      "domain.multi_asset_research",
+      "domain.rare_micro_signals",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/remaining_cross_layer_suite_study.py",
+    "lines": 350,
+    "functions": 7,
+    "max_function_lines": 73,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "treasury_liquidity_and_fx_study",
+      "unified_book_helpers",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/research_dashboard.py",
+    "lines": 1316,
+    "functions": 11,
+    "max_function_lines": 856,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.strategy_sleeves",
+      "ensemble_study",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/short_and_leverage_study.py",
+    "lines": 196,
+    "functions": 4,
+    "max_function_lines": 82,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.ignition_and_intraday_exit",
+      "domain.multi_asset_research",
+      "domain.short_and_levered_ignition",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_validation_study",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/signal_and_model_diagnostics_study.py",
+    "lines": 390,
+    "functions": 8,
+    "max_function_lines": 59,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "sklearn.linear_model",
+      "sklearn.tree",
+      "adapters.candle_reader",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "gru_engine",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "unified_book_helpers",
+      "json",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/signal_expiry_cash_and_feed_study.py",
+    "lines": 595,
+    "functions": 8,
+    "max_function_lines": 135,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.instrument_resolver",
+      "domain.model",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.paper_ledger",
+      "domain.short_and_levered_ignition",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "smart_execution_sim",
+      "unified_book_helpers",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/sleeve_attribution_study.py",
+    "lines": 120,
+    "functions": 2,
+    "max_function_lines": 80,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.fast_sleeves",
+      "domain.paper_ledger",
+      "domain.timeframe_panel",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/smart_execution_sim.py",
+    "lines": 279,
+    "functions": 6,
+    "max_function_lines": 98,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "adapters.nobitex",
+      "domain.model",
+      "domain.venue_contracts",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/treasury_liquidity_and_fx_study.py",
+    "lines": 443,
+    "functions": 9,
+    "max_function_lines": 92,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.model",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.strategy_sleeves",
+      "champion_v2_verification",
+      "ensemble_study",
+      "smart_execution_sim",
+      "unified_book_helpers",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/twenty_window_macro_quadrant_study.py",
+    "lines": 660,
+    "functions": 10,
+    "max_function_lines": 154,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.bear_majors_sleeve",
+      "domain.bellman_stopping",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.in_position_and_execution",
+      "domain.instrument_resolver",
+      "domain.macro_quadrant_overlay",
+      "domain.multi_asset_research",
+      "domain.multi_horizon_book",
+      "domain.optimal_exits",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "bellman_resurrection_study",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "multi_horizon_adaptive_study",
+      "optimal_exit_study",
+      "unified_book_helpers",
+      "bisect",
+      "json",
+      "math",
+      "numpy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/unified_book_helpers.py",
+    "lines": 82,
+    "functions": 5,
+    "max_function_lines": 21,
+    "imports": [
+      "__future__",
+      "datetime",
+      "domain.timeframe_panel"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/venue_clocks_cadence_and_breakeven_study.py",
+    "lines": 351,
+    "functions": 8,
+    "max_function_lines": 89,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.short_and_levered_ignition",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "treasury_liquidity_and_fx_study",
+      "unified_book_helpers",
+      "hashlib",
+      "json",
+      "random",
+      "secrets",
+      "time"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/venue_execution_audit.py",
+    "lines": 177,
+    "functions": 4,
+    "max_function_lines": 119,
+    "imports": [
+      "__future__",
+      "bisect",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "statistics",
+      "adapters.candle_reader",
+      "adapters.nobitex",
+      "domain.model",
+      "domain.venue_contracts",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/experiments/venue_leverage_study.py",
+    "lines": 486,
+    "functions": 8,
+    "max_function_lines": 101,
+    "imports": [
+      "__future__",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.candle_reader",
+      "domain.core_signal_geometry",
+      "domain.higher_order_and_sparse",
+      "domain.ignition_and_intraday_exit",
+      "domain.ignition_upgrades",
+      "domain.multi_asset_research",
+      "domain.paper_ledger",
+      "domain.statistical_inference",
+      "domain.strategy_sleeves",
+      "domain.timeframe_panel",
+      "domain.venue_leverage_models",
+      "admm_helpers",
+      "champion_v2_verification",
+      "ensemble_study",
+      "ignition_expansion_study",
+      "ignition_upgrade_ablation_study",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/external_journal.py",
+    "lines": 294,
+    "functions": 9,
+    "max_function_lines": 70,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "time",
+      "adapters.wallex_account_read",
+      "adapters.wallex_order_evidence",
+      "contracts.account_receipt",
+      "domain.account_observations",
+      "json",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/fair_price.py",
+    "lines": 151,
+    "functions": 7,
+    "max_function_lines": 31,
+    "imports": [
+      "pathlib",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/feed_crosscheck.py",
+    "lines": 63,
+    "functions": 2,
+    "max_function_lines": 48,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.model",
+      "data_portal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/feed_divergence.py",
+    "lines": 143,
+    "functions": 3,
+    "max_function_lines": 62,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "domain.model",
+      "rules",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/fractional_sizing.py",
+    "lines": 153,
+    "functions": 4,
+    "max_function_lines": 64,
+    "imports": [
+      "decimal",
+      "itertools",
+      "pathlib",
+      "random",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.model",
+      "domain.performance",
+      "domain.registry",
+      "domain.strategy",
+      "reports",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/historical_universe.py",
+    "lines": 227,
+    "functions": 8,
+    "max_function_lines": 46,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "data_portal",
+      "market_watchlists",
+      "domain.model",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/holdout_ledger.py",
+    "lines": 84,
+    "functions": 6,
+    "max_function_lines": 21,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "hashlib",
+      "json",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/ledger_anchors.py",
+    "lines": 73,
+    "functions": 4,
+    "max_function_lines": 14,
+    "imports": [
+      "__future__",
+      "contextlib",
+      "pathlib",
+      "urllib.parse",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/liquidity.py",
+    "lines": 117,
+    "functions": 2,
+    "max_function_lines": 82,
+    "imports": [
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/live_paper.py",
+    "lines": 111,
+    "functions": 2,
+    "max_function_lines": 88,
+    "imports": [
+      "datetime",
+      "adapters.run_store",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "paper",
+      "rules",
+      "session",
+      "asyncio"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/loop_lag.py",
+    "lines": 41,
+    "functions": 5,
+    "max_function_lines": 12,
+    "imports": [
+      "__future__",
+      "collections",
+      "asyncio",
+      "time"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/margin.py",
+    "lines": 145,
+    "functions": 3,
+    "max_function_lines": 86,
+    "imports": [
+      "datetime",
+      "pathlib",
+      "adapters.run_store",
+      "adapters.store",
+      "adapters.wallex_margin",
+      "domain.margin",
+      "domain.market_models",
+      "domain.model",
+      "domain.rules",
+      "domain.strategy",
+      "data_portal",
+      "rules",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/margin_pairs.py",
+    "lines": 153,
+    "functions": 3,
+    "max_function_lines": 86,
+    "imports": [
+      "datetime",
+      "decimal",
+      "adapters.store",
+      "domain.bars",
+      "domain.cross_market_models",
+      "domain.margin",
+      "domain.market_models",
+      "domain.model",
+      "domain.rules",
+      "domain.strategy",
+      "data_portal",
+      "margin",
+      "rules",
+      "pathlib"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/market_quality.py",
+    "lines": 469,
+    "functions": 15,
+    "max_function_lines": 55,
+    "imports": [
+      "__future__",
+      "collections",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.store",
+      "adapters.wallex",
+      "domain.model",
+      "hashlib",
+      "json",
+      "shutil",
+      "zstandard"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/market_statistics.py",
+    "lines": 118,
+    "functions": 2,
+    "max_function_lines": 60,
+    "imports": [
+      "collections",
+      "datetime",
+      "decimal",
+      "math",
+      "statistics",
+      "adapters.store",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "data_portal",
+      "hashlib",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/market_watchlists.py",
+    "lines": 56,
+    "functions": 4,
+    "max_function_lines": 17,
+    "imports": [
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/mix_journal.py",
+    "lines": 116,
+    "functions": 4,
+    "max_function_lines": 59,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.mix",
+      "domain.model",
+      "_journal_lock",
+      "data_portal",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/offline_review_journal.py",
+    "lines": 264,
+    "functions": 13,
+    "max_function_lines": 49,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "adapters.sqlite_migrations",
+      "domain.assisted_ticket",
+      "hashlib",
+      "json",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/oos_combination.py",
+    "lines": 176,
+    "functions": 4,
+    "max_function_lines": 93,
+    "imports": [
+      "decimal",
+      "itertools",
+      "domain.model",
+      "domain.strategy",
+      "pathlib",
+      "adapters.run_store",
+      "domain.market_models"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/operator_actions.py",
+    "lines": 83,
+    "functions": 1,
+    "max_function_lines": 68,
+    "imports": [
+      "adapters.run_store",
+      "domain.account_observations",
+      "domain.conversion",
+      "domain.market_models",
+      "domain.model",
+      "domain.otc",
+      "external_journal",
+      "probe_budget",
+      "reports",
+      "venue_facts",
+      "adapters.wallex_order_evidence",
+      "adapters.store",
+      "conversion_replay"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/operator_timeline.py",
+    "lines": 93,
+    "functions": 2,
+    "max_function_lines": 35,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/paper.py",
+    "lines": 301,
+    "functions": 10,
+    "max_function_lines": 96,
+    "imports": [
+      "datetime",
+      "decimal",
+      "adapters.store",
+      "domain.bars",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "rules",
+      "session",
+      "session",
+      "session"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/paper_campaign.py",
+    "lines": 75,
+    "functions": 4,
+    "max_function_lines": 19,
+    "imports": [
+      "domain.bars",
+      "domain.registry",
+      "collector",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/paper_stop.py",
+    "lines": 70,
+    "functions": 2,
+    "max_function_lines": 57,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.sim"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/paper_sweep.py",
+    "lines": 337,
+    "functions": 14,
+    "max_function_lines": 67,
+    "imports": [
+      "__future__",
+      "bisect",
+      "concurrent.futures",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.store",
+      "domain.model",
+      "domain.multiple_testing",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "rules",
+      "session",
+      "domain.performance",
+      "paper",
+      "trial_ledger",
+      "json",
+      "sqlite3",
+      "time",
+      "traceback"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/paper_twap.py",
+    "lines": 178,
+    "functions": 2,
+    "max_function_lines": 151,
+    "imports": [
+      "bisect",
+      "datetime",
+      "decimal",
+      "itertools",
+      "domain.bars",
+      "domain.execution_costs",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/parameter_plateau.py",
+    "lines": 67,
+    "functions": 2,
+    "max_function_lines": 33,
+    "imports": [
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portable_report.py",
+    "lines": 39,
+    "functions": 1,
+    "max_function_lines": 28,
+    "imports": [
+      "hashlib",
+      "html",
+      "reports",
+      "base64",
+      "json"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio.py",
+    "lines": 1181,
+    "functions": 53,
+    "max_function_lines": 102,
+    "imports": [
+      "bisect",
+      "collections",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "itertools",
+      "adapters.store",
+      "domain.bars",
+      "domain.execution_costs",
+      "domain.model",
+      "domain.performance",
+      "domain.portfolio_policy",
+      "domain.registry",
+      "domain.rules",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "portfolio_rank",
+      "portfolio_replay.routing",
+      "rules",
+      "session",
+      "domain.market_models",
+      "domain.market_models",
+      "conversion_replay",
+      "domain.sim",
+      "portfolio_replay.valuation",
+      "portfolio_replay.valuation",
+      "portfolio_replay.valuation",
+      "portfolio_replay.receipts",
+      "historical_universe",
+      "portfolio_otc",
+      "portfolio_margin",
+      "hashlib",
+      "heapq",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_margin.py",
+    "lines": 158,
+    "functions": 12,
+    "max_function_lines": 44,
+    "imports": [
+      "collections",
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.margin",
+      "domain.market_models",
+      "domain.model",
+      "domain.rules",
+      "domain.strategy",
+      "margin"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_mixed_route.py",
+    "lines": 123,
+    "functions": 5,
+    "max_function_lines": 34,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.otc",
+      "domain.rules",
+      "domain.sim",
+      "domain.strategy",
+      "portfolio_otc_route"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_otc.py",
+    "lines": 243,
+    "functions": 9,
+    "max_function_lines": 39,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.market_models",
+      "domain.model",
+      "domain.otc",
+      "conversion_replay",
+      "portfolio_mixed_route",
+      "portfolio_otc_route"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_otc_route.py",
+    "lines": 93,
+    "functions": 5,
+    "max_function_lines": 28,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.market_models",
+      "domain.model",
+      "domain.otc",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_rank.py",
+    "lines": 88,
+    "functions": 5,
+    "max_function_lines": 44,
+    "imports": [
+      "collections",
+      "datetime",
+      "decimal",
+      "random",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.rules",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_replay/__init__.py",
+    "lines": 1,
+    "functions": 0,
+    "max_function_lines": 0,
+    "imports": []
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_replay/receipts.py",
+    "lines": 104,
+    "functions": 1,
+    "max_function_lines": 94,
+    "imports": [
+      "__future__",
+      "decimal",
+      "domain.model",
+      "domain.performance",
+      "domain.strategy",
+      "reports"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_replay/routing.py",
+    "lines": 144,
+    "functions": 3,
+    "max_function_lines": 62,
+    "imports": [
+      "__future__",
+      "collections",
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.rules",
+      "domain.sim"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_replay/valuation.py",
+    "lines": 63,
+    "functions": 3,
+    "max_function_lines": 25,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/portfolio_research.py",
+    "lines": 189,
+    "functions": 4,
+    "max_function_lines": 117,
+    "imports": [
+      "datetime",
+      "adapters.run_store",
+      "adapters.store",
+      "domain.market_models",
+      "domain.model",
+      "domain.sim",
+      "domain.strategy",
+      "attribution",
+      "data_portal",
+      "data_quality_gate",
+      "portfolio",
+      "portfolio_margin",
+      "trial_ledger",
+      "historical_universe",
+      "market_watchlists",
+      "fractional_sizing",
+      "historical_universe",
+      "data_quality_gate",
+      "json",
+      "math",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/postfill.py",
+    "lines": 135,
+    "functions": 1,
+    "max_function_lines": 119,
+    "imports": [
+      "bisect",
+      "datetime",
+      "decimal",
+      "itertools",
+      "domain.bars",
+      "domain.model",
+      "domain.strategy",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/premium_lead_lag.py",
+    "lines": 220,
+    "functions": 4,
+    "max_function_lines": 114,
+    "imports": [
+      "bisect",
+      "datetime",
+      "decimal",
+      "itertools",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/probe_budget.py",
+    "lines": 247,
+    "functions": 10,
+    "max_function_lines": 50,
+    "imports": [
+      "__future__",
+      "decimal",
+      "pathlib",
+      "domain.account_observations",
+      "hashlib",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/process_owner.py",
+    "lines": 109,
+    "functions": 7,
+    "max_function_lines": 30,
+    "imports": [
+      "datetime",
+      "pathlib",
+      "domain.model",
+      "errno",
+      "json",
+      "os",
+      "re",
+      "threading",
+      "msvcrt",
+      "fcntl"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/prospective_comparisons.py",
+    "lines": 191,
+    "functions": 3,
+    "max_function_lines": 81,
+    "imports": [
+      "datetime",
+      "decimal",
+      "adapters.run_store",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "paper",
+      "reports",
+      "research_protocol",
+      "trial_ledger",
+      "_journal_lock",
+      "storage_runway",
+      "trial_governance",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/random_entry.py",
+    "lines": 75,
+    "functions": 2,
+    "max_function_lines": 34,
+    "imports": [
+      "bisect",
+      "math",
+      "random",
+      "statistics",
+      "domain.model",
+      "domain.performance"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/readiness.py",
+    "lines": 43,
+    "functions": 2,
+    "max_function_lines": 30,
+    "imports": [
+      "domain.bars",
+      "domain.model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/release_signing.py",
+    "lines": 81,
+    "functions": 5,
+    "max_function_lines": 16,
+    "imports": [
+      "__future__",
+      "pathlib",
+      "cryptography.exceptions",
+      "cryptography.hazmat.primitives",
+      "cryptography.hazmat.primitives.asymmetric",
+      "cryptography.hazmat.primitives.asymmetric.utils",
+      "json",
+      "os"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/replay_annotations.py",
+    "lines": 45,
+    "functions": 1,
+    "max_function_lines": 37,
+    "imports": [
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.strategy",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/replay_checkpoint.py",
+    "lines": 155,
+    "functions": 6,
+    "max_function_lines": 73,
+    "imports": [
+      "copy",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "adapters.run_store",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "paper",
+      "research_protocol",
+      "rules",
+      "session",
+      "portfolio",
+      "portfolio_margin"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/replay_debugger.py",
+    "lines": 108,
+    "functions": 2,
+    "max_function_lines": 54,
+    "imports": [
+      "decimal",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/replay_input_audit.py",
+    "lines": 110,
+    "functions": 3,
+    "max_function_lines": 67,
+    "imports": [
+      "collections",
+      "decimal",
+      "adapters.wallex",
+      "domain.model",
+      "market_quality",
+      "json",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/reports.py",
+    "lines": 215,
+    "functions": 7,
+    "max_function_lines": 101,
+    "imports": [
+      "decimal",
+      "statistics",
+      "domain.model",
+      "domain.performance",
+      "domain.strategy",
+      "attribution",
+      "data_quality_gate",
+      "random_entry",
+      "data_quality_gate",
+      "json",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research.py",
+    "lines": 111,
+    "functions": 4,
+    "max_function_lines": 58,
+    "imports": [
+      "decimal",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "paper",
+      "snapshot_comparison",
+      "adapters.run_store",
+      "adapters.store",
+      "domain.market_models",
+      "domain.model",
+      "temporal_validation",
+      "trial_ledger",
+      "cost_defaults",
+      "adapters.run_store",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_actions.py",
+    "lines": 904,
+    "functions": 48,
+    "max_function_lines": 93,
+    "imports": [
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.store",
+      "domain.artifact_evaluation",
+      "domain.market_models",
+      "domain.model",
+      "domain.periods",
+      "domain.portfolio",
+      "domain.strategy",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.catalog",
+      "actions.market_reports",
+      "data_portal",
+      "entry_locks",
+      "experiment_registry",
+      "liquidity",
+      "operator_actions",
+      "replay_annotations",
+      "replay_checkpoint",
+      "replay_debugger",
+      "research_grounding",
+      "research_ledger",
+      "research_market",
+      "research_protocol",
+      "return_bootstrap",
+      "strategy_audit",
+      "premium_lead_lag",
+      "research_market",
+      "domain.market_models",
+      "paper_twap",
+      "fair_price",
+      "feed_divergence",
+      "adapters.run_store",
+      "shadow_drift",
+      "adapters.run_store",
+      "postfill",
+      "prospective_comparisons",
+      "adapters.run_store",
+      "fractional_sizing",
+      "experiment_scorecard",
+      "capabilities",
+      "historical_universe",
+      "market_watchlists",
+      "market_watchlists",
+      "execution_market_models",
+      "execution_calibration",
+      "walk_forward",
+      "actions.portfolio_handlers",
+      "actions.portfolio_handlers",
+      "actions.portfolio_handlers",
+      "actions.portfolio_handlers",
+      "actions.portfolio_handlers",
+      "robustness",
+      "rules",
+      "actions.protocol_handlers",
+      "arm_preflight",
+      "credit",
+      "domain.execution_qualification",
+      "domain.market_models",
+      "paper_stop",
+      "domain.market_models",
+      "replay_input_audit",
+      "itertools",
+      "domain.market_models",
+      "domain.sim",
+      "research_market",
+      "rules",
+      "domain.trend_replay",
+      "domain.research_prototypes",
+      "trial_governance",
+      "domain.sim",
+      "execution_choice",
+      "adaptive_twap",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_backup.py",
+    "lines": 470,
+    "functions": 20,
+    "max_function_lines": 74,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "cryptography.exceptions",
+      "cryptography.hazmat.primitives.ciphers",
+      "adapters.atomic_text",
+      "encrypted_backup",
+      "hashlib",
+      "io",
+      "json",
+      "os",
+      "re",
+      "secrets",
+      "shutil",
+      "sqlite3",
+      "struct",
+      "tarfile",
+      "tempfile",
+      "zstandard"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_grounding.py",
+    "lines": 98,
+    "functions": 4,
+    "max_function_lines": 42,
+    "imports": [
+      "decimal",
+      "adapters.run_store",
+      "domain.market_models",
+      "reports",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_ledger.py",
+    "lines": 511,
+    "functions": 23,
+    "max_function_lines": 89,
+    "imports": [
+      "contextlib",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "uuid",
+      "adapters.run_store",
+      "adapters.sqlite_migrations",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "paper",
+      "session",
+      "data_portal",
+      "portfolio",
+      "market_watchlists",
+      "portfolio",
+      "historical_universe",
+      "portfolio",
+      "portfolio_margin",
+      "domain.portfolio_policy",
+      "portfolio",
+      "portfolio_otc",
+      "portfolio_margin",
+      "portfolio_rank",
+      "portfolio",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_market.py",
+    "lines": 313,
+    "functions": 7,
+    "max_function_lines": 88,
+    "imports": [
+      "collections",
+      "contextlib",
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.strategy",
+      "domain.technical_features",
+      "data_portal",
+      "technical_analysis",
+      "historical_universe",
+      "historical_universe",
+      "data_quality_gate",
+      "itertools",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_process.py",
+    "lines": 244,
+    "functions": 9,
+    "max_function_lines": 65,
+    "imports": [
+      "contextlib",
+      "pathlib",
+      "adapters.run_store",
+      "adapters.wallex_account_read",
+      "domain.market_models",
+      "domain.model",
+      "actions.catalog",
+      "research_ledger",
+      "event_log",
+      "research_actions",
+      "research",
+      "asyncio",
+      "json",
+      "math",
+      "os",
+      "sqlite3",
+      "subprocess",
+      "sys",
+      "tempfile",
+      "time"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/research_protocol.py",
+    "lines": 390,
+    "functions": 14,
+    "max_function_lines": 64,
+    "imports": [
+      "contextlib",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "adapters.run_store",
+      "adapters.sqlite_migrations",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.periods",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "paper",
+      "reports",
+      "research_grounding",
+      "_journal_lock",
+      "storage_runway",
+      "trial_ledger",
+      "domain.cost_gate",
+      "trial_governance",
+      "hashlib",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/restore_gate.py",
+    "lines": 133,
+    "functions": 5,
+    "max_function_lines": 58,
+    "imports": [
+      "__future__",
+      "contextlib",
+      "pathlib",
+      "urllib.parse",
+      "hashlib",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/return_bootstrap.py",
+    "lines": 75,
+    "functions": 1,
+    "max_function_lines": 66,
+    "imports": [
+      "decimal",
+      "random",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/robustness.py",
+    "lines": 144,
+    "functions": 3,
+    "max_function_lines": 67,
+    "imports": [
+      "decimal",
+      "itertools",
+      "math",
+      "random",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.model",
+      "domain.performance",
+      "domain.strategy",
+      "return_bootstrap"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/rules.py",
+    "lines": 102,
+    "functions": 12,
+    "max_function_lines": 17,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "adapters.store",
+      "domain.model",
+      "domain.rules"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/session.py",
+    "lines": 753,
+    "functions": 22,
+    "max_function_lines": 124,
+    "imports": [
+      "bisect",
+      "dataclasses",
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.portfolio",
+      "domain.rules",
+      "domain.sim",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/shadow_drift.py",
+    "lines": 105,
+    "functions": 2,
+    "max_function_lines": 64,
+    "imports": [
+      "datetime",
+      "decimal",
+      "itertools",
+      "domain.model",
+      "domain.strategy"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/snapshot_comparison.py",
+    "lines": 112,
+    "functions": 1,
+    "max_function_lines": 97,
+    "imports": [
+      "__future__",
+      "datetime",
+      "decimal",
+      "domain.performance",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "paper",
+      "reports",
+      "data_portal",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/spa.py",
+    "lines": 100,
+    "functions": 3,
+    "max_function_lines": 52,
+    "imports": [
+      "itertools",
+      "operator",
+      "random",
+      "statistics",
+      "domain.model",
+      "math"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/storage_runway.py",
+    "lines": 30,
+    "functions": 1,
+    "max_function_lines": 18,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "adapters.store"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/strategy_audit.py",
+    "lines": 118,
+    "functions": 6,
+    "max_function_lines": 73,
+    "imports": [
+      "datetime",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "paper",
+      "rules",
+      "session",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/strategy_capacity.py",
+    "lines": 70,
+    "functions": 2,
+    "max_function_lines": 58,
+    "imports": [
+      "decimal",
+      "domain.model"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/strategy_retirement.py",
+    "lines": 109,
+    "functions": 2,
+    "max_function_lines": 55,
+    "imports": [
+      "domain.strategy",
+      "pathlib",
+      "adapters.run_store",
+      "domain.market_models",
+      "domain.performance",
+      "random_entry",
+      "reports",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/technical_analysis.py",
+    "lines": 98,
+    "functions": 4,
+    "max_function_lines": 32,
+    "imports": [
+      "datetime",
+      "domain.bars",
+      "domain.indicators",
+      "domain.model",
+      "domain.periods",
+      "domain.strategy",
+      "data_portal",
+      "re"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/temporal_validation.py",
+    "lines": 109,
+    "functions": 2,
+    "max_function_lines": 51,
+    "imports": [
+      "datetime",
+      "decimal",
+      "domain.bars",
+      "domain.model",
+      "domain.sim",
+      "domain.strategy",
+      "paper",
+      "reports",
+      "snapshot_comparison",
+      "itertools"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/trial_governance.py",
+    "lines": 304,
+    "functions": 9,
+    "max_function_lines": 61,
+    "imports": [
+      "__future__",
+      "contextlib",
+      "datetime",
+      "decimal",
+      "pathlib",
+      "domain.model",
+      "domain.strategy",
+      "_journal_lock",
+      "allocation",
+      "breadth_journal",
+      "mix_journal",
+      "evidence",
+      "cryptography.exceptions",
+      "cryptography.hazmat.primitives.asymmetric.ed25519",
+      "json",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/trial_ledger.py",
+    "lines": 147,
+    "functions": 7,
+    "max_function_lines": 52,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "uuid",
+      "domain.model",
+      "domain.strategy",
+      "domain.model",
+      "re",
+      "sqlite3",
+      "time"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/update_gate.py",
+    "lines": 42,
+    "functions": 1,
+    "max_function_lines": 29,
+    "imports": [
+      "__future__"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/venue_facts.py",
+    "lines": 238,
+    "functions": 11,
+    "max_function_lines": 34,
+    "imports": [
+      "__future__",
+      "datetime",
+      "pathlib",
+      "hashlib",
+      "json",
+      "re",
+      "sqlite3"
+    ]
+  },
+  {
+    "path": "gym-core/src/gym/services/walk_forward.py",
+    "lines": 254,
+    "functions": 4,
+    "max_function_lines": 134,
+    "imports": [
+      "datetime",
+      "decimal",
+      "adapters.run_store",
+      "domain.bars",
+      "domain.market_models",
+      "domain.model",
+      "domain.registry",
+      "domain.sim",
+      "domain.strategy",
+      "data_portal",
+      "paper",
+      "reports",
+      "research_protocol",
+      "trial_ledger",
+      "paper",
+      "rules",
+      "session",
+      "domain.performance",
+      "re"
+    ]
+  }
+]

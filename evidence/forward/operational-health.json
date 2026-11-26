@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-11-25T13:19:10.489032+00:00",
+  "overall_status": "WARN",
+  "executor_state": "DISARMED",
+  "checks": {
+    "market_db": {
+      "status": "WARN",
+      "latest_book_ts": "2026-11-25T13:19:09.770288Z",
+      "book_age_hours": 0.0,
+      "latest_trade_ts": "2026-11-25T13:18:59.982639Z",
+      "trade_age_hours": 0.0,
+      "stale_1d_symbols": [],
+      "stale_1h_symbols_count": 1,
+      "stale_1h_symbols": [
+        "ATOMUSDT (24h)"
+      ],
+      "fresh_1min_symbols_count": 15
+    },
+    "multi_venue_db": {
+      "status": "OK",
+      "total_quote_rows": 7739,
+      "latest_quote_ts": "2026-11-25T13:18:25.157497Z",
+      "nobitex_fresh_symbols": 20,
+      "nobitex_stale_symbols": [],
+      "nobitex_liquidity_pool_rows": 268,
+      "nobitex_latest_usdt_pool_apr_pct": 2.64,
+      "wallex_margin_ratio_rows": 11,
+      "wallex_fair_price_rows": 42
+    },
+    "s1_s5_leader_journal": {
+      "status": "OK",
+      "rows": 26,
+      "latest_ts": "2026-11-25T10:25:09.675831+00:00",
+      "age_hours": 2.9
+    },
+    "champion_ensemble_journal": {
+      "status": "OK",
+      "rows": 5,
+      "latest_ts": "2026-11-25T13:18:34.937740+00:00",
+      "age_hours": 0.01
+    },
+    "champion_v2_journal": {
+      "status": "OK",
+      "rows": 5,
+      "latest_ts": "2026-11-25T12:53:21.093470+00:00",
+      "age_hours": 0.43
+    },
+    "mix_journal_v2": {
+      "status": "OK",
+      "rows": 10,
+      "latest_ts": "2026-11-25T10:25:09.511998+00:00",
+      "age_hours": 2.9
+    },
+    "gru_ignition_model": {
+      "status": "OK",
+      "bytes": 82273,
+      "n_models": 3,
+      "sha256": "fed742c13eecf79de3410c7e8a2b594d784b52c5e48be149aad6e6d35d1ddb61"
+    },
+    "gru_ignition_v2_model": {
+      "status": "OK",
+      "bytes": 103882,
+      "n_models": 3,
+      "sha256": "e6f05aaf64e0479fe768ec3ba1361ae8ce9a5759e4efa64b139f80bc2e5f1b56"
+    }
+  }
+}

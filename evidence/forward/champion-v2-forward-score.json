@@ -1,0 +1,22 @@
+{
+  "backtest_assumption_nbx_allin_bps": 16.0,
+  "backtest_assumption_wlx_allin_bps": 25.0,
+  "cum_ret_pct": 0.0,
+  "e_process": 1.0,
+  "fills": 0,
+  "first_day": "2026-11-24",
+  "forward_days": 3,
+  "latest_blended_weights": {},
+  "latest_cash_weight": 1.0,
+  "latest_day": "2026-11-26",
+  "latest_ignition_triggers": [],
+  "median_live_nobitex_spread_bps": 15.68,
+  "median_live_wallex_spread_bps": 26.81,
+  "observations": 23,
+  "paper_nav": 1000.0,
+  "peak_nav": 1000.0,
+  "status": "TRACKING",
+  "total_fees_usdt": 0.0,
+  "unique_slots": 23,
+  "unpriced_symbols": []
+}

@@ -13,7 +13,7 @@ from ..domain.sim import CostModel
 from ..domain.strategy import digest
 from .paper import PaperDataUnavailable, paper
 from .reports import economic_report
-from .research import _compare_in_snapshot
+from .snapshot_comparison import compare_in_snapshot as _compare_in_snapshot
 
 
 def validate(db, symbol, start, end, candidates, *, resolution="15min", cash=Decimal(1000),

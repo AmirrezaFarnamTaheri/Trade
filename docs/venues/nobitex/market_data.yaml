@@ -1,0 +1,557 @@
+openapi: 3.0.3
+info:
+  title: API اطلاعات بازار نوبیتکس
+  version: "1.0.0"
+  description: |
+    APIهای عمومی بازار نوبیتکس شامل دفتر سفارشات، عمق بازار، معاملات اخیر،
+    آمار بازار و داده‌های کندل/تاریخچه قیمت.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: اطلاعات بازار
+    description: تمامی متدهای عمومی مربوط به داده‌های بازار
+
+paths:
+  /v3/orderbook/{symbol}:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات بازار
+      summary: دریافت دفتر سفارشات نسخه ۳
+      description: |
+        دفتر سفارشات یک بازار مشخص یا همه بازارها را برمی‌گرداند. برای دریافت همه بازارها
+        مقدار `all` را به عنوان نماد ارسال کنید.
+
+        این API عمومی است و به توکن نیاز ندارد. فقط متد `GET` پشتیبانی می‌شود.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰۰ درخواست در دقیقه
+        </div>
+        <br/>
+      parameters:
+        - $ref: "#/components/parameters/OrderBookSymbolPath"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OrderBookResponse"
+                  - $ref: "#/components/schemas/OrderBookAllResponse"
+        "400":
+          description: نماد نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+
+  /v2/depth/{symbol}:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات بازار
+      summary: دریافت عمق بازار
+      description: |
+        عمق بازار را به صورت داده‌های مناسب نمودار عمق برمی‌گرداند.
+
+        این API عمومی است و به توکن نیاز ندارد.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۳۰۰ درخواست در دقیقه
+        </div>
+        <br/>
+      parameters:
+        - $ref: "#/components/parameters/MarketSymbolPath"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepthResponse"
+        "400":
+          description: نماد نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+
+  /v2/trades/{symbol}:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات بازار
+      summary: دریافت معاملات اخیر
+      description: |
+        حداکثر ۲۰ معامله اخیر یک بازار مشخص را برمی‌گرداند. مقدار `all` برای
+        این API پشتیبانی نمی‌شود.
+
+        این API عمومی است و به توکن نیاز ندارد.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۶۰ درخواست در دقیقه
+        </div>
+        <br/>
+      parameters:
+        - $ref: "#/components/parameters/MarketSymbolPath"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradesResponse"
+        "400":
+          description: نماد نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+
+  /market/stats:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات بازار
+      summary: آمار بازار
+      description: |
+        آمار بازار مانند بهترین سفارش خرید/فروش، آخرین قیمت، حجم، کف/سقف روزانه
+        و تغییرات روزانه را برای یک یا چند بازار برمی‌گرداند.
+
+        هر دو پارامتر `srcCurrency` و `dstCurrency` اختیاری هستند و می‌توان هر
+        کدام را به‌تنهایی ارسال کرد. اگر هیچ‌کدام ارسال نشود، آمار همه بازارها
+        برگردانده می‌شود؛ برای مثال، `dstCurrency=rls` آمار همه بازارهای ریالی
+        را برمی‌گرداند. بخش `global` پاسخ شامل آمار بایننس، منسوخ‌شده است و در
+        نسخه‌های آینده حذف خواهد شد.
+
+        این API عمومی است و به توکن نیاز ندارد.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۲۰ درخواست در دقیقه
+        </div>
+        <br/>
+      parameters:
+        - $ref: "#/components/parameters/SrcCurrency"
+        - $ref: "#/components/parameters/DstCurrency"
+      responses:
+        "200":
+          description: موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketStatsResponse"
+        "400":
+          description: ارز نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+
+  /market/udf/history:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - اطلاعات بازار
+      summary: دریافت داده‌های OHLC
+      description: |
+        داده‌های کندل (Open, High, Low, Close, Volume) را در قالب سازگار با
+        TradingView UDF برمی‌گرداند.
+
+        در هر درخواست حداکثر ۵۰۰ کندل برگردانده می‌شود. برای بازه‌های بزرگ‌تر
+        از پارامتر `page` استفاده کنید.
+
+        کندل‌های ۱، ۵، ۱۵ و ۳۰ دقیقه‌ای برای ۷ روز اخیر در دسترس هستند.
+
+        این API عمومی است و به توکن نیاز ندارد.
+
+        <div class="alert alert--warning">
+        **محدودیت فراخوانی:** ۶۰ درخواست در دقیقه
+        </div>
+        <br/>
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          description: نماد بازار، مانند `BTCIRT` یا `BTCUSDT`.
+          schema:
+            type: string
+          example: BTCIRT
+        - name: resolution
+          in: query
+          required: true
+          description: |
+            تایم‌فریم کندل: `1`، `5`، `15` و `30` دقیقه؛ `60`، `180`،
+            `240`، `360` و `720` دقیقه؛ و `D` یا `1D`، `2D` و `3D` روز.
+          schema:
+            type: string
+            enum: ["1", "5", "15", "30", "60", "180", "240", "360", "720", D, 1D, 2D, 3D]
+          example: D
+        - name: from
+          in: query
+          required: false
+          description: زمان شروع به صورت timestamp ثانیه.
+          schema:
+            type: integer
+            format: int64
+          example: 1562058167
+        - name: to
+          in: query
+          required: true
+          description: زمان پایان به صورت timestamp ثانیه.
+          schema:
+            type: integer
+            format: int64
+          example: 1562230967
+        - name: countback
+          in: query
+          required: false
+          description: |
+            تعداد کندل‌های درخواستی پیش از زمان `to`. در صورت ارسال، بر
+            پارامتر `from` اولویت دارد و مقادیر بزرگ‌تر از ۵۰۰ به ۵۰۰ محدود
+            می‌شوند.
+          schema:
+            type: integer
+          example: 4
+        - name: page
+          in: query
+          required: false
+          description: شماره صفحه برای دریافت دسته‌های قدیمی‌تر کندل‌ها.
+          schema:
+            type: integer
+            default: 1
+          example: 3
+      responses:
+        "200":
+          description: موفق، بدون داده یا خطای UDF
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UDFHistoryResponse"
+              examples:
+                success:
+                  summary: پاسخ موفق
+                  value:
+                    s: ok
+                    t: [1562095800, 1562182200]
+                    o: [146272500, 150551000]
+                    h: [155869600, 161869500]
+                    l: [140062400, 150551000]
+                    c: [151440200, 157000000]
+                    v: [18.221362316, 9.8592626506]
+                noData:
+                  summary: نبود داده در بازه درخواستی
+                  value:
+                    s: no_data
+                invalidResolution:
+                  summary: تایم‌فریم نامعتبر
+                  value:
+                    s: error
+                    errmsg: Invalid resolution!
+        "400":
+          description: نماد نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+    OrderBookSymbolPath:
+      name: symbol
+      in: path
+      required: true
+      description: نماد بازار مانند `BTCIRT`، `BTCUSDT` یا مقدار `all`.
+      schema:
+        type: string
+      example: BTCIRT
+
+    MarketSymbolPath:
+      name: symbol
+      in: path
+      required: true
+      description: نماد یک بازار مشخص، مانند `BTCIRT` یا `BTCUSDT`؛ مقدار `all` پشتیبانی نمی‌شود.
+      schema:
+        type: string
+      example: BTCIRT
+
+    SrcCurrency:
+      name: srcCurrency
+      in: query
+      required: false
+      description: ارز یا فهرست ارزهای مبدا جداشده با کاما، مانند `btc,eth`.
+      schema:
+        type: string
+      example: btc,usdt
+
+    DstCurrency:
+      name: dstCurrency
+      in: query
+      required: false
+      description: ارز یا فهرست ارزهای مقصد جداشده با کاما، مانند `rls,usdt`.
+      schema:
+        type: string
+      example: rls
+
+  schemas:
+    FailedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: failed
+        code:
+          type: string
+          example: InvalidSymbol
+        message:
+          type: string
+
+    OrderBookLevel:
+      type: array
+      description: سطح قیمت به صورت `[price, amount]`.
+      minItems: 2
+      maxItems: 2
+      items:
+        type: string
+      example:
+        - "6423000000"
+        - "0.011121"
+
+    OrderBookSides:
+      type: object
+      required:
+        - bids
+        - asks
+      properties:
+        bids:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        asks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+
+    OrderBookResponse:
+      allOf:
+        - $ref: "#/components/schemas/OrderBookSides"
+        - type: object
+          required:
+            - status
+            - lastUpdate
+            - lastTradePrice
+          properties:
+            status:
+              type: string
+              enum: [ok]
+              example: ok
+            lastUpdate:
+              type: integer
+              format: int64
+              nullable: true
+              example: 1657620166710
+            lastTradePrice:
+              type: string
+              example: "6423000000"
+
+    OrderBookAllEntry:
+      allOf:
+        - $ref: "#/components/schemas/OrderBookSides"
+        - type: object
+          required:
+            - lastUpdate
+            - lastTradePrice
+          properties:
+            lastUpdate:
+              type: integer
+              format: int64
+              nullable: true
+              example: 1657620166710
+            lastTradePrice:
+              type: string
+              example: "6423000000"
+
+    OrderBookAllResponse:
+      type: object
+      description: پاسخ دریافت دفتر سفارشات برای نماد `all`.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+      additionalProperties:
+        oneOf:
+          - $ref: "#/components/schemas/OrderBookAllEntry"
+          - type: string
+
+    DepthResponse:
+      allOf:
+        - $ref: "#/components/schemas/OrderBookSides"
+        - type: object
+          properties:
+            status:
+              type: string
+              example: ok
+            lastUpdate:
+              type: string
+              example: "1657620166710"
+            lastTradePrice:
+              type: string
+              example: "831"
+
+    PublicTrade:
+      type: object
+      properties:
+        time:
+          type: integer
+          format: int64
+          description: زمان انجام معامله به فرمت timestamp یونیکس میلی‌ثانیه.
+          example: 1657621987917
+        price:
+          type: string
+          example: "6415060000"
+        volume:
+          type: string
+          example: "0.000001"
+        type:
+          type: string
+          enum: [buy, sell]
+          example: sell
+
+    TradesResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        trades:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/PublicTrade"
+
+    MarketStat:
+      type: object
+      properties:
+        isClosed:
+          type: boolean
+        isClosedReason:
+          type: string
+          nullable: true
+          example: NoData
+        bestSell:
+          type: string
+          nullable: true
+        bestBuy:
+          type: string
+          nullable: true
+        volumeSrc:
+          type: string
+          nullable: true
+        volumeDst:
+          type: string
+          nullable: true
+        latest:
+          type: string
+          nullable: true
+        mark:
+          type: string
+          nullable: true
+        dayLow:
+          type: string
+          nullable: true
+        dayHigh:
+          type: string
+          nullable: true
+        dayOpen:
+          type: string
+          nullable: true
+        dayClose:
+          type: string
+          nullable: true
+        dayChange:
+          type: string
+          nullable: true
+
+    MarketStatsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        stats:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/MarketStat"
+        global:
+          type: object
+          deprecated: true
+          description: آمار قدیمی بازار بایننس؛ این فیلد منسوخ‌شده و در آینده حذف می‌شود.
+          properties:
+            binance:
+              type: object
+              additionalProperties: true
+
+    UDFHistoryResponse:
+      type: object
+      properties:
+        s:
+          type: string
+          enum: [ok, no_data, error]
+          example: ok
+        t:
+          type: array
+          maxItems: 500
+          items:
+            type: integer
+            format: int64
+        o:
+          type: array
+          maxItems: 500
+          items:
+            type: number
+        h:
+          type: array
+          maxItems: 500
+          items:
+            type: number
+        l:
+          type: array
+          maxItems: 500
+          items:
+            type: number
+        c:
+          type: array
+          maxItems: 500
+          items:
+            type: number
+        v:
+          type: array
+          maxItems: 500
+          items:
+            type: number
+        errmsg:
+          type: string
+          description: پیام خطا در حالت `s=error`.

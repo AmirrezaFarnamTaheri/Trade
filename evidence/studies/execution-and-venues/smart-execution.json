@@ -1,0 +1,472 @@
+{
+  "generated_at": "2026-11-25T20:26:59.808998+00:00",
+  "notional_usdt": 250.0,
+  "max_skew_s": 15.0,
+  "rows": [
+    {
+      "symbol": "AAVEUSDT",
+      "notional_quote": 250.0,
+      "samples": 492,
+      "passive_covered_samples": 483,
+      "passive_uncovered_deadlines": 9,
+      "buy": {
+        "wallex_taker_bps": 55.04,
+        "nobitex_taker_bps": 42.36,
+        "smart_taker_bps": 36.5,
+        "asym_router_bps": 39.33,
+        "saving_smart_vs_wallex_bps": 18.54,
+        "saving_asym_vs_wallex_bps": 15.7,
+        "nobitex_cheaper_pct": 66.3,
+        "wallex_depth_fill_pct": 97.9,
+        "nobitex_depth_fill_pct": 99.1,
+        "passive_buy_fill_pct": 7.9
+      },
+      "sell": {
+        "wallex_taker_bps": 46.32,
+        "nobitex_taker_bps": 31.38,
+        "smart_taker_bps": 29.96,
+        "asym_router_bps": 29.96,
+        "saving_smart_vs_wallex_bps": 16.36,
+        "saving_asym_vs_wallex_bps": 16.36,
+        "nobitex_cheaper_pct": 78.7,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 100.0,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "ADAUSDT",
+      "notional_quote": 250.0,
+      "samples": 474,
+      "passive_covered_samples": 467,
+      "passive_uncovered_deadlines": 7,
+      "buy": {
+        "wallex_taker_bps": 65.63,
+        "nobitex_taker_bps": 31.7,
+        "smart_taker_bps": 29.83,
+        "asym_router_bps": 31.82,
+        "saving_smart_vs_wallex_bps": 35.8,
+        "saving_asym_vs_wallex_bps": 33.81,
+        "nobitex_cheaper_pct": 84.4,
+        "wallex_depth_fill_pct": 97.0,
+        "nobitex_depth_fill_pct": 99.6,
+        "passive_buy_fill_pct": 28.5
+      },
+      "sell": {
+        "wallex_taker_bps": 62.66,
+        "nobitex_taker_bps": 21.23,
+        "smart_taker_bps": 21.18,
+        "asym_router_bps": 21.18,
+        "saving_smart_vs_wallex_bps": 41.48,
+        "saving_asym_vs_wallex_bps": 41.48,
+        "nobitex_cheaper_pct": 97.9,
+        "wallex_depth_fill_pct": 96.6,
+        "nobitex_depth_fill_pct": 100.0,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "BCHUSDT",
+      "notional_quote": 250.0,
+      "samples": 485,
+      "passive_covered_samples": 479,
+      "passive_uncovered_deadlines": 6,
+      "buy": {
+        "wallex_taker_bps": 60.07,
+        "nobitex_taker_bps": 32.26,
+        "smart_taker_bps": 30.97,
+        "asym_router_bps": 31.33,
+        "saving_smart_vs_wallex_bps": 29.09,
+        "saving_asym_vs_wallex_bps": 28.74,
+        "nobitex_cheaper_pct": 82.5,
+        "wallex_depth_fill_pct": 99.7,
+        "nobitex_depth_fill_pct": 99.9,
+        "passive_buy_fill_pct": 4.6
+      },
+      "sell": {
+        "wallex_taker_bps": 54.34,
+        "nobitex_taker_bps": 40.96,
+        "smart_taker_bps": 34.61,
+        "asym_router_bps": 34.61,
+        "saving_smart_vs_wallex_bps": 19.73,
+        "saving_asym_vs_wallex_bps": 19.73,
+        "nobitex_cheaper_pct": 61.9,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 99.0,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "BNBUSDT",
+      "notional_quote": 250.0,
+      "samples": 527,
+      "passive_covered_samples": 522,
+      "passive_uncovered_deadlines": 5,
+      "buy": {
+        "wallex_taker_bps": 47.72,
+        "nobitex_taker_bps": 23.0,
+        "smart_taker_bps": 22.94,
+        "asym_router_bps": 24.11,
+        "saving_smart_vs_wallex_bps": 24.78,
+        "saving_asym_vs_wallex_bps": 23.61,
+        "nobitex_cheaper_pct": 91.3,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 98.9,
+        "passive_buy_fill_pct": 10.3
+      },
+      "sell": {
+        "wallex_taker_bps": 40.74,
+        "nobitex_taker_bps": 28.65,
+        "smart_taker_bps": 27.28,
+        "asym_router_bps": 27.28,
+        "saving_smart_vs_wallex_bps": 13.46,
+        "saving_asym_vs_wallex_bps": 13.46,
+        "nobitex_cheaper_pct": 89.6,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 99.7,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "BTCUSDT",
+      "notional_quote": 250.0,
+      "samples": 1196,
+      "passive_covered_samples": 1183,
+      "passive_uncovered_deadlines": 13,
+      "buy": {
+        "wallex_taker_bps": 21.65,
+        "nobitex_taker_bps": 16.45,
+        "smart_taker_bps": 14.28,
+        "asym_router_bps": 10.19,
+        "saving_smart_vs_wallex_bps": 7.36,
+        "saving_asym_vs_wallex_bps": 11.46,
+        "nobitex_cheaper_pct": 67.7,
+        "wallex_depth_fill_pct": 99.5,
+        "nobitex_depth_fill_pct": 99.0,
+        "passive_buy_fill_pct": 38.9
+      },
+      "sell": {
+        "wallex_taker_bps": 23.23,
+        "nobitex_taker_bps": 17.08,
+        "smart_taker_bps": 15.44,
+        "asym_router_bps": 15.44,
+        "saving_smart_vs_wallex_bps": 7.79,
+        "saving_asym_vs_wallex_bps": 7.79,
+        "nobitex_cheaper_pct": 71.0,
+        "wallex_depth_fill_pct": 99.6,
+        "nobitex_depth_fill_pct": 98.8,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "notional_quote": 250.0,
+      "samples": 475,
+      "passive_covered_samples": 464,
+      "passive_uncovered_deadlines": 11,
+      "buy": {
+        "wallex_taker_bps": 79.84,
+        "nobitex_taker_bps": 20.38,
+        "smart_taker_bps": 19.1,
+        "asym_router_bps": 20.8,
+        "saving_smart_vs_wallex_bps": 60.74,
+        "saving_asym_vs_wallex_bps": 59.03,
+        "nobitex_cheaper_pct": 88.6,
+        "wallex_depth_fill_pct": 77.1,
+        "nobitex_depth_fill_pct": 96.4,
+        "passive_buy_fill_pct": 15.7
+      },
+      "sell": {
+        "wallex_taker_bps": 53.16,
+        "nobitex_taker_bps": 30.96,
+        "smart_taker_bps": 30.09,
+        "asym_router_bps": 30.09,
+        "saving_smart_vs_wallex_bps": 23.07,
+        "saving_asym_vs_wallex_bps": 23.07,
+        "nobitex_cheaper_pct": 92.0,
+        "wallex_depth_fill_pct": 96.8,
+        "nobitex_depth_fill_pct": 99.6,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "notional_quote": 250.0,
+      "samples": 1214,
+      "passive_covered_samples": 1206,
+      "passive_uncovered_deadlines": 8,
+      "buy": {
+        "wallex_taker_bps": 24.34,
+        "nobitex_taker_bps": 18.4,
+        "smart_taker_bps": 16.98,
+        "asym_router_bps": 15.11,
+        "saving_smart_vs_wallex_bps": 7.36,
+        "saving_asym_vs_wallex_bps": 9.23,
+        "nobitex_cheaper_pct": 71.7,
+        "wallex_depth_fill_pct": 99.9,
+        "nobitex_depth_fill_pct": 98.5,
+        "passive_buy_fill_pct": 34.5
+      },
+      "sell": {
+        "wallex_taker_bps": 25.86,
+        "nobitex_taker_bps": 17.67,
+        "smart_taker_bps": 16.67,
+        "asym_router_bps": 16.67,
+        "saving_smart_vs_wallex_bps": 9.19,
+        "saving_asym_vs_wallex_bps": 9.19,
+        "nobitex_cheaper_pct": 81.7,
+        "wallex_depth_fill_pct": 99.7,
+        "nobitex_depth_fill_pct": 98.3,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "FILUSDT",
+      "notional_quote": 250.0,
+      "samples": 306,
+      "passive_covered_samples": 259,
+      "passive_uncovered_deadlines": 47,
+      "buy": {
+        "wallex_taker_bps": 743.57,
+        "nobitex_taker_bps": -9.14,
+        "smart_taker_bps": -9.14,
+        "asym_router_bps": 6.83,
+        "saving_smart_vs_wallex_bps": 752.72,
+        "saving_asym_vs_wallex_bps": 736.75,
+        "nobitex_cheaper_pct": 100.0,
+        "wallex_depth_fill_pct": 29.1,
+        "nobitex_depth_fill_pct": 100.0,
+        "passive_buy_fill_pct": 7.7
+      },
+      "sell": {
+        "wallex_taker_bps": 215.15,
+        "nobitex_taker_bps": 130.62,
+        "smart_taker_bps": 129.52,
+        "asym_router_bps": 129.52,
+        "saving_smart_vs_wallex_bps": 85.63,
+        "saving_asym_vs_wallex_bps": 85.63,
+        "nobitex_cheaper_pct": 94.1,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 100.0,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "LINKUSDT",
+      "notional_quote": 250.0,
+      "samples": 473,
+      "passive_covered_samples": 464,
+      "passive_uncovered_deadlines": 9,
+      "buy": {
+        "wallex_taker_bps": 33.8,
+        "nobitex_taker_bps": 28.58,
+        "smart_taker_bps": 26.44,
+        "asym_router_bps": 24.83,
+        "saving_smart_vs_wallex_bps": 7.35,
+        "saving_asym_vs_wallex_bps": 8.97,
+        "nobitex_cheaper_pct": 69.6,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 99.7,
+        "passive_buy_fill_pct": 20.0
+      },
+      "sell": {
+        "wallex_taker_bps": 44.39,
+        "nobitex_taker_bps": 22.18,
+        "smart_taker_bps": 21.42,
+        "asym_router_bps": 21.42,
+        "saving_smart_vs_wallex_bps": 22.96,
+        "saving_asym_vs_wallex_bps": 22.96,
+        "nobitex_cheaper_pct": 87.7,
+        "wallex_depth_fill_pct": 99.9,
+        "nobitex_depth_fill_pct": 99.0,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "LTCUSDT",
+      "notional_quote": 250.0,
+      "samples": 479,
+      "passive_covered_samples": 471,
+      "passive_uncovered_deadlines": 8,
+      "buy": {
+        "wallex_taker_bps": 51.34,
+        "nobitex_taker_bps": 23.91,
+        "smart_taker_bps": 23.75,
+        "asym_router_bps": 21.93,
+        "saving_smart_vs_wallex_bps": 27.59,
+        "saving_asym_vs_wallex_bps": 29.41,
+        "nobitex_cheaper_pct": 91.0,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 99.9,
+        "passive_buy_fill_pct": 10.6
+      },
+      "sell": {
+        "wallex_taker_bps": 37.83,
+        "nobitex_taker_bps": 33.33,
+        "smart_taker_bps": 30.83,
+        "asym_router_bps": 30.83,
+        "saving_smart_vs_wallex_bps": 7.0,
+        "saving_asym_vs_wallex_bps": 7.0,
+        "nobitex_cheaper_pct": 67.2,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 100.0,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "notional_quote": 250.0,
+      "samples": 1140,
+      "passive_covered_samples": 1126,
+      "passive_uncovered_deadlines": 14,
+      "buy": {
+        "wallex_taker_bps": 51.32,
+        "nobitex_taker_bps": 28.67,
+        "smart_taker_bps": 23.68,
+        "asym_router_bps": 18.29,
+        "saving_smart_vs_wallex_bps": 27.64,
+        "saving_asym_vs_wallex_bps": 33.03,
+        "nobitex_cheaper_pct": 71.2,
+        "wallex_depth_fill_pct": 93.1,
+        "nobitex_depth_fill_pct": 90.4,
+        "passive_buy_fill_pct": 21.7
+      },
+      "sell": {
+        "wallex_taker_bps": 50.35,
+        "nobitex_taker_bps": 23.66,
+        "smart_taker_bps": 23.39,
+        "asym_router_bps": 23.39,
+        "saving_smart_vs_wallex_bps": 26.96,
+        "saving_asym_vs_wallex_bps": 26.96,
+        "nobitex_cheaper_pct": 97.8,
+        "wallex_depth_fill_pct": 99.5,
+        "nobitex_depth_fill_pct": 99.3,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "TRXUSDT",
+      "notional_quote": 250.0,
+      "samples": 310,
+      "passive_covered_samples": 278,
+      "passive_uncovered_deadlines": 32,
+      "buy": {
+        "wallex_taker_bps": 243.74,
+        "nobitex_taker_bps": 21.05,
+        "smart_taker_bps": 17.61,
+        "asym_router_bps": 11.64,
+        "saving_smart_vs_wallex_bps": 226.13,
+        "saving_asym_vs_wallex_bps": 232.1,
+        "nobitex_cheaper_pct": 79.7,
+        "wallex_depth_fill_pct": 97.4,
+        "nobitex_depth_fill_pct": 95.1,
+        "passive_buy_fill_pct": 7.2
+      },
+      "sell": {
+        "wallex_taker_bps": 70.72,
+        "nobitex_taker_bps": 42.23,
+        "smart_taker_bps": 41.91,
+        "asym_router_bps": 41.91,
+        "saving_smart_vs_wallex_bps": 28.82,
+        "saving_asym_vs_wallex_bps": 28.82,
+        "nobitex_cheaper_pct": 81.6,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 99.4,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "UNIUSDT",
+      "notional_quote": 250.0,
+      "samples": 530,
+      "passive_covered_samples": 526,
+      "passive_uncovered_deadlines": 4,
+      "buy": {
+        "wallex_taker_bps": 155.93,
+        "nobitex_taker_bps": 9.03,
+        "smart_taker_bps": 9.03,
+        "asym_router_bps": 6.1,
+        "saving_smart_vs_wallex_bps": 146.9,
+        "saving_asym_vs_wallex_bps": 149.83,
+        "nobitex_cheaper_pct": 88.3,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 100.0,
+        "passive_buy_fill_pct": 8.2
+      },
+      "sell": {
+        "wallex_taker_bps": 77.41,
+        "nobitex_taker_bps": 66.52,
+        "smart_taker_bps": 59.26,
+        "asym_router_bps": 59.26,
+        "saving_smart_vs_wallex_bps": 18.15,
+        "saving_asym_vs_wallex_bps": 18.15,
+        "nobitex_cheaper_pct": 64.2,
+        "wallex_depth_fill_pct": 100.0,
+        "nobitex_depth_fill_pct": 99.1,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "notional_quote": 250.0,
+      "samples": 367,
+      "passive_covered_samples": 342,
+      "passive_uncovered_deadlines": 25,
+      "buy": {
+        "wallex_taker_bps": 18.01,
+        "nobitex_taker_bps": 27.71,
+        "smart_taker_bps": 14.01,
+        "asym_router_bps": 15.66,
+        "saving_smart_vs_wallex_bps": 4.0,
+        "saving_asym_vs_wallex_bps": 2.35,
+        "nobitex_cheaper_pct": 36.8,
+        "wallex_depth_fill_pct": 99.9,
+        "nobitex_depth_fill_pct": 98.8,
+        "passive_buy_fill_pct": 18.1
+      },
+      "sell": {
+        "wallex_taker_bps": 36.71,
+        "nobitex_taker_bps": 11.0,
+        "smart_taker_bps": 11.0,
+        "asym_router_bps": 11.0,
+        "saving_smart_vs_wallex_bps": 25.71,
+        "saving_asym_vs_wallex_bps": 25.71,
+        "nobitex_cheaper_pct": 92.6,
+        "wallex_depth_fill_pct": 99.7,
+        "nobitex_depth_fill_pct": 98.1,
+        "passive_buy_fill_pct": 0.0
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "notional_quote": 250.0,
+      "samples": 1233,
+      "passive_covered_samples": 1226,
+      "passive_uncovered_deadlines": 7,
+      "buy": {
+        "wallex_taker_bps": 27.09,
+        "nobitex_taker_bps": 21.76,
+        "smart_taker_bps": 19.34,
+        "asym_router_bps": 17.02,
+        "saving_smart_vs_wallex_bps": 7.75,
+        "saving_asym_vs_wallex_bps": 10.07,
+        "nobitex_cheaper_pct": 67.8,
+        "wallex_depth_fill_pct": 99.8,
+        "nobitex_depth_fill_pct": 97.1,
+        "passive_buy_fill_pct": 24.4
+      },
+      "sell": {
+        "wallex_taker_bps": 30.02,
+        "nobitex_taker_bps": 18.85,
+        "smart_taker_bps": 18.63,
+        "asym_router_bps": 18.63,
+        "saving_smart_vs_wallex_bps": 11.4,
+        "saving_asym_vs_wallex_bps": 11.4,
+        "nobitex_cheaper_pct": 88.4,
+        "wallex_depth_fill_pct": 99.9,
+        "nobitex_depth_fill_pct": 97.7,
+        "passive_buy_fill_pct": 0.0
+      }
+    }
+  ]
+}

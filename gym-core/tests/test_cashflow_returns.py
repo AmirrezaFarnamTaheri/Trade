@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from gym.domain.market_models import evaluate_artifact
+from gym.domain.artifact_evaluation import evaluate_artifact
 from tests.support import START
 
 

@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -99,3 +100,48 @@ def test_a_failed_refresh_still_records_the_day_from_stored_candles(tmp_path, mo
     monkeypatch.setattr(research, "now_utc", lambda: NOW)
     assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 0
     assert journal(tmp_path / "live")[0]["day"] == "2026-10-19T00:00:00.000000Z"
+    monkeypatch.setattr(research, "now_utc", lambda: NOW + timedelta(days=1))
+    assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 1
+    assert len(journal(tmp_path / "live")) == 1
+
+
+def test_best_effort_refresh_skips_one_failing_symbol_without_stalling_universe(tmp_path, monkeypatch, capsys):
+    """E013: a single unreadable USDT symbol must not abort the remaining 200+ markets in breadth-journal --refresh."""
+    from contextlib import asynccontextmanager
+
+    import gym.commands.research as research
+    from gym.cli import main
+
+    db = store(tmp_path / "live", {"AAAUSDT": up("1.01"), "BADUSDT": up("1.00"), "CCCUSDT": up("1.01")})
+    db.c.close()
+    next_day = DAY0 + timedelta(days=80)
+    run_at = next_day + timedelta(days=1, hours=11, minutes=30)
+
+    @asynccontextmanager
+    async def fake_session():
+        yield object()
+
+    async def fake_fetch(self, _session, symbol, resolution, _lo, _hi):
+        if symbol == "BADUSDT":
+            self.candle_errors += 1
+            return 0
+        self.db.upsert_candles(
+            symbol, resolution,
+            [{"t": next_day, "o": Decimal(250), "h": Decimal(255), "l": Decimal(245), "c": Decimal(250), "v": Decimal(100)}],
+            run_at - timedelta(seconds=1),
+        )
+        self.db.c.commit()
+        return 1
+
+    monkeypatch.setattr(research.wallex, "public_session", fake_session)
+    monkeypatch.setattr(research.Collector, "fetch_candles", fake_fetch)
+    monkeypatch.setattr(research, "now_utc", lambda: run_at)
+    assert main(["--data", str(tmp_path), "breadth-journal", "--refresh"]) == 0
+    rows = journal(tmp_path / "live")
+    assert len(rows) == 1 and rows[0]["day"] == "2026-10-20T00:00:00.000000Z"
+    capsys.readouterr()
+    assert main(["--data", str(tmp_path), "history", "BADUSDT", "CCCUSDT", "--resolution", "1d",
+                 "--from", "2026-10-19T00:00:00Z", "--best-effort"]) == 3
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["candles"] == {"BADUSDT": 0, "CCCUSDT": 1}
+    assert set(receipt["failed_symbols"]) == {"BADUSDT"}

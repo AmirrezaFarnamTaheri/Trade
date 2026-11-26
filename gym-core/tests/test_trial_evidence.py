@@ -47,10 +47,12 @@ def test_forward_record_counts_days_missing_days_fees_and_the_hold_comparison(tm
              "equity": "1003.5", "holdings": {"base": "0.01", "quote": "340"}, "decision": {"trade": True, "close": 110},
              "fill": {"side": "BUY", "qty": "0.01", "price": "66000", "fee": "0.66"}}]
     (tmp_path / "allocation/journal.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
-    assert evidence(tmp_path, tmp_path / "none.md")["forward"] == {
+    fwd = evidence(tmp_path, tmp_path / "none.md")["forward"]
+    assert {k: v for k, v in fwd.items() if k != "e_process"} == {
         "symbol": "BTCUSDT", "started": "2026-11-14T15:03:55Z", "latest": "2026-11-17T08:02:36Z", "latest_day": "2026-11-16",
         "days": 3, "missing_days": 1, "start_equity": "1000.0", "equity": "1003.5", "net": "3.5", "hold_net": "100.00",
         "fees": "0.66", "in_market": True, "trades": 1, "withheld": 1}
+    assert fwd["e_process"]["status"] == "INSUFFICIENT_DATA"
 
 
 def test_forward_net_keeps_all_decimal_places(tmp_path):
@@ -109,6 +111,9 @@ def test_the_mix_record_reports_equity_from_1000_usdt_and_the_invested_share(tmp
     rows = [{"day": "2026-11-17T00:00:00Z", "at": "2026-11-18T00:15:00Z", "status": "READY", "equity": "990", "usdt": "396"},
             {"day": "2026-11-18T00:00:00Z", "at": "2026-11-19T00:15:00Z", "status": "READY", "equity": "1010", "usdt": "404"}]
     (tmp_path / "allocation/mix-journal.jsonl").write_text("\n".join(map(json.dumps, rows)), encoding="utf-8")
-    assert forward_mix(tmp_path) == {"started": "2026-11-17", "latest": "2026-11-19T00:15:00Z", "days": 2,
-                                     "equity": "1010.00", "net_pct": "1.00", "invested_pct": "60.0"}
+    mix = forward_mix(tmp_path)
+    assert {k: v for k, v in mix.items() if k != "e_process"} == {
+        "started": "2026-11-17", "latest": "2026-11-19T00:15:00Z", "days": 2,
+        "equity": "1010.00", "net_pct": "1.00", "invested_pct": "60.0"}
+    assert "e_process" in mix and mix["e_process"]["independent_final_evidence"] is False
     assert forward_mix(tmp_path / "missing") is None

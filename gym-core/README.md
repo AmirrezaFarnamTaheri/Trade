@@ -10,7 +10,7 @@ From the repository's gym-core directory:
 
 ```powershell
 uv sync
-uv run --no-sync gymctl --data ../data run --assets all
+uv run --no-sync gymctl --data ../data run --depth-levels 5 --assets 19 --add-symbols SLVONUSDT,COPXONUSDT
 ```
 
 Use the same data root for every command. Here, `../data/live` is the
@@ -78,6 +78,26 @@ uv run --no-sync gymctl allocate BTCUSDT ETHUSDT
 
 Paper only: decisions use completed daily candles fetched before the run, fills use the freshest
 qualified quote and the venue rules in force, and a missing quote records NO_QUOTE instead of a fill.
+
+## Prospective forward journals, multi-venue observation & dashboard
+
+In addition to `gymctl`, the research stack includes read-only forward paper journals, multi-venue quote recording, operational health checks, and an offline HTML5 dashboard (all `DISARMED`, zero order authority):
+
+```powershell
+# Daily S1+S5 standing leader journal & 2-hourly Champion Ensemble (70% Core + 30% Frozen GRU-Ignition)
+uv run --no-sync python scripts/record_leader_journal.py
+uv run --no-sync python scripts/record_champion_journal.py --gold-symbol XAUTUSDT
+
+# Read-only 20-symbol Nobitex + Wallex live spread recorder & side-asymmetric execution audit
+uv run --no-sync python scripts/record_multi_venue_quotes.py --once
+uv run --no-sync python scripts/evaluate_smart_execution.py
+
+# Operational health watchdog & offline interactive HTML5 dashboard
+uv run --no-sync python scripts/check_operational_health.py
+uv run --no-sync python scripts/build_research_dashboard.py
+```
+
+On Windows, `scripts/windows/Install-ChampionJournals.ps1` and `scripts/windows/Install-MultiVenueRecorder.ps1` register these as limited-user scheduled tasks.
 
 ## Documentation and checks
 

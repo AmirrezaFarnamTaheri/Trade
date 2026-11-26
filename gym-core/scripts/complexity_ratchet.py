@@ -18,11 +18,20 @@ BASELINE = ROOT / "complexity-baseline.json"
 
 
 def measure() -> dict[str, int]:
-    out = subprocess.run(["uvx", "ruff==0.17.4", "check", "--isolated", "--select", "C901", "--config",
-                          f"lint.mccabe.max-complexity={CEILING}", "--output-format", "json", "src"],
-                         cwd=ROOT, capture_output=True, text=True, check=False).stdout
+    proc = subprocess.run(
+        [
+            sys.executable, "-m", "ruff", "check", "--isolated", "--select", "C901",
+            "--config", f"lint.mccabe.max-complexity={CEILING}", "--output-format", "json", "src",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode not in (0, 1) or not proc.stdout.strip():
+        raise RuntimeError(f"ruff complexity scan failed (exit={proc.returncode}): {proc.stderr.strip()}")
     found = {}
-    for item in json.loads(out or "[]"):
+    for item in json.loads(proc.stdout):
         name, value = re.match(r"`(.+)` is too complex \((\d+) >", item["message"]).groups()
         path = Path(item["filename"]).resolve().relative_to(ROOT).as_posix()
         found[f"{path}::{name}"] = int(value)

@@ -1,0 +1,1087 @@
+openapi: 3.0.3
+info:
+  title: API برداشت نوبیتکس
+  version: "1.0.0"
+  description: |
+    APIهای ثبت، تایید، لغو، مشاهده و لیست برداشت‌ها — رمزارزی و ریالی.
+
+    ## جریان برداشت
+    1. **ثبت درخواست** — `POST /users/wallets/withdraw` → وضعیت `New`
+    2. **تایید درخواست** — `POST /users/wallets/withdraw-confirm` → وضعیت `Verified`
+    3. **پردازش خودکار** — job داخلی درخواست‌های `Verified` را پردازش می‌کند.
+
+servers:
+  - url: https://apiv2.nobitex.ir
+  - url: https://testnetapiv2.nobitex.ir
+
+tags:
+  - name: برداشت
+    description: مدیریت درخواست‌های برداشت (رمزارزی و ریالی)
+
+security:
+  - TokenAuth: []
+  - KeyAuth: []
+    SignatureAuth: []
+    TimestampAuth: []
+
+paths:
+  /users/wallets/withdraw:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: request
+      tags:
+        - برداشت
+      summary: ثبت درخواست برداشت
+      description: |
+        ثبت درخواست برداشت از یک کیف‌پول `spot` کاربر.
+
+        پس از موفقیت، کاربر باید درخواست را از طریق [تایید درخواست](/withdraw/confirm) تایید کند.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۱۰ درخواست در ۳ دقیقه
+        - در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+
+        ### نکات — رمزارز
+        - برای شبکه `Lightning` (`BTCLN`) باید پارامتر `invoice` ارسال شود. `amount` و `address` از `invoice` استخراج می‌شوند.
+        - برای سایر شبکه‌ها `amount` و `address` الزامی هستند.
+        - اگر آدرس در دفتر آدرس whitelist نباشد، ارسال هدر `X-TOTP` الزامی است.
+        - کیف‌پول باید از نوع اسپات باشد.
+
+        ### نکات — ریال
+        > **توجه — منسوخ‌شدن:** این روش برای برداشت ریالی به‌زودی منسوخ می‌شود.
+        > از [API برداشت ریالی جدید](/rial-withdraw/cobank-withdraw-request) استفاده کنید که ثبت و تأیید را در یک مرحله انجام می‌دهد.
+        - سقف برداشت روزانه و ماهانه کاربر با توجه به سطح کاربری مشخص می‌شود. برای مشاهده سقف برداشت خود، به [این بخش](/user_data/دریافت-محدودیت-های-کاربر) مراجعه کنید.
+
+        - پارامتر `address` باید شناسه (`id`) حساب بانکی تأییدشده کاربر باشد. لیست حساب‌های بانکی را می‌توانید از [اینجا](/user_data/دریافت-پروفایل-کاربر) ببینید.
+        - فیلدهای `network`، `invoice`، `tag` و `noTag` برای برداشت ریالی استفاده نمی‌شوند.
+        - کد OTP پس از ثبت درخواست از طریق SMS ارسال می‌شود و در مرحله تایید نیاز است.
+      parameters:
+        - in: header
+          name: X-TOTP
+          schema:
+            type: string
+            example: "123456"
+          description: |
+            **فقط برای برداشت رمزارز.**
+            کد دوعاملی الزامی است اگر آدرس مقصد در لیست سفید (`whitelist`) کاربر نباشد
+            و کاربر احراز هویت دوعاملی (`2FA`) را فعال کرده باشد.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/WithdrawRequest"
+                - $ref: "#/components/schemas/RialWithdrawRequest"
+            examples:
+              normal_withdraw:
+                summary: برداشت رمزارز ETH روی شبکه ERC20
+                value:
+                  wallet: 3456
+                  network: ETH
+                  amount: "0.05"
+                  address: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+              lightning_withdraw:
+                summary: برداشت بیتکوین از طریق شبکه Lightning
+                value:
+                  wallet: 1234
+                  invoice: "lnbc10u1p3pj257pp5..."
+              xrp_with_tag:
+                summary: برداشت XRP با تگ
+                value:
+                  wallet: 9012
+                  network: XRP
+                  amount: "10"
+                  address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
+                  tag: "1234567890"
+              xrp_no_tag:
+                summary: برداشت XRP بدون تگ
+                value:
+                  wallet: 9012
+                  network: XRP
+                  amount: "10"
+                  address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
+                  noTag: true
+              rial_withdraw:
+                summary: برداشت ریالی به حساب بانکی
+                value:
+                  wallet: 5678
+                  amount: "5000000"
+                  address: 42
+      responses:
+        "200":
+          description: نتیجه درخواست (می‌تواند موفق یا ناموفق باشد)
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/WithdrawSuccessResponse"
+                  - $ref: "#/components/schemas/WithdrawRequestFailedResponse"
+                  - $ref: "#/components/schemas/RialWithdrawRequestFailedResponse"
+              examples:
+                success_crypto:
+                  summary: ثبت موفق — رمزارز
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 432
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: New
+                      amount: "0.05000000"
+                      currency: usdt
+                      network: ETH
+                      address: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+                      tag: null
+                      wallet_id: 3456
+                      blockchain_url: null
+                      is_cancelable: true
+                      invoice: null
+                success_rial:
+                  summary: ثبت موفق — ریال
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 503
+                      createdAt: "2024-01-15T11:00:00Z"
+                      status: New
+                      amount: "5000000"
+                      currency: rls
+                      network: FIAT_MONEY
+                      address: "شماره شبا: IR123456789012345678901234"
+                      tag: null
+                      wallet_id: 5678
+                      blockchain_url: null
+                      is_cancelable: true
+                      invoice: null
+                failed_insufficient_balance:
+                  summary: موجودی ناکافی
+                  value:
+                    status: failed
+                    code: InsufficientBalance
+                    message: Insufficient Balance
+                failed_invalid_2fa:
+                  summary: کد دوعاملی نادرست (رمزارز)
+                  value:
+                    status: failed
+                    code: Invalid2FA
+                    message: msgInvalid2FA
+                failed_shaba_limit:
+                  summary: سقف روزانه شبا تکمیل شده (ریال)
+                  value:
+                    status: failed
+                    code: ShabaWithdrawCannotProceed
+                    message: Shaba withdraw cannot proceed. Daily Shaba withdraw limit Exceeded.
+        "400":
+          description: پارامترهای ورودی نامعتبر
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: ParseError
+                message: Invalid monetary value
+        "404":
+          description: کیف‌پول یا حساب بانکی مقصد یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundResponse"
+              examples:
+                wallet_not_found:
+                  summary: کیف‌پول اسپات یافت نشد
+                  value:
+                    status: failed
+                    code: WalletNotFound
+                    message: No spot wallet with this id for your user
+                bank_account_not_found:
+                  summary: حساب بانکی مقصد یافت نشد
+                  value:
+                    message: No BankAccount matches the given query.
+                    error: NotFound
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/wallets/withdraw-confirm:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: confirm
+      tags:
+        - برداشت
+      summary: تایید درخواست برداشت
+      description: |
+        تایید درخواست برداشت ایجاد شده.
+
+        > **توجه — منسوخ‌شدن برای ریال:** این endpoint برای برداشت ریالی به‌زودی منسوخ می‌شود.
+        > در [API برداشت ریالی جدید](/rial-withdraw/cobank-withdraw-request)، ثبت و تأیید در یک مرحله انجام می‌شود و نیاز به فراخوانی این endpoint نیست.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۳۰ درخواست در ساعت
+        - در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+
+        ### نکات
+        - کد `OTP` از طریق `SMS` ارسال می‌شود (برای آدرس‌های `whitelist`‌شده، فیلد `otp` اختیاری است.).
+        - سقف برداشت روزانه و ماهانه کاربر با توجه به سطح کاربری مشخص می‌شود. برای مشاهده سقف برداشت خود، به [این بخش](/user_data/دریافت-محدودیت-های-کاربر) مراجعه کنید.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - withdraw
+              properties:
+                withdraw:
+                  type: integer
+                  description: شناسه درخواست برداشت (دریافت‌شده از مرحله قبل)
+                  example: 432
+                otp:
+                  type: string
+                  description: کد یکبارمصرف پیامک‌شده به موبایل کاربر
+                  example: "623005"
+            examples:
+              with_otp:
+                summary: تایید با کد یکبارمصرف
+                value:
+                  withdraw: 432
+                  otp: "623005"
+              without_otp:
+                summary: تایید بدون کد یکبارمصرف
+                value:
+                  withdraw: 432
+      responses:
+        "200":
+          description: نتیجه تایید (موفق یا ناموفق)
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/WithdrawSuccessResponse"
+                  - $ref: "#/components/schemas/WithdrawConfirmFailedResponse"
+                  - $ref: "#/components/schemas/RialWithdrawConfirmFailedResponse"
+              examples:
+                success_crypto:
+                  summary: تایید موفق — رمزارز
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 432
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: Verified
+                      amount: "0.05000000"
+                      currency: usdt
+                      network: ETH
+                      address: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+                      tag: null
+                      wallet_id: 3456
+                      blockchain_url: null
+                      is_cancelable: true
+                      invoice: null
+                success_rial:
+                  summary: تایید موفق — ریال
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 503
+                      createdAt: "2024-01-15T11:00:00Z"
+                      status: Verified
+                      amount: "5000000"
+                      currency: rls
+                      network: FIAT_MONEY
+                      address: "شماره شبا: IR123456789012345678901234"
+                      tag: null
+                      wallet_id: 5678
+                      blockchain_url: null
+                      is_cancelable: true
+                      invoice: null
+                failed_invalid_otp:
+                  summary: کد یکبارمصرف نادرست
+                  value:
+                    status: failed
+                    code: InvalidOTP
+                    message: OTP value is invalid or expired.
+        "400":
+          description: شناسه برداشت یا پارامترهای ورودی نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: ParseError
+                message: Invalid integer value
+        "403":
+          description: کاربر مجاز به تایید برداشت نیست
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: WithdrawUnavailable
+                message: WithdrawUnavailable
+        "404":
+          description: درخواست برداشت یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: WithdrawNotFound
+                message: Withdraw request does not exist.
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/wallets/withdraw-cancel:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    post:
+      operationId: cancel
+      tags:
+        - برداشت
+      summary: لغو درخواست برداشت
+      description: |
+        لغو یک درخواست برداشت در صورتی که قابل لغو باشد.
+
+        > **توجه — منسوخ‌شدن برای ریال:** این endpoint برای برداشت ریالی به‌زودی منسوخ می‌شود.
+        > از [API لغو برداشت ریالی جدید](/rial-withdraw/cobank-cancel-withdraw) استفاده کنید.
+
+        ### شرایط لغو
+        - درخواست باید در یک ساعت گذشته ایجاد شده باشد.
+        - فیلد `is_cancelable` در شیء برداشت باید `true` باشد.
+        - وضعیت درخواست باید یکی از حالت‌های `New`، `Verified`، `Waiting`، `Accepted` یا `Processing` باشد.
+        - عملیات برداشت نباید در مرحله ارسال (`Sent`) باشد.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۱۰ درخواست در دقیقه و ۶۰ درخواست در ساعت
+        - در صورت استفاده از API Key، دسترسی `WITHDRAW` روی کلید الزامی است.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - withdraw
+              properties:
+                withdraw:
+                  type: integer
+                  description: شناسه درخواست برداشت
+                  example: 432
+            example:
+              withdraw: 432
+      responses:
+        "200":
+          description: نتیجه لغو (موفق یا ناموفق)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/WithdrawSuccessResponse"
+                  - $ref: "#/components/schemas/WithdrawCancelFailedResponse"
+              examples:
+                success_crypto:
+                  summary: لغو موفق — رمزارز
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 432
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: Canceled
+                      amount: "0.05000000"
+                      currency: usdt
+                      network: ETH
+                      address: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+                      tag: null
+                      wallet_id: 3456
+                      blockchain_url: null
+                      is_cancelable: false
+                      invoice: null
+                success_rial:
+                  summary: لغو موفق — ریال
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 503
+                      createdAt: "2024-01-15T11:00:00Z"
+                      status: Canceled
+                      amount: "5000000"
+                      currency: rls
+                      network: FIAT_MONEY
+                      address: "شماره شبا: IR123456789012345678901234"
+                      tag: null
+                      wallet_id: 5678
+                      blockchain_url: null
+                      is_cancelable: false
+                      invoice: null
+                not_cancelable:
+                  summary: قابل لغو نیست
+                  value:
+                    status: failed
+                    code: NotCancelable
+                    message: Withdraw is not cancelable
+        "400":
+          description: شناسه برداشت نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: ParseError
+                message: Invalid integer value
+        "404":
+          description: درخواست برداشت یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DjangoNotFoundResponse"
+              example:
+                message: No WithdrawRequest matches the given query.
+                error: NotFound
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /users/wallets/withdraws/list:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - برداشت
+      summary: فهرست برداشت‌ها
+      description: |
+        لیست برداشت‌های رمزارزی و ریالی کاربر.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶۰ درخواست در ۲ دقیقه
+        - صفحه‌بندی: دارد
+        - پیش‌فرض ۲۰ آیتم در هر صفحه، حداکثر ۱۰۰
+        - حداکثر ۱۰۰ صفحه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      parameters:
+        - name: wallet
+          in: query
+          schema:
+            type: string
+            default: all
+            example: "3456"
+          description: شناسه کیف‌پول مشخص یا مقدار `all`
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+            example: "2024-01-01"
+          description: فیلتر از ابتدای تاریخ با قالب `YYYY-MM-DD` (`created_at` ≥ `from`)
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+            example: "2024-02-01"
+          description: |
+            فیلتر تا ابتدای تاریخ با قالب `YYYY-MM-DD` (`created_at` ≤ `to`).
+            برای پوشش کامل یک روز، تاریخ روز بعد را ارسال کنید.
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 100
+          description: شماره صفحه
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: تعداد آیتم در هر صفحه
+      responses:
+        "200":
+          description: فهرست برداشت‌ها
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  withdraws:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Withdraw"
+                  hasNext:
+                    type: boolean
+                    description: آیا صفحه بعدی وجود دارد
+                    example: true
+              examples:
+                crypto_list:
+                  summary: لیست برداشت رمزارز
+                  value:
+                    status: ok
+                    hasNext: false
+                    withdraws:
+                      - id: 432
+                        createdAt: "2024-01-15T10:30:00Z"
+                        status: Done
+                        amount: "0.05000000"
+                        currency: usdt
+                        network: ETH
+                        address: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+                        tag: null
+                        wallet_id: 3456
+                        blockchain_url: "https://etherscan.io/tx/0xabc..."
+                        is_cancelable: false
+                        invoice: null
+                rial_list:
+                  summary: لیست برداشت‌های ریالی
+                  value:
+                    status: ok
+                    hasNext: false
+                    withdraws:
+                      - id: 503
+                        createdAt: "2024-01-15T11:00:00Z"
+                        status: Done
+                        amount: "5000000"
+                        currency: rls
+                        network: FIAT_MONEY
+                        address: "شماره شبا: IR123456789012345678901234"
+                        tag: null
+                        wallet_id: 5678
+                        blockchain_url: null
+                        is_cancelable: false
+                        invoice: null
+        "400":
+          description: فیلتر تاریخ یا پارامتر صفحه‌بندی نامعتبر است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+              example:
+                status: failed
+                code: ParseError
+                message: Invalid date format
+        "404":
+          description: کیف‌پول اسپات یافت نشد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DjangoNotFoundResponse"
+              example:
+                message: No Wallet matches the given query.
+                error: NotFound
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /withdraws/{withdrawId}:
+    parameters:
+      - $ref: "#/components/parameters/TraderBotUserAgent"
+    get:
+      tags:
+        - برداشت
+      summary: مشاهده جزئیات یک برداشت
+      description: |
+        مشاهده وضعیت و جزئیات یک درخواست برداشت.
+
+        > **توجه — منسوخ‌شدن برای ریال:** این endpoint برای برداشت‌های ریالی به‌زودی منسوخ می‌شود.
+        > از [API جزئیات برداشت ریالی جدید](/rial-withdraw/cobank-get-withdraw) استفاده کنید که اطلاعات دقیق‌تری شامل کارمزد و سوابق تراکنش بانکی ارائه می‌دهد.
+
+        ### محدودیت‌ها
+        - فراخوانی: ۶۰ درخواست در ۲ دقیقه
+        - در صورت استفاده از API Key، دسترسی `READ` روی کلید الزامی است.
+      parameters:
+        - name: withdrawId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: شناسه درخواست برداشت
+          example: 432
+      responses:
+        "200":
+          description: جزئیات برداشت
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  withdraw:
+                    $ref: "#/components/schemas/Withdraw"
+              examples:
+                crypto_detail:
+                  summary: جزئیات برداشت رمزارز
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 432
+                      createdAt: "2024-01-15T10:30:00Z"
+                      status: Done
+                      amount: "0.05000000"
+                      currency: usdt
+                      network: ETH
+                      address: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+                      tag: null
+                      wallet_id: 3456
+                      blockchain_url: "https://etherscan.io/tx/0xabc..."
+                      is_cancelable: false
+                      invoice: null
+                rial_detail:
+                  summary: جزئیات برداشت ریالی
+                  value:
+                    status: ok
+                    withdraw:
+                      id: 503
+                      createdAt: "2024-01-15T11:00:00Z"
+                      status: Done
+                      amount: "5000000"
+                      currency: rls
+                      network: FIAT_MONEY
+                      address: "شماره شبا: IR123456789012345678901234"
+                      tag: null
+                      wallet_id: 5678
+                      blockchain_url: null
+                      is_cancelable: false
+                      invoice: null
+        "404":
+          description: درخواست برداشت یافت نشد.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DjangoNotFoundResponse"
+              example:
+                message: No WithdrawRequest matches the given query.
+                error: NotFound
+
+components:
+  parameters:
+    TraderBotUserAgent:
+      name: User-Agent
+      in: header
+      required: false
+      description: |
+        برای شناسایی بات، این هدر را در همه درخواست‌های HTTP بات با الگوی
+        `TraderBot/<name-and-version>` ارسال کنید. این هدر هنگام ورود خودکار با
+        `captcha=api` الزامی و در سایر فراخوانی‌های بات اکیداً توصیه می‌شود.
+      schema:
+        type: string
+      example: TraderBot/MyBot-1.0.0
+
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        توکن احراز هویت به فرمت `Token <token>`.
+        مثال: `Authorization: Token abc123`
+    KeyAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Key
+      description: کلید عمومی API Key.
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Signature
+      description: امضای Ed25519 به صورت URL-safe Base64.
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: Nobitex-Timestamp
+      description: زمان Unix بر حسب ثانیه در UTC.
+
+  responses:
+    RateLimitExceeded:
+      description: محدودیت تعداد درخواست‌ها
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: failed
+              code:
+                type: string
+                example: TooManyRequests
+
+  schemas:
+    APIErrorResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          example: ParseError
+        message:
+          type: string
+          example: Invalid request
+
+    DjangoNotFoundResponse:
+      type: object
+      required:
+        - message
+        - error
+      properties:
+        message:
+          type: string
+          example: No object matches the given query.
+        error:
+          type: string
+          enum: [NotFound]
+          example: NotFound
+
+    NotFoundResponse:
+      oneOf:
+        - $ref: "#/components/schemas/APIErrorResponse"
+        - $ref: "#/components/schemas/DjangoNotFoundResponse"
+
+    WithdrawRequest:
+      type: object
+      description: پارامترهای ثبت درخواست برداشت رمزارز
+      required:
+        - wallet
+      anyOf:
+        - required:
+            - invoice
+          properties:
+            invoice:
+              type: string
+        - required:
+            - amount
+            - address
+          properties:
+            amount:
+              type: string
+            address:
+              type: string
+      properties:
+        wallet:
+          type: integer
+          description: شناسه کیف‌پول اسپات رمزارزی کاربر (الزامی)
+          example: 3456
+        amount:
+          type: string
+          description: |
+            مقدار برداشت. الزامی است مگر برای شبکه `Lightning` که مقدار از `invoice` استخراج می‌شود.
+            مقدار مجاز اعشار برای مقدار را می‌توانید از فیلد `withdrawIntegerMultiple` از پاسخ [این درخواست](/options/get-system-options) مشاهده کنید.
+          example: "0.05"
+        address:
+          type: string
+          description: |
+            آدرس مقصد رمزارز. الزامی است مگر برای شبکه `Lightning` که آدرس از `invoice` استخراج می‌شود.
+          example: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+        network:
+          type: string
+          description: |
+            شبکه انتقال. اگر ارسال نشود، سیستم آدرس را برای تشخیص شبکه بررسی می‌کند.
+            برای ارزهایی که روی چند شبکه وجود دارند (مثل `USDT`) ارسال این فیلد الزامی است.
+            لیست شبکه‌هایی که برای ارز مورد نظر در نوبیتکس پشتیبانی می‌شوند را از [اینجا](/options/get-system-options) ببینید.
+          example: ETH
+        invoice:
+          type: string
+          description: |
+            صورت‌حساب برای شبکه `Lightning`. برای شبکه `BTCLN` الزامی و جایگزین `amount` و `address` می‌شود.
+          example: "lnbc10u1p3pj257pp5..."
+        tag:
+          type: string
+          description: |
+            تگ / `Memo` انتقال. برای شبکه‌های مانند `XRP` که از این قابلیت پشتیبانی می‌کنند.
+            مقدار تگ برای این نوع شبکه‌ها الزامی است مگر اینکه مقدار `noTag: true` ارسال شود.
+            لیست شبکه‌هایی که برای رمزارز مورد نظر از تگ پشتیبانی می‌کنند را از [اینجا](/options/get-system-options) ببینید.
+          example: "1234567890"
+        noTag:
+          type: boolean
+          default: false
+          description: |
+            اگر `true` باشد، انتقال بدون تگ انجام می‌شود.
+            نمی‌توان همزمان `tag` و `noTag: true` ارسال کرد.
+        explanations:
+          type: string
+          description: توضیحات اختیاری برای درخواست برداشت
+          example: "پرداخت حقوق"
+
+    RialWithdrawRequest:
+      type: object
+      description: پارامترهای ثبت درخواست برداشت ریالی
+      required:
+        - wallet
+        - amount
+        - address
+      properties:
+        wallet:
+          type: integer
+          description: شناسه کیف‌پول اسپات ریالی کاربر (الزامی)
+          example: 5678
+        amount:
+          type: string
+          description: مقدار برداشت به ریال (الزامی)
+          example: "5000000"
+        address:
+          type: integer
+          description: |
+            شناسه (`id`) حساب بانکی تأییدشده کاربر (الزامی).
+            لیست حساب‌های بانکی را از API حساب‌های بانکی دریافت کنید.
+          example: 42
+        explanations:
+          type: string
+          description: توضیحات اختیاری برای درخواست برداشت
+          example: "پرداخت فاکتور"
+
+    Withdraw:
+      type: object
+      description: درخواست برداشت ساخته شده
+      properties:
+        id:
+          type: integer
+          description: شناسه یکتای درخواست برداشت
+          example: 432
+        createdAt:
+          type: string
+          format: date-time
+          description: زمان ایجاد درخواست
+          example: "2024-01-15T10:30:00Z"
+        status:
+          type: string
+          description: |
+            وضعیت جاری درخواست برداشت.
+
+            | مقدار | توضیح |
+            |-------|-------|
+            | `New` | ثبت‌شده، در انتظار تایید کاربر |
+            | `Verified` | تایید شده، در صف پردازش |
+            | `Accepted` | پذیرفته‌شده توسط سیستم |
+            | `Processing` | در حال پردازش |
+            | `Waiting` | در انتظار بررسی توسط ادمین ( فقط برای شرایط خاص ) |
+            | `Sent` | ارسال‌شده به شبکه بلاکچین |
+            | `Done` | تکمیل‌شده |
+            | `Canceled` | لغوشده |
+            | `Rejected` | رد شده |
+          example: Verified
+        amount:
+          type: string
+          description: مقدار برداشت
+          example: "0.05000000"
+        currency:
+          type: string
+          description: |
+            نماد ارز در سیستم نوبیتکس. برای ریال مقدار `rls` است.
+            لیست رمزارزها را از [اینجا](/options/get-system-options) ببینید.
+          example: usdt
+        network:
+          type: string
+          description: |
+            شبکه انتقال. برای برداشت ریالی مقدار `FIAT_MONEY` است.
+            لیست شبکه‌های رمزارزی را از [اینجا](/options/get-system-options) ببینید.
+          example: ETH
+        address:
+          type: string
+          description: |
+            آدرس مقصد. برای برداشت ریالی، نام نمایشی حساب بانکی مقصد است (مثلاً شماره شبا).
+          example: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+        tag:
+          type: string
+          nullable: true
+          description: تگ انتقال (در صورت وجود، فقط برای شبکه‌های رمزارزی)
+          example: null
+        wallet_id:
+          type: integer
+          description: شناسه کیف‌پول اسپات مبدا
+          example: 3456
+        blockchain_url:
+          type: string
+          nullable: true
+          description: لینک تراکنش در بلاکچین (پس از ارسال به شبکه، فقط برای رمزارز)
+          example: "https://etherscan.io/tx/0xabc..."
+        is_cancelable:
+          type: boolean
+          description: |
+            آیا این درخواست قابل لغو است. برای لغو از [درخواست لغو](/withdraw/cancel) استفاده کنید.
+          example: true
+        invoice:
+          type: string
+          nullable: true
+          description: صورت‌حساب شبکه `Lightning`، فقط برای `BTCLN`
+          example: "lnbc10u1p3pj257pp5..."
+
+    WithdrawSuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+        withdraw:
+          $ref: "#/components/schemas/Withdraw"
+
+    WithdrawRequestFailedResponse:
+      type: object
+      description: پاسخ خطای برداشت رمزارز. فیلد `code` نوع خطا را مشخص می‌کند.
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `FeatureUnavailable` | قابلیت برداشت برای این کاربر فعال نیست |
+            | `InvalidCurrency` | رمزارز درخواستی در این لحظه پشتیبانی نمی‌شود |
+            | `WithdrawUnavailableNewDevice` | ورود از دستگاه جدید — برداشت یک ساعت محدود شده |
+            | `InvalidInvoice` | `invoice` نامعتبر یا خالی است (برای `BTCLN`) |
+            | `WithdrawUnavailableCreditDebt` | به‌دلیل اعتبار `VIP` دریافت‌شده، برداشت مجاز نیست |
+            | `WithdrawUnavailable` | کاربر مجاز به برداشت نیست |
+            | `MissingTargetAddress` | آدرس مقصد ارسال نشده |
+            | `InvalidTargetAddress` | آدرس مقصد نامعتبر است یا با شبکه انتخابی مطابقت ندارد |
+            | `NotWhitelistedTargetAddress` | آدرس مقصد در لیست سفید (`whitelist`) نیست |
+            | `CoinWithdrawDisabled` | برداشت این ارز/شبکه موقتاً غیرفعال است |
+            | `InvalidAddressTag` | تگ نامعتبر است |
+            | `MissingAddressTag` | تگ الزامی است اما ارسال نشده |
+            | `ExchangeRequiredTag` | این آدرس صرافی نیاز به تگ دارد |
+            | `RedundantTag` | `noTag: true` بوده اما `tag` هم ارسال شده |
+            | `PleaseEnable2FA` | ابتدا دوعاملی را فعال کنید |
+            | `Invalid2FA` | کد `TOTP` نادرست است |
+            | `WithdrawAmountLimitation` | مقدار برداشت بیش از سقف مجاز سطح کاربری است |
+            | `InsufficientBalance` | موجودی کافی نیست |
+            | `WithdrawLimitReached` | سقف روزانه برداشت تکمیل شده |
+            | `AmountTooLow` | مقدار کمتر از حداقل مجاز است |
+            | `AmountTooHigh` | مقدار بیشتر از حداکثر مجاز است |
+            | `InvalidAmount` | تعداد اعشار بیش از حد مجاز است |
+            | `InvalidMobileNumber` | شماره موبایل تایید‌شده الزامی است |
+            | `NewWithdrawSuspended` | ثبت برداشت موقتاً به‌دلیل شلوغی شبکه متوقف است |
+          example: FeatureUnavailable
+        message:
+          type: string
+          description: توضیح خطا
+          example: Feature is unavailable
+
+    RialWithdrawRequestFailedResponse:
+      type: object
+      description: پاسخ خطای برداشت ریالی. فیلد `code` نوع خطا را مشخص می‌کند.
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `FeatureUnavailable` | قابلیت برداشت برای این کاربر فعال نیست |
+            | `WithdrawUnavailableCreditDebt` | به‌دلیل اعتبار `VIP` دریافت‌شده، برداشت مجاز نیست |
+            | `WithdrawUnavailable` | کاربر مجاز به برداشت نیست |
+            | `MissingTargetAddress` | شناسه حساب بانکی ارسال نشده |
+            | `JibitPaymentIdDeactived` | برداشت با شناسه‌پرداخت جیبیت در حال حاضر غیرفعال است |
+            | `VandarPaymentIdDeactivated` | برداشت از طریق وندار در حال حاضر غیرفعال است |
+            | `RLSWithdrawDisabled` | برداشت ریال موقتاً غیرفعال است |
+            | `WithdrawAmountLimitation` | مقدار برداشت بیش از سقف مجاز سطح کاربری است |
+            | `InsufficientBalance` | موجودی کافی نیست |
+            | `WithdrawLimitReached` | سقف روزانه برداشت تکمیل شده |
+            | `AmountTooLow` | مقدار کمتر از حداقل مجاز است |
+            | `AmountTooHigh` | مقدار بیشتر از حداکثر مجاز است |
+            | `InvalidMobileNumber` | شماره موبایل تایید‌شده الزامی است |
+            | `ShabaWithdrawCannotProceed` | سقف روزانه برداشت شبا تکمیل شده |
+            | `VandarWithdrawNotEnabled` | برداشت از طریق وندار برای این کاربر فعال نیست |
+            | `NewWithdrawSuspended` | ثبت برداشت موقتاً متوقف است |
+          example: InsufficientBalance
+        message:
+          type: string
+          description: توضیح خطا
+          example: Insufficient Balance
+
+    WithdrawConfirmFailedResponse:
+      type: object
+      description: پاسخ خطای تایید برداشت رمزارز. فیلد `code` نوع خطا را مشخص می‌کند.
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `FeatureUnavailable` | قابلیت برداشت برای این کاربر فعال نیست |
+            | `WithdrawAmountLimitation` | مقدار برداشت بیش از سقف سطح کاربری است |
+            | `InsufficientBalance` | موجودی کافی نیست |
+            | `InvalidOTP` | کد `OTP` نادرست |
+          example: FeatureUnavailable
+        message:
+          type: string
+          description: توضیح خطا
+          example: Feature is unavailable
+
+    RialWithdrawConfirmFailedResponse:
+      type: object
+      description: پاسخ خطای تایید برداشت ریالی. فیلد `code` نوع خطا را مشخص می‌کند.
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `FeatureUnavailable` | قابلیت برداشت برای این کاربر فعال نیست |
+            | `WithdrawAmountLimitation` | مقدار برداشت بیش از سقف سطح کاربری است |
+            | `InsufficientBalance` | موجودی کافی نیست |
+            | `InvalidOTP` | کد `OTP` نادرست |
+            | `ShabaWithdrawCannotProceed` | سقف روزانه برداشت شبا تکمیل شده |
+          example: InvalidOTP
+        message:
+          type: string
+          description: توضیح خطا
+          example: Invalid OTP
+
+    WithdrawCancelFailedResponse:
+      type: object
+      description: پاسخ خطا. فیلد `code` نوع خطا را مشخص می‌کند.
+      properties:
+        status:
+          type: string
+          enum: [failed]
+          example: failed
+        code:
+          type: string
+          description: |
+            کد خطا.
+
+            | کد | توضیح |
+            |----|-------|
+            | `FeatureUnavailable` | قابلیت برداشت برای این کاربر فعال نیست |
+            | `NotCancelable` | شرایط لغو برقرار نیست |
+          example: FeatureUnavailable
+        message:
+          type: string
+          description: توضیح خطا
+          example: Feature is unavailable
