@@ -297,7 +297,7 @@ def main(argv=None):
     ky = sub.add_parser("key", help="store Wallex API keys encrypted for this Windows user (DPAPI)")
     kys = ky.add_subparsers(dest="op", required=True)
     kset = kys.add_parser("set")
-    kset.add_argument("role", choices=["read", "trade"])
+    kset.add_argument("role", choices=["read"])
     kset.add_argument("--expires", help="the key's expiry date chosen on Wallex (YYYY-MM-DD, at most 90 days ahead)")
     kys.add_parser("show", help="masked key IDs only")
     kys.add_parser("set-backup", help="seal the offline-backup passphrase to this Windows user for scheduled backups")

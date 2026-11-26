@@ -95,5 +95,13 @@ def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 
             existing, _ = read_jsonl_records(journal_path)
             if any(r.get("slot_key") == slot_key for r in existing):
                 return False
+        if journal_path.is_file() and journal_path.stat().st_size > 0:
+            with journal_path.open("rb+") as fh:
+                fh.seek(-1, os.SEEK_END)
+                if fh.read(1) != b"\n":
+                    fh.seek(0, os.SEEK_END)
+                    fh.write(b"\n")
+                    fh.flush()
+                    os.fsync(fh.fileno())
         append_jsonl(journal_path, json.dumps(record, sort_keys=True))
         return True

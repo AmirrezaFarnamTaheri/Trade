@@ -330,3 +330,57 @@ def test_f09_collector_queues_writes_without_blocking_under_sqlite_contention(tm
     assert db.c.execute("SELECT COUNT(*) FROM trades").fetchone()[0] == 1
     assert db.c.execute("SELECT COUNT(*) FROM quality_events WHERE detail = 'test contention'").fetchone()[0] == 1
     db.c.close()
+
+
+def test_coderabbit_remediations_tail_stderr_torn_tail_uri_and_model_shape(tmp_path: Path) -> None:
+    import asyncio
+    import hashlib
+
+    from gym.services.experiments.io_utils import read_jsonl_records
+    from gym.services.experiments.operational_health import _check_frozen_model
+    from gym.services.research_process import MAX_STDERR, _read_bounded_stderr
+
+    # 1. _read_bounded_stderr retains newest tail after > MAX_STDERR bytes
+    class _FakeStream:
+        def __init__(self, chunks: list[bytes]) -> None:
+            self._chunks = list(chunks)
+
+        async def read(self, _n: int) -> bytes:
+            return self._chunks.pop(0) if self._chunks else b""
+
+    payload = [b"A" * 5000, b"B" * 5000, b"TAIL_MARKER_999"]
+    tail_bytes = asyncio.run(_read_bounded_stderr(_FakeStream(payload)))
+    assert len(tail_bytes) == MAX_STDERR
+    assert tail_bytes.endswith(b"TAIL_MARKER_999")
+
+    # 2. append_jsonl_locked separates a torn tail lacking trailing newline
+    jpath = tmp_path / "torn.jsonl"
+    jpath.write_text('{"corrupt_partial": ', encoding="utf-8")
+    assert append_jsonl_locked(jpath, {"slot_key": "s1", "ok": True}) is True
+    rows, corrupt = read_jsonl_records(jpath)
+    assert corrupt == 1 and len(rows) == 1 and rows[0]["slot_key"] == "s1"
+
+    # 3. OfflineReviewJournal read_only handles '#' in filename via URI encoding
+    hash_path = tmp_path / "reviews#local.sqlite3"
+    j_rw = OfflineReviewJournal(hash_path, read_only=False)
+    j_rw.conn.close()
+    j_ro = OfflineReviewJournal(hash_path, read_only=True)
+    j_ro.conn.close()
+
+    # 4. GRUArtifactError wraps invalid UTF-8 and overflowing target statistics
+    bad_utf8 = tmp_path / "bad_utf8.json"
+    bad_utf8.write_bytes(b"\xff\xfe\xfd")
+    with pytest.raises(GRUArtifactError):
+        EnsembleGRU.load_json(bad_utf8)
+    bad_ovf = CompactGRU(4, 3).to_dict()
+    bad_ovf["y_mean"] = 10**400
+    with pytest.raises(GRUArtifactError):
+        CompactGRU.from_dict(bad_ovf)
+
+    # 5. _check_frozen_model rejects mismatched input_dim / task even with matching SHA
+    mpath = tmp_path / "wrong_v2.json"
+    EnsembleGRU(input_dim=6, hidden_dim=4, task="binary", seeds=(42,)).save_json(mpath)
+    reg = tmp_path / "reg.json"
+    reg.write_text(json.dumps({"gru_model_sha256": hashlib.sha256(mpath.read_bytes()).hexdigest()}), encoding="utf-8")
+    res = _check_frozen_model(mpath, registration_path=reg, expected_input_dim=11, expected_task="regression")
+    assert res["status"] == "FAIL" and "input_dim mismatch" in res["error"]

@@ -78,6 +78,42 @@ def _execute_schema(conn: sqlite3.Connection, script: str) -> None:
         raise ValueError("incomplete external Journal schema")
 
 
+def _sanitize_balances(rows: list) -> dict:
+    balances = {}
+    for row in rows:
+        if row.get("spendable") is not None or row.get("protectable") is not None:
+            raise ValueError("observed balances cannot be money authority")
+        asset = row["asset"]
+        if not isinstance(asset, str) or asset.upper() in balances:
+            raise ValueError("invalid or duplicate balance asset")
+        balances[asset.upper()] = {"value": row["venue_value"], "locked": row["venue_locked"]}
+    return balances
+
+
+def _sanitize_orders(rows: list, account_id: str) -> list:
+    orders = []
+    for row in rows:
+        if row.get("account_id") != account_id \
+            or row.get("origin") != "EXTERNAL_MANUAL_UNVERIFIED" \
+            or row.get("settlement") != "UNKNOWN" or row.get("economic_effect") != "UNVERIFIED" \
+            or row.get("funded_trade") is not False:
+            raise ValueError("not a sanitized external/manual order")
+        orders.append({"client_id": row["client_id"], "status": row["raw_status"],
+                       "symbol": row.get("symbol"), "filled": row.get("filled_observed")})
+    return orders
+
+
+def _sanitize_exposure(rows: list) -> list:
+    exposure = []
+    for row in rows:
+        if row.get("managed") is not False or row.get("status") != "UNVERIFIED" \
+            or row.get("spendable") is not None or row.get("protectable") is not None:
+            raise ValueError("external exposure cannot be managed money")
+        exposure.append({"account_id": row["account_id"], "product": row["raw_product"],
+                         "obligation_asset": row.get("obligation_asset"), "obligation": row.get("obligation")})
+    return exposure
+
+
 def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -> dict:
     if not isinstance(snapshot, dict) or snapshot.get("state") != "OBSERVED" \
         or snapshot.get("authority") != "READ_ONLY" or snapshot.get("source") != "VENUE_EXTERNAL":
@@ -90,28 +126,9 @@ def _sanitize_snapshot(snapshot: dict, fee_rates: dict | None, transport: str) -
     try:
         if transport not in _TRANSPORTS:
             raise ValueError("invalid external observation transport")
-        balances, orders, exposure = {}, [], []
-        for row in snapshot["balances"]:
-            if row.get("spendable") is not None or row.get("protectable") is not None:
-                raise ValueError("observed balances cannot be money authority")
-            asset = row["asset"]
-            if not isinstance(asset, str) or asset.upper() in balances:
-                raise ValueError("invalid or duplicate balance asset")
-            balances[asset.upper()] = {"value": row["venue_value"], "locked": row["venue_locked"]}
-        for row in snapshot["orders"]:
-            if row.get("account_id") != snapshot["account_id"] \
-                or row.get("origin") != "EXTERNAL_MANUAL_UNVERIFIED" \
-                or row.get("settlement") != "UNKNOWN" or row.get("economic_effect") != "UNVERIFIED" \
-                or row.get("funded_trade") is not False:
-                raise ValueError("not a sanitized external/manual order")
-            orders.append({"client_id": row["client_id"], "status": row["raw_status"],
-                           "symbol": row.get("symbol"), "filled": row.get("filled_observed")})
-        for row in snapshot["exposure"]:
-            if row.get("managed") is not False or row.get("status") != "UNVERIFIED" \
-                or row.get("spendable") is not None or row.get("protectable") is not None:
-                raise ValueError("external exposure cannot be managed money")
-            exposure.append({"account_id": row["account_id"], "product": row["raw_product"],
-                             "obligation_asset": row.get("obligation_asset"), "obligation": row.get("obligation")})
+        balances = _sanitize_balances(snapshot["balances"])
+        orders = _sanitize_orders(snapshot["orders"], snapshot["account_id"])
+        exposure = _sanitize_exposure(snapshot["exposure"])
         clean = project_account(snapshot["account_id"], snapshot["observed_at"],
                                 balances=balances, orders=orders, exposure=exposure)
         fees = None if fee_rates is None else parse_fee_rates({"success": True, "result": {

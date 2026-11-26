@@ -161,3 +161,56 @@ def test_adr_0009_spot_only_gate_and_quant_fx_dsr_kelly() -> None:
     sz_full = bayesian_fractional_kelly_size(0.03, 0.04, 0.02, kappa=0.25, max_fraction=0.30, drawdown=0.0)
     sz_dd = bayesian_fractional_kelly_size(0.03, 0.04, 0.02, kappa=0.25, max_fraction=0.30, drawdown=0.075, max_drawdown=0.15)
     assert 0.0 < sz_full < 0.30 and sz_dd == pytest.approx(sz_full * 0.5, rel=1e-3)
+
+
+def test_nobitex_orderbook_reference_price_denomination_guard() -> None:
+    from gym.adapters.nobitex import parse_nobitex_orderbook
+
+    payload = {"bids": [["600000", "1.0"]], "asks": [["601000", "1.0"]], "lastUpdate": 1700000000000}
+    ts = datetime(2026, 11, 26, tzinfo=UTC)
+    qs = parse_nobitex_orderbook("USDTIRT", payload, ts, convert_rls_to_tmn=True, reference_price=60000.0)
+    assert qs is not None and float(qs.bid) == 60000.0
+    with pytest.raises(ValueError, match="denomination mismatch"):
+        parse_nobitex_orderbook("USDTIRT", payload, ts, convert_rls_to_tmn=False, reference_price=60000.0)
+
+
+def test_quant_v3_audit_and_fx_attribution_on_synthetic_db(tmp_path: Path) -> None:
+    import sqlite3
+
+    from gym.services.promoted_portfolio import compute_dual_factor_fx_attribution
+    from gym.services.quant_v3_audit import run_and_publish_quant_v3_audit
+
+    attr = compute_dual_factor_fx_attribution(
+        local_tmn_ret=0.05, global_usdt_ret=0.02, usdt_tmn_ret=0.025,
+        venue_usdt_quotes=[(60000.0, 5.0), (60500.0, 20.0)],
+    )
+    assert attr["venue_basis_ret"] == pytest.approx(0.005)
+    assert attr["consensus_usdt_tmn"] is not None
+
+    db_path = tmp_path / "audit.db"
+    con = sqlite3.connect(db_path)
+    con.execute("CREATE TABLE instruments (instrument_id INTEGER PRIMARY KEY, symbol TEXT)")
+    con.execute("CREATE TABLE venue_candles (instrument_id INTEGER, resolution TEXT, t TEXT, o TEXT, h TEXT, l TEXT, c TEXT, v TEXT)")
+    con.execute("CREATE TABLE book_top (instrument_id TEXT, ts_avail TEXT, bid TEXT, ask TEXT)")
+    con.executemany("INSERT INTO instruments VALUES (?, ?)", [(1, "BTCUSDT"), (2, "BTCTMN"), (3, "USDTTMN")])
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    for d in range(80):
+        ts = (t0 + timedelta(days=d)).isoformat().replace("+00:00", "Z")
+        btc = 50000.0 * (1.002 ** d)
+        fx = 60000.0 * (1.001 ** d)
+        con.execute("INSERT INTO venue_candles VALUES (1,'1d',?,?,?,?,?,?)", (ts, str(btc), str(btc * 1.01), str(btc * 0.99), str(btc), "100"))
+        con.execute("INSERT INTO venue_candles VALUES (2,'1d',?,?,?,?,?,?)", (ts, str(btc * fx), str(btc * fx), str(btc * fx), str(btc * fx), "100"))
+        con.execute("INSERT INTO venue_candles VALUES (3,'1d',?,?,?,?,?,?)", (ts, str(fx), str(fx), str(fx), str(fx), "100"))
+        con.execute("INSERT INTO book_top VALUES ('wallex:BTCUSDT', ?, ?, ?)", (ts, str(btc * 0.9995), str(btc * 1.0005)))
+        con.execute("INSERT INTO book_top VALUES ('wallex:USDTTMN', ?, ?, ?)", (ts, str(fx * 0.999), str(fx * 1.001)))
+    con.commit()
+    con.close()
+
+    out_dir = tmp_path / "out"
+    rep = run_and_publish_quant_v3_audit(db_path, out_dir)
+    assert rep["catalog_dsr_audit"]["strategies_audited"] == 18
+    assert rep["fx_dual_factor_attribution"]["status"] == "OK"
+    assert rep["empirical_slippage_calibration"]["rows_scanned"] == 80
+    assert rep["ml_shadow_readiness"]["permitted_portfolio_weight"] == 0.0
+    assert (out_dir / "18-strategy-dsr-fx-slippage-audit.md").is_file()
+    assert (out_dir / "18-strategy-dsr-fx-slippage-audit.json").is_file()

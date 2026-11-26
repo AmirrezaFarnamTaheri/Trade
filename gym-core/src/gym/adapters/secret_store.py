@@ -12,7 +12,8 @@ from ctypes import wintypes
 from datetime import date, timedelta
 from pathlib import Path
 
-ROLES = ("read", "trade")
+# Strictly read-only in Python: trade-scoped credentials belong exclusively in the Rust executor DPAPI vault.
+ROLES = ("read",)
 _KEY = re.compile(r"[0-9]{1,12}\|[A-Za-z0-9]{20,128}\Z")
 
 
@@ -168,8 +169,10 @@ def default_dir() -> Path:
 
 
 def _path(role: str, root: Path | None) -> Path:
+    if role == "trade":
+        raise ValueError("trade keys are forbidden in Python secret_store; use the Rust executor vault")
     if role not in ROLES:
-        raise ValueError("key role must be read or trade")
+        raise ValueError("key role must be 'read'")
     return (root or default_dir()) / f"wallex-{role}.dpapi"
 
 

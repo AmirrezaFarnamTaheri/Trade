@@ -39,8 +39,9 @@ async def _read_bounded_stderr(stream) -> bytes:
     if stream is None:
         return b""
     while chunk := await stream.read(4096):
-        if len(buf) < MAX_STDERR:
-            buf.extend(chunk[: MAX_STDERR - len(buf)])
+        buf.extend(chunk)
+        if len(buf) > MAX_STDERR:
+            del buf[:-MAX_STDERR]
     return bytes(buf)
 
 

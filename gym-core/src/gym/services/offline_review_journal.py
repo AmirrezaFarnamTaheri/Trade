@@ -86,7 +86,7 @@ class OfflineReviewJournal:
         if read_only:
             if not path.is_file():
                 raise ReviewUnsafe("offline review journal does not exist")
-            self.conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=1)
+            self.conn = sqlite3.connect(f"{path.absolute().as_uri()}?mode=ro", uri=True, timeout=1)
             try:
                 self.conn.execute("PRAGMA query_only=ON")
                 self.conn.execute("PRAGMA busy_timeout=1000")

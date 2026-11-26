@@ -434,3 +434,6 @@ pub mod fake_execution;
 
 /// Privileged arm approval, policy-file binding and per-effect safety checks.
 pub mod arm_control;
+
+/// Cross-platform custody traits & encrypted disaster-recovery backup manifest (ARCH-03 / F-06).
+pub mod platform_custody;

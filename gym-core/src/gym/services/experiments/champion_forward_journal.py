@@ -516,13 +516,14 @@ def _extract_fresh_venue_mid(
     if not math.isfinite(mid) or mid <= 0.0:
         return None
     ts_str = q.get(f"{venue}_ts")
-    if ts_str:
-        try:
-            age_s = (ev_ts - parse_ts(ts_str)).total_seconds()
-        except Exception:
-            return None
-        if age_s > max_quote_age_s or age_s < -MAX_FUTURE_SKEW_S:
-            return None
+    if not ts_str:
+        return None
+    try:
+        age_s = (ev_ts - parse_ts(ts_str)).total_seconds()
+    except Exception:
+        return None
+    if age_s > max_quote_age_s or age_s < -MAX_FUTURE_SKEW_S:
+        return None
     return mid
 
 
@@ -623,16 +624,19 @@ def _collect_cohort_summary(
 ) -> tuple[list[tuple[datetime, dict]], dict]:
     digests = sorted({str(r["engine_digest"]) for _, r in events if r.get("engine_digest")})
     models = sorted({str(r["gru_model_sha256"]) for _, r in events if r.get("gru_model_sha256")})
+    cohorts = sorted({str(r["cohort_id"]) for _, r in events if r.get("cohort_id")})
+    missing_cohort = any(not r.get("cohort_id") for _, r in events)
     if cohort_engine_digest is not None:
         kept = [(ts, r) for ts, r in events if r.get("engine_digest") == cohort_engine_digest]
         incompat = len(events) - len(kept)
     else:
         kept = events
         incompat = 0
-    mixed = len(digests) > 1 or len(models) > 1
+    mixed = len(digests) > 1 or len(models) > 1 or len(cohorts) > 1 or (bool(cohorts) and missing_cohort)
     meta = {
         "cohort_mixed": mixed,
         "cohort_label": "EXPLORATORY_MIXED_COHORT" if mixed else "CLEAN_SINGLE_COHORT",
+        "cohort_ids": cohorts,
         "engine_digests": digests,
         "model_sha256s": models,
         "compatible_records": len(kept),

@@ -276,7 +276,7 @@ class CompactGRU:
         try:
             y_mean = float(payload["y_mean"])
             y_std = float(payload["y_std"])
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise GRUArtifactError("y_mean and y_std must be finite numbers") from exc
         if not np.isfinite(y_mean) or not np.isfinite(y_std) or y_std <= 0.0:
             raise GRUArtifactError("y_mean must be finite and y_std must be finite and > 0")
@@ -381,7 +381,7 @@ class EnsembleGRU:
 
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise GRUArtifactError(f"failed to parse GRU artifact {path}: {exc}") from exc
         meta = payload.get("metadata") if isinstance(payload, dict) else None
         if meta is not None and not isinstance(meta, dict):

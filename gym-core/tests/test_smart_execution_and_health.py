@@ -120,12 +120,12 @@ def test_operational_health_watchdog_reports_ok_on_fresh_fixtures(tmp_path: Path
     # Fresh journals + valid frozen GRU weights + matching registrations
     for fn in ("s1-s5-leader-journal.jsonl", "champion-ensemble-journal.jsonl", "champion-v2-journal.jsonl", "mix-journal-v2.jsonl"):
         (live / "allocation" / fn).write_text(json.dumps({"as_of": fresh_iso}) + "\n", encoding="utf-8")
-    for mfn, rfn in (
-        ("gru-ignition-v1.json", "champion-v1-registration.json"),
-        ("gru-ignition-v2-pathpnl.json", "champion-v2-registration.json"),
+    for mfn, rfn, in_dim, task in (
+        ("gru-ignition-v1.json", "champion-v1-registration.json", 6, "binary"),
+        ("gru-ignition-v2-pathpnl.json", "champion-v2-registration.json", 11, "regression"),
     ):
         mpath = live / "models" / mfn
-        EnsembleGRU(input_dim=6, hidden_dim=4, task="binary", seeds=(42,)).save_json(mpath)
+        EnsembleGRU(input_dim=in_dim, hidden_dim=4, task=task, seeds=(42,)).save_json(mpath)
         sha = hashlib.sha256(mpath.read_bytes()).hexdigest()
         (fwd / rfn).write_text(json.dumps({"gru_model_sha256": sha}), encoding="utf-8")
 

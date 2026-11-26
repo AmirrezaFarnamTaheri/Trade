@@ -189,7 +189,13 @@ def _check_jsonl_file(path: Path, now: datetime, *, max_age_hours: float = 12.0)
     }
 
 
-def _check_frozen_model(model_path: Path, *, registration_path: Path | None = None) -> dict:
+def _check_frozen_model(
+    model_path: Path,
+    *,
+    registration_path: Path | None = None,
+    expected_input_dim: int | None = None,
+    expected_task: str | None = None,
+) -> dict:
     if not model_path.is_file():
         return {"status": "MISSING", "path": str(model_path)}
     raw = model_path.read_bytes()
@@ -198,6 +204,23 @@ def _check_frozen_model(model_path: Path, *, registration_path: Path | None = No
         ensemble, _ = EnsembleGRU.load_json(model_path)
     except GRUArtifactError as exc:
         return {"status": "FAIL", "bytes": len(raw), "sha256": sha, "registration_match": False, "error": str(exc)}
+    first = ensemble.models[0]
+    if expected_input_dim is not None and first.input_dim != expected_input_dim:
+        return {
+            "status": "FAIL",
+            "bytes": len(raw),
+            "sha256": sha,
+            "registration_match": False,
+            "error": f"input_dim mismatch: expected {expected_input_dim}, got {first.input_dim}",
+        }
+    if expected_task is not None and first.task != expected_task:
+        return {
+            "status": "FAIL",
+            "bytes": len(raw),
+            "sha256": sha,
+            "registration_match": False,
+            "error": f"task mismatch: expected {expected_task!r}, got {first.task!r}",
+        }
     reg_status = "UNCHECKED"
     reg_match: bool | None = None
     if registration_path is not None:
@@ -253,11 +276,15 @@ def run_operational_health_check(
             _check_frozen_model,
             live / "models" / "gru-ignition-v1.json",
             registration_path=fwd / "champion-v1-registration.json",
+            expected_input_dim=6,
+            expected_task="binary",
         ),
         "gru_ignition_v2_model": _safe_check(
             _check_frozen_model,
             live / "models" / "gru-ignition-v2-pathpnl.json",
             registration_path=fwd / "champion-v2-registration.json",
+            expected_input_dim=11,
+            expected_task="regression",
         ),
     }
     statuses = [c["status"] for c in checks.values()]

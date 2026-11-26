@@ -33,6 +33,39 @@ def liquidity_snapshot(sides, now, limits):
     return report
 
 
+def _parse_depth_sides(frame, kind):
+    sides, count = [], 0
+    for name in ("bids", "asks"):
+        levels = frame[name]
+        if type(levels) is not list or len(levels) > 400:
+            raise ValueError("depth frame side exceeds update bound")
+        parsed = {}
+        for level in levels:
+            if type(level) is not list or len(level) != 2:
+                raise ValueError("depth level requires price and quantity")
+            price, quantity = decimal(level[0], "price", positive=True), decimal(level[1], "quantity")
+            if price in parsed or (kind == "SNAPSHOT" and not quantity):
+                raise ValueError("duplicate price or zero snapshot quantity")
+            parsed[price] = quantity
+        sides.append(parsed)
+        count += len(levels)
+    return sides, count
+
+
+def _apply_depth_changes(left, right, sides, max_levels):
+    for book, changes in zip((left, right), sides):
+        for price, quantity in changes.items():
+            if quantity:
+                book[price] = quantity
+            else:
+                book.pop(price, None)
+    if max(len(left), len(right)) > max_levels:
+        return "LEVEL_BOUND_EXCEEDED"
+    if not left or not right or max(left) >= min(right):
+        return "EMPTY_OR_CROSSED_BOOK"
+    return None
+
+
 def audit_depth(request):
     """Validate supplied sequenced depth; Wallex's unsequenced side snapshots are not relabeled."""
     fields(request, "source_id as_of max_age_seconds max_levels frames")
@@ -61,21 +94,8 @@ def audit_depth(request):
         if event_at > receipt or (last_receipt is not None and receipt < last_receipt):
             raise ValueError("depth receipt clocks must be monotone and follow event time")
         last_receipt = receipt
-        sides = []
-        for name in ("bids", "asks"):
-            levels = frame[name]
-            if type(levels) is not list or len(levels) > 400:
-                raise ValueError("depth frame side exceeds update bound")
-            parsed = {}
-            for level in levels:
-                if type(level) is not list or len(level) != 2:
-                    raise ValueError("depth level requires price and quantity")
-                price, quantity = decimal(level[0], "price", positive=True), decimal(level[1], "quantity")
-                if price in parsed or (kind == "SNAPSHOT" and not quantity):
-                    raise ValueError("duplicate price or zero snapshot quantity")
-                parsed[price] = quantity
-            sides.append(parsed)
-            updates += len(levels)
+        sides, frame_updates = _parse_depth_sides(frame, kind)
+        updates += frame_updates
         if updates > 50000:
             raise ValueError("depth update budget exceeded")
         if receipt >= cutoff:
@@ -90,14 +110,7 @@ def audit_depth(request):
         last_seen = max(seq, last_seen) if last_seen is not None else seq
         left, right = ({}, {}) if kind == "SNAPSHOT" else (bids.copy(), asks.copy())
         if reason is None:
-            for book, changes in zip((left, right), sides):
-                for price, quantity in changes.items():
-                    if quantity:
-                        book[price] = quantity
-                    else:
-                        book.pop(price, None)
-            reason = ("LEVEL_BOUND_EXCEEDED" if max(len(left), len(right)) > request["max_levels"] else
-                      "EMPTY_OR_CROSSED_BOOK" if not left or not right or max(left) >= min(right) else None)
+            reason = _apply_depth_changes(left, right, sides, request["max_levels"])
         if reason:
             bids, asks, sequence, valid_at, previous_digest = {}, {}, None, None, None
             events.append({"sequence": seq, "status": "NEEDS_SNAPSHOT", "reason": reason})

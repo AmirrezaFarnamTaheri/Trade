@@ -269,10 +269,11 @@ class Collector:
         return flushed
 
     def quality(self, now, symbol, flag, detail=""):
-        event("quality", at=iso(now), symbol=symbol, flag=flag, detail=detail[:500])
+        bounded = detail[:500]
+        event("quality", at=iso(now), symbol=symbol, flag=flag, detail=bounded)
         self._try_db_write_or_queue(
-            ("quality", now, symbol, flag, detail),
-            lambda: self.db.add_quality(now, symbol, flag, detail),
+            ("quality", now, symbol, flag, bounded),
+            lambda: self.db.add_quality(now, symbol, flag, bounded),
         )
         if flag == "SOURCE_ERROR":
             self.status["errors"].appendleft(f"{iso(now)} {symbol or ''} {detail}"[:300])
@@ -332,6 +333,12 @@ class Collector:
         # Overlap counts are estimates without venue trade IDs. Match multiplicities so distinct or repeated
         # prints in the same second can survive, while an unchanged REST batch does not add duplicate rows.
         overlap = Counter((at, Decimal(price), Decimal(qty), side) for at, price, qty, side in existing)
+        last_ev = ticks[-1].ts_event
+        for op in self._pending_writes:
+            if op[0] == "trade":
+                qt = op[1]
+                if qt.symbol == symbol and first <= qt.ts_event <= last_ev:
+                    overlap[(iso(qt.ts_event), qt.price, qt.qty, qt.aggressor)] += 1
         for tick in ticks:
             key = (iso(tick.ts_event), tick.price, tick.qty, tick.aggressor)
             if overlap[key]:

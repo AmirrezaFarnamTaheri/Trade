@@ -373,7 +373,7 @@ def _run_standalone_internal_netting(
     f_lots: dict[str, dict] = {}
     last_px: dict[str, float] = {}
     last_day: str | None = None
-    sep_fees = net_fees = crossed_notional = 0.0
+    sep_fees = net_fees = crossed_notional = max_unit_diff = 0.0
     crossed_events = 0
 
     for ts in all_ts:
@@ -430,7 +430,6 @@ def _run_standalone_internal_netting(
                 if abs(du) > 1e-12 and sym in exec_px:
                     slow_flow[sym] = du * exec_px[sym]
 
-        max_unit_diff = 0.0
         for sym in set(slow_flow) | set(fast_flow):
             sf, ff = slow_flow.get(sym, 0.0), fast_flow.get(sym, 0.0)
             px_s = exec_px.get(sym, last_px.get(sym, 0.0))

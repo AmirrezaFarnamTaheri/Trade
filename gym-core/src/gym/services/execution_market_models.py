@@ -56,6 +56,31 @@ def _hourly_fees(root: Path, symbol, start, end):
     return fees
 
 
+def _parse_public_trade_row(avail, event, raw_price, raw_qty, side):
+    at = parse_ts(avail)
+    if parse_ts(event) > at:
+        raise ValueError("event is unavailable at receipt")
+    price, qty = Decimal(raw_price), Decimal(raw_qty)
+    if (not price.is_finite() or not qty.is_finite() or price <= 0 or qty <= 0
+            or side not in ("BUY", "SELL")):
+        raise ValueError("invalid public trade print")
+    return at, price, qty
+
+
+def _build_trade_observation(last, estimator, price, qty, side, volume):
+    mid = (last.bid + last.ask) / 2
+    observed_cost = ((price - mid) if side == "BUY" else (mid - price)) / mid * 10000
+    if not (Decimal(-200) <= observed_cost <= Decimal(2000)):
+        return None
+    return {
+        "spread_bps": str((last.ask - last.bid) / mid * 10000),
+        "volatility_bps": str(estimator.variance.sqrt() * 10000),
+        "quantity": str(qty),
+        "volume_base": str(volume),
+        "observed_cost_bps": str(observed_cost),
+    }
+
+
 def _public_trade_samples(db, symbol, start, end):
     """Join earlier public quotes to later trade receipts using the availability clock."""
     from ..domain.model import BookTop
@@ -114,13 +139,7 @@ def _public_trade_samples(db, symbol, start, end):
 
     for avail, event, raw_price, raw_qty, side in rows:
         try:
-            at = parse_ts(avail)
-            if parse_ts(event) > at:
-                raise ValueError("event is unavailable at receipt")
-            price, qty = Decimal(raw_price), Decimal(raw_qty)
-            if (not price.is_finite() or not qty.is_finite() or price <= 0 or qty <= 0
-                    or side not in ("BUY", "SELL")):
-                raise ValueError("invalid public trade print")
+            at, price, qty = _parse_public_trade_row(avail, event, raw_price, raw_qty, side)
         except (ValueError, TypeError, ArithmeticError):
             excluded += 1
             continue
@@ -134,13 +153,9 @@ def _public_trade_samples(db, symbol, start, end):
             volume -= old_qty
         if (start <= at < end and last is not None and at - last.ts_avail <= timedelta(seconds=120)
                 and estimator.count >= 10 and estimator.variance > 0 and 0 < qty <= volume):
-            mid = (last.bid + last.ask) / 2
-            observed_cost = ((price - mid) if side == "BUY" else (mid - price)) / mid * 10000
-            if Decimal(-200) <= observed_cost <= Decimal(2000):
-                observations.append({"spread_bps": str((last.ask - last.bid) / mid * 10000),
-                                     "volatility_bps": str(estimator.variance.sqrt() * 10000),
-                                     "quantity": str(qty), "volume_base": str(volume),
-                                     "observed_cost_bps": str(observed_cost)})
+            obs = _build_trade_observation(last, estimator, price, qty, side, volume)
+            if obs is not None:
+                observations.append(obs)
             else:
                 excluded += 1
         elif start <= at < end:
