@@ -285,3 +285,48 @@ def test_e04_research_process_stderr_sanitization() -> None:
     assert exc.exit_code == 2
     assert exc.stderr_tail == tail
     assert exc.report["exit_code"] == 2
+
+
+def test_f09_collector_queues_writes_without_blocking_under_sqlite_contention(tmp_path: Path) -> None:
+    import time
+    from decimal import Decimal
+
+    from gym.adapters.store import MarketDB, SegmentWriter
+    from gym.domain.model import TradeTick
+    from gym.services.collector import Collector
+
+    db_path = tmp_path / "market.db"
+    db = MarketDB(db_path)
+    seg = SegmentWriter(tmp_path / "raw", db)
+    col = Collector(db, seg, ["BTCUSDT"])
+    now = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
+
+    # Hold an external IMMEDIATE write lock on market.db
+    blocker = sqlite3.connect(db_path)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        col.quality(now, "BTCUSDT", "GAP", "test contention")
+        tick = TradeTick(
+            symbol="BTCUSDT",
+            price=Decimal("100.0"),
+            qty=Decimal("0.5"),
+            aggressor="BUY",
+            ts_event=now,
+            ts_avail=now,
+        )
+        col._record_trade(tick, "ws:0")
+        elapsed = time.monotonic() - started
+        assert elapsed < 0.5
+        assert col.status["write_queue_depth"] == 2
+        assert col.status["write_busy_deferrals"] == 2
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+    # Once unlocked, tick() flushes queued writes in FIFO order before publishing.
+    col.tick(now)
+    assert col.status["write_queue_depth"] == 0
+    assert db.c.execute("SELECT COUNT(*) FROM trades").fetchone()[0] == 1
+    assert db.c.execute("SELECT COUNT(*) FROM quality_events WHERE detail = 'test contention'").fetchone()[0] == 1
+    db.c.close()

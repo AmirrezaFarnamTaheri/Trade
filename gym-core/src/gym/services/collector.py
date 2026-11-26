@@ -47,6 +47,7 @@ RESEED_BATCH = 5
 REST_REQUESTS_PER_SECOND = 4
 MIN_ASSETS = 1
 MAX_ASSETS = 500
+MAX_PENDING_WRITES = 4096
 
 
 def _value(m: dict, snake: str, camel: str | None = None):
@@ -190,8 +191,10 @@ class Collector:
         self.units = UnitWatch()
         from .loop_lag import LoopLag
         self.loop_lag = LoopLag()  # How late the event loop wakes, i.e. time spent in synchronous work
+        self._pending_writes: deque[tuple] = deque()
         self.status = {"connected": False, "shards": 0, "last_frame": None, "reconnects": 0, "fatal": None,
-                       "errors": deque(maxlen=20), "shard_stats": {}, "archived": None, "integrity": None}
+                       "errors": deque(maxlen=20), "shard_stats": {}, "archived": None, "integrity": None,
+                       "write_queue_depth": 0, "write_queue_max_depth": 0, "write_busy_deferrals": 0}
         self.data_quality: dict[str, dict] = {}  # refreshed every 10 minutes from the last day of stored quotes
         if symbols is not None:
             self.configure(symbols)
@@ -223,9 +226,54 @@ class Collector:
             self.universe["selected_assets"] = self.universe["observed_assets"]
 
     # --- ingestion (shared by live, REST seeding and demo) ---
+    def _try_db_write_or_queue(self, op: tuple, fn) -> bool:
+        """Execute a loop-thread SQLite write non-blockingly; queue in FIFO order on SQLITE_BUSY."""
+        if self._pending_writes:
+            self._enqueue_write(op)
+            return False
+        timeout = self.db.c.execute("PRAGMA busy_timeout").fetchone()[0]
+        self.db.c.execute("PRAGMA busy_timeout=0")
+        try:
+            fn()
+            return True
+        except sqlite3.OperationalError as error:
+            if getattr(error, "sqlite_errorcode", 0) & 0xFF != sqlite3.SQLITE_BUSY:
+                raise
+            self._enqueue_write(op)
+            return False
+        finally:
+            self.db.c.execute(f"PRAGMA busy_timeout={timeout}")
+
+    def _enqueue_write(self, op: tuple) -> None:
+        if len(self._pending_writes) >= MAX_PENDING_WRITES:
+            self.status["fatal"] = f"SQLite write queue overflow ({MAX_PENDING_WRITES})"
+            raise RuntimeError(self.status["fatal"])
+        self._pending_writes.append(op)
+        depth = len(self._pending_writes)
+        self.status["write_queue_depth"] = depth
+        self.status["write_queue_max_depth"] = max(self.status["write_queue_max_depth"], depth)
+        self.status["write_busy_deferrals"] += 1
+
+    def flush_pending_writes(self) -> int:
+        """Flush queued ingestion writes in strict FIFO order under the current transaction/savepoint."""
+        flushed = 0
+        while self._pending_writes:
+            op = self._pending_writes[0]
+            if op[0] == "trade":
+                self.db.add_trade(op[1], op[2])
+            elif op[0] == "quality":
+                self.db.add_quality(op[1], op[2], op[3], op[4])
+            self._pending_writes.popleft()
+            flushed += 1
+        self.status["write_queue_depth"] = len(self._pending_writes)
+        return flushed
+
     def quality(self, now, symbol, flag, detail=""):
         event("quality", at=iso(now), symbol=symbol, flag=flag, detail=detail[:500])
-        self.db.add_quality(now, symbol, flag, detail)
+        self._try_db_write_or_queue(
+            ("quality", now, symbol, flag, detail),
+            lambda: self.db.add_quality(now, symbol, flag, detail),
+        )
         if flag == "SOURCE_ERROR":
             self.status["errors"].appendleft(f"{iso(now)} {symbol or ''} {detail}"[:300])
 
@@ -265,7 +313,7 @@ class Collector:
     def _record_trade(self, t: TradeTick, ref: str):
         # Identical prints stay: the official API has no trade id in /v1/trades or SYMBOL@trade (checked 2026-11-08).
         sym = t.symbol
-        self.db.add_trade(t, ref)
+        self._try_db_write_or_queue(("trade", t, ref), lambda: self.db.add_trade(t, ref))
         self.trades[sym].appendleft(t)
         if sym not in self.last_trade_ts or t.ts_event > self.last_trade_ts[sym]:
             self.last_trade_ts[sym] = t.ts_event
@@ -302,8 +350,10 @@ class Collector:
             return
         self.status["clock_paused"] = False
         old_tops, old_written, old_units = self.tops.copy(), self.written.copy(), copy.deepcopy(self.units)
+        old_pending = deque(self._pending_writes)
         self.db.c.execute("SAVEPOINT collector_tick")
         try:
+            self.flush_pending_writes()
             if self.status.get("publication_delayed_since"):
                 self.quality(now, None, "GAP", f"SQLite writer delayed publication since {self.status['publication_delayed_since']}")
             self._publish_tick(now)
@@ -313,6 +363,8 @@ class Collector:
             self.db.c.execute("ROLLBACK TO collector_tick")
             self.db.c.execute("RELEASE collector_tick")
             self.tops, self.written, self.units = old_tops, old_written, old_units
+            self._pending_writes = old_pending
+            self.status["write_queue_depth"] = len(self._pending_writes)
             raise
         self.status.pop("publication_delayed_since", None)
 
