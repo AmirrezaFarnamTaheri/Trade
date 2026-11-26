@@ -94,7 +94,7 @@ jobs:
       - name: Complexity ceiling on the simulator money core
         run: uvx ruff==0.17.5 check --isolated --select C901 --config "lint.mccabe.max-complexity=20" src/gym/domain/sim.py
       - name: Complexity ratchet (no new function above 20; listed hotspots may only shrink)
-        run: python scripts/complexity_ratchet.py
+        run: uv run --no-sync python scripts/complexity_ratchet.py
       - name: Tests with line coverage
         run: uv run --locked --group research --with coverage==7.6.10 coverage run --source=src/gym -m pytest -q
       - name: Coverage report
@@ -182,7 +182,7 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.11.23"
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --group dev --group research
       - run: uv run --with 'mutmut[patch]==2.5.1' python scripts/mutation_gate.py --output "$RUNNER_TEMP/mutation-critical"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
@@ -205,7 +205,7 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.11.23"
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --group dev --group research
       # This broader five-file assessment is not the critical-cohort baseline; failures remain visible.
       - name: Record weekly source, test, configuration and tool identities
         run: |
@@ -293,7 +293,7 @@ jobs:
           version: "0.11.23"
       - run: cargo fmt --manifest-path ../executor/exec-kernel-py/Cargo.toml --check
       - run: cargo clippy --locked --manifest-path ../executor/exec-kernel-py/Cargo.toml -- -D warnings
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --group dev --group research
       - run: uvx --from "maturin>=1.7,<2" maturin build --release -m ../executor/exec-kernel-py/Cargo.toml -o dist
       - run: uv pip install --no-deps dist/*.whl
       - name: Whole suite on the Rust kernel
