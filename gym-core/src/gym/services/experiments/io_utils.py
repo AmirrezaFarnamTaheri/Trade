@@ -1,12 +1,39 @@
 """Shared atomic file, JSONL, and SQLite snapshot IO utilities for experiment and journal runners."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from contextlib import contextmanager
 from pathlib import Path
 
 from .._journal_lock import append_jsonl, journal_lock
+
+_SEMANTIC_OPERATIONAL_FILES = (
+    "services/experiments/admm_helpers.py",
+    "services/experiments/champion_forward_journal.py",
+    "services/experiments/champion_v2_journal.py",
+    "services/experiments/gru_engine.py",
+    "services/experiments/io_utils.py",
+    "services/experiments/leader_forward_journal.py",
+)
+
+
+def semantic_engine_digest() -> str:
+    """Hash only domain/ and operational execution-journal files so unrelated UI/script edits do not cause cohort drift."""
+    root = Path(__file__).resolve().parents[2]
+    h = hashlib.sha256()
+    paths = sorted(p for p in (root / "domain").rglob("*.py") if "__pycache__" not in p.parts)
+    for rel in _SEMANTIC_OPERATIONAL_FILES:
+        p = root / rel
+        if p.is_file():
+            paths.append(p)
+    for p in paths:
+        h.update(p.relative_to(root).as_posix().encode("utf-8"))
+        h.update(b"\0")
+        h.update(p.read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()
 
 
 @contextmanager

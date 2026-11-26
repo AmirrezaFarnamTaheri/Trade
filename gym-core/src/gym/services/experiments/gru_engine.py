@@ -311,11 +311,13 @@ class EnsembleGRU:
         task: str = "regression",
         seeds: tuple[int, ...] = (42, 101, 202),
     ) -> None:
-        self.models = [CompactGRU(input_dim, hidden_dim, task=task, seed=s) for s in seeds]
+        self._seeds = tuple(seeds)
+        self.models = [CompactGRU(input_dim, hidden_dim, task=task, seed=s) for s in self._seeds]
 
     def fit(self, x_train: np.ndarray, y_train: np.ndarray, *, epochs: int = 25, batch_size: int = 128, lr: float = 5e-3, l2_reg: float = 2e-3) -> None:
+        seeds = getattr(self, "_seeds", tuple(42 + i * 31 for i in range(len(self.models))))
         for i, m in enumerate(self.models):
-            m.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, lr=lr, l2_reg=l2_reg, seed=42 + i * 31)
+            m.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, lr=lr, l2_reg=l2_reg, seed=seeds[i])
 
     def predict(self, x: np.ndarray) -> np.ndarray:
         if not self.models:
@@ -366,7 +368,17 @@ class EnsembleGRU:
         path.write_text(json.dumps(self.to_dict(metadata=metadata), indent=2) + "\n", encoding="utf-8")
 
     @classmethod
-    def load_json(cls, path: Path) -> tuple[EnsembleGRU, dict]:
+    def load_json(
+        cls,
+        path: Path,
+        *,
+        now: object | None = None,
+        enforce_expiry: bool = True,
+    ) -> tuple[EnsembleGRU, dict]:
+        from datetime import UTC, datetime
+
+        from ...domain.model import parse_ts
+
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -374,4 +386,13 @@ class EnsembleGRU:
         meta = payload.get("metadata") if isinstance(payload, dict) else None
         if meta is not None and not isinstance(meta, dict):
             raise GRUArtifactError("ensemble metadata must be a JSON object")
-        return cls.from_dict(payload), dict(meta or {})
+        meta_dict = dict(meta or {})
+        if enforce_expiry and meta_dict.get("expires_at"):
+            try:
+                exp_dt = parse_ts(str(meta_dict["expires_at"]))
+            except Exception as exc:
+                raise GRUArtifactError(f"invalid expires_at timestamp: {meta_dict['expires_at']!r}") from exc
+            ref_now = now if isinstance(now, datetime) else datetime.now(UTC)
+            if ref_now > exp_dt:
+                raise GRUArtifactError(f"GRU artifact expired at {meta_dict['expires_at']}")
+        return cls.from_dict(payload), meta_dict

@@ -126,12 +126,25 @@ pub fn submit(
     })
 }
 
+fn is_allowed_venue_path(resource: &str) -> bool {
+    if !resource.starts_with("/v1/") {
+        return false;
+    }
+    let lower = resource.to_ascii_lowercase();
+    !lower.contains("withdraw")
+        && !lower.contains("address-book")
+        && !lower.contains("address_book")
+}
+
 fn exchange(
     key: Option<&Secret>,
     resource: &str,
     payload: Option<&[u8]>,
     before_send: impl FnOnce() -> io::Result<()>,
 ) -> io::Result<Secret> {
+    if !is_allowed_venue_path(resource) {
+        return Err(uncertain());
+    }
     let path = wide(resource);
     let header = key.map(key_header).transpose()?;
     let started = Instant::now();
@@ -145,6 +158,12 @@ fn exchange(
         ))?;
         success(WinHttpSetTimeouts(session.0, 2000, 2000, 2000, 2000))?;
         option(&session, WINHTTP_OPTION_CONNECT_RETRIES, 0)?;
+        // Enforce TLS 1.2/1.3 floor explicitly rather than relying on host Schannel defaults.
+        option(
+            &session,
+            WINHTTP_OPTION_SECURE_PROTOCOLS,
+            WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
+        )?;
         let connection = Handle::checked(WinHttpConnect(
             session.0,
             wide("api.wallex.ir").as_ptr(),
@@ -160,6 +179,11 @@ fn exchange(
             ptr::null(),
             WINHTTP_FLAG_SECURE,
         ))?;
+        option(
+            &request,
+            WINHTTP_OPTION_ENABLE_FEATURE,
+            WINHTTP_ENABLE_SSL_REVOCATION,
+        )?;
         option(&request, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT, 3000)?;
         option(&request, WINHTTP_OPTION_MAX_RESPONSE_HEADER_SIZE, 32768)?;
         option(
