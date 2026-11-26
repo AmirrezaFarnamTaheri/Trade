@@ -214,3 +214,21 @@ def test_quant_v3_audit_and_fx_attribution_on_synthetic_db(tmp_path: Path) -> No
     assert rep["ml_shadow_readiness"]["permitted_portfolio_weight"] == 0.0
     assert (out_dir / "18-strategy-dsr-fx-slippage-audit.md").is_file()
     assert (out_dir / "18-strategy-dsr-fx-slippage-audit.json").is_file()
+
+
+def test_quant_v3_audit_no_hardcoded_promotion_and_surfaces_exceptions() -> None:
+    from gym.services.quant_v3_audit import _simulate_strategy_on_bars
+
+    # Empty history must never promote slow-s1-trend
+    empty_res = _simulate_strategy_on_bars("slow-s1-trend", {}, [])
+    assert empty_res["tier"] != "PROMOTE_REFERENCE"
+    assert empty_res["errors"] == 0
+
+    # Strategy exceptions must be surfaced, never silently treated as abstentions
+    class _BoomBar:
+        pass
+
+    boom_res = _simulate_strategy_on_bars("slow-s1-trend", {}, [(_BoomBar(), 100.0, 0.0)])  # type: ignore[list-item]
+    assert boom_res["errors"] == 1
+    assert boom_res["last_error"] is not None
+    assert boom_res["tier"] == "ERROR_STRATEGY_EXCEPTION"

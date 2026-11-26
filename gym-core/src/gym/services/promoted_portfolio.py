@@ -64,11 +64,12 @@ def _apply_v3_admission_gates(
     expected_edge_bps: float,
     max_ofi_toxicity: float,
     kelly_scale: float,
+    observed_trades: dict[str, list[tuple[str, float]]] | None = None,
 ) -> tuple[dict[str, float], int, int]:
-    """Filter non-exit entries via Pre-Trade IS Gate, OFI toxicity veto, and Bayesian Kelly scaling."""
+    """Filter non-exit entries via Pre-Trade IS Gate, observed OFI (or labeled bar-imbalance proxy), and Kelly scaling."""
     gated: dict[str, float] = {}
     is_blocked = 0
-    ofi_vetoed = 0
+    imbalance_vetoed = 0
     admitted, _, _ = pre_trade_implementation_shortfall_gate(
         expected_edge_bps,
         spread_bps=spread_bps,
@@ -86,16 +87,25 @@ def _apply_v3_admission_gates(
             gated[sym] = cur
             is_blocked += 1
             continue
-        bar = bar_map.get(sym)
-        if bar is not None and bar.high > bar.low and bar.volume > 0:
-            buy_frac = max(0.0, min(1.0, (bar.close - bar.low) / (bar.high - bar.low)))
-            ofi, toxicity = compute_ofi_toxicity([("BUY", bar.volume * buy_frac), ("SELL", bar.volume * (1.0 - buy_frac))])
+        trades = (observed_trades or {}).get(sym)
+        if trades:
+            ofi, toxicity = compute_ofi_toxicity(trades)
             if toxicity >= max_ofi_toxicity and ofi < 0.0:
                 gated[sym] = cur
-                ofi_vetoed += 1
+                imbalance_vetoed += 1
                 continue
+        else:
+            bar = bar_map.get(sym)
+            if bar is not None and bar.high > bar.low and bar.volume > 0:
+                # Bar-range volume-imbalance proxy (used only when tick-level aggressor trades are unavailable)
+                buy_frac = max(0.0, min(1.0, (bar.close - bar.low) / (bar.high - bar.low)))
+                proxy_ofi, proxy_tox = compute_ofi_toxicity([("BUY", bar.volume * buy_frac), ("SELL", bar.volume * (1.0 - buy_frac))])
+                if proxy_tox >= max_ofi_toxicity and proxy_ofi < 0.0:
+                    gated[sym] = cur
+                    imbalance_vetoed += 1
+                    continue
         gated[sym] = scaled_w
-    return gated, is_blocked, ofi_vetoed
+    return gated, is_blocked, imbalance_vetoed
 
 
 def _filter_bar_denomination(ef: dict[str, float], prev_snapshot: dict[str, float], tradable: set[str]) -> int:
@@ -222,7 +232,8 @@ def _simulate_reference_arm(
     if enable_v3_gates:
         out["v3_gates"] = {
             "is_blocked_entries": is_blocked_total,
-            "ofi_vetoed_entries": ofi_vetoed_total,
+            "bar_imbalance_proxy_vetoes": ofi_vetoed_total,
+            "imbalance_source": "bar_range_proxy",
             "denomination_rejects": denom_rejects,
             "spot_only_enforced": True,
         }

@@ -64,24 +64,33 @@ def _simulate_strategy_on_bars(strategy_id: str, params: dict, prepared: list[tu
     daily_rets: list[float] = []
     episode_rets_bps: list[float] = []
     signals = 0
-    fee_rt = 0.0032  # 32 bps conservative round-trip spot fee
+    errors = 0
+    last_error: str | None = None
+    fee_rt = 0.0032  # 32 bps conservative round-trip spot fee (16 bps per leg)
+    leg_fee = fee_rt / 2.0
 
     for snap, close_f, bar_ret in prepared:
-        daily_rets.append(bar_ret if holding else 0.0)
+        net_ret = bar_ret if holding else 0.0
         try:
             action, _, _, _ = strat.decide(snap, holding)
-        except Exception:
-            action = "ABSTAIN"
+        except Exception as exc:
+            errors += 1
+            last_error = f"{type(exc).__name__}: {exc}"
+            action = "ERROR"
         if action == "BUY_REQUEST" and not holding:
             holding = True
             entry_px = close_f
+            net_ret -= leg_fee
             signals += 1
         elif action == "SELL_REQUEST" and holding:
             holding = False
+            net_ret -= leg_fee
             ep_ret = ((close_f - entry_px) / max(1e-9, entry_px)) - fee_rt
             episode_rets_bps.append(ep_ret * 10_000.0)
             signals += 1
+        daily_rets.append(net_ret)
     if holding and prepared:
+        daily_rets[-1] -= leg_fee
         ep_ret = ((prepared[-1][1] - entry_px) / max(1e-9, entry_px)) - fee_rt
         episode_rets_bps.append(ep_ret * 10_000.0)
 
@@ -92,7 +101,9 @@ def _simulate_strategy_on_bars(strategy_id: str, params: dict, prepared: list[tu
     dsr = compute_deflated_sharpe_ratio(sr, n, n_trials=18)
     lko = compute_leave_k_out_fragility(episode_rets_bps, max_k=3)
     lko_k1 = lko[1]["mean_bps"] if len(lko) > 1 else 0.0
-    if strategy_id == "slow-s1-trend" or (dsr >= 0.80 and lko_k1 > 0.0):
+    if errors > 0:
+        tier = "ERROR_STRATEGY_EXCEPTION"
+    elif len(episode_rets_bps) >= 3 and dsr >= 0.80 and lko_k1 > 0.0:
         tier = "PROMOTE_REFERENCE"
     elif dsr >= 0.50 and signals > 0:
         tier = "SHADOW_CANDIDATE"
@@ -104,6 +115,8 @@ def _simulate_strategy_on_bars(strategy_id: str, params: dict, prepared: list[tu
         "strategy_id": strategy_id,
         "signals": signals,
         "episodes": len(episode_rets_bps),
+        "errors": errors,
+        "last_error": last_error,
         "ann_sharpe": ann_sr,
         "deflated_sharpe_ratio": dsr,
         "lko_k0_mean_bps": lko[0]["mean_bps"] if lko else 0.0,

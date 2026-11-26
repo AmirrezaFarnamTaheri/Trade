@@ -3,9 +3,11 @@
     "bars": 2577,
     "rows": [
       {
-        "ann_sharpe": 1.214,
-        "deflated_sharpe_ratio": 0.725301,
+        "ann_sharpe": 1.152,
+        "deflated_sharpe_ratio": 0.668173,
         "episodes": 52,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 820.81,
         "lko_k1_mean_bps": 440.31,
         "signals": 104,
@@ -13,9 +15,11 @@
         "tier": "SHADOW_CANDIDATE"
       },
       {
-        "ann_sharpe": 1.171,
-        "deflated_sharpe_ratio": 0.685901,
+        "ann_sharpe": 1.131,
+        "deflated_sharpe_ratio": 0.647531,
         "episodes": 33,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 1609.43,
         "lko_k1_mean_bps": 450.32,
         "signals": 66,
@@ -23,29 +27,35 @@
         "tier": "SHADOW_CANDIDATE"
       },
       {
-        "ann_sharpe": 1.166,
-        "deflated_sharpe_ratio": 0.68146,
+        "ann_sharpe": 1.093,
+        "deflated_sharpe_ratio": 0.609551,
         "episodes": 55,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 908.02,
         "lko_k1_mean_bps": 204.89,
         "signals": 110,
         "strategy_id": "slow-s1-trend",
-        "tier": "PROMOTE_REFERENCE"
+        "tier": "SHADOW_CANDIDATE"
       },
       {
-        "ann_sharpe": 1.027,
-        "deflated_sharpe_ratio": 0.540208,
+        "ann_sharpe": 0.928,
+        "deflated_sharpe_ratio": 0.43653,
         "episodes": 72,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 345.02,
         "lko_k1_mean_bps": 269.69,
         "signals": 144,
         "strategy_id": "macd-cross",
-        "tier": "SHADOW_CANDIDATE"
+        "tier": "RETIRE_FAIL_DSR"
       },
       {
-        "ann_sharpe": 0.951,
-        "deflated_sharpe_ratio": 0.460325,
+        "ann_sharpe": 0.895,
+        "deflated_sharpe_ratio": 0.401534,
         "episodes": 39,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 587.3,
         "lko_k1_mean_bps": 449.44,
         "signals": 78,
@@ -53,9 +63,11 @@
         "tier": "RETIRE_FAIL_DSR"
       },
       {
-        "ann_sharpe": 0.777,
-        "deflated_sharpe_ratio": 0.286738,
+        "ann_sharpe": 0.704,
+        "deflated_sharpe_ratio": 0.225103,
         "episodes": 63,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 469.82,
         "lko_k1_mean_bps": 161.83,
         "signals": 126,
@@ -63,9 +75,11 @@
         "tier": "RETIRE_FAIL_DSR"
       },
       {
-        "ann_sharpe": 0.647,
-        "deflated_sharpe_ratio": 0.181967,
+        "ann_sharpe": 0.619,
+        "deflated_sharpe_ratio": 0.163016,
         "episodes": 17,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 683.95,
         "lko_k1_mean_bps": 462.96,
         "signals": 34,
@@ -73,9 +87,11 @@
         "tier": "RETIRE_FAIL_DSR"
       },
       {
-        "ann_sharpe": 0.47,
-        "deflated_sharpe_ratio": 0.084107,
+        "ann_sharpe": 0.428,
+        "deflated_sharpe_ratio": 0.068161,
         "episodes": 30,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 297.79,
         "lko_k1_mean_bps": 165.48,
         "signals": 60,
@@ -83,9 +99,11 @@
         "tier": "RETIRE_FAIL_DSR"
       },
       {
-        "ann_sharpe": 0.112,
-        "deflated_sharpe_ratio": 0.009963,
+        "ann_sharpe": 0.101,
+        "deflated_sharpe_ratio": 0.009182,
         "episodes": 9,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 133.72,
         "lko_k1_mean_bps": -266.41,
         "signals": 18,
@@ -93,19 +111,11 @@
         "tier": "RETIRE_FAIL_DSR"
       },
       {
-        "ann_sharpe": 0.085,
-        "deflated_sharpe_ratio": 0.008217,
-        "episodes": 126,
-        "lko_k0_mean_bps": -25.56,
-        "lko_k1_mean_bps": -34.23,
-        "signals": 251,
-        "strategy_id": "sma-reversion",
-        "tier": "RETIRE_FAIL_DSR"
-      },
-      {
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -116,6 +126,8 @@
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -126,6 +138,8 @@
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -136,6 +150,8 @@
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -146,6 +162,8 @@
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -156,6 +174,8 @@
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -166,6 +186,8 @@
         "ann_sharpe": 0.0,
         "deflated_sharpe_ratio": 0.004319,
         "episodes": 0,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": 0.0,
         "lko_k1_mean_bps": 0.0,
         "signals": 0,
@@ -173,9 +195,23 @@
         "tier": "HOLD_NEEDS_MULTI_ASSET_OR_INTRADAY"
       },
       {
-        "ann_sharpe": -0.007,
-        "deflated_sharpe_ratio": 0.00409,
+        "ann_sharpe": -0.052,
+        "deflated_sharpe_ratio": 0.00285,
+        "episodes": 126,
+        "errors": 0,
+        "last_error": null,
+        "lko_k0_mean_bps": -25.56,
+        "lko_k1_mean_bps": -34.23,
+        "signals": 251,
+        "strategy_id": "sma-reversion",
+        "tier": "RETIRE_FAIL_DSR"
+      },
+      {
+        "ann_sharpe": -0.062,
+        "deflated_sharpe_ratio": 0.002631,
         "episodes": 41,
+        "errors": 0,
+        "last_error": null,
         "lko_k0_mean_bps": -66.85,
         "lko_k1_mean_bps": -116.07,
         "signals": 81,
@@ -269,16 +305,16 @@
         "samples": 1046
       },
       "13": {
-        "is_hurdle_bps_1_5x": 245.94,
-        "median_spread_bps": 18.6,
-        "p90_spread_bps": 147.96,
-        "samples": 1787
+        "is_hurdle_bps_1_5x": 66.03,
+        "median_spread_bps": 17.55,
+        "p90_spread_bps": 28.02,
+        "samples": 1286
       },
       "14": {
-        "is_hurdle_bps_1_5x": 121.185,
-        "median_spread_bps": 21.45,
-        "p90_spread_bps": 64.79,
-        "samples": 3873
+        "is_hurdle_bps_1_5x": 123.855,
+        "median_spread_bps": 21.95,
+        "p90_spread_bps": 66.57,
+        "samples": 3578
       },
       "15": {
         "is_hurdle_bps_1_5x": 330.855,
@@ -323,23 +359,23 @@
         "samples": 2815
       },
       "22": {
-        "is_hurdle_bps_1_5x": 72.27,
-        "median_spread_bps": 18.49,
-        "p90_spread_bps": 32.18,
-        "samples": 2217
+        "is_hurdle_bps_1_5x": 67.47,
+        "median_spread_bps": 18.54,
+        "p90_spread_bps": 28.98,
+        "samples": 2878
       },
       "23": {
-        "is_hurdle_bps_1_5x": 60.525,
-        "median_spread_bps": 17.84,
-        "p90_spread_bps": 24.35,
-        "samples": 2200
+        "is_hurdle_bps_1_5x": 60.375,
+        "median_spread_bps": 17.42,
+        "p90_spread_bps": 24.25,
+        "samples": 2334
       }
     }
   },
   "executor_state": "DISARMED",
   "fx_dual_factor_attribution": {
     "common_days": 2567,
-    "consensus_usdt_tmn": 297832.011,
+    "consensus_usdt_tmn": 297816.8321,
     "ending_basis_bps": -60.7,
     "fx_devaluation_log_ret": 3.14992361,
     "global_crypto_log_ret": 2.05307929,
@@ -350,11 +386,11 @@
       "2026-11-18"
     ]
   },
-  "generated_at_utc": "2026-11-26T18:35:38.145968+00:00",
+  "generated_at_utc": "2026-11-26T19:41:42.689641+00:00",
   "ml_shadow_readiness": {
-    "checked_at_utc": "2026-11-26T18:35:43.320711+00:00",
+    "checked_at_utc": "2026-11-26T19:42:36.118343+00:00",
     "permitted_portfolio_weight": 0.0,
-    "semantic_engine_digest": "9806035feb9a0dd4d6971da9cb3a1253db7d97377eea54ea01e6652a6dd50f23",
+    "semantic_engine_digest": "765578884aec0049843a0f895330b7a9af08f793108d1c20616ff97d8cd169d0",
     "status": "NO_SHADOW_ARTIFACT"
   },
   "mode": "PAPER_ONLY"
