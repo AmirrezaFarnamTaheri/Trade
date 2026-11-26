@@ -68,6 +68,7 @@ async function refresh() {
     const results = await Promise.allSettled([healthTask, collectView(name, healthTask)]);
     if (state.view === name) {
       const [health, view] = results;
+      if (health.status === "rejected" && typeof reportAlertPollFailure === "function") reportAlertPollFailure();
       state.apiErrorSources = [...new Set([...(health.status === "rejected" ? ["health"] : []),
         ...(view.status === "rejected" ? view.reason?.sources ?? [name] : [])])];
       state.apiError = state.apiErrorSources.length > 0;

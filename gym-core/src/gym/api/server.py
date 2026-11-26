@@ -53,7 +53,7 @@ def _decimal_text(value):
 
 # Served next to index.html, each with a content-hash query so a browser never runs a stale copy.
 UI_ASSETS = ("app.js", "markets.js", "research-controls.js", "operations.js", "charts.js", "runs.js", "replay-chart.js", "research.js", "margin.js", "portfolio.js", "native-review.js",
-             "workspace-config.js", "workspace-utils.js", "workspace-overview.js", "workspace-alerts.js",
+             "workspace-config.js", "workspace-utils.js", "workspace-overview.js", "workspace-alerts.mjs",
              "markets-events.js", "research-events.js", "operator-events.js", "operator-timeline.mjs", "shell-events.js", "styles.css")
 
 class _WorkspaceApi:

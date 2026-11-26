@@ -1,67 +1,65 @@
 {
-  "schema": "strategy-promotion-and-revivals/1",
-  "generated_at_utc": "2026-11-26T08:47:48.337291+00:00",
   "exp1_conditional_capital_admission": {
     "arms": [
       {
-        "arm": "SLOW_ALONE",
-        "ending_nav": 1181.55,
-        "ret_pct": 18.15,
-        "ann_sharpe": 0.469,
-        "max_dd_pct": 10.72,
-        "fees_usdt": 27.08,
         "admitted_full": 0,
         "admitted_partial": 0,
+        "ann_sharpe": 0.469,
+        "arm": "SLOW_ALONE",
+        "displaced_slow_buys": 0,
+        "ending_nav": 1183.16,
+        "fees_usdt": 27.18,
+        "max_dd_pct": 10.72,
         "rejected_reserve": 0,
-        "displaced_slow_buys": 0
+        "ret_pct": 18.32
       },
       {
-        "arm": "IGNITION_ALONE",
-        "ending_nav": 969.49,
-        "ret_pct": -3.05,
-        "ann_sharpe": -0.03,
-        "max_dd_pct": 14.81,
-        "fees_usdt": 177.78,
         "admitted_full": 192,
         "admitted_partial": 0,
+        "ann_sharpe": -0.03,
+        "arm": "IGNITION_ALONE",
+        "displaced_slow_buys": 0,
+        "ending_nav": 969.49,
+        "fees_usdt": 177.78,
+        "max_dd_pct": 14.81,
         "rejected_reserve": 0,
-        "displaced_slow_buys": 0
+        "ret_pct": -3.05
       },
       {
-        "arm": "ORDINARY_SHARING",
-        "ending_nav": 1099.81,
-        "ret_pct": 9.98,
-        "ann_sharpe": 0.268,
-        "max_dd_pct": 14.42,
-        "fees_usdt": 169.14,
         "admitted_full": 166,
         "admitted_partial": 0,
+        "ann_sharpe": 0.268,
+        "arm": "ORDINARY_SHARING",
+        "displaced_slow_buys": 60,
+        "ending_nav": 1101.31,
+        "fees_usdt": 169.43,
+        "max_dd_pct": 14.42,
         "rejected_reserve": 61,
-        "displaced_slow_buys": 60
+        "ret_pct": 10.13
       },
       {
-        "arm": "FIXED_SPLIT_70_30",
-        "ending_nav": 1117.95,
-        "ret_pct": 11.79,
-        "ann_sharpe": 0.386,
-        "max_dd_pct": 8.4,
-        "fees_usdt": 72.19,
         "admitted_full": 192,
         "admitted_partial": 0,
+        "ann_sharpe": 0.387,
+        "arm": "FIXED_SPLIT_70_30",
+        "displaced_slow_buys": 0,
+        "ending_nav": 1119.11,
+        "fees_usdt": 72.26,
+        "max_dd_pct": 8.41,
         "rejected_reserve": 0,
-        "displaced_slow_buys": 0
+        "ret_pct": 11.91
       },
       {
-        "arm": "CONDITIONAL_SHARING_RES15",
-        "ending_nav": 1113.39,
-        "ret_pct": 11.34,
-        "ann_sharpe": 0.295,
-        "max_dd_pct": 14.1,
-        "fees_usdt": 140.89,
         "admitted_full": 82,
         "admitted_partial": 55,
+        "ann_sharpe": 0.295,
+        "arm": "CONDITIONAL_SHARING_RES15",
+        "displaced_slow_buys": 0,
+        "ending_nav": 1114.9,
+        "fees_usdt": 141.15,
+        "max_dd_pct": 14.1,
         "rejected_reserve": 97,
-        "displaced_slow_buys": 0
+        "ret_pct": 11.49
       }
     ],
     "contested_capital_fork": {
@@ -73,168 +71,174 @@
   "exp2_standalone_internal_netting": {
     "crossed_events": 2,
     "crossed_notional_usdt": 2.66,
-    "separate_routing_fees_usdt": 77.38,
-    "internal_netting_fees_usdt": 77.37,
-    "saved_fees_usdt": 0.01,
+    "exposure_invariant_verified": true,
     "fee_reduction_pct": 0.01,
-    "exposure_invariant_verified": true
+    "internal_netting_fees_usdt": 77.44,
+    "max_step_unit_mismatch": 0.0,
+    "saved_fees_usdt": 0.01,
+    "separate_routing_fees_usdt": 77.45
   },
   "exp3_partial_revivals": {
-    "s2_retention_bands": [
+    "accel_execution_speed": [
       {
-        "mode": "IMMEDIATE_0PCT",
-        "ending_nav": 2482.75,
-        "ret_pct": 148.28,
         "ann_sharpe": 0.775,
-        "max_dd_pct": 23.65,
-        "fills": 2715,
+        "deferred_buys": 0,
+        "ending_nav": 2482.91,
         "fees_usdt": 99.33,
+        "fills": 2715,
+        "max_dd_pct": 23.65,
         "mean_invested_pct": 22.95,
         "mean_l1_tracking_err_pct": 6.43,
-        "deferred_buys": 0
+        "mode": "IMMEDIATE_0PCT",
+        "ret_pct": 148.29
       },
       {
-        "mode": "FIXED_BAND_3PCT",
-        "ending_nav": 2461.36,
-        "ret_pct": 146.14,
-        "ann_sharpe": 0.779,
-        "max_dd_pct": 23.13,
-        "fills": 685,
-        "fees_usdt": 77.12,
-        "mean_invested_pct": 22.63,
-        "mean_l1_tracking_err_pct": 8.36,
-        "deferred_buys": 0
-      },
-      {
-        "mode": "COST_AWARE_BAND",
-        "ending_nav": 2516.75,
-        "ret_pct": 151.67,
-        "ann_sharpe": 0.79,
-        "max_dd_pct": 22.66,
-        "fills": 646,
-        "fees_usdt": 77.64,
+        "ann_sharpe": 0.764,
+        "deferred_buys": 0,
+        "ending_nav": 2439.77,
+        "fees_usdt": 82.31,
+        "fills": 2821,
+        "max_dd_pct": 23.09,
         "mean_invested_pct": 22.69,
-        "mean_l1_tracking_err_pct": 8.56,
-        "deferred_buys": 0
+        "mean_l1_tracking_err_pct": 7.66,
+        "mode": "FIXED_PARTIAL_50PCT",
+        "ret_pct": 143.98
+      },
+      {
+        "ann_sharpe": 0.763,
+        "deferred_buys": 0,
+        "ending_nav": 2439.7,
+        "fees_usdt": 85.03,
+        "fills": 2544,
+        "max_dd_pct": 23.36,
+        "mean_invested_pct": 22.85,
+        "mean_l1_tracking_err_pct": 7.09,
+        "mode": "ACCEL_ADAPTIVE_SPEED",
+        "ret_pct": 143.97
+      }
+    ],
+    "bear_buy_deferral_vs_cash": [
+      {
+        "ann_sharpe": 0.775,
+        "deferred_buys": 0,
+        "ending_nav": 2482.91,
+        "fees_usdt": 99.33,
+        "fills": 2715,
+        "max_dd_pct": 23.65,
+        "mean_invested_pct": 22.95,
+        "mean_l1_tracking_err_pct": 6.43,
+        "mode": "IMMEDIATE_0PCT",
+        "ret_pct": 148.29
+      },
+      {
+        "ann_sharpe": 0.735,
+        "deferred_buys": 779,
+        "ending_nav": 2329.78,
+        "fees_usdt": 82.89,
+        "fills": 2356,
+        "max_dd_pct": 23.69,
+        "mean_invested_pct": 21.88,
+        "mean_l1_tracking_err_pct": 7.48,
+        "mode": "BEAR_DEFER_BUY_ONLY",
+        "ret_pct": 132.98
+      },
+      {
+        "ann_sharpe": 0.777,
+        "deferred_buys": 0,
+        "ending_nav": 2399.79,
+        "fees_usdt": 92.47,
+        "fills": 2654,
+        "max_dd_pct": 22.5,
+        "mean_invested_pct": 21.93,
+        "mean_l1_tracking_err_pct": 6.2,
+        "mode": "EQUAL_EXPOSURE_CASH_CONTROL",
+        "ret_pct": 139.98
       }
     ],
     "bellman_exit_fork": {
-      "oos_evaluated_states": 749,
-      "disagreements": 19,
-      "mean_bellman_minus_incumbent_bps": -66.64,
-      "avoided_loss_count": 7,
-      "cut_winner_count": 12
+      "avoided_loss_count": 3,
+      "cut_winner_count": 3,
+      "disagreements": 6,
+      "mean_bellman_minus_incumbent_bps": -121.98,
+      "oos_evaluated_lots": 104,
+      "oos_evaluated_states": 683,
+      "status": "OK"
     },
-    "bear_buy_deferral_vs_cash": [
+    "s2_retention_bands": [
       {
-        "mode": "IMMEDIATE_0PCT",
-        "ending_nav": 2482.75,
-        "ret_pct": 148.28,
         "ann_sharpe": 0.775,
-        "max_dd_pct": 23.65,
-        "fills": 2715,
+        "deferred_buys": 0,
+        "ending_nav": 2482.91,
         "fees_usdt": 99.33,
+        "fills": 2715,
+        "max_dd_pct": 23.65,
         "mean_invested_pct": 22.95,
         "mean_l1_tracking_err_pct": 6.43,
-        "deferred_buys": 0
-      },
-      {
-        "mode": "BEAR_DEFER_BUY_ONLY",
-        "ending_nav": 2329.64,
-        "ret_pct": 132.96,
-        "ann_sharpe": 0.735,
-        "max_dd_pct": 23.69,
-        "fills": 2356,
-        "fees_usdt": 82.89,
-        "mean_invested_pct": 21.88,
-        "mean_l1_tracking_err_pct": 7.48,
-        "deferred_buys": 779
-      },
-      {
-        "mode": "EQUAL_EXPOSURE_CASH_CONTROL",
-        "ending_nav": 2399.64,
-        "ret_pct": 139.96,
-        "ann_sharpe": 0.777,
-        "max_dd_pct": 22.5,
-        "fills": 2654,
-        "fees_usdt": 92.47,
-        "mean_invested_pct": 21.93,
-        "mean_l1_tracking_err_pct": 6.2,
-        "deferred_buys": 0
-      }
-    ],
-    "accel_execution_speed": [
-      {
         "mode": "IMMEDIATE_0PCT",
-        "ending_nav": 2482.75,
-        "ret_pct": 148.28,
-        "ann_sharpe": 0.775,
-        "max_dd_pct": 23.65,
-        "fills": 2715,
-        "fees_usdt": 99.33,
-        "mean_invested_pct": 22.95,
-        "mean_l1_tracking_err_pct": 6.43,
-        "deferred_buys": 0
+        "ret_pct": 148.29
       },
       {
-        "mode": "FIXED_PARTIAL_50PCT",
-        "ending_nav": 2439.77,
-        "ret_pct": 143.98,
-        "ann_sharpe": 0.764,
-        "max_dd_pct": 23.09,
-        "fills": 2821,
-        "fees_usdt": 82.31,
+        "ann_sharpe": 0.779,
+        "deferred_buys": 0,
+        "ending_nav": 2461.36,
+        "fees_usdt": 77.12,
+        "fills": 685,
+        "max_dd_pct": 23.13,
+        "mean_invested_pct": 22.63,
+        "mean_l1_tracking_err_pct": 8.36,
+        "mode": "FIXED_BAND_3PCT",
+        "ret_pct": 146.14
+      },
+      {
+        "ann_sharpe": 0.79,
+        "deferred_buys": 0,
+        "ending_nav": 2516.84,
+        "fees_usdt": 77.64,
+        "fills": 646,
+        "max_dd_pct": 22.66,
         "mean_invested_pct": 22.69,
-        "mean_l1_tracking_err_pct": 7.66,
-        "deferred_buys": 0
-      },
-      {
-        "mode": "ACCEL_ADAPTIVE_SPEED",
-        "ending_nav": 2439.7,
-        "ret_pct": 143.97,
-        "ann_sharpe": 0.763,
-        "max_dd_pct": 23.36,
-        "fills": 2544,
-        "fees_usdt": 85.03,
-        "mean_invested_pct": 22.85,
-        "mean_l1_tracking_err_pct": 7.09,
-        "deferred_buys": 0
+        "mean_l1_tracking_err_pct": 8.56,
+        "mode": "COST_AWARE_BAND",
+        "ret_pct": 151.68
       }
     ]
   },
   "exp4_offline_research_gates": {
-    "hindsight_ceiling_2h_16bps": {
-      "BTCUSDT": {
-        "bars": 12503,
-        "hindsight_max_nav_usdt": 5652246339665292.0,
-        "active_steps": 4833
-      },
-      "ETHUSDT": {
-        "bars": 8331,
-        "hindsight_max_nav_usdt": 8560694627510774.0,
-        "active_steps": 3547
-      },
-      "SOLUSDT": {
-        "bars": 8332,
-        "hindsight_max_nav_usdt": 6.542399868819755e+18,
-        "active_steps": 3643
-      }
-    },
     "bar_offset_sensitivity": {
-      "MOMENTUM_IGNITION": {
-        "signals_0h": 267,
-        "signals_1h": 269,
-        "matched_within_2h": 146,
-        "overlap_pct": 54.7,
-        "label": "STABLE"
-      },
       "FAILED_DOWNSIDE_AUCTION": {
-        "signals_0h": 603,
-        "signals_1h": 638,
+        "label": "TIMING_SENSITIVE",
         "matched_within_2h": 170,
         "overlap_pct": 28.2,
-        "label": "TIMING_SENSITIVE"
+        "signals_0h": 603,
+        "signals_1h": 638
+      },
+      "MOMENTUM_IGNITION": {
+        "label": "STABLE",
+        "matched_within_2h": 146,
+        "overlap_pct": 54.7,
+        "signals_0h": 267,
+        "signals_1h": 269
+      }
+    },
+    "hindsight_ceiling_2h_16bps": {
+      "BTCUSDT": {
+        "active_steps": 4524,
+        "bars": 12502,
+        "hindsight_max_nav_usdt": 1692168975741.54
+      },
+      "ETHUSDT": {
+        "active_steps": 3364,
+        "bars": 8334,
+        "hindsight_max_nav_usdt": 1798728432726.7
+      },
+      "SOLUSDT": {
+        "active_steps": 3470,
+        "bars": 8335,
+        "hindsight_max_nav_usdt": 396375294298271.7
       }
     }
-  }
+  },
+  "generated_at_utc": "2026-11-26T15:28:24.422035+00:00",
+  "run_id": "8e891265c9b2",
+  "schema": "strategy-promotion-and-revivals/1"
 }

@@ -63,7 +63,7 @@ a restore of a running process or live runtime qualification.
 
 ## Strategy controls
 
-All seventeen registry strategies accept an optional `regime_gate`: `ANY` (off),
+All eighteen registry strategies accept an optional `regime_gate`: `ANY` (off),
 `UP_TREND` or `RANGE`. The shared detector uses causal EMA/ADX/ATR history, resets
 indicator readiness across gaps and never blocks exits. Both detector and base
 strategy must finish warmup before readiness is recorded.

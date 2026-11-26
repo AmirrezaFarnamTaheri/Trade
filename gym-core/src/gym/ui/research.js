@@ -528,7 +528,10 @@ window.gymResearch = (() => {
         async function notes() {
           const page = await call('annotation-list', {...identity, after: pageAfter, through: pageThrough, limit: 20});
           pageThrough = page.through; pageAfter = page.next_after;
-          $('replay-annotations').insertAdjacentHTML('beforeend', page.events.map(note => `<article><button type="button" class="button" data-replay-index="${note.decision_index}">${esc(note.decision_at)}</button><p data-raw>${esc(note.text)}</p><small>${esc(note.recorded_at)} · ${esc(note.id)}</small></article>`).join(''));
+          $('replay-annotations').insertAdjacentHTML('beforeend', page.events.map(note => {
+            const safeIdx = Number.isInteger(Number(note.decision_index)) && Number(note.decision_index) >= 0 ? Number(note.decision_index) : 0;
+            return `<article><button type="button" class="button" data-replay-index="${safeIdx}">${esc(note.decision_at)}</button><p data-raw>${esc(note.text)}</p><small>${esc(note.recorded_at)} · ${esc(note.id)}</small></article>`;
+          }).join(''));
           $('replay-annotations-more').disabled = pageAfter == null;
         }
         await notes();

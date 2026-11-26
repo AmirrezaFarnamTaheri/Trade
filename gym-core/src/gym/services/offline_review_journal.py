@@ -79,10 +79,28 @@ def _next_hash(previous: bytes, payload: dict) -> bytes:
 class OfflineReviewJournal:
     """Append-only local queue. All decisions are offline acknowledgments."""
 
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, *, read_only: bool = False):
         path = Path(path)
         if path.is_symlink() or (path.exists() and not path.is_file()):
             raise ReviewUnsafe("review journal must be a regular unsymlinked file")
+        if read_only:
+            if not path.is_file():
+                raise ReviewUnsafe("offline review journal does not exist")
+            self.conn = sqlite3.connect(f"{path.absolute().as_uri()}?mode=ro", uri=True, timeout=1)
+            try:
+                self.conn.execute("PRAGMA query_only=ON")
+                self.conn.execute("PRAGMA busy_timeout=1000")
+                self.conn.execute("BEGIN DEFERRED")
+                version = self.conn.execute("PRAGMA user_version").fetchone()[0]
+                if version != 1:
+                    raise ReviewUnsafe("unsupported offline review journal schema")
+                self._verify_snapshot()
+                self.conn.rollback()
+            except Exception:
+                self.conn.rollback()
+                self.conn.close()
+                raise
+            return
         self.conn = sqlite3.connect(path, timeout=5)
         try:
             self.conn.execute("PRAGMA busy_timeout=5000")

@@ -9,6 +9,7 @@ from .compound_strategies import PARAMETERS as COMPOUND_PARAMETERS
 from .compound_strategies import AdaptiveChannel, TrendPullback
 from .cross_market_strategies import LeadLag, TomanPremium
 from .exit_policy import EXIT_PARAMETERS, EXIT_VOLATILITY_MODEL, ExitPolicy
+from .promoted_strategies import SlowS1Trend
 from .regime import REGIME_GATE, REGIME_VOLATILITY_MODEL, RegimeGate
 from .strategy import (
     BollingerReversion,
@@ -75,6 +76,12 @@ STRATEGIES = {
         "regime": {"type": "string", "default": "ANY", "enum": ["ANY", "UP_TREND", "RANGE"]},
     }) for constructor, title, compression in ((DonchianBreakout, "Prior Donchian breakout", 0),
                                                (CompressionBreakout, "Prior compression breakout", 100))},
+    "slow-s1-trend": (SlowS1Trend, "Promoted multi-horizon S1 trend with hysteresis band", {
+        "fast": {"type": "integer", "default": 8, "minimum": 1, "maximum": 500},
+        "mid": {"type": "integer", "default": 16, "minimum": 2, "maximum": 1000},
+        "slow": {"type": "integer", "default": 32, "minimum": 3, "maximum": 2000},
+        "hysteresis_bps": {"type": "integer", "default": 25, "minimum": 0, "maximum": 1000},
+    }),
 }
 
 

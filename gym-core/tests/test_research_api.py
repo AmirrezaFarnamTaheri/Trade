@@ -59,7 +59,7 @@ def test_setup_compare_and_saved_runs(research_app):
             assert setup_response.headers["Cache-Control"] == "no-store"
             assert setup["authority"] == "PAPER_ONLY"
             assert setup["symbols"] == ["BTCUSDT"]
-            assert len(setup["strategies"]) == 17
+            assert len(setup["strategies"]) == 18
             assert setup["coverage"]["observations"] == 180
             assert setup["defaults"]["fee_rate"] == "0.001"
             unknown = await (await client.get("/api/research?symbol=UNKNOWN")).json()

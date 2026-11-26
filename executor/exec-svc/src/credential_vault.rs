@@ -194,12 +194,22 @@ fn require_service_identity() -> io::Result<()> {
     }
     Ok(())
 }
+const VAULT_DPAPI_ENTROPY: &[u8] = b"TradingGYM-ExecSvc-DPAPI-Entropy-v1";
+
+fn dpapi_entropy_blob() -> CRYPT_INTEGER_BLOB {
+    CRYPT_INTEGER_BLOB {
+        cbData: VAULT_DPAPI_ENTROPY.len() as u32,
+        pbData: VAULT_DPAPI_ENTROPY.as_ptr() as *mut u8,
+    }
+}
+
 fn protect(secret: &mut Secret) -> io::Result<Vec<u8>> {
     require_service_identity()?;
     let input = CRYPT_INTEGER_BLOB {
         cbData: secret.0.len() as u32,
         pbData: secret.0.as_mut_ptr(),
     };
+    let entropy = dpapi_entropy_blob();
     let mut output = Dpapi(CRYPT_INTEGER_BLOB {
         cbData: 0,
         pbData: ptr::null_mut(),
@@ -208,7 +218,7 @@ fn protect(secret: &mut Secret) -> io::Result<Vec<u8>> {
         CryptProtectData(
             &input,
             ptr::null(),
-            ptr::null(),
+            &entropy,
             ptr::null(),
             ptr::null(),
             CRYPTPROTECT_UI_FORBIDDEN,
@@ -232,6 +242,7 @@ fn unprotect(mut ciphertext: Vec<u8>) -> io::Result<Secret> {
         cbData: ciphertext.len() as u32,
         pbData: ciphertext.as_mut_ptr(),
     };
+    let entropy = dpapi_entropy_blob();
     let mut output = Dpapi(CRYPT_INTEGER_BLOB {
         cbData: 0,
         pbData: ptr::null_mut(),
@@ -240,7 +251,7 @@ fn unprotect(mut ciphertext: Vec<u8>) -> io::Result<Secret> {
         CryptUnprotectData(
             &input,
             ptr::null_mut(),
-            ptr::null(),
+            &entropy,
             ptr::null(),
             ptr::null(),
             CRYPTPROTECT_UI_FORBIDDEN,

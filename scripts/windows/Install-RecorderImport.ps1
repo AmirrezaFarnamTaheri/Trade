@@ -5,6 +5,7 @@ param(
     [string]$TaskName = 'TradingGYM Recorder Import',
     [switch]$Uninstall
 )
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($Uninstall) {
     if ($PSCmdlet.ShouldProcess($TaskName, 'Remove recorder import schedule')) {

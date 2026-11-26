@@ -8,7 +8,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import median
@@ -29,7 +28,53 @@ from .admm_helpers import (
 from .gru_engine import EnsembleGRU
 from .gru_prototypes_study import _extract_2h_breakout_sequences
 from .ignition_expansion_study import IGNITION_18_CRYPTO
+from .io_utils import (
+    append_jsonl_locked,
+    read_jsonl_records,
+    readonly_snapshot,
+    write_json_atomic,
+)
 from .leader_forward_journal import _package_engine_digest
+
+DEFAULT_MAX_QUOTE_AGE_S = 1800.0
+MAX_FUTURE_SKEW_S = 60.0
+iter_valid_jsonl_records = read_jsonl_records
+
+
+def compute_cohort_id(schema: str, model_sha: str, engine_digest: str, slow_w: float, ign_w: float) -> str:
+    raw = f"{schema}|{model_sha}|{engine_digest}|{slow_w:.4f}|{ign_w:.4f}".encode()
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+
+def _validate_live_quote(
+    bid_raw: object,
+    ask_raw: object,
+    ts_raw: str | None,
+    *,
+    ref_ts: datetime | None,
+    max_quote_age_s: float,
+    spread_override: object | None = None,
+) -> tuple[float, float, float | None] | None:
+    try:
+        bid = float(dec(bid_raw))
+        ask = float(dec(ask_raw))
+    except Exception:
+        return None
+    if not (math.isfinite(bid) and math.isfinite(ask)) or bid <= 0.0 or ask <= bid:
+        return None
+    age_s: float | None = None
+    if ref_ts is not None and ts_raw:
+        try:
+            age_s = (ref_ts - parse_ts(ts_raw)).total_seconds()
+        except Exception:
+            return None
+        if age_s > max_quote_age_s or age_s < -MAX_FUTURE_SKEW_S:
+            return None
+    mid = 0.5 * (bid + ask)
+    spread_bps = float(dec(spread_override)) if spread_override is not None else ((ask - bid) / mid * 10000.0)
+    if not math.isfinite(spread_bps) or spread_bps < 0.0:
+        return None
+    return round(mid, 6), round(spread_bps, 2), (round(age_s, 1) if age_s is not None else None)
 
 
 def _resample_1min_to_1h(bars_1m: list[BarPoint], *, as_of: datetime | None = None) -> list[BarPoint]:
@@ -171,10 +216,12 @@ def _latest_live_quotes(
     symbols: tuple[str, ...],
     *,
     as_of: datetime | None = None,
+    max_quote_age_s: float = DEFAULT_MAX_QUOTE_AGE_S,
 ) -> dict[str, dict]:
-    """Fetch latest live L1 spread & mid from Wallex and Nobitex strictly <= as_of when supplied."""
+    """Fetch latest valid, non-stale L1 spread & mid from Wallex and Nobitex strictly <= as_of when supplied."""
     quotes: dict[str, dict] = {s: {} for s in symbols}
     as_of_iso = as_of.isoformat().replace("+00:00", "Z") if as_of is not None else None
+    ref_ts = as_of or datetime.now(UTC)
     for sym in symbols:
         inst = wallex_con.execute("SELECT instrument_id FROM instruments WHERE symbol = ?", (sym,)).fetchone()
         if inst is None:
@@ -194,34 +241,43 @@ def _latest_live_quotes(
                 (inst[0],),
             ).fetchone()
         if row:
-            wb, wa = float(dec(row[0])), float(dec(row[1]))
-            mid = 0.5 * (wb + wa)
-            quotes[sym]["wallex_mid"] = round(mid, 6)
-            quotes[sym]["wallex_spread_bps"] = round((wa - wb) / mid * 10000.0, 2) if mid > 0 else 0.0
-            quotes[sym]["wallex_ts"] = row[2]
+            parsed = _validate_live_quote(row[0], row[1], row[2], ref_ts=ref_ts, max_quote_age_s=max_quote_age_s)
+            if parsed is not None:
+                mid, sp_bps, age_s = parsed
+                quotes[sym]["wallex_mid"] = mid
+                quotes[sym]["wallex_spread_bps"] = sp_bps
+                quotes[sym]["wallex_ts"] = row[2]
+                if age_s is not None:
+                    quotes[sym]["wallex_age_s"] = age_s
 
     if mv_db is not None and mv_db.is_file():
         mcon = open_readonly_market_db(mv_db)
         try:
-            for sym in symbols:
-                if as_of_iso is not None:
-                    row = mcon.execute(
-                        "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
-                        "WHERE venue = 'nobitex' AND symbol = ? AND ts_avail <= ? ORDER BY ts_avail DESC LIMIT 1",
-                        (sym, as_of_iso),
-                    ).fetchone()
-                else:
-                    row = mcon.execute(
-                        "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
-                        "WHERE venue = 'nobitex' AND symbol = ? ORDER BY id DESC LIMIT 1",
-                        (sym,),
-                    ).fetchone()
-                if row:
-                    nb, na = float(dec(row[0])), float(dec(row[1]))
-                    mid = 0.5 * (nb + na)
-                    quotes[sym]["nobitex_mid"] = round(mid, 6)
-                    quotes[sym]["nobitex_spread_bps"] = round(float(dec(row[2])), 2)
-                    quotes[sym]["nobitex_ts"] = row[3]
+            with readonly_snapshot(mcon):
+                for sym in symbols:
+                    if as_of_iso is not None:
+                        row = mcon.execute(
+                            "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
+                            "WHERE venue = 'nobitex' AND symbol = ? AND ts_avail <= ? ORDER BY ts_avail DESC LIMIT 1",
+                            (sym, as_of_iso),
+                        ).fetchone()
+                    else:
+                        row = mcon.execute(
+                            "SELECT bid, ask, spread_bps, ts_avail FROM venue_quotes "
+                            "WHERE venue = 'nobitex' AND symbol = ? ORDER BY id DESC LIMIT 1",
+                            (sym,),
+                        ).fetchone()
+                    if row:
+                        parsed = _validate_live_quote(
+                            row[0], row[1], row[3], ref_ts=ref_ts, max_quote_age_s=max_quote_age_s, spread_override=row[2],
+                        )
+                        if parsed is not None:
+                            mid, sp_bps, age_s = parsed
+                            quotes[sym]["nobitex_mid"] = mid
+                            quotes[sym]["nobitex_spread_bps"] = sp_bps
+                            quotes[sym]["nobitex_ts"] = row[3]
+                            if age_s is not None:
+                                quotes[sym]["nobitex_age_s"] = age_s
         finally:
             mcon.close()
 
@@ -308,63 +364,11 @@ def _score_live_2h_ignition(
     return latest_ts, triggers[:3], ign_weights
 
 
-def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 5.0) -> bool:
-    """Append one JSONL record under an exclusive sidecar lockfile with atomic slot_key deduplication.
-
-    Returns True if appended, False if an identical slot_key already existed in the journal.
-    """
-    import time
-
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = journal_path.with_suffix(journal_path.suffix + ".lock")
-    deadline = time.monotonic() + timeout_s
-    fd: int | None = None
-    while fd is None:
-        try:
-            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f"could not acquire journal lock {lock_path}") from None
-            time.sleep(0.05)
-    try:
-        slot_key = record.get("slot_key")
-        if slot_key is not None and journal_path.is_file():
-            for ln in journal_path.read_text(encoding="utf-8").splitlines():
-                if ln.strip() and json.loads(ln).get("slot_key") == slot_key:
-                    return False
-        with journal_path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, sort_keys=True) + "\n")
-            fh.flush()
-            os.fsync(fh.fileno())
-        return True
-    finally:
-        os.close(fd)
-        try:
-            lock_path.unlink(missing_ok=True)
-        except OSError:
-            pass
-
-
-def write_json_atomic(path: Path, payload: dict) -> None:
-    """Atomically write JSON via temp file + fsync + os.replace so readers never see partial writes."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
-    with tmp.open("w", encoding="utf-8") as fh:
-        fh.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, path)
-
-
 def _load_last_journal_state(journal_path: Path) -> tuple[set[str], dict[str, float]]:
-    if not journal_path.is_file():
-        return set(), {}
+    rows, _ = read_jsonl_records(journal_path)
     seen_slots: set[str] = set()
     last_weights: dict[str, float] = {}
-    for ln in journal_path.read_text(encoding="utf-8").splitlines():
-        if not ln.strip():
-            continue
-        item = json.loads(ln)
+    for item in rows:
         if item.get("slot_key"):
             seen_slots.add(str(item["slot_key"]))
         if isinstance(item.get("slow_weights"), dict):
@@ -398,11 +402,16 @@ def record_champion_ensemble_journal(
     all_syms = tuple(dict.fromkeys(slow_syms + IGNITION_18_CRYPTO))
 
     engine_digest = _package_engine_digest()
+    cohort_id = compute_cohort_id("champion-forward-journal/1", model_sha, engine_digest, slow_weight, ignition_weight)
+    reg_engine_drift = False
     if registration_path is not None and registration_path.exists():
         existing_reg = json.loads(registration_path.read_text(encoding="utf-8"))
         reg_sha = existing_reg.get("gru_model_sha256")
         if reg_sha and reg_sha != model_sha:
             raise ValueError(f"model sha256 mismatch vs registration: {model_sha} != {reg_sha}")
+        reg_digest = existing_reg.get("engine_digest")
+        if reg_digest and reg_digest != engine_digest:
+            reg_engine_drift = True
     elif registration_path is not None and not registration_path.exists():
         reg = {
             "schema": "prospective-champion-registration/1",
@@ -410,6 +419,7 @@ def record_champion_ensemble_journal(
             "registered_at": now.isoformat(),
             "selection_end": now.date().isoformat() + "T00:00:00+00:00",
             "engine_digest": engine_digest,
+            "cohort_id": cohort_id,
             "gru_model_path": str(model_path),
             "gru_model_sha256": model_sha,
             "gru_model_meta": model_meta,
@@ -421,32 +431,32 @@ def record_champion_ensemble_journal(
             "funded_authority": False,
             "executor_state": "DISARMED",
         }
-        registration_path.parent.mkdir(parents=True, exist_ok=True)
-        registration_path.write_text(json.dumps(reg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json_atomic(registration_path, reg)
 
     seen_slots, prev_slow = _load_last_journal_state(journal_path)
     con = open_readonly_market_db(db_path)
     try:
-        panel_1d = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in slow_syms}
-        sigs_1d = compute_slow_sleeves(panel_1d, slow_syms, gold_symbol=gold_symbol)
-        dated_rets = build_dated_returns_index(panel_1d, slow_syms)
-        elig_dates = sorted(ts for ts, d in sigs_1d.items() if any(s.eligible_for_entry for s in d.values()))
-        if not elig_dates:
-            return {"status": "INSUFFICIENT_CANDLES", "as_of": now.isoformat()}
-        latest_1d = elig_dates[-1]
-        day_sigs = sigs_1d[latest_1d]
-        active_slow = tuple(s for s in slow_syms if s in day_sigs)
+        with readonly_snapshot(con):
+            panel_1d = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in slow_syms}
+            sigs_1d = compute_slow_sleeves(panel_1d, slow_syms, gold_symbol=gold_symbol)
+            dated_rets = build_dated_returns_index(panel_1d, slow_syms)
+            elig_dates = sorted(ts for ts, d in sigs_1d.items() if any(s.eligible_for_entry for s in d.values()))
+            if not elig_dates:
+                return {"status": "INSUFFICIENT_CANDLES", "as_of": now.isoformat()}
+            latest_1d = elig_dates[-1]
+            day_sigs = sigs_1d[latest_1d]
+            active_slow = tuple(s for s in slow_syms if s in day_sigs)
 
-        cov_h = build_shrunk_horizon_cov(dated_rets, active_slow, latest_1d)
-        solved_slow = solve_s1_s5_admm_weights(
-            active_slow, day_sigs, tuple(prev_slow.get(s, 0.0) for s in active_slow), cov_h,
-        )
-        slow_weights = {s: round(w, 4) for s, w in zip(active_slow, solved_slow, strict=True)}
-        daily_breadth = extract_daily_breadth(sigs_1d)
+            cov_h = build_shrunk_horizon_cov(dated_rets, active_slow, latest_1d)
+            solved_slow = solve_s1_s5_admm_weights(
+                active_slow, day_sigs, tuple(prev_slow.get(s, 0.0) for s in active_slow), cov_h,
+            )
+            slow_weights = {s: round(w, 4) for s, w in zip(active_slow, solved_slow, strict=True)}
+            daily_breadth = extract_daily_breadth(sigs_1d)
 
-        panel_2h = load_stitched_2h_panel(con, IGNITION_18_CRYPTO, as_of=now)
-        latest_2h, ign_triggers, ign_weights = _score_live_2h_ignition(panel_2h, daily_breadth, model, base_prob)
-        quotes = _latest_live_quotes(con, multi_venue_db, all_syms, as_of=now)
+            panel_2h = load_stitched_2h_panel(con, IGNITION_18_CRYPTO, as_of=now)
+            latest_2h, ign_triggers, ign_weights = _score_live_2h_ignition(panel_2h, daily_breadth, model, base_prob)
+            quotes = _latest_live_quotes(con, multi_venue_db, all_syms, as_of=now)
     finally:
         con.close()
 
@@ -480,6 +490,8 @@ def record_champion_ensemble_journal(
         "live_quotes": {k: quotes[k] for k in sorted(set(blended) | {"BTCUSDT", "ETHUSDT", gold_symbol}) if k in quotes},
         "gru_model_sha256": model_sha,
         "engine_digest": engine_digest,
+        "cohort_id": cohort_id,
+        "registration_engine_drift": reg_engine_drift,
         "executor_state": "DISARMED",
     }
 
@@ -488,19 +500,54 @@ def record_champion_ensemble_journal(
     return {"status": "RECORDED", **record}
 
 
+def _extract_fresh_venue_mid(
+    q: dict,
+    venue: str,
+    ev_ts: datetime,
+    max_quote_age_s: float,
+) -> float | None:
+    raw_mid = q.get(f"{venue}_mid")
+    if raw_mid is None:
+        return None
+    try:
+        mid = float(raw_mid)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(mid) or mid <= 0.0:
+        return None
+    ts_str = q.get(f"{venue}_ts")
+    if not ts_str:
+        return None
+    try:
+        age_s = (ev_ts - parse_ts(ts_str)).total_seconds()
+    except Exception:
+        return None
+    if age_s > max_quote_age_s or age_s < -MAX_FUTURE_SKEW_S:
+        return None
+    return mid
+
+
 def _resolve_event_prices(
     rec: dict,
     bar_marks: dict[str, list[tuple[datetime, float]]],
     ev_ts: datetime,
+    *,
+    max_quote_age_s: float = DEFAULT_MAX_QUOTE_AGE_S,
 ) -> dict[str, float]:
-    """Resolve strictly causal prices at ev_ts (live_quotes if present, else latest closed bar ts_avail <= ev_ts)."""
+    """Resolve strictly causal, route-consistent, non-stale prices at ev_ts."""
     from bisect import bisect_right
 
     px: dict[str, float] = {}
     for sym, q in (rec.get("live_quotes") or {}).items():
-        val = q.get("nobitex_mid") or q.get("wallex_mid")
-        if val is not None and float(val) > 0:
-            px[sym] = float(val)
+        if not isinstance(q, dict):
+            continue
+        rec_venue = q.get("recommended_venue")
+        order = ("wallex", "nobitex") if rec_venue == "wallex" else ("nobitex", "wallex")
+        for venue in order:
+            mid = _extract_fresh_venue_mid(q, venue, ev_ts, max_quote_age_s)
+            if mid is not None:
+                px[sym] = mid
+                break
     for sym, series in bar_marks.items():
         if sym in px or not series:
             continue
@@ -571,15 +618,49 @@ def _rebalance_forward_event(
     return cash, fees_paid, fills
 
 
-def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee_bps: float = 0.0) -> dict:
-    """Event-by-event forward shadow account: deduplicates slots, never credits pre-entry moves, tracks unpriced symbols."""
+def _collect_cohort_summary(
+    events: list[tuple[datetime, dict]],
+    cohort_engine_digest: str | None,
+) -> tuple[list[tuple[datetime, dict]], dict]:
+    digests = sorted({str(r["engine_digest"]) for _, r in events if r.get("engine_digest")})
+    models = sorted({str(r["gru_model_sha256"]) for _, r in events if r.get("gru_model_sha256")})
+    cohorts = sorted({str(r["cohort_id"]) for _, r in events if r.get("cohort_id")})
+    missing_cohort = any(not r.get("cohort_id") for _, r in events)
+    if cohort_engine_digest is not None:
+        kept = [(ts, r) for ts, r in events if r.get("engine_digest") == cohort_engine_digest]
+        incompat = len(events) - len(kept)
+    else:
+        kept = events
+        incompat = 0
+    mixed = len(digests) > 1 or len(models) > 1 or len(cohorts) > 1 or (bool(cohorts) and missing_cohort)
+    meta = {
+        "cohort_mixed": mixed,
+        "cohort_label": "EXPLORATORY_MIXED_COHORT" if mixed else "CLEAN_SINGLE_COHORT",
+        "cohort_ids": cohorts,
+        "engine_digests": digests,
+        "model_sha256s": models,
+        "compatible_records": len(kept),
+        "incompatible_records": incompat,
+    }
+    return kept, meta
+
+
+def score_champion_forward_journal(
+    journal_path: Path,
+    db_path: Path,
+    *,
+    leg_fee_bps: float = 0.0,
+    max_quote_age_s: float = DEFAULT_MAX_QUOTE_AGE_S,
+    allow_mixed_cohorts: bool = True,
+    cohort_engine_digest: str | None = None,
+) -> dict:
+    """Event-by-event forward shadow account: deduplicates slots, never credits pre-entry moves, tracks cohorts & post-rebalance NAV."""
     if not journal_path.is_file():
         return {"status": "NO_JOURNAL", "observations": 0, "paper_nav": 1000.0, "e_process": 1.0}
-    raw_rows = [json.loads(ln) for ln in journal_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    raw_rows, corrupt_lines = iter_valid_jsonl_records(journal_path)
     if not raw_rows:
-        return {"status": "EMPTY_JOURNAL", "observations": 0, "paper_nav": 1000.0, "e_process": 1.0}
+        return {"status": "EMPTY_JOURNAL", "observations": 0, "corrupt_lines": corrupt_lines, "paper_nav": 1000.0, "e_process": 1.0}
 
-    # Chronological event stream deduplicated by slot_key (replaying a decision twice posts once).
     seen_slots: set[str] = set()
     events: list[tuple[datetime, dict]] = []
     for r in sorted(raw_rows, key=lambda x: parse_ts(x["as_of"])):
@@ -589,6 +670,26 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee
                 continue
             seen_slots.add(str(sk))
         events.append((parse_ts(r["as_of"]), r))
+
+    events, cohort_meta = _collect_cohort_summary(events, cohort_engine_digest)
+    if not allow_mixed_cohorts and cohort_meta["cohort_mixed"]:
+        return {
+            "status": "COHORT_MISMATCH",
+            "observations": len(raw_rows),
+            "corrupt_lines": corrupt_lines,
+            "paper_nav": 1000.0,
+            "e_process": 1.0,
+            **cohort_meta,
+        }
+    if not events:
+        return {
+            "status": "NO_COMPATIBLE_RECORDS",
+            "observations": len(raw_rows),
+            "corrupt_lines": corrupt_lines,
+            "paper_nav": 1000.0,
+            "e_process": 1.0,
+            **cohort_meta,
+        }
 
     nbx_spreads, wlx_spreads = [], []
     for _, r in events:
@@ -603,10 +704,11 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee
     if len(events) >= 2 and all_syms and db_path.is_file():
         con = open_readonly_market_db(db_path)
         try:
-            since_iso = (events[0][0] - timedelta(days=2)).isoformat()
-            for sym in all_syms:
-                bars = load_keyed_candles(con, sym, "1d", limit=5000, since_iso=since_iso)
-                bar_marks[sym] = [(b.ts_avail, b.close) for b in bars if b.close > 0]
+            with readonly_snapshot(con):
+                since_iso = (events[0][0] - timedelta(days=2)).isoformat()
+                for sym in all_syms:
+                    bars = load_keyed_candles(con, sym, "1d", limit=5000, since_iso=since_iso)
+                    bar_marks[sym] = [(b.ts_avail, b.close) for b in bars if b.close > 0]
         finally:
             con.close()
 
@@ -623,9 +725,8 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee
     prev_day_nav = 1000.0
 
     for ev_ts, rec in events:
-        px_map = _resolve_event_prices(rec, bar_marks, ev_ts)
+        px_map = _resolve_event_prices(rec, bar_marks, ev_ts, max_quote_age_s=max_quote_age_s)
         last_known_px.update(px_map)
-        # Mark existing holdings at current event prices before rebalancing (pre-entry moves earn $0).
         nav = cash + sum(u * last_known_px[s] for s, u in units.items() if s in last_known_px)
         unpriced.update(s for s, u in units.items() if u > 0 and s not in last_known_px)
         peak_nav = max(peak_nav, nav)
@@ -639,23 +740,27 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee
             prev_day_nav = nav
         prev_day = day_str
 
-        # Rebalance to event target weights strictly at current event price (never backward).
         targets = {s: float(w) for s, w in (rec.get("blended_weights") or {}).items()}
         cash, ev_fees, ev_fills = _rebalance_forward_event(cash, units, targets, px_map, nav, leg_fee_bps, unpriced)
         total_fees += ev_fees
         fills += ev_fills
+        # Re-mark post-rebalance NAV so terminal cash + inventory_value always reflects final rebalance fees.
+        nav = cash + sum(u * last_known_px[s] for s, u in units.items() if s in last_known_px)
+        peak_nav = max(peak_nav, nav)
 
     days = sorted({ts.date().isoformat() for ts, _ in events})
     latest_rec = events[-1][1]
     return {
         "status": "TRACKING",
         "observations": len(raw_rows),
+        "corrupt_lines": corrupt_lines,
         "unique_slots": len(events),
         "forward_days": len(days),
         "first_day": days[0],
         "latest_day": days[-1],
         "paper_nav": round(nav, 2),
         "peak_nav": round(peak_nav, 2),
+        "cash_usdt": round(cash, 2),
         "cum_ret_pct": round((nav / 1000.0 - 1.0) * 100.0, 2),
         "e_process": round(e_val, 4),
         "fills": fills,
@@ -668,4 +773,5 @@ def score_champion_forward_journal(journal_path: Path, db_path: Path, *, leg_fee
         "median_live_wallex_spread_bps": round(median(wlx_spreads), 2) if wlx_spreads else None,
         "backtest_assumption_nbx_allin_bps": 16.0,
         "backtest_assumption_wlx_allin_bps": 25.0,
+        **cohort_meta,
     }

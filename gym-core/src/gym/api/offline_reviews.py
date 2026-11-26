@@ -15,13 +15,28 @@ def install(app, path):
     lock = asyncio.Lock()
 
     async def read(request):
+        raw_limit = request.query.get("limit")
+        limit = 500
+        if raw_limit is not None:
+            try:
+                limit = max(1, min(500, int(raw_limit)))
+            except ValueError:
+                return web.json_response({"error": "invalid limit"}, status=400)
         result = {"state": "NOT_CONFIGURED", "authority": "OFFLINE_ONLY",
                   "tickets": [], "reviews": []}
         if path is not None and path.is_file():
+            def _load_snapshot():
+                with OfflineReviewJournal(path, read_only=True) as journal:
+                    journal.conn.execute("BEGIN DEFERRED")
+                    tickets = journal.tickets()
+                    reviews = journal.review_events()
+                    return tickets[:limit], reviews[:limit], len(tickets) > limit or len(reviews) > limit
+
             try:
-                with OfflineReviewJournal(path) as journal:
-                    journal.conn.execute("BEGIN")
-                    result.update(state="OFFLINE_ONLY", tickets=journal.tickets(), reviews=journal.review_events())
+                tickets, reviews, truncated = await asyncio.to_thread(_load_snapshot)
+                result.update(state="OFFLINE_ONLY", tickets=tickets, reviews=reviews)
+                if truncated:
+                    result["truncated"] = True
             except (ValueError, OSError, sqlite3.Error):
                 return web.json_response({"error": "offline journal unavailable"}, status=503)
         return web.json_response(result)

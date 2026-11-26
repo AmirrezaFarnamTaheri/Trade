@@ -15,6 +15,46 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-xc))
 
 
+class GRUArtifactError(ValueError):
+    """Raised when a serialized GRU artifact or inference input fails structural/numeric validation."""
+
+
+def _expected_param_shapes(input_dim: int, hidden_dim: int) -> dict[str, tuple[int, ...]]:
+    return {
+        "Wz": (input_dim, hidden_dim),
+        "Uz": (hidden_dim, hidden_dim),
+        "bz": (hidden_dim,),
+        "Wr": (input_dim, hidden_dim),
+        "Ur": (hidden_dim, hidden_dim),
+        "br": (hidden_dim,),
+        "Wh": (input_dim, hidden_dim),
+        "Uh": (hidden_dim, hidden_dim),
+        "bh": (hidden_dim,),
+        "Wo": (hidden_dim, 1),
+        "bo": (1,),
+    }
+
+
+def _validate_positive_int(val: object, name: str) -> int:
+    if isinstance(val, bool) or not isinstance(val, int) or val <= 0:
+        raise GRUArtifactError(f"{name} must be a positive integer")
+    return val
+
+
+def _validate_finite_array(val: object, shape: tuple[int, ...], name: str, *, positive: bool = False) -> np.ndarray:
+    try:
+        arr = np.asarray(val, dtype=np.float64)
+    except (TypeError, ValueError) as exc:
+        raise GRUArtifactError(f"{name} is not numeric") from exc
+    if arr.shape != shape:
+        raise GRUArtifactError(f"{name} shape mismatch: expected {shape}, got {arr.shape}")
+    if not np.all(np.isfinite(arr)):
+        raise GRUArtifactError(f"{name} contains non-finite values")
+    if positive and not np.all(arr > 0.0):
+        raise GRUArtifactError(f"{name} must be strictly positive")
+    return arr
+
+
 class CompactGRU:
     """1-layer Gated Recurrent Unit (many-to-one) with exact BPTT and z-score feature scaling."""
 
@@ -194,11 +234,21 @@ class CompactGRU:
         return losses
 
     def predict(self, x: np.ndarray) -> np.ndarray:
-        x_arr = np.asarray(x, dtype=np.float64)
+        try:
+            x_arr = np.asarray(x, dtype=np.float64)
+        except (TypeError, ValueError) as exc:
+            raise GRUArtifactError("predict input must be numeric") from exc
         if x_arr.ndim == 2:
             x_arr = x_arr[None, :, :]
+        if x_arr.ndim != 3 or x_arr.shape[0] == 0 or x_arr.shape[1] == 0 or x_arr.shape[2] != self.input_dim:
+            raise GRUArtifactError(f"predict input shape invalid for input_dim={self.input_dim}: {x_arr.shape}")
+        if not np.all(np.isfinite(x_arr)):
+            raise GRUArtifactError("predict input contains non-finite values")
         out, _ = self._forward_batch(self._scale_x(x_arr))
-        return out if self.task == "binary" else out * self.y_std + self.y_mean
+        res = out if self.task == "binary" else out * self.y_std + self.y_mean
+        if not np.all(np.isfinite(res)):
+            raise GRUArtifactError("model produced non-finite output")
+        return res
 
     def to_dict(self) -> dict:
         return {
@@ -214,12 +264,35 @@ class CompactGRU:
 
     @classmethod
     def from_dict(cls, payload: dict) -> CompactGRU:
-        obj = cls(payload["input_dim"], payload["hidden_dim"], task=payload["task"])
-        obj.feat_mean = np.asarray(payload["feat_mean"], dtype=np.float64)
-        obj.feat_std = np.asarray(payload["feat_std"], dtype=np.float64)
-        obj.y_mean = float(payload["y_mean"])
-        obj.y_std = float(payload["y_std"])
-        obj.params = {k: np.asarray(v, dtype=np.float64) for k, v in payload["params"].items()}
+        if not isinstance(payload, dict):
+            raise GRUArtifactError("model payload must be a JSON object")
+        input_dim = _validate_positive_int(payload.get("input_dim"), "input_dim")
+        hidden_dim = _validate_positive_int(payload.get("hidden_dim"), "hidden_dim")
+        task = payload.get("task")
+        if task not in ("regression", "binary"):
+            raise GRUArtifactError(f"invalid task: {task!r}")
+        feat_mean = _validate_finite_array(payload.get("feat_mean"), (input_dim,), "feat_mean")
+        feat_std = _validate_finite_array(payload.get("feat_std"), (input_dim,), "feat_std", positive=True)
+        try:
+            y_mean = float(payload["y_mean"])
+            y_std = float(payload["y_std"])
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            raise GRUArtifactError("y_mean and y_std must be finite numbers") from exc
+        if not np.isfinite(y_mean) or not np.isfinite(y_std) or y_std <= 0.0:
+            raise GRUArtifactError("y_mean must be finite and y_std must be finite and > 0")
+        raw_params = payload.get("params")
+        if not isinstance(raw_params, dict):
+            raise GRUArtifactError("params must be a JSON object")
+        expected = _expected_param_shapes(input_dim, hidden_dim)
+        if set(raw_params.keys()) != set(expected.keys()):
+            raise GRUArtifactError("params keys do not match GRU specification")
+        params = {k: _validate_finite_array(raw_params[k], shp, f"params.{k}") for k, shp in expected.items()}
+        obj = cls(input_dim, hidden_dim, task=task)
+        obj.feat_mean = feat_mean
+        obj.feat_std = feat_std
+        obj.y_mean = y_mean
+        obj.y_std = y_std
+        obj.params = params
         return obj
 
     def save_json(self, path: Path) -> None:
@@ -238,15 +311,29 @@ class EnsembleGRU:
         task: str = "regression",
         seeds: tuple[int, ...] = (42, 101, 202),
     ) -> None:
-        self.models = [CompactGRU(input_dim, hidden_dim, task=task, seed=s) for s in seeds]
+        self._seeds = tuple(seeds)
+        self.models = [CompactGRU(input_dim, hidden_dim, task=task, seed=s) for s in self._seeds]
 
     def fit(self, x_train: np.ndarray, y_train: np.ndarray, *, epochs: int = 25, batch_size: int = 128, lr: float = 5e-3, l2_reg: float = 2e-3) -> None:
+        seeds = getattr(self, "_seeds", tuple(42 + i * 31 for i in range(len(self.models))))
         for i, m in enumerate(self.models):
-            m.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, lr=lr, l2_reg=l2_reg, seed=42 + i * 31)
+            m.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, lr=lr, l2_reg=l2_reg, seed=seeds[i])
 
     def predict(self, x: np.ndarray) -> np.ndarray:
+        if not self.models:
+            raise GRUArtifactError("ensemble contains zero models")
         preds = [m.predict(x) for m in self.models]
-        return np.mean(preds, axis=0)
+        out = np.mean(preds, axis=0)
+        if not np.all(np.isfinite(out)):
+            raise GRUArtifactError("ensemble produced non-finite output")
+        return out
+
+    def predict_safe(self, x: np.ndarray) -> tuple[np.ndarray | None, str | None]:
+        """Predict with structured abstention on invalid features or non-finite outputs."""
+        try:
+            return self.predict(x), None
+        except GRUArtifactError as exc:
+            return None, str(exc)
 
     def to_dict(self, *, metadata: dict | None = None) -> dict:
         return {
@@ -258,7 +345,20 @@ class EnsembleGRU:
 
     @classmethod
     def from_dict(cls, payload: dict) -> EnsembleGRU:
-        models = [CompactGRU.from_dict(m) for m in payload["models"]]
+        if not isinstance(payload, dict):
+            raise GRUArtifactError("ensemble payload must be a JSON object")
+        if payload.get("schema") != "ensemble-gru-weights/1":
+            raise GRUArtifactError(f"unsupported ensemble schema: {payload.get('schema')!r}")
+        raw_models = payload.get("models")
+        if not isinstance(raw_models, list) or not raw_models:
+            raise GRUArtifactError("ensemble models must be a non-empty list")
+        n_models = payload.get("n_models")
+        if n_models is not None and (isinstance(n_models, bool) or n_models != len(raw_models)):
+            raise GRUArtifactError(f"n_models mismatch: declared {n_models!r}, found {len(raw_models)}")
+        models = [CompactGRU.from_dict(m) for m in raw_models]
+        spec = (models[0].input_dim, models[0].hidden_dim, models[0].task)
+        if any((m.input_dim, m.hidden_dim, m.task) != spec for m in models[1:]):
+            raise GRUArtifactError("ensemble member models have inconsistent shapes or tasks")
         obj = cls.__new__(cls)
         obj.models = models
         return obj
@@ -268,6 +368,31 @@ class EnsembleGRU:
         path.write_text(json.dumps(self.to_dict(metadata=metadata), indent=2) + "\n", encoding="utf-8")
 
     @classmethod
-    def load_json(cls, path: Path) -> tuple[EnsembleGRU, dict]:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return cls.from_dict(payload), dict(payload.get("metadata") or {})
+    def load_json(
+        cls,
+        path: Path,
+        *,
+        now: object | None = None,
+        enforce_expiry: bool = True,
+    ) -> tuple[EnsembleGRU, dict]:
+        from datetime import UTC, datetime
+
+        from ...domain.model import parse_ts
+
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise GRUArtifactError(f"failed to parse GRU artifact {path}: {exc}") from exc
+        meta = payload.get("metadata") if isinstance(payload, dict) else None
+        if meta is not None and not isinstance(meta, dict):
+            raise GRUArtifactError("ensemble metadata must be a JSON object")
+        meta_dict = dict(meta or {})
+        if enforce_expiry and meta_dict.get("expires_at"):
+            try:
+                exp_dt = parse_ts(str(meta_dict["expires_at"]))
+            except Exception as exc:
+                raise GRUArtifactError(f"invalid expires_at timestamp: {meta_dict['expires_at']!r}") from exc
+            ref_now = now if isinstance(now, datetime) else datetime.now(UTC)
+            if ref_now > exp_dt:
+                raise GRUArtifactError(f"GRU artifact expired at {meta_dict['expires_at']}")
+        return cls.from_dict(payload), meta_dict

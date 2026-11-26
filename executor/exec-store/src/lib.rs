@@ -478,7 +478,9 @@ impl Ledger {
     }
 
     /// Independent connection, full byte verification, full caller decode, and atomic index publication.
-    /// BEGIN IMMEDIATE keeps the target prefix fixed while normal readers remain available in WAL mode.
+    /// Phase 1 verifies the prefix inside a DEFERRED read snapshot (zero main-DB writer lock held) while
+    /// staging identities in a connection-private TEMP table. Phase 2 acquires a brief IMMEDIATE write lock,
+    /// re-verifies that the main-DB tip still equals `expected_tip`, and atomically publishes the index.
     pub fn audit_prefix(
         path: &Path,
         expected_tip: (u64, [u8; 32]),
@@ -487,26 +489,53 @@ impl Ledger {
         let mut conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
         conn.busy_timeout(Duration::from_secs(30))?;
         conn.execute_batch("PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")?;
-        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        tx.execute_batch("CREATE TEMP TABLE audit_identities(scope TEXT NOT NULL,identity BLOB NOT NULL,sequence INTEGER NOT NULL,PRIMARY KEY(scope,identity)) WITHOUT ROWID;")?;
-        let identities = IdentityIndex { conn: &tx };
-        let actual_tip = visit_verified(&tx, |entry| visit(&entry, &identities))?;
-        if actual_tip != expected_tip {
+        conn.execute_batch("CREATE TEMP TABLE audit_identities(scope TEXT NOT NULL,identity BLOB NOT NULL,sequence INTEGER NOT NULL,PRIMARY KEY(scope,identity)) WITHOUT ROWID;")?;
+        {
+            let read_tx = conn.transaction_with_behavior(TransactionBehavior::Deferred)?;
+            let identities = IdentityIndex { conn: &read_tx };
+            let actual_tip = visit_verified(&read_tx, |entry| visit(&entry, &identities))?;
+            if actual_tip != expected_tip {
+                return Err(LedgerError::Integrity {
+                    sequence: actual_tip.0,
+                    reason: "audit prefix changed",
+                });
+            }
+            read_tx.commit()?;
+        }
+        let write_tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let current_tip = {
+            let mut stmt = write_tx.prepare(
+                "SELECT sequence, event_hash FROM ledger_events ORDER BY sequence DESC LIMIT 1",
+            )?;
+            let mut rows = stmt.query([])?;
+            if let Some(row) = rows.next()? {
+                let seq: i64 = row.get(0)?;
+                let hash_vec: Vec<u8> = row.get(1)?;
+                let hash: [u8; 32] = hash_vec.try_into().map_err(|_| LedgerError::Integrity {
+                    sequence: seq.max(0) as u64,
+                    reason: "invalid head hash length",
+                })?;
+                (seq.max(0) as u64, hash)
+            } else {
+                (0, GENESIS)
+            }
+        };
+        if current_tip != expected_tip {
             return Err(LedgerError::Integrity {
-                sequence: actual_tip.0,
+                sequence: current_tip.0,
                 reason: "audit prefix changed",
             });
         }
-        tx.execute_batch("CREATE TABLE IF NOT EXISTS ledger_identities(scope TEXT NOT NULL,identity BLOB NOT NULL,sequence INTEGER NOT NULL REFERENCES ledger_events(sequence),PRIMARY KEY(scope,identity)) WITHOUT ROWID;
+        write_tx.execute_batch("CREATE TABLE IF NOT EXISTS ledger_identities(scope TEXT NOT NULL,identity BLOB NOT NULL,sequence INTEGER NOT NULL REFERENCES ledger_events(sequence),PRIMARY KEY(scope,identity)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS ledger_identity_tip(singleton INTEGER PRIMARY KEY CHECK(singleton=1),sequence INTEGER NOT NULL,event_hash BLOB NOT NULL);
 DELETE FROM ledger_identities;
 INSERT INTO ledger_identities SELECT * FROM temp.audit_identities;
 DELETE FROM ledger_identity_tip;")?;
-        tx.execute(
+        write_tx.execute(
             "INSERT INTO ledger_identity_tip VALUES(1,?1,?2)",
             params![sqlite_sequence(expected_tip.0)?, expected_tip.1.as_slice()],
         )?;
-        tx.commit()?;
+        write_tx.commit()?;
         Ok(())
     }
 

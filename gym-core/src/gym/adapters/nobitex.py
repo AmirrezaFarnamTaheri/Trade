@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from ..domain.model import CurrencyUnit, dec
+from ..domain.quant_v3_gates import assert_irr_tmn_denomination_sane
 from ..domain.venue_contracts import FeeSchedule, FeeTier, QuoteSnapshot
 
 NOBITEX_STATS_URL = "https://apiv2.nobitex.ir/market/stats"
@@ -62,6 +63,7 @@ def parse_nobitex_orderbook(
     ts_avail: datetime,
     *,
     convert_rls_to_tmn: bool = True,
+    reference_price: float | None = None,
 ) -> QuoteSnapshot | None:
     """Parse Nobitex /v3/orderbook/{SYMBOL} payload into a venue-agnostic QuoteSnapshot."""
     raw_bids = payload.get("bids") or []
@@ -75,6 +77,9 @@ def parse_nobitex_orderbook(
         return None
     bids_sorted = tuple(sorted(bids, key=lambda x: x[0], reverse=True))
     asks_sorted = tuple(sorted(asks, key=lambda x: x[0]))
+    if reference_price is not None:
+        assert_irr_tmn_denomination_sane(float(bids_sorted[0][0]), reference_price)
+        assert_irr_tmn_denomination_sane(float(asks_sorted[0][0]), reference_price)
     norm_sym = symbol.upper().replace("IRT", "TMN") if convert_rls_to_tmn and symbol.upper().endswith("IRT") else symbol.upper()
     ts_event: datetime | None = None
     raw_lu = payload.get("lastUpdate")

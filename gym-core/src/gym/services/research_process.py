@@ -25,15 +25,37 @@ SECONDS_PER_OBSERVATION = 0.0004
 DEADLINE_HEADROOM = 2.5
 DEADLINE_WARN = 0.75  # a run above this share of its deadline is one data-growth step from failing
 MAX_OUTPUT = 2 * 1024 * 1024
+MAX_STDERR = 8192
+
+
+def _sanitize_stderr_tail(raw: bytes) -> str:
+    text = raw[-MAX_STDERR:].decode("utf-8", errors="replace").strip()
+    collapsed = " ".join(text.split())
+    return collapsed[-400:] if len(collapsed) > 400 else collapsed
+
+
+async def _read_bounded_stderr(stream) -> bytes:
+    buf = bytearray()
+    if stream is None:
+        return b""
+    while chunk := await stream.read(4096):
+        buf.extend(chunk)
+        if len(buf) > MAX_STDERR:
+            del buf[:-MAX_STDERR]
+    return bytes(buf)
 
 
 class ResearchProcessFailure(RuntimeError):
-    def __init__(self, reason, *, terminated, status=503):
+    def __init__(self, reason, *, terminated, status=503, exit_code=None, stderr_tail=""):
         """Capture whether a failed supervised calculation may have committed."""
         self.status = status
+        self.exit_code = exit_code
+        self.stderr_tail = stderr_tail
         self.report = {"error": reason, "process_terminated": terminated,
                        "result_delivered": False, "operation_may_have_committed": True,
                        "automatic_retry_allowed": False}
+        if exit_code is not None:
+            self.report["exit_code"] = exit_code
         super().__init__(reason)
 
 
@@ -164,21 +186,33 @@ async def calculate(root, action, value=None, *, store="live", at=None, timeout_
         async with asyncio.timeout(timeout_seconds):
             process = await asyncio.create_subprocess_exec(
                 sys.executable, "-I", "-B", "-m", "gym.services.research_process",
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 env=environment,
                 **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
             process.stdin.write(payload)
             await process.stdin.drain()
             process.stdin.close()
+            stderr_task = asyncio.create_task(_read_bounded_stderr(process.stderr))
             raw = bytearray()
-            while chunk := await process.stdout.read(16384):
-                if len(raw) + len(chunk) > MAX_OUTPUT + 4096:
-                    raise ResearchProcessFailure("paper result exceeds delivery bound; inspect saved state", terminated=False, status=413)
-                raw.extend(chunk)
+            try:
+                while chunk := await process.stdout.read(16384):
+                    if len(raw) + len(chunk) > MAX_OUTPUT + 4096:
+                        raise ResearchProcessFailure("paper result exceeds delivery bound; inspect saved state", terminated=False, status=413)
+                    raw.extend(chunk)
+                stderr_raw = await stderr_task
+            except BaseException:
+                stderr_task.cancel()
+                raise
             code = await process.wait()
             terminated = True
+            stderr_tail = _sanitize_stderr_tail(stderr_raw)
             if code != 0:
-                raise ResearchProcessFailure("paper worker exited without a verified result; inspect saved state", terminated=True)
+                from .event_log import log
+                log.warning("research_worker_nonzero_exit", extra={"fields": {"action": action, "exit_code": code, "stderr_tail": stderr_tail}})
+                raise ResearchProcessFailure(
+                    "paper worker exited without a verified result; inspect saved state",
+                    terminated=True, exit_code=code, stderr_tail=stderr_tail,
+                )
             result = _checked_result(raw)
             _timing(action, started, timeout_seconds, "completed")
             return result

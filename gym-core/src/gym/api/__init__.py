@@ -3,6 +3,9 @@ import asyncio
 import hmac
 import logging
 import secrets
+import time
+from collections import deque
+from urllib.parse import urlparse
 
 from aiohttp import web
 
@@ -39,17 +42,35 @@ def _deepest_package_module(error: BaseException) -> str:
     return found
 
 
+def _origin_allowed(origin: str) -> bool:
+    parsed = urlparse(origin)
+    return parsed.scheme in ("http", "https") and (parsed.hostname or "") in LOOPBACK
+
+
 def guard(token: str):
     key = [token]  # replaced by POST /api/session/rotate; every other tab and printed link stops working
+    rotations: deque[float] = deque()
 
     async def dispatch(req: web.Request, handler):
-        # DNS-rebinding and CSRF defence: loopback Host only; the per-run token on every write and private read.
+        # DNS-rebinding and CSRF defence: loopback Host, Origin/Sec-Fetch-Site checks, and per-run token.
         if (req.host or "").rsplit(":", 1)[0] not in LOOPBACK:
             return web.json_response({"error": "loopback only"}, status=403)
+        origin = req.headers.get("Origin")
+        if origin and not _origin_allowed(origin):
+            return web.json_response({"error": "cross-origin request refused"}, status=403)
+        fetch_site = (req.headers.get("Sec-Fetch-Site") or "").lower()
+        if fetch_site and fetch_site not in ("same-origin", "none"):
+            return web.json_response({"error": "cross-site request refused"}, status=403)
         public = req.method == "GET" and (req.path in PUBLIC_READS or req.path.startswith("/api/runs/") and req.path.count("/") == 3)
         if req.path.startswith("/api/") and not public and not token_matches(req.headers.get("X-Gym-Token", ""), key[0]):
             return web.json_response({"error": "missing or bad X-Gym-Token"}, status=403)
         if req.method == "POST" and req.path == "/api/session/rotate":
+            now_m = time.monotonic()
+            while rotations and now_m - rotations[0] > 60.0:
+                rotations.popleft()
+            if len(rotations) >= 5:
+                return web.json_response({"error": "session rotation rate limit exceeded"}, status=429)
+            rotations.append(now_m)
             key[0] = secrets.token_urlsafe(24)
             return web.json_response({"token": key[0]}, headers={"Cache-Control": "no-store"})
         try:

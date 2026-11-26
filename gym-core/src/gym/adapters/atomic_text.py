@@ -1,5 +1,6 @@
 """Publish complete local receipts without truncating the previous copy."""
 import os
+import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -12,7 +13,14 @@ def write_text(path: Path, text: str) -> None:
             output.write(text)
             output.flush()
             os.fsync(output.fileno())
-        os.replace(staged, path)
+        for attempt in range(5):
+            try:
+                os.replace(staged, path)
+                return
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
     finally:
         if staged is not None:
             staged.unlink(missing_ok=True)

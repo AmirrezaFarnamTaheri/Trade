@@ -34,7 +34,17 @@ if (-not $EvidenceDirectory) { $EvidenceDirectory = Join-Path $PSScriptRoot '..\
 
 $core = (Resolve-Path -LiteralPath $CoreDirectory).Path
 $python = Join-Path $core '.venv\Scripts\pythonw.exe'
-if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Install the gym-core environment with uv sync first.' }
+$pythonCli = Join-Path $core '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
+    throw 'Install the gym-core research environment first: uv sync --locked --group research'
+}
+if (-not (Test-Path -LiteralPath $pythonCli -PathType Leaf)) {
+    throw 'Missing gym-core .venv\Scripts\python.exe; run: uv sync --locked --group research'
+}
+& $pythonCli -I -B -c "import numpy; from gym.services.experiments.gru_engine import EnsembleGRU" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw 'Research dependencies (numpy / gru_engine) are missing in .venv; run: uv sync --locked --group research'
+}
 
 $data = [IO.Path]::GetFullPath($DataDirectory)
 $evid = [IO.Path]::GetFullPath($EvidenceDirectory)

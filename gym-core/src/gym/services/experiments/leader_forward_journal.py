@@ -10,6 +10,7 @@ from pathlib import Path
 from ...adapters.candle_reader import load_keyed_candles, open_readonly_market_db
 from ...adapters.mix_journal_store import append_mix_journal_v2
 from ...domain.model import dec, parse_ts
+from ...domain.promoted_strategies import apply_cost_aware_band
 from ...domain.signal_gatekeeper import build_mix_journal_v2_entry
 from ...domain.strategy_sleeves import compute_slow_sleeves
 from .admm_helpers import (
@@ -18,6 +19,7 @@ from .admm_helpers import (
     solve_s1_s5_admm_weights,
 )
 from .ensemble_study import COHORT_SYMBOLS
+from .io_utils import read_jsonl_records, readonly_snapshot, write_json_atomic
 
 
 def _package_engine_digest() -> str:
@@ -34,15 +36,13 @@ def _package_engine_digest() -> str:
 
 
 def _existing_leader_state(path: Path) -> tuple[datetime | None, set[str], dict[str, float]]:
-    if not path.is_file():
+    rows, _ = read_jsonl_records(path)
+    if not rows:
         return None, set(), {s: 0.0 for s in COHORT_SYMBOLS}
     cohort_start: datetime | None = None
     dates: set[str] = set()
     last_sizes: dict[str, float] = {s: 0.0 for s in COHORT_SYMBOLS}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        if not raw.strip():
-            continue
-        item = json.loads(raw)
+    for item in rows:
         if cohort_start is None and item.get("start_date"):
             cohort_start = parse_ts(item["start_date"])
         as_of_s = item.get("as_of")
@@ -55,14 +55,24 @@ def _existing_leader_state(path: Path) -> tuple[datetime | None, set[str], dict[
     return cohort_start, dates, last_weights
 
 
-def _displayed_depth_usdt(con, symbol: str) -> Decimal:
-    row = con.execute(
-        "SELECT b.bid, b.ask, b.bid_qty, b.ask_qty, b.depth "
-        "FROM book_top b JOIN instruments i ON i.instrument_id = b.instrument_id "
-        "WHERE i.symbol = ? AND b.bid IS NOT NULL AND b.ask IS NOT NULL "
-        "ORDER BY b.rowid DESC LIMIT 1",
-        (symbol,),
-    ).fetchone()
+def _displayed_depth_usdt(con, symbol: str, *, as_of: datetime | None = None) -> Decimal:
+    if as_of is not None:
+        as_of_iso = as_of.isoformat().replace("+00:00", "Z")
+        row = con.execute(
+            "SELECT b.bid, b.ask, b.bid_qty, b.ask_qty, b.depth "
+            "FROM book_top b JOIN instruments i ON i.instrument_id = b.instrument_id "
+            "WHERE i.symbol = ? AND b.ts_avail <= ? AND b.bid IS NOT NULL AND b.ask IS NOT NULL "
+            "ORDER BY b.ts_avail DESC LIMIT 1",
+            (symbol, as_of_iso),
+        ).fetchone()
+    else:
+        row = con.execute(
+            "SELECT b.bid, b.ask, b.bid_qty, b.ask_qty, b.depth "
+            "FROM book_top b JOIN instruments i ON i.instrument_id = b.instrument_id "
+            "WHERE i.symbol = ? AND b.bid IS NOT NULL AND b.ask IS NOT NULL "
+            "ORDER BY b.rowid DESC LIMIT 1",
+            (symbol,),
+        ).fetchone()
     if not row:
         return Decimal("0")
     bid, ask, bq, aq, depth_raw = row
@@ -89,8 +99,9 @@ def record_s1_s5_leader_journal(
     reference_equity_usdt: Decimal = Decimal("1000"),
     fee_rate: Decimal = Decimal("0.0013"),
     holding_horizon_days: float = 20.0,
+    cost_aware_band: bool = True,
 ) -> dict:
-    """Compute today's 13-asset S1+S5 (DROP_S2) + ADMM target weights and append idempotently."""
+    """Compute today's 13-asset S1+S5 (DROP_S2) + ADMM target weights (with promoted cost-aware band) and append idempotently."""
     if journal_path.name == "mix-journal.jsonl":
         raise ValueError("refusing to touch v1 control mix-journal.jsonl")
     now = as_of or datetime.now(UTC)
@@ -116,61 +127,69 @@ def record_s1_s5_leader_journal(
                 "cash_buffer": 0.05,
                 "l1_fee_rate": str(fee_rate),
                 "l2_impact": "0.0020",
+                "cost_aware_band": cost_aware_band,
             },
             "funded_authority": False,
             "executor_state": "DISARMED",
         }
-        registration_path.parent.mkdir(parents=True, exist_ok=True)
-        registration_path.write_text(json.dumps(reg_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json_atomic(registration_path, reg_payload)
 
     if today_iso in existing_dates:
         return {"status": "ALREADY_RECORDED", "date": today_iso, "entries_written": 0, "engine_digest": engine_digest}
 
     con = open_readonly_market_db(db_path)
     try:
-        panel_1d = {sym: load_keyed_candles(con, sym, "1d", limit=400) for sym in COHORT_SYMBOLS}
-        signals = compute_slow_sleeves(panel_1d, COHORT_SYMBOLS)
-        dated_rets = build_dated_returns_index(panel_1d, COHORT_SYMBOLS)
-        eligible_dates = sorted(ts for ts, d in signals.items() if any(s.eligible_for_entry for s in d.values()))
-        if not eligible_dates:
-            return {"status": "INSUFFICIENT_CANDLES", "date": today_iso, "entries_written": 0}
+        with readonly_snapshot(con):
+            panel_1d = {sym: load_keyed_candles(con, sym, "1d", limit=400, as_of=now) for sym in COHORT_SYMBOLS}
+            signals = compute_slow_sleeves(panel_1d, COHORT_SYMBOLS)
+            dated_rets = build_dated_returns_index(panel_1d, COHORT_SYMBOLS)
+            eligible_dates = sorted(ts for ts, d in signals.items() if any(s.eligible_for_entry for s in d.values()))
+            if not eligible_dates:
+                return {"status": "INSUFFICIENT_CANDLES", "date": today_iso, "entries_written": 0}
 
-        latest_ts = eligible_dates[-1]
-        day_sigs = signals[latest_ts]
-        active_syms = tuple(s for s in COHORT_SYMBOLS if s in day_sigs)
-        if len(active_syms) < 2:
-            return {"status": "INSUFFICIENT_SYMBOLS", "date": today_iso, "entries_written": 0}
+            latest_ts = eligible_dates[-1]
+            day_sigs = signals[latest_ts]
+            active_syms = tuple(s for s in COHORT_SYMBOLS if s in day_sigs)
+            if len(active_syms) < 2:
+                return {"status": "INSUFFICIENT_SYMBOLS", "date": today_iso, "entries_written": 0}
 
-        cov_h = build_shrunk_horizon_cov(dated_rets, active_syms, latest_ts, holding_horizon_days=holding_horizon_days)
-        solved = solve_s1_s5_admm_weights(
-            active_syms,
-            day_sigs,
-            tuple(prev_weights.get(s, 0.0) for s in active_syms),
-            cov_h,
-            fee_rate=float(fee_rate),
-            holding_horizon_days=holding_horizon_days,
-        )
-
-        written = 0
-        weights_out: dict[str, float] = {}
-        for sym, tw in zip(active_syms, solved, strict=True):
-            weights_out[sym] = round(tw, 4)
-            intended = (reference_equity_usdt * Decimal(str(round(tw, 6)))).quantize(Decimal("0.01"))
-            depth = _displayed_depth_usdt(con, sym)
-            missed = max(Decimal("0"), intended - depth).quantize(Decimal("0.01"))
-            entry = build_mix_journal_v2_entry(
-                as_of=now,
-                cohort_start=cohort_start,
-                symbol=sym,
-                intended_size_usdt=intended,
-                displayed_depth_usdt=depth,
-                fee_vintage="S1_S5_LEADER_WALLEX_L1",
-                missed_qty_usdt=missed,
-                tracking_error_bps=Decimal("0"),
-                status="RECORDED",
+            cov_h = build_shrunk_horizon_cov(dated_rets, active_syms, latest_ts, holding_horizon_days=holding_horizon_days)
+            solved = solve_s1_s5_admm_weights(
+                active_syms,
+                day_sigs,
+                tuple(prev_weights.get(s, 0.0) for s in active_syms),
+                cov_h,
+                fee_rate=float(fee_rate),
+                holding_horizon_days=holding_horizon_days,
             )
-            if append_mix_journal_v2(journal_path, entry):
-                written += 1
+            raw_targets = dict(zip(active_syms, solved, strict=True))
+            if cost_aware_band:
+                banded = apply_cost_aware_band(raw_targets, prev_weights, leg_fee_rate=float(fee_rate), max_gross=0.95)
+                final_targets = {s: banded.get(s, 0.0) for s in active_syms}
+            else:
+                final_targets = raw_targets
+
+            written = 0
+            weights_out: dict[str, float] = {}
+            for sym in active_syms:
+                tw = final_targets[sym]
+                weights_out[sym] = round(tw, 4)
+                intended = (reference_equity_usdt * Decimal(str(round(tw, 6)))).quantize(Decimal("0.01"))
+                depth = _displayed_depth_usdt(con, sym, as_of=now)
+                missed = max(Decimal("0"), intended - depth).quantize(Decimal("0.01"))
+                entry = build_mix_journal_v2_entry(
+                    as_of=now,
+                    cohort_start=cohort_start,
+                    symbol=sym,
+                    intended_size_usdt=intended,
+                    displayed_depth_usdt=depth,
+                    fee_vintage="S1_S5_LEADER_WALLEX_L1",
+                    missed_qty_usdt=missed,
+                    tracking_error_bps=Decimal("0"),
+                    status="RECORDED",
+                )
+                if append_mix_journal_v2(journal_path, entry):
+                    written += 1
     finally:
         con.close()
 
@@ -180,6 +199,7 @@ def record_s1_s5_leader_journal(
         "signal_bar": latest_ts.isoformat(),
         "entries_written": written,
         "engine_digest": engine_digest,
+        "cost_aware_band": cost_aware_band,
         "weights": weights_out,
         "cash_weight": round(max(0.0, 1.0 - sum(weights_out.values())), 4),
     }
