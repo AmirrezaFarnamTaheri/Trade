@@ -520,9 +520,13 @@ def _rebalance_forward_event(
     leg_fee_bps: float,
     unpriced: set[str],
 ) -> tuple[float, float, int]:
-    """Apply one event's target weights at current event prices; returns (new_cash, fees_paid, fills_count)."""
+    """Order-invariant two-pass event rebalance: sells release cash first, then buys allocate from available cash."""
     fees_paid = 0.0
     fills = 0
+    fee_r = leg_fee_bps / 10_000.0
+    buy_requests: list[tuple[str, float, float]] = []
+
+    # Pass 1: execute all sells/reductions first so ticker spelling never blocks cash availability.
     for sym in sorted(set(units) | set(targets)):
         tgt_val = max(0.0, targets.get(sym, 0.0)) * nav
         cur_u = units.get(sym, 0.0)
@@ -534,23 +538,36 @@ def _rebalance_forward_event(
         delta = tgt_val - (cur_u * px)
         if abs(delta) < 1e-6:
             continue
-        fee = abs(delta) * (leg_fee_bps / 10_000.0)
-        if delta > 0:
-            spend = min(delta + fee, cash)
-            if spend <= fee:
-                continue
-            cash -= spend
-            units[sym] = cur_u + ((spend - fee) / px)
-        else:
+        if delta < 0:
             sell_val = min(cur_u * px, -delta)
+            fee = sell_val * fee_r
             cash += max(0.0, sell_val - fee)
             rem_u = max(0.0, cur_u - (sell_val / px))
             if rem_u <= 1e-12:
                 units.pop(sym, None)
             else:
                 units[sym] = rem_u
-        fees_paid += fee
-        fills += 1
+            fees_paid += fee
+            fills += 1
+        else:
+            buy_requests.append((sym, delta, px))
+
+    # Pass 2: execute all buys proportionally to available cash (completely invariant to symbol order).
+    if buy_requests and cash > 1e-6:
+        total_req_with_fee = sum(d * (1.0 + fee_r) for _, d, _ in buy_requests)
+        scale = min(1.0, cash / total_req_with_fee) if total_req_with_fee > 0 else 0.0
+        for sym, delta, px in buy_requests:
+            gross_spend = delta * (1.0 + fee_r) * scale
+            if gross_spend <= 1e-6 or gross_spend > cash + 1e-9:
+                continue
+            actual_spend = min(gross_spend, cash)
+            bought_val = actual_spend / (1.0 + fee_r)
+            fee = actual_spend - bought_val
+            cash -= actual_spend
+            units[sym] = units.get(sym, 0.0) + (bought_val / px)
+            fees_paid += fee
+            fills += 1
+
     return cash, fees_paid, fills
 
 

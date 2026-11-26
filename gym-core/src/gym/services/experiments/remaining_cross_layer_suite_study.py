@@ -138,8 +138,30 @@ def _run_rel_strength_selloff_and_sensor(panel_2h: dict[str, list[BarPoint]]) ->
     }
 
 
+def _scan_recovery_cadence(snaps: list[dict], *, lookback: int = 100) -> tuple[int, list[float]]:
+    """Strictly causal trailing-window spread recovery scanner (zero future-quantile leakage)."""
+    if len(snaps) < 26:
+        return 0, []
+    spreads = [((m["n_asks"][0][0] - m["n_bids"][0][0]) / m["n_mid"]) * 10_000.0 for m in snaps]
+    hits = 0
+    edges: list[float] = []
+    for i in range(20, len(snaps) - 5):
+        hist = sorted(spreads[max(0, i - lookback) : i])
+        q95 = hist[int(0.95 * (len(hist) - 1))]
+        q75 = hist[int(0.75 * (len(hist) - 1))]
+        if spreads[i - 1] >= q95 and spreads[i] <= q75:
+            ask_n = snaps[i]["n_asks"][0][0]
+            ref_w = snaps[i]["w_mid"]
+            edge = ((ref_w - ask_n) / ask_n) * 10_000.0 - 16.0
+            if edge > 5.0:
+                hits += 1
+                ex_bid = snaps[i + 5]["n_bids"][0][0]
+                edges.append(((ex_bid - ask_n) / ask_n - 0.0032) * 10_000.0)
+    return hits, edges
+
+
 def _run_liquidity_recovery_blind_scanner_and_adverse_fill(matched_books: dict[str, list[dict]]) -> dict:
-    """Detector #5 (Post-shock liquidity recovery) + Blind-scanner cadence miss + Conditional-on-fill adverse selection."""
+    """Causal liquidity recovery, independent 3x-thinned scanner, and strictly post-fill passive markout."""
     recovery_edges_bps: list[float] = []
     recovery_hits_full = recovery_hits_thin3 = 0
     fast_fill_markout_bps: list[float] = []
@@ -150,48 +172,40 @@ def _run_liquidity_recovery_blind_scanner_and_adverse_fill(matched_books: dict[s
         snaps = matched_books.get(sym, [])
         if len(snaps) < 40:
             continue
-        spreads = [((m["n_asks"][0][0] - m["n_bids"][0][0]) / m["n_mid"]) * 10_000.0 for m in snaps]
-        s_sorted = sorted(spreads)
-        q95 = s_sorted[int(0.95 * (len(s_sorted) - 1))]
-        q75 = s_sorted[int(0.75 * (len(s_sorted) - 1))]
+        h_full, e_full = _scan_recovery_cadence(snaps)
+        h_thin, _ = _scan_recovery_cadence(snaps[::3])
+        recovery_hits_full += h_full
+        recovery_hits_thin3 += h_thin
+        recovery_edges_bps.extend(e_full)
 
-        for i in range(1, len(snaps) - 5):
-            # Post-shock liquidity recovery: prior spread >= q95, current <= q75, Wallex ref > Nobitex ask + 16 bps
-            if spreads[i - 1] >= q95 and spreads[i] <= q75:
-                ask_n = snaps[i]["n_asks"][0][0]
-                ref_w = snaps[i]["w_mid"]
-                edge = ((ref_w - ask_n) / ask_n) * 10_000.0 - 16.0
-                if edge > 5.0:
-                    recovery_hits_full += 1
-                    if i % 3 == 0:
-                        recovery_hits_thin3 += 1
-                    ex_bid = snaps[i + 5]["n_bids"][0][0]
-                    recovery_edges_bps.append(((ex_bid - ask_n) / ask_n - 0.0032) * 10_000.0)
-
-            # Conditional-on-fill adverse selection for passive Nobitex BUY at best bid
+        # Conditional-on-fill adverse selection: markout clock starts STRICTLY AT THE FILL snapshot j!
+        for i in range(len(snaps) - 15):
             post_px = snaps[i]["n_bids"][0][0]
-            filled_dt = None
-            for j in range(i + 1, min(len(snaps), i + 10)):
+            filled_j: int | None = None
+            filled_dt = 0.0
+            for j in range(i + 1, min(len(snaps) - 5, i + 10)):
                 dt = snaps[j]["epoch"] - snaps[i]["epoch"]
                 if dt > 300.0:
                     break
                 if snaps[j]["n_asks"][0][0] <= post_px:
+                    filled_j = j
                     filled_dt = dt
                     break
-            fut_mid = snaps[min(len(snaps) - 1, i + 5)]["n_mid"]
-            mk_bps = ((fut_mid - post_px) / post_px) * 10_000.0
-            if filled_dt is not None:
+            if filled_j is not None:
+                fut_mid = snaps[min(len(snaps) - 1, filled_j + 5)]["n_mid"]
+                mk_bps = ((fut_mid - post_px) / post_px) * 10_000.0
                 if filled_dt <= 60.0:
                     fast_fill_markout_bps.append(mk_bps)
                 else:
                     slow_fill_markout_bps.append(mk_bps)
             else:
-                unfilled_opp_bps.append(mk_bps)
+                fut_mid = snaps[min(len(snaps) - 1, i + 5)]["n_mid"]
+                unfilled_opp_bps.append(((fut_mid - post_px) / post_px) * 10_000.0)
 
     return {
         "liquidity_recovery_events_full": recovery_hits_full,
         "liquidity_recovery_events_3x_thinned": recovery_hits_thin3,
-        "blind_scanner_miss_rate_3x_pct": round((1.0 - recovery_hits_thin3 / max(1, recovery_hits_full)) * 100.0, 1),
+        "blind_scanner_miss_rate_3x_pct": round((1.0 - recovery_hits_thin3 / max(1, recovery_hits_full)) * 100.0, 1) if recovery_hits_full > 0 else 0.0,
         "liquidity_recovery_mean_net_bps": round(mean(recovery_edges_bps), 2) if recovery_edges_bps else 0.0,
         "fast_passive_fill_le60s_markout_bps": round(mean(fast_fill_markout_bps), 2) if fast_fill_markout_bps else 0.0,
         "slow_passive_fill_gt60s_markout_bps": round(mean(slow_fill_markout_bps), 2) if slow_fill_markout_bps else 0.0,

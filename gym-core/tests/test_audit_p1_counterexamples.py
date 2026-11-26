@@ -667,6 +667,156 @@ def test_cross_study_private_import_ratchet() -> None:
     assert count <= 145, f"Cross-study private imports grew to {count} (ratchet ceiling 145)"
 
 
+def test_review3_prefunding_does_not_mix_btc_and_eth_inventory() -> None:
+    """Buying BTC at 100 and attempting to sell ETH at 1,000 must NOT sell BTC units as ETH."""
+    from gym.services.experiments.treasury_liquidity_and_fx_study import (
+        _sim_prefund_split,
+    )
+
+    btc_snap = {
+        "symbol": "BTCUSDT",
+        "epoch": 1000.0,
+        "w_mid": 100.0,
+        "n_mid": 100.0,
+        "w_bids": [(100.0, 100.0)],
+        "w_asks": [(100.0, 100.0)],
+        "n_bids": [(100.0, 100.0)],
+        "n_asks": [(100.0, 100.0)],
+    }
+    eth_snap = {
+        "symbol": "ETHUSDT",
+        "epoch": 1060.0,
+        "w_mid": 1000.0,
+        "n_mid": 1000.0,
+        "w_bids": [(1000.0, 100.0)],
+        "w_asks": [(1000.0, 100.0)],
+        "n_bids": [(1000.0, 100.0)],
+        "n_asks": [(1000.0, 100.0)],
+    }
+    res = _sim_prefund_split(
+        [btc_snap, eth_snap],
+        nbx_init=125.0,
+        wlx_init=0.0,
+        order_usdt=125.0,
+        sides=["BUY", "SELL"],
+    )
+    assert res["executed"] == 1
+    assert res["missed"] == 1
+    assert 120.0 <= res["ending_equity_usdt"] <= 125.5
+
+
+def test_review3_forward_rebalance_is_ticker_order_invariant() -> None:
+    """Rotating 100% Z -> 100% A must yield economically identical NAV, cash, and fees as 100% A -> 100% Z."""
+    from gym.services.experiments.champion_forward_journal import (
+        _rebalance_forward_event,
+    )
+
+    # Case 1: Z -> A (target ticker sorts before held ticker)
+    u_za = {"ZCOIN": 10.0}
+    c_za, f_za, n_za = _rebalance_forward_event(
+        0.0, u_za, {"ACOIN": 1.0}, {"ZCOIN": 100.0, "ACOIN": 100.0}, 1000.0, 16.0, set()
+    )
+    # Case 2: A -> Z (held ticker sorts before target ticker)
+    u_az = {"ACOIN": 10.0}
+    c_az, f_az, n_az = _rebalance_forward_event(
+        0.0, u_az, {"ZCOIN": 1.0}, {"ZCOIN": 100.0, "ACOIN": 100.0}, 1000.0, 16.0, set()
+    )
+    assert n_za == 2 and n_az == 2
+    assert c_za == pytest.approx(c_az, abs=1e-9)
+    assert f_za == pytest.approx(f_az, abs=1e-9)
+    assert u_za.get("ACOIN", 0.0) == pytest.approx(u_az.get("ZCOIN", 0.0), abs=1e-9)
+    assert "ZCOIN" not in u_za and "ACOIN" not in u_az
+    assert u_za["ACOIN"] * 100.0 > 990.0
+
+
+def test_review3_micro_portfolio_preserves_nav_on_missing_bar() -> None:
+    """Dropping an intermediate bar for an open position must preserve NAV continuity and count stale_mark_steps."""
+    from gym.domain.rare_micro_signals import MicroSignalIntent
+    from gym.services.experiments.rare_micro_signal_portfolio_study import (
+        _replay_micro_portfolio,
+    )
+
+    t0 = datetime(2025, 1, 1, 0, 0, tzinfo=UTC)
+    bars_btc = []
+    bars_eth = []
+    for k in range(6):
+        ts_s = t0 + timedelta(hours=2 * k)
+        ts_a = ts_s + timedelta(hours=2)
+        b_eth = BarPoint(
+            symbol="ETHUSDT", ts_start=ts_s, ts_avail=ts_a, open=100.0, high=101.0, low=99.0, close=100.0, volume=10.0,
+            bar_source="test", clock_complete=True, nonzero_volume_fraction=1.0, last_trade_age_bars=0, entry_eligible=True, mark_status="FRESH",
+        )
+        bars_eth.append(b_eth)
+        if k != 3:  # Drop BTC bar at k=3 while BTC position is open!
+            b_btc = BarPoint(
+                symbol="BTCUSDT", ts_start=ts_s, ts_avail=ts_a, open=100.0, high=101.0, low=99.0, close=100.0, volume=10.0,
+                bar_source="test", clock_complete=True, nonzero_volume_fraction=1.0, last_trade_age_bars=0, entry_eligible=True, mark_status="FRESH",
+            )
+            bars_btc.append(b_btc)
+
+    intent = MicroSignalIntent(
+        ts_avail=bars_btc[0].ts_avail,
+        symbol="BTCUSDT",
+        mechanism="MOMENTUM_IGNITION",
+        direction=1,
+        strength=2.0,
+        invalidation_px=80.0,
+        max_hold_bars=5,
+        bar_vol=0.05,
+    )
+    res, _ = _replay_micro_portfolio({"BTCUSDT": bars_btc, "ETHUSDT": bars_eth}, [intent], label="TEST", leg_cost=0.0)
+    assert res["fills"] == 1
+    assert res["stale_mark_steps"] >= 1
+    assert res["max_dd_pct"] < 1.0  # No fake 30% drawdown cliff on missing bar
+
+
+def test_review3_liquidity_recovery_is_causal_and_post_fill_markout() -> None:
+    """Perturbing future spreads must not alter earlier causal recovery detections, and slow-fill markout must read after fill."""
+    from gym.services.experiments.remaining_cross_layer_suite_study import (
+        _run_liquidity_recovery_blind_scanner_and_adverse_fill,
+        _scan_recovery_cadence,
+    )
+
+    def _mk_snap(ep: float, bid: float, ask: float, w_mid: float) -> dict:
+        mid = 0.5 * (bid + ask)
+        return {
+            "epoch": ep,
+            "w_mid": w_mid,
+            "n_mid": mid,
+            "n_bids": [(bid, 10.0)],
+            "n_asks": [(ask, 10.0)],
+            "w_bids": [(w_mid - 0.05, 10.0)],
+            "w_asks": [(w_mid + 0.05, 10.0)],
+        }
+
+    # Build 60 snapshots: gently varying spreads (~6..14 bps), spike at i=24 (100 bps), recovery at i=25 (8 bps)
+    snaps_a = [
+        _mk_snap(1000.0 + 30.0 * k, 100.0 - 0.03 - 0.01 * (k % 5), 100.0 + 0.03 + 0.01 * (k % 5), 100.40)
+        for k in range(60)
+    ]
+    snaps_a[24] = _mk_snap(1000.0 + 30.0 * 24, 99.50, 100.50, 100.40)
+    snaps_a[25] = _mk_snap(1000.0 + 30.0 * 25, 99.96, 100.04, 100.40)
+    # Perturb future spreads AFTER i=35 dramatically (cannot change earlier causal detections)
+    snaps_b = [dict(s) for s in snaps_a]
+    for k in range(36, 60):
+        snaps_b[k] = _mk_snap(1000.0 + 30.0 * k, 95.0, 105.0, 100.40)
+
+    h_a, e_a = _scan_recovery_cadence(snaps_a)
+    h_b, e_b = _scan_recovery_cadence(snaps_b)
+    assert h_a >= 1 and h_b >= 1
+    assert e_a[0] == e_b[0]
+
+    # Slow-fill markout test: post at i=0 (bid=100), fill at j=8 (dt=240s > 60s), price jumps ONLY after j=8 (at j+5=13 -> 110)
+    snaps_fill = [_mk_snap(1000.0 + 30.0 * k, 100.0, 101.0, 100.5) for k in range(45)]
+    snaps_fill[8] = _mk_snap(1000.0 + 30.0 * 8, 99.5, 100.0, 100.0)
+    for k in range(13, 45):
+        snaps_fill[k] = _mk_snap(1000.0 + 30.0 * k, 110.0, 111.0, 110.5)
+    out = _run_liquidity_recovery_blind_scanner_and_adverse_fill({"BTCUSDT": snaps_fill})
+    # Because fill is at j=8 and markout is at j+5=13 (110.5 vs 100.0 = +1050 bps), slow markout MUST be strongly positive
+    assert out["slow_passive_fill_gt60s_markout_bps"] > 500.0
+
+
+
 
 
 

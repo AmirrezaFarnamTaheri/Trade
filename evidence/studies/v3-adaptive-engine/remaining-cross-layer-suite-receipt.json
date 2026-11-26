@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-25T21:51:32.420957+00:00",
+  "generated_at": "2026-11-26T08:35:48.318567+00:00",
   "executor_state": "DISARMED",
   "rel_strength_selloff_and_sensor": {
     "selloff_episodes_triggered": 26,
@@ -8,21 +8,21 @@
     "low_beta_control_mean_12h_net_bps": -42.17
   },
   "liquidity_recovery_and_adverse_fill": {
-    "liquidity_recovery_events_full": 3,
-    "liquidity_recovery_events_3x_thinned": 1,
-    "blind_scanner_miss_rate_3x_pct": 66.7,
-    "liquidity_recovery_mean_net_bps": -27.05,
+    "liquidity_recovery_events_full": 8,
+    "liquidity_recovery_events_3x_thinned": 7,
+    "blind_scanner_miss_rate_3x_pct": 12.5,
+    "liquidity_recovery_mean_net_bps": -47.27,
     "fast_passive_fill_le60s_markout_bps": 0.0,
-    "slow_passive_fill_gt60s_markout_bps": -12.82,
-    "unfilled_passive_missed_drift_bps": 16.93
+    "slow_passive_fill_gt60s_markout_bps": -11.37,
+    "unfilled_passive_missed_drift_bps": 15.6
   },
   "tmn_delist_gap_and_rails": {
-    "clean_slow_ret_pct": 152.24,
-    "delist_sol_50pct_rec_ret_pct": 156.63,
-    "delist_sol_0pct_rec_ret_pct": 156.63,
-    "gap_5d_recompute_ret_pct": 151.95,
-    "gap_5d_discard_ret_pct": 151.15,
-    "gap_5d_replay_stale_ret_pct": 151.75,
+    "clean_slow_ret_pct": 152.23,
+    "delist_sol_50pct_rec_ret_pct": 156.62,
+    "delist_sol_0pct_rec_ret_pct": 156.62,
+    "gap_5d_recompute_ret_pct": 151.47,
+    "gap_5d_discard_ret_pct": 150.89,
+    "gap_5d_replay_stale_ret_pct": 151.5,
     "tmn_100m_after_20m_spike_withdrawal_end_m": 1905.04,
     "tmn_withdrawal_spike_cost_usdt": 21.3,
     "shared_dependency_stress": {

@@ -71,6 +71,7 @@ def _load_matched_live_books(
                 wb, wa = float(dec(wb_s)), float(dec(wa_s))
                 nb_f, na_f = float(dec(nb)), float(dec(na))
                 matched.append({
+                    "symbol": sym,
                     "epoch": t_ep,
                     "w_mid": 0.5 * (wb + wa),
                     "n_mid": 0.5 * (nb_f + na_f),
@@ -97,19 +98,19 @@ def _sim_prefund_split(
     sides: list[str] | None = None,
     settlement_steps: int = 1,
 ) -> dict:
-    """Strict venue-inventory & settlement ledger: buys debit cash and credit units; cash only returns after explicit sells settle."""
+    """Strict (venue, symbol) inventory & settlement ledger in chronological order; never mixes assets across symbols."""
+    ordered = sorted(snaps, key=lambda x: x["epoch"]) if sides is None else snaps
     cash = {"nobitex": float(nbx_init), "wallex": float(wlx_init)}
-    units = {"nobitex": 0.0, "wallex": 0.0}
+    units: dict[tuple[str, str], float] = {}  # (venue, symbol) -> units
+    last_mid_by_sym: dict[str, float] = {}
     pending_cash: list[tuple[int, str, float]] = []  # (settle_idx, venue, amount)
     costs_bps: list[float] = []
     missed = 0
     executed = 0
     total = 0
-    outage_start = int((1.0 - outage_nbx_frac) * len(snaps)) if outage_nbx_frac > 0 else len(snaps)
-    last_mid = 1.0
+    outage_start = int((1.0 - outage_nbx_frac) * len(ordered)) if outage_nbx_frac > 0 else len(ordered)
 
-    for idx, m in enumerate(snaps):
-        # Release settled sale proceeds
+    for idx, m in enumerate(ordered):
         still_pending = []
         for s_idx, ven, amt in pending_cash:
             if s_idx <= idx:
@@ -119,8 +120,9 @@ def _sim_prefund_split(
         pending_cash = still_pending
 
         total += 1
+        sym = str(m.get("symbol", "BTCUSDT"))
         mid = 0.5 * (m["w_mid"] + m["n_mid"])
-        last_mid = mid
+        last_mid_by_sym[sym] = mid
         side = sides[idx] if (sides is not None and idx < len(sides)) else ("BUY" if idx % 2 == 0 else "SELL")
         nbx_up = idx < outage_start
 
@@ -137,7 +139,7 @@ def _sim_prefund_split(
                     spent = order_usdt * f_frac
                     cash[ven] -= spent
                     eff_px = mid * (1.0 + c_bps / 10_000.0)
-                    units[ven] += spent / max(1e-9, eff_px)
+                    units[(ven, sym)] = units.get((ven, sym), 0.0) + (spent / max(1e-9, eff_px))
                     costs_bps.append(c_bps)
                     executed += 1
                     filled = True
@@ -152,11 +154,12 @@ def _sim_prefund_split(
             for ven in order_venues:
                 if ven == "nobitex" and not nbx_up:
                     continue
-                if units[ven] * mid >= order_usdt * 0.25:
+                held_u = units.get((ven, sym), 0.0)
+                if held_u * mid >= order_usdt * 0.25:
                     c_bps, f_frac = (nc, nf) if ven == "nobitex" else (wc, wf)
-                    sell_u = min(units[ven], (order_usdt * f_frac) / max(1e-9, mid))
+                    sell_u = min(held_u, (order_usdt * f_frac) / max(1e-9, mid))
                     if sell_u > 0:
-                        units[ven] -= sell_u
+                        units[(ven, sym)] = held_u - sell_u
                         proceeds = sell_u * mid * (1.0 - c_bps / 10_000.0)
                         pending_cash.append((idx + max(1, settlement_steps), ven, proceeds))
                         costs_bps.append(c_bps)
@@ -167,7 +170,7 @@ def _sim_prefund_split(
                 missed += 1
 
     settled_total = cash["nobitex"] + cash["wallex"] + sum(a for _, _, a in pending_cash)
-    inv_val = (units["nobitex"] + units["wallex"]) * last_mid
+    inv_val = sum(u * last_mid_by_sym.get(sym, 0.0) for (_, sym), u in units.items())
     return {
         "nbx_init_usdt": nbx_init,
         "wlx_init_usdt": wlx_init,

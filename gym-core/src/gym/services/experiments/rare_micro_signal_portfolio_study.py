@@ -62,6 +62,8 @@ def _replay_micro_portfolio(
 
     equity = 1000.0
     active: dict[str, dict] = {}
+    last_px: dict[str, float] = {}
+    stale_mark_steps = 0
     nav_by_date: dict[str, float] = {}
     episode_pnl: dict[int, float] = {}
     trade_net_bps: list[float] = []
@@ -70,6 +72,10 @@ def _replay_micro_portfolio(
     fills = misses = 0
 
     for ts in all_ts:
+        for sym in IGNITION_18_CRYPTO:
+            b_cur = by_avail[sym].get(ts)
+            if b_cur is not None and b_cur.close > 0:
+                last_px[sym] = b_cur.close
         # Step exits
         for sym in list(active):
             pos = active[sym]
@@ -115,10 +121,15 @@ def _replay_micro_portfolio(
             active_weeks.add((iso_cal[0], iso_cal[1]))
             executed_episodes.add(ep_id)
 
-        mark_u = sum(
-            p["col"] + p["qty"] * (by_avail[s][ts].close - p["entry_px"])
-            for s, p in active.items() if ts in by_avail[s] and by_avail[s][ts].close > 0
-        )
+        mark_u = 0.0
+        for s, p in active.items():
+            b_m = by_avail[s].get(ts)
+            if b_m is not None and b_m.close > 0:
+                px_m = b_m.close
+            else:
+                px_m = last_px.get(s, p["entry_px"])
+                stale_mark_steps += 1
+            mark_u += p["col"] + p["qty"] * (px_m - p["entry_px"])
         nav_by_date[ts.date().isoformat()] = max(0.0, equity + mark_u)
 
     # Weekly drought stats
@@ -143,6 +154,7 @@ def _replay_micro_portfolio(
         "unique_episodes": len(executed_episodes),
         "fills": fills,
         "misses": misses,
+        "stale_mark_steps": stale_mark_steps,
         "net_bps_per_intended": round(net_per_intended, 2),
         "ending_nav": m["ending_nav"],
         "ret_pct": m["ret_pct"],
