@@ -1,5 +1,7 @@
 # Design review of the multi-timeframe ensemble and ML gateway
 
+**Implementation follow-up, 25 November 2026.** The subsequent review tests the design against the shipped replay, ML studies and prospective journals. It includes reproduced defects, affected results, performance measurements and the recommended correction sequence. [Read the 42-commit implementation review](2026-11-25-last-42-commits-review.md)
+
 **Decision.** Approve a Wallex spot paper experiment. Revise the financial engine and evidence protocol before comparing gateways. First establish which prices a decision could use, align the risk matrix by instrument and timestamp, repair the allocator, reconcile cash and holdings, and classify the previously examined bear year as a stress replay. Each issue can change the winner even with frozen forecasts.
 
 **Review status.** Feedback complete on November 24, 2026. Sections 1–3 give the findings and model decisions. Sections 4–7 rank engine and research investments. Section 8 defines the first experiment and its exclusions. Sections 9–10 give the boundary cases and the evidence needed for a verdict. Section 11 measures the current replay bottlenecks and ranks the proposed performance changes. This is a review disposition. Owner sign-off and experiment outcomes are separate records.
