@@ -29,7 +29,7 @@ mod windows_host {
     use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
     use std::sync::{mpsc, Arc};
     use std::thread;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use std::time::Duration;
     use windows_service::define_windows_service;
     use windows_service::service::{
         ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
@@ -237,10 +237,13 @@ mod windows_host {
                 return Ok(());
             }
         };
-        let epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|t| t.as_nanos() as u64)
-            .unwrap_or(0);
+        let epoch = match generate_incarnation_epoch() {
+            Ok(epoch) => epoch,
+            Err(_) => {
+                status_handle.set_service_status(startup_failure(ServiceFailure::StopGate))?;
+                return Ok(());
+            }
+        };
         let gate = match exec_svc::StopGate::new(epoch) {
             Ok(gate) => Arc::new(gate),
             Err(_) => {
@@ -374,6 +377,31 @@ mod windows_host {
         Ok(())
     }
 
+    fn generate_incarnation_epoch() -> Result<u64, i32> {
+        use windows_sys::Win32::Security::Cryptography::{
+            BCryptGenRandom, BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        };
+        for _ in 0..8 {
+            let mut bytes = [0u8; 8];
+            let status = unsafe {
+                BCryptGenRandom(
+                    std::ptr::null_mut(),
+                    bytes.as_mut_ptr(),
+                    bytes.len() as u32,
+                    BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+                )
+            };
+            if status != 0 {
+                return Err(status);
+            }
+            let val = u64::from_le_bytes(bytes);
+            if val != 0 {
+                return Ok(val);
+            }
+        }
+        Err(-1)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -384,6 +412,15 @@ mod windows_host {
             assert_eq!(failure.current_state, ServiceState::Stopped);
             assert!(failure.controls_accepted.is_empty());
             assert_eq!(failure.exit_code, ServiceExitCode::ServiceSpecific(1001));
+        }
+
+        #[test]
+        fn incarnation_epoch_is_random_and_nonzero() {
+            let first = generate_incarnation_epoch().expect("os csprng");
+            let second = generate_incarnation_epoch().expect("os csprng");
+            assert_ne!(first, 0);
+            assert_ne!(second, 0);
+            assert_ne!(first, second);
         }
     }
 }

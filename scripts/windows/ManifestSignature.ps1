@@ -12,14 +12,18 @@ function ConvertFrom-HexBytes([string]$Hex, [int]$Length) {
 }
 
 function Test-ManifestSignature([string]$Manifest, [string]$Signature, [string]$PublicKey) {
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
     foreach ($path in @($Manifest, $Signature, $PublicKey)) {
+        if ([string]::IsNullOrWhiteSpace($path)) { throw 'Manifest, signature, and key paths are required.' }
         $item = Get-Item -LiteralPath $path
         if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -gt 4096) {
             throw 'Regular bounded manifest, signature and key files required.'
         }
     }
     $key = [IO.File]::ReadAllText($PublicKey) | ConvertFrom-Json
-    if ($key.curve -cne 'P-256') { throw 'Pinned update key must be ECDSA P-256.' }
+    if ($null -eq $key -or $key.curve -cne 'P-256') { throw 'Pinned update key must be ECDSA P-256.' }
+    if ([string]::IsNullOrWhiteSpace($key.x) -or [string]::IsNullOrWhiteSpace($key.y)) { throw 'Pinned update key coordinates missing.' }
     $parameters = New-Object Security.Cryptography.ECParameters
     $parameters.Curve = [Security.Cryptography.ECCurve+NamedCurves]::nistP256
     $point = New-Object Security.Cryptography.ECPoint

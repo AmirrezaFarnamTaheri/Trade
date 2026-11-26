@@ -45,8 +45,12 @@ from .admm_helpers import (
 from .champion_forward_journal import (
     _latest_live_quotes,
     append_jsonl_locked,
+    compute_cohort_id,
+    iter_valid_jsonl_records,
     load_stitched_1h_panel,
+    readonly_snapshot,
     score_champion_forward_journal,
+    write_json_atomic,
 )
 from .gru_engine import EnsembleGRU
 from .ignition_expansion_study import IGNITION_18_CRYPTO
@@ -201,13 +205,9 @@ def _latest_nobitex_usdt_pool_apr(multi_venue_db: Path | None) -> float | None:
 
 
 def _load_v2_state(journal_path: Path) -> tuple[set[str], dict[str, float], list[float]]:
-    if not journal_path.is_file():
-        return set(), {}, []
+    rows, _ = iter_valid_jsonl_records(journal_path)
     seen, last_w, scores = set(), {}, []
-    for ln in journal_path.read_text(encoding="utf-8").splitlines():
-        if not ln.strip():
-            continue
-        item = json.loads(ln)
+    for item in rows:
         if item.get("slot_key"):
             seen.add(str(item["slot_key"]))
         if isinstance(item.get("blended_weights"), dict):
@@ -239,13 +239,18 @@ def record_champion_v2_journal(
     model, meta = EnsembleGRU.load_json(model_path)
     model_sha = hashlib.sha256(model_path.read_bytes()).hexdigest()
     engine_digest = _package_engine_digest()
+    cohort_id = compute_cohort_id("champion-v2-forward-journal/1", model_sha, engine_digest, slow_weight, ignition_weight)
     all_syms = tuple(dict.fromkeys(BASE_13_SYMBOLS + IGNITION_18_CRYPTO + tuple(DEFENSIVE_METALS_CAPS)))
+    reg_engine_drift = False
 
     if registration_path is not None and registration_path.exists():
         existing_reg = json.loads(registration_path.read_text(encoding="utf-8"))
         reg_sha = existing_reg.get("gru_model_sha256")
         if reg_sha and reg_sha != model_sha:
             raise ValueError(f"v2 model sha256 mismatch vs registration: {model_sha} != {reg_sha}")
+        reg_digest = existing_reg.get("engine_digest")
+        if reg_digest and reg_digest != engine_digest:
+            reg_engine_drift = True
     elif registration_path is not None and not registration_path.exists():
         reg = {
             "schema": "prospective-champion-v2-registration/1",
@@ -253,6 +258,7 @@ def record_champion_v2_journal(
             "registered_at": now.isoformat(),
             "selection_end": now.date().isoformat() + "T00:00:00+00:00",
             "engine_digest": engine_digest,
+            "cohort_id": cohort_id,
             "gru_model_path": str(model_path),
             "gru_model_sha256": model_sha,
             "slow_weight": slow_weight,
@@ -268,8 +274,7 @@ def record_champion_v2_journal(
             "funded_authority": False,
             "executor_state": "DISARMED",
         }
-        registration_path.parent.mkdir(parents=True, exist_ok=True)
-        registration_path.write_text(json.dumps(reg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json_atomic(registration_path, reg)
 
     seen_slots, prev_blended, live_scores = _load_v2_state(journal_path)
     seed_scores = [float(x) for x in (meta.get("seed_conformal_scores") or [])]
@@ -281,68 +286,69 @@ def record_champion_v2_journal(
 
     con = open_readonly_market_db(db_path)
     try:
-        # Load 1h+tail-1min ONCE for both phases and enforce strict closed-bar watermark <= now.
-        panel_1h_ign = load_stitched_1h_panel(con, IGNITION_18_CRYPTO, as_of=now)
-        p2h_0 = _resample_2h_phase_closed(panel_1h_ign, offset_hours=0, as_of=now)
-        p2h_1 = _resample_2h_phase_closed(panel_1h_ign, offset_hours=1, as_of=now)
-        max_2h = max(
-            (bars[-1].ts_avail for p in (p2h_0, p2h_1) for bars in p.values() if bars),
-            default=None,
-        )
-        if max_2h is not None:
-            early_slot = f"{now.date().isoformat()}|{max_2h.isoformat()}"
-            if early_slot in seen_slots:
-                return {"status": "ALREADY_RECORDED", "slot_key": early_slot, "as_of": now.isoformat()}
-
-        panel_13 = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in BASE_13_SYMBOLS}
-        panel_metals = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in DEFENSIVE_METALS_CAPS}
-        sigs_13 = compute_slow_sleeves(panel_13, BASE_13_SYMBOLS)
-        accel_13 = compute_second_order_trend_map(sigs_13, BASE_13_SYMBOLS)
-        sigs_metals = compute_slow_sleeves(panel_metals, tuple(DEFENSIVE_METALS_CAPS), min_active_crypto=1, warmup_bars=64)
-        elig = sorted(ts for ts, d in sigs_13.items() if any(s.eligible_for_entry for s in d.values()))
-        if not elig:
-            return {"status": "INSUFFICIENT_CANDLES", "as_of": now.isoformat()}
-        latest_1d = elig[-1]
-        daily_breadth = extract_daily_breadth(sigs_13)
-
-        ts0, trig0, iw0 = _score_phase_v2_triggers(p2h_0, daily_breadth, model, conformal_hist, in_dd, phase_tag="0h")
-        ts1, trig1, iw1 = _score_phase_v2_triggers(p2h_1, daily_breadth, model, conformal_hist, in_dd, phase_tag="1h")
-        ign_w = {s: 0.5 * iw0.get(s, 0.0) + 0.5 * iw1.get(s, 0.0) for s in set(iw0) | set(iw1)}
-
-        day_sigs = sigs_13[latest_1d]
-        day_acc = accel_13.get(latest_1d, {})
-        active_slow = tuple(s for s in BASE_13_SYMBOLS if s in day_sigs)
-        dated_rets = build_dated_returns_index(panel_13, BASE_13_SYMBOLS)
-        cov_h = build_shrunk_horizon_cov(dated_rets, active_slow, latest_1d)
-        sqrt_h = math.sqrt(20.0)
-        mu_gross = []
-        for sym in active_slow:
-            sig = day_sigs[sym]
-            s1_v = max(-1.0, min(1.0, 0.80 * sig.s1_trend + 0.20 * day_acc.get(sym, 0.0))) if sig.s1_trend is not None else None
-            parts = [v for v in (s1_v, sig.s5_defensive_gold) if v is not None]
-            raw = sum(parts) / len(parts) if parts else 0.0
-            mu_gross.append(
-                forecast_to_expected_return_bps(raw * 20.0, ic_prior=0.08, horizon_vol_bps=sig.yang_zhang_vol * sqrt_h * 10000.0) / 10000.0
+        with readonly_snapshot(con):
+            # Load 1h+tail-1min ONCE for both phases and enforce strict closed-bar watermark <= now.
+            panel_1h_ign = load_stitched_1h_panel(con, IGNITION_18_CRYPTO, as_of=now)
+            p2h_0 = _resample_2h_phase_closed(panel_1h_ign, offset_hours=0, as_of=now)
+            p2h_1 = _resample_2h_phase_closed(panel_1h_ign, offset_hours=1, as_of=now)
+            max_2h = max(
+                (bars[-1].ts_avail for p in (p2h_0, p2h_1) for bars in p.values() if bars),
+                default=None,
             )
-        reserved_ign = min(0.45, sum(ignition_weight * v for v in ign_w.values()))
-        adj_cur = tuple(max(0.0, (prev_blended.get(s, 0.0) - ignition_weight * ign_w.get(s, 0.0)) / max(slow_weight, 1e-6)) for s in active_slow)
-        prob = OptimizationProblem(
-            symbols=active_slow, expected_returns=tuple(mu_gross), current_weights=adj_cur,
-            covariance=cov_h, l1_fee_costs=(0.0013,) * len(active_slow), l2_impact_costs=(0.0020,) * len(active_slow),
-            risk_aversion=2.0, max_weight=0.30, cash_buffer=0.05, reserved_open_weight=max(0.0, reserved_ign * 0.5),
-            underlying_groups=_build_cluster_groups(active_slow), max_underlying_weight=0.40,
-        )
-        slow_w = {s: round(w, 4) for s, w in zip(active_slow, solve_convex_portfolio(prob).weights, strict=True)}
-        day_br = daily_breadth.get(latest_1d.date().isoformat())
-        res_m = compute_defensive_metals_reserve(sigs_metals.get(latest_1d, {}), day_br)
-        free_c = max(0.0, 0.95 - sum(slow_w.values()))
-        for ms, mw in res_m.items():
-            if mw > 0:
-                take = min(max(0.0, mw - slow_w.get(ms, 0.0)), free_c)
-                slow_w[ms] = round(slow_w.get(ms, 0.0) + take, 4)
-                free_c -= take
+            if max_2h is not None:
+                early_slot = f"{now.date().isoformat()}|{max_2h.isoformat()}"
+                if early_slot in seen_slots:
+                    return {"status": "ALREADY_RECORDED", "slot_key": early_slot, "as_of": now.isoformat()}
 
-        quotes = _latest_live_quotes(con, multi_venue_db, all_syms, as_of=now)
+            panel_13 = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in BASE_13_SYMBOLS}
+            panel_metals = {s: load_keyed_candles(con, s, "1d", limit=400, as_of=now) for s in DEFENSIVE_METALS_CAPS}
+            sigs_13 = compute_slow_sleeves(panel_13, BASE_13_SYMBOLS)
+            accel_13 = compute_second_order_trend_map(sigs_13, BASE_13_SYMBOLS)
+            sigs_metals = compute_slow_sleeves(panel_metals, tuple(DEFENSIVE_METALS_CAPS), min_active_crypto=1, warmup_bars=64)
+            elig = sorted(ts for ts, d in sigs_13.items() if any(s.eligible_for_entry for s in d.values()))
+            if not elig:
+                return {"status": "INSUFFICIENT_CANDLES", "as_of": now.isoformat()}
+            latest_1d = elig[-1]
+            daily_breadth = extract_daily_breadth(sigs_13)
+
+            ts0, trig0, iw0 = _score_phase_v2_triggers(p2h_0, daily_breadth, model, conformal_hist, in_dd, phase_tag="0h")
+            ts1, trig1, iw1 = _score_phase_v2_triggers(p2h_1, daily_breadth, model, conformal_hist, in_dd, phase_tag="1h")
+            ign_w = {s: 0.5 * iw0.get(s, 0.0) + 0.5 * iw1.get(s, 0.0) for s in set(iw0) | set(iw1)}
+
+            day_sigs = sigs_13[latest_1d]
+            day_acc = accel_13.get(latest_1d, {})
+            active_slow = tuple(s for s in BASE_13_SYMBOLS if s in day_sigs)
+            dated_rets = build_dated_returns_index(panel_13, BASE_13_SYMBOLS)
+            cov_h = build_shrunk_horizon_cov(dated_rets, active_slow, latest_1d)
+            sqrt_h = math.sqrt(20.0)
+            mu_gross = []
+            for sym in active_slow:
+                sig = day_sigs[sym]
+                s1_v = max(-1.0, min(1.0, 0.80 * sig.s1_trend + 0.20 * day_acc.get(sym, 0.0))) if sig.s1_trend is not None else None
+                parts = [v for v in (s1_v, sig.s5_defensive_gold) if v is not None]
+                raw = sum(parts) / len(parts) if parts else 0.0
+                mu_gross.append(
+                    forecast_to_expected_return_bps(raw * 20.0, ic_prior=0.08, horizon_vol_bps=sig.yang_zhang_vol * sqrt_h * 10000.0) / 10000.0
+                )
+            reserved_ign = min(0.45, sum(ignition_weight * v for v in ign_w.values()))
+            adj_cur = tuple(max(0.0, (prev_blended.get(s, 0.0) - ignition_weight * ign_w.get(s, 0.0)) / max(slow_weight, 1e-6)) for s in active_slow)
+            prob = OptimizationProblem(
+                symbols=active_slow, expected_returns=tuple(mu_gross), current_weights=adj_cur,
+                covariance=cov_h, l1_fee_costs=(0.0013,) * len(active_slow), l2_impact_costs=(0.0020,) * len(active_slow),
+                risk_aversion=2.0, max_weight=0.30, cash_buffer=0.05, reserved_open_weight=max(0.0, reserved_ign * 0.5),
+                underlying_groups=_build_cluster_groups(active_slow), max_underlying_weight=0.40,
+            )
+            slow_w = {s: round(w, 4) for s, w in zip(active_slow, solve_convex_portfolio(prob).weights, strict=True)}
+            day_br = daily_breadth.get(latest_1d.date().isoformat())
+            res_m = compute_defensive_metals_reserve(sigs_metals.get(latest_1d, {}), day_br)
+            free_c = max(0.0, 0.95 - sum(slow_w.values()))
+            for ms, mw in res_m.items():
+                if mw > 0:
+                    take = min(max(0.0, mw - slow_w.get(ms, 0.0)), free_c)
+                    slow_w[ms] = round(slow_w.get(ms, 0.0) + take, 4)
+                    free_c -= take
+
+            quotes = _latest_live_quotes(con, multi_venue_db, all_syms, as_of=now)
     finally:
         con.close()
 
@@ -387,6 +393,8 @@ def record_champion_v2_journal(
         "live_quotes": {k: quotes[k] for k in sorted(set(blended) | {"BTCUSDT", "ETHUSDT", "XAUTUSDT", "PAXGUSDT"}) if k in quotes},
         "gru_model_sha256": model_sha,
         "engine_digest": engine_digest,
+        "cohort_id": cohort_id,
+        "registration_engine_drift": reg_engine_drift,
         "executor_state": "DISARMED",
     }
     append_jsonl_locked(journal_path, record)

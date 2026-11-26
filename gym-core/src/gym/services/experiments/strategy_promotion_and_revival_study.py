@@ -14,7 +14,8 @@ Strictly read-only against market.db; DISARMED ($0 funded budget).
 """
 from __future__ import annotations
 
-import json
+import os
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -34,6 +35,7 @@ from .admm_helpers import (
     extract_daily_breadth,
     solve_s1_s5_admm_weights,
 )
+from .champion_forward_journal import readonly_snapshot, write_json_atomic
 from .cross_layer_diagnostic_study import deduplicate_intents_by_underlying
 from .ensemble_study import portfolio_metrics
 from .ignition_expansion_study import IGNITION_18_CRYPTO
@@ -429,8 +431,14 @@ def _run_standalone_internal_netting(
                 if abs(du) > 1e-12 and sym in exec_px:
                     slow_flow[sym] = du * exec_px[sym]
 
+        max_unit_diff = 0.0
         for sym in set(slow_flow) | set(fast_flow):
             sf, ff = slow_flow.get(sym, 0.0), fast_flow.get(sym, 0.0)
+            px_s = exec_px.get(sym, last_px.get(sym, 0.0))
+            if px_s > 0:
+                sep_du = (sf / px_s) + (ff / px_s)
+                net_du = (sf + ff) / px_s
+                max_unit_diff = max(max_unit_diff, abs(sep_du - net_du))
             sep_fees += (abs(sf) + abs(ff)) * leg_cost
             net_fees += abs(sf + ff) * leg_cost
             if sf * ff < 0:
@@ -439,6 +447,7 @@ def _run_standalone_internal_netting(
                 crossed_events += 1
 
     saved = sep_fees - net_fees
+    invariant_ok = bool(max_unit_diff <= 1e-9 and sep_fees + 1e-9 >= net_fees and crossed_notional >= 0.0)
     return {
         "crossed_events": crossed_events,
         "crossed_notional_usdt": round(crossed_notional, 2),
@@ -446,7 +455,8 @@ def _run_standalone_internal_netting(
         "internal_netting_fees_usdt": round(net_fees, 2),
         "saved_fees_usdt": round(saved, 2),
         "fee_reduction_pct": round(saved / max(1e-9, sep_fees) * 100.0, 2),
-        "exposure_invariant_verified": True,
+        "max_step_unit_mismatch": round(max_unit_diff, 12),
+        "exposure_invariant_verified": invariant_ok,
     }
 
 
@@ -521,24 +531,36 @@ def _run_slow_daily_variant(
     }
 
 
+def _empty_bellman_result(status: str = "INSUFFICIENT_DATA") -> dict:
+    return {
+        "status": status,
+        "oos_evaluated_states": 0,
+        "oos_evaluated_lots": 0,
+        "disagreements": 0,
+        "mean_bellman_minus_incumbent_bps": 0.0,
+        "avoided_loss_count": 0,
+        "cut_winner_count": 0,
+    }
+
+
 def _run_bellman_exit_fork(
     panel_2h: dict[str, list[BarPoint]],
     ign_intents: list[MicroSignalIntent],
     *,
     leg_cost: float = 0.0016,
 ) -> dict:
-    """Partial Revival (b): Strictly causal walk-forward Bellman exit-only challenger forked at first disagreement."""
+    """Partial Revival (b): Purged lot-level Bellman exit-only challenger forked at most once per held-out lot."""
     by_avail = {s: {b.ts_avail: b for b in panel_2h.get(s, [])} for s in IGNITION_18_CRYPTO}
     by_start = {s: {b.ts_start: b for b in panel_2h.get(s, [])} for s in IGNITION_18_CRYPTO}
-    # Collect per-bar states across all ignition trades
-    records: list[tuple[datetime, list[float], float, float]] = []
-    for it in deduplicate_intents_by_underlying(ign_intents):
+    lots: list[tuple[int, datetime, datetime, list[tuple[datetime, list[float], float, float]]]] = []
+    for lot_id, it in enumerate(deduplicate_intents_by_underlying(ign_intents)):
         b0 = by_start[it.symbol].get(it.ts_avail)
         if b0 is None or b0.open <= 0:
             continue
         peak = b0.open
         path: list[tuple[int, datetime, float, float, float]] = []
         inc_ex = b0.open
+        exit_ts = it.ts_avail
         for k in range(1, it.max_hold_bars + 1):
             tk = it.ts_avail + timedelta(hours=2 * k)
             cb = by_avail[it.symbol].get(tk)
@@ -548,6 +570,7 @@ def _run_bellman_exit_fork(
             nb = by_start[it.symbol].get(tk)
             ex_now = nb.open if (nb and nb.open > 0) else cb.close
             inc_ex = ex_now
+            exit_ts = tk
             hit_inc = k == it.max_hold_bars or cb.close <= it.invalidation_px or cb.close <= peak * (1.0 - 2.5 * it.bar_vol)
             if not hit_inc and k >= 2:
                 unr = (ex_now - b0.open) / b0.open
@@ -555,34 +578,53 @@ def _run_bellman_exit_fork(
                 path.append((k, tk, ex_now, unr, dd_pk))
             if hit_inc:
                 break
+        if not path:
+            continue
         inc_net = ((inc_ex - b0.open) / b0.open - 2.0 * leg_cost) * 10_000.0
-        for k, tk, ex_now, unr, dd_pk in path:
-            close_net = ((ex_now - b0.open) / b0.open - 2.0 * leg_cost) * 10_000.0
-            records.append((tk, [1.0, unr, dd_pk, k / float(it.max_hold_bars), it.bar_vol], inc_net - close_net, close_net - inc_net))
+        lot_states = [
+            (
+                tk,
+                [1.0, unr, dd_pk, k / float(it.max_hold_bars), it.bar_vol],
+                inc_net - (((ex_now - b0.open) / b0.open - 2.0 * leg_cost) * 10_000.0),
+                (((ex_now - b0.open) / b0.open - 2.0 * leg_cost) * 10_000.0) - inc_net,
+            )
+            for k, tk, ex_now, unr, dd_pk in path
+        ]
+        lots.append((lot_id, it.ts_avail, exit_ts, lot_states))
 
-    records.sort(key=lambda r: r[0])
-    if len(records) < 40:
-        return {"disagreements": 0, "mean_bellman_minus_incumbent_bps": 0.0, "avoided_loss_count": 0, "cut_winner_count": 0}
+    lots.sort(key=lambda item: item[1])
+    if len(lots) < 10:
+        return _empty_bellman_result()
 
-    # Purged expanding walk-forward ridge regression predicting E[Hold - CloseNow]
-    split = len(records) // 2
-    x_tr = np.array([r[1] for r in records[:split]], dtype=np.float64)
-    y_tr = np.array([r[2] for r in records[:split]], dtype=np.float64)
+    split_ts = lots[len(lots) // 2][1]
+    # Strictly purged training set: only lots whose incumbent exit matured before split_ts.
+    train_states = [st for _, _, ex_ts, states in lots if ex_ts < split_ts for st in states]
+    oos_lots = [item for item in lots if item[1] >= split_ts]
+    if len(train_states) < 20 or not oos_lots:
+        return _empty_bellman_result()
+
+    x_tr = np.array([st[1] for st in train_states], dtype=np.float64)
+    y_tr = np.array([st[2] for st in train_states], dtype=np.float64)
     w = np.linalg.solve(x_tr.T @ x_tr + 1.0 * np.eye(x_tr.shape[1]), x_tr.T @ y_tr)
 
     diffs: list[float] = []
-    avoided_losses = cut_winners = 0
-    for _, feat, _, bell_minus_inc in records[split:]:
-        pred_hold_adv = float(np.dot(w, np.array(feat, dtype=np.float64)))
-        if pred_hold_adv < -15.0:  # Bellman disagrees: recommends closing early
-            diffs.append(bell_minus_inc)
-            if bell_minus_inc > 0:
-                avoided_losses += 1
-            else:
-                cut_winners += 1
+    avoided_losses = cut_winners = oos_states_evaluated = 0
+    for _, _, _, states in oos_lots:
+        for _, feat, _, bell_minus_inc in states:
+            oos_states_evaluated += 1
+            pred_hold_adv = float(np.dot(w, np.array(feat, dtype=np.float64)))
+            if pred_hold_adv < -15.0:  # Fork at FIRST disagreement only (once per lot)
+                diffs.append(bell_minus_inc)
+                if bell_minus_inc > 0:
+                    avoided_losses += 1
+                else:
+                    cut_winners += 1
+                break
 
     return {
-        "oos_evaluated_states": len(records) - split,
+        "status": "OK",
+        "oos_evaluated_states": oos_states_evaluated,
+        "oos_evaluated_lots": len(oos_lots),
         "disagreements": len(diffs),
         "mean_bellman_minus_incumbent_bps": round(mean(diffs), 2) if diffs else 0.0,
         "avoided_loss_count": avoided_losses,
@@ -598,19 +640,21 @@ def _run_offline_research_gates(
     leg_cost: float = 0.0016,
 ) -> dict:
     """Exp 4: Constrained hindsight execution ceiling (offline DP) & 0h vs +1h bar-offset sensitivity harness."""
-    # (a) Constrained Hindsight DP Ceiling (long-only, 16 bps/side, max 12-bar hold, strictly offline!)
+    # (a) Constrained Hindsight DP Ceiling (long-only, 16 bps/side, max 12-bar hold, strictly non-overlapping!)
     ceilings: dict[str, dict] = {}
     for sym in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
-        bars = [b for b in panel_2h.get(sym, []) if b.close > 0]
+        bars = [b for b in panel_2h.get(sym, []) if b.close > 0 and b.open > 0]
         if len(bars) < 20:
             continue
+        # dp[i] = max cash wealth after close of bar i (available to fund entry at bar i+1 open or later).
         dp = [1000.0] * len(bars)
         trades = 0
-        for i in range(1, len(bars)):
-            best = dp[i - 1]
+        for i in range(len(bars)):
+            best = 1000.0 if i == 0 else dp[i - 1]
             best_t = False
-            for j in range(max(0, i - 12), i):
-                cand = dp[j] * ((bars[i].close / bars[j].open) * ((1.0 - leg_cost) ** 2))
+            for j in range(max(0, i - 11), i + 1):
+                entry_cash = 1000.0 if j == 0 else dp[j - 1]
+                cand = entry_cash * ((bars[i].close / bars[j].open) * ((1.0 - leg_cost) ** 2))
                 if cand > best:
                     best = cand
                     best_t = True
@@ -643,13 +687,24 @@ def _run_offline_research_gates(
     return {"hindsight_ceiling_2h_16bps": ceilings, "bar_offset_sensitivity": off_rows}
 
 
+def _write_text_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+    with tmp.open("w", encoding="utf-8") as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 def run_strategy_promotion_and_revival_study(db_path: Path, report_path: Path, receipt_path: Path) -> dict:
     """Execute all 4 strategy-promotion, netting, partial-revival, and offline-gate experiments."""
     con = open_readonly_market_db(db_path)
     try:
-        all_syms = tuple(sorted(set(BASE_13_SYMBOLS) | set(IGNITION_18_CRYPTO)))
-        panel_1d = {s: load_keyed_candles(con, s, "1d") for s in BASE_13_SYMBOLS}
-        panel_1h = {s: load_keyed_candles(con, s, "1h") for s in all_syms}
+        with readonly_snapshot(con):
+            all_syms = tuple(sorted(set(BASE_13_SYMBOLS) | set(IGNITION_18_CRYPTO)))
+            panel_1d = {s: load_keyed_candles(con, s, "1d") for s in BASE_13_SYMBOLS}
+            panel_1h = {s: load_keyed_candles(con, s, "1h") for s in all_syms}
     finally:
         con.close()
 
@@ -677,6 +732,7 @@ def run_strategy_promotion_and_revival_study(db_path: Path, report_path: Path, r
 
     receipt = {
         "schema": "strategy-promotion-and-revivals/1",
+        "run_id": uuid.uuid4().hex[:12],
         "generated_at_utc": datetime.now(tz=UTC).isoformat(),
         "exp1_conditional_capital_admission": exp1,
         "exp2_standalone_internal_netting": exp2,
@@ -688,8 +744,7 @@ def run_strategy_promotion_and_revival_study(db_path: Path, report_path: Path, r
         },
         "exp4_offline_research_gates": exp4,
     }
-    receipt_path.parent.mkdir(parents=True, exist_ok=True)
-    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(receipt_path, receipt)
     _write_markdown_report(receipt, report_path)
     return receipt
 
@@ -742,8 +797,8 @@ def _write_markdown_report(r: dict, report_path: Path) -> None:
         "",
         "### 3B. Bellman Exit-Only Challenger (Forked at First Disagreement on Identical `2h` Ignition Lots)",
         "",
-        f"- **OOS States Evaluated:** `{bm['oos_evaluated_states']}` · **Disagreements (Early Close):** `{bm['disagreements']}`",
-        f"- **Mean `(Bellman - Incumbent)`:** **`{bm['mean_bellman_minus_incumbent_bps']:+.2f} bps`** · Avoided Losses: `{bm['avoided_loss_count']}` · Cut Winners: `{bm['cut_winner_count']}`",
+        f"- **Status:** `{bm.get('status', 'OK')}` · **OOS Lots / States Evaluated:** `{bm.get('oos_evaluated_lots', 0)}` / `{bm.get('oos_evaluated_states', 0)}` · **Disagreements (Early Close):** `{bm.get('disagreements', 0)}`",
+        f"- **Mean `(Bellman - Incumbent)`:** **`{bm.get('mean_bellman_minus_incumbent_bps', 0.0):+.2f} bps`** · Avoided Losses: `{bm.get('avoided_loss_count', 0)}` · Cut Winners: `{bm.get('cut_winner_count', 0)}`",
         "",
         "### 3C. Structural Bear Trigger as 1-Bar New-Spot-Buy Deferral vs Equal-Exposure Cash Control",
         "",
@@ -782,5 +837,4 @@ def _write_markdown_report(r: dict, report_path: Path) -> None:
     lines.append("")
     for sym, c in r["exp4_offline_research_gates"]["hindsight_ceiling_2h_16bps"].items():
         lines.append(f"- **Offline Hindsight DP Ceiling (`{sym}`, `2h`, `16 bps/side`, `24h` max hold):** `${c['hindsight_max_nav_usdt']:,.2f}` across `{c['bars']}` bars.")
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _write_text_atomic(report_path, "\n".join(lines) + "\n")

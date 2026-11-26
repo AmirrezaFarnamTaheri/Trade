@@ -80,23 +80,32 @@ def test_ensemble_gru_json_roundtrip_is_bit_accurate(tmp_path: Path) -> None:
 
 
 def test_operational_health_watchdog_reports_ok_on_fresh_fixtures(tmp_path: Path) -> None:
+    import hashlib
+
+    from gym.domain.multi_asset_research import BASE_13_SYMBOLS
+    from gym.services.experiments.gru_engine import EnsembleGRU
+
     now = datetime(2026, 11, 25, 0, 0, tzinfo=UTC)
     live = tmp_path / "data" / "live"
+    fwd = tmp_path / "evidence" / "forward"
     (live / "allocation").mkdir(parents=True)
     (live / "models").mkdir(parents=True)
+    fwd.mkdir(parents=True)
 
-    # Minimal fresh market.db
+    # Fresh market.db covering expected 1d universe
     mdb = sqlite3.connect(live / "market.db")
     mdb.execute("CREATE TABLE instruments (instrument_id INTEGER PRIMARY KEY, symbol TEXT)")
     mdb.execute("CREATE TABLE book_top (ts_avail TEXT)")
     mdb.execute("CREATE TABLE trades (ts_avail TEXT)")
     mdb.execute("CREATE TABLE venue_candles (instrument_id INTEGER, resolution TEXT, t INTEGER)")
-    mdb.execute("INSERT INTO instruments VALUES (1, 'BTCUSDT')")
     fresh_iso = (now - timedelta(minutes=2)).isoformat()
     mdb.execute("INSERT INTO book_top VALUES (?)", (fresh_iso,))
     mdb.execute("INSERT INTO trades VALUES (?)", (fresh_iso,))
-    mdb.execute("INSERT INTO venue_candles VALUES (1, '1d', ?)", (int((now - timedelta(hours=4)).timestamp()),))
-    mdb.execute("INSERT INTO venue_candles VALUES (1, '1h', ?)", (int((now - timedelta(hours=2)).timestamp()),))
+    expected_1d = tuple(dict.fromkeys(BASE_13_SYMBOLS + ("PAXGUSDT",)))
+    for idx, sym in enumerate(expected_1d, start=1):
+        mdb.execute("INSERT INTO instruments VALUES (?, ?)", (idx, sym))
+        mdb.execute("INSERT INTO venue_candles VALUES (?, '1d', ?)", (idx, int((now - timedelta(hours=4)).timestamp())))
+        mdb.execute("INSERT INTO venue_candles VALUES (?, '1h', ?)", (idx, int((now - timedelta(hours=2)).timestamp())))
     mdb.commit()
     mdb.close()
 
@@ -108,14 +117,20 @@ def test_operational_health_watchdog_reports_ok_on_fresh_fixtures(tmp_path: Path
     mv.commit()
     mv.close()
 
-    # Fresh journals + frozen GRU weights
+    # Fresh journals + valid frozen GRU weights + matching registrations
     for fn in ("s1-s5-leader-journal.jsonl", "champion-ensemble-journal.jsonl", "champion-v2-journal.jsonl", "mix-journal-v2.jsonl"):
         (live / "allocation" / fn).write_text(json.dumps({"as_of": fresh_iso}) + "\n", encoding="utf-8")
-    for mfn in ("gru-ignition-v1.json", "gru-ignition-v2-pathpnl.json"):
-        (live / "models" / mfn).write_text(
-            json.dumps({"schema": "ensemble-gru-weights/1", "n_models": 3, "models": []}), encoding="utf-8",
-        )
+    for mfn, rfn in (
+        ("gru-ignition-v1.json", "champion-v1-registration.json"),
+        ("gru-ignition-v2-pathpnl.json", "champion-v2-registration.json"),
+    ):
+        mpath = live / "models" / mfn
+        EnsembleGRU(input_dim=6, hidden_dim=4, task="binary", seeds=(42,)).save_json(mpath)
+        sha = hashlib.sha256(mpath.read_bytes()).hexdigest()
+        (fwd / rfn).write_text(json.dumps({"gru_model_sha256": sha}), encoding="utf-8")
 
     rep = run_operational_health_check(tmp_path / "data", tmp_path / "evidence", now=now)
     assert rep["overall_status"] == "OK"
     assert rep["executor_state"] == "DISARMED"
+    assert rep["executor_policy_state"] == "DECLARED_DISARMED"
+    assert rep["executor_observed_status"] == "UNKNOWN"

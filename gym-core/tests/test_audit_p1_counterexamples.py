@@ -466,7 +466,8 @@ def test_finding_12_atomic_json_and_locked_jsonl_writer(tmp_path) -> None:
     append_jsonl_locked(jpath, {"slot": 2, "nav": 1010.0})
     lines = [json.loads(ln) for ln in jpath.read_text(encoding="utf-8").splitlines()]
     assert len(lines) == 2 and lines[1]["nav"] == 1010.0
-    assert not jpath.with_suffix(".jsonl.lock").exists()
+    # OS-released lock sidecar must not block subsequent appends even if the file remains on disk.
+    assert append_jsonl_locked(jpath, {"slot": 3, "nav": 1020.0}) is True
 
     spath = tmp_path / "score.json"
     write_json_atomic(spath, {"paper_nav": 1010.0, "peak_nav": 1010.0})
@@ -641,10 +642,12 @@ def test_operational_health_detects_future_bar_and_model_hash_mismatch(tmp_path)
     )
     j_res = _check_jsonl_file(jpath, now)
     assert j_res["future_bar_violation"] is True
-    assert j_res["status"] == "WARN"
+    assert j_res["status"] == "FAIL"
+
+    from gym.services.experiments.gru_engine import EnsembleGRU
 
     mpath = tmp_path / "model.json"
-    mpath.write_text(json.dumps({"schema": "ensemble-gru-weights/1", "n_models": 3}), encoding="utf-8")
+    EnsembleGRU(input_dim=6, hidden_dim=4, task="binary", seeds=(42,)).save_json(mpath)
     rpath = tmp_path / "reg.json"
     rpath.write_text(json.dumps({"gru_model_sha256": "deadbeef" * 8}), encoding="utf-8")
     m_res = _check_frozen_model(mpath, registration_path=rpath)

@@ -104,6 +104,7 @@ jobs:
           # Offline research runners in src/gym/services/experiments/* execute against live SQLite studies rather than unit tests.
           uv run --with coverage==7.6.10 coverage report --include="src/gym/domain/*" --fail-under=93 > /dev/null
           uv run --with coverage==7.6.10 coverage report --omit="src/gym/services/experiments/*" --fail-under=86 > /dev/null
+          uv run --with coverage==7.6.10 coverage report --include="src/gym/services/experiments/champion_forward_journal.py,src/gym/services/experiments/champion_v2_journal.py,src/gym/services/experiments/operational_health.py,src/gym/services/experiments/gru_engine.py" --fail-under=50 > /dev/null
           uv run --with coverage==7.6.10 coverage html -d "$RUNNER_TEMP/coverage"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -161,7 +162,7 @@ jobs:
       - name: Python dependencies (pip-audit)
         working-directory: gym-core
         run: |
-          uv export --locked --no-hashes --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
+          uv export --locked --group research --no-hashes --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
           uvx pip-audit --strict -r "$RUNNER_TEMP/requirements.txt"
       - uses: taiki-e/install-action@f84dff0ad3f25ff0e5dc531e626734a4e7d11ac7 # cargo-audit
       - name: Rust dependencies (cargo audit)
@@ -260,7 +261,7 @@ jobs:
         with:
           version: "0.11.23"
       - run: mkdir -p sbom
-      - run: uv export --project gym-core --locked --format cyclonedx1.5 --no-dev -o sbom/python.cdx.json
+      - run: uv export --project gym-core --locked --group research --format cyclonedx1.5 --no-dev -o sbom/python.cdx.json
       - run: python3 scripts/cargo_sbom.py -o sbom/rust.cdx.json
       - name: Every SBOM is CycloneDX and non-empty
         run: >-
