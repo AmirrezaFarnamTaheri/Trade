@@ -132,21 +132,43 @@ def _check_jsonl_file(path: Path, now: datetime, *, max_age_hours: float = 36.0)
     last = json.loads(lines[-1])
     ts_s = last.get("as_of") or last.get("ts_avail") or last.get("recorded_at")
     age_h = _age_hours(ts_s, now)
-    status = "OK" if (age_h is not None and age_h <= max_age_hours) else "WARN"
-    return {"status": status, "rows": len(lines), "latest_ts": ts_s, "age_hours": age_h}
+    future_bar = False
+    if ts_s:
+        as_of_dt = parse_ts(ts_s)
+        for bk in ("signal_2h_bar", "signal_1d_bar"):
+            bv = last.get(bk)
+            if bv and parse_ts(bv) > as_of_dt:
+                future_bar = True
+    status = "OK" if (age_h is not None and age_h <= max_age_hours and not future_bar) else "WARN"
+    return {
+        "status": status,
+        "rows": len(lines),
+        "latest_ts": ts_s,
+        "age_hours": age_h,
+        "future_bar_violation": future_bar,
+    }
 
 
-def _check_frozen_model(model_path: Path) -> dict:
+def _check_frozen_model(model_path: Path, *, registration_path: Path | None = None) -> dict:
     if not model_path.is_file():
         return {"status": "MISSING", "path": str(model_path)}
     raw = model_path.read_bytes()
     sha = hashlib.sha256(raw).hexdigest()
     payload = json.loads(raw.decode("utf-8"))
+    schema_ok = payload.get("schema") == "ensemble-gru-weights/1" and payload.get("n_models", 0) >= 1
+    reg_match: bool | None = None
+    if registration_path is not None and registration_path.is_file():
+        reg = json.loads(registration_path.read_text(encoding="utf-8"))
+        reg_sha = reg.get("gru_model_sha256")
+        if reg_sha:
+            reg_match = (sha == reg_sha)
+    ok = schema_ok and (reg_match is not False)
     return {
-        "status": "OK" if payload.get("schema") == "ensemble-gru-weights/1" and payload.get("n_models", 0) >= 1 else "FAIL",
+        "status": "OK" if ok else "FAIL",
         "bytes": len(raw),
         "n_models": payload.get("n_models", 0),
         "sha256": sha,
+        "registration_match": reg_match,
     }
 
 
@@ -157,9 +179,12 @@ def run_operational_health_check(
     report_path: Path | None = None,
     now: datetime | None = None,
 ) -> dict:
-    """Run all read-only operational health checks and optionally write a JSON receipt."""
+    """Run all read-only operational health checks and optionally write an atomic JSON receipt."""
+    from .champion_forward_journal import write_json_atomic
+
     ts_now = now or datetime.now(UTC)
     live = data_dir / "live"
+    fwd = evidence_dir / "forward"
     checks = {
         "market_db": _check_market_db(live / "market.db", ts_now),
         "multi_venue_db": _check_multi_venue_db(live / "multi_venue_quotes.sqlite3", ts_now),
@@ -167,8 +192,14 @@ def run_operational_health_check(
         "champion_ensemble_journal": _check_jsonl_file(live / "allocation" / "champion-ensemble-journal.jsonl", ts_now),
         "champion_v2_journal": _check_jsonl_file(live / "allocation" / "champion-v2-journal.jsonl", ts_now),
         "mix_journal_v2": _check_jsonl_file(live / "allocation" / "mix-journal-v2.jsonl", ts_now),
-        "gru_ignition_model": _check_frozen_model(live / "models" / "gru-ignition-v1.json"),
-        "gru_ignition_v2_model": _check_frozen_model(live / "models" / "gru-ignition-v2-pathpnl.json"),
+        "gru_ignition_model": _check_frozen_model(
+            live / "models" / "gru-ignition-v1.json",
+            registration_path=fwd / "champion-registration.json",
+        ),
+        "gru_ignition_v2_model": _check_frozen_model(
+            live / "models" / "gru-ignition-v2-pathpnl.json",
+            registration_path=fwd / "champion-v2-registration.json",
+        ),
     }
     statuses = [c["status"] for c in checks.values()]
     overall = "FAIL" if "FAIL" in statuses else ("WARN" if any(s in ("WARN", "MISSING", "EMPTY") for s in statuses) else "OK")
@@ -179,6 +210,5 @@ def run_operational_health_check(
         "checks": checks,
     }
     if report_path is not None:
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+        write_json_atomic(report_path, out)
     return out

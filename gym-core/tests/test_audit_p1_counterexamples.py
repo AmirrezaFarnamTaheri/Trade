@@ -624,6 +624,50 @@ def test_order_timeout_replacement_partial_and_late_fill_reconciliation() -> Non
     assert res_a["overfilled_orders"] is True
 
 
+def test_operational_health_detects_future_bar_and_model_hash_mismatch(tmp_path) -> None:
+    """Watchdog must warn on future-dated signal_2h_bar > as_of and fail on registered model SHA mismatch."""
+    import json
+
+    from gym.services.experiments.operational_health import (
+        _check_frozen_model,
+        _check_jsonl_file,
+    )
+
+    now = datetime(2026, 11, 26, 10, 0, tzinfo=UTC)
+    jpath = tmp_path / "j.jsonl"
+    jpath.write_text(
+        json.dumps({"as_of": "2026-11-26T09:00:00+00:00", "signal_2h_bar": "2026-11-26T10:00:00+00:00"}) + "\n",
+        encoding="utf-8",
+    )
+    j_res = _check_jsonl_file(jpath, now)
+    assert j_res["future_bar_violation"] is True
+    assert j_res["status"] == "WARN"
+
+    mpath = tmp_path / "model.json"
+    mpath.write_text(json.dumps({"schema": "ensemble-gru-weights/1", "n_models": 3}), encoding="utf-8")
+    rpath = tmp_path / "reg.json"
+    rpath.write_text(json.dumps({"gru_model_sha256": "deadbeef" * 8}), encoding="utf-8")
+    m_res = _check_frozen_model(mpath, registration_path=rpath)
+    assert m_res["registration_match"] is False
+    assert m_res["status"] == "FAIL"
+
+
+def test_cross_study_private_import_ratchet() -> None:
+    """Prevent any growth in 1-level relative private (_name) cross-study imports inside services/experiments."""
+    import ast
+    from pathlib import Path
+
+    root = Path("D:/Github/Trade/gym-core/src/gym/services/experiments")
+    count = 0
+    for p in sorted(root.glob("*.py")):
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level == 1:
+                count += sum(1 for a in node.names if a.name.startswith("_"))
+    assert count <= 145, f"Cross-study private imports grew to {count} (ratchet ceiling 145)"
+
+
+
 
 
 

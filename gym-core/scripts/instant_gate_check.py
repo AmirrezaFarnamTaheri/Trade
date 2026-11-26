@@ -538,12 +538,40 @@ def write_instant_report(
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _run_g3_safety_suite() -> dict:
+    """Execute the safety-boundary pytest suite and return a typed G3 receipt."""
+    import subprocess
+    import sys
+
+    gym_core = Path(__file__).resolve().parents[1]
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_regressions_safety_boundaries.py", "-q"],
+        cwd=str(gym_core),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    summary = (proc.stdout or proc.stderr or "").strip().splitlines()[-1] if (proc.stdout or proc.stderr) else "no output"
+    return {
+        "status": "PASS" if proc.returncode == 0 else "FAIL",
+        "detail": f"Live pytest safety suite: `{summary}`",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run strict instant zero-wait G1/G2/G3 gate verification")
     parser.add_argument("--wallex-db", type=Path, default=Path("../data/live/market.db"))
     parser.add_argument("--multi-venue-db", type=Path, default=Path("../data/live/multi_venue_quotes.sqlite3"))
     parser.add_argument("--report", type=Path, default=Path("../evidence/archive/audits/instant-gate-report.md"))
+    parser.add_argument("--g3-receipt", type=Path, default=None, help="Optional typed JSON receipt for G3")
+    parser.add_argument("--run-g3", action="store_true", help="Run live G3 safety-boundary pytest suite")
     args = parser.parse_args()
+
+    g3: dict | None = None
+    if args.run_g3:
+        g3 = _run_g3_safety_suite()
+    elif args.g3_receipt is not None and args.g3_receipt.is_file():
+        g3 = json.loads(args.g3_receipt.read_text(encoding="utf-8"))
 
     g1 = check_g1_instant(args.wallex_db, args.multi_venue_db)
     con = open_readonly_market_db(args.wallex_db)
@@ -553,8 +581,8 @@ def main() -> None:
         cand_b = eval_candidate_b_sealed_holdout(con)
     finally:
         con.close()
-    write_instant_report(args.report, g1, cand_a_h, cand_a_ob, cand_b)
-    print(f"Wrote {args.report} | G1={g1['passed']} | A_hourly={cand_a_h.get('hourly_passes')} | A_orderbook={cand_a_ob.get('orderbook_passes')} | B={cand_b.get('passes_g2_instant')}")
+    write_instant_report(args.report, g1, cand_a_h, cand_a_ob, cand_b, g3=g3)
+    print(f"Wrote {args.report} | G1={g1['passed']} | G3={g3['status'] if g3 else 'UNKNOWN'} | A_hourly={cand_a_h.get('hourly_passes')} | A_orderbook={cand_a_ob.get('orderbook_passes')} | B={cand_b.get('passes_g2_instant')}")
 
 
 if __name__ == "__main__":
