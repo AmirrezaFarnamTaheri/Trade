@@ -44,17 +44,19 @@ from .admm_helpers import (
 )
 from .champion_forward_journal import (
     _latest_live_quotes,
-    append_jsonl_locked,
     compute_cohort_id,
-    iter_valid_jsonl_records,
     load_stitched_1h_panel,
-    readonly_snapshot,
     score_champion_forward_journal,
-    write_json_atomic,
 )
 from .gru_engine import EnsembleGRU
 from .ignition_expansion_study import IGNITION_18_CRYPTO
 from .ignition_upgrade_ablation_study import _extract_11feat_coiled_spring_dataset
+from .io_utils import (
+    append_jsonl_locked,
+    read_jsonl_records,
+    readonly_snapshot,
+    write_json_atomic,
+)
 from .leader_forward_journal import _package_engine_digest
 
 
@@ -205,7 +207,7 @@ def _latest_nobitex_usdt_pool_apr(multi_venue_db: Path | None) -> float | None:
 
 
 def _load_v2_state(journal_path: Path) -> tuple[set[str], dict[str, float], list[float]]:
-    rows, _ = iter_valid_jsonl_records(journal_path)
+    rows, _ = read_jsonl_records(journal_path)
     seen, last_w, scores = set(), {}, []
     for item in rows:
         if item.get("slot_key"):

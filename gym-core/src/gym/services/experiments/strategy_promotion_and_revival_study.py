@@ -14,7 +14,6 @@ Strictly read-only against market.db; DISARMED ($0 funded budget).
 """
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -35,10 +34,10 @@ from .admm_helpers import (
     extract_daily_breadth,
     solve_s1_s5_admm_weights,
 )
-from .champion_forward_journal import readonly_snapshot, write_json_atomic
 from .cross_layer_diagnostic_study import deduplicate_intents_by_underlying
 from .ensemble_study import portfolio_metrics
 from .ignition_expansion_study import IGNITION_18_CRYPTO
+from .io_utils import readonly_snapshot, write_json_atomic, write_text_atomic
 from .unified_book_helpers import (
     latest_signal_date,
     nav_ts_to_daily,
@@ -687,16 +686,6 @@ def _run_offline_research_gates(
     return {"hindsight_ceiling_2h_16bps": ceilings, "bar_offset_sensitivity": off_rows}
 
 
-def _write_text_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
-    with tmp.open("w", encoding="utf-8") as fh:
-        fh.write(text)
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, path)
-
-
 def run_strategy_promotion_and_revival_study(db_path: Path, report_path: Path, receipt_path: Path) -> dict:
     """Execute all 4 strategy-promotion, netting, partial-revival, and offline-gate experiments."""
     con = open_readonly_market_db(db_path)
@@ -837,4 +826,4 @@ def _write_markdown_report(r: dict, report_path: Path) -> None:
     lines.append("")
     for sym, c in r["exp4_offline_research_gates"]["hindsight_ceiling_2h_16bps"].items():
         lines.append(f"- **Offline Hindsight DP Ceiling (`{sym}`, `2h`, `16 bps/side`, `24h` max hold):** `${c['hindsight_max_nav_usdt']:,.2f}` across `{c['bars']}` bars.")
-    _write_text_atomic(report_path, "\n".join(lines) + "\n")
+    write_text_atomic(report_path, "\n".join(lines) + "\n")

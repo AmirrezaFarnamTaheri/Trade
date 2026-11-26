@@ -8,8 +8,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
-from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import median
@@ -21,7 +19,6 @@ from ...domain.model import dec, parse_ts
 from ...domain.multi_asset_research import BASE_13_SYMBOLS
 from ...domain.strategy_sleeves import compute_slow_sleeves
 from ...domain.timeframe_panel import BarPoint, resample_hourly_to_bucket
-from .._journal_lock import append_jsonl, journal_lock
 from .admm_helpers import (
     build_dated_returns_index,
     build_shrunk_horizon_cov,
@@ -31,21 +28,17 @@ from .admm_helpers import (
 from .gru_engine import EnsembleGRU
 from .gru_prototypes_study import _extract_2h_breakout_sequences
 from .ignition_expansion_study import IGNITION_18_CRYPTO
+from .io_utils import (
+    append_jsonl_locked,
+    read_jsonl_records,
+    readonly_snapshot,
+    write_json_atomic,
+)
 from .leader_forward_journal import _package_engine_digest
 
 DEFAULT_MAX_QUOTE_AGE_S = 1800.0
 MAX_FUTURE_SKEW_S = 60.0
-
-
-@contextmanager
-def readonly_snapshot(con):
-    """Hold a single SQLite read snapshot across multi-table queries."""
-    con.execute("BEGIN DEFERRED")
-    try:
-        yield con
-    finally:
-        if con.in_transaction:
-            con.execute("ROLLBACK")
+iter_valid_jsonl_records = read_jsonl_records
 
 
 def compute_cohort_id(schema: str, model_sha: str, engine_digest: str, slow_w: float, ign_w: float) -> str:
@@ -371,55 +364,8 @@ def _score_live_2h_ignition(
     return latest_ts, triggers[:3], ign_weights
 
 
-def iter_valid_jsonl_records(journal_path: Path) -> tuple[list[dict], int]:
-    """Read valid JSONL dict records, counting any torn or corrupt lines instead of crashing."""
-    if not journal_path.is_file():
-        return [], 0
-    rows: list[dict] = []
-    corrupt = 0
-    for ln in journal_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if not ln.strip():
-            continue
-        try:
-            obj = json.loads(ln)
-        except json.JSONDecodeError:
-            corrupt += 1
-            continue
-        if isinstance(obj, dict):
-            rows.append(obj)
-        else:
-            corrupt += 1
-    return rows, corrupt
-
-
-def append_jsonl_locked(journal_path: Path, record: dict, *, timeout_s: float = 15.0) -> bool:
-    """Append one JSONL record under an OS-released lock with atomic slot_key deduplication.
-
-    Returns True if appended, False if an identical slot_key already existed in the journal.
-    """
-    with journal_lock(journal_path, timeout=timeout_s):
-        slot_key = record.get("slot_key")
-        if slot_key is not None and journal_path.is_file():
-            existing, _ = iter_valid_jsonl_records(journal_path)
-            if any(r.get("slot_key") == slot_key for r in existing):
-                return False
-        append_jsonl(journal_path, json.dumps(record, sort_keys=True))
-        return True
-
-
-def write_json_atomic(path: Path, payload: dict) -> None:
-    """Atomically write JSON via temp file + fsync + os.replace so readers never see partial writes."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
-    with tmp.open("w", encoding="utf-8") as fh:
-        fh.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, path)
-
-
 def _load_last_journal_state(journal_path: Path) -> tuple[set[str], dict[str, float]]:
-    rows, _ = iter_valid_jsonl_records(journal_path)
+    rows, _ = read_jsonl_records(journal_path)
     seen_slots: set[str] = set()
     last_weights: dict[str, float] = {}
     for item in rows:

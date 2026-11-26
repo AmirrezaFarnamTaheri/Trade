@@ -9,13 +9,9 @@ from pathlib import Path
 from ...adapters.candle_reader import open_readonly_market_db
 from ...domain.model import parse_ts
 from ...domain.multi_asset_research import BASE_13_SYMBOLS
-from .champion_forward_journal import (
-    iter_valid_jsonl_records,
-    readonly_snapshot,
-    write_json_atomic,
-)
 from .gru_engine import EnsembleGRU, GRUArtifactError
 from .ignition_expansion_study import IGNITION_18_CRYPTO
+from .io_utils import read_jsonl_records, readonly_snapshot, write_json_atomic
 
 MAX_FUTURE_SKEW_H = 1.0 / 60.0  # 60 seconds clock skew tolerance
 
@@ -162,7 +158,7 @@ def _check_multi_venue_db(mv_db: Path, now: datetime) -> dict:
 def _check_jsonl_file(path: Path, now: datetime, *, max_age_hours: float = 12.0) -> dict:
     if not path.is_file():
         return {"status": "MISSING", "path": str(path), "rows": 0}
-    rows, corrupt_lines = iter_valid_jsonl_records(path)
+    rows, corrupt_lines = read_jsonl_records(path)
     if not rows:
         return {"status": "FAIL" if corrupt_lines else "EMPTY", "path": str(path), "rows": 0, "corrupt_lines": corrupt_lines}
     last = rows[-1]
