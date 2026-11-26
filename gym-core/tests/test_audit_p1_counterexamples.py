@@ -296,7 +296,7 @@ def test_finding_10_instant_gate_never_hardcodes_g3_pass(tmp_path) -> None:
     import importlib.util
     from pathlib import Path
 
-    script = Path("D:/Github/Trade/gym-core/scripts/instant_gate_check.py")
+    script = Path(__file__).resolve().parents[1] / "scripts" / "instant_gate_check.py"
     spec = importlib.util.spec_from_file_location("instant_gate_check", script)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
@@ -561,7 +561,7 @@ def test_review2_summary_headlines_match_post_repair_receipts() -> None:
     import json
     from pathlib import Path
 
-    repo = Path("D:/Github/Trade")
+    repo = Path(__file__).resolve().parents[2]
     summary = (repo / "evidence" / "studies" / "SUMMARY.md").read_text(encoding="utf-8")
     v2 = json.loads((repo / "evidence" / "studies" / "ignition-and-ml" / "v2-champion-verification.json").read_text(encoding="utf-8"))
     w20 = json.loads((repo / "evidence" / "studies" / "v3-adaptive-engine" / "twenty-window-macro-quadrant-study.json").read_text(encoding="utf-8"))
@@ -657,7 +657,7 @@ def test_cross_study_private_import_ratchet() -> None:
     import ast
     from pathlib import Path
 
-    root = Path("D:/Github/Trade/gym-core/src/gym/services/experiments")
+    root = Path(__file__).resolve().parents[1] / "src" / "gym" / "services" / "experiments"
     count = 0
     for p in sorted(root.glob("*.py")):
         tree = ast.parse(p.read_text(encoding="utf-8"))
