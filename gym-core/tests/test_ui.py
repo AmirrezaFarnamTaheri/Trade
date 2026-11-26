@@ -61,7 +61,7 @@ def test_ui_navigation_and_form_labels():
 
 def test_ui_javascript_syntax():
     for name in UI_ASSETS:
-        if not name.endswith(".js"):
+        if not name.endswith((".js", ".mjs")):
             continue
         result = subprocess.run([node(), "--check", str(UI.with_name(name))], capture_output=True, encoding="utf-8")
         assert result.returncode == 0, result.stderr
@@ -93,7 +93,7 @@ def test_shell_stays_routing_only_and_view_assets_load_in_order():
     """Require UI modules to load in declared dependency order with a slim shell."""
     html = UI.read_text("utf-8")
     names = ["workspace-config.js", "workspace-utils.js", "workspace-overview.js",
-             "workspace-alerts.js", "app.js", "markets-events.js", "research-events.js",
+             "workspace-alerts.mjs", "app.js", "markets-events.js", "research-events.js",
              "operator-events.js", "shell-events.js"]
     assert all(html.count(f'src="/{name}"') == 1 for name in names)
     assert [html.index(f'src="/{name}"') for name in names] == sorted(html.index(f'src="/{name}"') for name in names)
