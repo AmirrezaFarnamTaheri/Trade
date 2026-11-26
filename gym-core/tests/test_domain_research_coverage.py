@@ -982,6 +982,120 @@ def test_meta_gateway_falsification_account_obs_and_conversion() -> None:
     assert cw.observe_fake_fill("f1", quantity="0.5", price="100", quote_fee="0.2", observed_at="2025-01-01T02:00:00Z") == 1
 
 
+def test_instrument_resolver_a1_a2_quoting_async_cov_and_regime() -> None:
+    from gym.domain.async_covariance import (
+        align_covariance_to_symbols,
+        coarse_bar_shrunk_covariance,
+        coarse_bar_shrunk_covariance_aligned,
+        hayashi_yoshida_covariance,
+    )
+    from gym.domain.dynamic_resolver_ledger import simulate_dynamic_resolver
+    from gym.domain.instrument_resolver import (
+        InstrumentOffer,
+        MarketView,
+        PositionState,
+        ResolverConfig,
+        build_local_venue_offers,
+        dd_governor_leverage_cap,
+        expected_carry_bps,
+        liquidation_distance_bps,
+        resolve_a1_utility,
+        resolve_a2_signed_admm,
+    )
+    from gym.domain.quoting_policy import (
+        AvellanedaStoikovQuotingPolicy,
+        FixedOffsetQuotingPolicy,
+        KillSwitchEvaluator,
+        KillSwitchState,
+        is_nyse_core_session_open,
+    )
+    from gym.domain.regime import market_regime
+
+    t0 = datetime(2025, 1, 2, 15, 0, tzinfo=UTC)
+
+    # 1. Instrument resolver A1 / A2 + carry + DD governor + local offers
+    offers_btc = build_local_venue_offers("BTCUSDT", include_perp_future=True)
+    assert len(offers_btc) >= 7
+    assert expected_carry_bps(offers_btc[2], 1.0, 24.0, 4.0) < 0.0
+    assert expected_carry_bps(offers_btc[3], 2.0, 30.0, 4.0) > 0.0
+    assert expected_carry_bps(offers_btc[5], 2.0, 12.0, 4.0) > 0.0
+    assert expected_carry_bps(offers_btc[7], 2.0, 16.0, 4.0) != 0.0
+    assert liquidation_distance_bps(offers_btc[4], 2.0) > 0.0
+    cfg = ResolverConfig(max_venue_leverage=3.0)
+    assert dd_governor_leverage_cap(0.0, cfg) == 3.0
+    assert dd_governor_leverage_cap(4.5, cfg) < 2.5
+    assert dd_governor_leverage_cap(8.0, cfg) == 1.0
+
+    views = {
+        "BTCUSDT": MarketView("BTCUSDT", t0, 160.0, 16.0, 250.0, 0.45, 0.90, 0.80),
+        "ETHUSDT": MarketView("ETHUSDT", t0, -150.0, 16.0, 250.0, 0.50, 0.85, 0.20),
+    }
+    offers_map = {"BTCUSDT": offers_btc, "ETHUSDT": build_local_venue_offers("ETHUSDT", include_perp_future=True)}
+    pos_map = {"BTCUSDT": PositionState("BTCUSDT", "nobitex", "SPOT", 1, 1.0, 200.0, 200.0, 100.0, 96.0, 0.0, 20.0, 10.0, t0, 16.0)}
+    a1 = resolve_a1_utility(views, offers_map, pos_map, 1000.0, 10.0, 0.0, cfg)
+    a2 = resolve_a2_signed_admm(views, offers_map, pos_map, 1000.0, 10.0, 0.0, {("BTCUSDT", "BTCUSDT"): 0.04, ("ETHUSDT", "ETHUSDT"): 0.05}, cfg)
+    assert "BTCUSDT" in a1 and "ETHUSDT" in a2
+
+    # 2. Quoting policy & kill switch
+    assert is_nyse_core_session_open(datetime(2026, 1, 5, 16, 0, tzinfo=UTC)) is True
+    assert is_nyse_core_session_open(datetime(2026, 11, 26, 16, 0, tzinfo=UTC)) is False
+    fo = FixedOffsetQuotingPolicy(Decimal("10"), Decimal("0.5"))
+    av = AvellanedaStoikovQuotingPolicy(Decimal("10"), Decimal("0.5"))
+    assert fo.quote(Decimal("100"), Decimal("0.6")).inventory_capped_buy is True
+    assert av.quote(Decimal("100"), Decimal("0.2"), Decimal("0.02")).bid_price is not None
+    ks = KillSwitchEvaluator().evaluate(
+        KillSwitchState(
+            as_of=t0, quote_age_s=25.0, shard_connected=False, uncertain_cancel_active=True,
+            usdttmn_spread_bps=Decimal("150"), pair_spread_bps=Decimal("200"), median_7d_spread_bps=Decimal("20"), vpin=0.95,
+        )
+    )
+    assert ks.halted is True and len(ks.reasons) >= 6
+
+    # 3. Hayashi-Yoshida covariance & regime classifier
+    hy = hayashi_yoshida_covariance({
+        "BTCUSDT": [(t0 + timedelta(minutes=i), 100.0 + i) for i in range(6)],
+        "ETHUSDT": [(t0 + timedelta(minutes=i * 2), 200.0 + 0.5 * i) for i in range(4)],
+    })
+    assert len(hy.matrix) == 2 and hy.joint_coverage_ratio == 1.0
+    syms_c, mat_c = coarse_bar_shrunk_covariance({"BTCUSDT": [0.01, -0.02, 0.03], "ETHUSDT": [0.02, -0.01, 0.02]})
+    assert len(align_covariance_to_symbols(("ETHUSDT", "BTCUSDT"), syms_c, mat_c)) == 2
+    assert len(coarse_bar_shrunk_covariance_aligned({"BTCUSDT": {t0: 0.01, t0 + timedelta(days=1): -0.02}, "ETHUSDT": {t0: 0.02, t0 + timedelta(days=1): 0.01}}, ("BTCUSDT", "ETHUSDT"))) == 2
+    assert market_regime({}) == "WARMUP"
+    assert market_regime({"ema_20": {"value": "110", "slope_5_bars": "1"}, "ema_50": {"value": "100"}, "adx_14": {"value": "30", "plus_di": "25", "minus_di": "15"}, "atr_14": {"value": "2"}}) == "UP_TREND"
+    assert market_regime({"ema_20": {"value": "90", "slope_5_bars": "-1"}, "ema_50": {"value": "100"}, "adx_14": {"value": "30", "plus_di": "15", "minus_di": "25"}, "atr_14": {"value": "2"}}) == "DOWN_TREND"
+    assert market_regime({"ema_20": {"value": "100", "slope_5_bars": "0"}, "ema_50": {"value": "101"}, "adx_14": {"value": "15", "plus_di": "15", "minus_di": "15"}, "atr_14": {"value": "2"}}) == "RANGE"
+
+    # 4. Dynamic resolver ledger: FLIP, SWITCH_INSTRUMENT, INTERVAL_4H_BORROW, intrabar stop/liq
+    from gym.domain.instrument_resolver import ResolvedAction
+
+    panel = {
+        "BTCUSDT": [
+            _bar("BTCUSDT", t0 + timedelta(hours=2 * k), 2.0, 100.0, 101.0, 99.0 if k != 4 else 50.0, 100.0)
+            for k in range(6)
+        ]
+    }
+    wlx_l = InstrumentOffer("wallex", "BTCUSDT", "ISOLATED_MARGIN", 1, (2.0,), 20.0, 20.0, "INTERVAL_4H_BORROW", 2.0, 0.15)
+    wlx_s = InstrumentOffer("wallex", "BTCUSDT", "ISOLATED_MARGIN", -1, (2.0,), 20.0, 20.0, "INTERVAL_4H_BORROW", 2.0, 0.15)
+    off_d = {b.ts_avail: {"BTCUSDT": (wlx_l, wlx_s)} for b in panel["BTCUSDT"]}
+    vw_d = {b.ts_avail: {"BTCUSDT": MarketView("BTCUSDT", b.ts_avail, 120.0, 12.0, 200.0, 0.4, 0.85, 0.8)} for b in panel["BTCUSDT"]}
+    idx_s = {"i": 0}
+
+    def _fn_flip(v, o, p, eq, h, dd, c, rcfg):
+        i = idx_s["i"]
+        idx_s["i"] += 1
+        if i == 0:
+            return {"BTCUSDT": ResolvedAction("BTCUSDT", "OPEN", "wallex", "ISOLATED_MARGIN", 1, 2.0, 200.0, 400.0, 200.0, 50.0, "o")}
+        if i == 1 and "BTCUSDT" in p:
+            return {"BTCUSDT": ResolvedAction("BTCUSDT", "SWITCH_INSTRUMENT", "wallex", "ISOLATED_MARGIN", -1, 2.0, 200.0, 400.0, 200.0, 50.0, "sw")}
+        if i == 2 and "BTCUSDT" in p:
+            return {"BTCUSDT": ResolvedAction("BTCUSDT", "FLIP", "wallex", "ISOLATED_MARGIN", 1, 2.0, 200.0, 400.0, 200.0, 50.0, "fl")}
+        return {}
+
+    d_res, _ = simulate_dynamic_resolver(panel, vw_d, off_d, {}, _fn_flip, label="DYN_FLIP", cfg=cfg)
+    assert d_res.switches >= 2 and d_res.liquidations >= 1
+
+
+
 
 
 
