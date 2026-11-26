@@ -35,10 +35,30 @@ from .experiments.io_utils import (
 )
 
 
-def _simulate_strategy_on_bars(strategy_id: str, params: dict, bars: list) -> dict:
-    """Run a lightweight single-asset spot-only signal simulation on daily bars for DSR/fragility screening."""
-    strat = create_strategy(strategy_id, params)
+def _prepare_snapshots(bars: list, symbol: str) -> list[tuple[Snapshot, float, float]]:
+    """Pre-compute (Snapshot, close, bar_ret) once per bar to avoid 18x redundant Decimal/Snapshot allocations."""
     spec = BarSpec("1day", "MID")
+    out: list[tuple[Snapshot, float, float]] = []
+    for i, c in enumerate(bars):
+        close_d = Decimal(str(c.close))
+        bar = Bar(
+            symbol, spec, c.ts_start, c.ts_avail, c.ts_avail,
+            Decimal(str(c.open)), Decimal(str(c.high)), Decimal(str(c.low)), close_d,
+            Decimal(str(c.volume)), 1, False,
+        )
+        snap = Snapshot(
+            as_of=c.ts_avail, symbol=symbol, bar=bar,
+            bid=close_d * Decimal("0.9994"), ask=close_d * Decimal("1.0006"), quote_time=c.ts_avail,
+        )
+        prev_close = bars[i - 1].close if i > 0 else c.close
+        bar_ret = ((c.close - prev_close) / prev_close) if prev_close > 0 else 0.0
+        out.append((snap, c.close, bar_ret))
+    return out
+
+
+def _simulate_strategy_on_bars(strategy_id: str, params: dict, prepared: list[tuple[Snapshot, float, float]]) -> dict:
+    """Run a lightweight single-asset spot-only signal simulation on pre-built daily bar snapshots."""
+    strat = create_strategy(strategy_id, params)
     holding = False
     entry_px = 0.0
     daily_rets: list[float] = []
@@ -46,19 +66,7 @@ def _simulate_strategy_on_bars(strategy_id: str, params: dict, bars: list) -> di
     signals = 0
     fee_rt = 0.0032  # 32 bps conservative round-trip spot fee
 
-    for i, c in enumerate(bars):
-        close_d = Decimal(str(c.close))
-        bar = Bar(
-            "BTCUSDT", spec, c.ts_start, c.ts_avail, c.ts_avail,
-            Decimal(str(c.open)), Decimal(str(c.high)), Decimal(str(c.low)), close_d,
-            Decimal(str(c.volume)), 1, False,
-        )
-        snap = Snapshot(
-            as_of=c.ts_avail, symbol="BTCUSDT", bar=bar,
-            bid=close_d * Decimal("0.9994"), ask=close_d * Decimal("1.0006"), quote_time=c.ts_avail,
-        )
-        prev_close = bars[i - 1].close if i > 0 else c.close
-        bar_ret = ((c.close - prev_close) / prev_close) if prev_close > 0 else 0.0
+    for snap, close_f, bar_ret in prepared:
         daily_rets.append(bar_ret if holding else 0.0)
         try:
             action, _, _, _ = strat.decide(snap, holding)
@@ -66,15 +74,15 @@ def _simulate_strategy_on_bars(strategy_id: str, params: dict, bars: list) -> di
             action = "ABSTAIN"
         if action == "BUY_REQUEST" and not holding:
             holding = True
-            entry_px = c.close
+            entry_px = close_f
             signals += 1
         elif action == "SELL_REQUEST" and holding:
             holding = False
-            ep_ret = ((c.close - entry_px) / max(1e-9, entry_px)) - fee_rt
+            ep_ret = ((close_f - entry_px) / max(1e-9, entry_px)) - fee_rt
             episode_rets_bps.append(ep_ret * 10_000.0)
             signals += 1
-    if holding and bars:
-        ep_ret = ((bars[-1].close - entry_px) / max(1e-9, entry_px)) - fee_rt
+    if holding and prepared:
+        ep_ret = ((prepared[-1][1] - entry_px) / max(1e-9, entry_px)) - fee_rt
         episode_rets_bps.append(ep_ret * 10_000.0)
 
     n = len(daily_rets)
@@ -112,7 +120,8 @@ def audit_18_strategy_catalog(db_path: Path, *, symbol: str = "BTCUSDT") -> dict
             bars = load_keyed_candles(con, symbol, "1d")
     finally:
         con.close()
-    rows = [_simulate_strategy_on_bars(item["id"], dict(item.get("default_params") or {}), bars) for item in catalog()]
+    prepared = _prepare_snapshots(bars, symbol)
+    rows = [_simulate_strategy_on_bars(item["id"], dict(item.get("default_params") or {}), prepared) for item in catalog()]
     return {
         "symbol": symbol,
         "bars": len(bars),
