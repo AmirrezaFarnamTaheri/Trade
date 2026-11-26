@@ -9,11 +9,17 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from gym.api import _origin_allowed, guard
+from gym.domain.promoted_strategies import enforce_spot_only_strategy
 from gym.domain.quant_v3_gates import (
+    assert_irr_tmn_denomination_sane,
+    bayesian_fractional_kelly_size,
+    compute_deflated_sharpe_ratio,
     compute_leave_k_out_fragility,
     compute_local_fx_basis_stress,
     compute_ofi_toxicity,
     compute_pool_crowding_veto,
+    consensus_kalman_fx_rate,
+    decompose_dual_factor_fx_return,
     pre_trade_implementation_shortfall_gate,
 )
 from gym.services.experiments.gru_engine import EnsembleGRU, GRUArtifactError
@@ -100,9 +106,12 @@ def test_api_origin_and_session_rotate_rate_limit() -> None:
     assert _origin_allowed("http://localhost:8787") is True
     assert _origin_allowed("https://evil.example") is False
 
+    async def _health(_):
+        return web.json_response({"ok": True})
+
     async def _exercise() -> None:
         app = web.Application(middlewares=[guard("secret-token")])
-        app.router.add_get("/api/health", lambda _: web.json_response({"ok": True}))
+        app.router.add_get("/api/health", _health)
         async with TestClient(TestServer(app)) as client:
             r_bad_origin = await client.get("/api/health", headers={"Origin": "https://evil.example"})
             assert r_bad_origin.status == 403
@@ -118,3 +127,37 @@ def test_api_origin_and_session_rotate_rate_limit() -> None:
             assert r_limited.status == 429
 
     asyncio.run(_exercise())
+
+
+def test_adr_0009_spot_only_gate_and_quant_fx_dsr_kelly() -> None:
+    enforce_spot_only_strategy("slow-s1-trend", leverage=1.0, short_allowed=False)
+    with pytest.raises(ValueError, match="ADR 0009"):
+        enforce_spot_only_strategy("bear-short", short_allowed=True)
+    with pytest.raises(ValueError, match="ADR 0009"):
+        enforce_spot_only_strategy("levered-5x", leverage=5.0)
+
+    g, fx, basis = decompose_dual_factor_fx_return(0.05, 0.03, 0.015)
+    assert (g, fx, basis) == (0.015, 0.03, 0.005)
+
+    assert consensus_kalman_fx_rate([]) is None
+    assert consensus_kalman_fx_rate([(60000.0, 0.0)]) is None
+    # Tighter spread (5 bps) dominates wider spread (20 bps) by 16x weight
+    fx_rate = consensus_kalman_fx_rate([(60000.0, 5.0), (61000.0, 20.0)])
+    assert fx_rate is not None and 60000.0 < fx_rate < 60100.0
+
+    assert_irr_tmn_denomination_sane(60500.0, 60000.0)
+    with pytest.raises(ValueError, match="denomination mismatch"):
+        assert_irr_tmn_denomination_sane(600000.0, 60000.0)  # 10x IRR/TMN bug
+    with pytest.raises(ValueError, match="finite and positive"):
+        assert_irr_tmn_denomination_sane(-1.0, 60000.0)
+
+    assert compute_deflated_sharpe_ratio(1.0, 2, 10) == 0.0
+    dsr_single = compute_deflated_sharpe_ratio(0.20, 250, 1)
+    dsr_many = compute_deflated_sharpe_ratio(0.20, 250, 50)
+    assert 0.99 < dsr_single <= 1.0
+    assert 0.0 < dsr_many < dsr_single
+
+    assert bayesian_fractional_kelly_size(-0.01, 0.04, 0.01) == 0.0
+    sz_full = bayesian_fractional_kelly_size(0.03, 0.04, 0.02, kappa=0.25, max_fraction=0.30, drawdown=0.0)
+    sz_dd = bayesian_fractional_kelly_size(0.03, 0.04, 0.02, kappa=0.25, max_fraction=0.30, drawdown=0.075, max_drawdown=0.15)
+    assert 0.0 < sz_full < 0.30 and sz_dd == pytest.approx(sz_full * 0.5, rel=1e-3)

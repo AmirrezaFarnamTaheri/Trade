@@ -75,6 +75,19 @@ class SlowCorePolicy:
     slow_cash_reserve_frac: float = 0.15
 
 
+def enforce_spot_only_strategy(
+    strategy_id: str,
+    *,
+    leverage: float = 1.0,
+    short_allowed: bool = False,
+) -> None:
+    """ADR 0009 hard spot-only gate: reject leveraged or short strategies until MarginAccount ships."""
+    if short_allowed:
+        raise ValueError(f"spot-only gate rejected short-enabled strategy {strategy_id!r} (ADR 0009)")
+    if leverage > 1.0 + 1e-9 or leverage <= 0.0:
+        raise ValueError(f"spot-only gate rejected leverage={leverage} for {strategy_id!r} (ADR 0009)")
+
+
 def apply_cost_aware_band(
     target_weights: dict[str, float],
     current_weights: dict[str, float],
